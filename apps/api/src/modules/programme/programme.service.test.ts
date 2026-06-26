@@ -58,6 +58,7 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         endTime: '09:00',
         matchGapSeconds: 0,
         matchDurationMinutes: 0,
+        minRestMinutes: 0,
       },
       {
         id: 'new-break',
@@ -73,6 +74,7 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         endTime: '09:15',
         matchGapSeconds: 0,
         matchDurationMinutes: 0,
+        minRestMinutes: 0,
       },
       {
         id: 'new-workshop',
@@ -88,6 +90,7 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         endTime: '10:15',
         matchGapSeconds: 0,
         matchDurationMinutes: 0,
+        minRestMinutes: 0,
       },
       {
         id: 'new-competition',
@@ -103,6 +106,7 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         endTime: '11:15',
         matchGapSeconds: 15,
         matchDurationMinutes: 5,
+        minRestMinutes: 10,
       },
     ],
     ...overrides,
@@ -381,6 +385,7 @@ describe('ProgrammeService', () => {
       parallelLiceCount: 1,
       matchDurationMinutes: 5,
       matchGapSeconds: 15,
+      minRestMinutes: 10,
       breakBetweenSessionsMinutes: 10,
       middayBreakStart: '12:00',
       middayBreakEnd: '13:00',

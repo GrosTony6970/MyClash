@@ -34,6 +34,7 @@ interface SuggestConfig {
   parallelLiceCount: number;
   matchDurationMinutes: number;
   matchGapSeconds: number;
+  minRestMinutes: number;
   breakBetweenSessionsMinutes: number;
   middayBreakStart: string;
   middayBreakEnd: string;
@@ -50,6 +51,7 @@ const DEFAULT_CONFIG: SuggestConfig = {
   parallelLiceCount: 0,
   matchDurationMinutes: 5,
   matchGapSeconds: 10,
+  minRestMinutes: 10,
   breakBetweenSessionsMinutes: 10,
   middayBreakStart: '12:00',
   middayBreakEnd: '13:00',
@@ -246,6 +248,7 @@ export function ProgrammePlanner({
       endTime: b.endTime,
       matchGapSeconds: b.matchGapSeconds,
       matchDurationMinutes: b.matchDurationMinutes,
+      minRestMinutes: b.minRestMinutes,
       colorHex: b.colorHex ?? null,
     }));
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
@@ -408,6 +411,7 @@ export function ProgrammePlanner({
       endTime,
       matchGapSeconds: 0,
       matchDurationMinutes: 0,
+      minRestMinutes: 10,
       colorHex: null,
       generatedAt: null,
     };
@@ -493,6 +497,7 @@ export function ProgrammePlanner({
               ['Parallel lices', 'parallelLiceCount', 'number'],
               ['Match duration (min)', 'matchDurationMinutes', 'number'],
               ['Match gap (sec)', 'matchGapSeconds', 'number'],
+              ['Min rest / fighter (min)', 'minRestMinutes', 'number'],
               ['Break between sessions (min)', 'breakBetweenSessionsMinutes', 'number'],
               ['Midday break start', 'middayBreakStart', 'time'],
               ['Midday break end', 'middayBreakEnd', 'time'],
@@ -866,6 +871,16 @@ function BlockRow({
                   min={0}
                   value={block.matchGapSeconds}
                   onChange={(e) => onChange({ matchGapSeconds: Number(e.target.value) })}
+                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600 w-20"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-gray-500">Min rest / fighter (min)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={block.minRestMinutes}
+                  onChange={(e) => onChange({ minRestMinutes: Number(e.target.value) })}
                   className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600 w-20"
                 />
               </label>

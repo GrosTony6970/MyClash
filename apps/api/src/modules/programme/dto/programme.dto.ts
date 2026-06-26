@@ -11,6 +11,7 @@ const suggestProgrammeSchema = z
     parallelLiceCount: z.number().int().min(1),
     matchDurationMinutes: z.number().int().min(1),
     matchGapSeconds: z.number().int().min(0),
+    minRestMinutes: z.number().int().min(0),
     breakBetweenSessionsMinutes: z.number().int().min(0),
     middayBreakStart: z.string().regex(HH_MM),
     middayBreakEnd: z.string().regex(HH_MM),
@@ -36,6 +37,7 @@ const programmeBlockSchema = z
     endTime: z.string().regex(HH_MM),
     matchGapSeconds: z.number().int().min(0),
     matchDurationMinutes: z.number().int().min(0),
+    minRestMinutes: z.number().int().min(0),
     colorHex: z.string().regex(HEX_COLOR).nullish(),
   })
   .strict();
@@ -89,6 +91,7 @@ const scheduleGroupSchema = z
     mode: z.enum(['pool', 'bracket-branch']),
     matchDurationMinutes: z.number().int().min(1).optional(),
     matchGapSeconds: z.number().int().min(0).optional(),
+    minRestMinutes: z.number().int().min(0).optional(),
   })
   .strict();
 export class ScheduleGroupDto extends createZodDto(scheduleGroupSchema) {}
@@ -118,6 +121,7 @@ const createBlockSchema = z
     liceCount: z.number().int().min(0).optional(),
     matchGapSeconds: z.number().int().min(0).optional(),
     matchDurationMinutes: z.number().int().min(0).optional(),
+    minRestMinutes: z.number().int().min(0).optional(),
     competitionId: z.uuid().nullish(),
     competitionPhase: z.enum(['pool', 'bracket', 'finals']).nullish(),
     workshopId: z.uuid().nullish(),

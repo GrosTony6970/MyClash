@@ -174,6 +174,7 @@ export class LiveStateService {
       endTime: r['end_time'] as string,
       matchGapSeconds: r['match_gap_seconds'] as number,
       matchDurationMinutes: r['match_duration_minutes'] as number,
+      minRestMinutes: r['min_rest_minutes'] as number,
       colorHex: (r['color_hex'] as string | null) ?? null,
       generatedAt: (r['generated_at'] as string | null) ?? null,
     };

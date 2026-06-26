@@ -117,6 +117,7 @@ export class ProgrammeService {
         end_time: b.endTime,
         match_gap_seconds: b.matchGapSeconds,
         match_duration_minutes: b.matchDurationMinutes,
+        min_rest_minutes: b.minRestMinutes,
         color_hex: b.colorHex ?? null,
       };
       if (b.id && !b.id.startsWith('new-')) row['id'] = b.id;
@@ -196,6 +197,7 @@ export class ProgrammeService {
       parallelLiceCount: dto.parallelLiceCount,
       matchDurationMinutes: dto.matchDurationMinutes,
       matchGapSeconds: dto.matchGapSeconds,
+      minRestMinutes: dto.minRestMinutes,
       breakBetweenSessionsMinutes: dto.breakBetweenSessionsMinutes,
       middayBreakStart: dto.middayBreakStart,
       middayBreakEnd: dto.middayBreakEnd,
@@ -317,7 +319,10 @@ export class ProgrammeService {
     let middayInserted = false;
 
     const push = (
-      partial: Omit<ProgrammeBlock, 'id' | 'eventId' | 'sortOrder' | 'generatedAt' | 'colorHex'>,
+      partial: Omit<
+        ProgrammeBlock,
+        'id' | 'eventId' | 'sortOrder' | 'generatedAt' | 'colorHex' | 'minRestMinutes'
+      > & { minRestMinutes?: number },
       neededMin = 0,
     ): void => {
       const b: ProgrammeBlock = {
@@ -326,6 +331,9 @@ export class ProgrammeService {
         sortOrder: sortOrder++,
         colorHex: null,
         generatedAt: null,
+        // Non-competition blocks don't schedule matches → rest is irrelevant (0);
+        // competition blocks override this with cfg.minRestMinutes below.
+        minRestMinutes: 0,
         ...partial,
       };
       blocks.push(b);
@@ -432,6 +440,7 @@ export class ProgrammeService {
           endTime: minToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
           matchDurationMinutes: cfg.matchDurationMinutes,
+          minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
       );
@@ -477,6 +486,7 @@ export class ProgrammeService {
           endTime: minToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
           matchDurationMinutes: cfg.matchDurationMinutes,
+          minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
       );
@@ -678,6 +688,7 @@ export class ProgrammeService {
             startTime: blockStartDt.toISOString(),
             defaultMatchDurationMinutes: block.matchDurationMinutes,
             transitionMinutes: block.matchGapSeconds / 60,
+            minRestMinutes: block.minRestMinutes,
             // Pools stay on one lice; single-elim brackets use branch-aware
             // grouping; anything else is greedy.
             poolAffinity,
@@ -1099,6 +1110,7 @@ export class ProgrammeService {
         startTime: dto.startTime,
         defaultMatchDurationMinutes: matchDuration,
         transitionMinutes: (dto.matchGapSeconds ?? 0) / 60,
+        minRestMinutes: dto.minRestMinutes ?? 10,
         poolAffinity: dto.mode === 'pool' ? 'strict' : 'bracket-branch',
         liceBusyUntil,
       },
@@ -1159,6 +1171,7 @@ export class ProgrammeService {
         end_time: dto.endTime,
         match_gap_seconds: dto.matchGapSeconds ?? 0,
         match_duration_minutes: dto.matchDurationMinutes ?? 0,
+        min_rest_minutes: dto.minRestMinutes ?? 10,
         color_hex: dto.colorHex ?? null,
       })
       .select('*')
@@ -1480,6 +1493,7 @@ export class ProgrammeService {
       endTime: trimSeconds(raw['end_time'] as string),
       matchGapSeconds: raw['match_gap_seconds'] as number,
       matchDurationMinutes: raw['match_duration_minutes'] as number,
+      minRestMinutes: raw['min_rest_minutes'] as number,
       colorHex: (raw['color_hex'] as string | null) ?? null,
       generatedAt: (raw['generated_at'] as string | null) ?? null,
     };
