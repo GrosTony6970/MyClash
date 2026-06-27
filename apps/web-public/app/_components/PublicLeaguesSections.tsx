@@ -138,7 +138,7 @@ function LeagueTableHeader() {
 function SectionHeader({ id, title, count }: { id: string; title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 id={id} className="font-display text-lg font-semibold text-slate-900">
+      <h2 id={id} className="font-display font-semibold text-lg sm:text-xl text-slate-900">
         {title}
       </h2>
       <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{count}</span>

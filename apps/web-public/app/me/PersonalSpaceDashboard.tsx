@@ -106,10 +106,10 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
     <main className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#1d4ed8]">
             {t('publicApp.personalSpace.eyebrow')}
           </p>
-          <h1 className="mt-2 text-3xl font-black text-[#0f172a]">
+          <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl text-[#0f172a]">
             {t('publicApp.personalSpace.title')}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
@@ -168,7 +168,7 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
 
             <section className="grid gap-4">
               <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-black text-[#0f172a]">
+                <h2 className="font-display font-semibold text-lg sm:text-xl text-[#0f172a]">
                   {t('publicApp.personalSpace.profileTitle')}
                 </h2>
                 {globalPerson ? (
@@ -591,7 +591,7 @@ function ClaimableCard({
     <section className="rounded-lg border border-[#1d4ed8]/30 bg-[#1d4ed8]/5 p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-black text-[#0f172a]">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-[#0f172a]">
             {t('publicApp.personalSpace.claimable.title')}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">

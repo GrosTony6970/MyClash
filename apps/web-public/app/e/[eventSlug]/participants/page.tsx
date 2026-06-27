@@ -126,7 +126,9 @@ export default async function ParticipantsPage({
             </div>
           )}
           <div className="flex-1">
-            <p className="text-xs uppercase tracking-wider text-slate-500">Participants</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Participants
+            </p>
             <h1 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
               {event.name}
             </h1>

@@ -246,7 +246,7 @@ export function WorkshopsBrowser({
         <div className="flex flex-col gap-8">
           {groups.map((group) => (
             <section key={group.key}>
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 {dayLabel(group.key)}
               </h2>
               <div className="flex flex-col gap-4">

@@ -1163,13 +1163,13 @@ export default function NewEventPage() {
         </Button>
 
         {state.step < 4 ? (
-          <Button type="button" variant="next" data-testid="wizard-next" onClick={handleNext}>
+          <Button type="button" variant="primary" data-testid="wizard-next" onClick={handleNext}>
             {t('organizer.newEvent.next')}
           </Button>
         ) : (
           <Button
             type="button"
-            variant="next"
+            variant="primary"
             data-testid="wizard-create"
             onClick={() => void handleCreate()}
             disabled={state.submitting}

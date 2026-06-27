@@ -80,7 +80,7 @@ export function StandingsTable({
       aria-label={`${poolName} standings`}
       aria-live="polite"
     >
-      <h3 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-slate-900">
+      <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold text-slate-900 sm:text-xl">
         {poolName}
         {updating && (
           <span

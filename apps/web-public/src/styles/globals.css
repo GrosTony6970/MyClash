@@ -19,4 +19,66 @@
   --font-display: var(--font-fraunces), 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
   --font-body: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /*
+   * Semantic color tokens — the single source of truth for surfaces.
+   * Components reference these (bg-background / bg-surface / text-foreground /
+   * text-muted / border-border / bg-accent|text-accent) and NEVER hardcode a
+   * hex or a raw palette class. These are the LIGHT-surface defaults
+   * (landing, /e/* event pages, /leagues, profiles); the dark surface
+   * (/me personal space + auth) remaps the SAME tokens under
+   * [data-theme='dark'] below.
+   *
+   * Plain @theme (NOT @theme inline) on purpose: the generated utilities
+   * resolve via var(--color-*), so the dark scope can override them at runtime.
+   */
+  --color-background: #fafaf9; /* stone-50 — page surface */
+  --color-surface: #ffffff; /* white — cards / raised panels */
+  --color-foreground: #0f172a; /* slate-900 — primary text */
+  --color-muted: #64748b; /* slate-500 — secondary text */
+  --color-border: #e7e5e4; /* stone-200 — hairlines */
+  --color-accent: #b91c1c; /* red-700 — primary action / active (LIGHT) */
+  --color-accent-hover: #991b1b; /* red-800 */
+  --color-accent-foreground: #ffffff; /* text on accent */
+  --color-gold: #f59e0b; /* gold-500 — decorative "tournament manual" flourish (eyebrows/badges), NOT a warning */
+
+  /* Status (badges / alerts only — never the page accent). */
+  --color-danger: #dc2626; /* red-600 */
+  --color-danger-foreground: #ffffff;
+  --color-success: #16a34a; /* green-600 */
+  --color-success-foreground: #ffffff;
+  --color-warning: #d97706; /* gold-600 */
+  --color-warning-foreground: #ffffff;
+  --color-info: #2563eb; /* blue-600 */
+  --color-info-foreground: #ffffff;
+}
+
+/*
+ * Surface lightness and accent identity are ORTHOGONAL:
+ *   - data-theme="dark"     → dark SURFACE tokens (bg/surface/text/border/status)
+ *   - data-accent="personal" → blue ACCENT (the /me identity)
+ * So personal space carries blue across BOTH its light zones (e.g. the /me
+ * content + header) and its dark zones (the sidebar), while public/event pages
+ * keep the default red accent. (Decision: Tony, 2026-06-27.)
+ */
+
+/* Dark surface — the /me sidebar/drawer + auth pages (/login, /reset-password). */
+[data-theme='dark'] {
+  --color-background: #0f172a; /* slate-900 */
+  --color-surface: #1e293b; /* slate-800 */
+  --color-foreground: #f1f5f9; /* slate-100 */
+  --color-muted: #94a3b8; /* slate-400 */
+  --color-border: #334155; /* slate-700 */
+  --color-gold: #fbbf24; /* gold-400 — brighter for contrast on dark */
+
+  --color-danger: #ef4444; /* red-500 */
+  --color-success: #22c55e; /* green-500 */
+  --color-warning: #f59e0b; /* gold-500 */
+  --color-info: #60a5fa; /* blue-400 */
+}
+
+/* Personal-space accent — blue, applied to the whole /me shell + auth. */
+[data-accent='personal'] {
+  --color-accent: #1d4ed8; /* blue-700 */
+  --color-accent-hover: #2563eb; /* blue-600 */
 }

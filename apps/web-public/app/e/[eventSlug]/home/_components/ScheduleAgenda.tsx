@@ -24,7 +24,7 @@ export function ScheduleAgenda({
     <div className="flex flex-col gap-4">
       {days.map((day) => (
         <div key={day.dayKey}>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
             {formatInZone(day.repStart, tz, { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">

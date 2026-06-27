@@ -161,7 +161,9 @@ export default function LivePage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📅</p>
-          <h1 className="text-xl font-bold text-white mb-2">Schedule not available</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+            Schedule not available
+          </h1>
           <p className="text-gray-400 text-sm">No live schedule data found for this event.</p>
         </div>
       </main>
@@ -197,8 +199,8 @@ export default function LivePage() {
         </button>
 
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Piste</p>
-          <h1 className="text-2xl font-bold text-white">{ls.lice.name}</h1>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Piste</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">{ls.lice.name}</h1>
         </div>
 
         {state.currentBlock && (
@@ -218,7 +220,9 @@ export default function LivePage() {
 
         {ls.nextMatch && (
           <div>
-            <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Up next</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+              Up next
+            </p>
             <MatchCard match={ls.nextMatch} label="Next" />
           </div>
         )}
@@ -234,23 +238,31 @@ export default function LivePage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Live schedule</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+            Live schedule
+          </p>
           {state.currentBlock ? (
             <>
-              <h1 className="text-2xl font-bold text-white">{state.currentBlock.label}</h1>
+              <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+                {state.currentBlock.label}
+              </h1>
               <p className="text-sm text-gray-400 mt-0.5">
                 {formatTime(state.currentBlock.startTime)}–{formatTime(state.currentBlock.endTime)}
               </p>
             </>
           ) : state.nextBlock ? (
             <>
-              <h1 className="text-2xl font-bold text-gray-400">Between sessions</h1>
+              <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-400">
+                Between sessions
+              </h1>
               <p className="text-sm text-gray-500 mt-0.5">
                 Next: {state.nextBlock.label} at {formatTime(state.nextBlock.startTime)}
               </p>
             </>
           ) : (
-            <h1 className="text-2xl font-bold text-gray-400">No active session</h1>
+            <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-400">
+              No active session
+            </h1>
           )}
         </div>
         {anyRunning && <LiveBadge />}

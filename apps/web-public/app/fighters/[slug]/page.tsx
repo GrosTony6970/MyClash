@@ -287,7 +287,7 @@ export default async function FighterPage({ params }: Props) {
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-gray-700 bg-gray-900 text-xl font-black text-gray-300">
             ?
           </div>
-          <h1 className="mb-2 text-xl font-bold text-white">
+          <h1 className="mb-2 font-display font-bold text-2xl sm:text-3xl text-white">
             {t('publicApp.fighterProfile.notFoundTitle')}
           </h1>
           <p className="text-sm text-gray-400">
@@ -306,7 +306,7 @@ export default async function FighterPage({ params }: Props) {
   const overallStats = career?.stats.overall;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6">
+    <main className="mx-auto max-w-6xl px-4 py-6">
       <div className="mb-6 flex items-start gap-4">
         {fighter.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -322,7 +322,9 @@ export default async function FighterPage({ params }: Props) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold text-white">{fighter.displayName}</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+            {fighter.displayName}
+          </h1>
           {fighter.clubName && (
             <Link
               href={`/clubs/${fighter.clubSlug ?? ''}`}
@@ -372,7 +374,7 @@ export default async function FighterPage({ params }: Props) {
 
       {overallStats && (
         <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
             {t('publicApp.fighterProfile.stats')}
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -397,7 +399,7 @@ export default async function FighterPage({ params }: Props) {
         <section className="mb-6 rounded-xl border border-amber-700/50 bg-amber-950/20 p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
                 {t('publicApp.fighterProfile.hemaRatings')}
               </h2>
               <a
@@ -461,7 +463,7 @@ export default async function FighterPage({ params }: Props) {
 
       {refereeStats && refereeStats.totalMatches > 0 && (
         <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
             {t('publicApp.fighterProfile.refereeing')}
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -571,7 +573,7 @@ export default async function FighterPage({ params }: Props) {
 
       {live.length > 0 && (
         <section className="mb-6">
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-red-400">
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-red-400">
             <span className="h-2 w-2 rounded-full bg-red-500" />
             {t('publicApp.fighterProfile.liveNow')}
           </h2>
@@ -600,7 +602,7 @@ export default async function FighterPage({ params }: Props) {
 
       {history.length > 0 ? (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
             {t('publicApp.fighterProfile.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -655,7 +657,9 @@ export default async function FighterPage({ params }: Props) {
 function ProfilePanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">{title}</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
+        {title}
+      </h2>
       {children}
     </div>
   );
@@ -692,7 +696,9 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 function CareerList({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">{title}</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
+        {title}
+      </h2>
       <ul className="space-y-3 text-sm text-gray-300">{children}</ul>
     </div>
   );

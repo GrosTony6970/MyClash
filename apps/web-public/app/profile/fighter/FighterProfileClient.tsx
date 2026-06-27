@@ -342,7 +342,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     if (claimable.length > 0) {
       return (
         <section className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="text-sm font-semibold text-gray-100">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-gray-100">
             {t('publicApp.personalSpace.claimable.title')}
           </h2>
           <p className="mt-1 text-xs text-gray-400">
@@ -461,7 +461,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         </div>
 
         <div className="mt-4">
-          <h2 className="mb-2 text-sm font-semibold text-white">
+          <h2 className="mb-2 font-display font-semibold text-lg sm:text-xl text-white">
             {t('publicApp.fighterProfile.weapons')}
           </h2>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -523,7 +523,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
 
       {dashboard && (
         <aside className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
             {t('publicApp.fighterProfile.stats')}
           </h2>
           <div className="grid gap-2">
@@ -542,7 +542,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           </div>
           {dashboard.refereeStats && dashboard.refereeStats.totalMatches > 0 && (
             <div className="mt-5 border-t border-gray-800 pt-4">
-              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
                 {t('publicApp.fighterProfile.refereeing')}
               </h2>
               <div className="grid gap-2">

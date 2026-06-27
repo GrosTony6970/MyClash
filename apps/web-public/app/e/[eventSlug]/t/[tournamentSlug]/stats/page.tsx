@@ -140,7 +140,9 @@ export default async function StatsPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📊</p>
-          <h1 className="text-xl font-bold text-white mb-2">Stats not available</h1>
+          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
+            Stats not available
+          </h1>
           <Link
             href={`/e/${eventSlug}/t/${tournamentSlug}`}
             className="text-sm text-gray-400 hover:underline"
@@ -165,7 +167,7 @@ export default async function StatsPage({ params }: Props) {
   const totalEx = overview?.exchangeCount ?? 1;
 
   return (
-    <main className="px-4 py-6 max-w-5xl mx-auto">
+    <main className="px-4 py-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -176,7 +178,7 @@ export default async function StatsPage({ params }: Props) {
             ← Tournament
           </Link>
           <h1
-            className="text-2xl font-bold"
+            className="font-display text-2xl font-bold sm:text-3xl"
             style={{
               fontFamily: 'var(--font-display)',
               color: 'var(--event-primary, #c0392b)',
@@ -214,7 +216,7 @@ export default async function StatsPage({ params }: Props) {
       {overview && overview.exchangeCount > 0 && (
         <section className="mb-8">
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Exchange distribution
@@ -267,7 +269,7 @@ export default async function StatsPage({ params }: Props) {
       {overview && overview.topFighters.length > 0 && (
         <section className="mb-8">
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Top fighters — blow ratio (mode-independent)
@@ -303,7 +305,7 @@ export default async function StatsPage({ params }: Props) {
       {sorted.length > 0 && (
         <section>
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Detailed stats

@@ -72,7 +72,7 @@ function ClaimForm() {
   if (submitted) {
     return (
       <div className="w-full max-w-sm text-center">
-        <h1 className="text-2xl font-bold mb-4">Check your email</h1>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl mb-4">Check your email</h1>
         <p className="text-gray-600">
           We sent a confirmation link to <strong>{email}</strong>. Click it to confirm your profile
           and access your schedule across all your devices.
@@ -84,7 +84,7 @@ function ClaimForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <h1 className="text-2xl font-bold mb-2">Confirm your profile</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-2">Confirm your profile</h1>
       <p className="text-gray-600 mb-8">
         Enter the email address the organizer registered for you. We&apos;ll send you a confirmation
         link.

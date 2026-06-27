@@ -160,7 +160,9 @@ export default function WorkshopDetailPage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📚</p>
-          <h1 className="mb-3 text-xl font-bold text-gray-900">Workshop not found</h1>
+          <h1 className="mb-3 font-display text-2xl font-bold text-gray-900 sm:text-3xl">
+            Workshop not found
+          </h1>
           <BackLink href={`/e/${eventSlug}/workshops`} label="Workshops" className="mx-auto" />
         </div>
       </main>
@@ -172,7 +174,7 @@ export default function WorkshopDetailPage() {
   const tz = workshop.eventTimezone ?? 'Europe/Paris';
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:max-w-6xl">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
       {/* Toast */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm px-4 py-2 rounded-xl shadow-lg">
@@ -261,7 +263,7 @@ export default function WorkshopDetailPage() {
         {/* Sessions */}
         <section>
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Sessions

@@ -137,7 +137,7 @@ export default function PersonaPage({ params }: Props) {
       {/* Header */}
       <div className="mb-6">
         <h1
-          className="text-2xl font-bold mb-1"
+          className="font-display font-bold text-2xl sm:text-3xl mb-1"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
           How are you here today?

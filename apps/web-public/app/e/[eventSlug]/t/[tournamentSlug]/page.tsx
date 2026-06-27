@@ -246,7 +246,9 @@ export default async function TournamentPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center">
           <p className="text-4xl mb-3">⚔️</p>
-          <h1 className="text-xl font-bold text-white mb-2">Tournament not found</h1>
+          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
+            Tournament not found
+          </h1>
           <p className="text-gray-400 text-sm">
             Check the URL or come back when the schedule is published.
           </p>
@@ -260,7 +262,7 @@ export default async function TournamentPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="max-w-md text-center">
           <p className="text-4xl mb-3">⚠️</p>
-          <h1 className="text-xl font-bold text-white mb-2">
+          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
             This tournament couldn&apos;t be loaded
           </h1>
           <p className="text-gray-400 text-sm">

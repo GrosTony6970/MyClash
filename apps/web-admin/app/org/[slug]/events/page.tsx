@@ -919,7 +919,7 @@ export default function OrgEventsListPage() {
               <Button type="button" variant="cancel" onClick={closeEdit}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" variant="next" loading={busyId === editing.id}>
+              <Button type="submit" variant="primary" loading={busyId === editing.id}>
                 {t('organizer.events.save')}
               </Button>
             </div>

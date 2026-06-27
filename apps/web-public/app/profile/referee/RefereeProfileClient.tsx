@@ -86,7 +86,7 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <section className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
           {t('publicApp.fighterProfile.refereeHistory')}
         </h2>
         {stats.history?.length ? (
@@ -116,7 +116,7 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
       </section>
 
       <aside className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
           {t('publicApp.fighterProfile.refereeing')}
         </h2>
         <div className="grid gap-2">
@@ -150,7 +150,7 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
 
         {stats.bestBuddies.length > 0 && (
           <div className="mt-5 border-t border-gray-800 pt-4">
-            <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-amber-400">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
               {t('publicApp.fighterProfile.bestRefereeBuddies')}
             </h3>
             <ul className="space-y-2 text-sm text-gray-300">

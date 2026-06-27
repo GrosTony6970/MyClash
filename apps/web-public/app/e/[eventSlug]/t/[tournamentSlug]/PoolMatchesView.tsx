@@ -256,7 +256,7 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
         >
           <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <h3 className={`font-display text-lg font-semibold ${titleClass}`}>
+              <h3 className={`font-display text-lg font-semibold sm:text-xl ${titleClass}`}>
                 {pool.poolName}
               </h3>
               {(() => {

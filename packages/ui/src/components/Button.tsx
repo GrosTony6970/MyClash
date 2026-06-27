@@ -6,7 +6,6 @@ export type ButtonVariant =
   | 'ghost'
   | 'danger'
   | 'gold'
-  | 'next'
   | 'back'
   | 'cancel';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -20,14 +19,17 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-red-700 hover:bg-red-800 active:bg-red-900 text-white border-transparent shadow-sm',
+  // `primary` is accent-aware: apps that define --color-accent (web-public:
+  // red on light, blue under data-accent="personal") get it; others (web-admin,
+  // web-scoring) fall back to the brand red so nothing changes for them.
+  primary:
+    'bg-[var(--color-accent,#b91c1c)] hover:bg-[var(--color-accent-hover,#991b1b)] active:bg-[var(--color-accent-hover,#991b1b)] text-[var(--color-accent-foreground,#ffffff)] border-transparent shadow-sm',
   secondary:
     'bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white border-transparent shadow-sm',
   ghost:
     'bg-transparent hover:bg-white/10 active:bg-white/20 text-white border-white/20 hover:border-white/40',
   danger: 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-transparent shadow-sm',
   gold: 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-gray-900 border-transparent font-bold shadow-[0_0_12px_rgb(245_158_11_/_0.4)]',
-  next: 'bg-red-700 hover:bg-red-800 active:bg-red-900 text-white border-transparent shadow-sm',
   back: 'bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border-slate-300 shadow-sm',
   cancel: 'bg-transparent hover:bg-slate-100 active:bg-slate-200 text-slate-600 border-transparent',
 };

@@ -177,7 +177,7 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             loading={loadingAction === 'password'}
-            variant="next"
+            variant="primary"
             className="w-full"
           >
             {loadingAction === 'password' ? t('auth.login.signingIn') : t('auth.login.signIn')}

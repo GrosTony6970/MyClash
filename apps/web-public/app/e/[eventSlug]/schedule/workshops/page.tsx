@@ -30,7 +30,7 @@ export default async function WorkshopSchedulePage({ params }: Props) {
   const tz = event?.timezone ?? 'Europe/Paris';
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
       <BackLink
         href={`/e/${eventSlug}/home`}
         label={tr('publicApp.eventHome.backToHome')}

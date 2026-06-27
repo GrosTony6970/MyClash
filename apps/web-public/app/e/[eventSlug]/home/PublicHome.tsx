@@ -94,7 +94,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Participants
           </h2>
           <Link
@@ -128,7 +128,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {tournaments.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Tournaments
             </h2>
             {tournaments.length > 3 && (
@@ -157,7 +157,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {workshops.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               {tr('publicApp.eventHome.section.workshops')}
             </h2>
             {workshops.length > 6 && (
@@ -185,7 +185,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {(tournaments.length > 0 || workshops.length > 0) && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             {tr('publicApp.eventHome.section.schedule')}
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -240,7 +240,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {venues.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Venues
           </h2>
           <div className={CARD_SCROLL_2}>
@@ -298,7 +298,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {!isCompleted && live.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-700">
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
             Live now
           </h2>
@@ -334,7 +334,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {!isCompleted && upcoming.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Schedule highlights
           </h2>
           <div className="flex flex-col gap-2">

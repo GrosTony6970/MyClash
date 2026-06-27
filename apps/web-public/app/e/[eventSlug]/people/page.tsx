@@ -78,7 +78,7 @@ export default function PeoplePage() {
   return (
     <main className="px-4 py-6 max-w-lg mx-auto">
       <h1
-        className="text-2xl font-bold mb-4"
+        className="font-display font-bold text-2xl sm:text-3xl mb-4"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
       >
         {t('publicApp.people.title')}

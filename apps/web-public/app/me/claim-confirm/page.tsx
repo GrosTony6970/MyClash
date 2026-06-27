@@ -118,7 +118,9 @@ function ClaimConfirm() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="w-full max-w-sm text-center">
-          <h1 className="mb-4 text-2xl font-bold">{t('publicApp.claim.errorTitle')}</h1>
+          <h1 className="mb-4 font-display font-bold text-2xl sm:text-3xl">
+            {t('publicApp.claim.errorTitle')}
+          </h1>
           <p className="text-red-600" role="alert">
             {t(error.messageKey)}
           </p>
@@ -139,7 +141,9 @@ function ClaimConfirm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm text-center">
-        <h1 className="mb-4 text-2xl font-bold">{t('publicApp.claim.confirming')}</h1>
+        <h1 className="mb-4 font-display font-bold text-2xl sm:text-3xl">
+          {t('publicApp.claim.confirming')}
+        </h1>
         <p className="text-gray-600">{t('publicApp.claim.confirmingWait')}</p>
       </div>
     </main>

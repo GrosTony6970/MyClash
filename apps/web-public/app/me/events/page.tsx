@@ -14,9 +14,9 @@ export const revalidate = 0;
 export default function PersonalSpaceEventsPage() {
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <section>
-          <p className="font-display text-2xl font-semibold text-slate-900">
+          <p className="font-display font-bold text-2xl sm:text-3xl text-slate-900">
             {t('publicApp.personalShell.nav.events')}
           </p>
         </section>

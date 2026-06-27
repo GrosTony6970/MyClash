@@ -123,7 +123,7 @@ export async function PublicEventsBrowser({ personal = false }: { personal?: boo
 
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-      <h2 className="font-display text-lg font-semibold text-slate-900">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-slate-900">
         {unavailable ? t('publicApp.home.unavailableTitle') : t('publicApp.home.emptyTitle')}
       </h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">

@@ -132,7 +132,7 @@ function ResetPassword() {
 
         <Button
           type="button"
-          variant="next"
+          variant="primary"
           className="mt-5 w-full py-3"
           disabled={phase === 'submitting' || !validation.ok || password !== confirm}
           loading={phase === 'submitting'}

@@ -160,7 +160,9 @@ export default function RefereeMatchPage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">⚔️</p>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Match not found</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
+            Match not found
+          </h1>
           <Link href={`/e/${eventSlug}/referee`} className="text-sm text-gray-500 hover:underline">
             ← Back to duties
           </Link>
@@ -182,7 +184,7 @@ export default function RefereeMatchPage() {
       {/* Match header */}
       <div className="mb-4">
         <h1
-          className="text-xl font-bold"
+          className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
           {match.matchNumberLabel}

@@ -45,10 +45,10 @@ export default async function WorkshopsPage({ params }: Props) {
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl px-4 py-6">
       <BackLink href={`/e/${eventSlug}/home`} label="Back to event home" className="mb-4" />
       <h1
-        className="mb-4 text-2xl font-bold"
+        className="mb-4 font-display text-2xl font-bold sm:text-3xl"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
       >
         Workshops

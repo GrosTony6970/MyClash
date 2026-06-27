@@ -100,7 +100,7 @@ export default function RefereeDashboardPage() {
     <main className="px-4 py-6 max-w-lg mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1
-          className="text-2xl font-bold"
+          className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
           My Referee Duties

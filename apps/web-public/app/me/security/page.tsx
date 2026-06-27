@@ -55,7 +55,9 @@ export default function SecurityPage() {
     <main className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <header>
-          <h1 className="text-3xl font-black text-[#0f172a]">{t('publicApp.security.title')}</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#0f172a]">
+            {t('publicApp.security.title')}
+          </h1>
           <p className="mt-2 text-sm text-slate-600">{t('publicApp.security.subtitle')}</p>
         </header>
 
@@ -120,7 +122,7 @@ function ChangePasswordSection({
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-black text-[#0f172a]">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-[#0f172a]">
         {t('publicApp.security.changePasswordTitle')}
       </h2>
 
@@ -158,7 +160,7 @@ function ChangePasswordSection({
             type="button"
             disabled={busy || !validation.ok || newPassword !== confirm || !currentPassword}
             loading={busy}
-            variant="next"
+            variant="primary"
             onClick={() => void submit()}
           >
             {busy ? t('common.loading') : t('publicApp.security.changePasswordAction')}
@@ -243,7 +245,9 @@ function DeleteAccountSection({
 
   return (
     <section className="rounded-lg border border-red-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-black text-red-800">{t('publicApp.security.deleteTitle')}</h2>
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-red-800">
+        {t('publicApp.security.deleteTitle')}
+      </h2>
       <p className="mt-2 text-sm text-slate-600">{t('publicApp.security.deleteSubtitle')}</p>
 
       {!open ? (

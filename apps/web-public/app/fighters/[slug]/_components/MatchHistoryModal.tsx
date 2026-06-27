@@ -89,7 +89,7 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
         style={{ maxHeight: '85vh' }}
       >
         <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-amber-400">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
             {t('publicApp.fighterProfile.matchHistoryTitle')}
           </h2>
           <button

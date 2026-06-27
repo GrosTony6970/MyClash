@@ -25,9 +25,11 @@ export default async function PublicLeaguesPage() {
   const leagues = await fetchLeagues(apiUrl);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
+    <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-7">
-        <h1 className="text-2xl font-bold text-white">{t('admin.dashboard.leaguesTitle')}</h1>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+          {t('admin.dashboard.leaguesTitle')}
+        </h1>
         <p className="text-sm text-gray-400 mt-1">{t('admin.dashboard.leaguesDescription')}</p>
       </div>
 
@@ -38,7 +40,9 @@ export default async function PublicLeaguesPage() {
             href={`/leagues/${league.slug}`}
             className="rounded-lg border border-white/10 bg-white/5 p-5 hover:border-amber-400/60"
           >
-            <h2 className="font-semibold text-white">{league.name}</h2>
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-white">
+              {league.name}
+            </h2>
             <p className="text-sm text-gray-400 mt-1">{league.season_year}</p>
             {league.description && (
               <p className="text-sm text-gray-300 mt-3 leading-6">{league.description}</p>

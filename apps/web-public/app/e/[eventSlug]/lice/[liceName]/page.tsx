@@ -122,7 +122,9 @@ export default function LicePage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">🏟️</p>
-          <h1 className="text-xl font-bold text-white mb-2">Lice not found</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+            Lice not found
+          </h1>
           <p className="text-gray-400 text-sm">
             &ldquo;{liceName}&rdquo; is not a known Lice for this event.
           </p>
@@ -135,9 +137,9 @@ export default function LicePage() {
     <main className="flex flex-col min-h-screen px-4 py-6 max-w-md mx-auto gap-6">
       {/* Header */}
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Lice</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Lice</p>
         <h1
-          className="text-2xl font-bold"
+          className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
           {data.liceName}
@@ -147,7 +149,7 @@ export default function LicePage() {
       {/* Current match */}
       <section>
         <h2
-          className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+          className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2"
           style={{
             color:
               data.current?.status === 'running'
@@ -211,7 +213,7 @@ export default function LicePage() {
       {data.queue.length > 0 && (
         <section>
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Up next

@@ -183,7 +183,9 @@ export default function MySchedulePage() {
       >
         <div>
           <p className="text-4xl mb-3">📅</p>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Sign in to see your schedule</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
+            Sign in to see your schedule
+          </h1>
           <Link
             href={`/e/${eventSlug}/onboarding`}
             className="text-sm underline"
@@ -247,7 +249,7 @@ export default function MySchedulePage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1
-          className="text-2xl font-bold"
+          className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
           My Schedule
@@ -318,7 +320,7 @@ export default function MySchedulePage() {
       {Array.from(byDay.entries()).map(([day, items]) => (
         <section key={day} className="mb-6">
           {day !== 'unscheduled' && (
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
               {formatDay(day)}
             </h2>
           )}

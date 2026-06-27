@@ -69,7 +69,9 @@ export default async function ClubPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">🏛️</p>
-          <h1 className="text-xl font-bold text-white mb-2">Club not found</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+            Club not found
+          </h1>
           <p className="text-gray-400 text-sm">No club with slug &ldquo;{slug}&rdquo;.</p>
         </div>
       </main>
@@ -77,7 +79,7 @@ export default async function ClubPage({ params }: Props) {
   }
 
   return (
-    <main className="px-4 py-6 max-w-lg mx-auto">
+    <main className="px-4 py-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         {club.logoUrl ? (
@@ -93,7 +95,7 @@ export default async function ClubPage({ params }: Props) {
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-bold text-white">{club.name}</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">{club.name}</h1>
           {club.country && <p className="text-sm text-gray-400">{club.country}</p>}
         </div>
       </div>
@@ -101,7 +103,7 @@ export default async function ClubPage({ params }: Props) {
       {/* Members */}
       {club.members.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
             Members ({club.members.length})
           </h2>
           <div className="flex flex-col gap-2">
@@ -122,7 +124,7 @@ export default async function ClubPage({ params }: Props) {
       {/* Recent results */}
       {club.recentResults.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
             Recent results
           </h2>
           <div className="flex flex-col gap-2">

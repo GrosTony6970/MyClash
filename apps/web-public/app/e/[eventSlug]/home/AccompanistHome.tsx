@@ -92,7 +92,7 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {/* Live now */}
       {live.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-700">
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
             Live now
           </h2>
@@ -129,7 +129,7 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {/* Upcoming favorites */}
       {upcoming.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Coming up
           </h2>
           <div className="flex flex-col gap-2">

@@ -119,7 +119,7 @@ export default async function PublicLeagueStandingsPage({
           </div>
         )}
         <div className="flex-1">
-          <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
+          <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-slate-900">
             {league.name}
           </h1>
           {league.season_year != null && (

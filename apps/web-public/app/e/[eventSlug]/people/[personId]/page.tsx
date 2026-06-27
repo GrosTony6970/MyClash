@@ -146,7 +146,9 @@ export default function PersonProfilePage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">👤</p>
-          <h1 className="text-xl font-bold text-white mb-2">Person not found</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+            Person not found
+          </h1>
         </div>
       </main>
     );
@@ -168,7 +170,7 @@ export default function PersonProfilePage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
             {profile.givenName} {profile.familyName}
           </h1>
           {profile.clubLabel && <p className="text-gray-400 text-sm mt-0.5">{profile.clubLabel}</p>}
@@ -211,7 +213,7 @@ export default function PersonProfilePage() {
       {/* Live now */}
       {live.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-red-400 mb-3 flex items-center gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             Live now
           </h2>
@@ -230,7 +232,7 @@ export default function PersonProfilePage() {
       {upcoming.length > 0 && (
         <section className="mb-6">
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Upcoming
@@ -262,7 +264,7 @@ export default function PersonProfilePage() {
       {schedule?.refereeSlots && schedule.refereeSlots.length > 0 && (
         <section className="mb-6">
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Referee duties
@@ -295,7 +297,7 @@ export default function PersonProfilePage() {
       {past.length > 0 && (
         <section>
           <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
             Results

@@ -125,7 +125,7 @@ export default function OnboardingPage({ params, searchParams }: Props) {
       {/* Header */}
       <div className="mb-8">
         <h1
-          className="text-3xl font-bold mb-2"
+          className="font-display font-bold text-2xl sm:text-3xl mb-2"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
           Welcome
@@ -147,7 +147,9 @@ export default function OnboardingPage({ params, searchParams }: Props) {
       {(state.step === 'confirm' || state.step === 'creating_session') && state.selected && (
         <div className="flex flex-col gap-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">You selected</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+              You selected
+            </p>
             <p className="text-xl font-bold text-white">
               {state.selected.given_name} {state.selected.family_name}
             </p>

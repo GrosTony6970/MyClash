@@ -138,7 +138,9 @@ export default function EmailChangePage({ params }: Props) {
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <header>
           <p className="text-sm text-gray-400">{eventSlug ?? ''}</p>
-          <h1 className="mt-2 text-2xl font-bold">{t('publicApp.emailChange.title')}</h1>
+          <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl">
+            {t('publicApp.emailChange.title')}
+          </h1>
           <p className="mt-2 text-sm text-gray-400">{t('publicApp.emailChange.description')}</p>
         </header>
 
@@ -147,7 +149,7 @@ export default function EmailChangePage({ params }: Props) {
         ) : (
           <>
             <section className="rounded-lg border border-gray-800 p-4">
-              <p className="text-xs uppercase tracking-wide text-gray-500">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
                 {t('publicApp.emailChange.currentEmail')}
               </p>
               <p className="mt-1 break-all text-sm font-semibold text-gray-100">

@@ -91,7 +91,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
 
       {/* Next match */}
       <section>
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
           Next match
         </h2>
         {nextMatch ? (
@@ -135,7 +135,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Today's parcours */}
       {upcoming.length > 1 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Today&apos;s schedule
           </h2>
           <div className="flex flex-col gap-2">
@@ -171,7 +171,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Last results */}
       {past.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Recent results
           </h2>
           <div className="flex flex-col gap-2">

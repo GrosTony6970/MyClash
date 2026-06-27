@@ -118,9 +118,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
       {sections.map((section) => (
         <section key={section.startAt ?? 'unscheduled'} className="flex flex-col gap-4">
           <header className="flex items-center gap-3">
-            <h3
-              className={`font-display text-sm font-semibold uppercase tracking-wider ${titleClass}`}
-            >
+            <h3 className={`text-xs font-semibold uppercase tracking-wider ${titleClass}`}>
               {section.startAt
                 ? `${formatDay(section.startAt)} · ${formatTime(section.startAt)}`
                 : 'Not scheduled'}
@@ -142,7 +140,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
                   style={{ backgroundColor: accentColor }}
                 />
                 <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3 pl-5">
-                  <h3 className={`font-display text-lg font-semibold ${titleClass}`}>
+                  <h3 className={`font-display text-lg font-semibold sm:text-xl ${titleClass}`}>
                     {pool.name}
                   </h3>
                   <span className="flex items-center gap-3">
@@ -198,7 +196,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
 
                 {pool.referees.length > 0 && (
                   <footer className="border-t border-stone-100 bg-stone-50/60 px-4 py-3 pl-5">
-                    <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Referees
                     </p>
                     <ul className="flex flex-col gap-1.5">
