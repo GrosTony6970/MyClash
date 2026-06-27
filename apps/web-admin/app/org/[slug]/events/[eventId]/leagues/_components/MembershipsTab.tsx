@@ -154,26 +154,28 @@ export function MembershipsTab({ eventId, apiUrl }: Props) {
   }, [cards, apiUrl, eventId]);
 
   if (loading) {
-    return <p className="text-sm text-gray-500">{t('admin.leagues.loading')}</p>;
+    return <p className="text-sm text-muted">{t('admin.leagues.loading')}</p>;
   }
 
   if (cards.length === 0) {
-    return <p className="text-sm text-gray-500">{t('admin.leagues.memberships.empty')}</p>;
+    return <p className="text-sm text-muted">{t('admin.leagues.memberships.empty')}</p>;
   }
 
   return (
     <div className="space-y-4">
-      {siblingsError && <p className="text-xs text-amber-700">{siblingsError}</p>}
+      {siblingsError && <p className="text-xs text-warning">{siblingsError}</p>}
       {cards.map((card) => {
         const siblings = siblingsByLeague.get(card.leagueId) ?? [];
         return (
           <article
             key={card.leagueId}
-            className="rounded-lg border border-gray-200 bg-white p-5 max-w-3xl"
+            className="rounded-lg border border-border bg-surface p-5 max-w-3xl"
           >
             <header className="mb-3">
-              <h3 className="text-lg font-semibold text-gray-900">{card.leagueName}</h3>
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+              <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+                {card.leagueName}
+              </h3>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                 {card.seasonYear !== null && (
                   <span>
                     {t('admin.leagues.memberships.year')}: {card.seasonYear}
@@ -188,14 +190,14 @@ export function MembershipsTab({ eventId, apiUrl }: Props) {
             </header>
 
             <div className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
                 {t('admin.leagues.memberships.yourTournaments')}
               </p>
               <ul className="space-y-1 text-sm">
                 {card.tournaments.map((tx) => (
-                  <li key={tx.tournamentId} className="text-gray-800">
+                  <li key={tx.tournamentId} className="text-foreground">
                     {tx.tournamentName}
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-muted">
                       {' '}
                       ·{' '}
                       {tx.groupName
@@ -208,11 +210,11 @@ export function MembershipsTab({ eventId, apiUrl }: Props) {
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
                 {t('admin.leagues.memberships.otherEvents')}
               </p>
               {siblings.length === 0 ? (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted">
                   {t('admin.leagues.memberships.otherEventsEmpty')}
                 </p>
               ) : (
@@ -223,11 +225,11 @@ export function MembershipsTab({ eventId, apiUrl }: Props) {
                         href={`${publicAppUrl}/e/${event.slug}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-blue-700 hover:underline"
+                        className="text-info hover:underline"
                       >
                         {event.name}
                       </a>{' '}
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted">
                         · {formatDateRange(event.startDate, event.endDate)}
                       </span>
                     </li>

@@ -87,32 +87,32 @@ export default function AdminOrgEditPage() {
   return (
     <main className="max-w-2xl p-8">
       <div className="mb-2 text-sm">
-        <Link href="/admin/organizations" className="text-slate-500 hover:underline">
+        <Link href="/admin/organizations" className="text-muted hover:underline">
           {t('admin.organizations.detail.back')}
         </Link>
       </div>
-      <h1 className="mb-1 text-2xl font-bold text-slate-900">
+      <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.organizations.edit.title')}
       </h1>
-      <p className="mb-6 text-sm text-slate-500">{t('admin.organizations.edit.description')}</p>
+      <p className="mb-6 text-sm text-muted">{t('admin.organizations.edit.description')}</p>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">{t('admin.organizations.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.organizations.loading')}</p>
       ) : (
         <form
           onSubmit={(event) => {
             void handleSubmit(event);
           }}
-          className="rounded-md border border-slate-200 bg-white p-5 shadow-sm"
+          className="rounded-md border border-border bg-surface p-5 shadow-sm"
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="block text-sm font-semibold text-slate-700">
+            <label className="block text-sm font-semibold text-foreground-secondary">
               {t('admin.organizations.create.name')}
               <input
                 required
@@ -127,10 +127,10 @@ export default function AdminOrgEditPage() {
                     slug: current.slugDetached ? current.slug : slugify(name),
                   }));
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </label>
-            <label className="block text-sm font-semibold text-slate-700">
+            <label className="block text-sm font-semibold text-foreground-secondary">
               {t('admin.organizations.create.slug')}
               <input
                 required
@@ -145,7 +145,7 @@ export default function AdminOrgEditPage() {
                     slugDetached: true,
                   }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </label>
           </div>
@@ -153,13 +153,13 @@ export default function AdminOrgEditPage() {
             <button
               type="submit"
               disabled={busy}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-70"
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
             >
               {busy ? t('admin.organizations.edit.saving') : t('admin.organizations.edit.save')}
             </button>
             <Link
               href="/admin/organizations"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('admin.organizations.edit.cancel')}
             </Link>

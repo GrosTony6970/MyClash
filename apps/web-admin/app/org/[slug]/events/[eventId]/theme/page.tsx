@@ -154,7 +154,7 @@ export default function BrandingEditorPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-red-700" />
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent" />
       </main>
     );
   }
@@ -177,41 +177,41 @@ export default function BrandingEditorPage() {
   const previewMeta = [previewPlace, previewDates].filter(Boolean).join(' · ');
 
   return (
-    <main className="max-w-3xl p-8">
+    <main className="mx-auto max-w-2xl p-8">
       <div className="mb-6">
-        <div className="mb-1 flex items-center gap-2 text-sm text-slate-500">
-          <Link href={`/org/${slug}`} className="hover:text-slate-700">
+        <div className="mb-1 flex items-center gap-2 text-sm text-muted">
+          <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
             {slug}
           </Link>
           <span>/</span>
-          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-slate-700">
+          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
             {eventName}
           </Link>
           <span>/</span>
-          <span className="font-medium text-slate-900">Branding</span>
+          <span className="font-medium text-foreground">Branding</span>
         </div>
-        <h1 className="font-display text-2xl font-bold text-slate-900">Branding</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">Branding</h1>
+        <p className="mt-1 text-sm text-muted">
           Per-event identity: logo and hero image. Page colors + typography come from the unified
           MyClash design tokens and apply across both the organiser and public apps.
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
       {searchParams.get('logoUpload') === 'failed' && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mb-6 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           Logo upload failed during event creation. Upload it again here.
         </div>
       )}
 
       <div className="flex flex-col gap-8">
         {/* ── Logo ─────────────────────────────────────────────────────── */}
-        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+        <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             Event logo
           </h2>
           <div className="flex items-start gap-5">
@@ -220,13 +220,13 @@ export default function BrandingEditorPage() {
               onClick={() => logoInputRef.current?.click()}
               disabled={uploadingLogo}
               aria-label={logoUrl ? 'Replace event logo' : 'Upload event logo'}
-              className="group h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-stone-200 bg-stone-50 transition-colors hover:border-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={logoUrl} alt="" className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase text-slate-300 group-hover:text-slate-400">
+                <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase text-muted group-hover:text-foreground-secondary">
                   {(eventName || '?').slice(0, 2)}
                 </div>
               )}
@@ -247,11 +247,11 @@ export default function BrandingEditorPage() {
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
                 disabled={uploadingLogo}
-                className="w-fit rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-fit rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {uploadingLogo ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
               </button>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 Square crop, ideally 256×256 or larger. PNG, JPEG, or WebP up to 10 MB.
               </p>
             </div>
@@ -259,11 +259,11 @@ export default function BrandingEditorPage() {
         </section>
 
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+        <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             Hero image
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-muted">
             Shown at the top of <code className="font-mono">/e/&lt;slug&gt;/home</code> for
             spectators. Landscape image, ideally 1920 × 800 (or wider). PNG, JPEG, or WebP up to 10
             MB.
@@ -273,13 +273,13 @@ export default function BrandingEditorPage() {
             onClick={() => heroInputRef.current?.click()}
             disabled={uploadingHero}
             aria-label={heroImageUrl ? 'Replace hero image' : 'Upload hero image'}
-            className="group block aspect-[3/1] w-full overflow-hidden rounded-lg border border-stone-200 bg-stone-50 transition-colors hover:border-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group block aspect-[3/1] w-full overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {heroImageUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={heroImageUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-400 group-hover:text-slate-600">
+              <div className="flex h-full w-full items-center justify-center text-sm font-medium text-muted group-hover:text-foreground-secondary">
                 {uploadingHero ? 'Uploading…' : 'Click to upload a hero image'}
               </div>
             )}
@@ -300,7 +300,7 @@ export default function BrandingEditorPage() {
               type="button"
               onClick={() => heroInputRef.current?.click()}
               disabled={uploadingHero}
-              className="rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploadingHero ? 'Uploading…' : heroImageUrl ? 'Replace hero' : 'Upload hero'}
             </button>
@@ -308,13 +308,15 @@ export default function BrandingEditorPage() {
         </section>
 
         {/* ── Preview ──────────────────────────────────────────────────── */}
-        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Preview</h2>
-          <p className="mb-3 text-xs text-slate-500">
+        <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+            Preview
+          </h2>
+          <p className="mb-3 text-xs text-muted">
             How the logo and hero appear at the top of{' '}
             <code className="font-mono">/e/&lt;slug&gt;/home</code>.
           </p>
-          <div className="overflow-hidden rounded-xl border border-stone-200">
+          <div className="overflow-hidden rounded-xl border border-border">
             {heroImageUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -324,7 +326,7 @@ export default function BrandingEditorPage() {
                 className="aspect-[16/7] max-h-48 w-full object-cover"
               />
             ) : (
-              <div className="flex aspect-[16/7] max-h-48 w-full items-center justify-center border-b border-dashed border-stone-300 bg-stone-50 text-xs font-medium text-slate-400">
+              <div className="flex aspect-[16/7] max-h-48 w-full items-center justify-center border-b border-dashed border-border bg-background text-xs font-medium text-muted">
                 Hero image preview
               </div>
             )}
@@ -335,20 +337,18 @@ export default function BrandingEditorPage() {
                   key={logoUrl}
                   src={logoUrl}
                   alt=""
-                  className="h-16 w-16 shrink-0 rounded-lg border border-stone-200 bg-white object-cover"
+                  className="h-16 w-16 shrink-0 rounded-lg border border-border bg-surface object-cover"
                 />
               ) : (
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-xl font-bold uppercase text-slate-300">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-xl font-bold uppercase text-muted">
                   {(eventName || '?').slice(0, 2)}
                 </span>
               )}
               <div className="min-w-0">
-                <p className="font-display text-xl font-bold text-slate-900">
+                <p className="font-display text-xl font-bold text-foreground">
                   {eventName || 'Event name'}
                 </p>
-                {previewMeta && (
-                  <p className="mt-0.5 truncate text-sm text-slate-500">{previewMeta}</p>
-                )}
+                {previewMeta && <p className="mt-0.5 truncate text-sm text-muted">{previewMeta}</p>}
               </div>
             </div>
           </div>

@@ -170,7 +170,7 @@ export function BlockGridView({
   const [dragging, setDragging] = useState(false);
 
   if (lices.length === 0) {
-    return <p className="text-sm text-gray-400">No lices configured for this event.</p>;
+    return <p className="text-sm text-muted">No lices configured for this event.</p>;
   }
 
   const liceIndexById = new Map(lices.map((l, i) => [l.id, i]));
@@ -371,7 +371,7 @@ export function BlockGridView({
       >
         {/* Row 1 corner + venue band */}
         <div
-          className="sticky left-0 z-30 bg-white"
+          className="sticky left-0 z-30 bg-surface"
           style={{ gridColumn: 1, gridRow: 1, height: VENUE_HEADER_HEIGHT_PX }}
         />
         {venueGroups.map((g, i) => {
@@ -381,7 +381,7 @@ export function BlockGridView({
               key={`venue-${i}`}
               className={[
                 'sticky top-0 z-20 flex items-center justify-center border-b px-2 text-sm font-semibold truncate',
-                tint ? '' : 'border-gray-200 bg-gray-100 italic text-gray-400',
+                tint ? '' : 'border-border bg-background italic text-muted',
               ].join(' ')}
               style={{
                 gridColumn: `${g.startIndex + 2} / span ${g.span}`,
@@ -397,7 +397,7 @@ export function BlockGridView({
 
         {/* Row 2: time-axis corner + per-lice header (name + drift) */}
         <div
-          className="sticky left-0 z-30 bg-white text-[10px] font-semibold uppercase tracking-wide text-gray-400 flex items-end justify-end pr-1 pb-0.5"
+          className="sticky left-0 z-30 bg-surface text-[10px] font-semibold uppercase tracking-wide text-muted flex items-end justify-end pr-1 pb-0.5"
           style={{
             gridColumn: 1,
             gridRow: 2,
@@ -414,7 +414,7 @@ export function BlockGridView({
           return (
             <div
               key={`head-${lice.id}`}
-              className="sticky z-20 flex flex-col items-center justify-center border-b border-gray-200 bg-white px-1 relative"
+              className="sticky z-20 flex flex-col items-center justify-center border-b border-border bg-surface px-1 relative"
               style={{
                 gridColumn: idx + 2,
                 gridRow: 2,
@@ -424,19 +424,19 @@ export function BlockGridView({
             >
               {util > 0 ? (
                 <span
-                  className="absolute right-1 top-0.5 text-[9px] font-medium text-gray-400"
+                  className="absolute right-1 top-0.5 text-[9px] font-medium text-muted"
                   title={`${util}% of the day's grid scheduled on this lice`}
                 >
                   {util}%
                 </span>
               ) : null}
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-600 truncate">
+              <span className="text-xs font-bold uppercase tracking-wider text-foreground-secondary truncate">
                 {lice.name}
               </span>
               {d && Math.abs(d.driftMin) >= 2 ? (
                 <span className="flex items-center gap-1">
                   <span
-                    className={`text-[10px] font-semibold ${late ? 'text-red-600' : 'text-emerald-600'}`}
+                    className={`text-[10px] font-semibold ${late ? 'text-danger' : 'text-success'}`}
                     title={`Based on ${d.basisLabel}`}
                   >
                     {late ? `▲ ${d.driftMin}m late` : `▼ ${-d.driftMin}m ahead`}
@@ -445,7 +445,7 @@ export function BlockGridView({
                     <button
                       type="button"
                       onClick={() => onShiftLice(lice.id, d.driftMin)}
-                      className="rounded border border-red-300 px-1 text-[10px] font-medium text-red-700 hover:bg-red-50"
+                      className="rounded border border-danger/30 px-1 text-[10px] font-medium text-danger hover:bg-danger/10"
                       title="Push this lice's upcoming matches by the delay"
                     >
                       +{d.driftMin}
@@ -453,7 +453,7 @@ export function BlockGridView({
                   ) : null}
                 </span>
               ) : d ? (
-                <span className="text-[10px] font-medium text-emerald-600">on time</span>
+                <span className="text-[10px] font-medium text-success">on time</span>
               ) : null}
             </div>
           );
@@ -481,7 +481,7 @@ export function BlockGridView({
           slot % 12 === 0 ? (
             <div key={`ruler-${slot}`} className="contents">
               <div
-                className="sticky left-0 z-10 flex items-start justify-end bg-white pr-1 text-[10px] text-gray-400 select-none"
+                className="sticky left-0 z-10 flex items-start justify-end bg-surface pr-1 text-[10px] text-muted select-none"
                 style={{ gridColumn: 1, gridRow: rowFor(slot), borderTop: '1px solid #e5e7eb' }}
               >
                 {formatSlotTime(slot)}
@@ -539,7 +539,7 @@ export function BlockGridView({
               }}
               onDoubleClick={(e) => onCreateAtCell(snapSlot(slotFromClientY(e.clientY)))}
               className={[
-                'border-l border-gray-100 transition-colors',
+                'border-l border-border transition-colors',
                 isOver
                   ? 'bg-blue-50 ring-2 ring-inset ring-blue-300'
                   : idx % 2 === 1
@@ -578,7 +578,7 @@ export function BlockGridView({
               }}
               className={[
                 'group relative flex cursor-grab items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide active:cursor-grabbing',
-                tint ? 'text-gray-700' : breakBarClasses(brk.kind),
+                tint ? 'text-foreground-secondary' : breakBarClasses(brk.kind),
                 dragging ? 'pointer-events-none' : '',
               ].join(' ')}
               style={{
@@ -596,7 +596,7 @@ export function BlockGridView({
                   type="button"
                   aria-label={`Edit ${brk.label}`}
                   onClick={() => onEditBreak(brk)}
-                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-gray-600 hover:bg-white"
+                  className="rounded bg-surface/70 px-1 text-[11px] leading-none text-foreground-secondary hover:bg-surface"
                 >
                   ✎
                 </button>
@@ -605,7 +605,7 @@ export function BlockGridView({
                   aria-label={`Delete ${brk.label}`}
                   title="Delete this block"
                   onClick={() => onDeleteBreak(brk)}
-                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-red-600 hover:bg-red-50"
+                  className="rounded bg-surface/70 px-1 text-[11px] leading-none text-danger hover:bg-danger/10"
                 >
                   ✕
                 </button>
@@ -620,7 +620,7 @@ export function BlockGridView({
                     (newStart) => onResizeBreakStart(brk, newStart),
                   )
                 }
-                className="absolute inset-x-0 top-0 z-30 h-1.5 cursor-row-resize bg-transparent hover:bg-slate-500/40"
+                className="absolute inset-x-0 top-0 z-30 h-1.5 cursor-row-resize bg-transparent hover:bg-muted/40"
               />
               <div
                 role="separator"
@@ -636,7 +636,7 @@ export function BlockGridView({
                     (newEnd) => onResizeBreakTime(brk, newEnd),
                   )
                 }
-                className="absolute inset-x-0 bottom-0 z-30 h-1.5 cursor-row-resize bg-transparent hover:bg-slate-500/40"
+                className="absolute inset-x-0 bottom-0 z-30 h-1.5 cursor-row-resize bg-transparent hover:bg-muted/40"
               />
             </div>
           );
@@ -660,9 +660,9 @@ export function BlockGridView({
           const hasConflict = block.matches.some((m) => conflictMatchIds.has(m.id));
           const hasOverlap = overlapBlockKeys.has(block.key);
           const tone = hasConflict
-            ? 'border-red-400 bg-red-100 text-red-800'
+            ? 'border-danger/30 bg-danger/10 text-danger'
             : hasOverlap
-              ? 'border-amber-400 bg-amber-100 text-amber-800'
+              ? 'border-warning/30 bg-warning/10 text-warning'
               : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`;
           // Status accent (from the run's matches) + legend-focus dimming.
           const allDone =
@@ -691,7 +691,7 @@ export function BlockGridView({
               className={[
                 'group relative m-px flex cursor-grab flex-col overflow-hidden rounded-md border pl-2.5 pr-1.5 py-1 transition-opacity active:cursor-grabbing',
                 tone,
-                anyRunning ? 'ring-1 ring-emerald-400' : '',
+                anyRunning ? 'ring-1 ring-success' : '',
                 opacityClass,
                 dragging ? 'pointer-events-none' : '',
               ].join(' ')}
@@ -708,7 +708,7 @@ export function BlockGridView({
               />
               {block.tournamentName ? (
                 <span className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide opacity-70">
-                  {anyRunning ? <span className="text-emerald-500">●</span> : null}
+                  {anyRunning ? <span className="text-success">●</span> : null}
                   <span className="truncate">{block.tournamentName}</span>
                 </span>
               ) : null}
@@ -725,7 +725,7 @@ export function BlockGridView({
                     e.stopPropagation();
                     onEditBlock(block);
                   }}
-                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-gray-600 hover:bg-white"
+                  className="rounded bg-surface/70 px-1 text-[11px] leading-none text-foreground-secondary hover:bg-surface"
                 >
                   ✎
                 </button>
@@ -737,7 +737,7 @@ export function BlockGridView({
                     e.stopPropagation();
                     onDeleteBlock(block);
                   }}
-                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-red-600 hover:bg-red-50"
+                  className="rounded bg-surface/70 px-1 text-[11px] leading-none text-danger hover:bg-danger/10"
                 >
                   ✕
                 </button>

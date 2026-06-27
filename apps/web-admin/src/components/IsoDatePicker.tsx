@@ -79,39 +79,39 @@ export function IsoDatePicker({
 
   return (
     <div className="relative">
-      <label htmlFor={id} className="mb-1 block text-sm font-medium text-gray-700">
+      <label htmlFor={id} className="mb-1 block text-sm font-medium text-foreground-secondary">
         {label}
       </label>
       <button
         id={id}
         type="button"
         onClick={openCalendar}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-left text-sm text-gray-900 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600"
+        className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-accent"
       >
         {value || 'YYYY-MM-DD'}
       </button>
       {open && (
-        <div className="absolute z-20 mt-2 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+        <div className="absolute z-20 mt-2 w-72 rounded-lg border border-border bg-surface p-3 shadow-lg">
           <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
               aria-label={previousMonthLabel}
               onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
-              className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100"
+              className="rounded-md px-2 py-1 text-muted hover:bg-background"
             >
               &lt;
             </button>
-            <p className="text-sm font-semibold capitalize text-slate-900">{monthLabel}</p>
+            <p className="text-sm font-semibold capitalize text-foreground">{monthLabel}</p>
             <button
               type="button"
               aria-label={nextMonthLabel}
               onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-              className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100"
+              className="rounded-md px-2 py-1 text-muted hover:bg-background"
             >
               &gt;
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-500">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-muted">
             {weekdayLabels.map((weekday) => (
               <span key={weekday}>{weekday}</span>
             ))}
@@ -132,7 +132,9 @@ export function IsoDatePicker({
                   }}
                   className={[
                     'h-8 rounded-md text-sm transition-colors',
-                    selected ? 'bg-red-700 text-white' : 'text-slate-700 hover:bg-slate-100',
+                    selected
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-foreground-secondary hover:bg-background',
                     disabled ? 'cursor-not-allowed opacity-30 hover:bg-transparent' : '',
                   ].join(' ')}
                 >

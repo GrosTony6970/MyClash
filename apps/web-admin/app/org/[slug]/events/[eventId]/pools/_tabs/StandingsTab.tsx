@@ -175,12 +175,14 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="inline-flex gap-1 rounded-md border border-slate-200 bg-white p-1">
+        <div className="inline-flex gap-1 rounded-md border border-border bg-surface p-1">
           <button
             type="button"
             onClick={() => selectMode('overall')}
             className={`rounded px-3 py-1 text-sm font-medium ${
-              mode === 'overall' ? 'bg-red-800 text-white' : 'text-slate-700 hover:bg-slate-50'
+              mode === 'overall'
+                ? 'bg-accent text-accent-foreground'
+                : 'text-foreground-secondary hover:bg-background'
             }`}
           >
             {t('organizer.pools.standings.overall')}
@@ -189,7 +191,9 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
             type="button"
             onClick={() => selectMode('by-pool')}
             className={`rounded px-3 py-1 text-sm font-medium ${
-              mode === 'by-pool' ? 'bg-red-800 text-white' : 'text-slate-700 hover:bg-slate-50'
+              mode === 'by-pool'
+                ? 'bg-accent text-accent-foreground'
+                : 'text-foreground-secondary hover:bg-background'
             }`}
           >
             {t('organizer.pools.standings.byPool')}
@@ -198,12 +202,12 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
 
         <div className="flex items-center gap-2">
           {revalidating && hasDataForMode && (
-            <span className="text-xs italic text-slate-400">{t('common.refreshing')}</span>
+            <span className="text-xs italic text-muted">{t('common.refreshing')}</span>
           )}
           <button
             type="button"
             onClick={refresh}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
           >
             {t('actions.refresh')}
           </button>
@@ -212,7 +216,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
             <button
               type="button"
               onClick={() => downloadCsv(overall.columns, overall.rows, 'overall-standings.csv')}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('organizer.pools.standings.exportCsv')}
             </button>
@@ -226,7 +230,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                 );
                 downloadCsv(byPool.columns, allRows, 'all-pools-standings.csv', true);
               }}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('organizer.pools.standings.exportAllPools')}
             </button>
@@ -234,7 +238,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
         </div>
       </div>
 
-      {!hasDataForMode && <p className="text-sm text-slate-500">{t('common.loading')}</p>}
+      {!hasDataForMode && <p className="text-sm text-muted">{t('common.loading')}</p>}
 
       {hasDataForMode &&
         mode === 'overall' &&
@@ -259,24 +263,26 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
             {byPool.pools.map((pool) => (
               <section
                 key={pool.poolId}
-                className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+                className="overflow-hidden rounded-lg border border-border bg-surface"
               >
-                <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                  <h3 className="font-semibold text-slate-900">{pool.poolName}</h3>
+                <header className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+                    {pool.poolName}
+                  </h3>
                   {pool.rows.length > 0 && (
                     <button
                       type="button"
                       onClick={() =>
                         downloadCsv(byPool.columns, pool.rows, `${pool.poolName}-standings.csv`)
                       }
-                      className="text-xs text-slate-600 hover:underline"
+                      className="text-xs text-foreground-secondary hover:underline"
                     >
                       {t('organizer.pools.standings.exportPool')}
                     </button>
                   )}
                 </header>
                 {pool.rows.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-sm text-slate-400">
+                  <p className="px-4 py-6 text-center text-sm text-muted">
                     {t('organizer.pools.standings.emptyPool')}
                   </p>
                 ) : (
@@ -309,7 +315,7 @@ function StandingsTable({
   ];
   return (
     <table className="w-full text-sm">
-      <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
         <tr>
           <th className="w-16 px-4 py-2 text-center">{t('organizer.pools.standings.rank')}</th>
           <th className="px-4 py-2">{t('organizer.pools.standings.fighter')}</th>
@@ -318,7 +324,7 @@ function StandingsTable({
               key={c.key}
               className={
                 c.key === 'score'
-                  ? 'bg-red-50 px-4 py-2 text-center text-sm font-bold normal-case tracking-normal text-red-800'
+                  ? 'bg-accent/10 px-4 py-2 text-center text-sm font-bold normal-case tracking-normal text-accent'
                   : 'px-4 py-2 text-center'
               }
             >
@@ -338,16 +344,16 @@ function StandingsTable({
             <tr
               key={row.registrationId}
               className={`${
-                isCut ? 'border-b-2 border-black' : 'border-b border-slate-100'
-              } last:border-0 hover:bg-slate-50`}
+                isCut ? 'border-b-2 border-foreground' : 'border-b border-border'
+              } last:border-0 hover:bg-background`}
             >
-              <td className="px-4 py-2 text-center font-mono tabular-nums text-slate-700">
+              <td className="px-4 py-2 text-center font-mono tabular-nums text-foreground-secondary">
                 {row.rank}
               </td>
               <td className="px-4 py-2">
-                <span className="font-medium text-slate-900">{row.displayName}</span>
+                <span className="font-medium text-foreground">{row.displayName}</span>
                 {row.club && (
-                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                  <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
                     {row.club.abbreviation ?? row.club.name}
                   </span>
                 )}
@@ -357,8 +363,8 @@ function StandingsTable({
                   key={c.key}
                   className={
                     c.key === 'score'
-                      ? 'bg-red-50/40 px-4 py-2 text-center font-mono text-base font-bold tabular-nums text-slate-900'
-                      : 'px-4 py-2 text-center font-mono tabular-nums text-slate-700'
+                      ? 'bg-accent/5 px-4 py-2 text-center font-mono text-base font-bold tabular-nums text-foreground'
+                      : 'px-4 py-2 text-center font-mono tabular-nums text-foreground-secondary'
                   }
                 >
                   {formatStat(c, row.stats[c.key], '—')}
@@ -368,8 +374,8 @@ function StandingsTable({
                 <span
                   className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                     row.status === 'completed'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-slate-100 text-slate-600'
+                      ? 'bg-success/10 text-success'
+                      : 'bg-border text-foreground-secondary'
                   }`}
                 >
                   {row.status}
@@ -385,7 +391,7 @@ function StandingsTable({
 
 function EmptyState() {
   return (
-    <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+    <div className="rounded-md border border-dashed border-border bg-background p-8 text-center text-sm text-muted">
       {t('organizer.pools.standings.noMatchesYet')}
     </div>
   );

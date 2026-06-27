@@ -105,11 +105,11 @@ export default function LoginPage() {
             className="mx-auto mb-5 h-20 w-20"
           />
           <h1 className="text-2xl font-bold mb-4">{t('auth.login.checkEmailTitle')}</h1>
-          <p className="text-slate-600">
+          <p className="text-foreground-secondary">
             {t('auth.login.checkEmailPrefix')} <strong>{email}</strong>.{' '}
             {t('auth.login.checkEmailSuffix')}
           </p>
-          <p className="mt-4 text-sm text-slate-400">{t('auth.login.linkExpires')}</p>
+          <p className="mt-4 text-sm text-muted">{t('auth.login.linkExpires')}</p>
         </div>
       </main>
     );
@@ -127,7 +127,7 @@ export default function LoginPage() {
           className="mb-5 h-20 w-20"
         />
         <h1 className="text-2xl font-bold mb-2">{t('auth.login.title')}</h1>
-        <p className="text-slate-600 mb-8">{t('auth.login.subtitle')}</p>
+        <p className="text-foreground-secondary mb-8">{t('auth.login.subtitle')}</p>
 
         <form
           onSubmit={(e) => {
@@ -147,7 +147,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t('auth.login.emailPlaceholder')}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
 
@@ -163,12 +163,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t('auth.login.passwordPlaceholder')}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {error}
             </p>
           )}
@@ -211,9 +211,9 @@ export default function LoginPage() {
           {t('auth.oauth.continueWithGoogle')}
         </Button>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-muted">
           {t('auth.login.signupPrompt')}{' '}
-          <Link href="/signup" className="text-red-700 hover:underline">
+          <Link href="/signup" className="text-accent hover:underline">
             {t('auth.login.signupLink')}
           </Link>
         </p>

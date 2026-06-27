@@ -25,7 +25,7 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
 export default function DesignSystemPage() {
   const { t } = useI18n();
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.designSystem.page.eyebrow')}
         title={t('admin.designSystem.page.title')}
@@ -42,7 +42,7 @@ export default function DesignSystemPage() {
             label="font-display"
             usage={t('admin.designSystem.typography.displayUsage')}
             sample={
-              <p className="font-display text-3xl font-medium leading-tight text-slate-900">
+              <p className="font-display text-3xl font-medium leading-tight text-foreground">
                 Lyon AMHE
               </p>
             }
@@ -51,7 +51,7 @@ export default function DesignSystemPage() {
             label="font-body"
             usage={t('admin.designSystem.typography.bodyUsage')}
             sample={
-              <p className="text-base text-slate-700">
+              <p className="text-base text-foreground-secondary">
                 {t('admin.designSystem.typography.bodySample')}
               </p>
             }
@@ -60,7 +60,7 @@ export default function DesignSystemPage() {
             label="font-mono"
             usage={t('admin.designSystem.typography.monoUsage')}
             sample={
-              <p className="font-mono text-sm text-slate-500">
+              <p className="font-mono text-sm text-muted">
                 TF_v1@1.0.0
                 <br />
                 custom_my-cool-ruleset
@@ -132,10 +132,10 @@ export default function DesignSystemPage() {
         eyebrow={t('admin.designSystem.sections.signatureEyebrow')}
         title={t('admin.designSystem.sections.signatureTitle')}
       >
-        <p className="mb-4 max-w-2xl text-sm text-slate-600">
+        <p className="mb-4 max-w-2xl text-sm text-foreground-secondary">
           {t('admin.designSystem.sections.signatureDescription')}
         </p>
-        <div className="flex flex-wrap items-center gap-8 rounded-lg border border-slate-200 bg-white px-6 py-8">
+        <div className="flex flex-wrap items-center gap-8 rounded-lg border border-border bg-surface px-6 py-8">
           <FoilMark className="text-slate-300" />
           <FoilMark className="text-slate-500" width={48} />
           <FoilMark className="text-red-800" width={64} />
@@ -148,7 +148,7 @@ export default function DesignSystemPage() {
         eyebrow={t('admin.designSystem.sections.headerEyebrow')}
         title={t('admin.designSystem.sections.headerTitle')}
       >
-        <div className="rounded-lg border border-slate-200 bg-white px-6 pb-6 pt-2">
+        <div className="rounded-lg border border-border bg-surface px-6 pb-6 pt-2">
           <AdminPageHeader
             eyebrow={t('admin.designSystem.headerDemo.eyebrow')}
             title="Lyon AMHE — Cercle des Arts Martiaux"
@@ -209,8 +209,8 @@ export default function DesignSystemPage() {
           <tbody>
             <DataTableRow>
               <DataTableCell>
-                <p className="font-display text-base text-slate-900">TF v1 (Tournoi de Frappe)</p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="font-display text-base text-foreground">TF v1 (Tournoi de Frappe)</p>
+                <p className="mt-0.5 text-xs text-muted">
                   {t('admin.designSystem.tableDemo.tfV1Description')}
                 </p>
               </DataTableCell>
@@ -224,8 +224,8 @@ export default function DesignSystemPage() {
             </DataTableRow>
             <DataTableRow>
               <DataTableCell>
-                <p className="font-display text-base text-slate-900">Lyon Open 2026</p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="font-display text-base text-foreground">Lyon Open 2026</p>
+                <p className="mt-0.5 text-xs text-muted">
                   {t('admin.designSystem.tableDemo.lyonOpenDescription')}
                 </p>
               </DataTableCell>
@@ -286,7 +286,7 @@ export default function DesignSystemPage() {
             label={t('admin.designSystem.formDemo.countryLabel')}
             error={t('admin.designSystem.formDemo.countryError')}
           >
-            <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+            <select className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm">
               <option>France</option>
               <option>Belgique</option>
             </select>
@@ -296,7 +296,7 @@ export default function DesignSystemPage() {
 
       {/* Footer mark */}
       <div className="mt-16 flex items-center justify-center">
-        <FoilMark className="text-slate-300" width={64} />
+        <FoilMark className="text-muted" width={64} />
       </div>
     </main>
   );
@@ -314,14 +314,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-16 border-t border-slate-200 pt-10 first:mt-0 first:border-t-0 first:pt-0">
+    <section className="mt-16 border-t border-border pt-10 first:mt-0 first:border-t-0 first:pt-0">
       <div className="mb-6 flex items-center gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
-          {eyebrow}
-        </p>
-        <FoilMark className="text-slate-300" width={32} />
+        <p className="text-xs font-semibold uppercase tracking-wider text-accent">{eyebrow}</p>
+        <FoilMark className="text-muted" width={32} />
       </div>
-      <h2 className="mb-6 font-display text-2xl font-medium tracking-tight text-slate-900">
+      <h2 className="mb-6 font-display font-semibold text-lg sm:text-xl tracking-tight text-foreground">
         {title}
       </h2>
       {children}
@@ -339,9 +337,9 @@ function Specimen({
   sample: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
-      <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-xs text-slate-400">{usage}</p>
+    <div className="rounded-lg border border-border bg-surface p-5">
+      <p className="font-mono text-[11px] uppercase tracking-wide text-muted">{label}</p>
+      <p className="mt-1 text-xs text-muted">{usage}</p>
       <div className="mt-4">{sample}</div>
     </div>
   );
@@ -361,9 +359,9 @@ function Swatch({
   return (
     <div>
       <div className={`h-20 w-full rounded-md ${className}`} />
-      <p className="mt-2 font-mono text-[11px] text-slate-700">{name}</p>
-      <p className="font-mono text-[10px] text-slate-400">{hex}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{caption}</p>
+      <p className="mt-2 font-mono text-[11px] text-foreground-secondary">{name}</p>
+      <p className="font-mono text-[10px] text-muted">{hex}</p>
+      <p className="mt-0.5 text-xs text-muted">{caption}</p>
     </div>
   );
 }

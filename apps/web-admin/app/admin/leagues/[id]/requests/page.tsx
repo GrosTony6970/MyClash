@@ -58,13 +58,13 @@ export default function LeagueRequestsStandalonePage() {
           <div className="flex gap-2">
             <Link
               href={`/admin/leagues/${leagueId}/edit`}
-              className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('admin.leagues.requestsPage.editLink')}
             </Link>
             <Link
               href="/admin/leagues"
-              className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('admin.leagues.requestsPage.allLink')}
             </Link>
@@ -73,7 +73,7 @@ export default function LeagueRequestsStandalonePage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}

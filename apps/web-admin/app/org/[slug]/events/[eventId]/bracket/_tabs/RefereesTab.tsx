@@ -283,12 +283,12 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   }
 
   if (loading && !board) {
-    return <p className="text-sm text-gray-400">{t('organizer.bracketPage.refereesLoading')}</p>;
+    return <p className="text-sm text-muted">{t('organizer.bracketPage.refereesLoading')}</p>;
   }
   if (!board || bracketPools.length === 0) {
     return (
-      <div className="rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-        <p className="text-sm text-gray-400">{t('organizer.bracketPage.refereesEmpty')}</p>
+      <div className="rounded-lg border-2 border-dashed border-border p-8 text-center">
+        <p className="text-sm text-muted">{t('organizer.bracketPage.refereesEmpty')}</p>
       </div>
     );
   }
@@ -300,7 +300,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   return (
     <section className="space-y-6">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </div>
       )}
@@ -308,7 +308,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
       {bracketTournaments.length > 1 && (
         <nav
           aria-label={t('organizer.bracketPage.refereesTournamentTabsLabel')}
-          className="flex flex-wrap gap-2 border-b border-gray-200"
+          className="flex flex-wrap gap-2 border-b border-border"
         >
           {bracketTournaments.map((bt) => {
             const active = bt.id === activeTournamentId;
@@ -320,8 +320,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
                 className={[
                   '-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors',
                   active
-                    ? 'border-red-700 text-red-700'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted hover:border-border hover:text-foreground-secondary',
                 ].join(' ')}
               >
                 {bt.name}
@@ -387,7 +387,7 @@ function BracketMatchSection({
 }) {
   return (
     <section className="space-y-3">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">{title}</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">{title}</h3>
       {pools.map((pool) => (
         <BracketMatchCard
           key={pool.id}
@@ -428,13 +428,13 @@ function BracketMatchCard({
   // app, and exports already show.
   const roundLabel = pool.name;
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
+    <div className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-3 flex items-baseline justify-between">
-        <p className="font-semibold text-gray-900">
+        <p className="font-semibold text-foreground">
           {pool.tournamentName ? `${pool.tournamentName} – ${roundLabel}` : roundLabel}
         </p>
         {pool.scheduledStart && (
-          <p className="text-xs text-gray-500">{formatHHMM(pool.scheduledStart)}</p>
+          <p className="text-xs text-muted">{formatHHMM(pool.scheduledStart)}</p>
         )}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -460,28 +460,28 @@ function BracketMatchCard({
                   type="button"
                   disabled={isReadOnly || busy}
                   onClick={() => onUnassign(slot.assignment!.id)}
-                  className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                  className="text-xs text-danger hover:text-danger-hover disabled:opacity-50"
                 >
                   {t('organizer.bracketPage.refereesUnassign')}
                 </button>
               </div>
             ) : (
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted">
                   {t('organizer.bracketPage.refereesUnassigned')}
                 </p>
                 <button
                   type="button"
                   disabled={isReadOnly || busy}
                   onClick={() => onAssignClick(slot)}
-                  className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+                  className="rounded border border-border px-2 py-0.5 text-xs hover:bg-background disabled:opacity-50"
                 >
                   {t('organizer.bracketPage.refereesAssign')}
                 </button>
               </div>
             )}
             {slot.missingReasons.length > 0 && !slot.assignment && (
-              <p className="mt-1 text-[10px] text-red-700">{slot.missingReasons.join(', ')}</p>
+              <p className="mt-1 text-[10px] text-danger">{slot.missingReasons.join(', ')}</p>
             )}
           </div>
         ))}
@@ -502,19 +502,19 @@ function CandidatePicker({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="w-full max-w-xl rounded-lg bg-surface p-5 shadow-xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {pool.name} - {slot.displayName ?? slot.role}
             </h2>
-            <p className="text-sm text-gray-500">{pool.tournamentName}</p>
+            <p className="text-sm text-muted">{pool.tournamentName}</p>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            className="text-sm text-gray-500 hover:text-gray-800"
+            className="text-sm text-muted hover:text-foreground"
           >
             {t('organizer.bracketPage.refereesCancel')}
           </button>
@@ -550,7 +550,7 @@ function CandidateGroup({
   if (candidates.length === 0) return null;
   return (
     <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
         {title} ({candidates.length})
       </p>
       <ul className="space-y-1">
@@ -560,22 +560,22 @@ function CandidateGroup({
             className={[
               'flex items-center justify-between gap-3 rounded border px-3 py-1.5 text-sm',
               disabled
-                ? 'border-gray-200 bg-gray-50 text-gray-500'
-                : 'border-gray-200 bg-white hover:border-gray-400',
+                ? 'border-border bg-background text-muted'
+                : 'border-border bg-surface hover:border-border',
             ].join(' ')}
           >
             <div className="min-w-0">
-              <p className="truncate font-medium text-gray-900">{c.displayName}</p>
-              {c.clubLabel && <p className="truncate text-[10px] text-gray-400">{c.clubLabel}</p>}
+              <p className="truncate font-medium text-foreground">{c.displayName}</p>
+              {c.clubLabel && <p className="truncate text-[10px] text-muted">{c.clubLabel}</p>}
               {c.blockedReasons && (
-                <p className="text-[10px] text-red-600">{c.blockedReasons.join(', ')}</p>
+                <p className="text-[10px] text-danger">{c.blockedReasons.join(', ')}</p>
               )}
             </div>
             {!disabled && onSelect && (
               <button
                 type="button"
                 onClick={() => onSelect(c)}
-                className="rounded border border-emerald-500 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                className="rounded border border-success px-2 py-0.5 text-xs font-semibold text-success hover:bg-success/10"
               >
                 {t('organizer.bracketPage.refereesPick')}
               </button>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useConfirm, useToast } from '@myclash/ui';
+import { useConfirm, useToast, StatusBadge } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface Member {
@@ -339,7 +339,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   if (loading) {
     return (
       <main className="p-8">
-        <p className="text-sm text-slate-400">{t('admin.organizations.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.organizations.loading')}</p>
       </main>
     );
   }
@@ -347,7 +347,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   if (error) {
     return (
       <main className="p-8">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
       </main>
     );
   }
@@ -359,32 +359,31 @@ export default function AdminOrgDetailPage({ params }: Props) {
   return (
     <main className="max-w-4xl p-8">
       <div className="mb-2">
-        <Link href="/admin/organizations" className="text-sm text-slate-500 hover:underline">
+        <Link href="/admin/organizations" className="text-sm text-muted hover:underline">
           {t('admin.organizations.detail.back')}
         </Link>
       </div>
 
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{org.name}</h1>
-          <p className="mt-0.5 font-mono text-sm text-slate-500">{org.slug}</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">{org.name}</h1>
+          <p className="mt-0.5 font-mono text-sm text-muted">{org.slug}</p>
           {!hasOwner && (
-            <span className="mt-2 inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+            <span className="mt-2 inline-block rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">
               {t('admin.organizations.detail.noOwnerAssigned')}
             </span>
           )}
         </div>
-        <span
-          className={`mt-1 inline-block rounded-full px-3 py-1 text-sm font-medium ${
-            org.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}
+        <StatusBadge
+          variant={org.status === 'active' ? 'active' : 'suspended'}
+          className="mt-1 text-sm"
         >
           {t(`admin.organizations.status.${org.status}`)}
-        </span>
+        </StatusBadge>
       </div>
 
       {org.is_protected ? (
-        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <div className="mb-6 rounded-md border border-info/30 bg-info/10 px-4 py-3 text-sm text-info">
           {t('admin.organizations.detail.protectedNote')}
         </div>
       ) : null}
@@ -398,22 +397,24 @@ export default function AdminOrgDetailPage({ params }: Props) {
             value: new Date(org.created_at).toLocaleDateString('fr-FR'),
           },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-lg border border-slate-200 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+          <div key={label} className="rounded-lg border border-border p-4">
+            <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
             <p className="mt-1 text-xl font-semibold">{value}</p>
           </div>
         ))}
       </div>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">{t('admin.organizations.table.actions')}</h2>
+        <h2 className="mb-3 font-display font-semibold text-lg sm:text-xl">
+          {t('admin.organizations.table.actions')}
+        </h2>
         <div className="flex flex-wrap gap-2">
           {org.status === 'active' && !org.is_protected ? (
             <button
               onClick={() => {
                 void handleAction('suspend');
               }}
-              className="rounded-md bg-orange-100 px-4 py-2 text-sm font-medium text-orange-700 transition-colors hover:bg-orange-200"
+              className="rounded-md bg-warning/10 px-4 py-2 text-sm font-medium text-warning transition-colors hover:bg-warning/20"
             >
               {t('admin.organizations.actions.suspend')}
             </button>
@@ -422,13 +423,13 @@ export default function AdminOrgDetailPage({ params }: Props) {
               onClick={() => {
                 void handleAction('reactivate');
               }}
-              className="rounded-md bg-green-100 px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-200"
+              className="rounded-md bg-success/10 px-4 py-2 text-sm font-medium text-success transition-colors hover:bg-success/20"
             >
               {t('admin.organizations.actions.reactivate')}
             </button>
           ) : null}
           {org.status === 'active' && org.is_protected ? (
-            <span className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-500">
+            <span className="rounded-md bg-background px-4 py-2 text-sm font-medium text-muted">
               {t('admin.organizations.actions.protected')}
             </span>
           ) : null}
@@ -436,7 +437,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
             onClick={() => {
               openReassignPicker();
             }}
-            className="rounded-md bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-200"
+            className="rounded-md bg-info/10 px-4 py-2 text-sm font-medium text-info transition-colors hover:bg-info/20"
           >
             {hasOwner
               ? t('admin.organizations.detail.reassignOwner')
@@ -447,7 +448,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
               onClick={() => {
                 void handleAction('delete');
               }}
-              className="rounded-md bg-red-100 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-200"
+              className="rounded-md bg-danger/10 px-4 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/20"
             >
               {t('admin.organizations.actions.deleteHard')}
             </button>
@@ -457,23 +458,23 @@ export default function AdminOrgDetailPage({ params }: Props) {
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">
+          <h2 className="font-display font-semibold text-lg sm:text-xl">
             {t('admin.organizations.detail.membersTitle', { count: org.members.length })}
           </h2>
           <button
             type="button"
             onClick={() => openAddMemberPicker()}
-            className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-800"
+            className="rounded-md bg-info px-3 py-1.5 text-sm font-semibold text-white hover:bg-info/90"
           >
             {t('admin.organizations.detail.addMember')}
           </button>
         </div>
         {org.members.length === 0 ? (
-          <p className="text-sm text-slate-400">{t('admin.organizations.detail.noMembers')}</p>
+          <p className="text-sm text-muted">{t('admin.organizations.detail.noMembers')}</p>
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted">
                 <th className="py-2 pr-4">{t('admin.organizations.detail.user')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.userId')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.role')}</th>
@@ -483,17 +484,19 @@ export default function AdminOrgDetailPage({ params }: Props) {
             </thead>
             <tbody>
               {org.members.map((member) => (
-                <tr key={member.user_id} className="border-b border-slate-100">
+                <tr key={member.user_id} className="border-b border-border">
                   <td className="py-2 pr-4">
-                    <div className="font-medium text-slate-700">{member.username}</div>
+                    <div className="font-medium text-foreground-secondary">{member.username}</div>
                     {member.email && member.email !== member.username ? (
-                      <div className="text-xs text-slate-400">{member.email}</div>
+                      <div className="text-xs text-muted">{member.email}</div>
                     ) : null}
                   </td>
-                  <td className="py-2 pr-4 font-mono text-xs text-slate-600">{member.user_id}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-foreground-secondary">
+                    {member.user_id}
+                  </td>
                   <td className="py-2 pr-4">
                     {member.role === 'owner' ? (
-                      <span className="inline-block rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                      <span className="inline-block rounded bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
                         {member.role}
                       </span>
                     ) : (
@@ -501,7 +504,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         value={member.role}
                         disabled={actionLoading}
                         onChange={(e) => void handleUpdateMemberRole(member, e.target.value)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        className="rounded-md border border-border px-2 py-1 text-xs"
                       >
                         {ASSIGNABLE_ROLES.map((role) => (
                           <option key={role} value={role}>
@@ -511,7 +514,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                       </select>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-slate-500">
+                  <td className="py-2 pr-4 text-muted">
                     {new Date(member.joined_at).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="py-2">
@@ -520,7 +523,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         type="button"
                         onClick={() => void handleRemoveMember(member)}
                         disabled={actionLoading}
-                        className="rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        className="rounded-md border border-danger/30 px-2 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                       >
                         {t('admin.organizations.detail.removeMember')}
                       </button>
@@ -534,23 +537,25 @@ export default function AdminOrgDetailPage({ params }: Props) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">{t('admin.organizations.detail.auditLog')}</h2>
+        <h2 className="mb-3 font-display font-semibold text-lg sm:text-xl">
+          {t('admin.organizations.detail.auditLog')}
+        </h2>
         {org.recent_audit_log.length === 0 ? (
-          <p className="text-sm text-slate-400">{t('admin.organizations.detail.noAuditLog')}</p>
+          <p className="text-sm text-muted">{t('admin.organizations.detail.noAuditLog')}</p>
         ) : (
           <div className="space-y-2">
             {org.recent_audit_log.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-start gap-3 border-b border-slate-100 pb-2 text-sm"
+                className="flex items-start gap-3 border-b border-border pb-2 text-sm"
               >
-                <span className="mt-0.5 whitespace-nowrap text-xs text-slate-400">
+                <span className="mt-0.5 whitespace-nowrap text-xs text-muted">
                   {new Date(entry.created_at).toLocaleString('fr-FR')}
                 </span>
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
+                <span className="rounded bg-background px-1.5 py-0.5 font-mono text-xs text-foreground-secondary">
                   {entry.action}
                 </span>
-                <span className="font-mono text-xs text-slate-500">
+                <span className="font-mono text-xs text-muted">
                   {t('admin.organizations.detail.auditBy', { userId: entry.actor_user_id })}
                 </span>
               </div>
@@ -561,7 +566,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
 
       {pickerMode ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           role="dialog"
           aria-modal="true"
           aria-label={
@@ -572,18 +577,18 @@ export default function AdminOrgDetailPage({ params }: Props) {
               : t('admin.organizations.detail.addMemberTitle')
           }
         >
-          <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-xl">
-            <div className="border-b border-slate-200 p-5">
+          <div className="w-full max-w-2xl rounded-lg border border-border bg-surface shadow-xl">
+            <div className="border-b border-border p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-950">
+                  <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                     {pickerMode === 'reassign'
                       ? hasOwner
                         ? t('admin.organizations.detail.selectOwnerTitle')
                         : t('admin.organizations.detail.assignOwnerTitle')
                       : t('admin.organizations.detail.addMemberTitle')}
                   </h2>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-foreground-secondary">
                     {pickerMode === 'reassign'
                       ? hasOwner
                         ? t('admin.organizations.detail.selectOwnerDescription')
@@ -594,18 +599,18 @@ export default function AdminOrgDetailPage({ params }: Props) {
                 <button
                   type="button"
                   onClick={closePicker}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
                 >
                   {t('actions.cancel')}
                 </button>
               </div>
               {pickerMode === 'addMember' ? (
-                <label className="mt-4 block text-sm font-semibold text-slate-700">
+                <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
                   {t('admin.organizations.detail.addMemberRole')}
                   <select
                     value={addRole}
                     onChange={(e) => setAddRole(e.target.value as AddableRole)}
-                    className="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="mt-1 block rounded-md border border-border px-3 py-2 text-sm"
                   >
                     {ADDABLE_ROLES.map((role) => (
                       <option key={role} value={role}>
@@ -622,8 +627,8 @@ export default function AdminOrgDetailPage({ params }: Props) {
                     onClick={() => setAssignMode('existing')}
                     className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
                       assignMode === 'existing'
-                        ? 'bg-slate-900 text-white'
-                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                        ? 'bg-strong text-strong-foreground'
+                        : 'border border-border bg-surface text-foreground-secondary hover:bg-background'
                     }`}
                   >
                     {t('admin.organizations.detail.assignModeExistingUser')}
@@ -633,8 +638,8 @@ export default function AdminOrgDetailPage({ params }: Props) {
                     onClick={() => setAssignMode('new')}
                     className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
                       assignMode === 'new'
-                        ? 'bg-slate-900 text-white'
-                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                        ? 'bg-strong text-strong-foreground'
+                        : 'border border-border bg-surface text-foreground-secondary hover:bg-background'
                     }`}
                   >
                     {t('admin.organizations.detail.assignModeNewAccount')}
@@ -642,7 +647,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                 </div>
               ) : null}
               {pickerMode === 'reassign' && assignMode === 'existing' ? (
-                <label className="mt-4 block text-sm font-semibold text-slate-700">
+                <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
                   {t('admin.organizations.detail.memberSearch')}
                   <input
                     type="search"
@@ -653,11 +658,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
                       void loadPlatformAccounts(value);
                     }}
                     placeholder={t('admin.organizations.detail.reassignSearchPlaceholder')}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </label>
               ) : pickerMode === 'addMember' ? (
-                <label className="mt-4 block text-sm font-semibold text-slate-700">
+                <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
                   {t('admin.organizations.detail.memberSearch')}
                   <input
                     type="search"
@@ -668,7 +673,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                       void loadPlatformAccounts(value);
                     }}
                     placeholder={t('admin.organizations.detail.promoteSearchPlaceholder')}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </label>
               ) : null}
@@ -682,31 +687,31 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   }}
                   className="space-y-3 p-3"
                 >
-                  <label className="block text-sm font-semibold text-slate-700">
+                  <label className="block text-sm font-semibold text-foreground-secondary">
                     {t('admin.organizations.detail.assignNewAccountEmail')}
                     <input
                       required
                       type="email"
                       value={assignEmail}
                       onChange={(e) => setAssignEmail(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                      className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </label>
-                  <label className="block text-sm font-semibold text-slate-700">
+                  <label className="block text-sm font-semibold text-foreground-secondary">
                     {t('admin.organizations.detail.assignNewAccountDisplayName')}
                     <input
                       minLength={2}
                       maxLength={100}
                       value={assignDisplayName}
                       onChange={(e) => setAssignDisplayName(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                      className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </label>
                   <div className="flex justify-end">
                     <button
                       type="submit"
                       disabled={actionLoading}
-                      className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                      className="rounded-md bg-info px-4 py-2 text-sm font-semibold text-white hover:bg-info/90 disabled:opacity-60"
                     >
                       {actionLoading
                         ? t('admin.organizations.detail.assignNewAccountSubmitting')
@@ -719,14 +724,14 @@ export default function AdminOrgDetailPage({ params }: Props) {
               {(pickerMode === 'addMember' ||
                 (pickerMode === 'reassign' && assignMode === 'existing')) &&
               platformLoading ? (
-                <p className="p-4 text-sm text-slate-500">
+                <p className="p-4 text-sm text-muted">
                   {t('admin.organizations.detail.accountSearchLoading')}
                 </p>
               ) : null}
               {(pickerMode === 'addMember' ||
                 (pickerMode === 'reassign' && assignMode === 'existing')) &&
               platformError ? (
-                <p className="p-4 text-sm text-red-600">{platformError}</p>
+                <p className="p-4 text-sm text-danger">{platformError}</p>
               ) : null}
 
               <div className="space-y-2">
@@ -763,21 +768,21 @@ export default function AdminOrgDetailPage({ params }: Props) {
                           onClick={() => {
                             void handlePickExistingUser(row.id, label);
                           }}
-                          className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <span className="block font-semibold text-slate-950">
+                          <span className="block font-semibold text-foreground">
                             {label}
                             {isCurrentOwner ? (
-                              <span className="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-yellow-700">
+                              <span className="ml-2 rounded bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gold">
                                 owner
                               </span>
                             ) : row.isMember ? (
-                              <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                              <span className="ml-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
                                 {row.role}
                               </span>
                             ) : null}
                           </span>
-                          <span className="mt-1 block text-sm text-slate-600">
+                          <span className="mt-1 block text-sm text-foreground-secondary">
                             {row.email || t('admin.users.noEmail')}
                           </span>
                         </button>
@@ -802,17 +807,17 @@ export default function AdminOrgDetailPage({ params }: Props) {
                                   ? 'Super-admin — cannot belong to an organization.'
                                   : undefined
                               }
-                              className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              <span className="block font-semibold text-slate-950">
+                              <span className="block font-semibold text-foreground">
                                 {accountLabel(account)}
                                 {isSuperAdmin && (
-                                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                  <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
                                     super-admin
                                   </span>
                                 )}
                               </span>
-                              <span className="mt-1 block text-sm text-slate-600">
+                              <span className="mt-1 block text-sm text-foreground-secondary">
                                 {account.email || t('admin.users.noEmail')}
                               </span>
                             </button>

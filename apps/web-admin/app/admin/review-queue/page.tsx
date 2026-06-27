@@ -164,19 +164,21 @@ export default function ReviewQueuePage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
-        <h1 className="text-2xl font-bold">{t('admin.reviewQueue.pageTitle')}</h1>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl">
+          {t('admin.reviewQueue.pageTitle')}
+        </h1>
         {totalPending > 0 && (
-          <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
+          <span className="inline-flex items-center rounded-full bg-warning/10 px-3 py-1 text-sm font-semibold text-warning">
             {t('admin.reviewQueue.pendingBadge', { count: totalPending })}
           </span>
         )}
       </div>
 
       {/* Tab bar */}
-      <div className="mb-1 flex flex-wrap gap-1 border-b border-slate-200">
+      <div className="mb-1 flex flex-wrap gap-1 border-b border-border">
         {TABS.map((tab) => {
           const count = pendingCounts[tab.value] ?? 0;
           const isActive = activeTab === tab.value;
@@ -190,13 +192,13 @@ export default function ReviewQueuePage() {
               className={[
                 'flex items-center gap-1.5 rounded-t border-b-2 px-4 py-2 text-sm font-semibold transition-colors',
                 isActive
-                  ? 'border-red-700 text-red-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700',
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted hover:text-foreground-secondary',
               ].join(' ')}
             >
               {tab.label}
               {count > 0 && (
-                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700">
+                <span className="rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-bold text-warning">
                   {count}
                 </span>
               )}
@@ -206,7 +208,7 @@ export default function ReviewQueuePage() {
       </div>
 
       {/* Status filter sub-bar */}
-      <div className="mb-5 flex flex-wrap gap-1 bg-slate-50 border border-slate-200 rounded-md p-1 w-fit">
+      <div className="mb-5 flex flex-wrap gap-1 bg-background border border-border rounded-md p-1 w-fit">
         {STATUS_FILTERS.map((sf) => {
           const isActive = statusFilter === sf.value;
           return (
@@ -219,8 +221,8 @@ export default function ReviewQueuePage() {
               className={[
                 'rounded px-3 py-1 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
-                  : 'text-slate-500 hover:text-slate-700',
+                  ? 'bg-surface text-foreground shadow-sm border border-border'
+                  : 'text-muted hover:text-foreground-secondary',
               ].join(' ')}
             >
               {sf.label}
@@ -231,24 +233,24 @@ export default function ReviewQueuePage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-md px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
       {/* Count */}
-      <div className="mb-3 text-sm text-slate-500">
+      <div className="mb-3 text-sm text-muted">
         {loading ? 'Loading…' : `${items.length} item${items.length !== 1 ? 's' : ''}`}
       </div>
 
       {/* Table */}
       {!loading && items.length === 0 ? (
-        <p className="text-slate-400 text-sm">{t('admin.reviewQueue.noPending')}</p>
+        <p className="text-muted text-sm">{t('admin.reviewQueue.noPending')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted">
                 <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colType')}</th>
                 <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colTarget')}</th>
                 <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colRequester')}</th>

@@ -197,22 +197,25 @@ export default function FinalRankingPage() {
   const canExport = !loading && ranking.length > 0;
 
   return (
-    <main className="px-4 py-6">
+    <main className="mx-auto max-w-7xl px-4 py-6">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-sm text-gray-500">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="mb-1 flex items-center gap-2 text-sm text-muted">
+            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link
+              href={`/org/${slug}/events/${eventId}`}
+              className="hover:text-foreground-secondary"
+            >
               Event
             </Link>
             <span>/</span>
-            <span className="font-medium text-gray-900">Final ranking</span>
+            <span className="font-medium text-foreground">Final ranking</span>
           </div>
-          <h1 className="text-2xl font-bold">Final ranking</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Final ranking</h1>
+          <p className="mt-1 text-sm text-muted">
             Bracket placement — fighters eliminated in the same round are separated by their pool
             score.
           </p>
@@ -222,7 +225,7 @@ export default function FinalRankingPage() {
             type="button"
             onClick={downloadCsv}
             disabled={!canExport}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-40"
           >
             Export CSV
           </button>
@@ -230,7 +233,7 @@ export default function FinalRankingPage() {
             type="button"
             onClick={printRanking}
             disabled={!canExport}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-40"
           >
             Print / PDF
           </button>
@@ -238,10 +241,7 @@ export default function FinalRankingPage() {
       </div>
 
       {tournaments.length > 1 && (
-        <nav
-          aria-label="Tournaments"
-          className="mb-4 flex flex-wrap gap-1 border-b border-slate-200"
-        >
+        <nav aria-label="Tournaments" className="mb-4 flex flex-wrap gap-1 border-b border-border">
           {tournaments.map((tour) => {
             const active = tour.id === selectedTournament;
             return (
@@ -253,8 +253,8 @@ export default function FinalRankingPage() {
                 className={[
                   'inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
                   active
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-slate-600 hover:text-slate-900',
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-foreground-secondary hover:text-foreground',
                 ].join(' ')}
               >
                 <TournamentColorDot color={tour.color} size="sm" />
@@ -266,21 +266,21 @@ export default function FinalRankingPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
       ) : !bracket ? (
-        <div className="rounded-xl border-2 border-dashed border-gray-200 py-16 text-center">
-          <p className="text-sm text-gray-400">No bracket for this tournament yet.</p>
+        <div className="rounded-xl border-2 border-dashed border-border py-16 text-center">
+          <p className="text-sm text-muted">No bracket for this tournament yet.</p>
         </div>
       ) : ranking.length === 0 ? (
-        <div className="rounded-xl border-2 border-dashed border-gray-200 py-16 text-center">
-          <p className="text-sm text-gray-400">
+        <div className="rounded-xl border-2 border-dashed border-border py-16 text-center">
+          <p className="text-sm text-muted">
             The final ranking appears once bracket matches are played.
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
           <table className="w-full text-sm">
-            <thead className="border-b border-gray-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="w-16 px-4 py-2 text-center">Rank</th>
                 <th className="px-4 py-2">Fighter</th>
@@ -292,24 +292,26 @@ export default function FinalRankingPage() {
               {ranking.map((entry) => (
                 <tr
                   key={entry.registrationId}
-                  className="border-b border-gray-100 last:border-0 hover:bg-slate-50"
+                  className="border-b border-border last:border-0 hover:bg-background"
                 >
                   <td className="px-4 py-2 text-center font-mono tabular-nums">
-                    <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
+                    <span className="inline-flex items-center gap-1 font-semibold text-foreground">
                       {medalFor(entry.place)}
                       {entry.place}
                     </span>
                   </td>
                   <td className="px-4 py-2">
-                    <span className="font-medium text-slate-900">{entry.fighterName}</span>
+                    <span className="font-medium text-foreground">{entry.fighterName}</span>
                     {entry.clubAbbrev && (
-                      <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                      <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
                         {entry.clubAbbrev}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-slate-600">{resultLabel(entry, maxRound)}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-700">
+                  <td className="px-4 py-2 text-foreground-secondary">
+                    {resultLabel(entry, maxRound)}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums text-foreground-secondary">
                     {entry.poolScore != null ? entry.poolScore.toFixed(2) : '—'}
                   </td>
                 </tr>

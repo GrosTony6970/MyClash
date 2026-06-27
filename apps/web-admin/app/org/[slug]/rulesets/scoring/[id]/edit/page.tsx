@@ -164,18 +164,17 @@ export default function OrgEditScoringRulesetPage() {
   return (
     <main className="max-w-4xl p-8">
       <div className="mb-2 text-sm">
-        <Link
-          href={`/org/${slugForLink}/rulesets/scoring`}
-          className="text-slate-500 hover:underline"
-        >
+        <Link href={`/org/${slugForLink}/rulesets/scoring`} className="text-muted hover:underline">
           {t('admin.rulesets.backToList')}
         </Link>
       </div>
-      <h1 className="mb-1 text-2xl font-bold text-slate-900">{t('admin.rulesets.editTitle')}</h1>
-      <p className="mb-6 text-sm text-slate-500">{t('admin.rulesets.editDescription')}</p>
+      <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
+        {t('admin.rulesets.editTitle')}
+      </h1>
+      <p className="mb-6 text-sm text-muted">{t('admin.rulesets.editDescription')}</p>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -184,8 +183,8 @@ export default function OrgEditScoringRulesetPage() {
         <div
           className={`mb-4 rounded-md border px-4 py-3 text-sm ${
             readOnly
-              ? 'border-amber-200 bg-amber-50 text-amber-800'
-              : 'border-red-200 bg-red-50 text-red-700'
+              ? 'border-warning/30 bg-warning/10 text-warning'
+              : 'border-danger/30 bg-danger/10 text-danger'
           }`}
         >
           {submissionBanner}
@@ -193,7 +192,7 @@ export default function OrgEditScoringRulesetPage() {
       )}
 
       {loading || !initial ? (
-        <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
         <RulesetForm
           initial={initial}

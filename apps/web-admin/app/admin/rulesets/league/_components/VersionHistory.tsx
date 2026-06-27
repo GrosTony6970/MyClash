@@ -107,18 +107,18 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
   }
 
   return (
-    <details className="mt-8 rounded-md border border-slate-200 bg-white">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+    <details className="mt-8 rounded-md border border-border bg-surface">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground-secondary hover:bg-background">
         {t('admin.rulesets.league.versionHistory.title')} ({versions.length})
       </summary>
 
       {error && (
-        <div className="border-t border-slate-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="border-t border-border bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <ul className="divide-y divide-slate-200 border-t border-slate-200">
+      <ul className="divide-y divide-border border-t border-border">
         {versions.map((v) => {
           const isCurrent = v.version === currentVersion;
           const isExpanded = expandedId === v.id;
@@ -126,15 +126,15 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
             <li key={v.id} className="px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-sm font-semibold text-slate-900">
+                  <span className="font-mono text-sm font-semibold text-foreground">
                     v{v.version}
                   </span>
                   {isCurrent && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                    <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
                       current
                     </span>
                   )}
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted">
                     {t('admin.rulesets.league.versionHistory.publishedAt', {
                       date: new Date(v.published_at).toLocaleString(),
                     })}
@@ -144,7 +144,7 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
                   <button
                     type="button"
                     onClick={() => setExpandedId(isExpanded ? null : v.id)}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                   >
                     {isExpanded ? '−' : '+'}
                   </button>
@@ -153,7 +153,7 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
                       type="button"
                       onClick={() => setPendingRollback(v)}
                       disabled={busyId === v.id}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
                     >
                       {t('admin.rulesets.league.versionHistory.rollbackButton')}
                     </button>

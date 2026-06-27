@@ -101,7 +101,7 @@ function ActionButton({
       >
         {label}
       </button>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-md bg-slate-950 px-3 py-2 text-left text-xs font-medium leading-5 text-white shadow-lg group-hover:block group-focus-within:block">
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-md bg-strong px-3 py-2 text-left text-xs font-medium leading-5 text-strong-foreground shadow-lg group-hover:block group-focus-within:block">
         {description}
       </span>
     </span>
@@ -302,7 +302,7 @@ export default function AdminUsersPage() {
   } = useSortableList(filteredUsers, getUserSortValue);
 
   return (
-    <main id="main-content" className="mx-auto w-full space-y-6 px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-7xl space-y-6 px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.dashboard.eyebrow')}
         title={t('admin.users.title')}
@@ -314,9 +314,13 @@ export default function AdminUsersPage() {
         }
       />
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">{t('admin.users.create.title')}</h2>
-        <p className="mt-1 text-sm text-slate-600">{t('admin.users.create.description')}</p>
+      <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+          {t('admin.users.create.title')}
+        </h2>
+        <p className="mt-1 text-sm text-foreground-secondary">
+          {t('admin.users.create.description')}
+        </p>
 
         <form
           className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end"
@@ -324,51 +328,51 @@ export default function AdminUsersPage() {
             void handleCreate(event);
           }}
         >
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
+          <label className="grid gap-1 text-sm font-medium text-foreground-secondary">
             {t('admin.users.create.email')}
             <input
               type="email"
               required
               value={createEmail}
               onChange={(event) => setCreateEmail(event.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+              className="rounded-md border border-border px-3 py-2 text-sm text-foreground"
             />
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
+          <label className="grid gap-1 text-sm font-medium text-foreground-secondary">
             {t('admin.users.create.displayName')}
             <input
               type="text"
               value={createDisplayName}
               onChange={(event) => setCreateDisplayName(event.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+              className="rounded-md border border-border px-3 py-2 text-sm text-foreground"
             />
           </label>
           <button
             type="submit"
             disabled={creating}
-            className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+            className="rounded-md bg-info px-4 py-2 text-sm font-semibold text-white hover:bg-info/90 disabled:opacity-60"
           >
             {creating ? t('admin.users.create.submitting') : t('admin.users.create.submit')}
           </button>
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 lg:col-span-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground-secondary lg:col-span-3">
             <input
               type="checkbox"
               checked={createSuperAdmin}
               onChange={(event) => setCreateSuperAdmin(event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-border"
             />
             {t('admin.users.create.makeSuperAdmin')}
           </label>
         </form>
 
         {createError && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {createError}
           </div>
         )}
 
         {createResult && (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mt-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
             <p className="font-semibold">{t('admin.users.create.success')}</p>
             <p>
               {t('admin.users.create.loginEmail')}: {createResult.user.email}
@@ -382,12 +386,12 @@ export default function AdminUsersPage() {
       </section>
 
       {error && (
-        <div className="flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger sm:flex-row sm:items-center sm:justify-between">
           <span>{error}</span>
           <button
             type="button"
             onClick={refresh}
-            className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+            className="w-fit rounded-md border border-danger/30 bg-surface px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10"
           >
             {t('actions.retry')}
           </button>
@@ -400,13 +404,13 @@ export default function AdminUsersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('admin.common.searchPlaceholder')}
-          className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+          className="w-72 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
         {search && (
           <button
             type="button"
             onClick={() => setSearch('')}
-            className="px-2 text-sm text-slate-500 hover:text-slate-700"
+            className="px-2 text-sm text-muted hover:text-foreground-secondary"
           >
             {t('actions.clear')}
           </button>
@@ -414,14 +418,14 @@ export default function AdminUsersPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-500">{t('admin.users.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.users.loading')}</p>
       ) : users.length === 0 ? (
-        <p className="text-sm text-slate-500">{t('admin.users.empty')}</p>
+        <p className="text-sm text-muted">{t('admin.users.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full min-w-[980px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              <tr className="border-b border-border bg-background text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                 <th className="px-4 py-3">
                   <SortableHeader
                     label={t('admin.users.table.displayName')}
@@ -475,45 +479,45 @@ export default function AdminUsersPage() {
               {visibleUsers.map((user) => {
                 const disabled = isDisabled(user);
                 return (
-                  <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-950">
+                  <tr key={user.id} className="border-b border-border hover:bg-background">
+                    <td className="px-4 py-3 font-medium text-foreground">
                       {getDisplayName(user, t('admin.users.noDisplayName'))}
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-950">
+                    <td className="px-4 py-3 font-medium text-foreground">
                       {user.email ?? t('admin.users.noEmail')}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-700">
+                    <td className="px-4 py-3 text-xs text-foreground-secondary">
                       {(user.organizations ?? []).length === 0 ? (
-                        <span className="text-slate-300">—</span>
+                        <span className="text-muted">—</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {(user.organizations ?? []).slice(0, 3).map((org) => (
                             <span
                               key={org.id}
-                              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5"
+                              className="rounded-full border border-border bg-background px-2 py-0.5"
                               title={org.name}
                             >
-                              {org.name} <span className="text-slate-400">· {org.role}</span>
+                              {org.name} <span className="text-muted">· {org.role}</span>
                             </span>
                           ))}
                           {(user.organizations ?? []).length > 3 && (
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">
+                            <span className="rounded-full bg-background px-2 py-0.5 text-muted">
                               +{(user.organizations ?? []).length - 3}
                             </span>
                           )}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-foreground-secondary">
                       {formatDate(user.created_at, t('admin.users.missingDate'))}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-foreground-secondary">
                       {formatDate(user.last_sign_in_at, t('admin.users.missingDate'))}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          disabled ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                          disabled ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
                         }`}
                       >
                         {disabled

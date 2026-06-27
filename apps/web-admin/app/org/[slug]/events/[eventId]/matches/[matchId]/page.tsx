@@ -334,7 +334,7 @@ export default function MatchDetailPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-border border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -342,16 +342,16 @@ export default function MatchDetailPage() {
   return (
     <main className="p-8 max-w-4xl">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-gray-700">
+      <div className="flex items-center gap-2 text-sm text-muted mb-1">
+        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
           {slug}
         </Link>
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
           Event
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">
+        <span className="text-foreground font-medium">
           {summary?.roundCode ?? match?.matchNumberLabel ?? 'Match'}
         </span>
       </div>
@@ -363,29 +363,29 @@ export default function MatchDetailPage() {
       {(match || summary) && (
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="font-display font-bold text-2xl sm:text-3xl">
               {summary
                 ? `${summary.redName || '?'} vs ${summary.blueName || '?'}`
                 : `${match?.redFighterName ?? '?'} vs ${match?.blueFighterName ?? '?'}`}
             </h1>
-            <p className="text-gray-500 text-sm mt-0.5 font-mono">
+            <p className="text-muted text-sm mt-0.5 font-mono">
               {summary?.roundCode ?? match?.matchNumberLabel ?? ''}
             </p>
             {match?.lockedAt && (
-              <p className="mt-1 text-sm font-medium text-yellow-700">Locked for staff scoring</p>
+              <p className="mt-1 text-sm font-medium text-warning">Locked for staff scoring</p>
             )}
           </div>
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums">
               <span className="text-red-600">{match?.redScore ?? 0}</span>
-              <span className="text-gray-400 mx-2">–</span>
+              <span className="text-muted mx-2">–</span>
               <span className="text-blue-600">{match?.blueScore ?? 0}</span>
             </p>
             <div className="mt-3 flex flex-col items-end gap-1.5">
               <button
                 type="button"
                 onClick={() => void handleLockToggle()}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-500"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-border"
               >
                 {match?.lockedAt ? 'Unlock match' : 'Lock match'}
               </button>
@@ -398,7 +398,7 @@ export default function MatchDetailPage() {
                 <button
                   type="button"
                   onClick={() => void handleReopen()}
-                  className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:border-amber-600 hover:bg-amber-100"
+                  className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning hover:border-warning hover:bg-warning/20"
                 >
                   ↻ Re-open match
                 </button>
@@ -409,21 +409,21 @@ export default function MatchDetailPage() {
       )}
 
       {pendingNotice && (
-        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mb-5 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           {pendingNotice}
         </div>
       )}
 
       {match && (
-        <section className="mb-6 rounded-xl border border-red-100 bg-red-50 p-4">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-red-700">
+        <section className="mb-6 rounded-xl border border-danger/30 bg-danger/10 p-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-danger">
             Record forfeit
           </h2>
           <div className="grid gap-3 md:grid-cols-4">
             <select
               value={forfeitSide}
               onChange={(event) => setForfeitSide(event.target.value as 'red' | 'blue')}
-              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
               <option value="red">{match.redFighterName ?? match.red_fighter_name ?? 'Red'}</option>
               <option value="blue">
@@ -433,7 +433,7 @@ export default function MatchDetailPage() {
             <select
               value={forfeitReason}
               onChange={(event) => setForfeitReason(event.target.value)}
-              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
               <option value="injury">Injury</option>
               <option value="voluntary">Voluntary</option>
@@ -442,7 +442,7 @@ export default function MatchDetailPage() {
               <option value="conduct_violation">Conduct violation</option>
             </select>
             {['injury', 'voluntary', 'black_card_1'].includes(forfeitReason) && (
-              <label className="flex items-center gap-2 text-sm text-red-900">
+              <label className="flex items-center gap-2 text-sm text-danger">
                 <input
                   type="checkbox"
                   checked={forfeitCanContinue}
@@ -455,7 +455,7 @@ export default function MatchDetailPage() {
               type="button"
               onClick={() => void handleForfeit()}
               disabled={forfeitSaving}
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground disabled:opacity-50"
             >
               {forfeitSaving ? 'Recording...' : 'Record forfeit'}
             </button>
@@ -466,12 +466,12 @@ export default function MatchDetailPage() {
       <div className="grid grid-cols-2 gap-8">
         {/* ── Exchange list ── */}
         <section>
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
             Exchanges ({exchanges.length})
           </h2>
 
           {exchanges.length === 0 ? (
-            <p className="text-gray-400 text-sm">No exchanges recorded.</p>
+            <p className="text-muted text-sm">No exchanges recorded.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {exchanges.map((ex) => (
@@ -480,34 +480,32 @@ export default function MatchDetailPage() {
                   className={[
                     'border rounded-xl px-4 py-3 text-sm',
                     ex.voided
-                      ? 'border-gray-200 bg-gray-50 opacity-60'
-                      : 'border-gray-200 bg-white',
+                      ? 'border-border bg-background opacity-60'
+                      : 'border-border bg-surface',
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 font-mono w-6">#{ex.sequence}</span>
+                        <span className="text-xs text-muted font-mono w-6">#{ex.sequence}</span>
                         <span
                           className={[
                             'font-medium',
-                            ex.voided ? 'line-through text-gray-400' : 'text-gray-900',
+                            ex.voided ? 'line-through text-muted' : 'text-foreground',
                           ].join(' ')}
                         >
                           {exchangeLabel(ex)}
                         </span>
                         {ex.voided && (
-                          <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium">
+                          <span className="text-xs bg-danger/10 text-danger px-1.5 py-0.5 rounded font-medium">
                             VOIDED
                           </span>
                         )}
                       </div>
                       {ex.voided && ex.voidedReason && (
-                        <p className="text-xs text-gray-400 mt-0.5 ml-8">
-                          Reason: {ex.voidedReason}
-                        </p>
+                        <p className="text-xs text-muted mt-0.5 ml-8">Reason: {ex.voidedReason}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-0.5 ml-8">
+                      <p className="text-xs text-muted mt-0.5 ml-8">
                         {new Date(ex.occurredAt).toLocaleTimeString('fr-FR')}
                         {(ex.redScoreDelta !== 0 || ex.blueScoreDelta !== 0) && (
                           <span className="ml-2">
@@ -531,14 +529,14 @@ export default function MatchDetailPage() {
                             setVoidReason('');
                             setVoidError(null);
                           }}
-                          className="text-xs text-red-500 hover:underline"
+                          className="text-xs text-danger hover:underline"
                         >
                           Void
                         </button>
                       ) : (
                         <button
                           onClick={() => void handleRevert(ex.id)}
-                          className="text-xs text-green-600 hover:underline"
+                          className="text-xs text-success hover:underline"
                         >
                           Restore
                         </button>
@@ -553,32 +551,32 @@ export default function MatchDetailPage() {
 
         {/* ── Audit log ── */}
         <section>
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
             Audit log
           </h2>
 
           {auditLog.length === 0 ? (
-            <p className="text-gray-400 text-sm">No audit entries yet.</p>
+            <p className="text-muted text-sm">No audit entries yet.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {auditLog.map((entry) => (
-                <div key={entry.id} className="border border-gray-100 rounded-xl px-4 py-3 text-xs">
+                <div key={entry.id} className="border border-border rounded-xl px-4 py-3 text-xs">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
+                    <span className="font-mono bg-border px-1.5 py-0.5 rounded text-foreground-secondary">
                       {entry.action}
                     </span>
-                    <span className="text-gray-400">
+                    <span className="text-muted">
                       {new Date(entry.createdAt).toLocaleString('fr-FR')}
                     </span>
                   </div>
-                  <p className="text-gray-500">
+                  <p className="text-muted">
                     by{' '}
-                    <span className="font-medium text-gray-700">
+                    <span className="font-medium text-foreground-secondary">
                       {entry.actorDisplayName ?? '—'}
                     </span>
                   </p>
                   {entry.payloadJson && Object.keys(entry.payloadJson).length > 0 && (
-                    <div className="mt-1 text-gray-400">
+                    <div className="mt-1 text-muted">
                       {Object.entries(entry.payloadJson).map(([k, v]) => (
                         <span key={k} className="mr-2">
                           {k}: <em>{String(v)}</em>
@@ -595,13 +593,15 @@ export default function MatchDetailPage() {
 
       {/* Void modal */}
       {voidTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold mb-1">Void exchange #{voidTarget.sequence}</h2>
-            <p className="text-sm text-gray-500 mb-4">{exchangeLabel(voidTarget)}</p>
+        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="font-display font-semibold text-lg sm:text-xl mb-1">
+              Void exchange #{voidTarget.sequence}
+            </h2>
+            <p className="text-sm text-muted mb-4">{exchangeLabel(voidTarget)}</p>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground-secondary mb-1">
                 Reason * (required)
               </label>
               <textarea
@@ -609,12 +609,12 @@ export default function MatchDetailPage() {
                 onChange={(e) => setVoidReason(e.target.value)}
                 rows={3}
                 placeholder="e.g. Scorekeeper entry error, referee correction…"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-none"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
               />
             </div>
 
             {voidError && (
-              <p className="text-sm text-red-600 mt-2" role="alert">
+              <p className="text-sm text-danger mt-2" role="alert">
                 {voidError}
               </p>
             )}
@@ -622,14 +622,14 @@ export default function MatchDetailPage() {
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setVoidTarget(null)}
-                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+                className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
               >
                 Cancel
               </button>
               <button
                 onClick={() => void handleVoid()}
                 disabled={voidSaving || !voidReason.trim()}
-                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                className="bg-danger hover:bg-danger-hover disabled:opacity-50 text-danger-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {voidSaving ? 'Voiding…' : 'Void exchange'}
               </button>

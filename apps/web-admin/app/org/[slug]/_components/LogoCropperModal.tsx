@@ -75,22 +75,22 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t('organizer.dashboard.brand.cropper.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(ev) => {
         if (ev.target === ev.currentTarget && !saving) onCancel();
       }}
     >
-      <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl bg-white p-5 shadow-xl">
+      <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl bg-surface p-5 shadow-xl">
         <header>
-          <h2 className="text-lg font-bold text-slate-900">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('organizer.dashboard.brand.cropper.title')}
           </h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted">
             {t('organizer.dashboard.brand.cropper.instructions')}
           </p>
         </header>
 
-        <div className="relative h-80 w-full overflow-hidden rounded-lg bg-slate-900">
+        <div className="relative h-80 w-full overflow-hidden rounded-lg bg-strong">
           {imageSrc && (
             <Cropper
               image={imageSrc}
@@ -111,7 +111,7 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
         </div>
 
         <div className="grid gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">
             {t('organizer.dashboard.brand.cropper.zoomLabel')}
           </span>
           <div className="flex items-center gap-3">
@@ -133,7 +133,7 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
                 setCrop({ x: 0, y: 0 });
               }}
               disabled={saving}
-              className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
+              className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {t('organizer.dashboard.brand.cropper.fit')}
             </button>
@@ -145,7 +145,7 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
           >
             {t('organizer.dashboard.brand.cropper.cancel')}
           </button>
@@ -153,7 +153,7 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
             type="button"
             onClick={() => void handleSave()}
             disabled={saving || !croppedAreaPixels}
-            className="rounded-md bg-red-700 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving
               ? t('organizer.dashboard.brand.cropper.saving')

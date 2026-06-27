@@ -79,21 +79,21 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
   // Most-important role first (slot 1 sits on top, then 2, then 3 …).
   const orderedSlots = [...pool.roleSlots].sort((a, b) => a.slotIndex - b.slotIndex);
   return (
-    <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col rounded-lg border border-border bg-surface p-4">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <p className="font-semibold text-gray-900">
+          <p className="font-semibold text-foreground">
             {pool.tournamentName ? `${pool.tournamentName} – ${pool.name}` : pool.name}
           </p>
           {pool.scheduledStart && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               {formatHHMM(pool.scheduledStart)}
               {pool.scheduledEnd &&
                 `–${formatHHMM(blockWindowEndIso(pool.scheduledStart, pool.scheduledEnd))}`}
             </p>
           )}
           {showLice && liceName && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               {t('organizer.poolsPage.refereesLiceLabel').replace('{lice}', liceName)}
             </p>
           )}
@@ -105,7 +105,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
             disabled={isReadOnly || busy}
             aria-label={t('organizer.refereesPage.clearPool')}
             title={t('organizer.refereesPage.clearPool')}
-            className="text-gray-400 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+            className="text-muted transition-colors hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
           >
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
               <path
@@ -119,7 +119,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
           {t('organizer.refereesPage.refereesSection')}
         </p>
         {orderedSlots.map((slot) => {
@@ -157,7 +157,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
                     type="button"
                     disabled={isReadOnly || busy}
                     onClick={() => onUnassign(slot.assignment!.id)}
-                    className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                    className="text-xs text-danger hover:text-danger-hover disabled:opacity-50"
                   >
                     {t('organizer.poolsPage.refereesUnassign')}
                   </button>
@@ -169,7 +169,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
                     type="button"
                     disabled={isReadOnly || busy}
                     onClick={() => onAssignClick(slot)}
-                    className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+                    className="rounded border border-border px-2 py-0.5 text-xs hover:bg-background disabled:opacity-50"
                   >
                     {t('organizer.poolsPage.refereesAssign')}
                   </button>
@@ -189,7 +189,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
                 </p>
               )}
               {slot.missingReasons.length > 0 && !slot.assignment && (
-                <p className="mt-1 text-[10px] text-red-700">
+                <p className="mt-1 text-[10px] text-danger">
                   {slot.missingReasons.map((r) => formatUnassignedReason(r, t)).join(', ')}
                 </p>
               )}
@@ -199,8 +199,8 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
       </div>
 
       {pool.members.length > 0 && (
-        <div className="mt-3 border-t border-gray-100 pt-3">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
             {t('organizer.refereesPage.fightersSection')}
           </p>
           <ul className="space-y-1">
@@ -209,9 +209,9 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
                 key={m.registrationId}
                 className="flex items-center justify-between gap-2 text-sm"
               >
-                <span className="text-gray-800">{m.personName}</span>
+                <span className="text-foreground-secondary">{m.personName}</span>
                 {m.clubLabel && (
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">
+                  <span className="shrink-0 rounded bg-border px-1.5 py-px text-[10px] text-foreground-secondary">
                     {m.clubLabel}
                   </span>
                 )}

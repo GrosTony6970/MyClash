@@ -84,37 +84,35 @@ export function HemaRatingsSuggest({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div className="rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-            HEMA Ratings
-          </p>
-          <p className="text-xs text-gray-500">Optional global fighter link</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">HEMA Ratings</p>
+          <p className="text-xs text-muted">Optional global fighter link</p>
         </div>
         {selected && (
           <button
             type="button"
             onClick={() => onSelect(null)}
-            className="text-xs font-medium text-red-700 hover:text-red-800"
+            className="text-xs font-medium text-danger hover:text-danger-hover"
           >
             Clear
           </button>
         )}
       </div>
 
-      {loading ? <p className="text-xs text-gray-400">Searching...</p> : null}
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {loading ? <p className="text-xs text-muted">Searching...</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
 
       {!loading && !error && suggestions.length === 0 ? (
-        <p className="text-xs text-gray-500">No HEMA Ratings profile selected.</p>
+        <p className="text-xs text-muted">No HEMA Ratings profile selected.</p>
       ) : null}
 
       {suggestions.length > 0 ? (
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+        <div className="overflow-hidden rounded-md border border-border bg-surface">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              <tr className="border-b border-border bg-background text-xs font-semibold uppercase tracking-wider text-muted">
                 <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colName')}</th>
                 <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colClub')}</th>
                 <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colCountry')}</th>
@@ -129,16 +127,18 @@ export function HemaRatingsSuggest({
                     key={suggestion.id}
                     onClick={() => handleSelect(suggestion)}
                     className={[
-                      'cursor-pointer border-b border-gray-100 transition-colors last:border-b-0',
-                      active ? 'bg-red-50 text-gray-950' : 'hover:bg-gray-50 text-gray-700',
+                      'cursor-pointer border-b border-border transition-colors last:border-b-0',
+                      active
+                        ? 'bg-accent/10 text-foreground'
+                        : 'hover:bg-background text-foreground-secondary',
                     ].join(' ')}
                   >
                     <td className="px-2 py-1.5 font-medium">{suggestion.name}</td>
-                    <td className="px-2 py-1.5 text-xs text-gray-500">{suggestion.club || '—'}</td>
-                    <td className="px-2 py-1.5 text-xs text-gray-500">
+                    <td className="px-2 py-1.5 text-xs text-muted">{suggestion.club || '—'}</td>
+                    <td className="px-2 py-1.5 text-xs text-muted">
                       {suggestion.nationality || '—'}
                     </td>
-                    <td className="px-2 py-1.5 text-xs text-gray-500">#{suggestion.id}</td>
+                    <td className="px-2 py-1.5 text-xs text-muted">#{suggestion.id}</td>
                   </tr>
                 );
               })}

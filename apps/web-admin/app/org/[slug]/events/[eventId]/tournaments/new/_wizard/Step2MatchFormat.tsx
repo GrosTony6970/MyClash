@@ -86,7 +86,7 @@ export function Step2MatchFormat({
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display text-xl text-slate-900">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('organizer.tournaments.wizard.matchFormat')}
       </h2>
 
@@ -196,7 +196,7 @@ export function Step2MatchFormat({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
         >
           {t('actions.back')}
         </button>
@@ -204,7 +204,7 @@ export function Step2MatchFormat({
           type="button"
           onClick={() => void saveAndAdvance()}
           disabled={saving}
-          className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('actions.next')}
         </button>
@@ -232,7 +232,7 @@ function NumberField({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-600 mb-1">{label}</span>
+      <span className="block text-xs font-medium text-foreground-secondary mb-1">{label}</span>
       <div className="flex items-center gap-2">
         <input
           type="number"
@@ -240,11 +240,11 @@ function NumberField({
           min={min}
           max={max}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="w-32 rounded-md border border-border px-3 py-2 text-sm"
         />
-        {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
+        {suffix && <span className="text-xs text-muted">{suffix}</span>}
       </div>
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </label>
   );
 }
@@ -264,11 +264,11 @@ function SelectField({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-600 mb-1">{label}</span>
+      <span className="block text-xs font-medium text-foreground-secondary mb-1">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="w-full rounded-md border border-border px-3 py-2 text-sm"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -276,7 +276,7 @@ function SelectField({
           </option>
         ))}
       </select>
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </label>
   );
 }

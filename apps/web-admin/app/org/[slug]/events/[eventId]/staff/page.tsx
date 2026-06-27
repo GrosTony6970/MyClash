@@ -151,19 +151,18 @@ export default function EventStaffPage() {
   }
 
   return (
-    <main className="max-w-5xl p-8">
-      <Link
-        href={`/org/${slug}/events/${eventId}`}
-        className="text-sm text-gray-500 hover:underline"
-      >
+    <main className="mx-auto max-w-7xl p-8">
+      <Link href={`/org/${slug}/events/${eventId}`} className="text-sm text-muted hover:underline">
         {t('organizer.staff.backToEvent')}
       </Link>
-      <h1 className="mt-3 text-2xl font-bold">{t('organizer.staff.title')}</h1>
-      <p className="mt-1 text-sm text-gray-500">{t('organizer.staff.description')}</p>
+      <h1 className="mt-3 font-display font-bold text-2xl sm:text-3xl">
+        {t('organizer.staff.title')}
+      </h1>
+      <p className="mt-1 text-sm text-muted">{t('organizer.staff.description')}</p>
 
       <form
         onSubmit={(event) => void createAccount(event)}
-        className="mt-6 grid gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-5"
+        className="mt-6 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-5"
       >
         <input
           required
@@ -172,14 +171,14 @@ export default function EventStaffPage() {
             setForm((current) => ({ ...current, displayName: event.target.value }))
           }
           placeholder={t('organizer.staff.displayName')}
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-border px-3 py-2 text-sm"
         />
         <input
           required
           value={form.username}
           onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
           placeholder={t('organizer.staff.username')}
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-border px-3 py-2 text-sm"
         />
         <input
           required
@@ -187,7 +186,7 @@ export default function EventStaffPage() {
           inputMode="numeric"
           onChange={(event) => setForm((current) => ({ ...current, pin: event.target.value }))}
           placeholder={t('organizer.staff.pin')}
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-border px-3 py-2 text-sm"
         />
         <select
           value={form.role}
@@ -197,32 +196,34 @@ export default function EventStaffPage() {
               role: event.target.value as 'arbitre_table' | 'event_staff',
             }))
           }
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-border px-3 py-2 text-sm"
         >
           <option value="arbitre_table">{t('organizer.staff.roles.arbitre_table')}</option>
           <option value="event_staff">{t('organizer.staff.roles.event_staff')}</option>
         </select>
-        <button className="rounded bg-red-700 px-4 py-2 text-sm font-bold text-white">
+        <button className="rounded bg-accent px-4 py-2 text-sm font-bold text-accent-foreground">
           {t('organizer.staff.create')}
         </button>
       </form>
 
-      {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
-      {loading && <p className="mt-8 text-sm text-gray-500">{t('organizer.staff.loading')}</p>}
+      {error && <p className="mt-4 text-sm text-danger">{error}</p>}
+      {loading && <p className="mt-8 text-sm text-muted">{t('organizer.staff.loading')}</p>}
 
       {!loading && accounts.length === 0 && (
-        <p className="mt-8 rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500">
+        <p className="mt-8 rounded-lg border border-dashed border-border p-6 text-sm text-muted">
           {t('organizer.staff.empty')}
         </p>
       )}
 
       <div className="mt-6 space-y-4">
         {accounts.map((account) => (
-          <section key={account.id} className="rounded-lg border border-gray-200 bg-white p-4">
+          <section key={account.id} className="rounded-lg border border-border bg-surface p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-bold">{account.display_name}</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="font-display font-semibold text-lg sm:text-xl">
+                  {account.display_name}
+                </h2>
+                <p className="text-sm text-muted">
                   {account.username} - {t(`organizer.staff.roles.${account.role}`)} -{' '}
                   {t(`organizer.staff.${account.status}`)}
                 </p>
@@ -246,7 +247,7 @@ export default function EventStaffPage() {
             </div>
 
             <div className="mt-4">
-              <h3 className="text-sm font-bold text-gray-700">
+              <h3 className="text-sm font-bold text-foreground-secondary">
                 {t('organizer.staff.assignments')}
               </h3>
               <div className="mt-2 flex flex-wrap gap-3">
@@ -266,7 +267,7 @@ export default function EventStaffPage() {
             </div>
 
             <div className="mt-4">
-              <h3 className="text-sm font-bold text-gray-700">
+              <h3 className="text-sm font-bold text-foreground-secondary">
                 {t('organizer.staff.displayUrls')}
               </h3>
               <div className="mt-2 space-y-2">
@@ -276,10 +277,10 @@ export default function EventStaffPage() {
                   return (
                     <div
                       key={liceId}
-                      className="flex items-center justify-between gap-3 rounded bg-gray-50 px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded bg-background px-3 py-2 text-sm"
                     >
                       <span className="truncate">{url}</span>
-                      <button onClick={() => void copyUrl(url)} className="shrink-0 text-red-700">
+                      <button onClick={() => void copyUrl(url)} className="shrink-0 text-accent">
                         {copied === url
                           ? t('organizer.staff.copied')
                           : t('organizer.staff.copyUrl')}

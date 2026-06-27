@@ -104,7 +104,7 @@ export function EventLogoCard({
   const hint = logoUrl ? replaceHint : uploadHint;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -113,9 +113,9 @@ export function EventLogoCard({
           aria-label={hint}
           title={hint}
           className={[
-            'group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50',
+            'group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-border bg-background',
             clickable
-              ? 'cursor-pointer hover:border-slate-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-700'
+              ? 'cursor-pointer hover:border-muted hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-accent'
               : 'cursor-not-allowed opacity-70',
           ].join(' ')}
         >
@@ -123,26 +123,26 @@ export function EventLogoCard({
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={logoUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-muted">
               {name.slice(0, 2)}
             </div>
           )}
           {clickable && (
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/0 text-[10px] font-semibold uppercase tracking-wide text-white opacity-0 transition-all group-hover:bg-slate-900/55 group-hover:opacity-100">
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-strong/0 text-[10px] font-semibold uppercase tracking-wide text-strong-foreground opacity-0 transition-all group-hover:bg-strong/55 group-hover:opacity-100">
               {uploading ? uploadingLabel : hint}
             </span>
           )}
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-          <p className="mt-1 truncate text-sm text-slate-500">{logoUrl ? name : emptyLabel}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</p>
+          <p className="mt-1 truncate text-sm text-muted">{logoUrl ? name : emptyLabel}</p>
           {error && (
-            <p className="mt-1 text-xs font-medium text-red-700" role="alert">
+            <p className="mt-1 text-xs font-medium text-danger" role="alert">
               {error}
             </p>
           )}
           {uploading && !error && (
-            <p className="mt-1 text-xs font-medium text-slate-500">{uploadingLabel}</p>
+            <p className="mt-1 text-xs font-medium text-muted">{uploadingLabel}</p>
           )}
         </div>
       </div>

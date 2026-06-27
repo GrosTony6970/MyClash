@@ -36,12 +36,12 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({
   >
     <div className="min-w-0">
       {eyebrow ? (
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-red-800">
           <span>{eyebrow}</span>
           <FoilMark className="text-slate-300" width={28} />
         </p>
       ) : null}
-      <h1 className="mt-2 font-display text-[2.25rem] font-medium leading-tight tracking-tight text-slate-900">
+      <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl leading-tight tracking-tight text-slate-900">
         {title}
       </h1>
       {subtitle ? (

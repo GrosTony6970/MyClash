@@ -78,17 +78,17 @@ const EMPTY_ADD_FORM: AddForm = {
 };
 
 const CLAIM_COLORS: Record<string, string> = {
-  unclaimed: 'bg-gray-100 text-gray-500',
-  guest_active: 'bg-yellow-100 text-yellow-700',
-  claimed: 'bg-green-100 text-green-700',
+  unclaimed: 'bg-border text-foreground-secondary',
+  guest_active: 'bg-warning/10 text-warning',
+  claimed: 'bg-success/10 text-success',
 };
 
 const REG_STATUS_COLORS: Record<string, string> = {
-  registered: 'bg-blue-100 text-blue-700',
-  checked_in: 'bg-green-100 text-green-700',
-  done: 'bg-gray-100 text-gray-500',
-  withdrawn: 'bg-red-100 text-red-500',
-  disqualified: 'bg-red-200 text-red-700',
+  registered: 'bg-info/10 text-info',
+  checked_in: 'bg-success/10 text-success',
+  done: 'bg-border text-foreground-secondary',
+  withdrawn: 'bg-danger/10 text-danger',
+  disqualified: 'bg-danger/10 text-danger',
 };
 
 export default function ParticipantsPage() {
@@ -912,27 +912,30 @@ export default function ParticipantsPage() {
   }
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="flex items-center gap-2 text-sm text-muted mb-1">
+            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link
+              href={`/org/${slug}/events/${eventId}`}
+              className="hover:text-foreground-secondary"
+            >
               Event
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Participants</span>
+            <span className="text-foreground font-medium">Participants</span>
           </div>
-          <h1 className="text-2xl font-bold">Participants</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Participants</h1>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href={`/org/${slug}/events/${eventId}/persons/import`}
             data-testid="persons-import-link"
-            className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+            className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
             CSV import
           </Link>
@@ -941,7 +944,7 @@ export default function ParticipantsPage() {
             data-testid="persons-add"
             disabled={isReadOnly}
             title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-            className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+            className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
             + Add participant
           </button>
@@ -950,13 +953,15 @@ export default function ParticipantsPage() {
 
       {/* Slice 5: top-level mode toggle. 'Persons' is the existing roster
        *  view; 'Waiting list' renders per-tournament queue tables instead. */}
-      <div className="mb-4 inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+      <div className="mb-4 inline-flex rounded-lg border border-border bg-surface p-0.5">
         <button
           type="button"
           onClick={() => setMode('persons')}
           className={[
             'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-            mode === 'persons' ? 'bg-red-700 text-white' : 'text-gray-600 hover:bg-gray-50',
+            mode === 'persons'
+              ? 'bg-accent text-accent-foreground'
+              : 'text-foreground-secondary hover:bg-background',
           ].join(' ')}
         >
           Persons
@@ -966,7 +971,9 @@ export default function ParticipantsPage() {
           onClick={() => setMode('waiting-list')}
           className={[
             'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-            mode === 'waiting-list' ? 'bg-red-700 text-white' : 'text-gray-600 hover:bg-gray-50',
+            mode === 'waiting-list'
+              ? 'bg-accent text-accent-foreground'
+              : 'text-foreground-secondary hover:bg-background',
           ].join(' ')}
         >
           Waiting list
@@ -1018,15 +1025,17 @@ export default function ParticipantsPage() {
                   className={[
                     'px-3 py-1.5 rounded-full text-sm font-medium transition-colors border inline-flex items-center',
                     active
-                      ? 'bg-red-700 text-white border-red-700'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                      ? 'bg-accent text-accent-foreground border-accent'
+                      : 'bg-surface text-foreground-secondary border-border hover:border-border',
                   ].join(' ')}
                 >
                   {label}
                   <span
                     className={[
                       'ml-1.5 inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-semibold tabular-nums',
-                      active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700',
+                      active
+                        ? 'bg-accent-foreground/20 text-accent-foreground'
+                        : 'bg-border text-foreground-secondary',
                     ].join(' ')}
                   >
                     {count}
@@ -1037,14 +1046,14 @@ export default function ParticipantsPage() {
           </div>
 
           {selected.size > 0 && (
-            <div className="mb-3 flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-              <div className="flex items-center gap-3 text-sm font-medium text-gray-700">
+            <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2">
+              <div className="flex items-center gap-3 text-sm font-medium text-foreground-secondary">
                 {selected.size} {t('organizer.persons.bulk.selected')}
               </div>
 
               {((activeTab === 'all' && tournaments.length > 0) || activeTab !== 'all') && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted">
                     {t('organizer.persons.bulk.section.tournament')}
                   </span>
                   {activeTab === 'all' && tournaments.length > 0 && (
@@ -1052,7 +1061,7 @@ export default function ParticipantsPage() {
                       <select
                         value={bulkAssignTournamentId}
                         onChange={(e) => setBulkAssignTournamentId(e.target.value)}
-                        className="rounded border border-gray-300 px-2 py-1 text-xs"
+                        className="rounded border border-border px-2 py-1 text-xs"
                       >
                         <option value="">{t('organizer.persons.bulk.assignToTournament')}</option>
                         {tournaments.map((tour) => (
@@ -1065,7 +1074,7 @@ export default function ParticipantsPage() {
                         <button
                           onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
                           disabled={bulkLoading}
-                          className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                          className="rounded bg-info px-2 py-1 text-xs text-info-foreground hover:bg-info-hover disabled:opacity-50"
                         >
                           {t('organizer.persons.bulk.assign')}
                         </button>
@@ -1080,7 +1089,7 @@ export default function ParticipantsPage() {
                         title={
                           isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
                         }
-                        className="text-sm font-medium text-green-700 hover:text-green-900 disabled:opacity-50"
+                        className="text-sm font-medium text-success hover:text-success-hover disabled:opacity-50"
                       >
                         {t('organizer.persons.bulk.checkIn')}
                       </button>
@@ -1090,7 +1099,7 @@ export default function ParticipantsPage() {
                         title={
                           isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
                         }
-                        className="text-sm font-medium text-orange-600 hover:text-orange-800 disabled:opacity-50"
+                        className="text-sm font-medium text-warning hover:text-warning-hover disabled:opacity-50"
                       >
                         {t('organizer.persons.bulk.unassignFrom', {
                           tournament: tournaments.find((tour) => tour.id === activeTab)?.name ?? '',
@@ -1101,7 +1110,7 @@ export default function ParticipantsPage() {
                           <select
                             value={bulkAssignTournamentId}
                             onChange={(e) => setBulkAssignTournamentId(e.target.value)}
-                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                            className="rounded border border-border px-2 py-1 text-xs"
                           >
                             <option value="">{t('organizer.persons.bulk.assignToAnother')}</option>
                             {tournaments
@@ -1116,7 +1125,7 @@ export default function ParticipantsPage() {
                             <button
                               onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
                               disabled={bulkLoading}
-                              className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                              className="rounded bg-info px-2 py-1 text-xs text-info-foreground hover:bg-info-hover disabled:opacity-50"
                             >
                               {t('organizer.persons.bulk.assign')}
                             </button>
@@ -1130,7 +1139,7 @@ export default function ParticipantsPage() {
 
               {/* Referee bulk actions — always available, all tabs */}
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
                   {t('organizer.persons.bulk.section.referee')}
                 </span>
                 <button
@@ -1145,22 +1154,22 @@ export default function ParticipantsPage() {
                   onClick={() => void handleBulkUnregisterReferee()}
                   disabled={bulkLoading || isReadOnly}
                   title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                  className="text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                  className="text-sm font-medium text-foreground-secondary hover:text-foreground disabled:opacity-50"
                 >
                   {t('organizer.persons.bulk.unregisterReferee')}
                 </button>
               </div>
 
               {/* Danger zone — separated, restyled */}
-              <div className="flex items-center gap-3 border-t border-gray-200 pt-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-red-600">
+              <div className="flex items-center gap-3 border-t border-border pt-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-danger">
                   {t('organizer.persons.bulk.section.danger')}
                 </span>
                 <button
                   onClick={() => void handleBulkDelete()}
                   disabled={bulkLoading || isReadOnly}
                   title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                  className="rounded-md px-2.5 py-1 text-sm font-semibold text-red-700 ring-1 ring-red-300 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-md px-2.5 py-1 text-sm font-semibold text-danger ring-1 ring-danger/30 hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('organizer.persons.bulk.deleteFromEvent')}
                 </button>
@@ -1169,12 +1178,12 @@ export default function ParticipantsPage() {
           )}
 
           {loading ? (
-            <p className="text-gray-400 text-sm">Loading…</p>
+            <p className="text-muted text-sm">Loading…</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                  <tr className="border-b border-border text-left text-muted">
                     <th className="py-2 pr-3 w-8">
                       <input
                         type="checkbox"
@@ -1198,7 +1207,7 @@ export default function ParticipantsPage() {
                         aria-label={t('organizer.persons.searchPlaceholder')}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-36 rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-36 rounded-lg border border-border px-2 py-1 text-xs font-normal focus:outline-none focus:ring-2 focus:ring-accent"
                       />
                     </SortableTh>
                     <SortableTh
@@ -1212,7 +1221,7 @@ export default function ParticipantsPage() {
                         value={clubFilter}
                         onChange={(e) => setClubFilter(e.target.value)}
                         aria-label={t('organizer.persons.filterByClub')}
-                        className="max-w-36 rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="max-w-36 rounded-lg border border-border px-2 py-1 text-xs font-normal text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-accent"
                       >
                         <option value="all">{t('organizer.persons.allClubs')}</option>
                         <option value="none">{t('organizer.persons.noClub')}</option>
@@ -1250,7 +1259,7 @@ export default function ParticipantsPage() {
                           setRefereeFilter(e.target.value as PersonFilterValue['referee'])
                         }
                         aria-label={t('organizer.persons.filterByReferee')}
-                        className="rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="rounded-lg border border-border px-2 py-1 text-xs font-normal text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-accent"
                       >
                         <option value="all">{t('organizer.persons.refereeFilterAll')}</option>
                         <option value="referee">{t('organizer.persons.refereeFilterOnly')}</option>
@@ -1272,7 +1281,7 @@ export default function ParticipantsPage() {
                           setInstructorFilter(e.target.value as PersonFilterValue['instructor'])
                         }
                         aria-label={t('organizer.persons.filterByInstructor')}
-                        className="rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="rounded-lg border border-border px-2 py-1 text-xs font-normal text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-accent"
                       >
                         <option value="all">{t('organizer.persons.instructorFilterAll')}</option>
                         <option value="instructor">
@@ -1283,7 +1292,7 @@ export default function ParticipantsPage() {
                         </option>
                       </select>
                     </SortableTh>
-                    <th className="sticky right-0 z-10 bg-white py-2 pl-3 font-medium whitespace-nowrap shadow-[inset_1px_0_0_rgb(229_231_235)]">
+                    <th className="sticky right-0 z-10 bg-surface py-2 pl-3 font-medium whitespace-nowrap shadow-[inset_1px_0_0_var(--color-border)]">
                       Actions
                     </th>
                   </tr>
@@ -1291,7 +1300,7 @@ export default function ParticipantsPage() {
                 <tbody>
                   {filteredPersons.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-16 text-center text-sm text-gray-400">
+                      <td colSpan={8} className="py-16 text-center text-sm text-muted">
                         No participants found.
                       </td>
                     </tr>
@@ -1303,7 +1312,7 @@ export default function ParticipantsPage() {
                           ? regs
                           : regs.filter((r) => r.tournamentId === activeTab);
                       return (
-                        <tr key={p.id} className="group border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={p.id} className="group border-b border-border hover:bg-background">
                           <td className="py-2 pr-3">
                             <input
                               type="checkbox"
@@ -1313,17 +1322,17 @@ export default function ParticipantsPage() {
                             />
                           </td>
                           <td className="py-2 pr-4">
-                            <p className="font-medium text-gray-900">
+                            <p className="font-medium text-foreground">
                               {formatRosterName({
                                 familyName: p.familyName,
                                 givenName: p.givenName,
                               })}
                             </p>
-                            {p.email && (
-                              <p className="text-xs text-gray-400 font-mono">{p.email}</p>
-                            )}
+                            {p.email && <p className="text-xs text-muted font-mono">{p.email}</p>}
                           </td>
-                          <td className="py-2 pr-4 text-gray-600">{p.clubLabel ?? '—'}</td>
+                          <td className="py-2 pr-4 text-foreground-secondary">
+                            {p.clubLabel ?? '—'}
+                          </td>
                           <td className="py-2 pr-4">
                             <span
                               className={[
@@ -1336,7 +1345,7 @@ export default function ParticipantsPage() {
                           </td>
                           <td className="py-2 pr-4">
                             {displayRegs.length === 0 ? (
-                              <span className="text-gray-400 text-xs">—</span>
+                              <span className="text-muted text-xs">—</span>
                             ) : (
                               <div className="flex flex-wrap gap-1">
                                 {displayRegs.map((r) => {
@@ -1382,7 +1391,7 @@ export default function ParticipantsPage() {
                               />
                             ) : null}
                           </td>
-                          <td className="sticky right-0 z-10 bg-white py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_rgb(229_231_235)] group-hover:bg-gray-50">
+                          <td className="sticky right-0 z-10 bg-surface py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_var(--color-border)] group-hover:bg-background">
                             <div className="flex gap-2">
                               <button
                                 onClick={() => openEdit(p)}
@@ -1392,7 +1401,7 @@ export default function ParticipantsPage() {
                                     ? t('organizer.deletionRequest.archivedReadOnly')
                                     : undefined
                                 }
-                                className="text-xs text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-xs text-info hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Edit
                               </button>
@@ -1404,7 +1413,7 @@ export default function ParticipantsPage() {
                                     ? t('organizer.deletionRequest.archivedReadOnly')
                                     : undefined
                                 }
-                                className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-xs text-danger hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Delete
                               </button>
@@ -1421,8 +1430,8 @@ export default function ParticipantsPage() {
 
           {/* Claim-status legend. Pills match the column palette exactly so the
           column reads as documented. */}
-          <div className="mt-3 flex flex-col gap-1 text-xs text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            <span className="font-semibold text-gray-500">Claim status:</span>
+          <div className="mt-3 flex flex-col gap-1 text-xs text-foreground-secondary sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <span className="font-semibold text-muted">Claim status:</span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.unclaimed} px-2 py-0.5 rounded-full font-medium`}>
                 unclaimed
@@ -1475,12 +1484,14 @@ export default function ParticipantsPage() {
           )}
 
           {showAdd && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                <h2 className="text-lg font-bold mb-4">Add participant</h2>
+            <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
+                  Add participant
+                </h2>
 
                 <div className="mb-4">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
                     Search global profiles by name
                   </label>
                   <input
@@ -1491,10 +1502,10 @@ export default function ParticipantsPage() {
                       setSelectedGlobalId(null);
                     }}
                     placeholder="Type a name to search…"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                   {globalSuggestions.length > 0 && !selectedGlobalId && (
-                    <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                    <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
                       {globalSuggestions.map((g) => {
                         const alreadyAdded = existingGlobalIds.has(g.id);
                         return (
@@ -1522,16 +1533,16 @@ export default function ParticipantsPage() {
                             }}
                             className={
                               alreadyAdded
-                                ? 'w-full text-left px-3 py-2 text-sm bg-slate-50 text-slate-400 border-b border-gray-100 last:border-0 cursor-not-allowed'
-                                : 'w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0'
+                                ? 'w-full text-left px-3 py-2 text-sm bg-background text-muted border-b border-border last:border-0 cursor-not-allowed'
+                                : 'w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0'
                             }
                           >
                             <span className="font-medium">{g.displayName}</span>
                             {g.clubLabel && (
-                              <span className="text-gray-400 ml-2 text-xs">{g.clubLabel}</span>
+                              <span className="text-muted ml-2 text-xs">{g.clubLabel}</span>
                             )}
                             {alreadyAdded && (
-                              <span className="ml-2 text-xs italic text-slate-500">
+                              <span className="ml-2 text-xs italic text-muted">
                                 already in event
                               </span>
                             )}
@@ -1541,7 +1552,7 @@ export default function ParticipantsPage() {
                     </div>
                   )}
                   {selectedGlobalId && (
-                    <p className="text-xs text-green-700 mt-1">
+                    <p className="text-xs text-success mt-1">
                       Linked to global profile.{' '}
                       <button
                         type="button"
@@ -1557,16 +1568,16 @@ export default function ParticipantsPage() {
                   )}
                 </div>
 
-                <hr className="my-3 border-gray-100" />
+                <hr className="my-3 border-border" />
 
-                <p className="mb-3 text-sm font-semibold text-slate-700">
+                <p className="mb-3 text-sm font-semibold text-foreground-secondary">
                   Or create profile manually if it does not exist:
                 </p>
 
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
                         Given name *
                       </label>
                       <input
@@ -1574,11 +1585,11 @@ export default function ParticipantsPage() {
                         data-testid="person-given-name"
                         value={addForm.givenName}
                         onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
                         Family name *
                       </label>
                       <input
@@ -1586,23 +1597,27 @@ export default function ParticipantsPage() {
                         data-testid="person-family-name"
                         value={addForm.familyName}
                         onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      Email
+                    </label>
                     <input
                       type="email"
                       value={addForm.email}
                       onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      Club
+                    </label>
                     <input
                       type="search"
                       value={clubSearch}
@@ -1613,7 +1628,7 @@ export default function ParticipantsPage() {
                         setNewClubName(null);
                       }}
                       placeholder="Search by name or abbreviation, or type to create a new one…"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                     {!selectedClubId &&
                       !newClubName &&
@@ -1624,7 +1639,7 @@ export default function ParticipantsPage() {
                         );
                         if (rows.length === 0) return null;
                         return (
-                          <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                          <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
                             {rows.map((row, idx) =>
                               row.kind === 'existing' ? (
                                 <button
@@ -1636,11 +1651,11 @@ export default function ParticipantsPage() {
                                     setClubSearch(row.club.name);
                                     setClubSuggestions([]);
                                   }}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
                                 >
                                   <span className="font-medium">{row.club.name}</span>
                                   {row.club.abbreviation && (
-                                    <span className="text-gray-400 ml-2 text-xs">
+                                    <span className="text-muted ml-2 text-xs">
                                       {row.club.abbreviation}
                                     </span>
                                   )}
@@ -1656,7 +1671,7 @@ export default function ParticipantsPage() {
                                     setSelectedClubLabel('');
                                     setClubSuggestions([]);
                                   }}
-                                  className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 border-b border-gray-100 last:border-0 font-medium"
+                                  className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 border-b border-border last:border-0 font-medium"
                                 >
                                   + Create new club &quot;{row.name}&quot; (unverified)
                                 </button>
@@ -1666,7 +1681,7 @@ export default function ParticipantsPage() {
                         );
                       })()}
                     {selectedClubId && (
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-xs text-success mt-1">
                         {selectedClubLabel}{' '}
                         <button
                           type="button"
@@ -1682,7 +1697,7 @@ export default function ParticipantsPage() {
                       </p>
                     )}
                     {newClubName && (
-                      <p className="text-xs text-green-700 mt-1" data-testid="new-club-chip">
+                      <p className="text-xs text-success mt-1" data-testid="new-club-chip">
                         New club: <span className="font-medium">{newClubName}</span> (will be
                         created){' '}
                         <button
@@ -1700,7 +1715,7 @@ export default function ParticipantsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
                       HEMA Ratings ID (optional)
                     </label>
                     <input
@@ -1708,7 +1723,7 @@ export default function ParticipantsPage() {
                       value={addForm.hemaRatingsId}
                       onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
                       placeholder="Paste an ID or pick from the suggestions below"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
 
@@ -1720,7 +1735,7 @@ export default function ParticipantsPage() {
                   />
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
                       Seed (optional)
                     </label>
                     <input
@@ -1728,11 +1743,11 @@ export default function ParticipantsPage() {
                       value={addForm.seed}
                       onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
                       min="1"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
 
-                  <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700">
+                  <label className="mt-3 inline-flex items-center gap-2 text-sm text-foreground-secondary">
                     <input
                       type="checkbox"
                       checked={addForm.isReferee}
@@ -1742,7 +1757,7 @@ export default function ParticipantsPage() {
                     {t('organizer.persons.addAsReferee')}
                   </label>
 
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <label className="inline-flex items-center gap-2 text-sm text-foreground-secondary">
                     <input
                       type="checkbox"
                       checked={addForm.isInstructor}
@@ -1756,7 +1771,7 @@ export default function ParticipantsPage() {
 
                   {tournaments.length > 0 && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                      <label className="block text-xs font-medium text-foreground-secondary mb-2">
                         Register in tournaments (optional)
                       </label>
                       <div className="flex flex-col gap-1.5">
@@ -1787,7 +1802,7 @@ export default function ParticipantsPage() {
                 </div>
 
                 {addError && (
-                  <p className="text-sm text-red-600 mt-3" role="alert">
+                  <p className="text-sm text-danger mt-3" role="alert">
                     {addError}
                   </p>
                 )}
@@ -1795,7 +1810,7 @@ export default function ParticipantsPage() {
                 <div className="flex justify-end gap-2 mt-5">
                   <button
                     onClick={closeAddModal}
-                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+                    className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
                   >
                     Cancel
                   </button>
@@ -1803,7 +1818,7 @@ export default function ParticipantsPage() {
                     onClick={() => void handleAdd()}
                     data-testid="persons-add-submit"
                     disabled={addSaving}
-                    className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                    className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
                   >
                     {addSaving ? 'Adding…' : 'Add participant'}
                   </button>
@@ -1813,45 +1828,51 @@ export default function ParticipantsPage() {
           )}
 
           {editPerson && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                <h2 className="text-lg font-bold mb-4">Edit participant</h2>
+            <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
+                <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
+                  Edit participant
+                </h2>
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
                         Given name *
                       </label>
                       <input
                         type="text"
                         value={editForm.givenName}
                         onChange={(e) => setEditForm((f) => ({ ...f, givenName: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
                         Family name *
                       </label>
                       <input
                         type="text"
                         value={editForm.familyName}
                         onChange={(e) => setEditForm((f) => ({ ...f, familyName: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      Email
+                    </label>
                     <input
                       type="email"
                       value={editForm.email}
                       onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      Club
+                    </label>
                     <input
                       type="search"
                       value={editClubSearch}
@@ -1861,10 +1882,10 @@ export default function ParticipantsPage() {
                         setEditClubLabel('');
                       }}
                       placeholder="Search club…"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                     {editClubSuggestions.length > 0 && !editClubId && (
-                      <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                      <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
                         {editClubSuggestions.map((c) => (
                           <button
                             key={c.id}
@@ -1875,18 +1896,18 @@ export default function ParticipantsPage() {
                               setEditClubSearch(c.name);
                               setEditClubSuggestions([]);
                             }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
                           >
                             <span className="font-medium">{c.name}</span>
                             {c.abbreviation && (
-                              <span className="text-gray-400 ml-2 text-xs">{c.abbreviation}</span>
+                              <span className="text-muted ml-2 text-xs">{c.abbreviation}</span>
                             )}
                           </button>
                         ))}
                       </div>
                     )}
                     {editClubId && (
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-xs text-success mt-1">
                         {editClubLabel}{' '}
                         <button
                           type="button"
@@ -1903,7 +1924,7 @@ export default function ParticipantsPage() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
                       HEMA Ratings ID
                     </label>
                     <input
@@ -1913,7 +1934,7 @@ export default function ParticipantsPage() {
                         setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))
                       }
                       placeholder="hr-12345"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
                   {/* R6: referee checkbox is always enabled. Unclaimed persons
@@ -1929,10 +1950,12 @@ export default function ParticipantsPage() {
                         }
                         className="rounded"
                       />
-                      <span className="text-gray-700">{t('organizer.persons.addAsReferee')}</span>
+                      <span className="text-foreground-secondary">
+                        {t('organizer.persons.addAsReferee')}
+                      </span>
                     </label>
                     {!editPerson.claimedByUserId && editForm.isReferee && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-muted mt-1">
                         {t('organizer.persons.refereeUnclaimedHint')}
                       </p>
                     )}
@@ -1947,14 +1970,14 @@ export default function ParticipantsPage() {
                         }
                         className="rounded"
                       />
-                      <span className="text-gray-700">
+                      <span className="text-foreground-secondary">
                         {t('organizer.persons.addAsInstructor')}
                       </span>
                     </label>
                   </div>
                   {tournaments.length > 0 && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                      <label className="block text-xs font-medium text-foreground-secondary mb-2">
                         Tournaments
                       </label>
                       <div className="flex flex-col gap-1.5">
@@ -1984,21 +2007,21 @@ export default function ParticipantsPage() {
                   )}
                 </div>
                 {editError && (
-                  <p className="text-sm text-red-600 mt-3" role="alert">
+                  <p className="text-sm text-danger mt-3" role="alert">
                     {editError}
                   </p>
                 )}
                 <div className="flex justify-end gap-2 mt-5">
                   <button
                     onClick={() => setEditPerson(null)}
-                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+                    className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => void handleEditSave()}
                     disabled={editSaving}
-                    className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                    className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
                   >
                     {editSaving ? 'Saving…' : 'Save changes'}
                   </button>
@@ -2073,10 +2096,10 @@ function SortableTh<K extends string>({
         <button
           type="button"
           onClick={onClick}
-          className="inline-flex items-center gap-1 hover:text-gray-700 focus:outline-none"
+          className="inline-flex items-center gap-1 hover:text-foreground-secondary focus:outline-none"
         >
           <span>{label}</span>
-          <span className={active ? 'text-gray-700' : 'text-gray-300'}>
+          <span className={active ? 'text-foreground-secondary' : 'text-muted'}>
             {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
           </span>
         </button>

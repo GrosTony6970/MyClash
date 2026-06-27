@@ -202,40 +202,40 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
   }
 
   const wrapClass = standalone
-    ? 'rounded-lg border border-slate-200 bg-white p-6 shadow-sm'
-    : 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm';
+    ? 'rounded-lg border border-border bg-surface p-6 shadow-sm'
+    : 'rounded-lg border border-border bg-surface p-4 shadow-sm';
 
   return (
     <section className={wrapClass}>
       <header className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {title ?? t('admin.leagues.requestsPanel.defaultTitle')}
           </h2>
-          <p className="text-xs text-slate-500">{t('admin.leagues.requestsPanel.subtitle')}</p>
+          <p className="text-xs text-muted">{t('admin.leagues.requestsPanel.subtitle')}</p>
         </div>
         <button
           type="button"
           onClick={() => void reload()}
-          className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
         >
           {t('admin.leagues.requestsPanel.refreshButton')}
         </button>
       </header>
 
-      <div className="mb-3 flex gap-1 border-b border-slate-200 text-sm">
+      <div className="mb-3 flex gap-1 border-b border-border text-sm">
         <button
           type="button"
           onClick={() => setTab('tournament_attaches')}
           className={[
             'px-3 py-2 -mb-px border-b-2 font-medium',
             tab === 'tournament_attaches'
-              ? 'border-red-700 text-red-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700',
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted hover:text-foreground-secondary',
           ].join(' ')}
         >
           {t('admin.leagues.requestsPanel.tabTournament')}{' '}
-          <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+          <span className="ml-1 rounded bg-background px-1.5 py-0.5 text-[11px] text-foreground-secondary">
             {tournamentRows.length}
           </span>
         </button>
@@ -245,19 +245,19 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
           className={[
             'px-3 py-2 -mb-px border-b-2 font-medium',
             tab === 'membership_requests'
-              ? 'border-red-700 text-red-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700',
+              ? 'border-accent text-accent'
+              : 'border-transparent text-muted hover:text-foreground-secondary',
           ].join(' ')}
         >
           {t('admin.leagues.requestsPanel.tabMembership')}{' '}
-          <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+          <span className="ml-1 rounded bg-background px-1.5 py-0.5 text-[11px] text-foreground-secondary">
             {membershipRows.length}
           </span>
         </button>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
           {error}
         </div>
       )}
@@ -265,12 +265,12 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       {tab === 'tournament_attaches' ? (
         <>
           {loading && (
-            <p className="py-4 text-sm text-slate-400">
+            <p className="py-4 text-sm text-muted">
               {t('admin.leagues.requestsPanel.loadingState')}
             </p>
           )}
           {!loading && tournamentRows.length === 0 && (
-            <p className="py-4 text-sm text-slate-500">
+            <p className="py-4 text-sm text-muted">
               {t('admin.leagues.requestsPanel.emptyTournament')}
             </p>
           )}
@@ -283,19 +283,19 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
               return (
                 <li
                   key={row.id}
-                  className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  className="rounded border border-border bg-background px-3 py-2 text-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-900">
+                      <p className="font-medium text-foreground">
                         {tournament?.name ?? t('admin.leagues.requestsPanel.tournamentFallback')}
                         {tournament?.weapon && (
-                          <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-mono text-slate-600">
+                          <span className="ml-2 rounded bg-surface px-1.5 py-0.5 text-[11px] font-mono text-foreground-secondary">
                             {tournament.weapon}
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted">
                         {event?.name ?? t('admin.leagues.requestsPanel.eventFallback')}
                         {org?.name && (
                           <>
@@ -305,7 +305,9 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         )}
                       </p>
                       {row.note && (
-                        <p className="mt-1 text-xs italic text-slate-600">"{row.note}"</p>
+                        <p className="mt-1 text-xs italic text-foreground-secondary">
+                          "{row.note}"
+                        </p>
                       )}
                     </div>
                     <div className="flex shrink-0 gap-2">
@@ -313,7 +315,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         type="button"
                         onClick={() => void reviewTournamentLink(row.id, 'approved')}
                         disabled={busyId === row.id || isRejecting}
-                        className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                        className="rounded-md bg-success px-3 py-1 text-xs font-semibold text-success-foreground hover:bg-success-hover disabled:opacity-50"
                       >
                         {t('admin.leagues.requestsPanel.acceptButton')}
                       </button>
@@ -324,7 +326,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                           setRejectReason('');
                         }}
                         disabled={busyId === row.id || isRejecting}
-                        className="rounded-md border border-red-700 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        className="rounded-md border border-danger px-3 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                       >
                         {t('admin.leagues.requestsPanel.refuseButton')}
                       </button>
@@ -350,12 +352,12 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       ) : (
         <>
           {loading && (
-            <p className="py-4 text-sm text-slate-400">
+            <p className="py-4 text-sm text-muted">
               {t('admin.leagues.requestsPanel.loadingState')}
             </p>
           )}
           {!loading && membershipRows.length === 0 && (
-            <p className="py-4 text-sm text-slate-500">
+            <p className="py-4 text-sm text-muted">
               {t('admin.leagues.requestsPanel.emptyMembership')}
             </p>
           )}
@@ -365,23 +367,25 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
               return (
                 <li
                   key={row.id}
-                  className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  className="rounded border border-border bg-background px-3 py-2 text-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-900">
+                      <p className="font-medium text-foreground">
                         {row.organizations?.name ?? t('admin.leagues.requestsPanel.orgFallback')}
-                        <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-mono text-slate-600">
+                        <span className="ml-2 rounded bg-surface px-1.5 py-0.5 text-[11px] font-mono text-foreground-secondary">
                           {row.requested_role}
                         </span>
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted">
                         {t('admin.leagues.requestsPanel.submittedAt', {
                           date: new Date(row.requested_at).toLocaleString(),
                         })}
                       </p>
                       {row.message && (
-                        <p className="mt-1 text-xs italic text-slate-600">"{row.message}"</p>
+                        <p className="mt-1 text-xs italic text-foreground-secondary">
+                          "{row.message}"
+                        </p>
                       )}
                     </div>
                     <div className="flex shrink-0 gap-2">
@@ -389,7 +393,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         type="button"
                         onClick={() => void reviewMembership(row.id, 'approved')}
                         disabled={busyId === row.id || isRejecting}
-                        className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                        className="rounded-md bg-success px-3 py-1 text-xs font-semibold text-success-foreground hover:bg-success-hover disabled:opacity-50"
                       >
                         {t('admin.leagues.requestsPanel.acceptButton')}
                       </button>
@@ -400,7 +404,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                           setRejectReason('');
                         }}
                         disabled={busyId === row.id || isRejecting}
-                        className="rounded-md border border-red-700 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        className="rounded-md border border-danger px-3 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                       >
                         {t('admin.leagues.requestsPanel.refuseButton')}
                       </button>
@@ -445,21 +449,21 @@ function RejectInline({ busy, reason, setReason, onConfirm, onCancel }: RejectIn
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder={t('admin.leagues.requestsPanel.reasonPlaceholder')}
-        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
+        className="min-w-0 flex-1 rounded border border-border px-2 py-1 text-xs"
         autoFocus
       />
       <button
         type="button"
         onClick={onConfirm}
         disabled={busy}
-        className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+        className="rounded-md bg-danger px-3 py-1 text-xs font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
       >
         {t('admin.leagues.requestsPanel.confirmRefuseButton')}
       </button>
       <button
         type="button"
         onClick={onCancel}
-        className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+        className="rounded-md border border-border px-3 py-1 text-xs text-foreground-secondary hover:bg-background"
       >
         {t('admin.leagues.requestsPanel.cancelButton')}
       </button>

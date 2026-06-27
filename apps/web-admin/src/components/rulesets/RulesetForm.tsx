@@ -163,7 +163,7 @@ export function RulesetForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {validationError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {validationError}
         </div>
       )}
@@ -175,9 +175,9 @@ export function RulesetForm({
         />
       )}
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-foreground-secondary">
             {t('admin.rulesets.nameLabel')}
             <input
               required
@@ -186,21 +186,21 @@ export function RulesetForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
             />
           </label>
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-foreground-secondary">
             {t('admin.rulesets.versionLabel')}
             <input
               value={version}
               onChange={(e) => setVersion(e.target.value)}
               disabled={disabled}
               placeholder="1.0.0"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>
         </div>
-        <label className="mt-4 block text-sm font-semibold text-slate-700">
+        <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
           {t('admin.rulesets.descriptionLabel')}
           <textarea
             value={description}
@@ -208,17 +208,19 @@ export function RulesetForm({
             disabled={disabled}
             maxLength={1000}
             rows={2}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
           />
         </label>
       </div>
 
       {isTfV1 && (
         <div className="rounded-md border border-purple-200 bg-purple-50/40 p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-purple-700">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-purple-700">
             {tfInternalsTitle ?? t('admin.rulesets.tfV1InternalsTitle')}
           </h3>
-          <p className="mb-3 text-xs text-slate-600">{t('admin.rulesets.tfV1InternalsHelp')}</p>
+          <p className="mb-3 text-xs text-foreground-secondary">
+            {t('admin.rulesets.tfV1InternalsHelp')}
+          </p>
           <div className="grid gap-3 md:grid-cols-3">
             <NumberInput
               label={t('admin.rulesets.tfV1WinBonus')}
@@ -249,14 +251,14 @@ export function RulesetForm({
       )}
 
       {!isTfV1 && (
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+        <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.constantsTitle')}
           </h3>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             {(['pointsPerVictory', 'pointsPerTie', 'pointsPerLoss', 'doublePenalty'] as const).map(
               (key) => (
-                <label key={key} className="block text-xs font-semibold text-slate-700">
+                <label key={key} className="block text-xs font-semibold text-foreground-secondary">
                   {t(`admin.rulesets.variables.${key}`)}
                   <input
                     type="number"
@@ -264,7 +266,7 @@ export function RulesetForm({
                     value={constants[key]}
                     onChange={(e) => setConstant(key, e.target.value)}
                     disabled={disabled}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
                   />
                 </label>
               ),
@@ -274,11 +276,11 @@ export function RulesetForm({
         </div>
       )}
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           Double-hit penalty formula
         </h3>
-        <p className="mb-2 text-xs text-slate-500">
+        <p className="mb-2 text-xs text-muted">
           Expression evaluated against <code className="font-mono">n</code> (the number of
           double-hits). Only digits, the variable <code className="font-mono">n</code>, operators{' '}
           <code className="font-mono">+ - * /</code>, parentheses and decimal points are allowed.
@@ -290,15 +292,15 @@ export function RulesetForm({
           onChange={(e) => setDoublePenaltyFormula(e.target.value)}
           disabled={disabled}
           placeholder="n*(n-1)/3"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+          className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
         />
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           Match-format defaults
         </h3>
-        <p className="mb-3 text-xs text-slate-500">
+        <p className="mb-3 text-xs text-muted">
           Defaults that a new tournament inherits when this ruleset is selected. Operators can still
           override any of these per tournament from the Match-format settings tab.
         </p>
@@ -405,10 +407,10 @@ export function RulesetForm({
 
       {!isTfV1 && (
         <div>
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.formulaTitle')}
           </h3>
-          <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.formulaHelp')}</p>
+          <p className="mb-2 text-xs text-muted">{t('admin.rulesets.formulaHelp')}</p>
           <FormulaEditor
             value={scoreFormula}
             onChange={(ast, err) => {
@@ -422,10 +424,10 @@ export function RulesetForm({
 
       {!isTfV1 && (
         <div>
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.tiebreakersTitle')}
           </h3>
-          <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.tiebreakersHelp')}</p>
+          <p className="mb-2 text-xs text-muted">{t('admin.rulesets.tiebreakersHelp')}</p>
           <TiebreakersEditor
             value={tiebreakers}
             onChange={setTiebreakers}
@@ -439,7 +441,7 @@ export function RulesetForm({
         <button
           type="submit"
           disabled={disabled || busy}
-          className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {busy ? t('admin.rulesets.saving') : submitLabel}
         </button>
@@ -447,7 +449,7 @@ export function RulesetForm({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
           >
             {t('admin.rulesets.cancel')}
           </button>
@@ -497,22 +499,22 @@ function SystemRulesetPanel({
   }
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-5 shadow-sm">
+    <div className="rounded-md border border-border bg-background p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-600">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-secondary">
           {t('admin.rulesets.systemPanelTitle')}
         </h3>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+        <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
           {t('admin.rulesets.systemPanelReadOnlyBadge')}
         </span>
       </div>
 
       {metadata.scoreFormula && (
-        <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2">
-          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <div className="mb-3 rounded-md border border-border bg-surface px-3 py-2">
+          <dt className="text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.systemPanelScoreFormula')}
           </dt>
-          <dd className="mt-1 font-mono text-sm text-slate-800">{metadata.scoreFormula}</dd>
+          <dd className="mt-1 font-mono text-sm text-foreground">{metadata.scoreFormula}</dd>
         </div>
       )}
 
@@ -541,18 +543,18 @@ function SystemRulesetPanel({
 
       {rankingChain.length > 0 && (
         <div className="mt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground-secondary">
             {t('admin.rulesets.systemPanelTiebreakers')}
           </p>
-          <ol className="space-y-1 text-sm text-slate-800">
+          <ol className="space-y-1 text-sm text-foreground">
             {rankingChain.map((rule, idx) => (
               <li
                 key={`${rule.key}-${idx}`}
-                className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
+                className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2"
               >
-                <span className="w-6 font-mono text-xs text-slate-500">{idx + 1}.</span>
+                <span className="w-6 font-mono text-xs text-muted">{idx + 1}.</span>
                 <span className="font-medium">{formatRankingKey(rule.key)}</span>
-                <span className="ml-auto rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                <span className="ml-auto rounded bg-background px-2 py-0.5 text-[11px] font-medium text-foreground-secondary">
                   {formatDirection(rule.direction)}
                 </span>
               </li>
@@ -566,9 +568,9 @@ function SystemRulesetPanel({
 
 function MetadataField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 font-mono text-sm text-slate-800">{value}</dd>
+    <div className="rounded-md border border-border bg-surface px-3 py-2">
+      <dt className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</dt>
+      <dd className="mt-1 font-mono text-sm text-foreground">{value}</dd>
     </div>
   );
 }
@@ -589,7 +591,7 @@ function NumberInput({
   max?: number;
 }) {
   return (
-    <label className="block text-xs font-semibold text-slate-700">
+    <label className="block text-xs font-semibold text-foreground-secondary">
       {label}
       <input
         type="number"
@@ -598,7 +600,7 @@ function NumberInput({
         max={max}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
-        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+        className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
       />
     </label>
   );
@@ -618,13 +620,13 @@ function SelectInput({
   disabled?: boolean;
 }) {
   return (
-    <label className="block text-xs font-semibold text-slate-700">
+    <label className="block text-xs font-semibold text-foreground-secondary">
       {label}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+        className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -654,11 +656,11 @@ function ScorePreviewChip({ constants }: { constants: FormulaConstants }) {
     losses * constants.pointsPerLoss -
     doubles * constants.doublePenalty;
   return (
-    <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-      <span className="font-semibold uppercase tracking-wide text-slate-500">Preview</span>
+    <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground-secondary">
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted">Preview</span>
       <span>
         {wins}W + {ties}T + {losses}L − {doubles} double ={' '}
-        <span className="font-mono font-semibold text-slate-900">{score.toFixed(2)}</span> pts
+        <span className="font-mono font-semibold text-foreground">{score.toFixed(2)}</span> pts
       </span>
     </div>
   );

@@ -152,13 +152,13 @@ export default function AdminPenaltyRulesetsPage() {
       <RulesetsTopNav active="penalty" />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
           {t('admin.penaltyRulesets.curatedTitle')}
         </h2>
         <CreateRulesetCta
@@ -168,14 +168,14 @@ export default function AdminPenaltyRulesetsPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-400">{t('admin.penaltyRulesets.empty')}</p>
+        <p className="text-sm text-muted">{t('admin.penaltyRulesets.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
                 <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
                 <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
@@ -186,18 +186,20 @@ export default function AdminPenaltyRulesetsPage() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={row.id} className="border-b border-border hover:bg-background">
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-800">{row.name}</div>
+                    <div className="font-semibold text-foreground">{row.name}</div>
                     {row.description && (
-                      <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
                         {row.description}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{row.code}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-foreground-secondary">
+                    {row.code}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                    <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
                       v{row.version}
                     </span>
                   </td>
@@ -211,7 +213,7 @@ export default function AdminPenaltyRulesetsPage() {
                       }
                     />
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-600">
+                  <td className="px-4 py-3 text-xs text-foreground-secondary">
                     {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
                   </td>
                   <td className="px-4 py-3">

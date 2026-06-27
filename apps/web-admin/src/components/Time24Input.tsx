@@ -62,7 +62,7 @@ export function Time24Input({ value, onChange, disabled, id, className, ...aria 
       }}
       className={
         className ??
-        'w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600'
+        'w-full border border-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent'
       }
     />
   );

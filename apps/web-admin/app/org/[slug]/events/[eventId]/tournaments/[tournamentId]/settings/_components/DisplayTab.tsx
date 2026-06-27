@@ -140,16 +140,16 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="font-display text-xl text-slate-900">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('organizer.tournaments.settings.display')}
       </h2>
 
       <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
+        <legend className="text-xs font-medium text-foreground-secondary">
           {t('organizer.tournaments.settings.logoLabel')}
         </legend>
         <div className="flex items-center gap-3">
-          <div className="h-16 w-16 rounded-full overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
+          <div className="h-16 w-16 rounded-full overflow-hidden border border-border bg-background flex items-center justify-center shrink-0">
             {logoUrl ? (
               <img
                 src={logoUrl}
@@ -157,7 +157,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <span className="text-[10px] text-slate-400">—</span>
+              <span className="text-[10px] text-muted">—</span>
             )}
           </div>
           <div className="flex flex-col gap-1">
@@ -176,7 +176,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                 type="button"
                 onClick={() => logoInput.current?.click()}
                 disabled={uploadingLogo}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
               >
                 {uploadingLogo
                   ? t('organizer.tournaments.settings.logoUploading')
@@ -189,27 +189,25 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                   type="button"
                   onClick={() => void removeLogo()}
                   disabled={uploadingLogo}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('organizer.tournaments.settings.logoRemove')}
                 </button>
               )}
             </div>
-            <p className="text-[11px] text-slate-500">
-              {t('organizer.tournaments.settings.logoHelp')}
-            </p>
+            <p className="text-[11px] text-muted">{t('organizer.tournaments.settings.logoHelp')}</p>
           </div>
         </div>
       </fieldset>
 
       <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
+        <legend className="text-xs font-medium text-foreground-secondary">
           {t('organizer.tournaments.settings.sideColors')}
         </legend>
         <div className="flex gap-3">
           {(['red', 'blue'] as const).map((side) => (
             <label key={side} className="flex-1">
-              <span className="block text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+              <span className="block text-[11px] uppercase tracking-wide text-muted mb-1">
                 {side === 'red'
                   ? t('organizer.tournaments.settings.sideFighter1')
                   : t('organizer.tournaments.settings.sideFighter2')}
@@ -222,7 +220,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                     sideColors: { ...data.sideColors, [side]: e.target.value },
                   })
                 }
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border px-3 py-2 text-sm"
               >
                 {COLORS.map((c) => (
                   <option key={c} value={c}>
@@ -236,11 +234,11 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
       </fieldset>
 
       <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
+        <legend className="text-xs font-medium text-foreground-secondary">
           {t('organizer.tournaments.settings.cleanButtons')}
         </legend>
         {data.buttons.clean.length > 0 && (
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted">
             <span className="flex-1" aria-hidden />
             {/* name column is labelled by the legend */}
             <span className="w-20">{t('organizer.tournaments.settings.buttonValueHeader')}</span>
@@ -264,7 +262,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                   },
                 })
               }
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
               placeholder="Label"
             />
             <input
@@ -281,7 +279,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                   },
                 })
               }
-              className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-20 rounded-md border border-border px-3 py-2 text-sm"
             />
             <input
               type="checkbox"
@@ -306,7 +304,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                   buttons: { ...data.buttons, clean: data.buttons.clean.filter((_, j) => j !== i) },
                 })
               }
-              className="text-xs text-red-700 hover:underline"
+              className="text-xs text-danger hover:underline"
             >
               Remove
             </button>
@@ -323,7 +321,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
               },
             })
           }
-          className="text-xs text-slate-700 hover:underline"
+          className="text-xs text-foreground-secondary hover:underline"
         >
           + Add clean button
         </button>
@@ -331,11 +329,11 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
 
       {rulesetCode === 'TF_v1' && (
         <fieldset className="space-y-2">
-          <legend className="text-xs font-medium text-slate-600">
+          <legend className="text-xs font-medium text-foreground-secondary">
             {t('organizer.tournaments.settings.afterblowButtons')}
           </legend>
           {data.buttons.afterblow.length > 0 && (
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted">
               <span className="flex-1" aria-hidden />
               {/* name column is labelled by the legend */}
               <span className="w-16">
@@ -364,7 +362,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                     },
                   })
                 }
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
                 placeholder="Label"
               />
               <input
@@ -381,7 +379,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                     },
                   })
                 }
-                className="w-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-16 rounded-md border border-border px-3 py-2 text-sm"
               />
               <input
                 type="number"
@@ -397,7 +395,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                     },
                   })
                 }
-                className="w-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-16 rounded-md border border-border px-3 py-2 text-sm"
               />
               <input
                 type="checkbox"
@@ -425,7 +423,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                     },
                   })
                 }
-                className="text-xs text-red-700 hover:underline"
+                className="text-xs text-danger hover:underline"
               >
                 Remove
               </button>
@@ -445,7 +443,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                 },
               })
             }
-            className="text-xs text-slate-700 hover:underline"
+            className="text-xs text-foreground-secondary hover:underline"
           >
             + Add afterblow button
           </button>
@@ -456,7 +454,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         type="button"
         onClick={() => void save()}
         disabled={saving}
-        className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>

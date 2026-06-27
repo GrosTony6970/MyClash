@@ -162,11 +162,13 @@ export default function OrgVenuesPage() {
   };
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl p-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{t('organizer.venues.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('organizer.venues.description')}</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.venues.title')}
+          </h1>
+          <p className="text-muted text-sm mt-1">{t('organizer.venues.description')}</p>
         </div>
         <button
           type="button"
@@ -174,32 +176,32 @@ export default function OrgVenuesPage() {
             setNotice(null);
             setCreating(true);
           }}
-          className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800"
+          className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
         >
           + {t('organizer.venues.newVenue')}
         </button>
       </div>
 
       {message && (
-        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+        <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
           {message}
         </div>
       )}
 
       {notice && (
-        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+        <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
           {notice}
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-500">{t('admin.leagues.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.leagues.loading')}</p>
       ) : venues.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('organizer.venues.empty')}</p>
+        <p className="text-sm text-muted">{t('organizer.venues.empty')}</p>
       ) : (
         <table className="w-full max-w-4xl border-collapse">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted">
               <th className="py-2 pr-3">{t('organizer.venues.name')}</th>
               <th className="py-2 pr-3">{t('organizer.venues.address')}</th>
               <th className="py-2 pr-3">{t('organizer.venues.hosts')}</th>
@@ -210,24 +212,24 @@ export default function OrgVenuesPage() {
           </thead>
           <tbody>
             {venues.map((v) => (
-              <tr key={v.id} className="border-b border-gray-100 text-sm">
-                <td className="py-3 pr-3 font-medium text-gray-900">{v.name}</td>
-                <td className="py-3 pr-3 text-gray-600">{v.address ?? '—'}</td>
+              <tr key={v.id} className="border-b border-border text-sm">
+                <td className="py-3 pr-3 font-medium text-foreground">{v.name}</td>
+                <td className="py-3 pr-3 text-foreground-secondary">{v.address ?? '—'}</td>
                 <td className="py-3 pr-3">
                   <div className="flex flex-wrap gap-1">
                     {v.hosts_tournament && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                      <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-semibold text-info">
                         {t('organizer.venues.tournamentBadge')}
                       </span>
                     )}
                     {v.hosts_workshop && (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                      <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                         {t('organizer.venues.workshopBadge')}
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="py-3 pr-3 text-center text-gray-600 tabular-nums">
+                <td className="py-3 pr-3 text-center text-foreground-secondary tabular-nums">
                   {v.venue_areas?.length ?? 0}
                 </td>
                 <td className="py-3 pr-3">
@@ -236,14 +238,14 @@ export default function OrgVenuesPage() {
                       {v.events.map((ev) => (
                         <span
                           key={ev.id}
-                          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                          className="rounded-full bg-background px-2 py-0.5 text-xs text-foreground-secondary"
                         >
                           {ev.name}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <span className="text-gray-400">—</span>
+                    <span className="text-muted">—</span>
                   )}
                 </td>
                 <td className="py-3 pr-3 text-right">
@@ -253,14 +255,14 @@ export default function OrgVenuesPage() {
                       setNotice(null);
                       setEditing(v);
                     }}
-                    className="text-xs rounded-md border border-gray-300 px-2.5 py-1 hover:bg-gray-50 mr-2"
+                    className="text-xs rounded-md border border-border px-2.5 py-1 hover:bg-background mr-2"
                   >
                     {t('organizer.venues.edit')}
                   </button>
                   <button
                     type="button"
                     onClick={() => void onDelete(v)}
-                    className="text-xs rounded-md border border-red-300 px-2.5 py-1 text-red-700 hover:bg-red-50"
+                    className="text-xs rounded-md border border-danger/30 px-2.5 py-1 text-danger hover:bg-danger/10"
                   >
                     {t('organizer.venues.delete')}
                   </button>
@@ -568,7 +570,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       role="dialog"
       aria-modal="true"
       tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(ev) => {
         if (ev.target === ev.currentTarget && !saving) onClose();
       }}
@@ -576,9 +578,9 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
         if (ev.key === 'Escape' && !saving) onClose();
       }}
     >
-      <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-white p-5 shadow-xl">
+      <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-surface p-5 shadow-xl">
         <header>
-          <h2 className="text-lg font-bold text-slate-900">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {isEdit ? t('organizer.venues.editVenueTitle') : t('organizer.venues.newVenueTitle')}
           </h2>
         </header>
@@ -589,7 +591,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
             value={name}
             onChange={(ev) => setName(ev.target.value)}
             disabled={saving}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal"
+            className="rounded-md border border-border px-3 py-2 text-sm font-normal"
             maxLength={200}
             required
           />
@@ -601,7 +603,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
             value={address}
             onChange={(ev) => setAddress(ev.target.value)}
             disabled={saving}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal"
+            className="rounded-md border border-border px-3 py-2 text-sm font-normal"
             maxLength={500}
             placeholder={t('organizer.venues.addressPlaceholder')}
           />
@@ -632,18 +634,18 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
         {hostsTournament && (
           <div className="grid gap-2 text-sm font-medium">
             <span>{t('organizer.venues.licesSection')}</span>
-            <p className="text-xs font-normal text-slate-500">{t('organizer.venues.licesHelp')}</p>
+            <p className="text-xs font-normal text-muted">{t('organizer.venues.licesHelp')}</p>
             <ul className="space-y-1">
               {lices.map((lice) => (
                 <li
                   key={lice.id}
-                  className="flex items-center justify-between rounded border border-slate-200 px-3 py-1 text-sm font-normal"
+                  className="flex items-center justify-between rounded border border-border px-3 py-1 text-sm font-normal"
                 >
                   <span>{lice.name}</span>
                   <button
                     type="button"
                     onClick={() => void removeLice(lice.id)}
-                    className="text-xs text-rose-600 hover:underline"
+                    className="text-xs text-danger hover:underline"
                   >
                     {t('organizer.venues.removeLice')}
                   </button>
@@ -655,13 +657,13 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
                 value={newLice}
                 onChange={(ev) => setNewLice(ev.target.value)}
                 placeholder={t('organizer.venues.newLicePlaceholder')}
-                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-normal"
+                className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm font-normal"
               />
               <button
                 type="button"
                 onClick={() => void addLice()}
                 disabled={!newLice.trim()}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold hover:bg-background disabled:opacity-50"
               >
                 {t('organizer.venues.addLice')}
               </button>
@@ -672,18 +674,18 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
         {hostsWorkshop && (
           <div className="grid gap-2 text-sm font-medium">
             <span>{t('organizer.venues.areasSection')}</span>
-            <p className="text-xs font-normal text-slate-500">{t('organizer.venues.areasHelp')}</p>
+            <p className="text-xs font-normal text-muted">{t('organizer.venues.areasHelp')}</p>
             <ul className="space-y-1">
               {areas.map((area) => (
                 <li
                   key={area.id}
-                  className="flex items-center justify-between rounded border border-slate-200 px-3 py-1 text-sm font-normal"
+                  className="flex items-center justify-between rounded border border-border px-3 py-1 text-sm font-normal"
                 >
                   <span>{area.name}</span>
                   <button
                     type="button"
                     onClick={() => void removeArea(area.id)}
-                    className="text-xs text-rose-600 hover:underline"
+                    className="text-xs text-danger hover:underline"
                   >
                     {t('organizer.venues.removeArea')}
                   </button>
@@ -695,13 +697,13 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
                 value={newArea}
                 onChange={(ev) => setNewArea(ev.target.value)}
                 placeholder={t('organizer.venues.newAreaPlaceholder')}
-                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-normal"
+                className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm font-normal"
               />
               <button
                 type="button"
                 onClick={() => void addArea()}
                 disabled={!newArea.trim()}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold hover:bg-background disabled:opacity-50"
               >
                 {t('organizer.venues.addArea')}
               </button>
@@ -711,16 +713,16 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
 
         <div className="grid gap-2 text-sm font-medium">
           <span>{t('organizer.venues.eventsSection')}</span>
-          <p className="text-xs font-normal text-slate-500">{t('organizer.venues.eventsHelp')}</p>
+          <p className="text-xs font-normal text-muted">{t('organizer.venues.eventsHelp')}</p>
           {events.length === 0 ? (
-            <p className="text-xs font-normal text-slate-400">{t('organizer.venues.noEvents')}</p>
+            <p className="text-xs font-normal text-muted">{t('organizer.venues.noEvents')}</p>
           ) : (
             <ul className="max-h-40 space-y-1 overflow-y-auto">
               {events.map((ev) => {
                 const range = formatEventDateRange(ev.startDate, ev.endDate);
                 return (
                   <li key={ev.id}>
-                    <label className="flex items-center gap-2 rounded border border-slate-200 px-3 py-1 text-sm font-normal">
+                    <label className="flex items-center gap-2 rounded border border-border px-3 py-1 text-sm font-normal">
                       <input
                         type="checkbox"
                         checked={selectedEventIds.includes(ev.id)}
@@ -728,7 +730,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
                         disabled={saving}
                       />
                       <span className="flex-1 truncate">{ev.name}</span>
-                      {range && <span className="shrink-0 text-xs text-slate-400">{range}</span>}
+                      {range && <span className="shrink-0 text-xs text-muted">{range}</span>}
                     </label>
                   </li>
                 );
@@ -737,14 +739,14 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
           )}
         </div>
 
-        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         <footer className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
           >
             {t('organizer.venues.cancel')}
           </button>
@@ -752,7 +754,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
             type="button"
             onClick={() => void save()}
             disabled={saving || !name.trim()}
-            className="rounded-md bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
           >
             {saving ? t('organizer.venues.saving') : t('organizer.venues.save')}
           </button>

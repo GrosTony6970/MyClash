@@ -39,23 +39,23 @@ export default function SchedulePage() {
     <main>
       <div className="px-8 pt-8">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-          <Link href={`/org/${slug}`} className="hover:text-gray-700">
+        <div className="flex items-center gap-2 text-sm text-muted mb-1">
+          <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
             {slug}
           </Link>
           <span>/</span>
-          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
             Event
           </Link>
           <span>/</span>
-          <span className="text-gray-900 font-medium">Schedule</span>
+          <span className="text-foreground font-medium">Schedule</span>
         </div>
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold">Schedule</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Schedule</h1>
           <div className="flex items-center gap-2">
             <Link
               href={`/org/${slug}/events/${eventId}/ai-assistant?type=schedule_grid`}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary hover:bg-background"
             >
               {t('organizer.aiAssistant.suggest')}
             </Link>
@@ -70,7 +70,7 @@ export default function SchedulePage() {
           <div
             role="status"
             aria-live="polite"
-            className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+            className="flex items-start gap-3 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success"
           >
             <span className="font-semibold">
               ✓ {t('organizer.schedulePage.generateToastTitle')} {generateToast.matchesScheduled}{' '}
@@ -80,7 +80,7 @@ export default function SchedulePage() {
               <button
                 type="button"
                 onClick={() => setToastDetailsOpen((v) => !v)}
-                className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950"
+                className="text-xs font-semibold text-success underline hover:text-success-hover"
               >
                 {toastDetailsOpen
                   ? t('organizer.schedulePage.generateToastHideDetails')
@@ -94,13 +94,13 @@ export default function SchedulePage() {
                 setToastDetailsOpen(false);
               }}
               aria-label={t('organizer.schedulePage.generateToastDismiss')}
-              className="ml-auto text-emerald-700 hover:text-emerald-950"
+              className="ml-auto text-success hover:text-success-hover"
             >
               ✕
             </button>
           </div>
           {toastDetailsOpen && generateToast.blockDiagnostics && (
-            <ul className="mt-2 space-y-0.5 rounded-lg border border-emerald-200 bg-white px-4 py-3 text-xs text-slate-700">
+            <ul className="mt-2 space-y-0.5 rounded-lg border border-success/30 bg-surface px-4 py-3 text-xs text-foreground-secondary">
               {generateToast.blockDiagnostics.map((d) => {
                 const ok = d.scheduledMatches > 0;
                 const empty = d.fetchedMatches === 0;
@@ -130,8 +130,8 @@ export default function SchedulePage() {
           eventId={eventId}
           onProgrammeMutated={() => setProgrammeRefreshKey((k) => k + 1)}
           configurePanel={
-            <div className="rounded-xl border border-gray-200 bg-white p-3">
-              <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+            <div className="rounded-xl border border-border bg-surface p-3">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                 {configureLabel}
               </h2>
               <ProgrammePlanner

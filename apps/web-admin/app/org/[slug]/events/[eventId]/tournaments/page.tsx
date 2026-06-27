@@ -221,41 +221,41 @@ export default function EventTournamentsPage() {
   }
 
   return (
-    <main className="p-6 lg:p-8">
+    <main className="mx-auto max-w-7xl p-6 lg:p-8">
       {(loading || tournaments.length > 0) && (
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Link href={`/org/${slug}`} className="hover:text-blue-700">
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <Link href={`/org/${slug}`} className="hover:text-accent">
                 {slug}
               </Link>
               <span>/</span>
-              <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-blue-700">
+              <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-accent">
                 {eventName || t('organizer.shell.nav.eventOverview')}
               </Link>
               <span>/</span>
-              <span className="font-medium text-slate-900">
+              <span className="font-medium text-foreground">
                 {t('organizer.shell.nav.tournaments')}
               </span>
             </div>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">
+            <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl text-foreground">
               {t('organizer.tournaments.title')}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               {t('organizer.tournaments.description', { event: eventName || eventId })}
             </p>
           </div>
           {isArchived ? (
             <span
               title={t('organizer.deletionRequest.archivedReadOnly')}
-              className="inline-flex w-fit items-center rounded-md bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-400 cursor-not-allowed"
+              className="inline-flex w-fit items-center rounded-md bg-border px-5 py-2.5 text-sm font-semibold text-muted cursor-not-allowed"
             >
               {t('organizer.tournaments.create')}
             </span>
           ) : (
             <Link
               href={`/org/${slug}/events/${eventId}/tournaments/new`}
-              className="inline-flex w-fit items-center rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+              className="inline-flex w-fit items-center rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               {t('organizer.tournaments.create')}
             </Link>
@@ -264,12 +264,12 @@ export default function EventTournamentsPage() {
       )}
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
       {notice && (
-        <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="mb-6 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           {notice}
         </div>
       )}
@@ -277,28 +277,28 @@ export default function EventTournamentsPage() {
       <section
         className={
           tournaments.length > 0 || loading
-            ? 'overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm'
+            ? 'overflow-hidden rounded-lg border border-border bg-surface shadow-sm'
             : ''
         }
       >
         {loading && (
-          <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-red-700" />
+          <div className="flex items-center gap-2 px-5 py-8 text-sm text-muted">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent" />
             {t('organizer.tournaments.loading')}
           </div>
         )}
 
         {!loading && tournaments.length === 0 && (
           <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-slate-900">
+            <h2 className="mb-3 font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('organizer.tournaments.emptyTitle')}
             </h2>
-            <p className="mb-6 max-w-md text-sm text-slate-500">
+            <p className="mb-6 max-w-md text-sm text-muted">
               {t('organizer.tournaments.emptyDescription')}
             </p>
             <Link
               href={`/org/${slug}/events/${eventId}/tournaments/new`}
-              className="rounded-md bg-red-700 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+              className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               {t('organizer.tournaments.create')}
             </Link>
@@ -307,8 +307,8 @@ export default function EventTournamentsPage() {
 
         {!loading && tournaments.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-background text-left text-xs font-bold uppercase tracking-[0.14em] text-muted">
                 <tr>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.tournament')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.weapon')}</th>
@@ -320,7 +320,7 @@ export default function EventTournamentsPage() {
                   <th className="px-4 py-3">{t('organizer.tournaments.table.actions')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {tournaments.map((tournament) => (
                   <tr key={tournament.id} className="align-top">
                     <td className="px-4 py-4">
@@ -334,8 +334,10 @@ export default function EventTournamentsPage() {
                         {tournament.name}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>
-                    <td className="px-4 py-4 text-slate-600">
+                    <td className="px-4 py-4 text-foreground-secondary">
+                      {tournament.weapon ?? '-'}
+                    </td>
+                    <td className="px-4 py-4 text-foreground-secondary">
                       {tournament.phaseVenues.pool || tournament.phaseVenues.bracket ? (
                         <div className="flex flex-col gap-0.5 text-xs">
                           {tournament.phaseVenues.pool && (
@@ -357,7 +359,7 @@ export default function EventTournamentsPage() {
                         '-'
                       )}
                     </td>
-                    <td className="px-4 py-4 text-center font-mono text-sm tabular-nums text-slate-700">
+                    <td className="px-4 py-4 text-center font-mono text-sm tabular-nums text-foreground-secondary">
                       {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
                     </td>
                     <td className="px-4 py-4">
@@ -367,7 +369,7 @@ export default function EventTournamentsPage() {
                         disabled={isReadOnly || busyId === tournament.id}
                         aria-label={t('organizer.tournaments.status')}
                         className={[
-                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
                           statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
                             .className,
                         ].join(' ')}
@@ -385,7 +387,7 @@ export default function EventTournamentsPage() {
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings#basics`}
-                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
                         >
                           {t('organizer.tournaments.edit')}
                         </Link>
@@ -407,11 +409,11 @@ export default function EventTournamentsPage() {
                             <>
                               <Link
                                 href={`/org/${slug}/events/${eventId}/tournaments/new?id=${tournament.id}&step=${wizardStep}`}
-                                className="rounded-md bg-red-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-900"
+                                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
                               >
                                 {t('organizer.tournaments.list.resumeSetup')}
                               </Link>
-                              <span className="text-xs text-slate-400">
+                              <span className="text-xs text-muted">
                                 Draft — step {wizardStep} of 4
                               </span>
                             </>
@@ -461,12 +463,12 @@ export default function EventTournamentsPage() {
       </section>
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('organizer.tournaments.deleteTitle')}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-foreground-secondary">
               {t('organizer.tournaments.deleteWarning', { name: confirmDelete.name })}
             </p>
             <div className="mt-6 flex justify-end gap-3">

@@ -69,31 +69,31 @@ export function Step4Advanced({
 
   return (
     <div className="space-y-6">
-      <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+      <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
         <button
           type="button"
           onClick={() => onFinish(false)}
-          className="font-medium text-amber-900 hover:underline"
+          className="font-medium text-warning hover:underline"
         >
           {t('organizer.tournaments.wizard.useDefaultsAndFinish')} →
         </button>
       </div>
 
-      <h2 className="font-display text-xl text-slate-900">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('organizer.tournaments.wizard.advanced')}
       </h2>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted">
         These values come from the ruleset and can be overridden per tournament. Auto-lock is now
         configured separately from the tournament settings page after creation.
       </p>
 
-      <div className="rounded-md border border-slate-200 p-4">
+      <div className="rounded-md border border-border p-4">
         <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} />
       </div>
 
       {rulesetCode === 'TF_v1' && (
-        <fieldset className="space-y-3 rounded-md border border-slate-200 p-4">
-          <legend className="px-2 text-xs font-medium text-slate-600">
+        <fieldset className="space-y-3 rounded-md border border-border p-4">
+          <legend className="px-2 text-xs font-medium text-foreground-secondary">
             Ruleset (TF v1) — per-tournament overrides
           </legend>
           <NumField
@@ -205,11 +205,11 @@ export function Step4Advanced({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
         >
           {t('actions.back')}
         </button>
-        <label className="flex items-center gap-2 text-xs text-slate-600">
+        <label className="flex items-center gap-2 text-xs text-foreground-secondary">
           <input
             type="checkbox"
             checked={publishOnFinish}
@@ -221,7 +221,7 @@ export function Step4Advanced({
           type="button"
           onClick={() => void saveAndFinish()}
           disabled={saving}
-          className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('organizer.tournaments.wizard.finish')}
         </button>
@@ -250,12 +250,12 @@ function NumField({
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm text-slate-700">
+      <span className="flex items-center gap-2 text-sm text-foreground-secondary">
         {label}
         {modified && (
           <span
             title={`Default: ${defaultValue}`}
-            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
             modified
           </span>
@@ -266,7 +266,7 @@ function NumField({
           <button
             type="button"
             onClick={onReset}
-            className="text-xs text-slate-500 underline hover:text-slate-800"
+            className="text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${defaultValue}`}
           >
             Reset
@@ -278,7 +278,7 @@ function NumField({
           min={min}
           max={max}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          className="w-24 rounded-md border border-border px-3 py-1.5 text-sm"
         />
       </span>
     </label>
@@ -301,12 +301,12 @@ function BoolField({
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm text-slate-700">
+      <span className="flex items-center gap-2 text-sm text-foreground-secondary">
         {label}
         {modified && (
           <span
             title={`Default: ${String(defaultValue)}`}
-            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
             modified
           </span>
@@ -317,7 +317,7 @@ function BoolField({
           <button
             type="button"
             onClick={onReset}
-            className="text-xs text-slate-500 underline hover:text-slate-800"
+            className="text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${String(defaultValue)}`}
           >
             Reset

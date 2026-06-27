@@ -21,19 +21,19 @@ type Step = 'upload' | 'preview' | 'done';
 
 const TONES = {
   green: {
-    chip: 'bg-green-100 text-green-700',
-    border: 'border-green-200',
-    text: 'text-green-700',
+    chip: 'bg-success/10 text-success',
+    border: 'border-success/30',
+    text: 'text-success',
   },
   amber: {
-    chip: 'bg-amber-100 text-amber-700',
-    border: 'border-amber-200',
-    text: 'text-amber-700',
+    chip: 'bg-warning/10 text-warning',
+    border: 'border-warning/30',
+    text: 'text-warning',
   },
   red: {
-    chip: 'bg-red-100 text-red-700',
-    border: 'border-red-200',
-    text: 'text-red-700',
+    chip: 'bg-danger/10 text-danger',
+    border: 'border-danger/30',
+    text: 'text-danger',
   },
 } as const;
 
@@ -62,22 +62,20 @@ function SectionAccordion({
   if (count === 0) return null;
   const t = TONES[tone];
   return (
-    <div className={`rounded-lg border ${t.border} bg-white`}>
+    <div className={`rounded-lg border ${t.border} bg-surface`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 rounded-t-lg px-4 py-2.5 text-left text-sm hover:bg-slate-50"
+        className="flex w-full items-center justify-between gap-3 rounded-t-lg px-4 py-2.5 text-left text-sm hover:bg-background"
         aria-expanded={open}
       >
         <span className={`font-semibold ${t.text}`}>{title}</span>
         <span className="flex items-center gap-2">
           <span className={`rounded-full ${t.chip} px-2.5 py-0.5 text-xs font-bold`}>{count}</span>
-          <span className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
-            ⌄
-          </span>
+          <span className={`text-muted transition-transform ${open ? 'rotate-180' : ''}`}>⌄</span>
         </span>
       </button>
-      {open && <div className="border-t border-slate-100 p-3">{children}</div>}
+      {open && <div className="border-t border-border p-3">{children}</div>}
     </div>
   );
 }
@@ -90,10 +88,10 @@ const CONFIDENCE_LABELS: Record<string, string> = {
 };
 
 const CONFIDENCE_COLORS: Record<string, string> = {
-  exact_abv: 'bg-green-100 text-green-700',
-  high: 'bg-green-100 text-green-700',
-  medium: 'bg-amber-100 text-amber-700',
-  new: 'bg-blue-100 text-blue-700',
+  exact_abv: 'bg-success/10 text-success',
+  high: 'bg-success/10 text-success',
+  medium: 'bg-warning/10 text-warning',
+  new: 'bg-info/10 text-info',
 };
 
 function ConflictCard({
@@ -107,21 +105,21 @@ function ConflictCard({
 }) {
   const match = row.globalPersonMatch!;
   return (
-    <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm">
+    <div className="border border-warning/30 bg-warning/10 rounded-lg p-4 text-sm">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
-          <p className="font-semibold text-gray-900">
+          <p className="font-semibold text-foreground">
             Row {row.index + 1}: {row.givenName} {row.familyName}
           </p>
-          {row.email && <p className="text-gray-500 text-xs">{row.email}</p>}
+          {row.email && <p className="text-muted text-xs">{row.email}</p>}
           {row.clubResolution && (
             <p className="text-xs mt-0.5">
               Club: <span className="font-medium">{row.clubResolution.resolvedName}</span>
               {row.clubResolution.abbreviation && (
-                <span className="ml-1 text-gray-400">({row.clubResolution.abbreviation})</span>
+                <span className="ml-1 text-muted">({row.clubResolution.abbreviation})</span>
               )}
               <span
-                className={`ml-2 px-1.5 py-0.5 rounded text-xs ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-gray-100 text-gray-600'}`}
+                className={`ml-2 px-1.5 py-0.5 rounded text-xs ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-border text-foreground-secondary'}`}
               >
                 {CONFIDENCE_LABELS[row.clubResolution.confidence] ?? row.clubResolution.confidence}
               </span>
@@ -129,16 +127,16 @@ function ConflictCard({
           )}
         </div>
       </div>
-      <div className="bg-white border border-amber-200 rounded-md p-2 mb-3 text-xs">
-        <p className="text-amber-700 font-medium mb-1">Global profile found:</p>
-        <p className="font-semibold text-gray-800">{match.displayName}</p>
+      <div className="bg-surface border border-warning/30 rounded-md p-2 mb-3 text-xs">
+        <p className="text-warning font-medium mb-1">Global profile found:</p>
+        <p className="font-semibold text-foreground">{match.displayName}</p>
         {(match.clubName || match.abbreviation) && (
-          <p className="text-gray-500">
+          <p className="text-muted">
             {match.clubName}
             {match.abbreviation && ` (${match.abbreviation})`}
           </p>
         )}
-        {match.email && <p className="text-gray-400">{match.email}</p>}
+        {match.email && <p className="text-muted">{match.email}</p>}
       </div>
       <div className="flex gap-4">
         {(['link', 'create_new'] as const).map((action) => (
@@ -149,9 +147,9 @@ function ConflictCard({
               value={action}
               checked={decision === action}
               onChange={() => onDecide(row.index, action)}
-              className="accent-red-700"
+              className="accent-accent"
             />
-            <span className={decision === action ? 'font-medium text-gray-900' : 'text-gray-500'}>
+            <span className={decision === action ? 'font-medium text-foreground' : 'text-muted'}>
               {action === 'link' ? 'Link to existing profile' : 'Create new profile'}
             </span>
           </label>
@@ -266,20 +264,23 @@ export default function CsvImportPage() {
   const cleanRows = okRows.filter((r) => !r.globalPersonMatch);
 
   return (
-    <main className="p-8 max-w-3xl">
+    <main className="mx-auto p-8 max-w-2xl">
       {/* Header */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-gray-700">
+      <div className="flex items-center gap-2 text-sm text-muted mb-1">
+        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
           {slug}
         </Link>
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}/persons`} className="hover:text-gray-700">
+        <Link
+          href={`/org/${slug}/events/${eventId}/persons`}
+          className="hover:text-foreground-secondary"
+        >
           Persons
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">CSV import</span>
+        <span className="text-foreground font-medium">CSV import</span>
       </div>
-      <h1 className="text-2xl font-bold mb-6">Import persons from CSV</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">Import persons from CSV</h1>
 
       {/* Step indicator */}
       <div className="flex items-center gap-4 mb-8 text-sm">
@@ -289,24 +290,24 @@ export default function CsvImportPage() {
               className={[
                 'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold',
                 step === s
-                  ? 'bg-red-700 text-white'
+                  ? 'bg-accent text-accent-foreground'
                   : i < ['upload', 'preview', 'done'].indexOf(step)
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-200 text-gray-500',
+                    ? 'bg-success text-success-foreground'
+                    : 'bg-border text-muted',
               ].join(' ')}
             >
               {i + 1}
             </div>
-            <span className={step === s ? 'font-semibold text-gray-900' : 'text-gray-400'}>
+            <span className={step === s ? 'font-semibold text-foreground' : 'text-muted'}>
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </span>
-            {i < 2 && <div className="w-8 h-px bg-gray-200" />}
+            {i < 2 && <div className="w-8 h-px bg-border" />}
           </div>
         ))}
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
@@ -314,9 +315,9 @@ export default function CsvImportPage() {
       {/* ── Step: Upload ── */}
       {step === 'upload' && (
         <div className="flex flex-col gap-4">
-          <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-            <p className="text-gray-500 text-sm mb-1">CSV columns (email optional):</p>
-            <p className="font-mono text-xs text-gray-400 mb-3">
+          <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
+            <p className="text-muted text-sm mb-1">CSV columns (email optional):</p>
+            <p className="font-mono text-xs text-muted mb-3">
               given_name, family_name, email, club, club_abv, club_city, hema_ratings_id
             </p>
             <input
@@ -329,12 +330,12 @@ export default function CsvImportPage() {
             />
             <button
               onClick={() => fileRef.current?.click()}
-              className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
             >
               Choose CSV file
             </button>
             {file && (
-              <p className="text-sm text-gray-600 mt-2">
+              <p className="text-sm text-foreground-secondary mt-2">
                 Selected: <strong>{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
               </p>
             )}
@@ -344,7 +345,7 @@ export default function CsvImportPage() {
             onClick={() => void handlePreview()}
             data-testid="import-validate"
             disabled={!file || uploading}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
+            className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
           >
             {uploading ? 'Validating…' : 'Validate →'}
           </button>
@@ -392,22 +393,22 @@ export default function CsvImportPage() {
               {/* Sticky action bar — summary chips + bulk shortcuts +
                   Cancel/Import. Stays pinned while the operator
                   scrolls through the section bodies below. */}
-              <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
-                <div className="flex flex-wrap items-center gap-3 text-slate-700">
+              <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
+                <div className="flex flex-wrap items-center gap-3 text-foreground-secondary">
                   <span>
                     <strong>{preview.rows.length}</strong> rows
                   </span>
-                  <span className="text-green-700">
+                  <span className="text-success">
                     <strong>{willCreate}</strong> will create
                   </span>
-                  <span className="text-blue-700">
+                  <span className="text-info">
                     <strong>{willLink}</strong> will link
                   </span>
-                  <span className="text-red-700">
+                  <span className="text-danger">
                     <strong>{invalidRows.length}</strong> invalid
                   </span>
                   {preview.newClubs.length > 0 && (
-                    <span className="text-blue-600">
+                    <span className="text-info">
                       + {preview.newClubs.length} new club
                       {preview.newClubs.length !== 1 ? 's' : ''}
                     </span>
@@ -420,7 +421,7 @@ export default function CsvImportPage() {
                         type="button"
                         onClick={linkAllSuggested}
                         disabled={notYetLinkedCount === 0}
-                        className="rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                        className="rounded-md border border-info/30 bg-info/10 px-2.5 py-1 text-xs font-semibold text-info hover:bg-info/20 disabled:opacity-50"
                       >
                         Link all suggested{notYetLinkedCount > 0 ? ` (${notYetLinkedCount})` : ''}
                       </button>
@@ -428,7 +429,7 @@ export default function CsvImportPage() {
                         type="button"
                         onClick={createAllAsNew}
                         disabled={notYetCreateNewCount === 0}
-                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
                       >
                         Create all as new
                         {notYetCreateNewCount > 0 ? ` (${notYetCreateNewCount})` : ''}
@@ -439,7 +440,7 @@ export default function CsvImportPage() {
                     type="button"
                     onClick={() => setStep('upload')}
                     disabled={uploading}
-                    className="text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                    className="text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -448,7 +449,7 @@ export default function CsvImportPage() {
                     onClick={() => void handleCommit()}
                     data-testid="import-commit"
                     disabled={uploading || willCreate + willLink === 0}
-                    className="rounded-lg bg-red-700 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:opacity-50"
+                    className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
                   >
                     {uploading ? 'Importing…' : `Import ${willCreate + willLink} persons`}
                   </button>
@@ -457,16 +458,13 @@ export default function CsvImportPage() {
 
               {/* Side-effect callout: new clubs that will be created. */}
               {preview.newClubs.length > 0 && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
-                  <p className="mb-1 font-medium text-blue-700">
+                <div className="rounded-lg border border-info/30 bg-info/10 p-3 text-sm">
+                  <p className="mb-1 font-medium text-info">
                     New clubs will be created (unverified):
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {preview.newClubs.map((c) => (
-                      <span
-                        key={c}
-                        className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700"
-                      >
+                      <span key={c} className="rounded bg-info/10 px-2 py-0.5 text-xs text-info">
                         {c}
                       </span>
                     ))}
@@ -485,25 +483,25 @@ export default function CsvImportPage() {
                   {cleanRows.map((row) => (
                     <div
                       key={row.index}
-                      className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-green-100 bg-green-50/50 px-3 py-1.5 text-xs"
+                      className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-success/30 bg-success/5 px-3 py-1.5 text-xs"
                     >
                       <span>
-                        <span className="font-mono text-green-700">Row {row.index + 1}:</span>{' '}
-                        <span className="font-medium text-slate-800">
+                        <span className="font-mono text-success">Row {row.index + 1}:</span>{' '}
+                        <span className="font-medium text-foreground">
                           {row.givenName} {row.familyName}
                         </span>
-                        {row.email && <span className="ml-2 text-slate-500">{row.email}</span>}
+                        {row.email && <span className="ml-2 text-muted">{row.email}</span>}
                       </span>
                       {row.clubResolution && (
-                        <span className="text-slate-600">
+                        <span className="text-foreground-secondary">
                           {row.clubResolution.resolvedName}
                           {row.clubResolution.abbreviation && (
-                            <span className="ml-1 text-slate-400">
+                            <span className="ml-1 text-muted">
                               ({row.clubResolution.abbreviation})
                             </span>
                           )}
                           <span
-                            className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-gray-100 text-gray-600'}`}
+                            className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-border text-foreground-secondary'}`}
                           >
                             {CONFIDENCE_LABELS[row.clubResolution.confidence] ??
                               row.clubResolution.confidence}
@@ -546,9 +544,9 @@ export default function CsvImportPage() {
                   {invalidRows.map((r) => (
                     <div
                       key={r.index}
-                      className="rounded border border-red-100 bg-red-50 px-3 py-1.5 text-xs"
+                      className="rounded border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs"
                     >
-                      <span className="font-mono text-red-600">Row {r.index + 1}:</span>{' '}
+                      <span className="font-mono text-danger">Row {r.index + 1}:</span>{' '}
                       {r.invalidReason}
                     </div>
                   ))}
@@ -562,14 +560,14 @@ export default function CsvImportPage() {
       {step === 'done' && report && (
         <div className="text-center py-8">
           <p className="text-4xl mb-3">✅</p>
-          <h2 className="text-xl font-bold mb-2">Import complete</h2>
-          <p className="text-gray-500 text-sm mb-6">
+          <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">Import complete</h2>
+          <p className="text-muted text-sm mb-6">
             {report.created} created · {report.updated} updated · {report.duplicates.length} skipped
             · {report.invalid.length} invalid
           </p>
           <button
             onClick={() => router.push(`/org/${slug}/events/${eventId}/persons`)}
-            className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
+            className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
           >
             Back to roster
           </button>

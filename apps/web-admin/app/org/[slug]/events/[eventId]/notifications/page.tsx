@@ -156,25 +156,27 @@ export default function EventNotificationsPage() {
 
   return (
     <main className="max-w-5xl p-8">
-      <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+      <div className="mb-6 flex items-center gap-2 text-sm text-muted">
+        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
           {t('organizer.broadcast.backToEvent')}
         </Link>
         <span>/</span>
-        <span className="font-medium text-gray-900">{t('organizer.broadcast.navLabel')}</span>
+        <span className="font-medium text-foreground">{t('organizer.broadcast.navLabel')}</span>
       </div>
 
       <header className="mb-6">
-        <h1 className="text-2xl font-bold">{t('organizer.broadcast.title')}</h1>
-        <p className="mt-2 max-w-2xl text-sm text-gray-600">
+        <h1 className="font-display font-bold text-2xl sm:text-3xl">
+          {t('organizer.broadcast.title')}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
           {t('organizer.broadcast.description')}
         </p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <section className="rounded-xl border border-gray-200 bg-white p-5">
+        <section className="rounded-xl border border-border bg-surface p-5">
           <div className="mb-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
               {t('organizer.broadcast.target')}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -185,8 +187,8 @@ export default function EventNotificationsPage() {
                   onClick={() => setTargetType(option.value)}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                     targetType === option.value
-                      ? 'border-red-700 bg-red-50 text-red-800'
-                      : 'border-gray-200 text-gray-600'
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border text-foreground-secondary'
                   }`}
                 >
                   {option.label}
@@ -196,19 +198,19 @@ export default function EventNotificationsPage() {
           </div>
 
           {targetType === 'specific_persons' && (
-            <div className="mb-5 rounded-lg border border-gray-200 p-3">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+            <div className="mb-5 rounded-lg border border-border p-3">
+              <label className="mb-2 block text-sm font-medium text-foreground-secondary">
                 {t('organizer.broadcast.people')}
               </label>
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('organizer.broadcast.searchPeople')}
-                className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="mb-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
               <div className="max-h-52 overflow-auto">
                 {filteredPeople.length === 0 ? (
-                  <p className="text-sm text-gray-500">{t('organizer.broadcast.emptyPeople')}</p>
+                  <p className="text-sm text-muted">{t('organizer.broadcast.emptyPeople')}</p>
                 ) : (
                   filteredPeople.map((person) => (
                     <label key={person.id} className="flex items-center gap-3 py-2 text-sm">
@@ -221,7 +223,7 @@ export default function EventNotificationsPage() {
                         <span className="font-medium">
                           {person.givenName} {person.familyName}
                         </span>
-                        <span className="ml-2 text-gray-500">{person.email}</span>
+                        <span className="ml-2 text-muted">{person.email}</span>
                       </span>
                     </label>
                   ))
@@ -231,7 +233,7 @@ export default function EventNotificationsPage() {
           )}
 
           <div className="mb-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
               {t('organizer.broadcast.severity')}
             </p>
             <div className="flex gap-2">
@@ -243,7 +245,7 @@ export default function EventNotificationsPage() {
                   className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
                     severity === option.value
                       ? severityClasses[option.value]
-                      : 'border-gray-200 text-gray-600'
+                      : 'border-border text-foreground-secondary'
                   }`}
                 >
                   {option.label}
@@ -254,18 +256,18 @@ export default function EventNotificationsPage() {
 
           <div className="grid gap-4">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
+              <span className="mb-1 block text-sm font-medium text-foreground-secondary">
                 {t('organizer.broadcast.messageTitle')}
               </span>
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 maxLength={120}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
+              <span className="mb-1 block text-sm font-medium text-foreground-secondary">
                 {t('organizer.broadcast.messageBody')}
               </span>
               <textarea
@@ -273,25 +275,25 @@ export default function EventNotificationsPage() {
                 onChange={(event) => setBody(event.target.value)}
                 maxLength={1000}
                 rows={5}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </label>
           </div>
 
-          {message && <p className="mt-4 text-sm text-gray-700">{message}</p>}
+          {message && <p className="mt-4 text-sm text-foreground-secondary">{message}</p>}
 
           <button
             type="button"
             disabled={busy || !title.trim() || !body.trim()}
             onClick={() => void sendBroadcast()}
-            className="mt-5 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
+            className="mt-5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:bg-border"
           >
             {busy ? t('organizer.broadcast.sending') : t('organizer.broadcast.send')}
           </button>
         </section>
 
         <aside>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
             {t('organizer.broadcast.preview')}
           </p>
           <div className={`rounded-xl border p-4 ${severityClasses[severity]}`}>
@@ -303,17 +305,17 @@ export default function EventNotificationsPage() {
       </div>
 
       <section className="mt-8">
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.broadcast.history')}
         </h2>
         {history.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
+          <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted">
             {t('organizer.broadcast.emptyHistory')}
           </p>
         ) : (
           <div className="space-y-3">
             {history.map((item) => (
-              <article key={item.id} className="rounded-xl border border-gray-200 bg-white p-4">
+              <article key={item.id} className="rounded-xl border border-border bg-surface p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <span
@@ -321,10 +323,10 @@ export default function EventNotificationsPage() {
                     >
                       {t(`organizer.broadcast.${item.severity}`)}
                     </span>
-                    <h3 className="mt-2 font-semibold text-gray-900">{item.title}</h3>
-                    <p className="mt-1 text-sm text-gray-600">{item.body}</p>
+                    <h3 className="mt-2 font-semibold text-foreground">{item.title}</h3>
+                    <p className="mt-1 text-sm text-foreground-secondary">{item.body}</p>
                   </div>
-                  <p className="text-right text-xs text-gray-500">
+                  <p className="text-right text-xs text-muted">
                     {t('organizer.broadcast.recipients', { count: item.recipientCount })}
                   </p>
                 </div>

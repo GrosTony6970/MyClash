@@ -1,4 +1,7 @@
 @import 'tailwindcss';
+/* Shared MyClash design tokens (fonts + semantic colour surfaces + scopes) —
+ * one source for both web-admin and web-public. */
+@import '../../../../packages/ui/src/theme.css';
 /*
  * Pull shared UI components into Tailwind's content scan. Without this,
  * dynamic class strings inside packages/ui (e.g. the colour-token maps
@@ -8,21 +11,6 @@
  * picks violet / teal / gold / silver / bronze.
  */
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
-
-/*
- * Tournament Manual aesthetic — font tokens wired to next/font CSS variables
- * exposed on <html> by app/layout.tsx (--font-fraunces, --font-geist,
- * --font-jetbrains).
- *
- * - font-display → Fraunces (variable serif, page H1, ruleset names)
- * - font-body    → Geist (every regular text element)
- * - font-mono    → JetBrains Mono (codes, slugs, UUIDs, formula tokens)
- */
-@theme {
-  --font-display: var(--font-fraunces), 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
-  --font-body: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
-}
 
 /*
  * Dashboard metric-card entrance — the one signature animation of the admin

@@ -87,11 +87,11 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display text-xl text-slate-900">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('organizer.tournaments.settings.matchFormat')}
       </h2>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted">
         Defaults come from the ruleset. Any value you change here is stored as a per-tournament
         override; use the Reset link to restore the ruleset default.
       </p>
@@ -241,7 +241,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         type="button"
         onClick={() => void save()}
         disabled={saving}
-        className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
@@ -273,12 +273,12 @@ function NumberField({
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="block">
-      <span className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-600">
+      <span className="mb-1 flex items-center gap-2 text-xs font-medium text-foreground-secondary">
         {label}
         {modified && (
           <span
             title={`Default: ${defaultValue}`}
-            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
             modified
           </span>
@@ -287,7 +287,7 @@ function NumberField({
           <button
             type="button"
             onClick={onReset}
-            className="ml-auto text-xs text-slate-500 underline hover:text-slate-800"
+            className="ml-auto text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${defaultValue}`}
           >
             Reset
@@ -301,11 +301,11 @@ function NumberField({
           min={min}
           max={max}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="w-32 rounded-md border border-border px-3 py-2 text-sm"
         />
-        {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
+        {suffix && <span className="text-xs text-muted">{suffix}</span>}
       </div>
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </label>
   );
 }
@@ -330,12 +330,12 @@ function SelectField({
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="block">
-      <span className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-600">
+      <span className="mb-1 flex items-center gap-2 text-xs font-medium text-foreground-secondary">
         {label}
         {modified && (
           <span
             title={`Default: ${defaultValue}`}
-            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
             modified
           </span>
@@ -344,7 +344,7 @@ function SelectField({
           <button
             type="button"
             onClick={onReset}
-            className="ml-auto text-xs text-slate-500 underline hover:text-slate-800"
+            className="ml-auto text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${defaultValue}`}
           >
             Reset
@@ -354,7 +354,7 @@ function SelectField({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="w-full rounded-md border border-border px-3 py-2 text-sm"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -362,7 +362,7 @@ function SelectField({
           </option>
         ))}
       </select>
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </label>
   );
 }

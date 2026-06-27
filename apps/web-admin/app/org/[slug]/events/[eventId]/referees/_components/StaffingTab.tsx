@@ -201,14 +201,14 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
 
   return (
     <section className="space-y-6">
-      <header className="rounded-lg border border-gray-200 bg-white p-4">
+      <header className="rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-wrap items-end gap-4">
-          <label className="grid gap-1 text-sm font-semibold text-gray-700">
+          <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
             {t('organizer.staffing.tournamentLabel')}
             <select
               value={selectedTournamentId}
               onChange={(e) => setSelectedTournamentId(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm min-w-[16rem]"
+              className="rounded-md border border-border px-3 py-2 text-sm min-w-[16rem]"
             >
               <option value="event-default">{t('organizer.staffing.eventDefault')}</option>
               {tournaments.map((tournament) => (
@@ -220,7 +220,7 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
           </label>
 
           {selectedTournamentId !== 'event-default' && (
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <label className="flex items-center gap-2 text-sm font-semibold text-foreground-secondary">
               <input
                 type="checkbox"
                 checked={overrideMode}
@@ -242,26 +242,24 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
               type="button"
               onClick={() => void handleReset()}
               disabled={!editable || saving}
-              className="ml-auto rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ml-auto rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('organizer.staffing.resetToEventDefault')}
             </button>
           )}
         </div>
         {resolved?.isHardCodedFloor && (
-          <p className="mt-3 rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+          <p className="mt-3 rounded bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning">
             {t('organizer.staffing.usingHardCodedFloor')}
           </p>
         )}
         {selectedTournamentId !== 'event-default' && !overrideMode && (
-          <p className="mt-3 text-xs text-gray-500">
-            {t('organizer.staffing.inheritingExplanation')}
-          </p>
+          <p className="mt-3 text-xs text-muted">{t('organizer.staffing.inheritingExplanation')}</p>
         )}
       </header>
 
       {loading || !config ? (
-        <p className="text-sm text-gray-400">{t('organizer.staffing.loading')}</p>
+        <p className="text-sm text-muted">{t('organizer.staffing.loading')}</p>
       ) : (
         <>
           {PHASE_TYPES.map((phase) => (
@@ -280,7 +278,7 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
               type="button"
               onClick={() => void handleSave(false)}
               disabled={!editable || saving}
-              className="rounded-md bg-red-700 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground shadow-sm hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? t('organizer.staffing.saving') : t('organizer.staffing.save')}
             </button>
@@ -362,12 +360,12 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
+    <section className="rounded-lg border border-border bg-surface p-4">
       <header className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-secondary">
           {t(`organizer.staffing.phase.${phase}`)}
         </h3>
-        <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
+        <label className="flex items-center gap-2 text-xs font-semibold text-foreground-secondary">
           {t('organizer.staffing.slotCount')}
           <input
             type="number"
@@ -376,7 +374,7 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
             value={slots.length}
             disabled={!editable}
             onChange={(e) => setSlotCount(Number.parseInt(e.target.value, 10) || 1)}
-            className="w-16 rounded-md border border-gray-300 px-2 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-16 rounded-md border border-border px-2 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </label>
       </header>
@@ -386,7 +384,7 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
           <li
             key={slot.index}
             className={[
-              'grid gap-2 rounded-md border border-gray-100 bg-gray-50/60 px-3 py-2 md:grid-cols-[2rem,5rem,12rem,1fr]',
+              'grid gap-2 rounded-md border border-border bg-background px-3 py-2 md:grid-cols-[2rem,5rem,12rem,1fr]',
               dragIdx === idx ? 'opacity-50' : '',
             ].join(' ')}
             onDragOver={(e) => {
@@ -402,7 +400,7 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
                 touched without the user explicitly toggling override. */}
             <div
               className={[
-                'self-center text-center text-gray-400 select-none',
+                'self-center text-center text-muted select-none',
                 editable ? 'cursor-grab active:cursor-grabbing' : 'opacity-30',
               ].join(' ')}
               draggable={editable}
@@ -412,7 +410,7 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
             >
               ⋮⋮
             </div>
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-500 self-center">
+            <div className="text-xs font-bold uppercase tracking-wider text-muted self-center">
               {t('organizer.staffing.slotLabel', { index: slot.index })}
             </div>
             <input
@@ -421,7 +419,7 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
               disabled={!editable}
               onChange={(e) => updateSlot(idx, { displayName: e.target.value })}
               placeholder={t('organizer.staffing.displayNamePlaceholder')}
-              className="rounded-md border border-gray-300 px-2 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md border border-border px-2 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <SkillChipList
               skills={skills}
@@ -471,7 +469,7 @@ function SkillChipList({ skills, skillById, selectedIds, editable, onChange }: S
               <button
                 type="button"
                 onClick={() => removeSkill(sid)}
-                className="text-xs text-gray-400 hover:text-red-600"
+                className="text-xs text-muted hover:text-danger"
                 aria-label={t('organizer.staffing.removeSkillFromSlot')}
                 title={t('organizer.staffing.removeSkillFromSlot')}
               >
@@ -486,18 +484,18 @@ function SkillChipList({ skills, skillById, selectedIds, editable, onChange }: S
           <button
             type="button"
             onClick={() => setPickerOpen((v) => !v)}
-            className="rounded border border-dashed border-gray-300 px-2 py-1 text-xs text-gray-500 hover:text-gray-800 hover:border-gray-400"
+            className="rounded border border-dashed border-border px-2 py-1 text-xs text-muted hover:text-foreground hover:border-border"
           >
             + {t('organizer.staffing.addSkillToSlot')}
           </button>
           {pickerOpen && (
-            <div className="absolute left-0 top-full z-10 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg">
+            <div className="absolute left-0 top-full z-10 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-border bg-surface p-1 shadow-lg">
               {available.map((s) => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => addSkill(s.id)}
-                  className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-gray-50"
+                  className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-background"
                 >
                   <SkillBadge color={s.color} label={s.name} />
                 </button>
@@ -524,28 +522,28 @@ function DestructiveConfirmDialog({
   saving,
 }: DestructiveConfirmProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
-        <h2 className="text-lg font-bold text-gray-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-surface p-5 shadow-xl">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
           {t('organizer.staffing.conflict.title')}
         </h2>
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-foreground-secondary">
           {t('organizer.staffing.conflict.body', { count: affected.length })}
         </p>
-        <ul className="mt-3 max-h-48 overflow-y-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+        <ul className="mt-3 max-h-48 overflow-y-auto rounded border border-border bg-background p-3 text-xs text-foreground-secondary">
           {affected.map((a) => (
             <li
               key={a.id}
-              className="flex justify-between gap-2 border-b border-gray-100 py-1 last:border-0"
+              className="flex justify-between gap-2 border-b border-border py-1 last:border-0"
             >
               <span className="font-semibold">
                 {a.role ?? '—'}
-                <span className="font-normal text-gray-500">
+                <span className="font-normal text-muted">
                   {' · '}
                   {a.poolName ?? a.matchLabel ?? '—'}
                 </span>
               </span>
-              <span className="text-gray-400">{a.reason}</span>
+              <span className="text-muted">{a.reason}</span>
             </li>
           ))}
         </ul>
@@ -554,7 +552,7 @@ function DestructiveConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-border px-4 py-1.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
           >
             {t('organizer.staffing.conflict.cancel')}
           </button>
@@ -562,7 +560,7 @@ function DestructiveConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={saving}
-            className="rounded-md bg-red-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            className="rounded-md bg-danger px-4 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
           >
             {saving
               ? t('organizer.staffing.saving')

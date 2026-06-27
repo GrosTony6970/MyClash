@@ -179,40 +179,40 @@ export default function OrgLeaguesPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.leagues.eyebrow')}
         </p>
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
           {org?.name
             ? t('organizer.leagues.titleWithOrg', { name: org.name })
             : t('organizer.leagues.titleFallback')}
         </h1>
-        <p className="mt-1 text-sm text-slate-600">{t('organizer.leagues.subtitle')}</p>
+        <p className="mt-1 text-sm text-foreground-secondary">{t('organizer.leagues.subtitle')}</p>
       </header>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       {/* Existing requests */}
       {pendingRequests.length > 0 && (
-        <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+        <section className="mb-6 rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('organizer.leagues.pendingHeading')}
           </h2>
           <ul className="space-y-2">
             {pendingRequests.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded border border-border bg-background px-3 py-2 text-sm"
               >
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{r.leagues?.name ?? r.league_id}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="font-medium text-foreground">{r.leagues?.name ?? r.league_id}</p>
+                  <p className="text-xs text-muted">
                     {t('organizer.leagues.requestedAt', {
                       date: new Date(r.requested_at).toLocaleDateString(),
                     })}
@@ -223,7 +223,7 @@ export default function OrgLeaguesPage() {
                   type="button"
                   onClick={() => void withdraw(r.id)}
                   disabled={busyLeagueId === r.id}
-                  className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background disabled:opacity-50"
                 >
                   {t('organizer.leagues.withdrawButton')}
                 </button>
@@ -234,38 +234,36 @@ export default function OrgLeaguesPage() {
       )}
 
       {/* All leagues */}
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.leagues.availableHeading')}
         </h2>
-        {loading && <p className="text-sm text-slate-400">{t('organizer.leagues.loadingState')}</p>}
+        {loading && <p className="text-sm text-muted">{t('organizer.leagues.loadingState')}</p>}
         {!loading && leagues.length === 0 && (
-          <p className="text-sm text-slate-500">{t('organizer.leagues.emptyState')}</p>
+          <p className="text-sm text-muted">{t('organizer.leagues.emptyState')}</p>
         )}
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border">
           {leagues.map((league) => {
             const alreadyMember = memberOfLeagueIds.has(league.id);
             const pending = pendingByLeagueId.get(league.id);
             return (
               <li key={league.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-foreground">
                     {league.name}
-                    <span className="ml-2 text-xs font-mono text-slate-400">
-                      {league.season_year}
-                    </span>
+                    <span className="ml-2 text-xs font-mono text-muted">{league.season_year}</span>
                   </p>
                   {league.description && (
-                    <p className="mt-0.5 text-xs text-slate-500">{league.description}</p>
+                    <p className="mt-0.5 text-xs text-muted">{league.description}</p>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {alreadyMember ? (
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
                       {t('organizer.leagues.memberBadge')}
                     </span>
                   ) : pending ? (
-                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    <span className="rounded-full bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
                       {t('organizer.leagues.pendingBadge')}
                     </span>
                   ) : (
@@ -277,13 +275,13 @@ export default function OrgLeaguesPage() {
                           setMessageDraft((prev) => ({ ...prev, [league.id]: e.target.value }))
                         }
                         placeholder={t('organizer.leagues.messagePlaceholder')}
-                        className="w-44 rounded border border-slate-300 px-2 py-1 text-xs"
+                        className="w-44 rounded border border-border px-2 py-1 text-xs"
                       />
                       <button
                         type="button"
                         onClick={() => void submitJoin(league.id)}
                         disabled={busyLeagueId === league.id}
-                        className="rounded-md bg-red-800 px-3 py-1 text-xs font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+                        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
                       >
                         {t('organizer.leagues.requestToJoinButton')}
                       </button>

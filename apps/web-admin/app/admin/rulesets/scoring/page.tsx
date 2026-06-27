@@ -355,7 +355,7 @@ export default function AdminRulesetsPage() {
       <RulesetsTopNav active="scoring" />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -363,13 +363,13 @@ export default function AdminRulesetsPage() {
       {/* ── Submissions section ────────────────────────────────────────── */}
       <section className="mb-10">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('admin.rulesets.submissionsTitle')}
           </h2>
           <select
             value={submissionsStatus}
             onChange={(e) => setSubmissionsStatus(e.target.value as typeof submissionsStatus)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="rounded-md border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="pending">{t('admin.rulesets.statusPending')}</option>
             <option value="approved">{t('admin.rulesets.statusApproved')}</option>
@@ -379,14 +379,14 @@ export default function AdminRulesetsPage() {
         </div>
 
         {submissionsLoading ? (
-          <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+          <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
         ) : submissions.length === 0 ? (
-          <p className="text-sm text-slate-400">{t('admin.rulesets.submissionsEmpty')}</p>
+          <p className="text-sm text-muted">{t('admin.rulesets.submissionsEmpty')}</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                   <th className="w-10 px-4 py-3">
                     <input
                       type="checkbox"
@@ -395,7 +395,7 @@ export default function AdminRulesetsPage() {
                         submissions.length > 0 && submissions.every((s) => selection.has(s.id))
                       }
                       onChange={() => selection.toggleAll(submissions.map((s) => s.id))}
-                      className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
                     />
                   </th>
                   <th className="px-4 py-3">{t('admin.rulesets.colRuleset')}</th>
@@ -408,42 +408,42 @@ export default function AdminRulesetsPage() {
               </thead>
               <tbody>
                 {submissions.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <tr key={row.id} className="border-b border-border hover:bg-background">
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
                         aria-label={t('admin.rulesets.selectRow')}
                         checked={selection.has(row.id)}
                         onChange={() => selection.toggle(row.id)}
-                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                        className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
                       />
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{row.display_name}</p>
-                      <p className="font-mono text-xs text-slate-500">
+                      <p className="font-mono text-xs text-muted">
                         {row.code}@{row.version}
                       </p>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                    <td className="px-4 py-3 font-mono text-xs text-muted">
                       {row.package_ref ?? '-'}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                    <td className="px-4 py-3 font-mono text-xs text-muted">
                       {row.submitted_by_user_id ?? '-'}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                           row.status === 'approved'
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-success/10 text-success'
                             : row.status === 'rejected'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-yellow-100 text-yellow-700'
+                              ? 'bg-danger/10 text-danger'
+                              : 'bg-warning/10 text-warning'
                         }`}
                       >
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="px-4 py-3 text-muted">
                       {new Date(row.created_at).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="px-4 py-3">
@@ -476,10 +476,10 @@ export default function AdminRulesetsPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('admin.rulesets.curatedTitle')}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">{t('admin.rulesets.curatedDescription')}</p>
+            <p className="mt-1 text-sm text-muted">{t('admin.rulesets.curatedDescription')}</p>
           </div>
           <CreateRulesetCta
             href="/admin/rulesets/scoring/new"
@@ -488,14 +488,14 @@ export default function AdminRulesetsPage() {
         </div>
 
         {curatedLoading ? (
-          <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+          <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
         ) : curated.length === 0 ? (
-          <p className="text-sm text-slate-400">{t('admin.rulesets.curatedEmpty')}</p>
+          <p className="text-sm text-muted">{t('admin.rulesets.curatedEmpty')}</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
                   <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
                   <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
@@ -507,16 +507,16 @@ export default function AdminRulesetsPage() {
               </thead>
               <tbody>
                 {curated.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <tr key={row.id} className="border-b border-border hover:bg-background">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{row.name}</p>
+                      <p className="font-medium text-foreground">{row.name}</p>
                       {row.description ? (
-                        <p className="mt-0.5 max-w-md text-xs text-slate-500">{row.description}</p>
+                        <p className="mt-0.5 max-w-md text-xs text-muted">{row.description}</p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{row.code}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted">{row.code}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                      <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
                         v{row.version}
                       </span>
                     </td>
@@ -699,7 +699,7 @@ export default function AdminRulesetsPage() {
           type="button"
           onClick={() => setBulkConfirmOpen(true)}
           disabled={actionBusy}
-          className="rounded-md bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:opacity-50"
+          className="rounded-md bg-success px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-success-hover disabled:opacity-50"
         >
           {t('admin.rulesets.bulkApproveAction')}
         </button>
@@ -707,7 +707,7 @@ export default function AdminRulesetsPage() {
           type="button"
           onClick={() => setBulkRejectOpen(true)}
           disabled={actionBusy}
-          className="rounded-md bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+          className="rounded-md bg-danger px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-danger-hover disabled:opacity-50"
         >
           {t('admin.rulesets.bulkRejectAction')}
         </button>

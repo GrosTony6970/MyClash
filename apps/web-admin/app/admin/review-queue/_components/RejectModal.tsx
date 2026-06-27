@@ -49,17 +49,19 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-bold">{t('admin.reviewQueue.rejectModalTitle')}</h2>
-        <p className="mt-1 text-sm text-slate-500">{item.targetLabel}</p>
+      <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
+        <h2 className="font-display font-semibold text-lg sm:text-xl">
+          {t('admin.reviewQueue.rejectModalTitle')}
+        </h2>
+        <p className="mt-1 text-sm text-muted">{item.targetLabel}</p>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-foreground-secondary mb-1">
             {t('admin.reviewQueue.rejectReasonLabel')}
           </label>
           <textarea
@@ -68,12 +70,12 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
             rows={4}
             autoFocus
             placeholder={t('admin.reviewQueue.rejectReasonPlaceholder')}
-            className="w-full resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="w-full resize-none rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <p
             className={[
               'mt-1 text-right text-xs',
-              charCount > 500 ? 'text-red-600' : 'text-slate-400',
+              charCount > 500 ? 'text-danger' : 'text-muted',
             ].join(' ')}
           >
             {charCount} / 500
@@ -81,7 +83,7 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
         </div>
 
         {error && (
-          <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <p className="mt-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
             {error}
           </p>
         )}
@@ -90,14 +92,14 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
           <button
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleReject()}
             disabled={submitting || !isValid}
-            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
           >
             {submitting ? 'Rejecting…' : t('admin.reviewQueue.reject')}
           </button>

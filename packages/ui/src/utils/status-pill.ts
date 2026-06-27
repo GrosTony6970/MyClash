@@ -87,10 +87,20 @@ export function tournamentStatusSemantic(status: string): StatusSemantic {
   }
 }
 
-export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
+export type MatchStatus =
+  | 'scheduled'
+  | 'ready'
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'voided'
+  | 'forfeit'
+  | 'disqualified';
 
 export function matchStatusSemantic(status: string): StatusSemantic {
   switch (status) {
+    case 'ready':
+      return 'ready';
     case 'running':
       return 'live';
     case 'paused':
@@ -98,10 +108,62 @@ export function matchStatusSemantic(status: string): StatusSemantic {
     case 'completed':
       return 'done';
     case 'voided':
+    case 'forfeit':
+    case 'disqualified':
       return 'danger';
     case 'scheduled':
     default:
       return 'pending';
+  }
+}
+
+export type WorkshopStatus = 'draft' | 'published' | 'running' | 'completed' | 'cancelled';
+
+// Workshops share the tournament lifecycle vocabulary (draft → published →
+// running → completed) so they intentionally collapse to the same semantics,
+// keeping a "published" workshop the same colour as a "published" tournament.
+export function workshopStatusSemantic(status: string): StatusSemantic {
+  switch (status) {
+    case 'published':
+      return 'ready';
+    case 'running':
+      return 'live';
+    case 'completed':
+      return 'done';
+    case 'cancelled':
+      return 'archived';
+    case 'draft':
+    default:
+      return 'pending';
+  }
+}
+
+export type ReviewStatus =
+  | 'pending'
+  | 'requested'
+  | 'approved'
+  | 'linked'
+  | 'rejected'
+  | 'cancelled';
+
+// Review / request lifecycles (admin review queue, league join requests):
+// awaiting action → amber, approved → emerald, linked → blue, rejected → red,
+// cancelled/withdrawn → archived grey.
+export function reviewStatusSemantic(status: string): StatusSemantic {
+  switch (status) {
+    case 'approved':
+      return 'done';
+    case 'linked':
+      return 'ready';
+    case 'rejected':
+      return 'danger';
+    case 'cancelled':
+    case 'withdrawn':
+      return 'archived';
+    case 'pending':
+    case 'requested':
+    default:
+      return 'paused';
   }
 }
 

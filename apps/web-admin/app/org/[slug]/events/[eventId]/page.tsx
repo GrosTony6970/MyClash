@@ -359,37 +359,37 @@ export default function EventDetailPage() {
               : t('organizer.eventHub.dashboard.startedAgo', { count: Math.abs(startDelta) });
 
   return (
-    <main className="p-6 lg:p-8">
+    <main className="mx-auto max-w-7xl p-6 lg:p-8">
       <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Link href={`/org/${slug}`} className="hover:text-blue-700">
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <Link href={`/org/${slug}`} className="hover:text-accent">
               {t('organizer.eventHub.backToOrg')}
             </Link>
             <span>/</span>
             {event ? (
-              <span className="font-medium text-slate-900">
+              <span className="font-medium text-foreground">
                 {event.name?.trim() ? event.name : t('organizer.eventHub.untitledEvent')}
               </span>
             ) : (
               <span
                 aria-hidden="true"
-                className="inline-block h-4 w-32 animate-pulse rounded bg-stone-200"
+                className="inline-block h-4 w-32 animate-pulse rounded bg-border"
               />
             )}
           </div>
           {event ? (
-            <h1 className="mt-3 text-3xl font-bold text-slate-900">
+            <h1 className="mt-3 font-display font-bold text-2xl sm:text-3xl text-foreground">
               {event.name?.trim() ? event.name : t('organizer.eventHub.untitledEvent')}
             </h1>
           ) : (
             <span
               aria-label={t('organizer.eventHub.loadingEvent')}
-              className="mt-3 inline-block h-8 w-64 animate-pulse rounded-md bg-stone-200"
+              className="mt-3 inline-block h-8 w-64 animate-pulse rounded-md bg-border"
             />
           )}
           {event && (
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               {(() => {
                 const place = [event.city, formatCountryName(event.country, locale)]
                   .filter(Boolean)
@@ -413,31 +413,31 @@ export default function EventDetailPage() {
       </div>
 
       {statsError && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div className="mb-6 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
           {statsError}
         </div>
       )}
 
       {event && vis && (
-        <div className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
                 {t('organizer.events.visibilityCardTitle')}
               </p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted">
                 {vis.isPublic
                   ? t('organizer.events.visibilityPublicHint')
                   : t('organizer.events.visibilityHiddenHint')}
               </p>
               {!vis.canToggle && (
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-warning">
                   {t('organizer.events.visibilityLocked', { status: event.status })}
                 </p>
               )}
             </div>
             <div className="flex flex-shrink-0 items-center gap-3">
-              <span className="text-sm font-semibold text-slate-700">
+              <span className="text-sm font-semibold text-foreground-secondary">
                 {vis.isPublic
                   ? t('organizer.events.visibilityPublic')
                   : t('organizer.events.visibilityHidden')}
@@ -451,13 +451,13 @@ export default function EventDetailPage() {
                 }
                 disabled={!vis.canToggle || isReadOnly || visibilityBusy}
                 onClick={() => void toggleEventVisibility()}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  vis.isPublic ? 'bg-emerald-500' : 'bg-slate-300'
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  vis.isPublic ? 'bg-success' : 'bg-border'
                 }`}
               >
                 <span
                   aria-hidden="true"
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow transition-transform ${
                     vis.isPublic ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
                 />
@@ -470,10 +470,10 @@ export default function EventDetailPage() {
       <section className="mb-8">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
               {t('organizer.eventHub.dashboard.title')}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               {t('organizer.eventHub.dashboard.description')}
             </p>
           </div>
@@ -543,13 +543,13 @@ export default function EventDetailPage() {
         </div>
 
         {tournamentError && (
-          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <div className="mt-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
             {tournamentError}
           </div>
         )}
-        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+            <thead className="bg-background text-xs uppercase tracking-[0.14em] text-muted">
               <tr>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.tournament')}</th>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.registered')}</th>
@@ -565,7 +565,7 @@ export default function EventDetailPage() {
             <tbody>
               {(stats?.tournaments ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={9} className="px-4 py-6 text-center text-muted">
                     {t('organizer.eventHub.dashboard.noTournaments')}
                   </td>
                 </tr>
@@ -573,15 +573,15 @@ export default function EventDetailPage() {
               {(stats?.tournaments ?? []).map((tournament) => {
                 const settingsHref = `/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings`;
                 const cellLinkClass =
-                  'block w-full text-slate-700 hover:text-blue-700 hover:underline';
+                  'block w-full text-foreground-secondary hover:text-accent hover:underline';
                 const canToggleVisibility =
                   tournament.status === 'draft' || tournament.status === 'published';
                 return (
-                  <tr key={tournament.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-semibold text-slate-900">
+                  <tr key={tournament.id} className="border-t border-border">
+                    <td className="px-4 py-3 font-semibold text-foreground">
                       <Link
                         href={settingsHref}
-                        className="inline-flex items-center gap-1.5 hover:text-blue-700 hover:underline"
+                        className="inline-flex items-center gap-1.5 hover:text-accent hover:underline"
                       >
                         <TournamentColorDot color={tournament.color} />
                         {tournament.name}
@@ -616,15 +616,15 @@ export default function EventDetailPage() {
                         {tournament.bracketSize ?? '—'}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="px-4 py-3 text-muted">
                       {tournament.eliminationType === 'single_elim'
                         ? t('organizer.eventHub.dashboard.elimSingle')
                         : tournament.eliminationType === 'double_elim'
                           ? t('organizer.eventHub.dashboard.elimDouble')
                           : '—'}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">
-                      <Link href={settingsHref} className="hover:text-blue-700 hover:underline">
+                    <td className="px-4 py-3 font-mono text-xs text-muted">
+                      <Link href={settingsHref} className="hover:text-accent hover:underline">
                         {tournament.rulesetCode ?? '—'}
                       </Link>
                     </td>
@@ -636,7 +636,7 @@ export default function EventDetailPage() {
                         onChange={(ev) =>
                           void changeTournamentStatus(tournament.id, ev.target.value)
                         }
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
                           (status) => (
@@ -670,15 +670,15 @@ export default function EventDetailPage() {
                         className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {tournament.status === 'draft' ? (
-                          <span aria-hidden="true" className="text-slate-400">
+                          <span aria-hidden="true" className="text-muted">
                             ◌
                           </span>
                         ) : tournament.status === 'published' ? (
-                          <span aria-hidden="true" className="text-emerald-500">
+                          <span aria-hidden="true" className="text-success">
                             ●
                           </span>
                         ) : (
-                          <span aria-hidden="true" className="text-slate-300">
+                          <span aria-hidden="true" className="text-muted">
                             —
                           </span>
                         )}
@@ -701,21 +701,21 @@ export default function EventDetailPage() {
       {aiEnabled && <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} />}
 
       {aiEnabled && (
-        <section className="mb-8 rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section className="mb-8 rounded-lg border border-border bg-surface shadow-sm">
           <button
             type="button"
             onClick={() => setBudgetOpen(!budgetOpen)}
-            className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-bold uppercase tracking-[0.16em] text-slate-500"
+            className="flex w-full items-center justify-between px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted"
           >
             <span>{t('organizer.eventHub.aiBudget')}</span>
-            <span className="text-slate-400">{budgetOpen ? 'UP' : 'DOWN'}</span>
+            <span className="text-muted">{budgetOpen ? 'UP' : 'DOWN'}</span>
           </button>
 
           {budgetOpen && (
-            <div className="space-y-4 border-t border-slate-100 px-5 py-5">
+            <div className="space-y-4 border-t border-border px-5 py-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <label className="flex-1" htmlFor="aiSpendCap">
-                  <span className="mb-1 block text-xs font-semibold text-slate-500">
+                  <span className="mb-1 block text-xs font-semibold text-muted">
                     {t('organizer.eventHub.spendCap')}
                   </span>
                   <input
@@ -727,7 +727,7 @@ export default function EventDetailPage() {
                     value={spendCap}
                     onChange={(e) => setSpendCap(e.target.value)}
                     placeholder={t('organizer.eventHub.noCap')}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm"
                   />
                 </label>
                 <button
@@ -735,7 +735,7 @@ export default function EventDetailPage() {
                   onClick={() => void handleSaveCap()}
                   disabled={savingCap || isReadOnly}
                   title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                  className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   {savingCap ? t('organizer.eventHub.saving') : t('organizer.eventHub.save')}
                 </button>
@@ -745,15 +745,15 @@ export default function EventDetailPage() {
                 <div>
                   {aiUsage.cap !== null ? (
                     <>
-                      <p className="mb-1 text-sm text-slate-600">
+                      <p className="mb-1 text-sm text-foreground-secondary">
                         {t('organizer.eventHub.budgetUsed', {
                           spent: aiUsage.totalSpendEur.toFixed(2),
                           cap: aiUsage.cap.toFixed(2),
                         })}
                       </p>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-2 overflow-hidden rounded-full bg-border">
                         <div
-                          className="h-full rounded-full bg-red-700 transition-all"
+                          className="h-full rounded-full bg-accent transition-all"
                           style={{
                             width: `${Math.min(100, (aiUsage.totalSpendEur / aiUsage.cap) * 100)}%`,
                           }}
@@ -761,7 +761,7 @@ export default function EventDetailPage() {
                       </div>
                     </>
                   ) : (
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted">
                       {t('organizer.eventHub.budgetNoCap', {
                         spent: aiUsage.totalSpendEur.toFixed(2),
                         calls: aiUsage.callCount,
@@ -775,9 +775,9 @@ export default function EventDetailPage() {
         </section>
       )}
 
-      <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="mb-8 rounded-lg border border-border bg-surface p-5 shadow-sm">
         <label className="block" htmlFor="eventTimezone">
-          <span className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">
             {t('organizer.eventHub.timezone')}
           </span>
           <select
@@ -785,7 +785,7 @@ export default function EventDetailPage() {
             value={timezone}
             disabled={savingTz || isReadOnly}
             onChange={(e) => void handleSaveTimezone(e.target.value)}
-            className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50"
+            className="mt-1 w-full max-w-xs rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
           >
             {Array.from(new Set([timezone, ...COMMON_TIMEZONES])).map((tz) => (
               <option key={tz} value={tz}>
@@ -797,17 +797,19 @@ export default function EventDetailPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.eventHub.archiveTitle')}
         </h2>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-600">{t('organizer.archive.description')}</p>
+            <p className="text-sm text-foreground-secondary">
+              {t('organizer.archive.description')}
+            </p>
             <div className="flex items-center gap-2 flex-wrap">
               {!isArchived && (
                 <Link
                   href={`/org/${slug}/events/${eventId}/archive`}
-                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                  className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger hover:bg-danger/20"
                 >
                   {t('organizer.archive.open')}
                 </Link>
@@ -816,7 +818,7 @@ export default function EventDetailPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeletionModal(true)}
-                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                  className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger hover:bg-danger/20"
                 >
                   {t('organizer.deletionRequest.requestDeletion')}
                 </button>
@@ -841,10 +843,10 @@ export default function EventDetailPage() {
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-      {detail ? <p className="mt-1 text-sm text-slate-500">{detail}</p> : null}
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
+      {detail ? <p className="mt-1 text-sm text-muted">{detail}</p> : null}
     </div>
   );
 }

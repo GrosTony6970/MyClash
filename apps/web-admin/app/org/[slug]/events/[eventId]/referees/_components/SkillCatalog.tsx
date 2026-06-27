@@ -133,17 +133,17 @@ export function SkillCatalog({
 
   if (skills.length === 0) {
     return (
-      <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-        <p className="text-sm text-gray-400">{t('organizer.refereesPage.catalogEmpty')}</p>
+      <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+        <p className="text-sm text-muted">{t('organizer.refereesPage.catalogEmpty')}</p>
       </div>
     );
   }
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
         <table className="w-full text-sm border-collapse">
-          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+          <thead className="bg-background text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               {onReorder && <th className="w-8 px-2 py-2"></th>}
               <th className="px-4 py-2">{t('organizer.refereesPage.catalogColColor')}</th>
@@ -161,9 +161,9 @@ export function SkillCatalog({
               <tr
                 key={skill.id}
                 className={[
-                  'border-t border-gray-100 hover:bg-gray-50 cursor-pointer',
+                  'border-t border-border hover:bg-background cursor-pointer',
                   dragId === skill.id ? 'opacity-50' : '',
-                  skill.isHidden ? 'bg-slate-50 text-slate-400' : '',
+                  skill.isHidden ? 'bg-background text-muted' : '',
                 ].join(' ')}
                 onClick={() => setDrillSkillId(skill.id)}
                 onDragOver={handleDragOver}
@@ -174,7 +174,7 @@ export function SkillCatalog({
               >
                 {onReorder && (
                   <td
-                    className="px-2 py-3 text-center text-gray-400 cursor-grab active:cursor-grabbing select-none"
+                    className="px-2 py-3 text-center text-muted cursor-grab active:cursor-grabbing select-none"
                     draggable={!isReadOnly}
                     onDragStart={() => handleDragStart(skill.id)}
                     onDragEnd={() => setDragId(null)}
@@ -187,7 +187,7 @@ export function SkillCatalog({
                 <td className="px-4 py-3">
                   <span
                     className={[
-                      'inline-block h-5 w-5 rounded-full border border-gray-200',
+                      'inline-block h-5 w-5 rounded-full border border-border',
                       tintBgClassFor(skill.color),
                     ].join(' ')}
                     aria-hidden="true"
@@ -201,21 +201,21 @@ export function SkillCatalog({
                       <SkillBadge color={skill.color} label={skill.name} />
                     </span>
                     {skill.isSystem && (
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <span className="rounded bg-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-secondary">
                         {t('organizer.refereesPage.catalogSystemPill')}
                       </span>
                     )}
                   </div>
                   {skill.description && (
                     <p
-                      className="mt-0.5 truncate text-xs italic text-gray-500"
+                      className="mt-0.5 truncate text-xs italic text-muted"
                       title={skill.description}
                     >
                       {skill.description}
                     </p>
                   )}
                 </td>
-                <td className="px-4 py-3 text-center font-semibold text-gray-700 tabular-nums">
+                <td className="px-4 py-3 text-center font-semibold text-foreground-secondary tabular-nums">
                   {countsBySkill.get(skill.id) ?? 0}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -229,7 +229,7 @@ export function SkillCatalog({
                         type="button"
                         disabled={isReadOnly}
                         onClick={() => onEditSkill(skill)}
-                        className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                         title={
                           isReadOnly
                             ? t('organizer.deletionRequest.archivedReadOnly')
@@ -244,7 +244,7 @@ export function SkillCatalog({
                         type="button"
                         disabled={isReadOnly}
                         onClick={() => onDeleteSkill(skill)}
-                        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs text-danger hover:text-danger-hover disabled:opacity-50 disabled:cursor-not-allowed"
                         title={
                           isReadOnly
                             ? t('organizer.deletionRequest.archivedReadOnly')
@@ -259,7 +259,7 @@ export function SkillCatalog({
                         type="button"
                         disabled={isReadOnly}
                         onClick={() => onToggleVisibility(skill, !skill.isHidden)}
-                        className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                         title={
                           skill.isHidden
                             ? t('organizer.refereesPage.catalogShowAction')
@@ -311,24 +311,24 @@ function SkillDrillDownDrawer({
   onRemoveQualification,
 }: DrawerProps) {
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40" onClick={onClose}>
       <aside
-        className="h-full w-full max-w-md bg-white shadow-2xl flex flex-col"
+        className="h-full w-full max-w-md bg-surface shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="border-b border-gray-200 px-5 py-4 flex items-start justify-between">
+        <header className="border-b border-border px-5 py-4 flex items-start justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted">
               {t('organizer.refereesPage.catalogDrillEyebrow')}
             </p>
-            <h2 className="mt-1 text-lg font-bold text-gray-900 flex items-center gap-2">
+            <h2 className="mt-1 font-display font-semibold text-lg sm:text-xl text-foreground flex items-center gap-2">
               <SkillBadge color={skill.color} label={skill.name} />
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-gray-500 hover:text-gray-800"
+            className="text-sm text-muted hover:text-foreground"
           >
             {t('organizer.refereesPage.cancel')}
           </button>
@@ -336,17 +336,17 @@ function SkillDrillDownDrawer({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {referees.length === 0 ? (
-            <p className="text-sm text-gray-400">{t('organizer.refereesPage.noReferees')}</p>
+            <p className="text-sm text-muted">{t('organizer.refereesPage.noReferees')}</p>
           ) : (
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-border">
               {referees.map((ref) => {
                 const qual = ref.qualifications.find((q) => q.skillId === skill.id);
                 return (
                   <li key={ref.userId} className="py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{ref.displayName}</p>
+                      <p className="font-medium text-foreground truncate">{ref.displayName}</p>
                       {ref.clubLabel && (
-                        <p className="text-xs text-gray-400 truncate">{ref.clubLabel}</p>
+                        <p className="text-xs text-muted truncate">{ref.clubLabel}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -364,7 +364,7 @@ function SkillDrillDownDrawer({
                             Number.isFinite(rating) ? rating : null,
                           );
                         }}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="">
                           {qual
@@ -384,7 +384,7 @@ function SkillDrillDownDrawer({
                           onClick={() => {
                             if (ref.personId) onRemoveQualification(ref.personId, skill.id);
                           }}
-                          className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
+                          className="text-xs text-danger hover:text-danger-hover disabled:opacity-50"
                           title={
                             isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
                           }

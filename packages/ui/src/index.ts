@@ -158,6 +158,8 @@ export {
   statusPillTone,
   tournamentStatusSemantic,
   matchStatusSemantic,
+  workshopStatusSemantic,
+  reviewStatusSemantic,
   phaseVisibilitySemantic,
   clockStatusSemantic,
   rulesetSemantic,

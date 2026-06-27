@@ -315,46 +315,48 @@ export default function AdminUserEditPage() {
   }
 
   return (
-    <main className="p-8 max-w-3xl">
+    <main className="p-8 max-w-2xl">
       <div className="mb-2 text-sm">
-        <Link href="/admin/users" className="text-slate-500 hover:underline">
+        <Link href="/admin/users" className="text-muted hover:underline">
           {t('admin.users.edit.backToList')}
         </Link>
       </div>
-      <h1 className="text-2xl font-bold mb-6">{t('admin.users.edit.title')}</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
+        {t('admin.users.edit.title')}
+      </h1>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
       {savedFlash && (
-        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+        <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">
           {t('admin.users.edit.saved')}
         </div>
       )}
 
-      <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-8 rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.users.edit.accountSection')}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.users.edit.email')}
             <input
               type="email"
               value={accountForm.email}
               onChange={(e) => setAccountForm((s) => ({ ...s, email: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.users.edit.displayName')}
             <input
               type="text"
               value={accountForm.displayName}
               onChange={(e) => setAccountForm((s) => ({ ...s, displayName: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </label>
         </div>
@@ -362,15 +364,15 @@ export default function AdminUserEditPage() {
           type="button"
           onClick={() => void saveAccount()}
           disabled={busy || !user}
-          className="mt-4 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="mt-4 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {t('admin.users.edit.save')}
         </button>
       </section>
 
       {tempPasswordStatus && (
-        <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+        <section className="mb-8 rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.users.edit.tempPasswordSection')}
           </h2>
           {tempPasswordStatus === 'active' && tempPassword ? (
@@ -380,12 +382,12 @@ export default function AdminUserEditPage() {
                   type={tempPasswordRevealed ? 'text' : 'password'}
                   value={tempPassword}
                   readOnly
-                  className="flex-1 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-sm"
+                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setTempPasswordRevealed((v) => !v)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-foreground-secondary hover:bg-background"
                 >
                   {tempPasswordRevealed
                     ? t('admin.users.edit.tempPasswordHide')
@@ -394,27 +396,27 @@ export default function AdminUserEditPage() {
                 <button
                   type="button"
                   onClick={() => void copyTempPassword()}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-foreground-secondary hover:bg-background"
                 >
                   {tempPasswordCopied
                     ? t('admin.users.edit.tempPasswordCopied')
                     : t('admin.users.edit.tempPasswordCopy')}
                 </button>
               </div>
-              <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+              <div className="flex items-center justify-between gap-2 text-xs text-muted">
                 <span>{t('admin.users.edit.tempPasswordHint')}</span>
                 <button
                   type="button"
                   onClick={() => void lockTempPassword()}
                   disabled={busy}
-                  className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('admin.users.edit.tempPasswordLockNow')}
                 </button>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-500 italic">
+            <p className="text-sm text-muted italic">
               {tempPasswordStatus === 'password_changed'
                 ? t('admin.users.edit.tempPasswordLocked')
                 : t('admin.users.edit.tempPasswordExpired')}
@@ -423,18 +425,18 @@ export default function AdminUserEditPage() {
         </section>
       )}
 
-      <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-8 rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.users.edit.superAdminSection')}
         </h2>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-foreground-secondary">
             {user?.is_super_admin
               ? t('admin.users.edit.superAdminCurrent')
               : t('admin.users.edit.superAdminNotGranted')}
           </p>
           {currentUserId === userId ? (
-            <span className="text-xs italic text-slate-500">
+            <span className="text-xs italic text-muted">
               {t('admin.users.edit.superAdminSelfDisabled')}
             </span>
           ) : (
@@ -444,7 +446,7 @@ export default function AdminUserEditPage() {
               disabled={busy || !user}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
                 user?.is_super_admin
-                  ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                  ? 'border border-danger/30 bg-danger/10 text-danger hover:bg-danger/20'
                   : 'bg-purple-700 text-white hover:bg-purple-800'
               }`}
             >
@@ -456,26 +458,26 @@ export default function AdminUserEditPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.users.edit.organizationsSection')}
         </h2>
 
         {user && user.organizations.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">{t('admin.users.edit.empty')}</p>
+          <p className="text-sm text-muted italic">{t('admin.users.edit.empty')}</p>
         ) : (
-          <ul className="mb-4 divide-y divide-slate-100">
+          <ul className="mb-4 divide-y divide-border">
             {(user?.organizations ?? []).map((org) => (
               <li key={org.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-900">{org.name}</p>
-                  <p className="font-mono text-xs text-slate-400">{org.slug}</p>
+                  <p className="font-medium text-foreground">{org.name}</p>
+                  <p className="font-mono text-xs text-muted">{org.slug}</p>
                 </div>
                 <select
                   value={org.role}
                   disabled={busy}
                   onChange={(e) => void updateRole(org.id, e.target.value as OrgRole)}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  className="rounded-md border border-border px-2 py-1 text-xs"
                 >
                   {ORG_ROLES.map((role) => (
                     <option key={role} value={role}>
@@ -487,7 +489,7 @@ export default function AdminUserEditPage() {
                   type="button"
                   onClick={() => void removeMembership(org)}
                   disabled={busy}
-                  className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   ×
                 </button>
@@ -496,14 +498,14 @@ export default function AdminUserEditPage() {
           </ul>
         )}
 
-        <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
-          <label className="text-xs font-medium text-slate-600">
+        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.users.edit.organizationLabel')}
             <select
               value={addOrgId}
               onChange={(e) => setAddOrgId(e.target.value)}
               disabled={availableOrgs.length === 0 || busy}
-              className="mt-1 block min-w-[12rem] rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block min-w-[12rem] rounded-md border border-border px-2 py-1.5 text-sm"
             >
               {availableOrgs.length === 0 ? (
                 <option value="">{t('admin.users.edit.chooseOrganization')}</option>
@@ -516,13 +518,13 @@ export default function AdminUserEditPage() {
               )}
             </select>
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.users.edit.role')}
             <select
               value={addRole}
               onChange={(e) => setAddRole(e.target.value as OrgRole)}
               disabled={busy}
-              className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block rounded-md border border-border px-2 py-1.5 text-sm"
             >
               {ORG_ROLES.map((role) => (
                 <option key={role} value={role}>
@@ -535,7 +537,7 @@ export default function AdminUserEditPage() {
             type="button"
             onClick={() => void addMembership()}
             disabled={busy || !addOrgId}
-            className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+            className="rounded-md bg-info px-3 py-1.5 text-sm font-semibold text-white hover:bg-info/90 disabled:opacity-50"
           >
             {busy ? t('admin.users.edit.adding') : t('admin.users.edit.add')}
           </button>

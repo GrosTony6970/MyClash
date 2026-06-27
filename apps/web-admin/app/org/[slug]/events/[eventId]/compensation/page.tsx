@@ -175,35 +175,37 @@ export default function CompensationPage() {
   };
 
   return (
-    <main className="p-8 max-w-5xl">
+    <main className="mx-auto p-8 max-w-7xl">
       <CompensationTopNav
         active="referees"
         basePath={`/org/${slug}/events/${eventId}/compensation`}
       />
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-gray-700">
+      <div className="flex items-center gap-2 text-sm text-muted mb-1">
+        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
           {slug}
         </Link>
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
           {t('organizer.eventCompensation.event')}
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">
+        <span className="text-foreground font-medium">
           {t('organizer.eventCompensation.breadcrumb')}
         </span>
       </div>
-      <h1 className="text-2xl font-bold mb-6">{t('organizer.eventCompensation.title')}</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
+        {t('organizer.eventCompensation.title')}
+      </h1>
 
       {/* Settings panel */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">
+      <div className="bg-background border border-border rounded-xl p-4 mb-6">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground-secondary mb-3">
           {t('organizer.eventCompensation.settings')}
         </h2>
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <span className="block text-xs text-gray-500 mb-1">
+            <span className="block text-xs text-muted mb-1">
               {t('organizer.eventCompensation.compensationPlan')}
             </span>
             <select
@@ -211,7 +213,7 @@ export default function CompensationPage() {
               aria-label={t('organizer.eventCompensation.compensationPlan')}
               value={selectedPlanId}
               onChange={(e) => setSelectedPlanId(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 bg-white"
+              className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent bg-surface"
             >
               <option value="">{t('organizer.eventCompensation.selectPlan')}</option>
               {plans.map((p) => (
@@ -222,7 +224,7 @@ export default function CompensationPage() {
             </select>
           </div>
           <div>
-            <span className="block text-xs text-gray-500 mb-1">
+            <span className="block text-xs text-muted mb-1">
               {t('organizer.eventCompensation.maxCap')}
             </span>
             <input
@@ -234,39 +236,39 @@ export default function CompensationPage() {
               value={maxCap}
               onChange={(e) => setMaxCap(e.target.value)}
               placeholder={t('organizer.eventCompensation.noCap')}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="border border-border rounded-md px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
           <button
             onClick={() => void saveSettings()}
             disabled={!selectedPlanId || savingSettings}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm transition-colors"
+            className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm transition-colors"
           >
             {savingSettings ? t('organizer.eventCompensation.saving') : t('actions.save')}
           </button>
         </div>
-        {settingsError && <p className="text-xs text-red-600 mt-2">{settingsError}</p>}
+        {settingsError && <p className="text-xs text-danger mt-2">{settingsError}</p>}
       </div>
 
       {!settings && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-4 py-3 text-sm">
+        <div className="bg-info/10 border border-info/30 text-info rounded-lg px-4 py-3 text-sm">
           {t('organizer.eventCompensation.selectPlanHelp')}
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 text-sm mb-4">
           {error}
         </div>
       )}
 
       {settings && (
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             {t('organizer.eventCompensation.planLabel')}{' '}
-            <span className="font-medium text-gray-700">{settings.planName}</span>
+            <span className="font-medium text-foreground-secondary">{settings.planName}</span>
             {settings.maxCompensationAmount !== null && (
-              <span className="ml-2 text-gray-400">
+              <span className="ml-2 text-muted">
                 {t('organizer.eventCompensation.capLabel', {
                   amount: settings.maxCompensationAmount,
                 })}
@@ -276,7 +278,7 @@ export default function CompensationPage() {
           <button
             onClick={() => void loadReport()}
             disabled={loadingReport}
-            className="text-sm text-red-700 hover:underline disabled:opacity-50"
+            className="text-sm text-accent hover:underline disabled:opacity-50"
           >
             {loadingReport ? t('common.loading') : t('organizer.eventCompensation.refresh')}
           </button>
@@ -284,10 +286,10 @@ export default function CompensationPage() {
       )}
 
       {report && (
-        <div className="overflow-x-auto border border-gray-200 rounded-xl">
+        <div className="overflow-x-auto border border-border rounded-xl">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr className="bg-background border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="py-3 px-4">{t('organizer.eventCompensation.referee')}</th>
                 <th className="py-3 px-4 text-center">
                   {t('organizer.eventCompensation.poolPoints')}
@@ -306,7 +308,7 @@ export default function CompensationPage() {
             <tbody>
               {report.referees.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-400">
+                  <td colSpan={7} className="py-8 text-center text-muted">
                     {t('organizer.eventCompensation.empty')}
                   </td>
                 </tr>
@@ -314,30 +316,30 @@ export default function CompensationPage() {
               {report.referees.map((referee) => (
                 <Fragment key={referee.userId}>
                   <tr
-                    className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                    className="border-b border-border hover:bg-background cursor-pointer"
                     onClick={() => toggleExpand(referee.userId)}
                   >
-                    <td className="py-2.5 px-4 font-medium text-gray-900">
-                      <span aria-hidden="true" className="mr-1 text-gray-400 text-xs">
+                    <td className="py-2.5 px-4 font-medium text-foreground">
+                      <span aria-hidden="true" className="mr-1 text-muted text-xs">
                         {expandedRows.has(referee.userId) ? 'v' : '>'}
                       </span>
                       {referee.displayName}
                     </td>
-                    <td className="py-2.5 px-4 text-center text-gray-600 tabular-nums">
+                    <td className="py-2.5 px-4 text-center text-foreground-secondary tabular-nums">
                       {phaseTokens(referee, 'pool')}
                     </td>
-                    <td className="py-2.5 px-4 text-center text-gray-600 tabular-nums">
+                    <td className="py-2.5 px-4 text-center text-foreground-secondary tabular-nums">
                       {phaseTokens(referee, 'bracket')}
                     </td>
-                    <td className="py-2.5 px-4 text-center text-gray-600 tabular-nums">
+                    <td className="py-2.5 px-4 text-center text-foreground-secondary tabular-nums">
                       {phaseTokens(referee, 'finals')}
                     </td>
-                    <td className="py-2.5 px-4 text-center font-semibold text-gray-800 tabular-nums">
+                    <td className="py-2.5 px-4 text-center font-semibold text-foreground tabular-nums">
                       {t('organizer.eventCompensation.pointsValue', {
                         value: referee.totalTokens.toFixed(1),
                       })}
                     </td>
-                    <td className="py-2.5 px-4 text-center font-semibold text-gray-900 tabular-nums">
+                    <td className="py-2.5 px-4 text-center font-semibold text-foreground tabular-nums">
                       {t('organizer.eventCompensation.euroAmount', {
                         amount: referee.amountOwed.toFixed(2),
                       })}
@@ -350,19 +352,19 @@ export default function CompensationPage() {
                         type="checkbox"
                         checked={referee.paid}
                         onChange={(e) => void togglePaid(referee.userId, e.target.checked)}
-                        className="accent-red-700 w-4 h-4"
+                        className="accent-accent w-4 h-4"
                       />
                     </td>
                   </tr>
                   {expandedRows.has(referee.userId) && (
                     <tr
                       key={`${referee.userId}-detail`}
-                      className="border-b border-gray-100 bg-gray-50"
+                      className="border-b border-border bg-background"
                     >
                       <td colSpan={7} className="px-8 py-3">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="text-gray-400 uppercase tracking-wide">
+                            <tr className="text-muted uppercase tracking-wide">
                               <th className="text-left pb-1">
                                 {t('organizer.eventCompensation.role')}
                               </th>
@@ -386,7 +388,7 @@ export default function CompensationPage() {
                               const phaseLabelKey = PHASE_LABEL_KEYS[line.phase];
 
                               return (
-                                <tr key={i} className="text-gray-600">
+                                <tr key={i} className="text-foreground-secondary">
                                   <td className="py-0.5">
                                     {roleLabelKey ? t(roleLabelKey) : line.role}
                                   </td>
@@ -408,7 +410,7 @@ export default function CompensationPage() {
                           </tbody>
                         </table>
                         {referee.paid && referee.paidAt && (
-                          <p className="text-xs text-green-600 mt-2">
+                          <p className="text-xs text-success mt-2">
                             {t('organizer.eventCompensation.paidOn', {
                               date: new Date(referee.paidAt).toLocaleDateString('fr-FR'),
                             })}
@@ -420,11 +422,14 @@ export default function CompensationPage() {
                 </Fragment>
               ))}
               {report.referees.length > 0 && (
-                <tr className="bg-gray-50 border-t border-gray-300">
-                  <td colSpan={5} className="py-3 px-4 text-sm font-bold text-gray-700 text-right">
+                <tr className="bg-background border-t border-border">
+                  <td
+                    colSpan={5}
+                    className="py-3 px-4 text-sm font-bold text-foreground-secondary text-right"
+                  >
                     {t('organizer.eventCompensation.totalToPay')}
                   </td>
-                  <td className="py-3 px-4 text-center font-bold text-gray-900 tabular-nums">
+                  <td className="py-3 px-4 text-center font-bold text-foreground tabular-nums">
                     {t('organizer.eventCompensation.euroAmount', {
                       amount: report.grandTotal.toFixed(2),
                     })}

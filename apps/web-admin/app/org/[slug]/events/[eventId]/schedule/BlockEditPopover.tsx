@@ -66,7 +66,7 @@ export function BlockEditPopover({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       role="presentation"
       onClick={onCancel}
       onKeyDown={(e) => {
@@ -74,31 +74,33 @@ export function BlockEditPopover({
       }}
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+        className="w-full max-w-sm rounded-xl border border-border bg-surface p-4 shadow-xl"
         role="presentation"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-3 text-sm font-bold text-gray-800">{title}</h3>
+        <h3 className="mb-3 font-display font-semibold text-lg sm:text-xl text-foreground">
+          {title}
+        </h3>
 
         <div className="space-y-3">
           {mode === 'break' ? (
             <label className="flex flex-col gap-1 text-xs">
-              <span className="font-semibold text-gray-500">Name</span>
+              <span className="font-semibold text-muted">Name</span>
               <input
                 type="text"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-600"
+                className="rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </label>
           ) : (
-            <p className="text-sm font-semibold text-gray-700">{label}</p>
+            <p className="text-sm font-semibold text-foreground-secondary">{label}</p>
           )}
 
           <div className="flex gap-2">
             <label className="flex flex-1 flex-col gap-1 text-xs">
-              <span className="font-semibold text-gray-500">Start</span>
+              <span className="font-semibold text-muted">Start</span>
               <input
                 type="text"
                 inputMode="numeric"
@@ -107,12 +109,12 @@ export function BlockEditPopover({
                 maxLength={5}
                 value={startHHMM}
                 onChange={(e) => setStartHHMM(e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-red-600"
+                className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </label>
             {mode === 'break' ? (
               <label className="flex flex-1 flex-col gap-1 text-xs">
-                <span className="font-semibold text-gray-500">End</span>
+                <span className="font-semibold text-muted">End</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -121,7 +123,7 @@ export function BlockEditPopover({
                   maxLength={5}
                   value={endHHMM}
                   onChange={(e) => setEndHHMM(e.target.value)}
-                  className="rounded border border-gray-300 px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-red-600"
+                  className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </label>
             ) : null}
@@ -130,12 +132,12 @@ export function BlockEditPopover({
           {mode === 'break' ? (
             <div className="flex flex-col gap-1 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-gray-500">Color</span>
+                <span className="font-semibold text-muted">Color</span>
                 {colorHex ? (
                   <button
                     type="button"
                     onClick={() => setColorHex('')}
-                    className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
+                    className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
                   >
                     Default
                   </button>
@@ -147,10 +149,13 @@ export function BlockEditPopover({
 
           {mode === 'block' ? (
             <fieldset className="flex flex-col gap-1 text-xs">
-              <span className="font-semibold text-gray-500">Lices</span>
+              <span className="font-semibold text-muted">Lices</span>
               <div className="flex flex-wrap gap-2">
                 {lices.map((l) => (
-                  <label key={l.id} className="flex items-center gap-1 text-sm text-gray-700">
+                  <label
+                    key={l.id}
+                    className="flex items-center gap-1 text-sm text-foreground-secondary"
+                  >
                     <input
                       type="checkbox"
                       checked={liceIds.includes(l.id)}
@@ -163,14 +168,14 @@ export function BlockEditPopover({
             </fieldset>
           ) : null}
 
-          {error ? <p className="text-xs text-red-600">{error}</p> : null}
+          {error ? <p className="text-xs text-danger">{error}</p> : null}
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            className="rounded border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
             Cancel
           </button>
@@ -178,7 +183,7 @@ export function BlockEditPopover({
             type="button"
             disabled={busy}
             onClick={() => onSave({ label, startHHMM, endHHMM, liceIds, colorHex })}
-            className="rounded bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
           >
             Save
           </button>

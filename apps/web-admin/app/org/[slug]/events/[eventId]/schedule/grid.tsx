@@ -1875,7 +1875,7 @@ export function ScheduleGrid({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-border border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -1901,8 +1901,8 @@ export function ScheduleGrid({
                   className={[
                     'rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors',
                     active
-                      ? 'border-red-700 bg-red-700 text-white'
-                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400',
+                      ? 'border-accent bg-accent text-accent-foreground'
+                      : 'border-border bg-surface text-foreground-secondary hover:border-muted',
                     single ? 'cursor-default' : '',
                   ].join(' ')}
                 >
@@ -1918,7 +1918,7 @@ export function ScheduleGrid({
               onClick={() => void undo()}
               disabled={undoStack.length === 0}
               title="Undo (Ctrl+Z)"
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-40"
             >
               ↶ Undo
             </button>
@@ -1927,7 +1927,7 @@ export function ScheduleGrid({
               onClick={() => void redo()}
               disabled={redoStack.length === 0}
               title="Redo (Ctrl+Shift+Z)"
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-40"
             >
               ↷ Redo
             </button>
@@ -1937,7 +1937,7 @@ export function ScheduleGrid({
               type="button"
               onClick={() => setPendingClear(true)}
               disabled={clearingDay || scheduledOnActiveDay.length === 0}
-              className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent"
+              className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50 disabled:hover:bg-transparent"
             >
               Clear day ({scheduledOnActiveDay.length})
             </button>
@@ -1947,7 +1947,7 @@ export function ScheduleGrid({
             <button
               type="button"
               onClick={() => setShowAddLice((v) => !v)}
-              className="rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+              className="rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
             >
               + Add lice
             </button>
@@ -1956,33 +1956,33 @@ export function ScheduleGrid({
       )}
 
       {showAddLice && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs">
           <label className="flex items-center gap-1.5">
-            <span className="text-slate-600">Name</span>
+            <span className="text-foreground-secondary">Name</span>
             <input
               type="text"
               value={newLiceName}
               onChange={(e) => setNewLiceName(e.target.value)}
               placeholder="Lice 4"
               maxLength={50}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+              className="rounded-md border border-border px-2 py-1 text-xs"
               autoFocus
             />
           </label>
           <label className="flex items-center gap-1.5">
-            <span className="text-slate-600">Colour</span>
+            <span className="text-foreground-secondary">Colour</span>
             <input
               type="color"
               value={newLiceColor}
               onChange={(e) => setNewLiceColor(e.target.value)}
-              className="h-7 w-10 cursor-pointer rounded border border-slate-300"
+              className="h-7 w-10 cursor-pointer rounded border border-border"
             />
           </label>
           <button
             type="button"
             onClick={() => void addLice()}
             disabled={addLiceBusy || !newLiceName.trim()}
-            className="rounded-md bg-slate-800 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
+            className="rounded-md bg-strong px-3 py-1 text-xs font-semibold text-strong-foreground hover:bg-strong-hover disabled:opacity-50"
           >
             {addLiceBusy ? 'Adding…' : 'Add'}
           </button>
@@ -1993,25 +1993,25 @@ export function ScheduleGrid({
               setNewLiceName('');
               setAddLiceError(null);
             }}
-            className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-md border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:bg-border"
           >
             Cancel
           </button>
-          {addLiceError && <span className="text-red-700">{addLiceError}</span>}
+          {addLiceError && <span className="text-danger">{addLiceError}</span>}
         </div>
       )}
 
       {fetchError && (
         <div
           role="alert"
-          className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3"
+          className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3"
         >
-          <span className="font-bold text-red-700">Schedule failed to load:</span>
-          <span className="text-red-600">{fetchError}</span>
+          <span className="font-bold text-danger">Schedule failed to load:</span>
+          <span className="text-danger">{fetchError}</span>
           <button
             type="button"
             onClick={() => setFetchError(null)}
-            className="ml-auto text-red-700 hover:text-red-900 font-bold"
+            className="ml-auto text-danger hover:text-danger-hover font-bold"
           >
             ✕
           </button>
@@ -2019,13 +2019,13 @@ export function ScheduleGrid({
       )}
 
       {autoDistributeError && (
-        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3">
-          <span className="font-bold text-red-700">Auto-distribute failed:</span>
-          <span className="text-red-600">{autoDistributeError}</span>
+        <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3">
+          <span className="font-bold text-danger">Auto-distribute failed:</span>
+          <span className="text-danger">{autoDistributeError}</span>
           <button
             type="button"
             onClick={() => setAutoDistributeError(null)}
-            className="ml-auto text-red-700 hover:text-red-900 font-bold"
+            className="ml-auto text-danger hover:text-danger-hover font-bold"
           >
             ✕
           </button>
@@ -2033,11 +2033,11 @@ export function ScheduleGrid({
       )}
 
       {conflicts.length > 0 && (
-        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-6 text-sm">
-          <p className="font-bold text-red-700 mb-1">
+        <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-6 text-sm">
+          <p className="font-bold text-danger mb-1">
             ⚠ {conflicts.length} scheduling conflict{conflicts.length !== 1 ? 's' : ''}
           </p>
-          <ul className="list-disc list-inside text-red-600 space-y-0.5">
+          <ul className="list-disc list-inside text-danger space-y-0.5">
             {conflicts.map((c, i) => (
               <li key={i}>
                 <strong>{c.personName}</strong> is in both <em>{c.matchA}</em> and{' '}
@@ -2049,8 +2049,8 @@ export function ScheduleGrid({
       )}
 
       {dayOverlaps.length > 0 && (
-        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2 mb-4 text-sm">
-          <p className="font-semibold text-amber-800">
+        <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-2 mb-4 text-sm">
+          <p className="font-semibold text-warning">
             ⚠ {dayOverlaps.length} block overlap{dayOverlaps.length !== 1 ? 's' : ''} on a lice —
             adjust the times or lices.
           </p>
@@ -2058,9 +2058,7 @@ export function ScheduleGrid({
       )}
 
       <div className="mb-3 flex items-center gap-1.5">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          View
-        </span>
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted">View</span>
         {(['blocks', 'grid'] as const).map((mode) => (
           <button
             key={mode}
@@ -2069,8 +2067,8 @@ export function ScheduleGrid({
             className={[
               'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
               viewMode === mode
-                ? 'border-red-700 bg-red-700 text-white'
-                : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+                ? 'border-accent bg-accent text-accent-foreground'
+                : 'border-border bg-surface text-foreground-secondary hover:border-muted',
             ].join(' ')}
           >
             {mode === 'blocks' ? 'Blocks' : 'Detailed grid'}
@@ -2080,14 +2078,14 @@ export function ScheduleGrid({
           <button
             type="button"
             onClick={exportCsv}
-            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
             Export CSV
           </button>
           <button
             type="button"
             onClick={printSchedule}
-            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
             Print
           </button>
@@ -2113,12 +2111,12 @@ export function ScheduleGrid({
               aria-orientation="vertical"
               aria-label="Drag to resize the panel"
               onPointerDown={beginPanelResize}
-              className="absolute -right-1 top-0 z-20 hidden h-full w-2 cursor-col-resize touch-none bg-transparent hover:bg-red-300/50 lg:block"
+              className="absolute -right-1 top-0 z-20 hidden h-full w-2 cursor-col-resize touch-none bg-transparent hover:bg-accent/30 lg:block"
             />
           )}
           <div className="mb-2 flex items-center justify-between gap-2">
             {!panelCollapsed && (
-              <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
                 Unscheduled ({unscheduled.length})
               </h2>
             )}
@@ -2127,7 +2125,7 @@ export function ScheduleGrid({
               aria-expanded={!panelCollapsed}
               aria-label={panelCollapsed ? 'Expand panel' : 'Collapse panel'}
               onClick={() => setPanelCollapsed((v) => !v)}
-              className="rounded-md border border-gray-300 px-2 py-0.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              className="rounded-md border border-border px-2 py-0.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
             >
               {panelCollapsed ? '»' : '«'}
             </button>
@@ -2138,13 +2136,13 @@ export function ScheduleGrid({
                 <button
                   type="button"
                   onClick={() => void scheduleSelected()}
-                  className="mb-2 w-full rounded-md bg-red-700 px-2 py-1 text-xs font-semibold text-white hover:bg-red-800"
+                  className="mb-2 w-full rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
                 >
                   Schedule selected ({tickedKeys.size})
                 </button>
               )}
               <div
-                className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2 max-h-[60vh] overflow-y-auto"
+                className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-border rounded-xl p-2 max-h-[60vh] overflow-y-auto"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {
                   // Dropping a pool / bracket-round block back onto the
@@ -2180,7 +2178,7 @@ export function ScheduleGrid({
                 }}
               >
                 {unscheduled.length === 0 ? (
-                  <p className="px-1 py-2 text-xs italic text-gray-400">
+                  <p className="px-1 py-2 text-xs italic text-muted">
                     All matches placed on the grid.
                   </p>
                 ) : (
@@ -2204,7 +2202,7 @@ export function ScheduleGrid({
                           onDragEnd={() => {
                             dragPool.current = null;
                           }}
-                          className="cursor-grab rounded-md border-2 border-dashed border-slate-400 bg-slate-100 px-2 py-1.5 text-xs hover:border-slate-500 hover:bg-slate-200"
+                          className="cursor-grab rounded-md border-2 border-dashed border-border bg-border px-2 py-1.5 text-xs hover:border-muted hover:bg-background"
                           title={`Tick to select, or drag onto a cell — ${pool.matchIds.length} matches`}
                         >
                           <div className="flex items-start gap-1.5">
@@ -2217,10 +2215,10 @@ export function ScheduleGrid({
                               aria-label={`Select ${pool.poolName}`}
                             />
                             <div className="min-w-0">
-                              <div className="font-bold text-slate-800 truncate">
+                              <div className="font-bold text-foreground truncate">
                                 {pool.poolName}
                               </div>
-                              <div className="text-[10px] text-slate-600 truncate">
+                              <div className="text-[10px] text-foreground-secondary truncate">
                                 {pool.tournamentName ?? ''} · {pool.matchIds.length} matches
                               </div>
                             </div>
@@ -2299,9 +2297,9 @@ export function ScheduleGrid({
         {/* Day grid — lice as columns, time as rows. Columns flex to fill the canvas. */}
         <div className="flex-1 min-w-0 overflow-x-auto">
           {lices.length === 0 ? (
-            <p className="text-gray-400 text-sm">No Lices configured for this event.</p>
+            <p className="text-muted text-sm">No Lices configured for this event.</p>
           ) : !activeDay ? (
-            <p className="text-gray-400 text-sm">No event date available.</p>
+            <p className="text-muted text-sm">No event date available.</p>
           ) : viewMode === 'blocks' ? (
             <>
               {/* Legend (click a tournament to focus) + conflict count + zoom. */}
@@ -2316,8 +2314,8 @@ export function ScheduleGrid({
                       className={[
                         'flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors',
                         active
-                          ? 'border-gray-900 bg-gray-900 text-white'
-                          : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+                          ? 'border-strong bg-strong text-strong-foreground'
+                          : 'border-border bg-surface text-foreground-secondary hover:bg-background',
                       ].join(' ')}
                     >
                       <span
@@ -2331,23 +2329,23 @@ export function ScheduleGrid({
                   <button
                     type="button"
                     onClick={() => setFocusedTournament(null)}
-                    className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
+                    className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
                   >
                     Clear focus
                   </button>
                 )}
                 {conflicts.length > 0 && (
-                  <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                  <span className="rounded-full border border-danger/30 bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
                     ⚠ {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
                   </span>
                 )}
                 {venueFilterOptions.venues.length + (venueFilterOptions.hasNoVenue ? 1 : 0) > 1 && (
-                  <label className="flex items-center gap-1 text-gray-500">
+                  <label className="flex items-center gap-1 text-muted">
                     <span className="text-[11px] font-medium">Hall</span>
                     <select
                       value={venueFilter}
                       onChange={(e) => setVenueFilter(e.target.value)}
-                      className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px]"
+                      className="rounded border border-border px-1.5 py-0.5 text-[11px]"
                     >
                       <option value="all">All halls</option>
                       {venueFilterOptions.venues.map((v) => (
@@ -2359,13 +2357,13 @@ export function ScheduleGrid({
                     </select>
                   </label>
                 )}
-                <div className="ml-auto flex items-center gap-1 text-gray-500">
+                <div className="ml-auto flex items-center gap-1 text-muted">
                   <span className="text-[11px] font-medium">Zoom</span>
                   <button
                     type="button"
                     aria-label="Zoom out"
                     onClick={() => setSlotHeightPx((h) => zoomToSlotHeight(h - 4))}
-                    className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50"
+                    className="rounded border border-border px-1.5 leading-none hover:bg-background"
                   >
                     −
                   </button>
@@ -2373,7 +2371,7 @@ export function ScheduleGrid({
                     type="button"
                     aria-label="Zoom in"
                     onClick={() => setSlotHeightPx((h) => zoomToSlotHeight(h + 4))}
-                    className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50"
+                    className="rounded border border-border px-1.5 leading-none hover:bg-background"
                   >
                     +
                   </button>
@@ -2442,7 +2440,7 @@ export function ScheduleGrid({
                   venue — opens the event's Venues tab so the operator
                   can edit the venue inline. */}
               <div
-                className="sticky top-0 z-30 bg-white border-b border-gray-200"
+                className="sticky top-0 z-30 bg-surface border-b border-border"
                 style={{ gridColumn: 1, gridRow: 1, height: VENUE_HEADER_HEIGHT_PX }}
               />
               {computeVenueGroups(lices).map((group, groupIndex) => {
@@ -2453,7 +2451,7 @@ export function ScheduleGrid({
                     <a
                       key={`${group.venueId}-${groupIndex}`}
                       href={`/org/${slug}/events/${eventId}/venues`}
-                      className="sticky top-0 z-30 border-b border-l border-l-gray-200 px-2 flex items-center justify-center text-sm font-semibold truncate hover:brightness-95"
+                      className="sticky top-0 z-30 border-b border-l border-l-border px-2 flex items-center justify-center text-sm font-semibold truncate hover:brightness-95"
                       style={{
                         gridColumn: `${startCol} / span ${group.span}`,
                         gridRow: 1,
@@ -2469,7 +2467,7 @@ export function ScheduleGrid({
                 return (
                   <div
                     key={`no-venue-${groupIndex}`}
-                    className="sticky top-0 z-30 bg-gray-100 border-b border-gray-200 border-l border-l-gray-200 px-2 flex items-center justify-center text-sm italic text-gray-400 truncate"
+                    className="sticky top-0 z-30 bg-border border-b border-border border-l border-l-border px-2 flex items-center justify-center text-sm italic text-muted truncate"
                     style={{
                       gridColumn: `${startCol} / span ${group.span}`,
                       gridRow: 1,
@@ -2488,13 +2486,13 @@ export function ScheduleGrid({
                   Sticky `top` matches the venue band's height so this row
                   parks directly under it on scroll. */}
               <div
-                className="sticky bg-white border-b border-gray-300"
+                className="sticky bg-surface border-b border-border"
                 style={{ gridColumn: 1, gridRow: 2, top: VENUE_HEADER_HEIGHT_PX, zIndex: 20 }}
               />
               {lices.map((lice, liceIndex) => (
                 <div
                   key={lice.id}
-                  className="sticky bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center justify-center"
+                  className="sticky bg-surface border-b border-border border-l border-l-border px-2 flex items-center justify-center"
                   style={{
                     gridColumn: liceIndex + 2,
                     gridRow: 2,
@@ -2503,7 +2501,9 @@ export function ScheduleGrid({
                     height: LICE_HEADER_HEIGHT_PX,
                   }}
                 >
-                  <span className="text-xs font-bold text-gray-700 truncate">{lice.name}</span>
+                  <span className="text-xs font-bold text-foreground-secondary truncate">
+                    {lice.name}
+                  </span>
                 </div>
               ))}
 
@@ -2517,7 +2517,7 @@ export function ScheduleGrid({
                 <Fragment key={slot}>
                   {/* Time label — sticky left, explicit (col 1, row slot+2) */}
                   <div
-                    className="sticky left-0 z-10 bg-white text-xs text-gray-400 pr-1 flex items-center justify-end select-none"
+                    className="sticky left-0 z-10 bg-surface text-xs text-muted pr-1 flex items-center justify-end select-none"
                     style={{
                       gridColumn: 1,
                       gridRow: rowFor(slot),
@@ -2534,8 +2534,8 @@ export function ScheduleGrid({
                       <div
                         key={lice.id}
                         className={[
-                          'border-l border-l-gray-200 transition-colors relative',
-                          isHover ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' : 'bg-gray-50',
+                          'border-l border-l-border transition-colors relative',
+                          isHover ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' : 'bg-background',
                         ].join(' ')}
                         style={{
                           gridColumn: liceIndex + 2,
@@ -2599,7 +2599,7 @@ export function ScheduleGrid({
                     className={[
                       'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10 border',
                       hasConflict
-                        ? 'bg-red-200 border-red-400 text-red-800'
+                        ? 'bg-danger/10 border-danger/30 text-danger'
                         : `${tintBgClassFor(m.tournamentColor)} ${tintBorderClassFor(m.tournamentColor)} ${tintTextClassFor(m.tournamentColor)}`,
                       saving === m.id ? 'opacity-50' : '',
                     ].join(' ')}
@@ -2764,7 +2764,7 @@ export function ScheduleGrid({
                       }}
                       aria-label={`Delete ${b.label}`}
                       title={`Delete ${b.label}`}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-muted hover:bg-surface hover:text-foreground transition-colors"
                     >
                       <svg
                         width="14"
@@ -2792,7 +2792,7 @@ export function ScheduleGrid({
                       aria-label={`Resize ${b.label}`}
                       draggable={false}
                       onPointerDown={(ev) => beginBlockResize(ev, b)}
-                      className="absolute inset-x-0 bottom-0 z-30 h-1 cursor-row-resize bg-transparent hover:bg-slate-500/40"
+                      className="absolute inset-x-0 bottom-0 z-30 h-1 cursor-row-resize bg-transparent hover:bg-muted/40"
                     />
                   </div>
                 );
@@ -2924,7 +2924,7 @@ export function ScheduleGrid({
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg"
+          className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-strong px-4 py-2.5 text-sm text-strong-foreground shadow-lg"
         >
           <span>
             {lastUndo.kind === 'unschedule'
@@ -2936,7 +2936,7 @@ export function ScheduleGrid({
           <button
             type="button"
             onClick={() => void performUndo()}
-            className="rounded bg-white/15 px-2 py-1 font-semibold text-white hover:bg-white/25"
+            className="rounded bg-white/15 px-2 py-1 font-semibold text-strong-foreground hover:bg-white/25"
           >
             Undo
           </button>
@@ -2944,7 +2944,7 @@ export function ScheduleGrid({
             type="button"
             aria-label="Dismiss"
             onClick={() => setLastUndo(null)}
-            className="text-gray-400 hover:text-white"
+            className="text-strong-foreground/70 hover:text-strong-foreground"
           >
             ✕
           </button>
@@ -2979,13 +2979,13 @@ function MatchChip({
       }}
       title={`${match.roundCode || match.matchNumberLabel} · Ctrl/⌘-click to open scoring`}
       className={[
-        'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-white hover:border-gray-400 transition-colors',
-        isBracket ? 'border-amber-300' : 'border-gray-300',
+        'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-surface hover:border-muted transition-colors',
+        isBracket ? 'border-amber-300' : 'border-border',
         saving ? 'opacity-50' : '',
       ].join(' ')}
     >
       <div className="flex items-center gap-1">
-        <p className="flex-1 font-medium text-gray-900 truncate">
+        <p className="flex-1 font-medium text-foreground truncate">
           {match.roundCode || match.matchNumberLabel}
         </p>
         {isBracket && (
@@ -2994,7 +2994,7 @@ function MatchChip({
           </span>
         )}
       </div>
-      <p className="text-gray-400 truncate">
+      <p className="text-muted truncate">
         {match.redFighterName ?? '?'} vs {match.blueFighterName ?? '?'}
       </p>
     </div>

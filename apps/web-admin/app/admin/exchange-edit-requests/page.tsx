@@ -133,15 +133,15 @@ export default function ExchangeEditRequestsPage() {
   }
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Frozen Results</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Frozen Results</h1>
+          <p className="text-muted text-sm mt-1">
             Review organizer correction requests for completed events.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-foreground-secondary">
           Status
           <select
             value={status}
@@ -149,7 +149,7 @@ export default function ExchangeEditRequestsPage() {
               setLoading(true);
               setStatus(event.target.value as RequestStatus);
             }}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
@@ -160,22 +160,22 @@ export default function ExchangeEditRequestsPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-md px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
-      <div className="mb-3 text-sm text-slate-500">
+      <div className="mb-3 text-sm text-muted">
         {loading ? 'Loading...' : `${items.length} requests`}
       </div>
 
       {items.length === 0 && !loading ? (
-        <p className="text-slate-400 text-sm">No exchange edit requests match this status.</p>
+        <p className="text-muted text-sm">No exchange edit requests match this status.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] text-sm border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted">
                 <th className="py-2 pr-4">Created</th>
                 <th className="py-2 pr-4">Request</th>
                 <th className="py-2 pr-4">Requester</th>
@@ -189,26 +189,28 @@ export default function ExchangeEditRequestsPage() {
               {items.map((request) => (
                 <tr
                   key={request.id}
-                  className="border-b border-slate-100 hover:bg-slate-50 align-top"
+                  className="border-b border-border hover:bg-background align-top"
                 >
-                  <td className="py-3 pr-4 whitespace-nowrap text-slate-600">
+                  <td className="py-3 pr-4 whitespace-nowrap text-foreground-secondary">
                     {new Date(request.created_at).toLocaleString('fr-FR')}
                   </td>
                   <td className="py-3 pr-4">
-                    <p className="font-semibold text-gray-950">{typeLabel(request.request_type)}</p>
-                    <span className="mt-1 inline-block rounded bg-slate-100 px-2 py-1 font-mono text-xs">
+                    <p className="font-semibold text-foreground">
+                      {typeLabel(request.request_type)}
+                    </p>
+                    <span className="mt-1 inline-block rounded bg-background px-2 py-1 font-mono text-xs">
                       {request.status}
                     </span>
                   </td>
-                  <td className="py-3 pr-4 font-mono text-xs text-slate-500">
+                  <td className="py-3 pr-4 font-mono text-xs text-muted">
                     {request.requested_by_user_id}
                   </td>
-                  <td className="py-3 pr-4 font-mono text-xs text-slate-500">
+                  <td className="py-3 pr-4 font-mono text-xs text-muted">
                     <p>{request.event_id}</p>
                     <p>{request.match_id}</p>
                     <p>{request.exchange_id}</p>
                   </td>
-                  <td className="py-3 pr-4 max-w-xs text-slate-700">{request.reason}</td>
+                  <td className="py-3 pr-4 max-w-xs text-foreground-secondary">{request.reason}</td>
                   <td className="py-3 pr-4">
                     {request.status === 'pending' ? (
                       <div className="flex gap-2">
@@ -231,7 +233,7 @@ export default function ExchangeEditRequestsPage() {
                         </RowActionButton>
                       </div>
                     ) : (
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-muted">
                         <p>
                           {request.reviewed_at
                             ? new Date(request.reviewed_at).toLocaleString('fr-FR')
@@ -245,7 +247,7 @@ export default function ExchangeEditRequestsPage() {
                     )}
                   </td>
                   <td className="py-3">
-                    <pre className="max-w-sm whitespace-pre-wrap break-words text-xs text-slate-500">
+                    <pre className="max-w-sm whitespace-pre-wrap break-words text-xs text-muted">
                       {payloadPreview(request.requested_payload)}
                     </pre>
                   </td>
@@ -257,28 +259,30 @@ export default function ExchangeEditRequestsPage() {
       )}
 
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold">Reject correction request</h2>
-            <p className="mt-1 text-sm text-slate-500">{typeLabel(rejectTarget.request_type)}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
+            <h2 className="font-display font-semibold text-lg sm:text-xl">
+              Reject correction request
+            </h2>
+            <p className="mt-1 text-sm text-muted">{typeLabel(rejectTarget.request_type)}</p>
             <textarea
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
               rows={4}
               placeholder="Reason shown to requester"
-              className="mt-4 w-full resize-none rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-4 w-full resize-none rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => setRejectTarget(null)}
-                className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
+                className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary"
               >
                 Cancel
               </button>
               <button
                 onClick={() => void reject()}
                 disabled={busyId === rejectTarget.id || !rejectReason.trim()}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
               >
                 Reject
               </button>

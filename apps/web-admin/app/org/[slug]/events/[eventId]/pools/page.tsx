@@ -496,8 +496,8 @@ export default function PoolsPage() {
   }
 
   return (
-    <main className="w-full px-6 py-8 lg:px-8">
-      <nav aria-label="Pools sections" className="mb-6 flex gap-1 border-b border-slate-200">
+    <main className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-8">
+      <nav aria-label="Pools sections" className="mb-6 flex gap-1 border-b border-border">
         {TABS.map((tab) => {
           const disabled =
             (tab.key === 'matches' && !poolPhaseId) ||
@@ -513,10 +513,10 @@ export default function PoolsPage() {
               className={[
                 'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
                 activeTab === tab.key
-                  ? 'border-red-800 text-red-800'
+                  ? 'border-accent text-accent'
                   : disabled
-                    ? 'border-transparent text-slate-300 cursor-not-allowed'
-                    : 'border-transparent text-slate-600 hover:text-slate-900',
+                    ? 'border-transparent text-muted cursor-not-allowed'
+                    : 'border-transparent text-foreground-secondary hover:text-foreground',
               ].join(' ')}
             >
               {t(tab.labelKey)}
@@ -528,39 +528,44 @@ export default function PoolsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="flex items-center gap-2 text-sm text-muted mb-1">
+            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link
+              href={`/org/${slug}/events/${eventId}`}
+              className="hover:text-foreground-secondary"
+            >
               {t('organizer.phaseVisibility.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className={selectedTournamentObj ? 'text-gray-500' : 'text-gray-900 font-medium'}>
+            <span className={selectedTournamentObj ? 'text-muted' : 'text-foreground font-medium'}>
               {t('organizer.phaseVisibility.breadcrumbPools')}
             </span>
             {selectedTournamentObj && (
               <>
                 <span>/</span>
-                <span className="inline-flex items-center gap-1.5 text-gray-900 font-medium">
+                <span className="inline-flex items-center gap-1.5 text-foreground font-medium">
                   <TournamentColorDot color={selectedTournamentObj.color} />
                   {selectedTournamentObj.name}
                 </span>
               </>
             )}
           </div>
-          <h1 className="text-2xl font-bold">{t('organizer.phaseVisibility.poolsTitle')}</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.phaseVisibility.poolsTitle')}
+          </h1>
         </div>
         <Link
           href={`/org/${slug}/events/${eventId}/ai-assistant?type=pool_plan${selectedTournament ? `&tournamentId=${selectedTournament}` : ''}`}
-          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+          className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >
           {t('organizer.aiAssistant.suggest')}
         </Link>
         <Link
           href={`/org/${slug}/events/${eventId}/bracket`}
-          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+          className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >
           Bracket →
         </Link>
@@ -580,8 +585,8 @@ export default function PoolsPage() {
                 className={[
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
                   active
-                    ? 'bg-red-700 text-white border-red-700'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                    ? 'bg-accent text-accent-foreground border-accent'
+                    : 'bg-surface text-foreground-secondary border-border hover:border-border',
                 ].join(' ')}
               >
                 <TournamentColorDot color={tour.color} />
@@ -600,8 +605,8 @@ export default function PoolsPage() {
                 visibility is no longer a separate toggle; the tournament's
                 own status gates public reveal. */}
             {notifyHref && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
-                <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-4">
+                <Link href={notifyHref} className="text-sm font-semibold text-accent underline">
                   {t('organizer.phaseVisibility.notifyParticipants')}
                 </Link>
               </div>
@@ -613,8 +618,8 @@ export default function PoolsPage() {
                 className={[
                   'border rounded-xl px-4 py-3 text-sm',
                   conflicts.hasConfirmedConflicts
-                    ? 'bg-red-50 border-red-300 text-red-700'
-                    : 'bg-yellow-50 border-yellow-300 text-yellow-700',
+                    ? 'bg-danger/10 border-danger/30 text-danger'
+                    : 'bg-warning/10 border-warning/30 text-warning',
                 ].join(' ')}
               >
                 <p className="font-bold mb-1">
@@ -640,39 +645,41 @@ export default function PoolsPage() {
             )}
 
             {lockBanner && (
-              <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-900">
+              <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
                 <strong className="font-semibold">{lockBanner}</strong>
-                <span className="ml-2 text-yellow-700">
+                <span className="ml-2 text-warning">
                   Clear scores in the matches view to unlock the pool.
                 </span>
               </div>
             )}
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+              <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 text-sm">
                 {error}
               </div>
             )}
 
             {/* Force regenerate confirmation */}
             {showForceConfirm && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
+              <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+                <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
                   <p className="text-4xl mb-3">⚠️</p>
-                  <h2 className="text-lg font-bold mb-2">Regenerate pools?</h2>
-                  <p className="text-gray-500 text-sm mb-5">
+                  <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
+                    Regenerate pools?
+                  </h2>
+                  <p className="text-muted text-sm mb-5">
                     Existing pools and all their matches will be deleted. This cannot be undone.
                   </p>
                   <div className="flex gap-3 justify-center">
                     <button
                       onClick={() => setShowForceConfirm(false)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                      className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => void generate(true)}
-                      className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm"
+                      className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
                     >
                       Yes, regenerate
                     </button>
@@ -691,7 +698,7 @@ export default function PoolsPage() {
                     key={pool.id}
                     className={[
                       'w-full border-2 rounded-xl p-4 transition-colors',
-                      dragging ? 'border-dashed border-red-300 bg-red-50/30' : 'border-gray-200',
+                      dragging ? 'border-dashed border-accent bg-accent/5' : 'border-border',
                     ].join(' ')}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => void handleDrop(pool.id)}
@@ -708,20 +715,20 @@ export default function PoolsPage() {
                                 if (e.key === 'Escape') setRenamingPoolId(null);
                               }}
                               autoFocus
-                              className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                              className="flex-1 rounded-md border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                             />
                             <button
                               type="button"
                               disabled={renameBusy}
                               onClick={() => void saveRename(pool.id)}
-                              className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                              className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
                             >
                               Save
                             </button>
                             <button
                               type="button"
                               onClick={() => setRenamingPoolId(null)}
-                              className="rounded-md px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
+                              className="rounded-md px-3 py-1 text-xs text-muted hover:text-foreground-secondary"
                             >
                               Cancel
                             </button>
@@ -731,14 +738,12 @@ export default function PoolsPage() {
                             type="button"
                             onClick={() => void startRename(pool)}
                             title="Rename pool"
-                            className="self-start font-bold text-gray-900 hover:text-red-700 hover:underline decoration-dotted"
+                            className="self-start font-bold text-foreground hover:text-accent hover:underline decoration-dotted"
                           >
                             {pool.name}
                           </button>
                         )}
-                        <span className="text-xs text-gray-400">
-                          {pool.members.length} fighters
-                        </span>
+                        <span className="text-xs text-muted">{pool.members.length} fighters</span>
                       </div>
                       <RowActionButton
                         variant="danger"
@@ -764,25 +769,25 @@ export default function PoolsPage() {
                             setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
                           }
                           onDragEnd={() => setDragging(null)}
-                          className="group inline-flex items-center gap-1.5 max-w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
+                          className="group inline-flex items-center gap-1.5 max-w-full bg-surface border border-border rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-border transition-colors"
                         >
-                          <span className="font-medium text-gray-900 truncate max-w-[12rem]">
+                          <span className="font-medium text-foreground truncate max-w-[12rem]">
                             {m.personName}
                           </span>
                           {m.clubLabel && (
-                            <span className="text-gray-400 text-xs truncate max-w-[8rem]">
+                            <span className="text-muted text-xs truncate max-w-[8rem]">
                               {m.clubLabel}
                             </span>
                           )}
                           {m.hemaWeightedRating !== null && (
                             <span
-                              className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                              className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-bold text-gold"
                               title="HEMA weighted rating"
                             >
                               {m.hemaWeightedRating.toFixed(1)}
                             </span>
                           )}
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                          <span className="rounded-full bg-border px-2 py-0.5 text-[11px] font-semibold text-foreground-secondary">
                             #{m.seed}
                           </span>
                           <button
@@ -790,14 +795,14 @@ export default function PoolsPage() {
                             disabled={editBusy}
                             onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
                             title="Move to unassigned"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
                           >
                             ×
                           </button>
                         </div>
                       ))}
                       {pool.members.length === 0 && (
-                        <p className="text-xs text-gray-400 italic">Drop fighters here.</p>
+                        <p className="text-xs text-muted italic">Drop fighters here.</p>
                       )}
                     </div>
                   </div>
@@ -806,8 +811,8 @@ export default function PoolsPage() {
             )}
 
             {!pools && !generating && (
-              <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-                <p className="text-gray-400 text-sm">
+              <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+                <p className="text-muted text-sm">
                   No pools generated yet. Configure and click Generate.
                 </p>
               </div>
@@ -815,16 +820,16 @@ export default function PoolsPage() {
           </div>
 
           {/* ── Right sidebar: config form + constraints + lifecycle ─────────── */}
-          <aside className="sticky top-6 self-start space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+          <aside className="sticky top-6 self-start space-y-4 rounded-lg border border-border bg-surface p-4">
             {/* Basic config: sizing mode + count/size stepper */}
             <div>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
                 Pool configuration
               </h2>
 
               {/* Mode toggle */}
               <div className="mb-3">
-                <p className="text-xs font-medium text-gray-600 mb-2">Sizing</p>
+                <p className="text-xs font-medium text-foreground-secondary mb-2">Sizing</p>
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => setMode('targetSize')}
@@ -832,8 +837,8 @@ export default function PoolsPage() {
                     className={[
                       'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-left',
                       mode === 'targetSize'
-                        ? 'bg-red-700 text-white border-red-700'
-                        : 'bg-white text-gray-700 border-gray-300',
+                        ? 'bg-accent text-accent-foreground border-accent'
+                        : 'bg-surface text-foreground-secondary border-border',
                     ].join(' ')}
                   >
                     Auto · target size per pool
@@ -844,8 +849,8 @@ export default function PoolsPage() {
                     className={[
                       'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-left',
                       mode === 'poolCount'
-                        ? 'bg-red-700 text-white border-red-700'
-                        : 'bg-white text-gray-700 border-gray-300',
+                        ? 'bg-accent text-accent-foreground border-accent'
+                        : 'bg-surface text-foreground-secondary border-border',
                     ].join(' ')}
                   >
                     Manual · choose pool count
@@ -855,7 +860,7 @@ export default function PoolsPage() {
 
               {/* Value stepper */}
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-2">
+                <p className="text-xs font-medium text-foreground-secondary mb-2">
                   {mode === 'targetSize' ? 'Fighters per pool' : 'Number of pools'}
                 </p>
                 <div className="flex items-center gap-2">
@@ -865,7 +870,7 @@ export default function PoolsPage() {
                         ? setTargetSize((v) => Math.max(2, v - 1))
                         : setPoolCount((v) => Math.max(1, v - 1))
                     }
-                    className="w-8 h-8 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold"
+                    className="w-8 h-8 rounded-lg border border-border text-foreground-secondary hover:bg-background font-bold"
                   >
                     −
                   </button>
@@ -878,7 +883,7 @@ export default function PoolsPage() {
                         ? setTargetSize((v) => Math.min(20, v + 1))
                         : setPoolCount((v) => v + 1)
                     }
-                    className="w-8 h-8 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold"
+                    className="w-8 h-8 rounded-lg border border-border text-foreground-secondary hover:bg-background font-bold"
                   >
                     +
                   </button>
@@ -887,7 +892,7 @@ export default function PoolsPage() {
 
               {/* Preview line */}
               {selectedTournament && !existingPhase && (
-                <p className="mt-3 text-xs text-slate-500">
+                <p className="mt-3 text-xs text-muted">
                   {(() => {
                     const fighters = unassigned.length;
                     const count =
@@ -905,8 +910,8 @@ export default function PoolsPage() {
             </div>
 
             {/* Constraints section: pool generation constraints */}
-            <div className="space-y-3 border-t border-slate-200 pt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="space-y-3 border-t border-border pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
                 {t('organizer.pools.configure.constraints')}
               </h3>
 
@@ -936,11 +941,11 @@ export default function PoolsPage() {
             </div>
 
             {/* Lifecycle actions */}
-            <div className="space-y-2 border-t border-slate-200 pt-4">
+            <div className="space-y-2 border-t border-border pt-4">
               <button
                 onClick={() => void generate(false)}
                 disabled={generating || !selectedTournament}
-                className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {generating
                   ? 'Generating…'
@@ -954,7 +959,7 @@ export default function PoolsPage() {
                 type="button"
                 onClick={() => void addEmptyPool()}
                 disabled={lifecycleBusy || !selectedTournament}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                className="w-full rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50 transition-colors"
               >
                 + Add empty pool
               </button>
@@ -962,14 +967,14 @@ export default function PoolsPage() {
                 type="button"
                 onClick={() => setPendingDeleteAll(true)}
                 disabled={lifecycleBusy || !existingPhase || !selectedTournament}
-                className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                className="w-full rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50 transition-colors"
               >
                 Delete all pools
               </button>
               {existingPhase && (
                 <Link
                   href={`/org/${slug}/events/${eventId}/referees#assignments`}
-                  className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="block w-full rounded-lg border border-border bg-surface px-4 py-2 text-center text-sm font-semibold text-foreground-secondary hover:bg-background transition-colors"
                 >
                   Assign referees
                 </Link>
@@ -986,20 +991,20 @@ export default function PoolsPage() {
                 className={[
                   'rounded-xl border-2 p-3 transition-colors',
                   dragging
-                    ? 'border-dashed border-red-300 bg-red-50/30'
-                    : 'border-gray-200 bg-gray-50',
+                    ? 'border-dashed border-accent bg-accent/5'
+                    : 'border-border bg-background',
                 ].join(' ')}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => void handleDropOnUnassigned()}
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
                     Unassigned
                   </h3>
-                  <span className="text-xs text-gray-400">{unassigned.length}</span>
+                  <span className="text-xs text-muted">{unassigned.length}</span>
                 </div>
                 {unassigned.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">
+                  <p className="text-xs text-muted italic">
                     All registered fighters are in a pool. Drag a fighter here to remove them from
                     their pool.
                   </p>
@@ -1016,17 +1021,17 @@ export default function PoolsPage() {
                           })
                         }
                         onDragEnd={() => setDragging(null)}
-                        className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
+                        className="flex items-center justify-between gap-2 bg-surface border border-border rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-border"
                       >
                         <div className="min-w-0 flex-1 truncate">
-                          <span className="font-medium text-gray-900">{u.personName}</span>
+                          <span className="font-medium text-foreground">{u.personName}</span>
                           {u.clubLabel && (
-                            <span className="text-gray-400 text-xs ml-1.5">{u.clubLabel}</span>
+                            <span className="text-muted text-xs ml-1.5">{u.clubLabel}</span>
                           )}
                         </div>
                         {u.hemaWeightedRating !== null && (
                           <span
-                            className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800 shrink-0"
+                            className="ml-1 rounded-full bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold shrink-0"
                             title="HEMA weighted rating"
                           >
                             {u.hemaWeightedRating.toFixed(1)}

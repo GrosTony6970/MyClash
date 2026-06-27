@@ -121,7 +121,7 @@ export function WaitingListPanel({
 
   if (tournaments.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+      <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
         No tournaments in this event yet.
       </p>
     );
@@ -133,14 +133,14 @@ export function WaitingListPanel({
         const rows = grouped.get(t.id) ?? [];
         const max = t.maxWaitlist ?? null;
         return (
-          <section key={t.id} className="rounded-lg border border-gray-200 bg-white p-4">
+          <section key={t.id} className="rounded-lg border border-border bg-surface p-4">
             <header className="mb-3 flex items-baseline justify-between">
-              <h3 className="text-sm font-bold text-gray-900">
+              <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                 {t.name} — Waiting list ({rows.length} / {max ?? '∞'})
               </h3>
             </header>
             {rows.length === 0 ? (
-              <p className="text-sm italic text-gray-400">No one on the waiting list.</p>
+              <p className="text-sm italic text-muted">No one on the waiting list.</p>
             ) : (
               <WaitingListTable
                 rows={rows}
@@ -194,7 +194,7 @@ function WaitingListTable({
   return (
     <table className="w-full text-sm border-collapse">
       <thead>
-        <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wider text-gray-500">
+        <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
           <th scope="col" className="py-2 pr-3 w-12">
             Pos
           </th>
@@ -221,17 +221,17 @@ function WaitingListTable({
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(reg)}
               className={[
-                'border-b border-gray-100 last:border-0',
-                dragging ? 'opacity-40' : 'hover:bg-gray-50',
+                'border-b border-border last:border-0',
+                dragging ? 'opacity-40' : 'hover:bg-background',
               ].join(' ')}
             >
-              <td className="py-2 pr-3 text-gray-600 cursor-grab">
-                <span className="mr-1 text-gray-300" aria-hidden="true">
+              <td className="py-2 pr-3 text-foreground-secondary cursor-grab">
+                <span className="mr-1 text-muted" aria-hidden="true">
                   ⋮⋮
                 </span>
                 {reg.waitlistPosition}
               </td>
-              <td className="py-2 pr-3 font-medium text-gray-900">
+              <td className="py-2 pr-3 font-medium text-foreground">
                 {person
                   ? formatRosterName({
                       familyName: person.familyName,
@@ -239,19 +239,19 @@ function WaitingListTable({
                     })
                   : reg.personId}
               </td>
-              <td className="py-2 pr-3 text-gray-600">{person?.clubLabel ?? '—'}</td>
+              <td className="py-2 pr-3 text-foreground-secondary">{person?.clubLabel ?? '—'}</td>
               <td className="py-2 pr-3 text-right">
                 <button
                   type="button"
                   onClick={() => onPromote(reg)}
-                  className="mr-2 text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+                  className="mr-2 text-xs font-semibold text-success hover:text-success-hover"
                 >
                   Promote
                 </button>
                 <button
                   type="button"
                   onClick={() => onRemove(reg)}
-                  className="text-xs text-red-500 hover:text-red-700"
+                  className="text-xs text-danger hover:text-danger-hover"
                 >
                   Remove
                 </button>

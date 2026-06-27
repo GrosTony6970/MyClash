@@ -216,15 +216,15 @@ export default function OrgDashboardPage() {
   ];
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('organizer.shell.eyebrow')}
         title={orgName}
-        subtitle={<span className="font-mono text-slate-500">{slug}</span>}
+        subtitle={<span className="font-mono text-muted">{slug}</span>}
         actions={
           <Link
             href={`/org/${slug}/events`}
-            className="inline-flex w-fit items-center rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+            className="inline-flex w-fit items-center rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           >
             {t('organizer.dashboard.manageEvents')}
           </Link>
@@ -232,14 +232,14 @@ export default function OrgDashboardPage() {
       />
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       {loading && (
-        <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-red-700" />
+        <div className="mb-6 flex items-center gap-2 text-sm text-muted">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent" />
           {t('organizer.dashboard.loadingStats')}
         </div>
       )}
@@ -259,21 +259,21 @@ export default function OrgDashboardPage() {
 
       {/* Branding card — rename + logo upload. Slug stays read-only so that
           existing bookmarks/URLs keep working. */}
-      <section className="rounded-md border border-slate-200 bg-white p-5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      <section className="rounded-md border border-border bg-surface p-5">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.dashboard.brand.title')}
         </h2>
-        <p className="mt-1 text-sm text-slate-500">{t('organizer.dashboard.brand.description')}</p>
+        <p className="mt-1 text-sm text-muted">{t('organizer.dashboard.brand.description')}</p>
 
         {notice && (
-          <p className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          <p className="mt-3 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
             {notice}
           </p>
         )}
 
         <div className="mt-5 grid gap-6 lg:grid-cols-[200px,1fr]">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-32 w-32 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+            <div className="h-32 w-32 overflow-hidden rounded-lg border border-border bg-background">
               {org?.logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
@@ -287,7 +287,7 @@ export default function OrgDashboardPage() {
                   className="h-full w-full object-contain p-1"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase tracking-wider text-slate-400">
+                <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase tracking-wider text-muted">
                   {orgName.slice(0, 2)}
                 </div>
               )}
@@ -322,37 +322,37 @@ export default function OrgDashboardPage() {
               type="button"
               disabled={busy || !org}
               onClick={() => logoInput.current?.click()}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
+              className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {t('organizer.events.uploadLogo')}
             </button>
           </div>
 
           <form onSubmit={(ev) => void saveName(ev)} className="grid gap-3">
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
               {t('organizer.dashboard.brand.nameLabel')}
               <input
                 value={nameDraft}
                 onChange={(ev) => setNameDraft(ev.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-md border border-border px-3 py-2 text-sm"
                 minLength={2}
                 maxLength={100}
                 required
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
               {t('organizer.dashboard.brand.slugLabel')}
               <input
                 value={org?.slug ?? slug}
                 readOnly
-                className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-500"
+                className="rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-muted"
               />
-              <span className="text-xs font-normal text-slate-400">
+              <span className="text-xs font-normal text-muted">
                 {t('organizer.dashboard.brand.slugReadOnly')}
               </span>
             </label>
             <div className="grid gap-4 md:grid-cols-2 md:gap-6">
-              <div className="grid gap-2 text-sm font-semibold text-slate-700">
+              <div className="grid gap-2 text-sm font-semibold text-foreground-secondary">
                 <span>{t('organizer.dashboard.brand.colorLabel')}</span>
                 <div className="flex items-center gap-3">
                   <ColorSwatchPicker
@@ -364,13 +364,13 @@ export default function OrgDashboardPage() {
                     <button
                       type="button"
                       onClick={() => setBrandColorDraft('')}
-                      className="rounded text-xs font-normal text-slate-500 underline hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                      className="rounded text-xs font-normal text-muted underline hover:text-foreground-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                     >
                       {t('organizer.dashboard.brand.colorClear')}
                     </button>
                   )}
                 </div>
-                <span className="text-xs font-normal text-slate-400">
+                <span className="text-xs font-normal text-muted">
                   {t('organizer.dashboard.brand.colorHelp')}
                 </span>
               </div>
@@ -391,7 +391,7 @@ export default function OrgDashboardPage() {
                       (org.brandColor ?? null)) ||
                   !nameDraft.trim()
                 }
-                className="rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t('organizer.dashboard.brand.save')}
               </button>
@@ -440,12 +440,12 @@ function BrandColorPreview({
   const { t } = useI18n();
   const accent = color || '#dc2626';
   return (
-    <div className="grid gap-2 text-sm font-semibold text-slate-700">
-      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <div className="grid gap-2 text-sm font-semibold text-foreground-secondary">
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted">
         {t('organizer.dashboard.brand.previewLabel')}
       </span>
       <div
-        className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+        className="rounded-2xl border border-border bg-surface p-4 shadow-sm"
         style={{ borderLeftWidth: '4px', borderLeftColor: accent }}
       >
         <div className="mb-2 flex items-center gap-2">
@@ -455,10 +455,10 @@ function BrandColorPreview({
               key={logoUrl}
               src={logoUrl}
               alt=""
-              className="h-10 w-10 shrink-0 rounded-md border border-stone-200 bg-white object-contain p-0.5"
+              className="h-10 w-10 shrink-0 rounded-md border border-border bg-surface object-contain p-0.5"
             />
           ) : (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-stone-50 text-xs font-bold uppercase tracking-wider text-slate-400">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-xs font-bold uppercase tracking-wider text-muted">
               {orgName.slice(0, 2)}
             </span>
           )}
@@ -469,10 +469,10 @@ function BrandColorPreview({
             {t('organizer.dashboard.brand.previewLivePill')}
           </span>
         </div>
-        <p className="text-base font-semibold text-stone-900">
+        <p className="text-base font-semibold text-foreground">
           {t('organizer.dashboard.brand.previewEventTitle')}
         </p>
-        <p className="text-xs font-normal text-stone-500">
+        <p className="text-xs font-normal text-muted">
           {orgName} · {t('organizer.dashboard.brand.previewEventDate')}
         </p>
       </div>

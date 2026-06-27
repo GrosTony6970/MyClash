@@ -53,41 +53,43 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-bold">{t('admin.reviewQueue.approveModalTitle')}</h2>
-        <p className="mt-1 text-sm text-slate-500">{item.targetLabel}</p>
+      <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
+        <h2 className="font-display font-semibold text-lg sm:text-xl">
+          {t('admin.reviewQueue.approveModalTitle')}
+        </h2>
+        <p className="mt-1 text-sm text-muted">{item.targetLabel}</p>
 
         {isDeletion && (
-          <div className="mt-4 rounded-md bg-red-50 border border-red-200 p-3">
-            <p className="text-sm font-semibold text-red-700">
+          <div className="mt-4 rounded-md bg-danger/10 border border-danger/30 p-3">
+            <p className="text-sm font-semibold text-danger">
               {t('admin.reviewQueue.approveConfirmDeletion')}
             </p>
-            <p className="mt-2 text-sm text-red-600">{t('admin.reviewQueue.approveTypeDelete')}</p>
+            <p className="mt-2 text-sm text-danger">{t('admin.reviewQueue.approveTypeDelete')}</p>
             <input
               ref={inputRef}
               type="text"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
               autoFocus
-              className="mt-2 w-full rounded-md border border-red-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="mt-2 w-full rounded-md border border-danger/30 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-danger"
               placeholder="DELETE"
             />
           </div>
         )}
 
         {!isDeletion && (
-          <p className="mt-4 text-sm text-slate-700">
+          <p className="mt-4 text-sm text-foreground-secondary">
             Are you sure you want to approve this request?
           </p>
         )}
 
         {error && (
-          <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <p className="mt-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
             {error}
           </p>
         )}
@@ -96,14 +98,14 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
           <button
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleApprove()}
             disabled={submitting || !canSubmit}
-            className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+            className="rounded-md bg-success px-4 py-2 text-sm font-semibold text-white hover:bg-success-hover disabled:opacity-50"
           >
             {submitting ? 'Approving…' : t('admin.reviewQueue.approve')}
           </button>

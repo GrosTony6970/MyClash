@@ -166,9 +166,9 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const sidebar = (
     <nav aria-label={t('admin.shell.navigationLabel')} className="flex flex-col gap-6">
       {navSections.map((section, idx) => (
-        <div key={section.headingKey} className={idx === 0 ? '' : 'border-t border-slate-800 pt-5'}>
+        <div key={section.headingKey} className={idx === 0 ? '' : 'border-t border-border pt-5'}>
           {idx > 0 && (
-            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
               {t(section.headingKey)}
             </p>
           )}
@@ -188,16 +188,16 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
                   className={[
                     'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                     active
-                      ? 'bg-red-800 text-white shadow-sm'
-                      : 'text-slate-300 hover:bg-white/10 hover:text-white',
+                      ? 'bg-accent text-accent-foreground shadow-sm'
+                      : 'text-muted hover:bg-foreground/10 hover:text-foreground',
                   ].join(' ')}
                 >
                   <span
                     className={[
                       'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
                       active
-                        ? 'border-white/30 bg-white/15 text-white'
-                        : 'border-slate-600 bg-slate-900 text-amber-600 group-hover:border-slate-400',
+                        ? 'border-foreground/30 bg-foreground/15 text-foreground'
+                        : 'border-border bg-background text-gold group-hover:border-muted',
                     ].join(' ')}
                     aria-hidden="true"
                   >
@@ -206,7 +206,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
                   <span>{t(item.labelKey)}</span>
                   {count > 0 && (
                     <span
-                      className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                      className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-danger-foreground"
                       aria-label={t('admin.notifications.pendingCount').replace(
                         '{count}',
                         String(count),
@@ -227,7 +227,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const logoutAction = (
     <button
       type="button"
-      className="flex w-full items-center gap-3 rounded-md border border-slate-700 bg-slate-950/40 px-3 py-2 text-left text-sm font-semibold text-slate-200 transition-colors hover:border-red-700/60 hover:bg-red-800/15 hover:text-white disabled:cursor-wait disabled:opacity-70"
+      className="flex w-full items-center gap-3 rounded-md border border-border bg-background/40 px-3 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:border-danger/60 hover:bg-danger/15 hover:text-foreground disabled:cursor-wait disabled:opacity-70"
       aria-label={t('admin.shell.logoutAriaLabel')}
       disabled={loggingOut}
       onClick={() => {
@@ -235,7 +235,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
       }}
     >
       <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-900 text-[0.65rem] font-bold text-amber-600"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold"
         aria-hidden="true"
       >
         LO
@@ -245,15 +245,18 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-stone-50 text-slate-900">
+    <div className="min-h-screen bg-background text-foreground">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-red-800 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent-foreground"
       >
         {t('admin.shell.skipToContent')}
       </a>
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-900 px-4 py-5 text-white lg:flex">
+      <aside
+        data-theme="dark"
+        className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground lg:flex"
+      >
         <Link href="/admin" className="mb-7 flex items-center gap-3">
           <Image
             src="/brand/Logomini_nobackground.png"
@@ -267,21 +270,21 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
             <p className="font-display text-lg font-medium tracking-wide">
               {t('admin.shell.brand')}
             </p>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gold">
               {t('admin.shell.role')}
             </p>
           </div>
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-        <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
+        <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-background/90 backdrop-blur lg:left-72">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-700 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground lg:hidden"
               aria-label={t('admin.shell.openMenu')}
               onClick={() => setOpen(true)}
             >
@@ -292,18 +295,18 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
               </span>
             </button>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
+              <p className="text-xs font-semibold uppercase tracking-wider text-accent">
                 {t('admin.shell.eyebrow')}
               </p>
-              <p className="font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
+              <p className="font-display text-base font-medium tracking-tight text-foreground sm:text-lg">
                 {t('admin.shell.title')}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <NotificationBell summary={notifications} t={t} />
-            <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">
-              <span className="h-2 w-2 rounded-full bg-red-700" aria-hidden="true" />
+            <div className="hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted sm:flex">
+              <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
               {t('admin.shell.status')}
             </div>
           </div>
@@ -315,7 +318,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             aria-label={t('admin.shell.closeMenu')}
-            className="absolute inset-0 bg-slate-950/60"
+            className="absolute inset-0 bg-slate-950/40"
             onClick={() => setOpen(false)}
           />
           <div
@@ -323,7 +326,8 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
             role="dialog"
             aria-modal="true"
             aria-label={t('admin.shell.navigationLabel')}
-            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-slate-900 px-4 py-5 text-white shadow-2xl"
+            data-theme="dark"
+            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-background px-4 py-5 text-foreground shadow-2xl"
           >
             <div className="mb-6 flex items-center justify-between">
               <Link
@@ -336,14 +340,14 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
               </Link>
               <button
                 type="button"
-                className="rounded-md border border-slate-600 px-3 py-1 text-sm text-slate-200"
+                className="rounded-md border border-border px-3 py-1 text-sm text-foreground"
                 onClick={() => setOpen(false)}
               >
                 {t('admin.shell.close')}
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-            <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
+            <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
           </div>
         </div>
       )}
@@ -434,7 +438,7 @@ function NotificationBell({
         aria-label={t('admin.notifications.bellAriaLabel')}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition-colors hover:border-slate-400"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-muted transition-colors hover:border-muted"
       >
         {/* Inline bell glyph — keeps the shell self-contained, no
             new icon dep. */}
@@ -452,7 +456,7 @@ function NotificationBell({
           <path d="M10 21a2 2 0 0 0 4 0" />
         </svg>
         {showBadge && (
-          <span className="absolute -right-1 -top-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 text-[10px] font-bold text-danger-foreground">
             {displayCount}
           </span>
         )}
@@ -461,22 +465,22 @@ function NotificationBell({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-40 mt-2 w-80 rounded-md border border-slate-200 bg-white shadow-lg"
+          className="absolute right-0 z-40 mt-2 w-80 rounded-md border border-border bg-surface shadow-lg"
         >
-          <div className="border-b border-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.notifications.dropdownTitle')}
           </div>
           {rows.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-slate-500">
+            <div className="px-4 py-6 text-center text-sm text-muted">
               {t('admin.notifications.allClear')} ✓
             </div>
           ) : (
             <ul className="py-1">
               {rows.map((row) => {
                 const content = (
-                  <div className="flex items-center justify-between px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                  <div className="flex items-center justify-between px-4 py-2 text-sm text-foreground hover:bg-background">
                     <span>{t(row.labelKey)}</span>
-                    <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+                    <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-background px-2 py-0.5 text-xs font-bold text-foreground">
                       {row.count}
                     </span>
                   </div>
@@ -495,7 +499,7 @@ function NotificationBell({
               })}
             </ul>
           )}
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
+          <div className="flex items-center justify-between border-t border-border px-4 py-2">
             <button
               type="button"
               onClick={() => {
@@ -505,13 +509,11 @@ function NotificationBell({
                 setOpen(false);
               }}
               title={t('admin.notifications.markSeenHint')}
-              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+              className="text-xs font-semibold text-muted hover:text-foreground"
             >
               {t('admin.notifications.markSeen')}
             </button>
-            <span className="text-[10px] text-slate-400">
-              {t('admin.notifications.markSeenHint')}
-            </span>
+            <span className="text-[10px] text-muted">{t('admin.notifications.markSeenHint')}</span>
           </div>
         </div>
       )}

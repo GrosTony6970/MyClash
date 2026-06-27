@@ -225,20 +225,24 @@ export default function EventAIAssistantPage() {
   }
 
   return (
-    <main className="max-w-6xl p-8">
-      <div className="mb-6 text-sm text-gray-500">
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+    <main className="mx-auto max-w-7xl p-8">
+      <div className="mb-6 text-sm text-muted">
+        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
           {t('organizer.aiAssistant.backToEvent')}
         </Link>
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-950">{t('organizer.aiAssistant.title')}</h1>
-        <p className="mt-1 text-sm text-gray-600">{t('organizer.aiAssistant.description')}</p>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+          {t('organizer.aiAssistant.title')}
+        </h1>
+        <p className="mt-1 text-sm text-foreground-secondary">
+          {t('organizer.aiAssistant.description')}
+        </p>
       </div>
 
       {aiReady === false && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="mb-6 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
           {t('organizer.aiAssistant.missingKey')}{' '}
           {orgId && (
             <Link href={`/org/${slug}/settings/ai`} className="font-semibold underline">
@@ -249,15 +253,18 @@ export default function EventAIAssistantPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+        <section className="space-y-4 rounded-lg border border-border bg-surface p-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700" htmlFor="ai-assistant-draft-type">
+            <label
+              className="text-sm font-medium text-foreground-secondary"
+              htmlFor="ai-assistant-draft-type"
+            >
               {t('organizer.aiAssistant.draftType')}
               <select
                 id="ai-assistant-draft-type"
                 value={draftType}
                 onChange={(event) => setDraftType(event.target.value as DraftType)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2"
               >
                 {draftTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -267,14 +274,17 @@ export default function EventAIAssistantPage() {
               </select>
             </label>
 
-            <label className="text-sm font-medium text-gray-700" htmlFor="ai-assistant-tournament">
+            <label
+              className="text-sm font-medium text-foreground-secondary"
+              htmlFor="ai-assistant-tournament"
+            >
               {t('organizer.aiAssistant.tournament')}
               <select
                 id="ai-assistant-tournament"
                 value={tournamentId}
                 disabled={!selectedNeedsTournament}
                 onChange={(event) => setTournamentId(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2 disabled:bg-background"
               >
                 <option value="">{t('common.optional')}</option>
                 {tournaments.map((tournament) => (
@@ -286,7 +296,10 @@ export default function EventAIAssistantPage() {
             </label>
           </div>
 
-          <label className="block text-sm font-medium text-gray-700" htmlFor="ai-assistant-prompt">
+          <label
+            className="block text-sm font-medium text-foreground-secondary"
+            htmlFor="ai-assistant-prompt"
+          >
             {t('organizer.aiAssistant.prompt')}
             <textarea
               id="ai-assistant-prompt"
@@ -294,7 +307,7 @@ export default function EventAIAssistantPage() {
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               rows={5}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
               placeholder={t('organizer.aiAssistant.promptPlaceholder')}
             />
           </label>
@@ -304,43 +317,43 @@ export default function EventAIAssistantPage() {
               type="button"
               onClick={() => void createDraft()}
               disabled={busy || aiReady === false || prompt.trim().length < 4}
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
             >
               {busy ? t('organizer.aiAssistant.working') : t('organizer.aiAssistant.createDraft')}
             </button>
           </div>
 
-          {message && <p className="text-sm text-green-700">{message}</p>}
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {message && <p className="text-sm text-success">{message}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
           {selectedDraft && (
-            <div className="mt-6 space-y-4 border-t border-gray-200 pt-5">
+            <div className="mt-6 space-y-4 border-t border-border pt-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold text-gray-950">
+                  <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                     {t('organizer.aiAssistant.preview')}
                   </h2>
-                  <p className="text-sm text-gray-600">{selectedDraft.summary}</p>
+                  <p className="text-sm text-foreground-secondary">{selectedDraft.summary}</p>
                 </div>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                <span className="rounded-full bg-border px-3 py-1 text-xs font-semibold text-foreground-secondary">
                   {selectedDraft.status}
                 </span>
               </div>
 
               {selectedDraft.validationState.errors?.length ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
                   {selectedDraft.validationState.errors.join(', ')}
                 </div>
               ) : null}
 
               {selectedDraft.validationState.warnings?.length ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
                   {selectedDraft.validationState.warnings.join(', ')}
                 </div>
               ) : null}
 
               <label
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-foreground-secondary"
                 htmlFor="ai-assistant-actions"
               >
                 {t('organizer.aiAssistant.actions')}
@@ -350,7 +363,7 @@ export default function EventAIAssistantPage() {
                   value={actionsJson}
                   onChange={(event) => setActionsJson(event.target.value)}
                   rows={12}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-mono text-xs"
                 />
               </label>
 
@@ -359,7 +372,7 @@ export default function EventAIAssistantPage() {
                   type="button"
                   onClick={() => void saveDraft()}
                   disabled={busy}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
                 >
                   {t('actions.save')}
                 </button>
@@ -367,7 +380,7 @@ export default function EventAIAssistantPage() {
                   type="button"
                   onClick={() => void applyDraft()}
                   disabled={busy || selectedDraft.status !== 'ready'}
-                  className="rounded-lg bg-gray-950 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                  className="rounded-lg bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground hover:bg-strong-hover disabled:opacity-50"
                 >
                   {t('actions.apply')}
                 </button>
@@ -375,7 +388,7 @@ export default function EventAIAssistantPage() {
                   type="button"
                   onClick={() => void rejectDraft()}
                   disabled={busy}
-                  className="rounded-lg px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('actions.reject')}
                 </button>
@@ -384,23 +397,25 @@ export default function EventAIAssistantPage() {
           )}
         </section>
 
-        <aside className="rounded-lg border border-gray-200 bg-white p-5">
-          <h2 className="font-semibold text-gray-950">{t('organizer.aiAssistant.history')}</h2>
+        <aside className="rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+            {t('organizer.aiAssistant.history')}
+          </h2>
           <div className="mt-4 space-y-2">
             {drafts.length === 0 && (
-              <p className="text-sm text-gray-500">{t('organizer.aiAssistant.emptyHistory')}</p>
+              <p className="text-sm text-muted">{t('organizer.aiAssistant.emptyHistory')}</p>
             )}
             {drafts.map((draft) => (
               <button
                 key={draft.id}
                 type="button"
                 onClick={() => selectDraft(draft)}
-                className="w-full rounded-lg border border-gray-200 p-3 text-left hover:border-red-300"
+                className="w-full rounded-lg border border-border p-3 text-left hover:border-accent"
               >
-                <span className="block text-sm font-semibold text-gray-900">
+                <span className="block text-sm font-semibold text-foreground">
                   {t(`organizer.aiAssistant.types.${draft.draftType}`)}
                 </span>
-                <span className="mt-1 block text-xs text-gray-500">{draft.status}</span>
+                <span className="mt-1 block text-xs text-muted">{draft.status}</span>
               </button>
             ))}
           </div>

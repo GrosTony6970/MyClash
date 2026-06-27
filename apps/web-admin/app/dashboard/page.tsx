@@ -61,12 +61,10 @@ export default function DashboardPage() {
     return (
       <main className="flex min-h-screen items-center justify-center px-6">
         <div className="max-w-md text-center">
-          <h1 className="text-xl font-semibold text-gray-900">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('admin.dashboard.noWorkspaceTitle')}
           </h1>
-          <p className="mt-3 text-sm text-gray-500">
-            {t('admin.dashboard.noWorkspaceDescription')}
-          </p>
+          <p className="mt-3 text-sm text-muted">{t('admin.dashboard.noWorkspaceDescription')}</p>
         </div>
       </main>
     );
@@ -74,7 +72,7 @@ export default function DashboardPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <p className="text-gray-500">{t('admin.dashboard.redirecting')}</p>
+      <p className="text-muted">{t('admin.dashboard.redirecting')}</p>
     </main>
   );
 }

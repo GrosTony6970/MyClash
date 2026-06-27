@@ -107,35 +107,37 @@ export default function PendingClaimsPage() {
   }
 
   return (
-    <main className="p-8 max-w-6xl">
+    <main className="p-8 max-w-7xl">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold mb-1">Profile claim requests</h1>
-          <p className="text-slate-500 text-sm">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">
+            Profile claim requests
+          </h1>
+          <p className="text-muted text-sm">
             Public users asking to claim a global profile that has no email on file. Approve to set{' '}
             <code>claimed_by_user_id</code> + backfill the email; reject with a reason to leave the
             profile unclaimed.
           </p>
         </div>
-        <Link href="/admin/global-persons/import" className="text-sm text-blue-700 hover:underline">
+        <Link href="/admin/global-persons/import" className="text-sm text-info hover:underline">
           ← Global persons
         </Link>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-500">No pending requests.</p>
+        <p className="text-sm text-muted">No pending requests.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-background border-b border-border text-left text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-3 py-2">Requester</th>
                 <th className="px-3 py-2">Profile</th>
@@ -146,9 +148,9 @@ export default function PendingClaimsPage() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-slate-100 align-top">
+                <tr key={row.id} className="border-b border-border align-top">
                   <td className="px-3 py-2">
-                    <div className="font-mono text-xs text-slate-700">
+                    <div className="font-mono text-xs text-foreground-secondary">
                       {row.requesterEmail ?? row.userId}
                     </div>
                   </td>
@@ -156,7 +158,7 @@ export default function PendingClaimsPage() {
                     {row.globalPerson ? (
                       <div>
                         <div className="font-semibold">{row.globalPerson.displayName}</div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-muted">
                           {[
                             row.globalPerson.countryCode,
                             row.globalPerson.hemaRatingsId
@@ -168,13 +170,13 @@ export default function PendingClaimsPage() {
                         </div>
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-400 italic">missing profile</span>
+                      <span className="text-xs text-muted italic">missing profile</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-600">
+                  <td className="px-3 py-2 text-xs text-foreground-secondary">
                     {row.globalPerson?.clubLabel ?? '—'}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">
+                  <td className="px-3 py-2 text-xs text-muted">
                     {new Date(row.requestedAt).toLocaleString()}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -184,14 +186,14 @@ export default function PendingClaimsPage() {
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
                           placeholder="Rejection reason"
-                          className="w-56 border border-slate-300 rounded px-2 py-1 text-xs"
+                          className="w-56 border border-border rounded px-2 py-1 text-xs"
                         />
                         <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => void reject(row.id)}
                             disabled={busyId === row.id || !rejectReason.trim()}
-                            className="rounded bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-1"
+                            className="rounded bg-danger hover:bg-danger-hover disabled:opacity-50 text-danger-foreground text-xs font-bold px-3 py-1"
                           >
                             Confirm reject
                           </button>
@@ -201,7 +203,7 @@ export default function PendingClaimsPage() {
                               setRejectingId(null);
                               setRejectReason('');
                             }}
-                            className="rounded border border-slate-300 text-xs px-3 py-1"
+                            className="rounded border border-border text-xs px-3 py-1"
                           >
                             Cancel
                           </button>
@@ -213,7 +215,7 @@ export default function PendingClaimsPage() {
                           type="button"
                           onClick={() => void approve(row.id)}
                           disabled={busyId === row.id}
-                          className="rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-1"
+                          className="rounded bg-success hover:bg-success-hover disabled:opacity-50 text-success-foreground text-xs font-bold px-3 py-1"
                         >
                           Approve
                         </button>
@@ -221,7 +223,7 @@ export default function PendingClaimsPage() {
                           type="button"
                           onClick={() => setRejectingId(row.id)}
                           disabled={busyId === row.id}
-                          className="rounded border border-slate-300 text-slate-700 text-xs font-bold px-3 py-1 hover:bg-slate-50"
+                          className="rounded border border-border text-foreground-secondary text-xs font-bold px-3 py-1 hover:bg-background"
                         >
                           Reject
                         </button>

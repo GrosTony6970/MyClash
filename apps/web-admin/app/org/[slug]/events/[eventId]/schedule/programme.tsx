@@ -472,7 +472,7 @@ export function ProgrammePlanner({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-border border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -485,10 +485,8 @@ export function ProgrammePlanner({
           day-blocks column to ~140 px and cropped block cards on the
           grid behind. Stacking matches the operator's workflow: set
           knobs once, edit blocks 90 % of the time. */}
-      <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Configuration
-        </h2>
+      <aside className="space-y-3 rounded-xl border border-border bg-surface p-4 text-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Configuration</h2>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {(
             [
@@ -516,7 +514,7 @@ export function ProgrammePlanner({
             const isTime = type === 'time';
             return (
               <label key={key} className="flex flex-col gap-1">
-                <span className="text-xs text-slate-500">{label}</span>
+                <span className="text-xs text-muted">{label}</span>
                 <input
                   type={isTime ? 'text' : type}
                   inputMode={isTime ? 'numeric' : undefined}
@@ -530,7 +528,7 @@ export function ProgrammePlanner({
                       [key]: type === 'number' ? Number(e.target.value) : e.target.value,
                     }))
                   }
-                  className="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="border border-border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </label>
             );
@@ -540,7 +538,7 @@ export function ProgrammePlanner({
           onClick={() => void suggest()}
           data-testid="schedule-suggest"
           disabled={suggesting}
-          className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+          className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
         >
           {suggesting ? 'Generating…' : `✦ ${generateScheduleLabel ?? 'Generate schedule'}`}
         </button>
@@ -549,7 +547,7 @@ export function ProgrammePlanner({
       {/* Preview / output column. */}
       <div className="min-w-0 space-y-4">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
+          <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 text-sm mb-4">
             {error}
           </div>
         )}
@@ -559,8 +557,8 @@ export function ProgrammePlanner({
             className={[
               'rounded-lg px-4 py-3 text-sm mb-4 border',
               generateResult.matchesScheduled > 0
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-amber-50 border-amber-200 text-amber-900',
+                ? 'bg-success/10 border-success/30 text-success'
+                : 'bg-warning/10 border-warning/30 text-warning',
             ].join(' ')}
           >
             <div className="font-semibold">
@@ -606,8 +604,8 @@ export function ProgrammePlanner({
                 className={[
                   'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
                   activeDay === i
-                    ? 'bg-red-700 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-foreground-secondary hover:bg-border',
                 ].join(' ')}
               >
                 Day {i + 1}
@@ -618,7 +616,7 @@ export function ProgrammePlanner({
 
         {/* Block list */}
         {dayBlocks.length === 0 ? (
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-4 py-3 text-sm mb-4">
+          <div className="bg-info/10 border border-info/30 text-info rounded-lg px-4 py-3 text-sm mb-4">
             No blocks for this day. Use Generate schedule or add blocks manually.
           </div>
         ) : (
@@ -652,7 +650,7 @@ export function ProgrammePlanner({
         <button
           type="button"
           onClick={addBlock}
-          className="mb-4 inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900"
+          className="mb-4 inline-flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:border-muted hover:text-foreground"
         >
           + Add block
         </button>
@@ -660,14 +658,17 @@ export function ProgrammePlanner({
         {/* Day multi-select — which days Generate (re)builds. Only shown
             for multi-day programmes; unticked days are left untouched. */}
         {distinctDays.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">
               Generate days
             </span>
             {distinctDays.map((d) => {
               const checked = !skipDays.has(d);
               return (
-                <label key={d} className="flex items-center gap-1 text-sm text-gray-700">
+                <label
+                  key={d}
+                  className="flex items-center gap-1 text-sm text-foreground-secondary"
+                >
                   <input
                     type="checkbox"
                     checked={checked}
@@ -692,7 +693,7 @@ export function ProgrammePlanner({
           <button
             onClick={() => void saveProgramme()}
             disabled={saving || blocks.length === 0}
-            className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            className="border border-border rounded-md px-4 py-2 text-sm font-medium hover:bg-background disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save programme'}
           </button>
@@ -700,14 +701,14 @@ export function ProgrammePlanner({
             onClick={() => void confirmAndGenerate()}
             data-testid="schedule-generate"
             disabled={generating || blocks.length === 0}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
           >
             {generating ? 'Generating…' : `${generateGridLabel ?? 'Generate Grid'} →`}
           </button>
           <button
             onClick={() => void confirmAndReset()}
             disabled={resetting}
-            className="ml-auto rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="ml-auto rounded-md border border-danger/30 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
             title="Wipe the programme + clear every scheduled match"
           >
             {resetting ? 'Resetting…' : 'Reset schedule'}
@@ -764,7 +765,7 @@ function BlockRow({
       {/* Main row */}
       <div className="flex items-center gap-3 px-3 py-2.5">
         {/* Drag handle */}
-        <span className="text-gray-300 cursor-grab active:cursor-grabbing text-lg leading-none select-none">
+        <span className="text-muted cursor-grab active:cursor-grabbing text-lg leading-none select-none">
           ⠿
         </span>
 
@@ -773,7 +774,7 @@ function BlockRow({
 
         {/* Times — custom HH:MM text inputs (not native <input type="time">,
             which renders AM/PM in 12-hour locales). Matches the config form. */}
-        <div className="flex items-center gap-1 text-xs text-gray-500 font-mono flex-shrink-0">
+        <div className="flex items-center gap-1 text-xs text-muted font-mono flex-shrink-0">
           <input
             type="text"
             inputMode="numeric"
@@ -782,7 +783,7 @@ function BlockRow({
             maxLength={5}
             value={block.startTime}
             onChange={(e) => onChange({ startTime: e.target.value })}
-            className="border-0 bg-transparent text-xs font-mono w-12 focus:outline-none focus:ring-1 focus:ring-red-600 rounded"
+            className="border-0 bg-transparent text-xs font-mono w-12 focus:outline-none focus:ring-1 focus:ring-accent rounded"
           />
           <span>–</span>
           <input
@@ -793,23 +794,23 @@ function BlockRow({
             maxLength={5}
             value={block.endTime}
             onChange={(e) => onChange({ endTime: e.target.value })}
-            className="border-0 bg-transparent text-xs font-mono w-12 focus:outline-none focus:ring-1 focus:ring-red-600 rounded"
+            className="border-0 bg-transparent text-xs font-mono w-12 focus:outline-none focus:ring-1 focus:ring-accent rounded"
           />
         </div>
 
         {/* Label */}
-        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{block.label}</span>
+        <span className="flex-1 text-sm font-medium text-foreground truncate">{block.label}</span>
 
         {/* Lice badge */}
         {block.liceCount > 0 && (
-          <span className="text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-500 flex-shrink-0">
+          <span className="text-xs bg-surface border border-border rounded-full px-2 py-0.5 text-muted flex-shrink-0">
             {block.liceCount} lice{block.liceCount !== 1 ? 's' : ''}
           </span>
         )}
 
         {/* Warning badge */}
         {warning && (
-          <span className="text-xs bg-amber-100 border border-amber-300 text-amber-700 rounded-full px-2 py-0.5 flex-shrink-0">
+          <span className="text-xs bg-warning/10 border border-warning/30 text-warning rounded-full px-2 py-0.5 flex-shrink-0">
             ⚠ +{warning.overflowMinutes}min
           </span>
         )}
@@ -817,23 +818,23 @@ function BlockRow({
         {/* Expand / remove */}
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-gray-400 hover:text-gray-600 text-xs px-1"
+          className="text-muted hover:text-foreground-secondary text-xs px-1"
         >
           {expanded ? '▲' : '▾'}
         </button>
-        <button onClick={onRemove} className="text-gray-300 hover:text-red-500 text-xs px-1">
+        <button onClick={onRemove} className="text-muted hover:text-danger text-xs px-1">
           ✕
         </button>
       </div>
 
       {/* Warning actions */}
       {warning && (
-        <div className="px-10 pb-2 flex items-center gap-3 text-xs text-amber-700">
+        <div className="px-10 pb-2 flex items-center gap-3 text-xs text-warning">
           <span>{warning.message}.</span>
           <button onClick={onApplyWarning} className="underline hover:no-underline">
             Suggest fit ({warning.suggestedEndTime})
           </button>
-          <button onClick={onDismissWarning} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onDismissWarning} className="text-muted hover:text-foreground-secondary">
             Override
           </button>
         </div>
@@ -845,64 +846,64 @@ function BlockRow({
           {block.blockType === 'competition' && (
             <>
               <label className="flex flex-col gap-0.5">
-                <span className="text-gray-500">Lices</span>
+                <span className="text-muted">Lices</span>
                 <input
                   type="number"
                   min={1}
                   value={block.liceCount}
                   onChange={(e) => onChange({ liceCount: Number(e.target.value) })}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600 w-20"
+                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className="text-gray-500">Match duration (min)</span>
+                <span className="text-muted">Match duration (min)</span>
                 <input
                   type="number"
                   min={1}
                   value={block.matchDurationMinutes}
                   onChange={(e) => onChange({ matchDurationMinutes: Number(e.target.value) })}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600 w-20"
+                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className="text-gray-500">Match gap (sec)</span>
+                <span className="text-muted">Match gap (sec)</span>
                 <input
                   type="number"
                   min={0}
                   value={block.matchGapSeconds}
                   onChange={(e) => onChange({ matchGapSeconds: Number(e.target.value) })}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600 w-20"
+                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className="text-gray-500">Min rest / fighter (min)</span>
+                <span className="text-muted">Min rest / fighter (min)</span>
                 <input
                   type="number"
                   min={0}
                   value={block.minRestMinutes}
                   onChange={(e) => onChange({ minRestMinutes: Number(e.target.value) })}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600 w-20"
+                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
                 />
               </label>
             </>
           )}
           <label className="flex flex-col gap-0.5 col-span-2">
-            <span className="text-gray-500">Label</span>
+            <span className="text-muted">Label</span>
             <input
               type="text"
               value={block.label}
               onChange={(e) => onChange({ label: e.target.value })}
-              className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600"
+              className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </label>
           {block.blockType !== 'competition' && (
             <div className="col-span-2 flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Color</span>
+                <span className="text-muted">Color</span>
                 {block.colorHex ? (
                   <button
                     onClick={() => onChange({ colorHex: null })}
-                    className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
+                    className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
                   >
                     Default
                   </button>

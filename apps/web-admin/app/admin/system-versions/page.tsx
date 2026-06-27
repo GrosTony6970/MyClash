@@ -174,34 +174,36 @@ export default function AdminSystemVersionsPage() {
         : 'admin.systemVersions.actions.restart';
 
   return (
-    <main id="main-content" className="p-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('admin.systemVersions.title')}</h1>
-          <p className="text-slate-500 text-sm mt-1">{t('admin.systemVersions.description')}</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('admin.systemVersions.title')}
+          </h1>
+          <p className="text-muted text-sm mt-1">{t('admin.systemVersions.description')}</p>
         </div>
         <button
           type="button"
           onClick={() => loadVersions({ refresh: true })}
           disabled={loading || refreshing}
-          className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {refreshing ? t('admin.systemVersions.refreshing') : t('admin.systemVersions.refresh')}
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-md px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-slate-400 text-sm">{t('admin.systemVersions.loading')}</p>
+        <p className="text-muted text-sm">{t('admin.systemVersions.loading')}</p>
       ) : versions ? (
         <>
-          <div className="mb-5 text-sm text-slate-500">
-            <span className="font-medium text-slate-700">
+          <div className="mb-5 text-sm text-muted">
+            <span className="font-medium text-foreground-secondary">
               {t('admin.systemVersions.generatedAt')}
             </span>{' '}
             {formatValue(versions.generatedAt, t('admin.systemVersions.unknown'))}
@@ -216,10 +218,10 @@ export default function AdminSystemVersionsPage() {
               return (
                 <section
                   key={group.key}
-                  className="border border-slate-200 rounded-lg overflow-hidden"
+                  className="border border-border rounded-lg overflow-hidden"
                 >
-                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                    <h2 className="text-base font-semibold text-gray-950">
+                  <div className="px-4 py-3 border-b border-border bg-background">
+                    <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                       {translateWithFallback(
                         t,
                         `admin.systemVersions.groups.${group.key}`,
@@ -228,14 +230,14 @@ export default function AdminSystemVersionsPage() {
                     </h2>
                   </div>
                   {group.components.length === 0 ? (
-                    <p className="px-4 py-4 text-sm text-slate-400">
+                    <p className="px-4 py-4 text-sm text-muted">
                       {t('admin.systemVersions.noComponents')}
                     </p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse">
                         <thead>
-                          <tr className="border-b border-slate-100 text-left text-slate-500">
+                          <tr className="border-b border-border text-left text-muted">
                             <th className="py-2 px-4">{t('admin.systemVersions.component')}</th>
                             <th className="py-2 px-4">{t('admin.systemVersions.version')}</th>
                             <th className="py-2 px-4">{t('admin.systemVersions.source')}</th>
@@ -267,20 +269,22 @@ export default function AdminSystemVersionsPage() {
                             return (
                               <tr
                                 key={`${group.key}-${component.key}`}
-                                className="border-b border-slate-50 last:border-0"
+                                className="border-b border-border last:border-0"
                               >
-                                <td className="py-2 px-4 text-slate-800">{componentLabel}</td>
+                                <td className="py-2 px-4 text-foreground-secondary">
+                                  {componentLabel}
+                                </td>
                                 <td
                                   className={
                                     isDeployDate
-                                      ? 'py-2 px-4 text-xs text-slate-700'
-                                      : 'py-2 px-4 font-mono text-xs text-slate-700'
+                                      ? 'py-2 px-4 text-xs text-foreground-secondary'
+                                      : 'py-2 px-4 font-mono text-xs text-foreground-secondary'
                                   }
                                 >
                                   {displayValue}
                                 </td>
                                 <td className="py-2 px-4">
-                                  <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                  <span className="inline-flex rounded-full bg-background px-2 py-0.5 text-xs font-medium text-foreground-secondary">
                                     {component.source}
                                   </span>
                                 </td>
@@ -289,8 +293,8 @@ export default function AdminSystemVersionsPage() {
                                     <span
                                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                                         component.status === 'unknown'
-                                          ? 'bg-amber-100 text-amber-700'
-                                          : 'bg-green-100 text-green-700'
+                                          ? 'bg-warning/10 text-warning'
+                                          : 'bg-success/10 text-success'
                                       }`}
                                     >
                                       {t(
@@ -384,10 +388,10 @@ function ActionButton({
 }) {
   const variantClasses =
     variant === 'primary'
-      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+      ? 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20'
       : variant === 'danger'
-        ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50';
+        ? 'border-border bg-surface text-foreground-secondary hover:bg-background'
+        : 'border-border bg-surface text-foreground-secondary hover:bg-background';
   return (
     <button
       type="button"

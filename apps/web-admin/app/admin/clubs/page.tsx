@@ -797,7 +797,7 @@ export default function AdminClubsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Clubs"
         title={t('admin.clubs.title')}
@@ -806,7 +806,7 @@ export default function AdminClubsPage() {
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900"
+            className="inline-flex items-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover"
           >
             + {t('admin.clubs.create')}
           </button>
@@ -814,58 +814,58 @@ export default function AdminClubsPage() {
       />
 
       {error && (
-        <div className="mb-4 flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger sm:flex-row sm:items-center sm:justify-between">
           <span>{error}</span>
           <button
             type="button"
             onClick={() => void refreshClubs()}
-            className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+            className="w-fit rounded-md border border-danger/30 bg-surface px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10"
           >
             {t('actions.retry')}
           </button>
         </div>
       )}
       {createSuccess && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded-md px-4 py-3 mb-4 text-sm">
+        <div className="bg-success/10 border border-success/30 text-success rounded-md px-4 py-3 mb-4 text-sm">
           {createSuccess}
         </div>
       )}
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-4">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('admin.clubs.requestsTitle')}
             </h2>
-            <p className="text-xs text-slate-500">{t('admin.clubs.requestsDescription')}</p>
+            <p className="text-xs text-muted">{t('admin.clubs.requestsDescription')}</p>
           </div>
           <button
             type="button"
             onClick={() => void refreshRequests()}
             disabled={requestLoading}
-            className="w-fit rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="w-fit rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
           >
             {t('actions.refresh')}
           </button>
         </div>
         {requests.length === 0 ? (
-          <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+          <div className="rounded-md border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-muted">
             {requestLoading ? t('common.loading') : t('admin.clubs.requestsEmpty')}
           </div>
         ) : (
           <div className="space-y-3">
             {requests.map((request) => (
-              <div key={request.id} className="rounded-lg border border-slate-200 p-4">
+              <div key={request.id} className="rounded-lg border border-border p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">
+                    <div className="text-sm font-semibold text-foreground">
                       {request.proposed_club?.name ?? t('admin.clubs.unknownClub')}
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className="mt-1 text-xs text-muted">
                       {request.organization?.name ?? t('common.unknown')} -{' '}
                       {request.event?.name ?? t('common.unknown')}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-foreground-secondary">
                       <span>{request.proposed_club?.abbreviation ?? t('common.none')}</span>
                       <span>{request.proposed_club?.city ?? t('common.none')}</span>
                       <span>{request.proposed_club?.country_code ?? t('common.none')}</span>
@@ -876,7 +876,7 @@ export default function AdminClubsPage() {
                       type="button"
                       onClick={() => void reviewRequest(request.id, 'approve')}
                       disabled={reviewingId === request.id}
-                      className="rounded-md bg-green-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+                      className="rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-white hover:bg-success-hover disabled:opacity-50"
                     >
                       {t('admin.clubs.approveRequest')}
                     </button>
@@ -884,14 +884,14 @@ export default function AdminClubsPage() {
                       type="button"
                       onClick={() => void reviewRequest(request.id, 'reject')}
                       disabled={reviewingId === request.id}
-                      className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                      className="rounded-md border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
                     >
                       {t('admin.clubs.rejectRequest')}
                     </button>
                   </div>
                 </div>
-                <div className="mt-4 rounded-md bg-slate-50 p-3">
-                  <label className="text-xs font-semibold text-slate-600">
+                <div className="mt-4 rounded-md bg-background p-3">
+                  <label className="text-xs font-semibold text-foreground-secondary">
                     {t('admin.clubs.linkSearchLabel')}
                     <div className="mt-1 flex gap-2">
                       <input
@@ -903,12 +903,12 @@ export default function AdminClubsPage() {
                           }))
                         }
                         placeholder={t('admin.clubs.linkSearchPlaceholder')}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        className="w-full rounded-md border border-border px-3 py-2 text-sm"
                       />
                       <button
                         type="button"
                         onClick={() => void searchLinkTarget(request.id)}
-                        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                        className="rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-foreground-secondary hover:bg-background"
                       >
                         {t('actions.search')}
                       </button>
@@ -924,10 +924,10 @@ export default function AdminClubsPage() {
                             type="button"
                             onClick={() => void linkRequest(request.id, club.id)}
                             disabled={reviewingId === request.id}
-                            className="rounded-md border border-slate-200 bg-white p-3 text-left text-xs hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                            className="rounded-md border border-border bg-surface p-3 text-left text-xs hover:border-info/30 hover:bg-info/10 disabled:opacity-50"
                           >
-                            <span className="block font-semibold text-slate-900">{club.name}</span>
-                            <span className="text-slate-500">
+                            <span className="block font-semibold text-foreground">{club.name}</span>
+                            <span className="text-muted">
                               {[club.abbreviation, club.city, club.country_code]
                                 .filter(Boolean)
                                 .join(' - ') || t('common.none')}
@@ -951,13 +951,13 @@ export default function AdminClubsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('admin.clubs.searchPlaceholder')}
-          className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+          className="w-72 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
         {query && (
           <button
             type="button"
             onClick={() => setQuery('')}
-            className="px-2 text-sm text-slate-500 hover:text-slate-700"
+            className="px-2 text-sm text-muted hover:text-foreground-secondary"
           >
             {t('actions.clear')}
           </button>
@@ -980,7 +980,7 @@ export default function AdminClubsPage() {
           type="button"
           onClick={() => setPendingBulk('verify')}
           disabled={bulkBusy}
-          className="rounded-md bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:opacity-50"
+          className="rounded-md bg-success px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-success-hover disabled:opacity-50"
         >
           {t('admin.clubs.bulkVerifyAction')}
         </button>
@@ -988,7 +988,7 @@ export default function AdminClubsPage() {
           type="button"
           onClick={() => setPendingBulk('unverify')}
           disabled={bulkBusy}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-md border border-border bg-surface px-4 py-2 text-xs font-semibold text-foreground-secondary shadow-sm transition-colors hover:bg-background disabled:opacity-50"
         >
           {t('admin.clubs.bulkUnverifyAction')}
         </button>
@@ -996,7 +996,7 @@ export default function AdminClubsPage() {
           type="button"
           onClick={() => setPendingBulk('archive')}
           disabled={bulkBusy}
-          className="rounded-md bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50"
+          className="rounded-md bg-warning px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-warning-hover disabled:opacity-50"
         >
           {t('admin.clubs.bulkArchiveAction')}
         </button>
@@ -1004,7 +1004,7 @@ export default function AdminClubsPage() {
           type="button"
           onClick={() => setPendingBulk('delete')}
           disabled={bulkBusy}
-          className="rounded-md bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+          className="rounded-md bg-danger px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-danger-hover disabled:opacity-50"
         >
           {t('admin.clubs.bulkDeleteAction')}
         </button>
@@ -1012,7 +1012,7 @@ export default function AdminClubsPage() {
           type="button"
           onClick={() => setPendingBulk('cleanup-delete')}
           disabled={bulkBusy}
-          className="rounded-md bg-red-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+          className="rounded-md bg-danger px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-danger-hover disabled:opacity-50"
         >
           {t('admin.clubs.bulkCleanupDeleteAction')}
         </button>
@@ -1024,17 +1024,17 @@ export default function AdminClubsPage() {
             setShowBulkEditModal(true);
           }}
           disabled={bulkBusy}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-md border border-border bg-surface px-4 py-2 text-xs font-semibold text-foreground-secondary shadow-sm transition-colors hover:bg-background disabled:opacity-50"
         >
           {t('admin.clubs.bulkEditAction')}
         </button>
       </BulkActionBar>
 
       {/* Table */}
-      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+      <div className="overflow-x-auto border border-border rounded-lg">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
+            <tr className="bg-background border-b border-border text-left text-muted text-xs uppercase tracking-wide">
               <th className="w-10 px-4 py-3">
                 <input
                   type="checkbox"
@@ -1043,7 +1043,7 @@ export default function AdminClubsPage() {
                     visibleClubs.length > 0 && visibleClubs.every((c) => selection.has(c.id))
                   }
                   onChange={() => selection.toggleAll(visibleClubs.map((c) => c.id))}
-                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                  className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
                 />
               </th>
               <th className="py-3 px-4 w-20">{t('admin.clubs.logo')}</th>
@@ -1099,25 +1099,25 @@ export default function AdminClubsPage() {
           <tbody>
             {visibleClubs.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-slate-400 text-sm">
+                <td colSpan={9} className="py-8 text-center text-muted text-sm">
                   {loading ? t('common.loading') : t('admin.clubs.empty')}
                 </td>
               </tr>
             )}
             {visibleClubs.map((club) =>
               editingId === club.id ? (
-                <tr key={club.id} className="border-b border-slate-100 bg-amber-50">
+                <tr key={club.id} className="border-b border-border bg-warning/10">
                   <td className="px-4 py-2" />
                   <td className="py-2 px-4">
                     <div className="flex items-center gap-2">
                       <LogoButton club={club} onOpen={setLightboxClub} />
-                      <label className="text-[11px] font-medium text-slate-600">
+                      <label className="text-[11px] font-medium text-foreground-secondary">
                         <span className="block">{t('admin.clubs.logoReplace')}</span>
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           onChange={(e) => handleEditLogoFile(e.target.files?.[0] ?? null)}
-                          className="mt-1 block w-40 rounded-md border border-slate-300 px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                          className="mt-1 block w-40 rounded-md border border-border px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-background file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-foreground-secondary hover:file:bg-background"
                         />
                       </label>
                       {editLogoPreviewUrl && (
@@ -1125,7 +1125,7 @@ export default function AdminClubsPage() {
                         <img
                           src={editLogoPreviewUrl}
                           alt={t('admin.clubs.logoPreviewAlt')}
-                          className="h-8 w-8 rounded-md border border-slate-200 bg-white object-contain"
+                          className="h-8 w-8 rounded-md border border-border bg-surface object-contain"
                         />
                       )}
                     </div>
@@ -1135,7 +1135,7 @@ export default function AdminClubsPage() {
                       aria-label={t('admin.clubs.editNameLabel', { club: club.name })}
                       value={editState.name}
                       onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-red-800/30"
+                      className="border border-border rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
                   </td>
                   <td className="py-2 px-4" aria-label={t('admin.clubs.actions')}>
@@ -1147,7 +1147,7 @@ export default function AdminClubsPage() {
                       }
                       placeholder={t('admin.clubs.abbreviationPlaceholder')}
                       maxLength={20}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-red-800/30 uppercase"
+                      className="border border-border rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-accent/30 uppercase"
                     />
                   </td>
                   <td className="py-2 px-4">
@@ -1155,7 +1155,7 @@ export default function AdminClubsPage() {
                       aria-label={t('admin.clubs.editCityLabel', { club: club.name })}
                       value={editState.city}
                       onChange={(e) => setEditState((s) => ({ ...s, city: e.target.value }))}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-800/30"
+                      className="border border-border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
                   </td>
                   <td className="py-2 px-4">
@@ -1167,10 +1167,10 @@ export default function AdminClubsPage() {
                       }
                       placeholder={t('admin.clubs.countryPlaceholder')}
                       maxLength={100}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-800/30"
+                      className="border border-border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
                   </td>
-                  <td className="py-2 px-4 text-xs text-slate-500">
+                  <td className="py-2 px-4 text-xs text-muted">
                     {formatAddedDate(club.created_at)}
                   </td>
                   <td className="py-2 px-4">
@@ -1181,13 +1181,13 @@ export default function AdminClubsPage() {
                       <button
                         onClick={() => void saveEdit(club.id)}
                         disabled={saving}
-                        className="text-xs bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white px-3 py-1 rounded"
+                        className="text-xs bg-accent hover:bg-accent-hover disabled:opacity-50 text-white px-3 py-1 rounded"
                       >
                         {saving ? t('admin.clubs.saving') : t('actions.save')}
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="text-xs text-slate-500 hover:text-slate-700"
+                        className="text-xs text-muted hover:text-foreground-secondary"
                       >
                         {t('actions.cancel')}
                       </button>
@@ -1195,43 +1195,45 @@ export default function AdminClubsPage() {
                   </td>
                 </tr>
               ) : (
-                <tr key={club.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={club.id} className="border-b border-border hover:bg-background">
                   <td className="px-4 py-2.5">
                     <input
                       type="checkbox"
                       aria-label={t('admin.clubs.selectRow', { club: club.name })}
                       checked={selection.has(club.id)}
                       onChange={() => selection.toggle(club.id)}
-                      className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
                     />
                   </td>
                   <td className="py-2.5 px-4">
                     <LogoButton club={club} onOpen={setLightboxClub} />
                   </td>
-                  <td className="py-2.5 px-4 font-medium text-slate-900">{club.name}</td>
+                  <td className="py-2.5 px-4 font-medium text-foreground">{club.name}</td>
                   <td className="py-2.5 px-4">
                     {club.abbreviation ? (
-                      <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-xs">
+                      <span className="font-mono text-foreground-secondary bg-background px-1.5 py-0.5 rounded text-xs">
                         {club.abbreviation}
                       </span>
                     ) : (
-                      <span className="text-slate-300">{t('common.none')}</span>
+                      <span className="text-muted">{t('common.none')}</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-4 text-slate-600">{club.city ?? t('common.none')}</td>
-                  <td className="py-2.5 px-4 text-slate-600">
+                  <td className="py-2.5 px-4 text-foreground-secondary">
+                    {club.city ?? t('common.none')}
+                  </td>
+                  <td className="py-2.5 px-4 text-foreground-secondary">
                     {club.country_code ?? t('common.none')}
                   </td>
-                  <td className="py-2.5 px-4 text-xs text-slate-500">
+                  <td className="py-2.5 px-4 text-xs text-muted">
                     {formatAddedDate(club.created_at)}
                   </td>
                   <td className="py-2.5 px-4">
                     {club.unverified === 'true' ? (
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-warning/10 text-warning px-2 py-0.5 rounded-full">
                         {t('admin.clubs.unverified')}
                       </span>
                     ) : (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
                         {t('admin.clubs.verified')}
                       </span>
                     )}
@@ -1281,14 +1283,14 @@ export default function AdminClubsPage() {
       </div>
 
       {visibleClubs.length > 0 && (
-        <p className="text-xs text-slate-400 mt-2">
+        <p className="text-xs text-muted mt-2">
           {t('admin.clubs.count', { count: visibleClubs.length })}
         </p>
       )}
 
       {lightboxClub && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onClick={() => {
             if (!lightboxBusy) setLightboxClub(null);
           }}
@@ -1297,23 +1299,23 @@ export default function AdminClubsPage() {
           aria-label={t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
         >
           <div
-            className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                 {t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
               </h2>
               <button
                 type="button"
                 onClick={() => setLightboxClub(null)}
                 disabled={lightboxBusy}
-                className="text-sm text-slate-500 hover:text-slate-900 disabled:opacity-50"
+                className="text-sm text-muted hover:text-foreground disabled:opacity-50"
               >
                 {t('actions.close')}
               </button>
             </div>
-            <div className="mb-5 flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-5 flex items-center justify-center rounded-md border border-border bg-background p-4">
               {lightboxClub.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -1323,19 +1325,19 @@ export default function AdminClubsPage() {
                     maxWidth: LIGHTBOX_PREVIEW_SIZE,
                     maxHeight: LIGHTBOX_PREVIEW_SIZE,
                   }}
-                  className="rounded-md bg-white object-contain"
+                  className="rounded-md bg-surface object-contain"
                 />
               ) : (
                 <div
                   style={{ width: LIGHTBOX_PREVIEW_SIZE, height: LIGHTBOX_PREVIEW_SIZE }}
-                  className="flex items-center justify-center rounded-full bg-slate-200 text-3xl font-semibold text-slate-500"
+                  className="flex items-center justify-center rounded-full bg-background text-3xl font-semibold text-muted"
                   aria-label={t('admin.clubs.logoInitialsAlt', { club: lightboxClub.name })}
                 >
                   {initialsFor(lightboxClub)}
                 </div>
               )}
             </div>
-            <label className="block text-xs font-medium text-slate-600">
+            <label className="block text-xs font-medium text-foreground-secondary">
               {lightboxClub.logo_url
                 ? t('admin.clubs.logoReplace')
                 : t('admin.clubs.logoUploadAction')}
@@ -1348,18 +1350,16 @@ export default function AdminClubsPage() {
                   if (file && lightboxClub) void replaceLogoFromLightbox(lightboxClub, file);
                   e.target.value = '';
                 }}
-                className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50"
+                className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background disabled:opacity-50"
               />
-              <span className="mt-1 block text-[11px] text-slate-500">
-                {t('admin.clubs.logoHelp')}
-              </span>
+              <span className="mt-1 block text-[11px] text-muted">{t('admin.clubs.logoHelp')}</span>
             </label>
             {lightboxClub.logo_url && (
               <button
                 type="button"
                 onClick={() => void removeLogoFromLightbox(lightboxClub)}
                 disabled={lightboxBusy}
-                className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
               >
                 {t('admin.clubs.logoRemove')}
               </button>
@@ -1391,44 +1391,44 @@ export default function AdminClubsPage() {
           role="dialog"
           aria-modal="true"
           aria-label={t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget && !bulkBusy) setShowBulkEditModal(false);
           }}
         >
-          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
-            <h2 className="font-display text-xl font-medium tracking-tight text-slate-900">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-2xl">
+            <h2 className="font-display font-semibold text-lg sm:text-xl tracking-tight text-foreground">
               {t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
             </h2>
-            <p className="mt-2 text-xs text-slate-500">{t('admin.clubs.bulkEditEmptyHint')}</p>
-            <label className="mt-4 block text-xs font-medium text-slate-600">
+            <p className="mt-2 text-xs text-muted">{t('admin.clubs.bulkEditEmptyHint')}</p>
+            <label className="mt-4 block text-xs font-medium text-foreground-secondary">
               {t('admin.clubs.bulkEditCityLabel')}
               <input
                 value={bulkEditCity}
                 onChange={(e) => setBulkEditCity(e.target.value)}
                 maxLength={100}
                 placeholder={t('admin.clubs.bulkEditEmptyHint')}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </label>
-            <label className="mt-3 block text-xs font-medium text-slate-600">
+            <label className="mt-3 block text-xs font-medium text-foreground-secondary">
               {t('admin.clubs.bulkEditCountryLabel')}
               <input
                 value={bulkEditCountry}
                 onChange={(e) => setBulkEditCountry(e.target.value)}
                 maxLength={100}
                 placeholder={t('admin.clubs.bulkEditEmptyHint')}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </label>
-            <label className="mt-3 block text-xs font-medium text-slate-600">
+            <label className="mt-3 block text-xs font-medium text-foreground-secondary">
               {t('admin.clubs.bulkEditStatusLabel')}
               <select
                 value={bulkEditStatus}
                 onChange={(e) =>
                   setBulkEditStatus(e.target.value as 'no_change' | 'verified' | 'unverified')
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
               >
                 <option value="no_change">{t('admin.clubs.bulkEditStatusNoChange')}</option>
                 <option value="verified">{t('admin.clubs.bulkEditStatusVerified')}</option>
@@ -1443,7 +1443,7 @@ export default function AdminClubsPage() {
                   setShowBulkEditModal(false);
                   setBulkEditStatus('no_change');
                 }}
-                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
               >
                 {t('actions.cancel')}
               </button>
@@ -1456,7 +1456,7 @@ export default function AdminClubsPage() {
                     bulkEditStatus === 'no_change')
                 }
                 onClick={() => void runBulkEdit()}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 disabled:opacity-50"
+                className="rounded-md bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
               >
                 {t('admin.clubs.bulkEditConfirm', { count: String(selection.count) })}
               </button>
@@ -1471,103 +1471,103 @@ export default function AdminClubsPage() {
           role="dialog"
           aria-modal="true"
           aria-label={t('admin.clubs.createTitle')}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget && !creating) setShowCreateModal(false);
           }}
         >
-          <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-2xl rounded-lg border border-border bg-surface p-6 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-display text-xl font-medium tracking-tight text-slate-900">
+                <h2 className="font-display font-semibold text-lg sm:text-xl tracking-tight text-foreground">
                   {t('admin.clubs.createTitle')}
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">{t('admin.clubs.createDescription')}</p>
+                <p className="mt-1 text-xs text-muted">{t('admin.clubs.createDescription')}</p>
               </div>
               <button
                 type="button"
                 disabled={creating}
                 onClick={() => setShowCreateModal(false)}
-                className="text-sm text-slate-500 hover:text-slate-900 disabled:opacity-50"
+                className="text-sm text-muted hover:text-foreground disabled:opacity-50"
               >
                 {t('actions.close')}
               </button>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-foreground-secondary">
                 {t('admin.clubs.name')} *
                 <input
                   value={createState.name}
                   onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </label>
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-foreground-secondary">
                 {t('admin.clubs.abbreviation')}
                 <input
                   value={createState.abbreviation}
                   onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
                   maxLength={20}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </label>
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-foreground-secondary">
                 {t('admin.clubs.city')}
                 <input
                   value={createState.city}
                   onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </label>
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-foreground-secondary">
                 {t('admin.clubs.country')}
                 <input
                   value={createState.country_code}
                   onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
                   maxLength={100}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </label>
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-foreground-secondary">
                 {t('admin.clubs.website')}
                 <input
                   value={createState.website}
                   onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </label>
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-foreground-secondary">
                 {t('admin.clubs.logoUrl')}
                 <input
                   value={createState.logoUrl}
                   onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </label>
-              <label className="text-xs font-medium text-slate-600 md:col-span-2">
+              <label className="text-xs font-medium text-foreground-secondary md:col-span-2">
                 {t('admin.clubs.logoUpload')}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
-                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
-                <span className="mt-1 block text-[11px] font-normal text-slate-500">
+                <span className="mt-1 block text-[11px] font-normal text-muted">
                   {t('admin.clubs.logoHelp')}
                 </span>
               </label>
               {logoPreviewUrl && (
-                <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+                <div className="flex items-center gap-3 rounded-md border border-border bg-background p-3 md:col-span-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={logoPreviewUrl}
                     alt={t('admin.clubs.logoPreviewAlt')}
-                    className="h-12 w-12 rounded-md border border-slate-200 bg-white object-contain"
+                    className="h-12 w-12 rounded-md border border-border bg-surface object-contain"
                   />
                   <button
                     type="button"
                     onClick={() => handleLogoFile(null)}
-                    className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                    className="text-xs font-semibold text-foreground-secondary hover:text-foreground"
                   >
                     {t('actions.clear')}
                   </button>
@@ -1579,7 +1579,7 @@ export default function AdminClubsPage() {
                 type="button"
                 disabled={creating}
                 onClick={() => setShowCreateModal(false)}
-                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
               >
                 {t('actions.cancel')}
               </button>
@@ -1587,7 +1587,7 @@ export default function AdminClubsPage() {
                 type="button"
                 onClick={() => void createClubFromModal()}
                 disabled={creating || !createState.name.trim()}
-                className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-50"
               >
                 {creating ? t('admin.clubs.creating') : t('admin.clubs.create')}
               </button>
@@ -1681,7 +1681,7 @@ function LogoButton({ club, onOpen }: { club: ClubRow; onOpen: (club: ClubRow) =
     <button
       type="button"
       onClick={() => onOpen(club)}
-      className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white transition hover:border-slate-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+      className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-border bg-surface transition hover:border-border hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
       aria-label={
         club.logo_url
           ? t('admin.clubs.logoLightboxTitle', { club: club.name })
@@ -1692,7 +1692,7 @@ function LogoButton({ club, onOpen }: { club: ClubRow; onOpen: (club: ClubRow) =
         // eslint-disable-next-line @next/next/no-img-element
         <img src={club.logo_url} alt={club.name} className="h-full w-full object-contain" />
       ) : (
-        <span className="text-[11px] font-semibold text-slate-500">{initialsFor(club)}</span>
+        <span className="text-[11px] font-semibold text-muted">{initialsFor(club)}</span>
       )}
     </button>
   );

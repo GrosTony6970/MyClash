@@ -110,14 +110,14 @@ export function PenaltyRulesetForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {validationError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {validationError}
         </div>
       )}
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-foreground-secondary">
             {t('admin.rulesets.nameLabel')}
             <input
               required
@@ -126,38 +126,38 @@ export function PenaltyRulesetForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
             />
           </label>
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-foreground-secondary">
             {t('admin.rulesets.versionLabel')}
             <input
               value={version}
               onChange={(e) => setVersion(e.target.value)}
               disabled={disabled || codeLocked}
               placeholder="2026"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.codeLabel')}
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               disabled={disabled || codeLocked}
               placeholder="my_org_penalties"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>
-          <label className="block text-sm font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.accumulationLabel')}
             <select
               value={accumulationScope}
               onChange={(e) => setAccumulationScope(e.target.value as AccumulationScope)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
             >
               {SCOPE_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -167,7 +167,7 @@ export function PenaltyRulesetForm({
             </select>
           </label>
         </div>
-        <label className="mt-4 block text-sm font-semibold text-slate-700">
+        <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
           {t('admin.rulesets.descriptionLabel')}
           <textarea
             value={description}
@@ -175,28 +175,28 @@ export function PenaltyRulesetForm({
             disabled={disabled}
             maxLength={1000}
             rows={2}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
           />
         </label>
-        <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-foreground-secondary">
           <input
             type="checkbox"
             checked={publicVisibility}
             onChange={(e) => setPublicVisibility(e.target.checked)}
             disabled={disabled}
-            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+            className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
           />
           {t('admin.penaltyRulesets.publicVisibilityLabel')}
         </label>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.penaltyRulesets.cardCostsTitle')}
         </h3>
-        <p className="mb-3 text-xs text-slate-500">{t('admin.penaltyRulesets.cardCostsHelp')}</p>
+        <p className="mb-3 text-xs text-muted">{t('admin.penaltyRulesets.cardCostsHelp')}</p>
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="block text-xs font-semibold text-slate-700">
+          <label className="block text-xs font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.yellowCardPoints')}
             <input
               type="number"
@@ -204,10 +204,10 @@ export function PenaltyRulesetForm({
               value={yellowCardPoints}
               onChange={(e) => setYellowCardPoints(Number.parseInt(e.target.value, 10) || 0)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>
-          <label className="block text-xs font-semibold text-slate-700">
+          <label className="block text-xs font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.redCardPoints')}
             <input
               type="number"
@@ -215,10 +215,10 @@ export function PenaltyRulesetForm({
               value={redCardPoints}
               onChange={(e) => setRedCardPoints(Number.parseInt(e.target.value, 10) || 0)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>
-          <label className="block text-xs font-semibold text-slate-700">
+          <label className="block text-xs font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.blackCardPoints')}
             <input
               type="number"
@@ -226,18 +226,18 @@ export function PenaltyRulesetForm({
               value={blackCardPoints}
               onChange={(e) => setBlackCardPoints(Number.parseInt(e.target.value, 10) || 0)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <label className="block text-xs font-semibold text-slate-700">
+          <label className="block text-xs font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.firstBlackCardForfeit')}
             <select
               value={firstBlackCardForfeit}
               onChange={(e) => setFirstBlackCardForfeit(e.target.value as BlackCardForfeitScope)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
             >
               {FORFEIT_SCOPE_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -246,13 +246,13 @@ export function PenaltyRulesetForm({
               ))}
             </select>
           </label>
-          <label className="block text-xs font-semibold text-slate-700">
+          <label className="block text-xs font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.secondBlackCardForfeit')}
             <select
               value={secondBlackCardForfeit}
               onChange={(e) => setSecondBlackCardForfeit(e.target.value as BlackCardForfeitScope)}
               disabled={disabled}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
             >
               {FORFEIT_SCOPE_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -265,10 +265,10 @@ export function PenaltyRulesetForm({
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.penaltyRulesets.entriesTitle')}
         </h3>
-        <p className="mb-2 text-xs text-slate-500">{t('admin.penaltyRulesets.entriesHelp')}</p>
+        <p className="mb-2 text-xs text-muted">{t('admin.penaltyRulesets.entriesHelp')}</p>
         <PenaltyEntriesEditor value={entries} disabled={disabled} onChange={setEntries} />
       </div>
 
@@ -276,7 +276,7 @@ export function PenaltyRulesetForm({
         <button
           type="submit"
           disabled={disabled || busy}
-          className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {busy ? t('admin.rulesets.saving') : submitLabel}
         </button>
@@ -284,7 +284,7 @@ export function PenaltyRulesetForm({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
           >
             {t('admin.rulesets.cancel')}
           </button>

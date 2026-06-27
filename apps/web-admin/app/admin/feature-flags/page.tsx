@@ -105,7 +105,7 @@ export default function AdminFeatureFlagsPage() {
   }, []);
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Flags"
         title={t('admin.featureFlags.title')}
@@ -113,13 +113,13 @@ export default function AdminFeatureFlagsPage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">{t('admin.featureFlags.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.featureFlags.loading')}</p>
       ) : (
         <div className="space-y-6">
           {GROUP_ORDER.map((group) => {
@@ -127,11 +127,11 @@ export default function AdminFeatureFlagsPage() {
             if (!defs.length) return null;
             return (
               <section key={group}>
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                   {t(`admin.featureFlags.groups.${group}`)}
                 </h2>
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <ul className="divide-y divide-slate-100">
+                <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+                  <ul className="divide-y divide-border">
                     {defs.map((def) => (
                       <FlagItem
                         key={def.key}
@@ -148,8 +148,8 @@ export default function AdminFeatureFlagsPage() {
             );
           })}
           {grouped.ungrouped.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              <ul className="divide-y divide-slate-100">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+              <ul className="divide-y divide-border">
                 {grouped.ungrouped.map((def) => (
                   <FlagItem
                     key={def.key}
@@ -204,10 +204,12 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
     <li className="flex flex-col gap-3 p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-base font-semibold text-slate-900">{t(def.labelKey)}</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{t(def.descriptionKey)}</p>
+          <p className="text-base font-semibold text-foreground">{t(def.labelKey)}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground-secondary">
+            {t(def.descriptionKey)}
+          </p>
           {row?.updated_at && (
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-muted">
               {t('admin.featureFlags.lastUpdated', {
                 date: new Date(row.updated_at).toLocaleString('fr-FR'),
               })}
@@ -224,13 +226,13 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
           }
           disabled={busy}
           className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-            enabled ? 'bg-green-600' : 'bg-slate-300'
+            enabled ? 'bg-success' : 'bg-border'
           }`}
           aria-pressed={enabled}
           aria-label={enabled ? t('admin.featureFlags.disable') : t('admin.featureFlags.enable')}
         >
           <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+            className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow transition-transform ${
               enabled ? 'translate-x-6' : 'translate-x-1'
             }`}
           />
@@ -238,23 +240,23 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
       </div>
 
       {hasBannerPayload && (
-        <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+        <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
+          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
             {t('admin.featureFlags.maintenanceBanner.messageLabel')}
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={2}
               placeholder={t('admin.featureFlags.maintenanceBanner.messagePlaceholder')}
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900"
+              className="rounded border border-border bg-surface px-2 py-1 text-sm text-foreground"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
             {t('admin.featureFlags.maintenanceBanner.severityLabel')}
             <select
               value={severity}
               onChange={(e) => setSeverity(e.target.value as MaintenanceBannerSeverity)}
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900"
+              className="rounded border border-border bg-surface px-2 py-1 text-sm text-foreground"
             >
               <option value="info">{t('admin.featureFlags.maintenanceBanner.severityInfo')}</option>
               <option value="warning">
@@ -269,7 +271,7 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
             type="button"
             disabled={busy || !dirty}
             onClick={() => void onSave(def.key, { enabled, payloadJson: { message, severity } })}
-            className="h-9 rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition-opacity disabled:opacity-40"
+            className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {t('admin.featureFlags.maintenanceBanner.saveButton')}
           </button>

@@ -53,7 +53,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
   return (
     <main
       id="main-content"
-      className={`mx-auto w-full px-6 py-12 lg:px-8 ${step === 3 ? 'max-w-5xl' : 'max-w-3xl'}`}
+      className={`mx-auto w-full px-6 py-12 lg:px-8 ${step === 3 ? 'max-w-5xl' : 'max-w-2xl'}`}
     >
       <AdminPageHeader
         eyebrow={t('organizer.tournaments.wizard.eyebrow')}
@@ -67,10 +67,10 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
             className={[
               'flex items-center gap-1 px-3 py-1.5 rounded-full',
               s.n === step
-                ? 'bg-red-800 text-white'
+                ? 'bg-accent text-accent-foreground'
                 : s.n < step
-                  ? 'bg-slate-200 text-slate-700 cursor-pointer'
-                  : 'bg-slate-100 text-slate-400',
+                  ? 'bg-border text-foreground-secondary cursor-pointer'
+                  : 'bg-background text-muted',
             ].join(' ')}
             onClick={() => s.n < step && setStep(s.n)}
           >
@@ -82,7 +82,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
         ))}
       </ol>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-surface p-6 shadow-sm">
         {step === 1 && (
           <Step1Basics
             eventId={eventId}
@@ -112,7 +112,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
       <button
         type="button"
         onClick={() => router.push(`/org/${slug}/events/${eventId}/tournaments`)}
-        className="mt-4 text-xs text-slate-500 hover:text-slate-700"
+        className="mt-4 text-xs text-muted hover:text-foreground-secondary"
       >
         {t('actions.cancel')}
       </button>

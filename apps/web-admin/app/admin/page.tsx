@@ -172,14 +172,14 @@ export default function SuperAdminDashboardPage() {
   }, [stats, t]);
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.dashboard.eyebrow')}
         title={t('admin.dashboard.title')}
         subtitle={t('admin.dashboard.description')}
         actions={
           stats ? (
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted">
               {t('admin.dashboard.statsUpdated', {
                 date: new Date(stats.generatedAt).toLocaleString('fr-FR'),
               })}
@@ -190,11 +190,11 @@ export default function SuperAdminDashboardPage() {
 
       <section className="mb-12">
         {loadingStats ? (
-          <p className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+          <p className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-muted">
             {t('admin.dashboard.statsLoading')}
           </p>
         ) : statsError ? (
-          <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {statsError}
           </p>
         ) : stats ? (
@@ -202,10 +202,10 @@ export default function SuperAdminDashboardPage() {
             {metricSections.map((section, sectionIdx) => (
               <div key={section.headingKey} className={sectionIdx === 0 ? '' : 'mt-10'}>
                 <div className="mb-4 flex items-center gap-3">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-accent">
                     {t(section.headingKey)}
                   </h2>
-                  <FoilMark className="text-slate-300" width={32} />
+                  <FoilMark className="text-muted" width={32} />
                 </div>
                 <StatsGrid cols={3}>
                   {section.cards.map((card, cardIdx) => (
@@ -221,7 +221,7 @@ export default function SuperAdminDashboardPage() {
                 </StatsGrid>
               </div>
             ))}
-            <div className="mt-10 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="mt-10 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
               {t('admin.dashboard.statsRecent', {
                 days: stats.recent.days,
                 organizations: stats.recent.newOrganizations,

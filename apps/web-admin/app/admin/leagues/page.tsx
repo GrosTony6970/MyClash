@@ -141,7 +141,7 @@ export default function AdminLeaguesPage() {
   } = useSortableList(leagues, getLeagueSortValue);
 
   return (
-    <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Leagues"
         title="Leagues"
@@ -149,7 +149,7 @@ export default function AdminLeaguesPage() {
         actions={
           <Link
             href="/admin/leagues/new"
-            className="inline-flex items-center rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900"
+            className="inline-flex items-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover"
           >
             + Create league
           </Link>
@@ -157,12 +157,12 @@ export default function AdminLeaguesPage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <div className="mb-4 inline-flex rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+      <div className="mb-4 inline-flex rounded-md border border-border bg-surface p-1 shadow-sm">
         {(
           [
             ['list', 'League list'],
@@ -175,7 +175,9 @@ export default function AdminLeaguesPage() {
             onClick={() => setTab(value)}
             className={[
               'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
-              tab === value ? 'bg-red-800 text-white' : 'text-slate-600 hover:bg-slate-100',
+              tab === value
+                ? 'bg-accent text-white'
+                : 'text-foreground-secondary hover:bg-background',
             ].join(' ')}
           >
             {label}
@@ -184,10 +186,10 @@ export default function AdminLeaguesPage() {
       </div>
 
       {tab === 'ranking' && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full min-w-[820px] text-sm border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 w-16">Logo</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Year</th>
@@ -200,30 +202,30 @@ export default function AdminLeaguesPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-sm text-muted">
                     Loading…
                   </td>
                 </tr>
               )}
               {!loading && leagues.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-sm text-muted">
                     No leagues yet.
                   </td>
                 </tr>
               )}
               {leagues.map((league) => (
-                <tr key={league.id} className="border-b border-slate-100">
+                <tr key={league.id} className="border-b border-border">
                   <td className="px-4 py-3">
                     {league.logo_url ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src={league.logo_url}
                         alt={league.name}
-                        className="h-9 w-9 rounded-md border border-slate-200 bg-white object-contain"
+                        className="h-9 w-9 rounded-md border border-border bg-surface object-contain"
                       />
                     ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-[11px] font-semibold text-muted">
                         {initialsFor(league.name)}
                       </div>
                     )}
@@ -231,23 +233,23 @@ export default function AdminLeaguesPage() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/leagues/${league.id}/ranking`}
-                      className="font-medium text-red-800 hover:underline"
+                      className="font-medium text-accent hover:underline"
                     >
                       {league.name}
                     </Link>
-                    <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
+                    <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
                   </td>
-                  <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
-                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-foreground-secondary">{league.season_year}</td>
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                     {league.event_count ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                     {league.tournament_count ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                     {league.group_count ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                     {league.fighter_count ?? 0}
                   </td>
                 </tr>
@@ -258,10 +260,10 @@ export default function AdminLeaguesPage() {
       )}
 
       {tab === 'list' && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full min-w-[920px] text-sm border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3 w-16">Logo</th>
                 <th className="px-4 py-3">
                   <SortableHeader
@@ -325,43 +327,43 @@ export default function AdminLeaguesPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-sm text-muted">
                     Loading…
                   </td>
                 </tr>
               )}
               {!loading && leagues.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-sm text-muted">
                     No leagues yet. Click <strong>Create league</strong> to add one.
                   </td>
                 </tr>
               )}
               {visibleLeagues.map((league) => (
-                <tr key={league.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={league.id} className="border-b border-border hover:bg-background">
                   <td className="px-4 py-3">
                     {league.logo_url ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src={league.logo_url}
                         alt={league.name}
-                        className="h-9 w-9 rounded-md border border-slate-200 bg-white object-contain"
+                        className="h-9 w-9 rounded-md border border-border bg-surface object-contain"
                       />
                     ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-[11px] font-semibold text-muted">
                         {initialsFor(league.name)}
                       </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{league.name}</p>
-                    <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
+                    <p className="font-medium text-foreground">{league.name}</p>
+                    <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
                   </td>
-                  <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
-                  <td className="px-4 py-3 text-slate-700">
+                  <td className="px-4 py-3 text-foreground-secondary">{league.season_year}</td>
+                  <td className="px-4 py-3 text-foreground-secondary">
                     {formatCategory(league.scoring_config?.rankingDimensions)}
                   </td>
-                  <td className="px-4 py-3 text-slate-700">
+                  <td className="px-4 py-3 text-foreground-secondary">
                     {formatScoringSystem(league.scoring_system)}
                   </td>
                   <td className="px-4 py-3">
@@ -369,16 +371,16 @@ export default function AdminLeaguesPage() {
                       className={[
                         'rounded-full px-2 py-0.5 text-xs font-semibold',
                         league.status === 'published'
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-success/10 text-success'
                           : league.status === 'archived'
-                            ? 'bg-slate-200 text-slate-600'
-                            : 'bg-amber-100 text-amber-700',
+                            ? 'bg-background text-foreground-secondary'
+                            : 'bg-warning/10 text-warning',
                       ].join(' ')}
                     >
                       {league.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-foreground-secondary">
                     {league.public_visibility ? 'Yes' : 'No'}
                   </td>
                   <td className="px-4 py-3">

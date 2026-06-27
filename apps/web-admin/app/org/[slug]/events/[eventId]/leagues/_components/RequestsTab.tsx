@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { useConfirm } from '@myclash/ui';
+import { useConfirm, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
 
 interface League {
   id: string;
@@ -167,15 +167,12 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
     return t('admin.leagues.myRequests.statusRejected');
   };
 
-  const statusBadgeClass = (status: Attachment['status']) => {
-    if (status === 'requested') return 'bg-amber-100 text-amber-800';
-    if (status === 'approved') return 'bg-emerald-100 text-emerald-800';
-    return 'bg-rose-100 text-rose-800';
-  };
+  const statusBadgeClass = (status: Attachment['status']) =>
+    statusPillTone(reviewStatusSemantic(status), 'light').className;
 
   return (
     <div className="space-y-8">
-      <section className="max-w-xl border border-gray-200 rounded-lg p-5">
+      <section className="max-w-xl border border-border rounded-lg p-5">
         <label className="block text-sm font-medium mb-2" htmlFor="league">
           {t('admin.leagues.league')}
         </label>
@@ -239,28 +236,28 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
         )}
 
         <button
-          className="bg-gray-950 text-white rounded px-4 py-2 text-sm disabled:opacity-50"
+          className="bg-strong text-strong-foreground rounded px-4 py-2 text-sm disabled:opacity-50"
           onClick={submit}
           disabled={submitBlocked || !leagueId || !tournamentId}
         >
           {t('admin.leagues.submitRequest')}
         </button>
         {submitBlocked && (
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-muted mt-2">
             {selectedBlockedStatus === 'requested'
               ? t('admin.leagues.myRequests.alreadyRequested')
               : t('admin.leagues.myRequests.alreadyAttached')}
           </p>
         )}
-        {message && <p className="text-sm text-gray-600 mt-4">{message}</p>}
+        {message && <p className="text-sm text-foreground-secondary mt-4">{message}</p>}
       </section>
 
       <section className="max-w-3xl">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
           {t('admin.leagues.myRequests.existingTitle')}
         </h2>
         {attachments.length === 0 ? (
-          <p className="text-sm text-gray-500">{t('admin.leagues.myRequests.empty')}</p>
+          <p className="text-sm text-muted">{t('admin.leagues.myRequests.empty')}</p>
         ) : (
           <ul className="space-y-2">
             {attachments.map((a) => {
@@ -272,21 +269,21 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
               return (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3"
+                  className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
+                    <p className="font-medium text-foreground truncate">
                       {a.tournaments?.name ?? '—'} → {a.leagues?.name ?? '—'}
                     </p>
                     {a.league_groups?.name && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted">
                         {t('admin.leagues.myRequests.group')}: {a.league_groups.name}
                       </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(a.status)}`}
+                      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(a.status)}`}
                     >
                       {statusLabel(a.status)}
                     </span>
@@ -295,7 +292,7 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
                         type="button"
                         onClick={() => void detach(a)}
                         disabled={busyDetach === a.id}
-                        className="text-xs rounded-md border border-gray-300 px-2.5 py-1 hover:bg-gray-50 disabled:opacity-50"
+                        className="text-xs rounded-md border border-border px-2.5 py-1 hover:bg-background disabled:opacity-50"
                       >
                         {actionLabel}
                       </button>

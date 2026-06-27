@@ -42,17 +42,17 @@ export default function NewPenaltyRulesetPage() {
   return (
     <main className="max-w-5xl p-8">
       <div className="mb-2 text-sm">
-        <Link href="/admin/rulesets/penalty" className="text-slate-500 hover:underline">
+        <Link href="/admin/rulesets/penalty" className="text-muted hover:underline">
           {t('admin.rulesets.backToList')}
         </Link>
       </div>
-      <h1 className="mb-1 text-2xl font-bold text-slate-900">
+      <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.penaltyRulesets.createTitle')}
       </h1>
-      <p className="mb-6 text-sm text-slate-500">{t('admin.penaltyRulesets.createDescription')}</p>
+      <p className="mb-6 text-sm text-muted">{t('admin.penaltyRulesets.createDescription')}</p>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}

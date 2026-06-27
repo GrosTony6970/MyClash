@@ -116,10 +116,13 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm text-center">
-        <h1 className="text-2xl font-bold mb-4">
+        <h1 className="font-display font-bold text-2xl sm:text-3xl mb-4">
           {error ? t('auth.oauth.errorTitle') : t('auth.oauth.completing')}
         </h1>
-        <p className={error ? 'text-red-600' : 'text-gray-600'} role={error ? 'alert' : undefined}>
+        <p
+          className={error ? 'text-danger' : 'text-foreground-secondary'}
+          role={error ? 'alert' : undefined}
+        >
           {error ?? t('auth.oauth.wait')}
         </p>
       </div>

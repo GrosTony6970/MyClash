@@ -199,38 +199,43 @@ export default function PoolPopulatorPage() {
   }
 
   return (
-    <main className="p-8 max-w-5xl">
+    <main className="mx-auto p-8 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="flex items-center gap-2 text-sm text-muted mb-1">
+            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link
+              href={`/org/${slug}/events/${eventId}`}
+              className="hover:text-foreground-secondary"
+            >
               Event
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Pool populator</span>
+            <span className="text-foreground font-medium">Pool populator</span>
           </div>
-          <h1 className="text-2xl font-bold">Pool populator</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Pool populator</h1>
         </div>
         <Link
           href={`/org/${slug}/events/${eventId}/pools`}
-          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+          className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >
           ← Pools
         </Link>
       </div>
 
       {/* Config panel */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
-        <h2 className="text-sm font-bold text-gray-700 mb-4">Configuration</h2>
+      <div className="bg-background border border-border rounded-xl p-5 mb-6">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground-secondary mb-4">
+          Configuration
+        </h2>
         <div className="flex flex-wrap gap-6 items-end">
           {/* Mode */}
           <div>
-            <p className="text-xs font-medium text-gray-600 mb-2">Size mode</p>
+            <p className="text-xs font-medium text-foreground-secondary mb-2">Size mode</p>
             <div className="flex gap-2">
               {(['targetSize', 'poolCount'] as const).map((m) => (
                 <button
@@ -239,8 +244,8 @@ export default function PoolPopulatorPage() {
                   className={[
                     'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
                     mode === m
-                      ? 'bg-red-700 text-white border-red-700'
-                      : 'bg-white text-gray-700 border-gray-300',
+                      ? 'bg-accent text-accent-foreground border-accent'
+                      : 'bg-surface text-foreground-secondary border-border',
                   ].join(' ')}
                 >
                   {m === 'targetSize' ? 'Target size' : 'Pool count'}
@@ -251,7 +256,7 @@ export default function PoolPopulatorPage() {
 
           {/* Value */}
           <div>
-            <p className="text-xs font-medium text-gray-600 mb-2">
+            <p className="text-xs font-medium text-foreground-secondary mb-2">
               {mode === 'targetSize' ? 'Fighters per pool' : 'Number of pools'}
             </p>
             <div className="flex items-center gap-2">
@@ -261,7 +266,7 @@ export default function PoolPopulatorPage() {
                     ? setTargetSize((v) => Math.max(2, v - 1))
                     : setPoolCount((v) => Math.max(1, v - 1))
                 }
-                className="w-8 h-8 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold"
+                className="w-8 h-8 rounded-lg border border-border text-foreground-secondary hover:bg-background font-bold"
               >
                 −
               </button>
@@ -274,7 +279,7 @@ export default function PoolPopulatorPage() {
                     ? setTargetSize((v) => Math.min(20, v + 1))
                     : setPoolCount((v) => v + 1)
                 }
-                className="w-8 h-8 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold"
+                className="w-8 h-8 rounded-lg border border-border text-foreground-secondary hover:bg-background font-bold"
               >
                 +
               </button>
@@ -305,19 +310,19 @@ export default function PoolPopulatorPage() {
 
           {/* Seed */}
           <div>
-            <p className="text-xs font-medium text-gray-600 mb-2">PRNG seed</p>
+            <p className="text-xs font-medium text-foreground-secondary mb-2">PRNG seed</p>
             <input
               type="number"
               value={seed}
               onChange={(e) => setSeed(parseInt(e.target.value) || 42)}
-              className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-20 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
 
           <button
             onClick={() => void generate()}
             disabled={generating}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+            className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
           >
             {generating ? 'Generating…' : 'Generate'}
           </button>
@@ -325,7 +330,7 @@ export default function PoolPopulatorPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
@@ -333,7 +338,7 @@ export default function PoolPopulatorPage() {
       {/* Proposal stats */}
       {proposal && pools && (
         <>
-          <div className="flex items-center gap-4 mb-4 text-sm text-gray-500">
+          <div className="flex items-center gap-4 mb-4 text-sm text-muted">
             <span>
               {proposal.poolCount} pools · {proposal.fighterCount} fighters
             </span>
@@ -342,9 +347,7 @@ export default function PoolPopulatorPage() {
             {proposal.violations.length > 0 && (
               <>
                 <span>·</span>
-                <span className="text-orange-600 font-medium">
-                  ⚠ {proposal.violations.join(', ')}
-                </span>
+                <span className="text-warning font-medium">⚠ {proposal.violations.join(', ')}</span>
               </>
             )}
           </div>
@@ -356,13 +359,15 @@ export default function PoolPopulatorPage() {
               return (
                 <div
                   key={pool.poolIndex}
-                  className="border-2 border-gray-200 rounded-xl p-4"
+                  className="border-2 border-border rounded-xl p-4"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDrop(pool.poolIndex)}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-gray-900">{pool.name}</h3>
-                    <span className="text-xs text-gray-400">{pool.matchCount} matches</span>
+                    <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+                      {pool.name}
+                    </h3>
+                    <span className="text-xs text-muted">{pool.matchCount} matches</span>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {pool.fighters.map((f) => (
@@ -381,8 +386,8 @@ export default function PoolPopulatorPage() {
                         className={[
                           'flex items-center justify-between border rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing transition-colors',
                           sameClub.has(f.registrationId)
-                            ? 'border-orange-300 bg-orange-50 text-orange-800'
-                            : 'border-gray-200 bg-white hover:border-gray-300',
+                            ? 'border-warning/30 bg-warning/10 text-warning'
+                            : 'border-border bg-surface hover:border-muted',
                         ].join(' ')}
                         title={
                           sameClub.has(f.registrationId)
@@ -393,14 +398,14 @@ export default function PoolPopulatorPage() {
                         <div className="flex min-w-0 flex-col">
                           <span className="truncate font-medium">{f.displayName ?? '—'}</span>
                           {f.clubAbbrev && (
-                            <span className="truncate text-xs text-gray-500">{f.clubAbbrev}</span>
+                            <span className="truncate text-xs text-muted">{f.clubAbbrev}</span>
                           )}
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">
                           {sameClub.has(f.registrationId) && (
-                            <span className="text-xs text-orange-500">⚠ club</span>
+                            <span className="text-xs text-warning">⚠ club</span>
                           )}
-                          <span className="text-xs text-gray-400">#{f.seed}</span>
+                          <span className="text-xs text-muted">#{f.seed}</span>
                         </div>
                       </div>
                     ))}
@@ -413,12 +418,12 @@ export default function PoolPopulatorPage() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             {saved ? (
-              <span className="text-sm text-green-600 font-medium">✓ Saved to database</span>
+              <span className="text-sm text-success font-medium">✓ Saved to database</span>
             ) : (
               <button
                 onClick={() => void save()}
                 disabled={saving}
-                className="bg-green-700 hover:bg-green-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
+                className="bg-success hover:bg-success-hover disabled:opacity-50 text-success-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
               >
                 {saving ? 'Saving…' : 'Accept & Save'}
               </button>
@@ -426,7 +431,7 @@ export default function PoolPopulatorPage() {
             <button
               onClick={() => void generate()}
               disabled={generating}
-              className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
             >
               Regenerate
             </button>
@@ -435,8 +440,8 @@ export default function PoolPopulatorPage() {
       )}
 
       {!proposal && !generating && (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">
+        <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+          <p className="text-muted text-sm">
             Configure above and click Generate to see a proposal.
           </p>
         </div>

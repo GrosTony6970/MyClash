@@ -172,7 +172,7 @@ export function PenaltyEntriesEditor({ value, disabled, onChange }: Props) {
   return (
     <div className="space-y-4">
       {grouped.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm italic text-slate-500">
+        <div className="rounded-md border border-dashed border-border bg-background px-4 py-6 text-center text-sm italic text-muted">
           {t('admin.penaltyRulesets.entriesEmpty')}
         </div>
       ) : (
@@ -197,12 +197,12 @@ export function PenaltyEntriesEditor({ value, disabled, onChange }: Props) {
           />
         ))
       )}
-      <div className="border-t border-slate-200 pt-3">
+      <div className="border-t border-border pt-3">
         <button
           type="button"
           onClick={addGroup}
           disabled={disabled}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
         >
           + {t('admin.penaltyRulesets.addGroup') || 'Add group'}
         </button>
@@ -253,12 +253,12 @@ function GroupSection(props: GroupSectionProps) {
 
   return (
     <section
-      className="rounded-md border border-slate-200 bg-white shadow-sm"
+      className="rounded-md border border-border bg-surface shadow-sm"
       onDragOver={(e) => e.preventDefault()}
       onDrop={onGroupDrop}
     >
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2">
-        <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-mono font-semibold text-slate-700">
+      <header className="flex items-center gap-3 border-b border-border bg-background px-3 py-2">
+        <span className="rounded bg-border px-2 py-0.5 text-xs font-mono font-semibold text-foreground-secondary">
           {t('admin.penaltyRulesets.groupHeader')?.replace('{n}', String(groupNumber)) ||
             `Group ${groupNumber}`}
         </span>
@@ -268,9 +268,9 @@ function GroupSection(props: GroupSectionProps) {
           disabled={disabled}
           onChange={(e) => onLabelChange(e.target.value)}
           placeholder={t('admin.penaltyRulesets.groupLabelPlaceholder') || 'Label (optional)'}
-          className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100"
+          className="flex-1 rounded-md border border-border px-2 py-1 text-sm disabled:bg-background"
         />
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-muted">
           {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
         </span>
       </header>
@@ -278,7 +278,7 @@ function GroupSection(props: GroupSectionProps) {
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-border bg-background/50 text-left text-xs font-semibold uppercase tracking-wider text-muted">
               <th className="w-8 px-2 py-2" aria-label="Drag handle" />
               <th className="w-24 px-3 py-2">{t('admin.penaltyRulesets.colRef')}</th>
               <th className="w-48 px-3 py-2">{t('admin.penaltyRulesets.colShortName')}</th>
@@ -308,12 +308,12 @@ function GroupSection(props: GroupSectionProps) {
         </table>
       </div>
 
-      <div className="border-t border-slate-200 px-3 py-2">
+      <div className="border-t border-border px-3 py-2">
         <button
           type="button"
           onClick={onAddRow}
           disabled={disabled}
-          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground-secondary hover:bg-background disabled:opacity-50"
         >
           + {t('admin.penaltyRulesets.addEntry')}
         </button>
@@ -369,11 +369,11 @@ function PenaltyRow(props: RowProps) {
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      className={['border-b border-slate-100 last:border-b-0', isDragging ? 'opacity-40' : ''].join(
+      className={['border-b border-border last:border-b-0', isDragging ? 'opacity-40' : ''].join(
         ' ',
       )}
     >
-      <td className="px-2 py-2 text-center text-slate-300 cursor-grab active:cursor-grabbing select-none">
+      <td className="px-2 py-2 text-center text-muted cursor-grab active:cursor-grabbing select-none">
         ⠿
       </td>
       <td className="px-3 py-2">
@@ -383,7 +383,7 @@ function PenaltyRow(props: RowProps) {
           disabled={disabled}
           maxLength={20}
           onChange={(e) => onUpdate({ refNumber: e.target.value })}
-          className="w-full rounded-md border border-slate-300 px-2 py-1 font-mono text-sm disabled:bg-slate-100"
+          className="w-full rounded-md border border-border px-2 py-1 font-mono text-sm disabled:bg-background"
         />
       </td>
       <td className="px-3 py-2">
@@ -392,7 +392,7 @@ function PenaltyRow(props: RowProps) {
           value={entry.shortName}
           disabled={disabled}
           onChange={(e) => onUpdate({ shortName: e.target.value })}
-          className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100"
+          className="w-full rounded-md border border-border px-2 py-1 text-sm disabled:bg-background"
         />
       </td>
       <td className="px-3 py-2 align-top">
@@ -402,7 +402,7 @@ function PenaltyRow(props: RowProps) {
           value={entry.description}
           disabled={disabled}
           onChange={(e) => onUpdate({ description: e.target.value })}
-          className="w-full resize-none overflow-hidden rounded-md border border-slate-300 px-2 py-1 text-sm leading-snug disabled:bg-slate-100"
+          className="w-full resize-none overflow-hidden rounded-md border border-border px-2 py-1 text-sm leading-snug disabled:bg-background"
         />
       </td>
       <td className="px-3 py-2">
@@ -415,7 +415,7 @@ function PenaltyRow(props: RowProps) {
             />
           ))}
           {entry.sanctions.length === 0 && (
-            <span className="text-xs italic text-slate-400">
+            <span className="text-xs italic text-muted">
               {t('admin.penaltyRulesets.sanctionsEmpty')}
             </span>
           )}
@@ -436,7 +436,7 @@ function PenaltyRow(props: RowProps) {
               type="button"
               onClick={onPopSanction}
               disabled={disabled || entry.sanctions.length === 0}
-              className="rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+              className="rounded border border-border px-1.5 py-0.5 text-xs text-foreground-secondary hover:bg-background disabled:opacity-40"
               title={t('admin.penaltyRulesets.popSanction')}
             >
               −
@@ -449,7 +449,7 @@ function PenaltyRow(props: RowProps) {
           type="button"
           onClick={onRemove}
           disabled={disabled}
-          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
+          className="rounded p-1 text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-40"
           title={t('admin.penaltyRulesets.removeEntry')}
         >
           ✕

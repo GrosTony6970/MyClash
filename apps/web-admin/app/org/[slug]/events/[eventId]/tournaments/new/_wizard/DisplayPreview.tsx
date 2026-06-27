@@ -58,7 +58,7 @@ export function DisplayPreview({
 
   return (
     <aside className="mt-6 lg:mt-0 lg:sticky lg:top-6 lg:self-start">
-      <p className="mb-2 text-xs font-medium text-slate-600">
+      <p className="mb-2 text-xs font-medium text-foreground-secondary">
         {t('organizer.tournaments.wizard.displayPreviewTitle')}
       </p>
       <div className="rounded-xl border border-slate-200 bg-slate-900 p-3 shadow-sm">

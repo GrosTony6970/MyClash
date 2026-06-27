@@ -310,41 +310,39 @@ export default function NewLeaguePage() {
   return (
     <main className="p-8 max-w-4xl">
       <div className="mb-2 text-sm">
-        <Link href="/admin/leagues" className="text-slate-500 hover:underline">
+        <Link href="/admin/leagues" className="text-muted hover:underline">
           Back to leagues
         </Link>
       </div>
-      <h1 className="text-2xl font-bold mb-6">Create league</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">Create league</h1>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Basics
-        </h2>
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">Basics</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             Name *
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             Year *
             <input
               type="number"
               value={seasonYear}
               onChange={(e) => setSeasonYear(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+          <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
             Slug *
             <input
               value={slug}
@@ -352,51 +350,51 @@ export default function NewLeaguePage() {
                 setSlug(e.target.value);
                 setSlugDetached(true);
               }}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
-            <span className="mt-1 block text-[11px] font-normal text-slate-500">
+            <span className="mt-1 block text-[11px] font-normal text-muted">
               Auto-generated from the name. Edit manually to override.
             </span>
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             Category
             <select
               value={rankingDimensions}
               onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
               <option value="weapon">Weapon</option>
               <option value="weapon_category">Weapon + Category</option>
             </select>
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             Scoring system
             <select
               value={scoringSystem}
               onChange={(e) => setScoringSystem(e.target.value as 'ffamhe_tf_2026' | 'custom')}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
               <option value="ffamhe_tf_2026">FFAMHE TF 2026 (default)</option>
               <option value="custom">Custom</option>
             </select>
           </label>
-          <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+          <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
             Description
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </label>
         </div>
 
         {scoringSystem === 'custom' && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-600 mb-2">Points by rank</p>
+            <p className="text-xs font-medium text-foreground-secondary mb-2">Points by rank</p>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
               {Object.entries(customPoints).map(([rank, points]) => (
-                <label key={rank} className="text-[11px] text-slate-500">
+                <label key={rank} className="text-[11px] text-muted">
                   Rank {rank}
                   <input
                     type="number"
@@ -407,7 +405,7 @@ export default function NewLeaguePage() {
                         [Number(rank)]: Number(e.target.value),
                       }))
                     }
-                    className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                    className="mt-0.5 w-full rounded border border-border px-2 py-1 text-xs"
                   />
                 </label>
               ))}
@@ -416,29 +414,29 @@ export default function NewLeaguePage() {
         )}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           Logo (optional)
         </h2>
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
-          className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+          className="block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background"
         />
-        <p className="mt-1 text-[11px] text-slate-500">PNG, JPEG, or WebP. Maximum 10 MB.</p>
+        <p className="mt-1 text-[11px] text-muted">PNG, JPEG, or WebP. Maximum 10 MB.</p>
         {logoPreviewUrl && (
           <div className="mt-3 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={logoPreviewUrl}
               alt="Preview"
-              className="h-20 w-20 rounded-md border border-slate-200 bg-white object-contain"
+              className="h-20 w-20 rounded-md border border-border bg-surface object-contain"
             />
             <button
               type="button"
               onClick={() => handleLogoFile(null)}
-              className="text-xs text-slate-500 hover:text-slate-900"
+              className="text-xs text-muted hover:text-foreground"
             >
               Clear
             </button>
@@ -446,8 +444,8 @@ export default function NewLeaguePage() {
         )}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           Owner platform accounts
         </h2>
         <input
@@ -455,18 +453,18 @@ export default function NewLeaguePage() {
           value={userSearch}
           onChange={(e) => setUserSearch(e.target.value)}
           placeholder="Search by name or email…"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+          className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
         {filteredUsers.length > 0 && (
-          <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-slate-200">
+          <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-border">
             {filteredUsers.map((u) => {
               const checked = selectedUserIds.includes(u.id);
               return (
                 <label
                   key={u.id}
                   className={[
-                    'flex cursor-pointer items-start gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0',
-                    checked ? 'bg-blue-50' : 'hover:bg-slate-50',
+                    'flex cursor-pointer items-start gap-3 border-b border-border px-3 py-2 text-sm last:border-0',
+                    checked ? 'bg-info/10' : 'hover:bg-background',
                   ].join(' ')}
                 >
                   <input
@@ -480,16 +478,16 @@ export default function NewLeaguePage() {
                     className="mt-1"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900">
+                    <p className="font-medium text-foreground">
                       {u.display_name?.trim() || '(no name)'}
                     </p>
-                    <p className="text-xs text-slate-500">{u.email}</p>
+                    <p className="text-xs text-muted">{u.email}</p>
                     {(u.organizations ?? []).length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(u.organizations ?? []).slice(0, 3).map((o) => (
                           <span
                             key={o.id}
-                            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px]"
+                            className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
                           >
                             {o.name} · {o.role}
                           </span>
@@ -504,8 +502,8 @@ export default function NewLeaguePage() {
         )}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           Member organisations
         </h2>
         <div className="grid gap-1 sm:grid-cols-2 max-h-60 overflow-y-auto">
@@ -516,7 +514,7 @@ export default function NewLeaguePage() {
                 key={o.id}
                 className={[
                   'flex cursor-pointer items-center gap-2 rounded border px-3 py-1.5 text-sm',
-                  checked ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50',
+                  checked ? 'border-info/30 bg-info/10' : 'border-border hover:bg-background',
                 ].join(' ')}
               >
                 <input
@@ -535,11 +533,9 @@ export default function NewLeaguePage() {
         </div>
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Groups
-        </h2>
-        <p className="mb-3 text-xs text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Groups</h2>
+        <p className="mb-3 text-xs text-muted">
           Operator-defined buckets (e.g. &quot;Sabre Mixed&quot;, &quot;Longsword Open&quot;).
           Tournaments attached to this league are assigned to one of these groups.
         </p>
@@ -551,12 +547,12 @@ export default function NewLeaguePage() {
                 value={g.name}
                 onChange={(e) => updateGroupName(g.tmpId, e.target.value)}
                 placeholder="Group name"
-                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <button
                 type="button"
                 onClick={() => removeGroup(g.tmpId)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground-secondary hover:bg-background"
               >
                 Remove
               </button>
@@ -566,14 +562,14 @@ export default function NewLeaguePage() {
         <button
           type="button"
           onClick={addGroup}
-          className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          className="mt-3 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:bg-background"
         >
           + Add group
         </button>
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           Linked tournaments
         </h2>
         <input
@@ -581,29 +577,29 @@ export default function NewLeaguePage() {
           value={eventQuery}
           onChange={(e) => setEventQuery(e.target.value)}
           placeholder="Search events…"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-border px-3 py-2 text-sm"
         />
         {filteredEvents.length > 0 && (
-          <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-slate-200">
+          <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-border">
             {filteredEvents.map((ev) => (
-              <div key={ev.id} className="border-b border-slate-100 last:border-0">
+              <div key={ev.id} className="border-b border-border last:border-0">
                 <button
                   type="button"
                   onClick={() => {
                     setExpandedEventId(expandedEventId === ev.id ? null : ev.id);
                     void loadEventTournaments(ev.id);
                   }}
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-background"
                 >
-                  <span className="font-medium text-slate-900">{ev.name}</span>
-                  <span className="text-xs text-slate-400">
+                  <span className="font-medium text-foreground">{ev.name}</span>
+                  <span className="text-xs text-muted">
                     {expandedEventId === ev.id ? '−' : '+'}
                   </span>
                 </button>
                 {expandedEventId === ev.id && (
-                  <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
+                  <div className="border-t border-border bg-background px-3 py-2">
                     {(tournamentsByEvent[ev.id] ?? []).length === 0 ? (
-                      <p className="text-xs text-slate-500 italic">No tournaments.</p>
+                      <p className="text-xs text-muted italic">No tournaments.</p>
                     ) : (
                       <ul className="space-y-1">
                         {(tournamentsByEvent[ev.id] ?? []).map((t) => {
@@ -615,18 +611,18 @@ export default function NewLeaguePage() {
                             >
                               <span className="flex items-center gap-1.5">
                                 <span>{t.name ?? '(unnamed)'}</span>
-                                {t.weapon && <span className="text-slate-400">· {t.weapon}</span>}
+                                {t.weapon && <span className="text-muted">· {t.weapon}</span>}
                                 {t.status && (
                                   <span
                                     className={[
                                       'rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase',
                                       t.status === 'published'
-                                        ? 'bg-green-100 text-green-700'
+                                        ? 'bg-success/10 text-success'
                                         : t.status === 'draft'
-                                          ? 'bg-amber-100 text-amber-700'
+                                          ? 'bg-warning/10 text-warning'
                                           : t.status === 'completed'
-                                            ? 'bg-slate-100 text-slate-600'
-                                            : 'bg-slate-100 text-slate-500',
+                                            ? 'bg-background text-foreground-secondary'
+                                            : 'bg-background text-muted',
                                     ].join(' ')}
                                   >
                                     {t.status}
@@ -640,8 +636,8 @@ export default function NewLeaguePage() {
                                 className={[
                                   'rounded px-2 py-0.5 font-semibold',
                                   picked
-                                    ? 'bg-slate-100 text-slate-400'
-                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                    ? 'bg-background text-muted'
+                                    : 'bg-info/10 text-info hover:bg-info/20',
                                 ].join(' ')}
                               >
                                 {picked ? 'Added' : 'Add'}
@@ -659,23 +655,23 @@ export default function NewLeaguePage() {
         )}
         {selectedTournaments.length > 0 && (
           <div className="mt-3">
-            <p className="text-xs font-medium text-slate-600 mb-1">
+            <p className="text-xs font-medium text-foreground-secondary mb-1">
               Selected ({selectedTournaments.length}):
             </p>
             <ul className="space-y-1">
               {selectedTournaments.map((t) => (
                 <li
                   key={t.tournamentId}
-                  className="flex items-center justify-between gap-2 rounded bg-slate-50 px-2 py-1 text-xs"
+                  className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1 text-xs"
                 >
                   <span className="flex-1 truncate">
-                    {t.tournamentName} <span className="text-slate-400">· {t.eventName}</span>
+                    {t.tournamentName} <span className="text-muted">· {t.eventName}</span>
                   </span>
                   {leagueGroups.length > 0 && (
                     <select
                       value={t.groupTmpId ?? ''}
                       onChange={(e) => setTournamentGroup(t.tournamentId, e.target.value || null)}
-                      className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs"
+                      className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs"
                     >
                       <option value="">— no group —</option>
                       {leagueGroups.map((g) => (
@@ -692,7 +688,7 @@ export default function NewLeaguePage() {
                         prev.filter((x) => x.tournamentId !== t.tournamentId),
                       )
                     }
-                    className="text-red-700 hover:text-red-900"
+                    className="text-danger hover:text-danger"
                   >
                     ×
                   </button>
@@ -706,7 +702,7 @@ export default function NewLeaguePage() {
       <div className="flex justify-end gap-3">
         <Link
           href="/admin/leagues"
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-border px-4 py-2 text-sm text-foreground-secondary hover:bg-background"
         >
           Cancel
         </Link>
@@ -714,7 +710,7 @@ export default function NewLeaguePage() {
           type="button"
           onClick={() => void handleSubmit()}
           disabled={submitting || !name.trim() || !slug.trim()}
-          className="rounded-md bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting ? 'Creating…' : 'Create league'}
         </button>

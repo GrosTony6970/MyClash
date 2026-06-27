@@ -349,17 +349,19 @@ export default function AdminBackupsPage() {
   };
 
   return (
-    <main id="main-content" className="p-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('admin.backups.title')}</h1>
-          <p className="text-slate-500 text-sm mt-1">{t('admin.backups.description')}</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('admin.backups.title')}
+          </h1>
+          <p className="text-muted text-sm mt-1">{t('admin.backups.description')}</p>
         </div>
         <button
           type="button"
           onClick={runBackup}
           disabled={busy || Boolean(operation && ['queued', 'running'].includes(operation.status))}
-          className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {t('admin.backups.runBackup')}
         </button>
@@ -387,12 +389,12 @@ export default function AdminBackupsPage() {
         />
       </section>
 
-      <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-slate-200 p-4">
+      <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-border p-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-base font-semibold text-gray-950">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('admin.backups.scheduleTitle')}
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted">
             {schedule?.nextRunAt
               ? t('admin.backups.scheduleNextRun', {
                   nextRun: formatTimestamp(schedule.nextRunAt),
@@ -402,19 +404,19 @@ export default function AdminBackupsPage() {
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <label className="flex items-center gap-2 text-sm font-semibold text-foreground-secondary">
             <input
               type="checkbox"
               checked={scheduleForm.enabled}
               onChange={(event) =>
                 setScheduleForm((current) => ({ ...current, enabled: event.target.checked }))
               }
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-border"
             />
             {t('admin.backups.scheduleEnabled')}
           </label>
 
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
             {t('admin.backups.frequencyLabel')}
             <select
               value={scheduleForm.frequency}
@@ -424,7 +426,7 @@ export default function AdminBackupsPage() {
                   frequency: event.target.value as BackupFrequency,
                 }))
               }
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-md border border-border px-3 py-2 text-sm"
             >
               {FREQUENCIES.map((freq) => (
                 <option key={freq} value={freq}>
@@ -436,7 +438,7 @@ export default function AdminBackupsPage() {
 
           {/* Hour input hidden for hourly — every hourly slot uses :minuteUtc only. */}
           {scheduleForm.frequency !== 'hourly' && (
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
               {t('admin.backups.scheduleHourUtc')}
               <input
                 type="number"
@@ -449,12 +451,12 @@ export default function AdminBackupsPage() {
                     hourUtc: clamp(Number(event.target.value), 0, 23),
                   }))
                 }
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-md border border-border px-3 py-2 text-sm"
               />
             </label>
           )}
 
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
             {t('admin.backups.scheduleMinuteUtc')}
             <input
               type="number"
@@ -467,12 +469,12 @@ export default function AdminBackupsPage() {
                   minuteUtc: clamp(Number(event.target.value), 0, 59),
                 }))
               }
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-md border border-border px-3 py-2 text-sm"
             />
           </label>
 
           {scheduleForm.frequency === 'weekly' && (
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
               {t('admin.backups.dayOfWeek')}
               <select
                 value={scheduleForm.dayOfWeek}
@@ -482,7 +484,7 @@ export default function AdminBackupsPage() {
                     dayOfWeek: Number(event.target.value),
                   }))
                 }
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-md border border-border px-3 py-2 text-sm"
               >
                 {WEEKDAY_KEYS.map((day, index) => (
                   <option key={day} value={index}>
@@ -494,7 +496,7 @@ export default function AdminBackupsPage() {
           )}
 
           {scheduleForm.frequency === 'monthly' && (
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
               {t('admin.backups.dayOfMonth')}
               <input
                 type="number"
@@ -507,15 +509,15 @@ export default function AdminBackupsPage() {
                     dayOfMonth: clamp(Number(event.target.value), 1, 28),
                   }))
                 }
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-md border border-border px-3 py-2 text-sm"
               />
-              <span className="text-xs font-normal text-slate-500">
+              <span className="text-xs font-normal text-muted">
                 {t('admin.backups.dayOfMonthHint')}
               </span>
             </label>
           )}
 
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
             {t('admin.backups.retentionLocal')}
             <input
               type="number"
@@ -528,15 +530,15 @@ export default function AdminBackupsPage() {
                   retentionCountLocal: clamp(Number(event.target.value), 1, 365),
                 }))
               }
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-md border border-border px-3 py-2 text-sm"
             />
-            <span className="text-xs font-normal text-slate-500">
+            <span className="text-xs font-normal text-muted">
               {t('admin.backups.retentionLocalHint')}
             </span>
           </label>
 
           {status?.cloudConfigured && (
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
               {t('admin.backups.retentionCloud')}
               <input
                 type="number"
@@ -549,9 +551,9 @@ export default function AdminBackupsPage() {
                     retentionCountCloud: clamp(Number(event.target.value), 1, 3650),
                   }))
                 }
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-md border border-border px-3 py-2 text-sm"
               />
-              <span className="text-xs font-normal text-slate-500">
+              <span className="text-xs font-normal text-muted">
                 {t('admin.backups.retentionCloudHint')}
               </span>
             </label>
@@ -562,18 +564,18 @@ export default function AdminBackupsPage() {
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground hover:opacity-90 disabled:opacity-50"
           >
             {t('admin.backups.scheduleSave')}
           </button>
         </div>
       </form>
 
-      <section className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
-        <h2 className="text-base font-semibold text-red-900">
+      <section className="mb-6 rounded-lg border border-danger/30 bg-danger/10 p-4">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-danger">
           {t('admin.backups.dangerZoneTitle')}
         </h2>
-        <p className="mt-1 text-sm text-red-800">{t('admin.backups.dangerZoneDescription')}</p>
+        <p className="mt-1 text-sm text-danger">{t('admin.backups.dangerZoneDescription')}</p>
         <button
           type="button"
           onClick={() => {
@@ -581,38 +583,40 @@ export default function AdminBackupsPage() {
             setPendingDeleteAll(true);
           }}
           disabled={busy}
-          className="mt-3 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="mt-3 rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
         >
           {t('admin.backups.deleteAllButton')}
         </button>
       </section>
 
       {operation && (
-        <section className="mb-6 rounded-lg border border-slate-200 p-4">
+        <section className="mb-6 rounded-lg border border-border p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-gray-950">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('admin.backups.currentOperation')}
             </h2>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+            <span className="rounded-full bg-background px-2 py-1 text-xs font-medium text-foreground-secondary">
               {t(`admin.backups.operationStatuses.${operation.status}`)}
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-muted">
             {operation.kind === 'backup'
               ? t('admin.backups.operationBackup')
               : t('admin.backups.operationRestore')}
           </p>
-          {operation.error && <p className="mt-2 text-sm text-red-700">{operation.error}</p>}
+          {operation.error && <p className="mt-2 text-sm text-danger">{operation.error}</p>}
           {operation.logTail.length > 0 && (
-            <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-slate-100">
+            <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-strong p-3 text-xs text-strong-foreground">
               {operation.logTail.join('\n')}
             </pre>
           )}
         </section>
       )}
 
-      <form onSubmit={uploadBackup} className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h2 className="text-base font-semibold text-gray-950">{t('admin.backups.uploadTitle')}</h2>
+      <form onSubmit={uploadBackup} className="mb-6 rounded-lg border border-border p-4">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+          {t('admin.backups.uploadTitle')}
+        </h2>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
             ref={fileRef}
@@ -626,11 +630,11 @@ export default function AdminBackupsPage() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-800/30/30"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary shadow-sm hover:bg-background focus:outline-none focus:ring-2 focus:ring-accent/30/30"
           >
             {t('admin.backups.browse')}
           </button>
-          <p className="min-w-0 flex-1 rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <p className="min-w-0 flex-1 rounded-md border border-dashed border-border bg-background px-3 py-2 text-sm text-foreground-secondary">
             {selectedFilename
               ? t('admin.backups.selectedFile', { file: selectedFilename })
               : t('admin.backups.noFileSelected')}
@@ -638,26 +642,28 @@ export default function AdminBackupsPage() {
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground disabled:opacity-50"
           >
             {t('admin.backups.stageUpload')}
           </button>
         </div>
       </form>
 
-      <section className="rounded-lg border border-slate-200">
-        <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-950">{t('admin.backups.available')}</h2>
+      <section className="rounded-lg border border-border">
+        <div className="border-b border-border bg-background px-4 py-3">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+            {t('admin.backups.available')}
+          </h2>
         </div>
         {loading ? (
-          <p className="p-4 text-sm text-slate-400">{t('admin.backups.loading')}</p>
+          <p className="p-4 text-sm text-muted">{t('admin.backups.loading')}</p>
         ) : backups.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">{t('admin.backups.empty')}</p>
+          <p className="p-4 text-sm text-muted">{t('admin.backups.empty')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-slate-500">
+                <tr className="border-b border-border text-left text-muted">
                   <th className="px-4 py-2">{t('admin.backups.timestamp')}</th>
                   <th className="px-4 py-2">{t('admin.backups.locations')}</th>
                   <th className="px-4 py-2">{t('admin.backups.totalSize')}</th>
@@ -668,16 +674,18 @@ export default function AdminBackupsPage() {
                 {backups.map((backup) => {
                   const sizes = backupSizes(backup);
                   return (
-                    <tr key={backup.id} className="border-b border-slate-50 align-top">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-800">
+                    <tr key={backup.id} className="border-b border-border align-top">
+                      <td className="px-4 py-3 font-mono text-xs text-foreground-secondary">
                         {formatTimestamp(backup.timestamp)}
                       </td>
                       <td className="px-4 py-3">
                         <LocationBadges backup={backup} />
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-800">{formatBytes(sizes.total)}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">
+                        <p className="font-medium text-foreground-secondary">
+                          {formatBytes(sizes.total)}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted">
                           {t('admin.backups.dbSize', { size: formatBytes(sizes.db) })}
                           {' · '}
                           {t('admin.backups.storageSize', { size: formatBytes(sizes.storage) })}
@@ -697,7 +705,7 @@ export default function AdminBackupsPage() {
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t border-slate-200 bg-slate-50 text-sm font-medium text-slate-700">
+                <tr className="border-t border-border bg-background text-sm font-medium text-foreground-secondary">
                   <td colSpan={3} className="px-4 py-3 text-right">
                     {t('admin.backups.grandTotal', {
                       count: backups.length,
@@ -792,20 +800,23 @@ function DeleteAllDialog({
   const { t } = useI18n();
   const tokenMatches = token === DELETE_ALL_TOKEN;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-all-title"
-        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
+        className="w-full max-w-lg rounded-lg bg-surface p-5 shadow-xl"
       >
-        <h2 id="delete-all-title" className="text-lg font-semibold text-red-900">
+        <h2
+          id="delete-all-title"
+          className="font-display font-semibold text-lg sm:text-xl text-danger"
+        >
           {t('admin.backups.deleteAllConfirmTitle')}
         </h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
+        <p className="mt-3 text-sm leading-6 text-foreground-secondary">
           {t('admin.backups.deleteAllConfirmBody')}
         </p>
-        <label className="mt-4 grid gap-1 text-sm font-semibold text-slate-700">
+        <label className="mt-4 grid gap-1 text-sm font-semibold text-foreground-secondary">
           {t('admin.backups.deleteAllConfirmTokenLabel')}
           <input
             type="text"
@@ -813,7 +824,7 @@ function DeleteAllDialog({
             onChange={(event) => onTokenChange(event.target.value)}
             placeholder={t('admin.backups.deleteAllConfirmTokenPlaceholder')}
             autoFocus
-            className="rounded-md border border-slate-300 px-3 py-2 font-mono text-sm"
+            className="rounded-md border border-border px-3 py-2 font-mono text-sm"
           />
         </label>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -821,7 +832,7 @@ function DeleteAllDialog({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
           >
             {t('actions.cancel')}
           </button>
@@ -829,7 +840,7 @@ function DeleteAllDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy || !tokenMatches}
-            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-40"
+            className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-40"
           >
             {t('admin.backups.deleteAllButton')}
           </button>
@@ -844,8 +855,8 @@ function Alert({ tone, children }: { tone: 'error' | 'success'; children: string
     <div
       className={`mb-4 rounded-md border px-4 py-3 text-sm ${
         tone === 'error'
-          ? 'border-red-200 bg-red-50 text-red-700'
-          : 'border-green-200 bg-green-50 text-green-700'
+          ? 'border-danger/30 bg-danger/10 text-danger'
+          : 'border-success/30 bg-success/10 text-success'
       }`}
     >
       {children}
@@ -855,9 +866,9 @@ function Alert({ tone, children }: { tone: 'error' | 'success'; children: string
 
 function StatusCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-gray-950">{value}</p>
+    <div className="rounded-lg border border-border p-4">
+      <p className="text-xs font-medium uppercase text-muted">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -876,7 +887,7 @@ function LocationBadges({ backup }: { backup: BackupSet }) {
         .map(([label]) => (
           <span
             key={label}
-            className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
+            className="rounded-full bg-background px-2 py-1 text-xs font-medium text-foreground-secondary"
           >
             {t(`admin.backups.locationsMap.${label}`)}
           </span>
@@ -903,20 +914,18 @@ function BackupActions(props: {
         <div
           key={location}
           className={`rounded-md border p-3 ${
-            available ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-70'
+            available ? 'border-border bg-surface' : 'border-border bg-background opacity-70'
           }`}
         >
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
             {t(`admin.backups.locationsMap.${location}`)}
           </p>
           <div className="flex flex-wrap gap-2">
             <a
               href={`${props.apiUrl}/api/v1/admin/backups/${props.backup.id}/download?location=${location}&artifact=db`}
               aria-disabled={!available}
-              className={`rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold ${
-                available
-                  ? 'text-slate-900 hover:bg-slate-50'
-                  : 'pointer-events-none text-slate-400'
+              className={`rounded-md border border-border px-3 py-1.5 text-xs font-semibold ${
+                available ? 'text-foreground hover:bg-background' : 'pointer-events-none text-muted'
               }`}
             >
               {t('admin.backups.downloadDb')}
@@ -925,7 +934,7 @@ function BackupActions(props: {
               type="button"
               onClick={() => props.onRestore(location)}
               disabled={props.busy || !available}
-              className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:bg-border disabled:text-muted"
             >
               {t('admin.backups.restoreFrom', {
                 location: t(`admin.backups.locationsMap.${location}`),
@@ -935,7 +944,7 @@ function BackupActions(props: {
               type="button"
               onClick={() => props.onDelete(location)}
               disabled={props.busy || !available}
-              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+              className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:border-border disabled:text-muted disabled:hover:bg-transparent"
             >
               {t('admin.backups.deleteFrom', {
                 location: t(`admin.backups.locationsMap.${location}`),
@@ -943,20 +952,20 @@ function BackupActions(props: {
             </button>
           </div>
           {!available && (
-            <p className="mt-2 text-xs text-slate-400">{t('admin.backups.locationUnavailable')}</p>
+            <p className="mt-2 text-xs text-muted">{t('admin.backups.locationUnavailable')}</p>
           )}
         </div>
       ))}
       {props.backup.upload?.available && (
-        <div className="rounded-md border border-blue-100 bg-blue-50 p-3 md:col-span-2">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
+        <div className="rounded-md border border-info/30 bg-info/10 p-3 md:col-span-2">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-info">
             {t('admin.backups.locationsMap.upload')}
           </p>
           <button
             type="button"
             onClick={() => props.onRestore('upload')}
             disabled={props.busy}
-            className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:bg-border disabled:text-muted"
           >
             {t('admin.backups.restoreFrom', {
               location: t('admin.backups.locationsMap.upload'),
@@ -1063,23 +1072,26 @@ function ConfirmDialog({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="backup-confirm-title"
-        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
+        className="w-full max-w-lg rounded-lg bg-surface p-5 shadow-xl"
       >
-        <h2 id="backup-confirm-title" className="text-lg font-semibold text-slate-950">
+        <h2
+          id="backup-confirm-title"
+          className="font-display font-semibold text-lg sm:text-xl text-foreground"
+        >
           {title}
         </h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">{body}</p>
+        <p className="mt-3 text-sm leading-6 text-foreground-secondary">{body}</p>
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -1087,7 +1099,7 @@ function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
           >
             {dangerLabel}
           </button>

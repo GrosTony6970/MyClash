@@ -60,8 +60,8 @@ export default function EditScoringSystemPage() {
 
   if (error) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-6 py-12">
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <main className="mx-auto w-full max-w-2xl px-6 py-12">
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       </main>
@@ -69,7 +69,7 @@ export default function EditScoringSystemPage() {
   }
   if (!initial || !row) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-6 py-12 text-sm text-slate-500">
+      <main className="mx-auto w-full max-w-2xl px-6 py-12 text-sm text-muted">
         {t('admin.rulesets.league.loadingState')}
       </main>
     );
@@ -77,7 +77,7 @@ export default function EditScoringSystemPage() {
   return (
     <>
       <ScoringSystemForm mode="edit" initial={initial} />
-      <div className="mx-auto w-full max-w-3xl px-6 pb-12 lg:px-8">
+      <div className="mx-auto w-full max-w-2xl px-6 pb-12 lg:px-8">
         <VersionHistory systemId={row.id} currentVersion={row.version ?? null} />
       </div>
     </>

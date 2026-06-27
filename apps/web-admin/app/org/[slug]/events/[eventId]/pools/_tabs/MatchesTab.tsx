@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { sideStyle } from '@myclash/ui';
+import { sideStyle, statusPillTone, matchStatusSemantic } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
@@ -341,7 +341,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-500">{t('common.loading')}</p>;
+    return <p className="text-sm text-muted">{t('common.loading')}</p>;
   }
 
   return (
@@ -350,14 +350,14 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         <button
           type="button"
           onClick={refresh}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
         >
           {t('actions.refresh')}
         </button>
       </div>
 
       {pools.length === 0 && (
-        <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+        <p className="rounded-md border border-dashed border-border bg-background p-8 text-center text-sm text-muted">
           {t('organizer.pools.matches.noPools')}
         </p>
       )}
@@ -372,13 +372,15 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
           const done = pool.matches.filter((m) => m.status === 'completed').length;
           const total = pool.matches.length;
           return (
-            <section key={pool.poolId} className="rounded-lg border border-slate-200 bg-white">
-              <header className="border-b border-slate-200 px-4 py-3">
-                <h3 className="font-semibold text-slate-900">{pool.poolName}</h3>
-                <p className="mt-0.5 text-xs text-slate-400">
+            <section key={pool.poolId} className="rounded-lg border border-border bg-surface">
+              <header className="border-b border-border px-4 py-3">
+                <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+                  {pool.poolName}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted">
                   {countPoolFighters(pool.matches)} fighters
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-muted">
                   {t('organizer.pools.matches.summary', {
                     done: String(done),
                     total: String(total),
@@ -387,7 +389,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
               </header>
 
               {pool.matches.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-slate-400">
+                <p className="px-4 py-6 text-center text-sm text-muted">
                   {t('organizer.pools.matches.empty')}
                 </p>
               ) : (
@@ -400,11 +402,11 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                       `(mixed)` is shown when the pool's matches already
                       have different values; picking resets them all.
                     */}
-                    <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <tr className="border-b border-slate-100 bg-white text-xs normal-case tracking-normal text-slate-500">
+                    <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
+                      <tr className="border-b border-border bg-surface text-xs normal-case tracking-normal text-muted">
                         <th
                           colSpan={6}
-                          className="px-4 py-2 text-right font-semibold uppercase tracking-wide text-slate-500"
+                          className="px-4 py-2 text-right font-semibold uppercase tracking-wide text-muted"
                         >
                           {t('organizer.pools.matches.applyToAll')}
                         </th>
@@ -419,7 +421,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               if (raw === '__mixed__') return;
                               void applyPoolLice(pool.poolId, raw || null);
                             }}
-                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                            className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                           >
                             {poolLiceCommonValue(pool) === 'mixed' && (
                               <option value="__mixed__">
@@ -450,7 +452,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                   if (raw === '__mixed__') return;
                                   void applyPoolReferee(pool.poolId, role.id, raw || null);
                                 }}
-                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                                className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                               >
                                 {common === 'mixed' && (
                                   <option value="__mixed__">
@@ -547,15 +549,17 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               }
                             }}
                             className={[
-                              'border-b border-slate-100 last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300',
-                              'cursor-pointer hover:bg-slate-100',
+                              'border-b border-border last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent',
+                              'cursor-pointer hover:bg-background',
                               // Done rows recede; not-done rows stay
                               // vivid white so they pull the operator's
                               // attention.
-                              isCompleted ? 'bg-slate-50 text-slate-600' : 'bg-white',
+                              isCompleted
+                                ? 'bg-background text-foreground-secondary'
+                                : 'bg-surface',
                             ].join(' ')}
                           >
-                            <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-slate-500">
+                            <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-muted">
                               {m.roundCode}
                             </td>
                             <td className="px-4 py-2">
@@ -568,14 +572,14 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                 <span
                                   className={
                                     isRedWinner
-                                      ? 'font-bold text-slate-900'
-                                      : 'font-medium text-slate-900'
+                                      ? 'font-bold text-foreground'
+                                      : 'font-medium text-foreground'
                                   }
                                 >
                                   {m.red_name}
                                 </span>
                                 {m.red_club_abbrev && (
-                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                  <span className="rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
                                     {m.red_club_abbrev}
                                   </span>
                                 )}
@@ -585,26 +589,30 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               {isCompleted ? (
                                 <span
                                   className={
-                                    isRedWinner ? 'font-bold text-slate-900' : 'text-slate-600'
+                                    isRedWinner
+                                      ? 'font-bold text-foreground'
+                                      : 'text-foreground-secondary'
                                   }
                                 >
                                   {redScore}
                                 </span>
                               ) : (
-                                <span className="text-slate-300">-</span>
+                                <span className="text-muted">-</span>
                               )}
                             </td>
                             <td className="whitespace-nowrap px-2 py-2 text-center font-mono text-sm">
                               {isCompleted ? (
                                 <span
                                   className={
-                                    isBlueWinner ? 'font-bold text-slate-900' : 'text-slate-600'
+                                    isBlueWinner
+                                      ? 'font-bold text-foreground'
+                                      : 'text-foreground-secondary'
                                   }
                                 >
                                   {blueScore}
                                 </span>
                               ) : (
-                                <span className="text-slate-300">-</span>
+                                <span className="text-muted">-</span>
                               )}
                             </td>
                             <td className="px-4 py-2">
@@ -617,14 +625,14 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                 <span
                                   className={
                                     isBlueWinner
-                                      ? 'font-bold text-slate-900'
-                                      : 'font-medium text-slate-900'
+                                      ? 'font-bold text-foreground'
+                                      : 'font-medium text-foreground'
                                   }
                                 >
                                   {m.blue_name}
                                 </span>
                                 {m.blue_club_abbrev && (
-                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                  <span className="rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
                                     {m.blue_club_abbrev}
                                   </span>
                                 )}
@@ -639,7 +647,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                 onChange={(e) =>
                                   void updateMatchAssignment(m.id, 'liceId', e.target.value || null)
                                 }
-                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                                className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                               >
                                 <option value="">{t('common.none')}</option>
                                 {lices.map((l) => (
@@ -678,7 +686,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                         e.target.value || null,
                                       )
                                     }
-                                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                                    className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                                   >
                                     <option value="">{t('common.none')}</option>
                                     {options.map((r) => (
@@ -693,7 +701,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                               <Link
                                 href={auditHref}
-                                className="inline-flex items-center justify-center rounded p-1 text-slate-600 hover:bg-slate-200"
+                                className="inline-flex items-center justify-center rounded p-1 text-foreground-secondary hover:bg-border"
                                 title={t('organizer.pool.match.openAudit')}
                                 aria-label={t('organizer.pool.match.openAudit')}
                               >
@@ -733,17 +741,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
 }
 
 function StatusPill({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    scheduled: 'bg-slate-100 text-slate-700',
-    ready: 'bg-amber-100 text-amber-700',
-    running: 'bg-red-100 text-red-700',
-    completed: 'bg-green-100 text-green-700',
-    forfeit: 'bg-slate-200 text-slate-600',
-    disqualified: 'bg-slate-200 text-slate-600',
-  };
+  const tone = statusPillTone(matchStatusSemantic(status), 'light');
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${colors[status] ?? colors['scheduled']}`}
+      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${tone.className}${
+        tone.pulse ? ' animate-pulse' : ''
+      }`}
     >
       {status}
     </span>

@@ -30,7 +30,7 @@ export function AvailabilityChips<TValue extends string | number>({
   onChange,
 }: Props<TValue>) {
   if (options.length === 0) {
-    return <span className="text-xs italic text-slate-400">—</span>;
+    return <span className="text-xs italic text-muted">—</span>;
   }
   const selectedSet = new Set(selected);
   const allSelected = options.length > 0 && options.every((o) => selectedSet.has(o.value));
@@ -58,7 +58,7 @@ export function AvailabilityChips<TValue extends string | number>({
         disabled={disabled}
         onClick={clearAll}
         title={allLabel}
-        className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700 disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-3 py-0.5 text-xs font-semibold uppercase tracking-wide text-success disabled:opacity-50"
       >
         ✓ {allLabel}
       </button>
@@ -78,8 +78,8 @@ export function AvailabilityChips<TValue extends string | number>({
             className={[
               'rounded-full border px-2 py-0.5 text-xs transition-colors disabled:opacity-50',
               on
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300',
+                ? 'border-success/30 bg-success/10 text-success'
+                : 'border-border bg-surface text-muted hover:border-border',
             ].join(' ')}
           >
             {o.label}
@@ -91,7 +91,7 @@ export function AvailabilityChips<TValue extends string | number>({
           type="button"
           disabled={disabled}
           onClick={selectAll}
-          className="ml-1 text-[10px] text-slate-400 underline hover:text-slate-600 disabled:opacity-50"
+          className="ml-1 text-[10px] text-muted underline hover:text-foreground-secondary disabled:opacity-50"
         >
           all
         </button>

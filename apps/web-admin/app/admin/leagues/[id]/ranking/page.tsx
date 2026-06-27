@@ -103,10 +103,10 @@ export default function AdminLeagueRankingPage() {
   const groupKeys = Object.keys(groupedRows).sort();
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
       <Link
         href="/admin/leagues"
-        className="mb-3 inline-flex items-center gap-1 rounded text-sm font-medium text-slate-600 hover:text-slate-900"
+        className="mb-3 inline-flex items-center gap-1 rounded text-sm font-medium text-foreground-secondary hover:text-foreground"
       >
         ← Back to leagues
       </Link>
@@ -123,21 +123,21 @@ export default function AdminLeagueRankingPage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
       {loading && (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-sm text-slate-400">
+        <div className="rounded-lg border border-border bg-surface p-12 text-center text-sm text-muted">
           Loading…
         </div>
       )}
 
       {!loading && data && data.rows.length === 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+        <div className="rounded-lg border border-border bg-surface p-12 text-center text-sm text-muted">
           No rankings computed yet. The standings engine writes
-          <code className="mx-1 rounded bg-slate-100 px-1 font-mono">league_rankings</code>
+          <code className="mx-1 rounded bg-background px-1 font-mono">league_rankings</code>
           on tournament completion — once a linked tournament finishes, the standings appear here.
         </div>
       )}
@@ -147,16 +147,16 @@ export default function AdminLeagueRankingPage() {
           {groupKeys.map((key) => (
             <section
               key={key}
-              className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm"
+              className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm"
             >
               {groupKeys.length > 1 && (
-                <header className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <header className="border-b border-border bg-background px-4 py-2 text-xs font-semibold uppercase tracking-wider text-foreground-secondary">
                   {key}
                 </header>
               )}
               <table className="w-full min-w-[720px] text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                     <th className="px-4 py-3 w-16 text-center">Rank</th>
                     <th className="px-4 py-3">Fighter</th>
                     <th className="px-4 py-3 text-center">Points</th>
@@ -171,25 +171,25 @@ export default function AdminLeagueRankingPage() {
                     return (
                       <tr
                         key={`${row.ranking_group_key}-${row.fighter_id}`}
-                        className="border-b border-slate-100"
+                        className="border-b border-border"
                       >
-                        <td className="px-4 py-3 text-center font-mono font-semibold text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center font-mono font-semibold text-foreground-secondary tabular-nums">
                           {row.rank}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{fighterDisplayName(row)}</p>
-                          {club && <p className="mt-0.5 text-xs text-slate-500">{club}</p>}
+                          <p className="font-medium text-foreground">{fighterDisplayName(row)}</p>
+                          {club && <p className="mt-0.5 text-xs text-muted">{club}</p>}
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                           {row.total_points}
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                           {row.participation_count}
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                           {row.medal_count}
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
                           {row.double_hit_average.toFixed(2)}
                         </td>
                       </tr>

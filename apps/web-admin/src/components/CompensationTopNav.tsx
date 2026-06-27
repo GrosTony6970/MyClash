@@ -33,7 +33,7 @@ export function CompensationTopNav({ active, basePath }: Props) {
     },
   ];
   return (
-    <nav className="mb-6 flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-sm">
+    <nav className="mb-6 flex gap-1 rounded-lg border border-border bg-background p-1 text-sm">
       {tabs.map((tab) => {
         const isActive = tab.key === active;
         return (
@@ -42,8 +42,8 @@ export function CompensationTopNav({ active, basePath }: Props) {
             href={tab.href}
             className={
               isActive
-                ? 'rounded-md bg-white px-4 py-1.5 font-semibold text-slate-900 shadow-sm'
-                : 'rounded-md px-4 py-1.5 font-medium text-slate-500 hover:text-slate-700'
+                ? 'rounded-md bg-surface px-4 py-1.5 font-semibold text-foreground shadow-sm'
+                : 'rounded-md px-4 py-1.5 font-medium text-muted hover:text-foreground-secondary'
             }
             aria-current={isActive ? 'page' : undefined}
           >

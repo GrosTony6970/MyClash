@@ -148,17 +148,17 @@ export default function OrgPenaltyRulesetsPage() {
     if (row.public_visibility)
       return {
         label: t('admin.rulesets.submissionApproved'),
-        className: 'bg-emerald-100 text-emerald-800',
+        className: 'bg-success/10 text-success',
       };
     if (row.public_visibility_request_status === 'pending')
       return {
         label: t('admin.rulesets.submissionPending'),
-        className: 'bg-amber-100 text-amber-800',
+        className: 'bg-warning/10 text-warning',
       };
     if (row.public_visibility_request_status === 'rejected')
       return {
         label: t('admin.rulesets.submissionRejected'),
-        className: 'bg-red-100 text-red-800',
+        className: 'bg-danger/10 text-danger',
       };
     return null;
   }
@@ -166,39 +166,41 @@ export default function OrgPenaltyRulesetsPage() {
   return (
     <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">{t('admin.penaltyRulesets.title')}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t('admin.penaltyRulesets.description')}</p>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+          {t('admin.penaltyRulesets.title')}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{t('admin.penaltyRulesets.description')}</p>
       </div>
 
       <RulesetsTopNav active="penalty" basePath={`/org/${slugForLink}/rulesets`} />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
           {t('admin.penaltyRulesets.curatedTitle')}
         </h2>
         <Link
           href={`/org/${slugForLink}/rulesets/penalty/new`}
-          className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
         >
           {t('admin.penaltyRulesets.createButton')}
         </Link>
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-400">{t('admin.penaltyRulesets.empty')}</p>
+        <p className="text-sm text-muted">{t('admin.penaltyRulesets.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-2">{t('admin.rulesets.shared.columns.name')}</th>
                 <th className="px-4 py-2">{t('admin.rulesets.shared.columns.code')}</th>
                 <th className="px-4 py-2">{t('admin.rulesets.shared.columns.version')}</th>
@@ -214,31 +216,33 @@ export default function OrgPenaltyRulesetsPage() {
                   mine: row.owner_organization_id === orgId,
                 });
                 return (
-                  <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <tr key={row.id} className="border-b border-border hover:bg-background">
                     <td className="px-4 py-2">
-                      <div className="font-semibold text-slate-800">{row.name}</div>
+                      <div className="font-semibold text-foreground">{row.name}</div>
                       {row.description && (
-                        <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                        <div className="mt-0.5 line-clamp-2 text-xs text-muted">
                           {row.description}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{row.code}</td>
-                    <td className="px-4 py-2 font-mono text-xs font-bold text-slate-700">
+                    <td className="px-4 py-2 font-mono text-xs text-foreground-secondary">
+                      {row.code}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs font-bold text-foreground-secondary">
                       {row.version}
                     </td>
                     <td className="px-4 py-2">
                       {row.built_in ? (
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                        <span className="rounded bg-success/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-success">
                           {t('admin.rulesets.shared.badges.builtin')}
                         </span>
                       ) : (
-                        <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-slate-700">
+                        <span className="rounded bg-background px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
                           {t('admin.rulesets.shared.badges.custom')}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-xs text-slate-600">
+                    <td className="px-4 py-2 text-xs text-foreground-secondary">
                       {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
                     </td>
                     <td className="px-4 py-2">

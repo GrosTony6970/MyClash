@@ -188,26 +188,26 @@ export default function GlobalPersonsImportPage() {
 
   return (
     <main className="p-8 max-w-7xl">
-      <h1 className="text-2xl font-bold mb-1">Import Global Profiles</h1>
-      <p className="text-slate-500 text-sm mb-6">
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">Import Global Profiles</h1>
+      <p className="text-muted text-sm mb-6">
         Bulk-create or update global profiles from a CSV file. Review each row before committing.
       </p>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
       {step === 'upload' && (
         <div className="flex flex-col gap-5 max-w-2xl">
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm">
-            <p className="font-medium text-slate-700 mb-2">Expected CSV columns:</p>
-            <p className="font-mono text-xs text-slate-500 mb-3">
+          <div className="bg-background border border-border rounded-lg p-4 text-sm">
+            <p className="font-medium text-foreground-secondary mb-2">Expected CSV columns:</p>
+            <p className="font-mono text-xs text-muted mb-3">
               given_name, family_name, display_name, club, club_abv, club_city, hema_ratings_id,
               email, date_of_birth, is_fighter, is_referee, is_workshop_participant
             </p>
-            <p className="text-xs text-slate-500 mb-3">
+            <p className="text-xs text-muted mb-3">
               <span className="font-semibold">email</span> and{' '}
               <span className="font-semibold">date_of_birth</span> are optional.{' '}
               <span className="font-semibold">date_of_birth</span> must be{' '}
@@ -216,22 +216,22 @@ export default function GlobalPersonsImportPage() {
               a row resolves to an existing global profile, email and DOB are <em>only</em> written
               if the existing row has them unset — no overwrite.
             </p>
-            <p className="text-xs text-slate-500 mb-3">
+            <p className="text-xs text-muted mb-3">
               <a
                 href="/csv-samples/global-persons.csv"
                 download
-                className="text-blue-700 hover:underline font-medium"
+                className="text-info hover:underline font-medium"
               >
                 Download sample CSV
               </a>
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               The next step will show every parsed row plus duplicates with the existing profile,
               and let you edit each field before commit.
             </p>
           </div>
 
-          <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center">
+          <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
             <input
               ref={fileRef}
               type="file"
@@ -242,12 +242,12 @@ export default function GlobalPersonsImportPage() {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="border border-slate-300 hover:border-slate-400 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
             >
               Choose CSV file
             </button>
             {file && (
-              <p className="text-sm text-slate-600 mt-2">
+              <p className="text-sm text-foreground-secondary mt-2">
                 <strong>{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
               </p>
             )}
@@ -257,7 +257,7 @@ export default function GlobalPersonsImportPage() {
             type="button"
             onClick={() => void handlePreview()}
             disabled={!file || busy}
-            className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
+            className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
           >
             {busy ? 'Reading…' : 'Preview →'}
           </button>
@@ -270,21 +270,21 @@ export default function GlobalPersonsImportPage() {
               Cancel/Commit pair visible while the operator scrolls
               the preview table. Long imports used to require
               scrolling to the bottom of the table just to commit. */}
-          <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
-            <div className="flex flex-wrap gap-4 text-slate-700">
+          <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
+            <div className="flex flex-wrap gap-4 text-foreground-secondary">
               <span>
                 <strong>{preview.summary.total}</strong> rows
               </span>
-              <span className="text-green-700">
+              <span className="text-success">
                 <strong>{preview.summary.ok}</strong> ok
               </span>
-              <span className="text-amber-700">
+              <span className="text-warning">
                 <strong>{preview.summary.duplicate}</strong> duplicate
               </span>
-              <span className="text-red-700">
+              <span className="text-danger">
                 <strong>{preview.summary.invalid}</strong> invalid
               </span>
-              <span className="text-slate-500">
+              <span className="text-muted">
                 | will create <strong>{decisionSummary.create_new}</strong>, overwrite{' '}
                 <strong>{decisionSummary.overwrite}</strong>, skip{' '}
                 <strong>{decisionSummary.skip}</strong>
@@ -294,14 +294,14 @@ export default function GlobalPersonsImportPage() {
               <button
                 type="button"
                 onClick={skipAllInvalid}
-                className="text-xs border border-slate-300 px-2 py-1 rounded hover:bg-white"
+                className="text-xs border border-border px-2 py-1 rounded hover:bg-surface"
               >
                 Skip all invalid
               </button>
               <button
                 type="button"
                 onClick={skipAllDuplicates}
-                className="text-xs border border-slate-300 px-2 py-1 rounded hover:bg-white"
+                className="text-xs border border-border px-2 py-1 rounded hover:bg-surface"
               >
                 Skip all duplicates
               </button>
@@ -309,7 +309,7 @@ export default function GlobalPersonsImportPage() {
                 type="button"
                 onClick={reset}
                 disabled={busy}
-                className="text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                className="text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -317,7 +317,7 @@ export default function GlobalPersonsImportPage() {
                 type="button"
                 onClick={() => void handleCommit()}
                 disabled={busy}
-                className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {busy
                   ? 'Importing…'
@@ -326,9 +326,9 @@ export default function GlobalPersonsImportPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+          <div className="overflow-x-auto border border-border rounded-lg">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-background border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-3 py-2">Row</th>
                   <th className="px-3 py-2">Action</th>
@@ -350,23 +350,23 @@ export default function GlobalPersonsImportPage() {
                     <tr
                       key={row.index}
                       className={[
-                        'border-b border-slate-100 align-top',
-                        muted ? 'bg-slate-50/60 opacity-60' : '',
-                        row.status === 'invalid' ? 'bg-red-50/50' : '',
-                        row.status === 'duplicate' ? 'bg-amber-50/40' : '',
+                        'border-b border-border align-top',
+                        muted ? 'bg-background/60 opacity-60' : '',
+                        row.status === 'invalid' ? 'bg-danger/10' : '',
+                        row.status === 'duplicate' ? 'bg-warning/10' : '',
                       ].join(' ')}
                     >
-                      <td className="px-3 py-2 font-mono text-xs text-slate-500">#{row.index}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted">#{row.index}</td>
                       <td className="px-3 py-2">
                         {row.status === 'invalid' ? (
-                          <span className="text-xs text-slate-400 italic">skip</span>
+                          <span className="text-xs text-muted italic">skip</span>
                         ) : (
                           <select
                             value={row.action}
                             onChange={(e) =>
                               updateRow(row.index, { action: e.target.value as RowAction })
                             }
-                            className="border border-slate-300 rounded px-2 py-1 text-xs"
+                            className="border border-border rounded px-2 py-1 text-xs"
                           >
                             <option value="skip">Skip</option>
                             <option value="create_new">Create new</option>
@@ -378,7 +378,7 @@ export default function GlobalPersonsImportPage() {
                         <input
                           value={row.fields.givenName}
                           onChange={(e) => updateRowField(row.index, 'givenName', e.target.value)}
-                          className="w-28 border border-slate-200 rounded px-2 py-1 text-xs"
+                          className="w-28 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>
@@ -386,7 +386,7 @@ export default function GlobalPersonsImportPage() {
                         <input
                           value={row.fields.familyName}
                           onChange={(e) => updateRowField(row.index, 'familyName', e.target.value)}
-                          className="w-28 border border-slate-200 rounded px-2 py-1 text-xs"
+                          className="w-28 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>
@@ -394,7 +394,7 @@ export default function GlobalPersonsImportPage() {
                         <input
                           value={row.fields.displayName}
                           onChange={(e) => updateRowField(row.index, 'displayName', e.target.value)}
-                          className="w-32 border border-slate-200 rounded px-2 py-1 text-xs"
+                          className="w-32 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>
@@ -405,7 +405,7 @@ export default function GlobalPersonsImportPage() {
                             updateRowField(row.index, 'clubLabel', e.target.value || null)
                           }
                           placeholder="Club"
-                          className="w-32 border border-slate-200 rounded px-2 py-1 text-xs mb-1"
+                          className="w-32 border border-border rounded px-2 py-1 text-xs mb-1"
                           disabled={row.action === 'skip'}
                         />
                         <input
@@ -414,7 +414,7 @@ export default function GlobalPersonsImportPage() {
                             updateRowField(row.index, 'clubAbbreviation', e.target.value || null)
                           }
                           placeholder="Abv"
-                          className="w-32 border border-slate-200 rounded px-2 py-1 text-xs"
+                          className="w-32 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>
@@ -424,7 +424,7 @@ export default function GlobalPersonsImportPage() {
                           onChange={(e) =>
                             updateRowField(row.index, 'hemaRatingsId', e.target.value || null)
                           }
-                          className="w-24 border border-slate-200 rounded px-2 py-1 text-xs"
+                          className="w-24 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>
@@ -436,7 +436,7 @@ export default function GlobalPersonsImportPage() {
                             updateRowField(row.index, 'email', e.target.value || null)
                           }
                           placeholder="optional"
-                          className="w-40 border border-slate-200 rounded px-2 py-1 text-xs"
+                          className="w-40 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>
@@ -464,8 +464,8 @@ export default function GlobalPersonsImportPage() {
                           className={`w-32 border rounded px-2 py-1 text-xs ${
                             row.fields.dateOfBirth &&
                             !/^\d{4}-\d{2}-\d{2}$/.test(row.fields.dateOfBirth)
-                              ? 'border-red-400'
-                              : 'border-slate-200'
+                              ? 'border-danger'
+                              : 'border-border'
                           }`}
                           disabled={row.action === 'skip'}
                         />
@@ -507,16 +507,16 @@ export default function GlobalPersonsImportPage() {
                       </td>
                       <td className="px-3 py-2 text-xs">
                         {row.status === 'invalid' && (
-                          <span className="text-red-700">
+                          <span className="text-danger">
                             Invalid: {row.reasons.join(', ') || 'unknown'}
                           </span>
                         )}
                         {row.status === 'duplicate' && row.duplicate && (
-                          <span className="text-amber-700">
+                          <span className="text-warning">
                             Duplicate of <strong>{row.duplicate.displayName}</strong>
                           </span>
                         )}
-                        {row.status === 'ok' && <span className="text-green-700">OK</span>}
+                        {row.status === 'ok' && <span className="text-success">OK</span>}
                       </td>
                     </tr>
                   );
@@ -532,16 +532,20 @@ export default function GlobalPersonsImportPage() {
           {totalImported > 0 ? (
             <div className="text-center py-6 mb-6">
               <p className="text-4xl mb-3">✅</p>
-              <h2 className="text-xl font-bold mb-2">Import complete</h2>
-              <p className="text-sm text-slate-500">
+              <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
+                Import complete
+              </h2>
+              <p className="text-sm text-muted">
                 Imported {report.created} new, updated {report.updated}.
               </p>
             </div>
           ) : (
-            <div className="text-center py-6 mb-6 rounded-lg border border-amber-200 bg-amber-50">
+            <div className="text-center py-6 mb-6 rounded-lg border border-warning/30 bg-warning/10">
               <p className="text-4xl mb-3">⚠️</p>
-              <h2 className="text-xl font-bold mb-2 text-amber-900">Nothing was imported.</h2>
-              <p className="text-sm text-amber-800">
+              <h2 className="font-display font-semibold text-lg sm:text-xl mb-2 text-warning">
+                Nothing was imported.
+              </h2>
+              <p className="text-sm text-warning">
                 No rows were created or updated. See per-row reasons below.
               </p>
             </div>
@@ -552,22 +556,22 @@ export default function GlobalPersonsImportPage() {
               {
                 label: 'Created',
                 value: report.created,
-                color: 'text-green-700 bg-green-50 border-green-200',
+                color: 'text-success bg-success/10 border-success/30',
               },
               {
                 label: 'Updated',
                 value: report.updated,
-                color: 'text-blue-700 bg-blue-50 border-blue-200',
+                color: 'text-info bg-info/10 border-info/30',
               },
               {
                 label: 'Skipped',
                 value: report.skipped,
-                color: 'text-slate-700 bg-slate-50 border-slate-200',
+                color: 'text-foreground-secondary bg-background border-border',
               },
               {
                 label: 'Failed',
                 value: report.failed.length,
-                color: 'text-red-700 bg-red-50 border-red-200',
+                color: 'text-danger bg-danger/10 border-danger/30',
               },
             ].map(({ label, value, color }) => (
               <div key={label} className={`border rounded-lg p-3 text-center ${color}`}>
@@ -578,9 +582,9 @@ export default function GlobalPersonsImportPage() {
           </div>
 
           {report.failed.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm mb-5">
-              <p className="font-medium text-red-700 mb-2">Failed rows:</p>
-              <ul className="space-y-0.5 text-xs text-red-800 list-disc list-inside">
+            <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-sm mb-5">
+              <p className="font-medium text-danger mb-2">Failed rows:</p>
+              <ul className="space-y-0.5 text-xs text-danger list-disc list-inside">
                 {report.failed.map((f) => (
                   <li key={f.index}>
                     Row #{f.index}: {f.reason}
@@ -591,18 +595,18 @@ export default function GlobalPersonsImportPage() {
           )}
 
           {report.newClubs.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm mb-5">
-              <p className="font-medium text-amber-700 mb-1">
+            <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm mb-5">
+              <p className="font-medium text-warning mb-1">
                 New unverified clubs created ({report.newClubs.length}):
               </p>
               <div className="flex flex-wrap gap-1">
                 {report.newClubs.map((c) => (
-                  <span key={c} className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs">
+                  <span key={c} className="bg-warning/10 text-warning px-2 py-0.5 rounded text-xs">
                     {c}
                   </span>
                 ))}
               </div>
-              <p className="text-xs text-amber-600 mt-2">
+              <p className="text-xs text-warning mt-2">
                 Review and verify these clubs in the{' '}
                 <Link href="/admin/clubs" className="underline">
                   Clubs admin
@@ -616,7 +620,7 @@ export default function GlobalPersonsImportPage() {
             <button
               type="button"
               onClick={reset}
-              className="border border-slate-300 hover:border-slate-400 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm"
+              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm"
             >
               Import another file
             </button>

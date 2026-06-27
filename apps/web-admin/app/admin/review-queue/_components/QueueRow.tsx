@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { SkillBadge } from '@myclash/ui';
+import { SkillBadge, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import type { ReviewQueueItem } from '../_types';
 
@@ -18,16 +18,7 @@ const TYPE_BADGE: Record<ReviewQueueItem['type'], { color: string; label: string
 
 // ── Status pill ───────────────────────────────────────────────────────────────
 
-const STATUS_PILL_CLASS: Record<string, string> = {
-  pending:
-    'inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800',
-  approved:
-    'inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800',
-  rejected: 'inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700',
-  linked: 'inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700',
-  cancelled:
-    'inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500',
-};
+const STATUS_PILL_BASE = 'inline-block rounded-full border px-2 py-0.5 text-xs font-semibold';
 
 function statusLabel(status: string): string {
   switch (status) {
@@ -74,7 +65,7 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
   const isBusy = busyId === item.id;
 
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50 align-top">
+    <tr className="border-b border-border hover:bg-background align-top">
       {/* Type badge */}
       <td className="py-3 pr-4 whitespace-nowrap">
         <SkillBadge color={badge.color} label={badge.label} />
@@ -85,40 +76,42 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
         {item.targetHref ? (
           <Link
             href={item.targetHref}
-            className="text-sm text-blue-700 underline hover:text-blue-900 break-words"
+            className="text-sm text-accent underline hover:text-accent-hover break-words"
           >
             {item.targetLabel}
           </Link>
         ) : (
-          <span className="text-sm text-slate-700 break-words">{item.targetLabel}</span>
+          <span className="text-sm text-foreground-secondary break-words">{item.targetLabel}</span>
         )}
       </td>
 
       {/* Requester */}
-      <td className="py-3 pr-4 whitespace-nowrap text-sm text-slate-600">
-        <p className="font-medium text-slate-700">{item.requesterName}</p>
+      <td className="py-3 pr-4 whitespace-nowrap text-sm text-foreground-secondary">
+        <p className="font-medium text-foreground-secondary">{item.requesterName}</p>
         {item.requesterEmail && (
-          <p className="text-xs font-mono text-slate-400">{item.requesterEmail}</p>
+          <p className="text-xs font-mono text-muted">{item.requesterEmail}</p>
         )}
       </td>
 
       {/* Age */}
-      <td className="py-3 pr-4 whitespace-nowrap text-sm text-slate-500">
+      <td className="py-3 pr-4 whitespace-nowrap text-sm text-muted">
         {relativeTime(item.createdAt)}
       </td>
 
       {/* Reason */}
-      <td className="py-3 pr-4 max-w-[180px] text-sm text-slate-700">
+      <td className="py-3 pr-4 max-w-[180px] text-sm text-foreground-secondary">
         {truncatedReason ? (
           <span title={item.reason ?? undefined}>{truncatedReason}</span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-muted">—</span>
         )}
       </td>
 
       {/* Status */}
       <td className="py-3 pr-4 whitespace-nowrap">
-        <span className={STATUS_PILL_CLASS[item.status] ?? STATUS_PILL_CLASS['pending']}>
+        <span
+          className={`${STATUS_PILL_BASE} ${statusPillTone(reviewStatusSemantic(item.status), 'light').className}`}
+        >
           {statusLabel(item.status)}
         </span>
       </td>
@@ -130,20 +123,20 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
             <button
               onClick={() => onApprove(item)}
               disabled={isBusy}
-              className="rounded border border-green-300 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50"
+              className="rounded border border-success/30 bg-success/10 px-3 py-1 text-xs font-semibold text-success hover:bg-success/20 disabled:opacity-50"
             >
               {t('admin.reviewQueue.approve')}
             </button>
             <button
               onClick={() => onReject(item)}
               disabled={isBusy}
-              className="rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              className="rounded border border-danger/30 bg-danger/10 px-3 py-1 text-xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
             >
               {t('admin.reviewQueue.reject')}
             </button>
           </div>
         ) : (
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-muted">
             {item.reviewedAt && item.reviewedByUserId ? (
               <p>
                 {t('admin.reviewQueue.reviewedByOn', {

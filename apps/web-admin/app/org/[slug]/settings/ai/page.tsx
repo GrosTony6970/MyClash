@@ -110,8 +110,8 @@ export default function OrgAISettingsPage() {
   if (loading) {
     return (
       <main className="p-8 max-w-2xl">
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
-          <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+        <div className="flex items-center gap-2 text-muted text-sm">
+          <span className="w-4 h-4 border-2 border-muted border-t-transparent rounded-full animate-spin" />
           Loading…
         </div>
       </main>
@@ -120,37 +120,37 @@ export default function OrgAISettingsPage() {
 
   return (
     <main className="p-8 max-w-2xl">
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-gray-700">
+      <div className="flex items-center gap-2 text-sm text-muted mb-1">
+        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
           {slug}
         </Link>
         <span>/</span>
-        <Link href={`/org/${slug}/settings/ai`} className="hover:text-gray-700">
+        <Link href={`/org/${slug}/settings/ai`} className="hover:text-foreground-secondary">
           Settings
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">AI</span>
+        <span className="text-foreground font-medium">AI</span>
       </div>
 
-      <h1 className="text-2xl font-bold mb-1 mt-4">AI Settings</h1>
-      <p className="text-gray-500 text-sm mb-6">
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1 mt-4">AI Settings</h1>
+      <p className="text-muted text-sm mb-6">
         Connect an AI provider API key to enable AI-powered features for your organisation.
       </p>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-6 text-sm">
           {error}
         </div>
       )}
 
       {!config && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 mb-6 text-sm">
+        <div className="bg-warning/10 border border-warning/30 text-warning rounded-lg px-4 py-3 mb-6 text-sm">
           AI features are disabled for your organisation until an API key is configured.
         </div>
       )}
 
       {config && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 mb-2 text-sm flex items-center justify-between">
+        <div className="bg-success/10 border border-success/30 text-success rounded-lg px-4 py-3 mb-2 text-sm flex items-center justify-between">
           <span>
             <strong>{PROVIDERS.find((p) => p.id === config.provider)?.label}</strong> key saved —
             updated{' '}
@@ -163,21 +163,21 @@ export default function OrgAISettingsPage() {
           <button
             onClick={() => void handleRemove()}
             disabled={removing}
-            className="text-red-600 hover:text-red-800 font-medium text-sm ml-4 disabled:opacity-50"
+            className="text-danger hover:text-danger-hover font-medium text-sm ml-4 disabled:opacity-50"
           >
             {removing ? 'Removing…' : 'Remove key'}
           </button>
         </div>
       )}
 
-      {removeError && <p className="text-sm text-red-600 mb-4">{removeError}</p>}
+      {removeError && <p className="text-sm text-danger mb-4">{removeError}</p>}
 
       <form
         onSubmit={(e) => void handleSave(e)}
-        className="bg-white border border-gray-200 rounded-xl p-6 space-y-5"
+        className="bg-surface border border-border rounded-xl p-6 space-y-5"
       >
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-3">Provider</p>
+          <p className="text-sm font-medium text-foreground-secondary mb-3">Provider</p>
           <div className="space-y-2">
             {PROVIDERS.map((p) => (
               <label
@@ -187,8 +187,8 @@ export default function OrgAISettingsPage() {
                 className={[
                   'flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors',
                   selectedProvider === p.id
-                    ? 'border-red-400 bg-red-50'
-                    : 'border-gray-200 hover:border-gray-300',
+                    ? 'border-accent bg-accent/10'
+                    : 'border-border hover:border-muted',
                 ].join(' ')}
               >
                 <input
@@ -199,11 +199,11 @@ export default function OrgAISettingsPage() {
                   aria-label={p.label}
                   checked={selectedProvider === p.id}
                   onChange={() => setSelectedProvider(p.id)}
-                  className="accent-red-600"
+                  className="accent-accent"
                 />
                 <div>
-                  <p className="text-sm font-medium text-gray-800">{p.label}</p>
-                  <p className="text-xs text-gray-500">{p.hint}</p>
+                  <p className="text-sm font-medium text-foreground">{p.label}</p>
+                  <p className="text-xs text-muted">{p.hint}</p>
                 </div>
               </label>
             ))}
@@ -211,7 +211,7 @@ export default function OrgAISettingsPage() {
         </div>
 
         <label className="block" htmlFor="apiKey">
-          <span className="block text-sm font-medium text-gray-700 mb-1">API Key</span>
+          <span className="block text-sm font-medium text-foreground-secondary mb-1">API Key</span>
           <input
             id="apiKey"
             type="password"
@@ -219,16 +219,16 @@ export default function OrgAISettingsPage() {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={config ? '••••••••  (leave blank to keep current key)' : 'sk-ant-…'}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
           />
         </label>
 
-        {saveError && <p className="text-red-600 text-sm">{saveError}</p>}
+        {saveError && <p className="text-danger text-sm">{saveError}</p>}
 
         <button
           type="submit"
           disabled={saving || !apiKey.trim()}
-          className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving…' : 'Save API key'}
         </button>

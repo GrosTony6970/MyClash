@@ -228,7 +228,10 @@ function Step1({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label htmlFor="wizard-event-name" className="mb-1 block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="wizard-event-name"
+          className="mb-1 block text-sm font-medium text-foreground-secondary"
+        >
           {t('organizer.newEvent.eventName')}
         </label>
         <input
@@ -242,16 +245,19 @@ function Step1({
             }
           }}
           placeholder={t('organizer.newEvent.eventNamePlaceholder')}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
         />
       </div>
 
       <div>
-        <label htmlFor="wizard-event-slug" className="mb-1 block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="wizard-event-slug"
+          className="mb-1 block text-sm font-medium text-foreground-secondary"
+        >
           {t('organizer.newEvent.slug')}
         </label>
-        <div className="flex items-center overflow-hidden rounded-lg border border-gray-300 focus-within:ring-2 focus-within:ring-red-600">
-          <span className="select-none border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+        <div className="flex items-center overflow-hidden rounded-lg border border-border focus-within:ring-2 focus-within:ring-accent">
+          <span className="select-none border-r border-border bg-background px-3 py-2 text-sm text-muted">
             {t('organizer.newEvent.slugPrefix')}
           </span>
           <input
@@ -297,7 +303,10 @@ function Step1({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="wizard-city" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="wizard-city"
+            className="mb-1 block text-sm font-medium text-foreground-secondary"
+          >
             {t('organizer.newEvent.city')}
           </label>
           <input
@@ -308,11 +317,14 @@ function Step1({
               dispatch({ type: 'SET_FIELD', field: 'city', value: event.target.value })
             }
             placeholder={t('organizer.newEvent.cityPlaceholder')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
         <div>
-          <label htmlFor="wizard-country" className="mb-1 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="wizard-country"
+            className="mb-1 block text-sm font-medium text-foreground-secondary"
+          >
             {t('organizer.newEvent.country')}
           </label>
           <CountryCombobox
@@ -356,7 +368,7 @@ function Step2({
 
   return (
     <div className="flex flex-col gap-5">
-      <div role="tablist" className="flex gap-1 rounded-lg bg-gray-100 p-1 text-sm font-medium">
+      <div role="tablist" className="flex gap-1 rounded-lg bg-border p-1 text-sm font-medium">
         <button
           type="button"
           role="tab"
@@ -365,8 +377,8 @@ function Step2({
           className={[
             'flex-1 rounded-md px-3 py-1.5 transition-colors',
             state.venueMode === 'existing'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700',
+              ? 'bg-surface text-foreground shadow-sm'
+              : 'text-muted hover:text-foreground-secondary',
           ].join(' ')}
         >
           {t('organizer.newEvent.venuePickExisting')}
@@ -380,8 +392,8 @@ function Step2({
           className={[
             'flex-1 rounded-md px-3 py-1.5 transition-colors',
             state.venueMode === 'new'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700',
+              ? 'bg-surface text-foreground shadow-sm'
+              : 'text-muted hover:text-foreground-secondary',
           ].join(' ')}
         >
           {t('organizer.newEvent.venueCreateNew')}
@@ -390,13 +402,16 @@ function Step2({
 
       {state.venueMode === 'existing' ? (
         <div className="flex flex-col gap-2">
-          <label htmlFor="wizard-venue-select" className="text-sm font-medium text-gray-700">
+          <label
+            htmlFor="wizard-venue-select"
+            className="text-sm font-medium text-foreground-secondary"
+          >
             {t('organizer.newEvent.venuePickLabel')}
           </label>
           {catalogueLoading ? (
-            <p className="text-xs text-gray-500">{t('organizer.newEvent.venueLoading')}</p>
+            <p className="text-xs text-muted">{t('organizer.newEvent.venueLoading')}</p>
           ) : catalogue.length === 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
               {t('organizer.newEvent.venueCatalogueEmpty')}
             </div>
           ) : (
@@ -412,7 +427,7 @@ function Step2({
                   areaNames: picked?.venue_areas?.map((a) => a.name) ?? null,
                 });
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <option value="">{t('organizer.newEvent.venuePickPlaceholder')}</option>
               {catalogue.map((venue) => (
@@ -443,7 +458,7 @@ function Step2({
           <div>
             <label
               htmlFor="wizard-venue-name"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className="mb-1 block text-sm font-medium text-foreground-secondary"
             >
               {t('organizer.newEvent.venueName')}
             </label>
@@ -455,14 +470,14 @@ function Step2({
                 dispatch({ type: 'SET_FIELD', field: 'newVenueName', value: event.target.value })
               }
               placeholder={t('organizer.newEvent.venueNamePlaceholder')}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
 
           <div>
             <label
               htmlFor="wizard-venue-address"
-              className="mb-1 block text-sm font-medium text-gray-700"
+              className="mb-1 block text-sm font-medium text-foreground-secondary"
             >
               {t('organizer.newEvent.venueAddress')}
             </label>
@@ -478,15 +493,15 @@ function Step2({
                 })
               }
               placeholder={t('organizer.newEvent.venueAddressPlaceholder')}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
 
           <fieldset className="flex flex-wrap gap-4">
-            <legend className="mb-1 text-sm font-medium text-gray-700">
+            <legend className="mb-1 text-sm font-medium text-foreground-secondary">
               {t('organizer.newEvent.venueCapabilities')}
             </legend>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-foreground-secondary">
               <input
                 type="checkbox"
                 data-testid="venue-hosts-tournament"
@@ -498,11 +513,11 @@ function Step2({
                     value: event.target.checked,
                   })
                 }
-                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
+                className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
               />
               {t('organizer.venues.hostsTournament')}
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-foreground-secondary">
               <input
                 type="checkbox"
                 checked={state.newVenueHostsWorkshop}
@@ -513,7 +528,7 @@ function Step2({
                     value: event.target.checked,
                   })
                 }
-                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
+                className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
               />
               {t('organizer.venues.hostsWorkshop')}
             </label>
@@ -524,24 +539,24 @@ function Step2({
       {hostsTournament && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-700">
+            <p className="text-sm font-medium text-foreground-secondary">
               {t('organizer.newEvent.licesNames')}
             </p>
             <button
               type="button"
               onClick={() => dispatch({ type: 'ADD_LICE' })}
               disabled={state.liceNames.length >= 12}
-              className="text-xs font-semibold text-red-700 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-xs font-semibold text-accent hover:text-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t('organizer.newEvent.liceAdd')}
             </button>
           </div>
           {state.liceNames.length === 0 ? (
-            <p className="text-xs text-gray-500">{t('organizer.newEvent.licesEmptyHint')}</p>
+            <p className="text-xs text-muted">{t('organizer.newEvent.licesEmptyHint')}</p>
           ) : (
             state.liceNames.map((name, index) => (
               <div key={index} className="flex items-center gap-2">
-                <span className="w-6 text-right text-xs text-gray-400">{index + 1}.</span>
+                <span className="w-6 text-right text-xs text-muted">{index + 1}.</span>
                 <input
                   type="text"
                   value={name}
@@ -549,13 +564,13 @@ function Step2({
                   onChange={(event) =>
                     dispatch({ type: 'SET_LICE_NAME', index, value: event.target.value })
                   }
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="flex-1 rounded-lg border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
                   type="button"
                   onClick={() => dispatch({ type: 'REMOVE_LICE', index })}
                   aria-label={t('organizer.newEvent.liceRemove')}
-                  className="h-8 w-8 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+                  className="h-8 w-8 rounded-lg border border-border text-xs text-muted hover:bg-background"
                 >
                   ×
                 </button>
@@ -568,20 +583,22 @@ function Step2({
       {hostsWorkshop && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-700">{t('organizer.newEvent.areaNames')}</p>
+            <p className="text-sm font-medium text-foreground-secondary">
+              {t('organizer.newEvent.areaNames')}
+            </p>
             <button
               type="button"
               onClick={() => dispatch({ type: 'ADD_AREA' })}
               disabled={state.areaNames.length >= 12}
-              className="text-xs font-semibold text-red-700 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-xs font-semibold text-accent hover:text-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t('organizer.newEvent.areaAdd')}
             </button>
           </div>
-          <p className="text-xs text-gray-500">{t('organizer.newEvent.areaHint')}</p>
+          <p className="text-xs text-muted">{t('organizer.newEvent.areaHint')}</p>
           {state.areaNames.map((name, index) => (
             <div key={index} className="flex items-center gap-2">
-              <span className="w-6 text-right text-xs text-gray-400">{index + 1}.</span>
+              <span className="w-6 text-right text-xs text-muted">{index + 1}.</span>
               <input
                 type="text"
                 value={name}
@@ -589,13 +606,13 @@ function Step2({
                 onChange={(event) =>
                   dispatch({ type: 'SET_AREA_NAME', index, value: event.target.value })
                 }
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="flex-1 rounded-lg border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <button
                 type="button"
                 onClick={() => dispatch({ type: 'REMOVE_AREA', index })}
                 aria-label={t('organizer.newEvent.areaRemove')}
-                className="h-8 w-8 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+                className="h-8 w-8 rounded-lg border border-border text-xs text-muted hover:bg-background"
               >
                 ×
               </button>
@@ -623,7 +640,10 @@ function Step3({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label htmlFor="wizard-logo-url" className="mb-1 block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="wizard-logo-url"
+          className="mb-1 block text-sm font-medium text-foreground-secondary"
+        >
           {t('organizer.newEvent.logoUrl')}
         </label>
         <input
@@ -634,7 +654,7 @@ function Step3({
             dispatch({ type: 'SET_FIELD', field: 'logoUrl', value: event.target.value })
           }
           placeholder={t('organizer.newEvent.logoUrlPlaceholder')}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
         />
         <div className="mt-3 flex flex-col gap-3">
           <input
@@ -642,18 +662,18 @@ function Step3({
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={(event) => onLogoChange(event.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+            className="block w-full text-sm text-foreground-secondary file:mr-3 file:rounded-lg file:border-0 file:bg-strong file:px-3 file:py-2 file:text-sm file:font-semibold file:text-strong-foreground hover:file:bg-strong-hover"
           />
-          <p className="text-xs text-gray-400">{t('organizer.newEvent.logoHelp')}</p>
+          <p className="text-xs text-muted">{t('organizer.newEvent.logoHelp')}</p>
           {logoPreviewUrl && (
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoPreviewUrl}
                 alt={t('organizer.newEvent.logoPreviewAlt')}
-                className="h-12 w-12 rounded bg-white object-contain p-1"
+                className="h-12 w-12 rounded bg-surface object-contain p-1"
               />
-              <span className="text-xs text-gray-500">{t('organizer.newEvent.logoUpload')}</span>
+              <span className="text-xs text-muted">{t('organizer.newEvent.logoUpload')}</span>
             </div>
           )}
         </div>
@@ -694,13 +714,13 @@ function Step4({
 
   return (
     <div className="flex flex-col gap-4 text-sm">
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+      <div className="rounded-xl border border-border bg-background p-4">
+        <p className="mb-2 text-xs uppercase tracking-wide text-muted">
           {t('organizer.newEvent.reviewEvent')}
         </p>
-        <p className="font-semibold text-gray-900">{state.name}</p>
-        <p className="mt-0.5 font-mono text-xs text-gray-500">/e/{state.slug}</p>
-        <p className="mt-1 text-gray-500">
+        <p className="font-semibold text-foreground">{state.name}</p>
+        <p className="mt-0.5 font-mono text-xs text-muted">/e/{state.slug}</p>
+        <p className="mt-1 text-muted">
           {state.startDate} - {state.endDate}
           {(() => {
             const countryName = formatCountryName(state.country, locale);
@@ -710,14 +730,14 @@ function Step4({
         </p>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+      <div className="rounded-xl border border-border bg-background p-4">
+        <p className="mb-2 text-xs uppercase tracking-wide text-muted">
           {state.venueMode === 'existing'
             ? t('organizer.newEvent.reviewVenueExisting')
             : t('organizer.newEvent.reviewVenueNew')}
         </p>
-        <p className="font-semibold text-gray-900">{venueLabel}</p>
-        {venueAddress && <p className="mt-0.5 text-xs text-gray-500">{venueAddress}</p>}
+        <p className="font-semibold text-foreground">{venueLabel}</p>
+        {venueAddress && <p className="mt-0.5 text-xs text-muted">{venueAddress}</p>}
         <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
           {venueHostsTournament && (
             <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">
@@ -732,14 +752,14 @@ function Step4({
         </div>
         {venueHostsTournament && state.liceNames.length > 0 && (
           <div className="mt-3">
-            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+            <p className="mb-1 text-xs uppercase tracking-wide text-muted">
               {t('organizer.newEvent.reviewLices', { count: state.liceNames.length })}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {state.liceNames.map((name, index) => (
                 <span
                   key={index}
-                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs"
+                  className="rounded border border-border bg-surface px-2 py-0.5 text-xs"
                 >
                   {name}
                 </span>
@@ -749,14 +769,14 @@ function Step4({
         )}
         {venueHostsWorkshop && state.areaNames.length > 0 && (
           <div className="mt-3">
-            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+            <p className="mb-1 text-xs uppercase tracking-wide text-muted">
               {t('organizer.newEvent.reviewAreas', { count: state.areaNames.length })}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {state.areaNames.map((name, index) => (
                 <span
                   key={index}
-                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs"
+                  className="rounded border border-border bg-surface px-2 py-0.5 text-xs"
                 >
                   {name}
                 </span>
@@ -767,8 +787,8 @@ function Step4({
       </div>
 
       {logoPreviewUrl && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-          <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+        <div className="rounded-xl border border-border bg-background p-4">
+          <p className="mb-2 text-xs uppercase tracking-wide text-muted">
             {t('organizer.newEvent.reviewTheme')}
           </p>
           <div className="flex items-center gap-2">
@@ -776,9 +796,9 @@ function Step4({
             <img
               src={logoPreviewUrl}
               alt={t('organizer.newEvent.logoPreviewAlt')}
-              className="h-10 w-10 rounded bg-white object-contain"
+              className="h-10 w-10 rounded bg-surface object-contain"
             />
-            <span className="text-xs text-gray-500">{t('organizer.newEvent.logoUpload')}</span>
+            <span className="text-xs text-muted">{t('organizer.newEvent.logoUpload')}</span>
           </div>
         </div>
       )}
@@ -1054,13 +1074,15 @@ export default function NewEventPage() {
   }
 
   return (
-    <main id="main-content" className="max-w-xl p-8">
+    <main id="main-content" className="mx-auto max-w-2xl p-8">
       <div className="mb-6 flex items-center gap-3">
         <Button type="button" variant="back" size="sm" onClick={() => router.push(`/org/${slug}`)}>
           {t('organizer.newEvent.backToOrg', { slug })}
         </Button>
-        <span className="text-gray-300">/</span>
-        <h1 className="text-xl font-bold">{t('organizer.newEvent.title')}</h1>
+        <span className="text-muted">/</span>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl">
+          {t('organizer.newEvent.title')}
+        </h1>
       </div>
 
       <ol
@@ -1078,10 +1100,10 @@ export default function NewEventPage() {
                 className={[
                   'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold',
                   active
-                    ? 'bg-red-700 text-white'
+                    ? 'bg-accent text-accent-foreground'
                     : done
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-500',
+                      ? 'bg-success text-success-foreground'
+                      : 'bg-border text-muted',
                 ].join(' ')}
               >
                 {done ? (
@@ -1096,13 +1118,13 @@ export default function NewEventPage() {
               <span
                 className={[
                   'text-sm',
-                  active ? 'font-semibold text-gray-900' : 'text-gray-400',
+                  active ? 'font-semibold text-foreground' : 'text-muted',
                 ].join(' ')}
               >
                 {label}
               </span>
               {index < stepLabels.length - 1 && (
-                <div aria-hidden="true" className="mx-1 h-px w-6 bg-gray-200" />
+                <div aria-hidden="true" className="mx-1 h-px w-6 bg-border" />
               )}
             </li>
           );
@@ -1141,7 +1163,7 @@ export default function NewEventPage() {
       </div>
 
       {(stepError ?? state.error) && (
-        <p className="mb-4 text-sm text-red-600" role="alert">
+        <p className="mb-4 text-sm text-danger" role="alert">
           {stepError ?? state.error}
         </p>
       )}

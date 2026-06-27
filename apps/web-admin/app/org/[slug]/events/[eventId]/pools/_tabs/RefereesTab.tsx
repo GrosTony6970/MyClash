@@ -339,12 +339,12 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   }
 
   if (loading && !board) {
-    return <p className="text-sm text-gray-400">{t('organizer.poolsPage.refereesLoading')}</p>;
+    return <p className="text-sm text-muted">{t('organizer.poolsPage.refereesLoading')}</p>;
   }
   if (!board || tournamentPools.length === 0) {
     return (
-      <div className="rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-        <p className="text-sm text-gray-400">{t('organizer.poolsPage.refereesEmpty')}</p>
+      <div className="rounded-lg border-2 border-dashed border-border p-8 text-center">
+        <p className="text-sm text-muted">{t('organizer.poolsPage.refereesEmpty')}</p>
       </div>
     );
   }
@@ -352,7 +352,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   return (
     <section className="space-y-4">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </div>
       )}
@@ -362,7 +362,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
       {concurrentPools.length > 0 && <ConcurrentPoolsPanel pools={concurrentPools} />}
 
       <section className="space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.poolsPage.refereesSlotCardsTitle')}
         </h3>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -413,11 +413,11 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 
 function ConcurrentPoolsPanel({ pools }: { pools: AssignmentBoardPool[] }) {
   return (
-    <section className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-amber-800">
+    <section className="rounded-lg border border-warning/30 bg-warning/10 p-4">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-warning">
         {t('organizer.poolsPage.refereesConcurrentTitle')}
       </h3>
-      <p className="mb-3 text-xs text-amber-700">
+      <p className="mb-3 text-xs text-warning">
         {t('organizer.poolsPage.refereesConcurrentBody', { count: pools.length })}
       </p>
       <ul className="space-y-1 text-xs">
@@ -427,13 +427,13 @@ function ConcurrentPoolsPanel({ pools }: { pools: AssignmentBoardPool[] }) {
             .map((s) => s.assignment!.displayName);
           return (
             <li key={pool.id} className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-semibold text-gray-800">
+              <span className="font-semibold text-foreground">
                 {pool.tournamentName} · {pool.name}
                 {pool.scheduledStart && (
-                  <span className="ml-1 text-gray-500">({formatHHMM(pool.scheduledStart)})</span>
+                  <span className="ml-1 text-muted">({formatHHMM(pool.scheduledStart)})</span>
                 )}
               </span>
-              <span className="text-gray-600">
+              <span className="text-foreground-secondary">
                 {assigned.length > 0
                   ? assigned.join(', ')
                   : t('organizer.poolsPage.refereesUnassigned')}
@@ -481,19 +481,19 @@ function CandidatePicker({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="w-full max-w-xl rounded-lg bg-surface p-5 shadow-xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {pool.name} - {slot.displayName ?? slot.role}
             </h2>
-            <p className="text-sm text-gray-500">{pool.tournamentName}</p>
+            <p className="text-sm text-muted">{pool.tournamentName}</p>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            className="text-sm text-gray-500 hover:text-gray-800"
+            className="text-sm text-muted hover:text-foreground"
           >
             {t('organizer.poolsPage.refereesCancel')}
           </button>
@@ -532,7 +532,7 @@ function CandidateGroup({
   if (candidates.length === 0) return null;
   return (
     <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
         {title} ({candidates.length})
       </p>
       <ul className="space-y-1">
@@ -542,22 +542,22 @@ function CandidateGroup({
             className={[
               'flex items-center justify-between gap-3 rounded border px-3 py-1.5 text-sm',
               disabled
-                ? 'border-gray-200 bg-gray-50 text-gray-500'
-                : 'border-gray-200 bg-white hover:border-gray-400',
+                ? 'border-border bg-background text-muted'
+                : 'border-border bg-surface hover:border-border',
             ].join(' ')}
           >
             <div className="min-w-0">
-              <p className="truncate font-medium text-gray-900">{c.displayName}</p>
-              {c.clubLabel && <p className="truncate text-[10px] text-gray-400">{c.clubLabel}</p>}
+              <p className="truncate font-medium text-foreground">{c.displayName}</p>
+              {c.clubLabel && <p className="truncate text-[10px] text-muted">{c.clubLabel}</p>}
               {c.blockedReasons && (
-                <p className="text-[10px] text-red-600">{c.blockedReasons.join(', ')}</p>
+                <p className="text-[10px] text-danger">{c.blockedReasons.join(', ')}</p>
               )}
             </div>
             {!disabled && onSelect && (
               <button
                 type="button"
                 onClick={() => onSelect(c)}
-                className="rounded border border-emerald-500 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                className="rounded border border-success px-2 py-0.5 text-xs font-semibold text-success hover:bg-success/10"
               >
                 {t('organizer.poolsPage.refereesPick')}
               </button>

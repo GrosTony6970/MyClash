@@ -205,31 +205,33 @@ export default function EditRulesetPage() {
     <main className="grid max-w-6xl gap-6 p-8 lg:grid-cols-[1fr_280px]">
       <div>
         <div className="mb-2 text-sm">
-          <Link href="/admin/rulesets" className="text-slate-500 hover:underline">
+          <Link href="/admin/rulesets" className="text-muted hover:underline">
             {t('admin.rulesets.backToList')}
           </Link>
         </div>
-        <h1 className="mb-1 text-2xl font-bold text-slate-900">{t('admin.rulesets.editTitle')}</h1>
-        <p className="mb-6 text-sm text-slate-500">{t('admin.rulesets.editDescription')}</p>
+        <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
+          {t('admin.rulesets.editTitle')}
+        </h1>
+        <p className="mb-6 text-sm text-muted">{t('admin.rulesets.editDescription')}</p>
 
         {error && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {error}
           </div>
         )}
 
         {loading || !initial ? (
-          <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+          <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
         ) : (
           <>
             {!initial.isSystem && isCurrentFrozen && (
-              <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
                 <span>{t('admin.rulesets.versionFrozenBanner')}</span>
                 <button
                   type="button"
                   onClick={handlePublishNewVersion}
                   disabled={busy}
-                  className="rounded-md bg-amber-700 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                  className="rounded-md bg-warning px-3 py-1 text-xs font-semibold text-white hover:bg-warning-hover disabled:opacity-50"
                 >
                   {t('admin.rulesets.publishNewVersionAction')}
                 </button>
@@ -294,38 +296,38 @@ export default function EditRulesetPage() {
 
       {!loading && initial && !initial.isSystem && (
         <aside className="lg:sticky lg:top-8 lg:self-start">
-          <div className="rounded-md border border-slate-200 bg-white p-4">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          <div className="rounded-md border border-border bg-surface p-4">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
               {t('admin.rulesets.versionHistoryTitle')}
             </h2>
-            {versionsError && <p className="mb-2 text-xs text-red-600">{versionsError}</p>}
+            {versionsError && <p className="mb-2 text-xs text-danger">{versionsError}</p>}
             {versions.length === 0 ? (
-              <p className="text-xs text-slate-400">{t('admin.rulesets.versionHistoryEmpty')}</p>
+              <p className="text-xs text-muted">{t('admin.rulesets.versionHistoryEmpty')}</p>
             ) : (
               <ul className="space-y-3">
                 {versions.map((snap) => (
                   <li
                     key={snap.id}
-                    className="border-b border-slate-100 pb-3 last:border-b-0 last:pb-0"
+                    className="border-b border-border pb-3 last:border-b-0 last:pb-0"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-semibold text-slate-800">
+                      <span className="font-mono text-sm font-semibold text-foreground">
                         {snap.version}
                       </span>
                       {snap.is_frozen && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                        <span className="rounded bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
                           {t('admin.rulesets.versionFrozenBadge')}
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-muted">
                       {new Date(snap.published_at).toLocaleString()}
                     </p>
                     <button
                       type="button"
                       onClick={() => void handleRestore(snap)}
                       disabled={busy || snap.version === currentVersion}
-                      className="mt-1 text-xs font-semibold text-red-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+                      className="mt-1 text-xs font-semibold text-accent hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
                     >
                       {t('admin.rulesets.versionRestoreAction')}
                     </button>

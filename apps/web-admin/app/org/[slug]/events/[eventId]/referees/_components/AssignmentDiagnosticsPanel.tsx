@@ -56,30 +56,30 @@ function pickTheme(status: HealthStatus) {
     case 'conflict':
     case 'shortage':
       return {
-        section: 'mb-4 rounded-xl border border-red-300 bg-red-50 p-4',
-        heading: 'text-red-700',
-        coverage: 'text-red-900',
-        sublabel: 'text-red-600',
-        item: 'text-red-800',
-        badge: 'bg-red-100 text-red-800',
+        section: 'mb-4 rounded-xl border border-danger/30 bg-danger/10 p-4',
+        heading: 'text-danger',
+        coverage: 'text-danger',
+        sublabel: 'text-danger',
+        item: 'text-danger',
+        badge: 'bg-danger/10 text-danger',
       };
     case 'gaps':
       return {
-        section: 'mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4',
-        heading: 'text-amber-700',
-        coverage: 'text-amber-900',
-        sublabel: 'text-amber-700',
-        item: 'text-amber-800',
-        badge: 'bg-amber-100 text-amber-800',
+        section: 'mb-4 rounded-xl border border-warning/30 bg-warning/10 p-4',
+        heading: 'text-warning',
+        coverage: 'text-warning',
+        sublabel: 'text-warning',
+        item: 'text-warning',
+        badge: 'bg-warning/10 text-warning',
       };
     default:
       return {
-        section: 'mb-4 rounded-xl border border-slate-200 bg-white p-4',
-        heading: 'text-slate-500',
-        coverage: 'text-slate-900',
-        sublabel: 'text-slate-500',
-        item: 'text-slate-700',
-        badge: 'bg-slate-100 text-slate-700',
+        section: 'mb-4 rounded-xl border border-border bg-surface p-4',
+        heading: 'text-muted',
+        coverage: 'text-foreground',
+        sublabel: 'text-muted',
+        item: 'text-foreground-secondary',
+        badge: 'bg-border text-foreground-secondary',
       };
   }
 }
@@ -141,7 +141,7 @@ export function AssignmentDiagnosticsPanel({
   return (
     <section aria-label={t('organizer.refereesPage.diagnostics.title')} className={theme.section}>
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h3 className={`text-xs font-semibold uppercase tracking-[0.15em] ${theme.heading}`}>
+        <h3 className={`text-xs font-semibold uppercase tracking-wider ${theme.heading}`}>
           {t('organizer.refereesPage.diagnostics.title')}
         </h3>
         <p className={`text-sm font-medium ${theme.coverage}`}>{coverage}</p>
@@ -269,13 +269,11 @@ export function AssignmentDiagnosticsPanel({
           {t('organizer.refereesPage.diagnostics.rosterHealth')}
         </p>
         {rosterShort.length === 0 ? (
-          <p className="text-sm text-emerald-700">
-            {t('organizer.refereesPage.diagnostics.rosterOk')}
-          </p>
+          <p className="text-sm text-success">{t('organizer.refereesPage.diagnostics.rosterOk')}</p>
         ) : (
           <ul className="space-y-1">
             {rosterShort.map((r) => (
-              <li key={r.skillId} className="text-sm font-medium text-red-800">
+              <li key={r.skillId} className="text-sm font-medium text-danger">
                 {t('organizer.refereesPage.diagnostics.rosterShortBy')
                   .replace('{skill}', r.skillName)
                   .replace('{count}', String(r.shortBy))

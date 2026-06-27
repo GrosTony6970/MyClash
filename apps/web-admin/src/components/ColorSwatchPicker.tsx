@@ -46,8 +46,8 @@ export function ColorSwatchPicker({
             onClick={() => onChange(hex)}
             style={{ backgroundColor: hex }}
             className={[
-              'h-7 w-7 rounded border transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400',
-              selected ? 'border-gray-900 ring-2 ring-gray-900 ring-offset-1' : 'border-gray-300',
+              'h-7 w-7 rounded border transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-accent',
+              selected ? 'border-strong ring-2 ring-strong ring-offset-1' : 'border-border',
             ].join(' ')}
           />
         );

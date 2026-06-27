@@ -75,11 +75,11 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
   const anyRunning = state.lices.some((l) => l.runningMatch !== null);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl mb-4 overflow-hidden shadow-sm">
+    <div className="bg-surface border border-border rounded-xl mb-4 overflow-hidden shadow-sm">
       {/* Header row */}
       <button
         onClick={() => setCollapsed((c) => !c)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-background transition-colors"
       >
         <div className="flex items-center gap-2">
           {anyRunning && (
@@ -88,15 +88,13 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
               LIVE
             </span>
           )}
-          {blockLabel && <span className="text-sm font-medium text-gray-800">{blockLabel}</span>}
+          {blockLabel && <span className="text-sm font-medium text-foreground">{blockLabel}</span>}
           {state.currentBlock && (
-            <span className="text-xs text-gray-400">
-              {timeRemaining(state.currentBlock.endTime)}
-            </span>
+            <span className="text-xs text-muted">{timeRemaining(state.currentBlock.endTime)}</span>
           )}
         </div>
         <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${collapsed ? '' : 'rotate-180'}`}
+          className={`w-4 h-4 text-muted transition-transform ${collapsed ? '' : 'rotate-180'}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -107,27 +105,27 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
 
       {/* Expanded lice rows */}
       {!collapsed && state.lices.length > 0 && (
-        <div className="border-t border-gray-100 divide-y divide-gray-50">
+        <div className="border-t border-border divide-y divide-border">
           {state.lices.map((ls) => (
             <div key={ls.lice.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-              <span className="w-20 flex-shrink-0 font-medium text-gray-600 truncate text-xs">
+              <span className="w-20 flex-shrink-0 font-medium text-foreground-secondary truncate text-xs">
                 {ls.lice.name}
               </span>
               {ls.runningMatch ? (
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="font-semibold text-gray-900 flex-shrink-0">
+                  <span className="font-semibold text-foreground flex-shrink-0">
                     {ls.runningMatch.matchNumberLabel}
                   </span>
-                  <span className="text-gray-500 truncate">
+                  <span className="text-muted truncate">
                     {ls.runningMatch.redFighterName ?? '?'} vs{' '}
                     {ls.runningMatch.blueFighterName ?? '?'}
                   </span>
                 </div>
               ) : ls.nextMatch ? (
-                <div className="flex items-center gap-2 min-w-0 text-gray-400">
+                <div className="flex items-center gap-2 min-w-0 text-muted">
                   <span className="flex-shrink-0 text-xs">Next:</span>
-                  <span className="font-medium text-gray-600 flex-shrink-0">
+                  <span className="font-medium text-foreground-secondary flex-shrink-0">
                     {ls.nextMatch.matchNumberLabel}
                   </span>
                   <span className="truncate">
@@ -144,7 +142,7 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                   )}
                 </div>
               ) : (
-                <span className="text-gray-300 text-xs">–</span>
+                <span className="text-muted text-xs">–</span>
               )}
             </div>
           ))}

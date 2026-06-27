@@ -93,14 +93,12 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
   );
 
   if (blocks.length === 0 && unscheduled.length === 0) {
-    return (
-      <p className="text-sm text-gray-400">{t('organizer.poolsPage.refereesTimelineEmpty')}</p>
-    );
+    return <p className="text-sm text-muted">{t('organizer.poolsPage.refereesTimelineEmpty')}</p>;
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
+    <section className="rounded-lg border border-border bg-surface p-4">
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
         {t('organizer.poolsPage.refereesTimelineTitle')}
       </h3>
       <div className="space-y-3">
@@ -117,10 +115,10 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
           ) : (
             <div key={row.block.startTime} className="flex items-start gap-3">
               <div className="w-20 shrink-0 pt-2 text-right">
-                <div className="text-[10px] leading-tight text-gray-400">
+                <div className="text-[10px] leading-tight text-muted">
                   {formatDay(row.block.startTime)}
                 </div>
-                <div className="text-xs font-semibold tabular-nums text-gray-600">
+                <div className="text-xs font-semibold tabular-nums text-foreground-secondary">
                   {formatHHMM(row.block.startTime)}
                 </div>
               </div>
@@ -138,8 +136,8 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
           ),
         )}
         {unscheduledByLice.length > 0 && (
-          <div className="flex items-start gap-3 border-t border-gray-100 pt-3">
-            <div className="w-20 shrink-0 pt-2 text-right text-xs font-semibold uppercase leading-tight break-words text-gray-400">
+          <div className="flex items-start gap-3 border-t border-border pt-3">
+            <div className="w-20 shrink-0 pt-2 text-right text-xs font-semibold uppercase leading-tight break-words text-muted">
               {t('organizer.poolsPage.refereesTimelineUnscheduled')}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -179,26 +177,26 @@ function PoolCard({
     <Tag
       {...(onClick ? { type: 'button' as const, onClick: () => onClick(pool) } : {})}
       className={[
-        'rounded-md border bg-white px-3 py-2 text-left text-xs shadow-sm transition-colors',
+        'rounded-md border bg-surface px-3 py-2 text-left text-xs shadow-sm transition-colors',
         onClick ? 'cursor-pointer' : '',
         incomplete
-          ? 'border-red-500 ring-2 ring-red-200'
+          ? 'border-danger ring-2 ring-danger/30'
           : highlighted
-            ? 'border-gray-300'
-            : 'border-gray-200 hover:border-gray-300',
+            ? 'border-border'
+            : 'border-border hover:border-border',
       ].join(' ')}
       title={`${pool.tournamentName} - ${pool.name}`}
     >
-      <p className="font-semibold text-gray-900">{pool.name}</p>
-      <p className="text-[10px] text-gray-500">{pool.tournamentName}</p>
+      <p className="font-semibold text-foreground">{pool.name}</p>
+      <p className="text-[10px] text-muted">{pool.tournamentName}</p>
       <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
-        {pool.liceName && <span className="text-gray-400">{pool.liceName}</span>}
+        {pool.liceName && <span className="text-muted">{pool.liceName}</span>}
         <span
           className={[
             'tabular-nums font-semibold',
             pool.filledSlotCount === pool.totalSlotCount && pool.totalSlotCount > 0
-              ? 'text-emerald-600'
-              : 'text-amber-600',
+              ? 'text-success'
+              : 'text-warning',
           ].join(' ')}
         >
           {pool.filledSlotCount}/{pool.totalSlotCount}

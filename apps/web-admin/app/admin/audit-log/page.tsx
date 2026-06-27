@@ -145,73 +145,75 @@ export default function AdminAuditLogPage() {
   }
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('admin.auditLog.title')}</h1>
-          <p className="text-slate-500 text-sm mt-1">{t('admin.auditLog.subtitle')}</p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('admin.auditLog.title')}
+          </h1>
+          <p className="text-muted text-sm mt-1">{t('admin.auditLog.subtitle')}</p>
         </div>
         <a
           href={exportHref}
-          className="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+          className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-background"
         >
           {t('admin.auditLog.exportCsv')}
         </a>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger/30 text-danger rounded-md px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
-      <section className="border border-slate-200 rounded-lg p-4 mb-5">
+      <section className="border border-border rounded-lg p-4 mb-5">
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_160px_150px_150px]">
           <input
             value={draftFilters.actor}
             onChange={(event) => updateDraft('actor', event.target.value)}
             placeholder={t('admin.auditLog.filters.actorPlaceholder')}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <input
             value={draftFilters.action}
             onChange={(event) => updateDraft('action', event.target.value)}
             placeholder={t('admin.auditLog.filters.actionPlaceholder')}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <input
             value={draftFilters.entityType}
             onChange={(event) => updateDraft('entityType', event.target.value)}
             placeholder={t('admin.auditLog.filters.entityTypePlaceholder')}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <input
             type="date"
             value={draftFilters.from}
             onChange={(event) => updateDraft('from', event.target.value)}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <input
             type="date"
             value={draftFilters.to}
             onChange={(event) => updateDraft('to', event.target.value)}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+            className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             onClick={applyFilters}
-            className="bg-red-800 hover:bg-red-900 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            className="bg-accent hover:bg-accent-hover text-white font-semibold py-2 px-4 rounded-md text-sm"
           >
             {t('admin.auditLog.filters.applyButton')}
           </button>
           <button
             onClick={clearFilters}
-            className="border border-slate-300 hover:bg-slate-50 py-2 px-4 rounded-md text-sm"
+            className="border border-border hover:bg-background py-2 px-4 rounded-md text-sm"
           >
             {t('admin.auditLog.filters.clearButton')}
           </button>
-          <label className="ml-auto flex items-center gap-2 text-sm text-slate-600">
+          <label className="ml-auto flex items-center gap-2 text-sm text-foreground-secondary">
             {t('admin.auditLog.filters.rowsLabel')}
             <select
               value={perPage}
@@ -220,7 +222,7 @@ export default function AdminAuditLogPage() {
                 setPerPage(Number(event.target.value));
                 setPage(1);
               }}
-              className="border border-slate-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              className="border border-border rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -230,7 +232,7 @@ export default function AdminAuditLogPage() {
         </div>
       </section>
 
-      <div className="mb-3 flex items-center justify-between text-sm text-slate-500">
+      <div className="mb-3 flex items-center justify-between text-sm text-muted">
         <span>
           {loading
             ? t('admin.auditLog.pagination.loading')
@@ -247,7 +249,7 @@ export default function AdminAuditLogPage() {
               setPage((current) => Math.max(1, current - 1));
             }}
             disabled={loading || response.page <= 1}
-            className="border border-slate-300 rounded-md px-3 py-1.5 disabled:opacity-40 hover:bg-slate-50"
+            className="border border-border rounded-md px-3 py-1.5 disabled:opacity-40 hover:bg-background"
           >
             {t('admin.auditLog.pagination.previous')}
           </button>
@@ -257,7 +259,7 @@ export default function AdminAuditLogPage() {
               setPage((current) => Math.min(response.totalPages, current + 1));
             }}
             disabled={loading || response.page >= response.totalPages}
-            className="border border-slate-300 rounded-md px-3 py-1.5 disabled:opacity-40 hover:bg-slate-50"
+            className="border border-border rounded-md px-3 py-1.5 disabled:opacity-40 hover:bg-background"
           >
             {t('admin.auditLog.pagination.next')}
           </button>
@@ -265,12 +267,12 @@ export default function AdminAuditLogPage() {
       </div>
 
       {response.items.length === 0 && !loading ? (
-        <p className="text-slate-400 text-sm">{t('admin.auditLog.empty')}</p>
+        <p className="text-muted text-sm">{t('admin.auditLog.empty')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-sm border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted">
                 <th className="py-2 pr-4">{t('admin.auditLog.columns.created')}</th>
                 <th className="py-2 pr-4">{t('admin.auditLog.columns.actor')}</th>
                 <th className="py-2 pr-4">{t('admin.auditLog.columns.action')}</th>
@@ -280,35 +282,32 @@ export default function AdminAuditLogPage() {
             </thead>
             <tbody>
               {response.items.map((entry) => (
-                <tr
-                  key={entry.id}
-                  className="border-b border-slate-100 hover:bg-slate-50 align-top"
-                >
-                  <td className="py-2 pr-4 whitespace-nowrap text-slate-600">
+                <tr key={entry.id} className="border-b border-border hover:bg-background align-top">
+                  <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
                     {new Date(entry.created_at).toLocaleString('fr-FR')}
                   </td>
-                  <td className="py-2 pr-4 font-mono text-xs text-slate-500">
+                  <td className="py-2 pr-4 font-mono text-xs text-muted">
                     {entry.actor_user_id ?? '-'}
                   </td>
                   <td className="py-2 pr-4">
-                    <span className="rounded bg-slate-100 px-2 py-1 font-mono text-xs">
+                    <span className="rounded bg-background px-2 py-1 font-mono text-xs">
                       {entry.action}
                     </span>
                   </td>
                   <td className="py-2 pr-4">
                     <p className="font-medium">{entry.entity_type}</p>
                     {entry.entityLabel && (
-                      <p className="text-sm text-slate-700">{entry.entityLabel}</p>
+                      <p className="text-sm text-foreground-secondary">{entry.entityLabel}</p>
                     )}
                     <p
-                      className="font-mono text-xs text-slate-400 max-w-[220px] truncate"
+                      className="font-mono text-xs text-muted max-w-[220px] truncate"
                       title={entry.entity_id ?? ''}
                     >
                       {entry.entity_id}
                     </p>
                   </td>
                   <td className="py-2">
-                    <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-slate-600">
+                    <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
                       {payloadPreview(entry.payload_json)}
                     </pre>
                   </td>

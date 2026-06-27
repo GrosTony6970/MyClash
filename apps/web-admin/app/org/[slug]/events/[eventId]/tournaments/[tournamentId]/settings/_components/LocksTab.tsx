@@ -62,15 +62,15 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-xl text-slate-900">Auto-lock</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">Auto-lock</h2>
+        <p className="mt-1 text-sm text-muted">
           Locks completed pools or brackets after a delay so referees can&apos;t keep editing them.
           This is a tournament-level setting, separate from the ruleset.
         </p>
       </div>
 
-      <fieldset className="space-y-3 rounded-md border border-slate-200 p-4">
-        <legend className="px-2 text-xs font-medium text-slate-600">Auto-lock</legend>
+      <fieldset className="space-y-3 rounded-md border border-border p-4">
+        <legend className="px-2 text-xs font-medium text-foreground-secondary">Auto-lock</legend>
         <BoolField
           label="Auto-lock enabled"
           value={lock.autoLockEnabled}
@@ -99,7 +99,7 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
         type="button"
         onClick={() => void save()}
         disabled={saving}
-        className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
@@ -122,14 +122,14 @@ function NumField({
 }) {
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="text-sm text-slate-700">{label}</span>
+      <span className="text-sm text-foreground-secondary">{label}</span>
       <input
         type="number"
         value={value}
         min={min}
         max={max}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        className="w-24 rounded-md border border-border px-3 py-1.5 text-sm"
       />
     </label>
   );
@@ -146,7 +146,7 @@ function BoolField({
 }) {
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="text-sm text-slate-700">{label}</span>
+      <span className="text-sm text-foreground-secondary">{label}</span>
       <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
     </label>
   );

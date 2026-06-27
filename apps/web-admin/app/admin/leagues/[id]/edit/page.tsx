@@ -631,11 +631,11 @@ export default function EditLeaguePage() {
     return (
       <main className="p-8">
         {error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <div className="rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
             {error}
           </div>
         ) : (
-          <p className="text-sm text-slate-500">{t('admin.leagues.editPage.loadingState')}</p>
+          <p className="text-sm text-muted">{t('admin.leagues.editPage.loadingState')}</p>
         )}
       </main>
     );
@@ -644,64 +644,66 @@ export default function EditLeaguePage() {
   return (
     <main className="p-8 max-w-4xl">
       <div className="mb-2 text-sm">
-        <Link href="/admin/leagues" className="text-slate-500 hover:underline">
+        <Link href="/admin/leagues" className="text-muted hover:underline">
           {t('admin.leagues.editPage.backLink')}
         </Link>
       </div>
-      <h1 className="text-2xl font-bold mb-6">{t('admin.leagues.editPage.pageTitle')}</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
+        {t('admin.leagues.editPage.pageTitle')}
+      </h1>
 
       {justCreated && (
-        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+        <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">
           {t('admin.leagues.editPage.createdBanner')}
         </div>
       )}
       {savedFlash && (
-        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+        <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">
           {savedFlash}
         </div>
       )}
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
       {/* Basics */}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.basics.heading')}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.leagues.editPage.basics.nameLabel')}
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.leagues.editPage.basics.yearLabel')}
             <input
               value={seasonYear}
               readOnly
-              className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono"
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+          <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
             {t('admin.leagues.editPage.basics.slugLabel')}
             <input
               value={league.slug}
               readOnly
-              className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono"
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.leagues.editPage.basics.categoryLabel')}
             <select
               value={rankingDimensions}
               onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
               <option value="weapon">{t('admin.leagues.editPage.basics.categoryWeapon')}</option>
               <option value="weapon_category">
@@ -709,7 +711,7 @@ export default function EditLeaguePage() {
               </option>
             </select>
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.leagues.editPage.basics.scoringSystemLabel')}
             <select
               value={scoringSystem}
@@ -727,7 +729,7 @@ export default function EditLeaguePage() {
                   void loadVersionsForSystem(opt.id, nextCode);
                 }
               }}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
               {scoringSystemOptions.length === 0 && (
                 <option value="ffamhe_tf_2026">FFAMHE TF 2026</option>
@@ -742,18 +744,18 @@ export default function EditLeaguePage() {
             </select>
             <Link
               href="/admin/rulesets/league"
-              className="mt-1 inline-block text-[11px] font-medium text-red-700 hover:underline"
+              className="mt-1 inline-block text-[11px] font-medium text-accent hover:underline"
             >
               {t('admin.leagues.editPage.basics.manageScoringSystemsLink')}
             </Link>
           </label>
           {scoringSystem !== 'custom' && (
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-foreground-secondary">
               {t('admin.leagues.editPage.basics.versionLabel')}
               <select
                 value={scoringSystemVersion ?? ''}
                 onChange={(e) => setScoringSystemVersion(e.target.value || null)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               >
                 <option value="">{t('admin.leagues.editPage.basics.versionLatestOption')}</option>
                 {(versionsByCode[scoringSystem] ?? []).map((v) => (
@@ -762,7 +764,7 @@ export default function EditLeaguePage() {
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-[11px] text-slate-400">
+              <span className="mt-1 block text-[11px] text-muted">
                 {t('admin.leagues.editPage.basics.versionHelp')}
               </span>
             </label>
@@ -774,18 +776,18 @@ export default function EditLeaguePage() {
               appear publicly. Reflects the BE AND-gate at
               leagues.service.ts:45-56 — keeping the filter unchanged
               and surfacing the rule in the UI. */}
-          <fieldset className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <fieldset className="sm:col-span-2 rounded-lg border border-border bg-background p-4">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
               {t('admin.leagues.editPage.basics.publishingLegend')}
             </legend>
             <label className="block">
-              <span className="text-sm font-medium text-slate-800">
+              <span className="text-sm font-medium text-foreground">
                 {t('admin.leagues.editPage.basics.statusLabel')}
               </span>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               >
                 <option value="draft">{t('admin.leagues.editPage.basics.statusDraft')}</option>
                 <option value="published">
@@ -795,7 +797,7 @@ export default function EditLeaguePage() {
                   {t('admin.leagues.editPage.basics.statusArchived')}
                 </option>
               </select>
-              <span className="mt-1 block text-xs text-slate-500">
+              <span className="mt-1 block text-xs text-muted">
                 {t('admin.leagues.editPage.basics.statusHelp')}
               </span>
             </label>
@@ -807,10 +809,10 @@ export default function EditLeaguePage() {
                 className="mt-0.5 h-4 w-4"
               />
               <span>
-                <span className="block text-sm font-medium text-slate-800">
+                <span className="block text-sm font-medium text-foreground">
                   {t('admin.leagues.editPage.basics.publicVisibilityLabel')}
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500">
+                <span className="mt-0.5 block text-xs text-muted">
                   {t('admin.leagues.editPage.basics.publicVisibilityHelp')}
                 </span>
               </span>
@@ -818,19 +820,19 @@ export default function EditLeaguePage() {
             {publicVisibility && status !== 'published' && (
               <p
                 role="alert"
-                className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning"
               >
                 {t('admin.leagues.editPage.basics.notLivePublicWarning')}
               </p>
             )}
           </fieldset>
-          <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+          <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
             {t('admin.leagues.editPage.basics.descriptionLabel')}
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             />
           </label>
         </div>
@@ -855,7 +857,7 @@ export default function EditLeaguePage() {
             };
             return (
               <details className="mt-4" open>
-                <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                <summary className="cursor-pointer text-xs font-medium text-foreground-secondary hover:text-foreground">
                   {t('admin.leagues.editPage.basics.previewSummary')}
                 </summary>
                 <div className="mt-2">
@@ -874,12 +876,12 @@ export default function EditLeaguePage() {
 
         {scoringSystem === 'custom' && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-600 mb-2">
+            <p className="text-xs font-medium text-foreground-secondary mb-2">
               {t('admin.leagues.editPage.basics.pointsByRankLabel')}
             </p>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
               {Object.entries(customPoints).map(([rank, points]) => (
-                <label key={rank} className="text-[11px] text-slate-500">
+                <label key={rank} className="text-[11px] text-muted">
                   {t('admin.leagues.editPage.basics.rankLabel', { rank })}
                   <input
                     type="number"
@@ -890,7 +892,7 @@ export default function EditLeaguePage() {
                         [Number(rank)]: Number(e.target.value),
                       }))
                     }
-                    className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                    className="mt-0.5 w-full rounded border border-border px-2 py-1 text-xs"
                   />
                 </label>
               ))}
@@ -902,15 +904,15 @@ export default function EditLeaguePage() {
           type="button"
           onClick={() => void saveBasics()}
           disabled={busy}
-          className="mt-4 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="mt-4 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {t('admin.leagues.editPage.basics.saveButton')}
         </button>
       </section>
 
       {/* Logo */}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.logo.heading')}
         </h2>
         <div className="flex items-center gap-4">
@@ -919,10 +921,10 @@ export default function EditLeaguePage() {
             <img
               src={league.logo_url}
               alt={league.name}
-              className="h-24 w-24 rounded-md border border-slate-200 bg-white object-contain"
+              className="h-24 w-24 rounded-md border border-border bg-surface object-contain"
             />
           ) : (
-            <div className="flex h-24 w-24 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-lg font-bold text-slate-500">
+            <div className="flex h-24 w-24 items-center justify-center rounded-md border border-border bg-background text-lg font-bold text-muted">
               {league.name.slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -935,9 +937,9 @@ export default function EditLeaguePage() {
                 if (f) void uploadLogo(f);
               }}
               disabled={busy}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+              className="block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background"
             />
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-muted">
               {t('admin.leagues.editPage.logo.helperText')}
             </p>
             {league.logo_url && (
@@ -945,7 +947,7 @@ export default function EditLeaguePage() {
                 type="button"
                 onClick={() => void removeLogo()}
                 disabled={busy}
-                className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-1 text-xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
               >
                 {t('admin.leagues.editPage.logo.removeButton')}
               </button>
@@ -955,30 +957,28 @@ export default function EditLeaguePage() {
       </section>
 
       {/* Owner accounts */}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.owners.heading')}
         </h2>
         {userRoles.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">
-            {t('admin.leagues.editPage.owners.empty')}
-          </p>
+          <p className="text-sm text-muted italic">{t('admin.leagues.editPage.owners.empty')}</p>
         ) : (
-          <ul className="mb-4 divide-y divide-slate-100">
+          <ul className="mb-4 divide-y divide-border">
             {userRoles.map((r) => (
               <li key={r.userId} className="flex items-start justify-between gap-3 py-2">
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-foreground">
                     {r.displayName || t('admin.leagues.editPage.owners.nameFallback')}
-                    <span className="ml-2 text-xs font-normal text-slate-400">{r.role}</span>
+                    <span className="ml-2 text-xs font-normal text-muted">{r.role}</span>
                   </p>
-                  <p className="text-xs text-slate-500">{r.email}</p>
+                  <p className="text-xs text-muted">{r.email}</p>
                   {r.organizations.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {r.organizations.slice(0, 3).map((o) => (
                         <span
                           key={o.id}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px]"
+                          className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
                         >
                           {o.name} · {o.role}
                         </span>
@@ -990,7 +990,7 @@ export default function EditLeaguePage() {
                   type="button"
                   onClick={() => void removeOwner(r.userId)}
                   disabled={busy}
-                  className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('admin.leagues.editPage.owners.detachButton')}
                 </button>
@@ -998,28 +998,28 @@ export default function EditLeaguePage() {
             ))}
           </ul>
         )}
-        <div className="border-t border-slate-100 pt-4">
+        <div className="border-t border-border pt-4">
           <input
             type="search"
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             placeholder={t('admin.leagues.editPage.owners.searchPlaceholder')}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
           {filteredUsers.length > 0 && (
-            <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-slate-200">
+            <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-border">
               {filteredUsers.map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   onClick={() => void addOwner(u.id)}
                   disabled={busy}
-                  className="block w-full text-left border-b border-slate-100 px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-50 last:border-0"
+                  className="block w-full text-left border-b border-border px-3 py-2 text-sm hover:bg-info/10 disabled:opacity-50 last:border-0"
                 >
                   <span className="font-medium">
                     {u.display_name || t('admin.leagues.editPage.owners.nameFallback')}
                   </span>
-                  <span className="ml-2 text-xs text-slate-500">{u.email}</span>
+                  <span className="ml-2 text-xs text-muted">{u.email}</span>
                 </button>
               ))}
             </div>
@@ -1028,30 +1028,30 @@ export default function EditLeaguePage() {
       </section>
 
       {/* Orgs */}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.orgs.heading')}
         </h2>
         {orgRoles.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">{t('admin.leagues.editPage.orgs.empty')}</p>
+          <p className="text-sm text-muted italic">{t('admin.leagues.editPage.orgs.empty')}</p>
         ) : (
-          <ul className="mb-4 divide-y divide-slate-100">
+          <ul className="mb-4 divide-y divide-border">
             {orgRoles.map((r) => (
               <li
                 key={r.organizationId}
                 className="flex items-center justify-between gap-3 py-2 text-sm"
               >
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{r.name}</p>
-                  <p className="font-mono text-xs text-slate-400">{r.slug}</p>
+                  <p className="font-medium text-foreground">{r.name}</p>
+                  <p className="font-mono text-xs text-muted">{r.slug}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">{r.role}</span>
+                  <span className="text-xs text-muted">{r.role}</span>
                   <button
                     type="button"
                     onClick={() => void removeOrg(r.organizationId)}
                     disabled={busy}
-                    className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                   >
                     {t('admin.leagues.editPage.orgs.detachButton')}
                   </button>
@@ -1061,8 +1061,8 @@ export default function EditLeaguePage() {
           </ul>
         )}
         {availableOrgs.length > 0 && (
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-xs font-medium text-slate-600 mb-2">
+          <div className="border-t border-border pt-4">
+            <p className="text-xs font-medium text-foreground-secondary mb-2">
               {t('admin.leagues.editPage.orgs.addHeading')}
             </p>
             <div className="grid gap-1 sm:grid-cols-2 max-h-40 overflow-y-auto">
@@ -1072,7 +1072,7 @@ export default function EditLeaguePage() {
                   type="button"
                   onClick={() => void addOrg(o.id)}
                   disabled={busy}
-                  className="rounded border border-slate-200 px-3 py-1.5 text-left text-sm hover:bg-blue-50 disabled:opacity-50"
+                  className="rounded border border-border px-3 py-1.5 text-left text-sm hover:bg-info/10 disabled:opacity-50"
                 >
                   {o.name}
                 </button>
@@ -1083,27 +1083,25 @@ export default function EditLeaguePage() {
       </section>
 
       {/* Groups */}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.groups.heading')}
         </h2>
-        <p className="mb-3 text-xs text-slate-500">
-          {t('admin.leagues.editPage.groups.description')}
-        </p>
+        <p className="mb-3 text-xs text-muted">{t('admin.leagues.editPage.groups.description')}</p>
         {groups.length === 0 ? (
-          <p className="mb-3 text-sm italic text-slate-500">
+          <p className="mb-3 text-sm italic text-muted">
             {t('admin.leagues.editPage.groups.empty')}
           </p>
         ) : (
-          <ul className="mb-3 divide-y divide-slate-100">
+          <ul className="mb-3 divide-y divide-border">
             {groups.map((g) => (
               <li key={g.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="font-medium text-slate-900">{g.name}</span>
+                <span className="font-medium text-foreground">{g.name}</span>
                 <button
                   type="button"
                   onClick={() => void deleteGroup(g.id)}
                   disabled={busy}
-                  className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('admin.leagues.editPage.groups.deleteButton')}
                 </button>
@@ -1117,13 +1115,13 @@ export default function EditLeaguePage() {
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
             placeholder={t('admin.leagues.editPage.groups.newNamePlaceholder')}
-            className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm"
           />
           <button
             type="button"
             onClick={() => void createGroup()}
             disabled={busy || !newGroupName.trim()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-strong px-3 py-1.5 text-xs font-semibold text-strong-foreground hover:opacity-90 disabled:opacity-50"
           >
             {t('admin.leagues.editPage.groups.addButton')}
           </button>
@@ -1131,26 +1129,26 @@ export default function EditLeaguePage() {
       </section>
 
       {/* Tournaments */}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="mb-6 rounded-lg border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.tournaments.heading')}
         </h2>
         {tournamentLinks.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">
+          <p className="text-sm text-muted italic">
             {t('admin.leagues.editPage.tournaments.empty')}
           </p>
         ) : (
-          <ul className="mb-4 divide-y divide-slate-100">
+          <ul className="mb-4 divide-y divide-border">
             {tournamentLinks.map((link) => (
               <li key={link.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-foreground">
                     {link.tournaments?.name ?? t('admin.leagues.editPage.tournaments.nameFallback')}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted">
                     {link.tournaments?.events?.name ?? ''}{' '}
                     {link.tournaments?.weapon && (
-                      <span className="text-slate-400">· {link.tournaments.weapon}</span>
+                      <span className="text-muted">· {link.tournaments.weapon}</span>
                     )}
                   </p>
                 </div>
@@ -1160,7 +1158,7 @@ export default function EditLeaguePage() {
                       value={link.group_id ?? ''}
                       onChange={(e) => void reassignLinkGroup(link.id, e.target.value || null)}
                       disabled={busy}
-                      className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs"
+                      className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs"
                     >
                       <option value="">
                         {t('admin.leagues.editPage.tournaments.noGroupOption')}
@@ -1172,14 +1170,14 @@ export default function EditLeaguePage() {
                       ))}
                     </select>
                   )}
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                  <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold text-foreground-secondary">
                     {link.status}
                   </span>
                   <button
                     type="button"
                     onClick={() => void removeTournamentLink(link.id)}
                     disabled={busy}
-                    className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                   >
                     {t('admin.leagues.editPage.tournaments.detachButton')}
                   </button>
@@ -1189,8 +1187,8 @@ export default function EditLeaguePage() {
           </ul>
         )}
 
-        <div className="border-t border-slate-100 pt-4">
-          <p className="text-xs font-medium text-slate-600 mb-2">
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-medium text-foreground-secondary mb-2">
             {t('admin.leagues.editPage.tournaments.addHeading')}
           </p>
           <input
@@ -1198,29 +1196,29 @@ export default function EditLeaguePage() {
             value={eventQuery}
             onChange={(e) => setEventQuery(e.target.value)}
             placeholder={t('admin.leagues.editPage.tournaments.eventSearchPlaceholder')}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
           {filteredEvents.length > 0 && (
-            <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-slate-200">
+            <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-border">
               {filteredEvents.map((ev) => (
-                <div key={ev.id} className="border-b border-slate-100 last:border-0">
+                <div key={ev.id} className="border-b border-border last:border-0">
                   <button
                     type="button"
                     onClick={() => {
                       setExpandedEventId(expandedEventId === ev.id ? null : ev.id);
                       void loadEventTournaments(ev.id);
                     }}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-background"
                   >
-                    <span className="font-medium text-slate-900">{ev.name}</span>
-                    <span className="text-xs text-slate-400">
+                    <span className="font-medium text-foreground">{ev.name}</span>
+                    <span className="text-xs text-muted">
                       {expandedEventId === ev.id ? '−' : '+'}
                     </span>
                   </button>
                   {expandedEventId === ev.id && (
-                    <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
+                    <div className="border-t border-border bg-background px-3 py-2">
                       {(tournamentsByEvent[ev.id] ?? []).length === 0 ? (
-                        <p className="text-xs text-slate-500 italic">
+                        <p className="text-xs text-muted italic">
                           {t('admin.leagues.editPage.tournaments.noTournaments')}
                         </p>
                       ) : (
@@ -1240,19 +1238,19 @@ export default function EditLeaguePage() {
                                       t('admin.leagues.editPage.tournaments.nameFallback')}
                                   </span>
                                   {tour.weapon && (
-                                    <span className="text-slate-400">· {tour.weapon}</span>
+                                    <span className="text-muted">· {tour.weapon}</span>
                                   )}
                                   {tour.status && (
                                     <span
                                       className={[
                                         'rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase',
                                         tour.status === 'published'
-                                          ? 'bg-green-100 text-green-700'
+                                          ? 'bg-success/10 text-success'
                                           : tour.status === 'draft'
-                                            ? 'bg-amber-100 text-amber-700'
+                                            ? 'bg-warning/10 text-warning'
                                             : tour.status === 'completed'
-                                              ? 'bg-slate-100 text-slate-600'
-                                              : 'bg-slate-100 text-slate-500',
+                                              ? 'bg-background text-foreground-secondary'
+                                              : 'bg-background text-muted',
                                       ].join(' ')}
                                     >
                                       {tour.status}
@@ -1270,7 +1268,7 @@ export default function EditLeaguePage() {
                                         }))
                                       }
                                       disabled={busy}
-                                      className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px]"
+                                      className="rounded border border-border bg-surface px-1.5 py-0.5 text-[11px]"
                                     >
                                       <option value="">
                                         {t('admin.leagues.editPage.tournaments.noGroupOption')}
@@ -1294,8 +1292,8 @@ export default function EditLeaguePage() {
                                     className={[
                                       'rounded px-2 py-0.5 font-semibold',
                                       already
-                                        ? 'bg-slate-100 text-slate-400'
-                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                        ? 'bg-background text-muted'
+                                        : 'bg-info/10 text-info hover:bg-info/20',
                                     ].join(' ')}
                                   >
                                     {already

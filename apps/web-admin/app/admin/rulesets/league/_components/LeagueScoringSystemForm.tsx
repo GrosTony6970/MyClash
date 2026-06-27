@@ -263,7 +263,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
     .sort((a, b) => a - b);
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-2xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.rulesets.league.form.eyebrow')}
         title={
@@ -275,7 +275,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
         actions={
           <Link
             href="/admin/rulesets/league"
-            className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+            className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           >
             {t('admin.rulesets.league.form.backButton')}
           </Link>
@@ -283,23 +283,23 @@ export function ScoringSystemForm({ mode, initial }: Props) {
       />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <div className="space-y-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="space-y-6 rounded-lg border border-border bg-surface p-6 shadow-sm">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.rulesets.league.form.nameLabel')}
             <input
               type="text"
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             />
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.rulesets.league.form.codeLabel')}
             <input
               type="text"
@@ -310,46 +310,46 @@ export function ScoringSystemForm({ mode, initial }: Props) {
               }}
               disabled={mode === 'edit'}
               placeholder={t('admin.rulesets.league.form.codePlaceholder')}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:bg-slate-50"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:bg-background"
             />
-            <span className="mt-1 block text-[11px] text-slate-400">
+            <span className="mt-1 block text-[11px] text-muted">
               {t('admin.rulesets.league.form.codeHelp')}
             </span>
           </label>
-          <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+          <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
             {t('admin.rulesets.league.form.descriptionLabel')}
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             />
           </label>
         </div>
 
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700">
+            <p className="text-sm font-semibold text-foreground-secondary">
               {t('admin.rulesets.league.form.pointsByRankLabel')}
             </p>
             <button
               type="button"
               onClick={addRank}
-              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+              className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               {t('admin.rulesets.league.form.addRankButton')}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
             {sortedRanks.map((rank) => (
-              <div key={rank} className="rounded border border-slate-200 p-2">
-                <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-slate-500">
+              <div key={rank} className="rounded border border-border p-2">
+                <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-muted">
                   <span>{t('admin.rulesets.league.form.rankLabel', { rank })}</span>
                   {sortedRanks.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeRank(String(rank))}
-                      className="rounded text-slate-400 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                      className="rounded text-muted hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                       aria-label={t('admin.rulesets.league.form.removeRankAria', { rank })}
                     >
                       ×
@@ -366,7 +366,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                       [String(rank)]: Number(e.target.value),
                     }))
                   }
-                  className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                  className="w-full rounded border border-border px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                 />
               </div>
             ))}
@@ -374,10 +374,10 @@ export function ScoringSystemForm({ mode, initial }: Props) {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-semibold text-slate-700">
+          <p className="mb-2 text-sm font-semibold text-foreground-secondary">
             {t('admin.rulesets.league.form.tieBreakersLabel')}
           </p>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-muted">
             {t('admin.rulesets.league.form.tieBreakersHelp')}
           </p>
           <ul className="space-y-1">
@@ -387,18 +387,18 @@ export function ScoringSystemForm({ mode, initial }: Props) {
               return (
                 <li
                   key={dim}
-                  className="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded border border-border px-3 py-2 text-sm"
                 >
-                  <label className="flex items-center gap-2 text-slate-700">
+                  <label className="flex items-center gap-2 text-foreground-secondary">
                     <input
                       type="checkbox"
                       checked={enabled}
                       onChange={() => toggleTieBreaker(dim)}
-                      className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                      className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                     />
                     <span>
                       {enabled && (
-                        <span className="mr-2 inline-block rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px]">
+                        <span className="mr-2 inline-block rounded bg-background px-1.5 py-0.5 font-mono text-[11px]">
                           {idx + 1}
                         </span>
                       )}
@@ -411,7 +411,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                         type="button"
                         onClick={() => moveTieBreaker(idx, -1)}
                         disabled={idx === 0}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-30"
+                        className="rounded border border-border px-2 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-30"
                         aria-label={t('admin.rulesets.league.form.moveUpAria')}
                       >
                         ↑
@@ -420,7 +420,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                         type="button"
                         onClick={() => moveTieBreaker(idx, 1)}
                         disabled={idx === tieBreakers.length - 1}
-                        className="rounded border border-slate-300 px-2 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-30"
+                        className="rounded border border-border px-2 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-30"
                         aria-label={t('admin.rulesets.league.form.moveDownAria')}
                       >
                         ↓
@@ -433,10 +433,10 @@ export function ScoringSystemForm({ mode, initial }: Props) {
           </ul>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Link
             href="/admin/rulesets/league"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           >
             {t('admin.rulesets.league.form.cancelButton')}
           </Link>
@@ -444,7 +444,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
             type="button"
             onClick={() => void submit()}
             disabled={busy}
-            className="rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-60"
+            className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-60"
           >
             {busy
               ? t('admin.rulesets.league.form.savingButton')

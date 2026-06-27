@@ -201,22 +201,22 @@ export default function SignupPage() {
             {done.type === 'magic_link' ? 'Check your email' : 'Verify your email'}
           </h1>
           {done.type === 'magic_link' ? (
-            <p className="text-gray-600">
+            <p className="text-foreground-secondary">
               We sent a signup link to <strong>{email}</strong>. Click it to activate your account
               and access your organization dashboard.
             </p>
           ) : (
             <>
-              <p className="text-gray-600">
+              <p className="text-foreground-secondary">
                 Your account has been created. Please verify your email address before creating
                 events.
               </p>
-              <p className="mt-3 text-gray-600">
+              <p className="mt-3 text-foreground-secondary">
                 We sent a verification link to <strong>{email}</strong>.
               </p>
               <a
                 href={`/org/${done.orgSlug}`}
-                className="mt-6 inline-block text-red-700 hover:underline text-sm"
+                className="mt-6 inline-block text-accent hover:underline text-sm"
               >
                 Go to your dashboard →
               </a>
@@ -233,7 +233,7 @@ export default function SignupPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold mb-1">Create your organizer account</h1>
-        <p className="text-gray-500 text-sm mb-6">
+        <p className="text-muted text-sm mb-6">
           Step {step} of 2 — {step === 1 ? 'Your account' : 'Your organization'}
         </p>
 
@@ -252,7 +252,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 
@@ -267,7 +267,7 @@ export default function SignupPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Jean Dupont"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 
@@ -277,8 +277,8 @@ export default function SignupPage() {
                 onClick={() => setMethod('magic_link')}
                 className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
                   method === 'magic_link'
-                    ? 'bg-red-700 text-white border-red-700'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-red-400'
+                    ? 'bg-accent text-accent-foreground border-accent'
+                    : 'bg-surface text-foreground-secondary border-border hover:border-accent'
                 }`}
               >
                 Magic link
@@ -288,8 +288,8 @@ export default function SignupPage() {
                 onClick={() => setMethod('password')}
                 className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
                   method === 'password'
-                    ? 'bg-red-700 text-white border-red-700'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-red-400'
+                    ? 'bg-accent text-accent-foreground border-accent'
+                    : 'bg-surface text-foreground-secondary border-border hover:border-accent'
                 }`}
               >
                 Password
@@ -299,8 +299,8 @@ export default function SignupPage() {
                 onClick={() => setMethod('google')}
                 className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
                   method === 'google'
-                    ? 'bg-red-700 text-white border-red-700'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-red-400'
+                    ? 'bg-accent text-accent-foreground border-accent'
+                    : 'bg-surface text-foreground-secondary border-border hover:border-accent'
                 }`}
               >
                 {t('auth.oauth.google')}
@@ -321,7 +321,7 @@ export default function SignupPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Min. 8 characters"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <div>
@@ -335,28 +335,28 @@ export default function SignupPage() {
                     value={passwordConfirm}
                     onChange={(e) => setPasswordConfirm(e.target.value)}
                     placeholder="Repeat password"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
               </>
             )}
 
             {error && (
-              <p className="text-sm text-red-600" role="alert">
+              <p className="text-sm text-danger" role="alert">
                 {error}
               </p>
             )}
 
             <button
               type="submit"
-              className="w-full bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+              className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors"
             >
               Continue →
             </button>
 
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-sm text-muted">
               Already have an account?{' '}
-              <a href="/login" className="text-red-700 hover:underline">
+              <a href="/login" className="text-accent hover:underline">
                 Log in
               </a>
             </p>
@@ -390,9 +390,9 @@ export default function SignupPage() {
                   setOrgSlug(slugify(e.target.value));
                 }}
                 placeholder="Lyon AMHE"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted mt-1">
                 This is the public name people will see when browsing your events. You can change it
                 later in settings.
               </p>
@@ -401,20 +401,18 @@ export default function SignupPage() {
             <div>
               <label htmlFor="orgSlug" className="block text-sm font-medium mb-1">
                 URL slug
-                {slugStatus.checking && (
-                  <span className="ml-2 text-xs text-gray-400">Checking…</span>
-                )}
+                {slugStatus.checking && <span className="ml-2 text-xs text-muted">Checking…</span>}
                 {!slugStatus.checking && slugStatus.available === true && (
-                  <span className="ml-2 text-xs text-green-600">✓ Available</span>
+                  <span className="ml-2 text-xs text-success">✓ Available</span>
                 )}
                 {!slugStatus.checking && slugStatus.available === false && (
-                  <span className="ml-2 text-xs text-red-600">
+                  <span className="ml-2 text-xs text-danger">
                     ✗ {slugStatus.reason === 'reserved' ? 'Reserved' : 'Already taken'}
                   </span>
                 )}
               </label>
-              <div className="flex items-center border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-red-600">
-                <span className="px-3 py-2 bg-gray-50 text-gray-400 text-sm border-r border-gray-300 select-none">
+              <div className="flex items-center border border-border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-accent">
+                <span className="px-3 py-2 bg-background text-muted text-sm border-r border-border select-none">
                   admin.myclash.fr/org/
                 </span>
                 <input
@@ -429,13 +427,13 @@ export default function SignupPage() {
                   className="flex-1 px-3 py-2 text-sm focus:outline-none"
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted mt-1">
                 Lowercase letters, digits, and hyphens only.
               </p>
             </div>
 
             {error && (
-              <p className="text-sm text-red-600" role="alert">
+              <p className="text-sm text-danger" role="alert">
                 {error}
               </p>
             )}
@@ -447,14 +445,14 @@ export default function SignupPage() {
                   setStep(1);
                   setError(null);
                 }}
-                className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-gray-300 text-gray-700 hover:border-gray-400 transition-colors"
+                className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-border text-foreground-secondary hover:border-muted transition-colors"
               >
                 ← Back
               </button>
               <button
                 type="submit"
                 disabled={loading || slugStatus.available === false || slugStatus.checking}
-                className="flex-1 inline-flex items-center justify-center gap-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors"
               >
                 {method === 'google' && <GoogleIcon />}
                 {method === 'google'

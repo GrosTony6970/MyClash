@@ -236,16 +236,16 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         className={[
           'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
           active
-            ? 'bg-red-800 text-white shadow-sm'
-            : 'text-slate-300 hover:bg-white/10 hover:text-white',
+            ? 'bg-accent text-accent-foreground shadow-sm'
+            : 'text-muted hover:bg-foreground/10 hover:text-foreground',
         ].join(' ')}
       >
         <span
           className={[
             'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
             active
-              ? 'border-white/30 bg-white/15 text-white'
-              : 'border-slate-600 bg-slate-900 text-amber-500 group-hover:border-slate-400',
+              ? 'border-foreground/30 bg-foreground/15 text-foreground'
+              : 'border-border bg-background text-gold group-hover:border-muted',
           ].join(' ')}
           aria-hidden="true"
         >
@@ -262,28 +262,28 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         const activeHref = pickActiveHref(pathname, section.items);
         const isEventSection = section.key === 'event';
         return (
-          <div key={section.key} className={idx === 0 ? '' : 'border-t border-slate-800 pt-5'}>
+          <div key={section.key} className={idx === 0 ? '' : 'border-t border-border pt-5'}>
             {isEventSection ? (
               <div className="relative mb-3 px-2" ref={switcherRef}>
                 <button
                   type="button"
                   onClick={() => setSwitcherOpen((v) => !v)}
-                  className="flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-white/5"
+                  className="flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-foreground/5"
                   aria-haspopup="menu"
                   aria-expanded={switcherOpen}
                   aria-label={t('organizer.shell.eventSwitcher.openLabel')}
                 >
-                  <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <span className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
                     <span>{section.title}</span>
-                    <span aria-hidden="true" className="shrink-0 text-slate-400">
+                    <span aria-hidden="true" className="shrink-0 text-muted">
                       {switcherOpen ? '▴' : '▾'}
                     </span>
                   </span>
                   {currentEvent ? (
-                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <span className="min-w-0 truncate">{currentEvent.name}</span>
                       {currentEvent.status === 'running' && (
-                        <span className="shrink-0 rounded bg-red-700/30 px-1 py-px text-[10px] font-bold text-red-300">
+                        <span className="shrink-0 rounded bg-danger/30 px-1 py-px text-[10px] font-bold text-danger">
                           LIVE
                         </span>
                       )}
@@ -293,15 +293,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                 {switcherOpen && (
                   <div
                     role="menu"
-                    className="absolute left-2 right-2 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-800 py-1 shadow-xl"
+                    className="absolute left-2 right-2 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-border bg-surface py-1 shadow-xl"
                   >
                     {events.length === 0 ? (
                       eventsError ? (
-                        <p role="alert" className="px-3 py-2 text-xs font-medium text-red-300">
+                        <p role="alert" className="px-3 py-2 text-xs font-medium text-danger">
                           {t('organizer.shell.eventSwitcher.loadFailed')} ({eventsError})
                         </p>
                       ) : (
-                        <p className="px-3 py-2 text-sm italic text-slate-400">
+                        <p className="px-3 py-2 text-sm italic text-muted">
                           {t('organizer.shell.eventSwitcher.noEvents')}
                         </p>
                       )
@@ -315,25 +315,25 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                           className={[
                             'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors',
                             ev.id === selectedEventId
-                              ? 'bg-red-800/70 text-white'
-                              : 'text-slate-200 hover:bg-white/10',
+                              ? 'bg-accent/70 text-accent-foreground'
+                              : 'text-foreground hover:bg-foreground/10',
                           ].join(' ')}
                         >
                           <span className="truncate">{ev.name}</span>
                           {ev.status === 'running' && (
-                            <span className="shrink-0 rounded bg-red-700/30 px-1 py-px text-[10px] font-bold text-amber-300">
+                            <span className="shrink-0 rounded bg-danger/30 px-1 py-px text-[10px] font-bold text-gold">
                               LIVE
                             </span>
                           )}
                         </button>
                       ))
                     )}
-                    <div className="my-1 border-t border-slate-700" />
+                    <div className="my-1 border-t border-border" />
                     <Link
                       role="menuitem"
                       href={`/org/${slug}/events`}
                       onClick={() => setSwitcherOpen(false)}
-                      className="block px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
+                      className="block px-3 py-2 text-sm text-muted hover:bg-foreground/10 hover:text-foreground"
                     >
                       {t('organizer.shell.eventSwitcher.manageAll')}
                     </Link>
@@ -341,7 +341,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                 )}
               </div>
             ) : (
-              <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
                 {section.title}
               </p>
             )}
@@ -363,14 +363,14 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                           aria-expanded={groupOpen}
                           aria-controls={groupPanelId}
                           className={[
-                            'flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors',
+                            'flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors',
                             !groupOpen && groupHasActive
-                              ? 'text-slate-200'
-                              : 'text-slate-500 hover:text-slate-300',
+                              ? 'text-foreground'
+                              : 'text-muted hover:text-foreground',
                           ].join(' ')}
                         >
                           <span>{t(group.headingKey)}</span>
-                          <span aria-hidden="true" className="shrink-0 text-slate-500">
+                          <span aria-hidden="true" className="shrink-0 text-muted">
                             {groupOpen ? '▾' : '▸'}
                           </span>
                         </button>
@@ -398,7 +398,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const logoutAction = (
     <button
       type="button"
-      className="flex w-full items-center gap-3 rounded-md border border-slate-700 bg-slate-950/40 px-3 py-2 text-left text-sm font-semibold text-slate-200 transition-colors hover:border-red-700/60 hover:bg-red-800/15 hover:text-white disabled:cursor-wait disabled:opacity-70"
+      className="flex w-full items-center gap-3 rounded-md border border-border bg-background/40 px-3 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:border-danger/60 hover:bg-danger/15 hover:text-foreground disabled:cursor-wait disabled:opacity-70"
       aria-label={t('organizer.shell.logoutAriaLabel')}
       disabled={loggingOut}
       onClick={() => {
@@ -406,7 +406,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
       }}
     >
       <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-900 text-[0.65rem] font-bold text-amber-500"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold"
         aria-hidden="true"
       >
         LO
@@ -416,15 +416,18 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-stone-50 text-slate-900">
+    <div className="min-h-screen bg-background text-foreground">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-red-800 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent-foreground"
       >
         {t('organizer.shell.skipToContent')}
       </a>
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-900 px-4 py-5 text-white lg:flex">
+      <aside
+        data-theme="dark"
+        className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground lg:flex"
+      >
         {/* Three-slot brand row: MyClash logo (always) + org name + org
             logo (when uploaded, as a secondary identity badge to the
             right of the name). The MyClash mark is the persistent home
@@ -459,15 +462,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           )}
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-        <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
+        <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-background/90 backdrop-blur lg:left-72">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-700 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground lg:hidden"
               aria-label={t('organizer.shell.openMenu')}
               onClick={() => setOpen(true)}
             >
@@ -478,10 +481,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </span>
             </button>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
+              <p className="text-xs font-semibold uppercase tracking-wider text-accent">
                 {urlEventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
               </p>
-              <p className="truncate font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
+              <p className="truncate font-display text-base font-medium tracking-tight text-foreground sm:text-lg">
                 {urlEventId
                   ? t('organizer.shell.eventTitle', {
                       event: currentEvent?.name || urlEventId,
@@ -490,8 +493,8 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-red-700" aria-hidden="true" />
+          <div className="hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted sm:flex">
+            <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
             {t('organizer.shell.status')}
           </div>
         </div>
@@ -502,15 +505,16 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             aria-label={t('organizer.shell.closeMenu')}
-            className="absolute inset-0 bg-slate-950/60"
+            className="absolute inset-0 bg-slate-950/40"
             onClick={() => setOpen(false)}
           />
           <div
             ref={drawerRef}
+            data-theme="dark"
             role="dialog"
             aria-modal="true"
             aria-label={t('organizer.shell.navigationLabel')}
-            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-slate-900 px-4 py-5 text-white shadow-2xl"
+            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-background px-4 py-5 text-foreground shadow-2xl"
           >
             <div className="mb-6 flex items-center justify-between">
               <Link
@@ -542,14 +546,14 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </Link>
               <button
                 type="button"
-                className="rounded-md border border-slate-600 px-3 py-1 text-sm text-slate-200"
+                className="rounded-md border border-border px-3 py-1 text-sm text-foreground"
                 onClick={() => setOpen(false)}
               >
                 {t('organizer.shell.close')}
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-            <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
+            <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
           </div>
         </div>
       )}

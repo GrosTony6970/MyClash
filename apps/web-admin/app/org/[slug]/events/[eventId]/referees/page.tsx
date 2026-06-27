@@ -189,7 +189,7 @@ function StarRating({
           onClick={() => onChange(value === star ? null : star)}
           className={[
             'text-lg leading-none transition-colors',
-            (value ?? 0) >= star ? 'text-amber-400' : 'text-gray-300',
+            (value ?? 0) >= star ? 'text-gold' : 'text-muted',
           ].join(' ')}
           title={t('organizer.refereesPage.ratingTooltip', { star })}
         >
@@ -216,13 +216,13 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
-        'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 disabled:opacity-50',
-        checked ? 'bg-red-600' : 'bg-gray-200',
+        'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 ring-accent focus:ring-offset-1 disabled:opacity-50',
+        checked ? 'bg-accent' : 'bg-border',
       ].join(' ')}
     >
       <span
         className={[
-          'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+          'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface shadow ring-0 transition duration-200 ease-in-out',
           checked ? 'translate-x-4' : 'translate-x-0',
         ].join(' ')}
       />
@@ -389,27 +389,27 @@ function SkillModal({
   return (
     /* backdrop */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
-        <h2 className="text-lg font-semibold mb-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
           {mode === 'add'
             ? t('organizer.refereesPage.addCustomSkill')
             : t('organizer.refereesPage.editSkill')}
         </h2>
 
         {error && (
-          <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
             {error}
           </div>
         )}
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground-secondary mb-1">
               {t('organizer.refereesPage.skillName')}
             </label>
             <input
@@ -419,20 +419,20 @@ function SkillModal({
               disabled={isSystem}
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:bg-background disabled:text-muted"
               placeholder={t('organizer.refereesPage.skillNamePlaceholder')}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground-secondary mb-1">
               {t('organizer.refereesPage.skillColor')}
             </label>
             <select
               value={color}
               disabled={isSystem}
               onChange={(e) => setColor(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:bg-background disabled:text-muted"
             >
               {COLOR_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -453,7 +453,7 @@ function SkillModal({
               and custom skills — surfaces as a tooltip + subtitle in
               the catalog. */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground-secondary mb-1">
               {t('organizer.refereesPage.skillDescription')}
             </label>
             <textarea
@@ -461,7 +461,7 @@ function SkillModal({
               onChange={(e) => setDescription(e.target.value)}
               maxLength={500}
               rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent"
               placeholder={t('organizer.refereesPage.skillDescriptionPlaceholder')}
             />
           </div>
@@ -473,7 +473,7 @@ function SkillModal({
               <button
                 onClick={() => void handleDelete()}
                 disabled={deleting || saving}
-                className="text-sm text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-3 py-1.5 disabled:opacity-50"
+                className="text-sm text-danger hover:text-danger-hover border border-danger/30 rounded-lg px-3 py-1.5 disabled:opacity-50"
               >
                 {deleting
                   ? t('organizer.refereesPage.deleting')
@@ -485,14 +485,14 @@ function SkillModal({
             <button
               onClick={onClose}
               disabled={saving || deleting}
-              className="text-sm text-gray-600 border border-gray-300 rounded-lg px-4 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+              className="text-sm text-foreground-secondary border border-border rounded-lg px-4 py-1.5 hover:bg-background disabled:opacity-50"
             >
               {t('organizer.refereesPage.cancel')}
             </button>
             <button
               onClick={() => void handleSave()}
               disabled={saving || deleting || !name.trim()}
-              className="text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg px-4 py-1.5 disabled:opacity-50"
+              className="text-sm text-accent-foreground bg-accent hover:bg-accent-hover rounded-lg px-4 py-1.5 disabled:opacity-50"
             >
               {saving ? t('organizer.refereesPage.saving') : t('organizer.refereesPage.save')}
             </button>
@@ -591,7 +591,7 @@ function CandidateGroup({
   if (candidates.length === 0) return null;
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{title}</p>
+      <p className="mb-2 text-xs font-semibold uppercase text-muted">{title}</p>
       <div className="space-y-2">
         {candidates.map((candidate) => {
           const reasonsRaw = candidate.reasons ?? [];
@@ -608,21 +608,21 @@ function CandidateGroup({
               className={[
                 'w-full rounded border px-3 py-2 text-left text-sm transition-colors',
                 disabled
-                  ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
-                  : 'border-gray-200 hover:border-gray-300',
+                  ? 'cursor-not-allowed border-border bg-background text-muted'
+                  : 'border-border hover:border-border',
               ].join(' ')}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span
                   className={[
                     'block font-medium',
-                    disabled ? 'line-through decoration-gray-400 decoration-1' : '',
+                    disabled ? 'line-through decoration-muted decoration-1' : '',
                   ].join(' ')}
                 >
                   {candidate.displayName}
                 </span>
                 {disabled && (
-                  <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600">
+                  <span className="rounded bg-border px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
                     {t('organizer.refereesPage.unavailableBadge')}
                   </span>
                 )}
@@ -632,7 +632,7 @@ function CandidateGroup({
                 <span
                   className={[
                     'mt-0.5 block text-xs italic',
-                    disabled ? 'text-gray-500' : 'text-gray-600',
+                    disabled ? 'text-muted' : 'text-foreground-secondary',
                   ].join(' ')}
                 >
                   {formattedReasons.join(', ')}
@@ -1278,7 +1278,7 @@ function AssignmentsTab({
     ].sort((a, b) => a.ms - b.ms);
     return (
       <div className="space-y-6">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.refereesPage.byTimeslotTitle')}
         </h3>
         {rows.map((row) =>
@@ -1298,10 +1298,10 @@ function AssignmentsTab({
               className="scroll-mt-4 space-y-2"
             >
               <div className="flex items-baseline gap-3">
-                <span className="text-sm font-bold tabular-nums text-gray-900">
+                <span className="text-sm font-bold tabular-nums text-foreground">
                   {formatDayShort(row.block.startTime)} · {formatTime(row.block.startTime)}
                 </span>
-                <div className="h-px flex-1 bg-gray-200" />
+                <div className="h-px flex-1 bg-border" />
               </div>
               <div className="overflow-x-auto pb-2">
                 <div
@@ -1342,13 +1342,13 @@ function AssignmentsTab({
                           isDropTarget ? 'ring-2 ring-indigo-400 ring-offset-1' : '',
                         ].join(' ')}
                       >
-                        <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                        <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-muted">
                           {liceId === NO_LICE
                             ? t('organizer.refereesPage.noLiceColumn')
                             : (liceNameById.get(liceId) ?? '—')}
                         </p>
                         {cellPools.length === 0 ? (
-                          <p className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-xs text-gray-300">
+                          <p className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted">
                             {t('organizer.refereesPage.idleLice')}
                           </p>
                         ) : (
@@ -1404,7 +1404,7 @@ function AssignmentsTab({
               type="button"
               onClick={() => void applyPreview()}
               disabled={isReadOnly || running || board?.locked}
-              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+              className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
             >
               {running
                 ? t('organizer.refereesPage.applying')
@@ -1414,7 +1414,7 @@ function AssignmentsTab({
               type="button"
               onClick={() => void clearPreview()}
               disabled={running || previewing}
-              className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
             >
               {t('organizer.refereesPage.clearPreview')}
             </button>
@@ -1425,7 +1425,7 @@ function AssignmentsTab({
             type="button"
             onClick={() => void unlockAssignments()}
             disabled={isReadOnly || locking}
-            className="border border-amber-300 bg-amber-50 hover:border-amber-400 text-amber-800 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+            className="border border-warning/30 bg-warning/10 hover:border-warning text-warning font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
             {locking
               ? t('organizer.refereesPage.unlocking')
@@ -1436,7 +1436,7 @@ function AssignmentsTab({
             type="button"
             onClick={() => void lockAssignments()}
             disabled={isReadOnly || locking}
-            className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+            className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
             {locking
               ? t('organizer.refereesPage.locking')
@@ -1447,7 +1447,7 @@ function AssignmentsTab({
           type="button"
           onClick={() => setPendingClearAll(true)}
           disabled={isReadOnly || running || board?.locked}
-          className="border border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+          className="border border-danger/30 text-danger hover:border-danger hover:bg-danger/10 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
         >
           {t('organizer.refereesPage.clearAll')}
         </button>
@@ -1455,7 +1455,7 @@ function AssignmentsTab({
           type="button"
           onClick={() => void loadBoard()}
           disabled={loading}
-          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+          className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
         >
           {t('organizer.refereesPage.healthcheck')}
         </button>
@@ -1467,7 +1467,7 @@ function AssignmentsTab({
                 .getElementById('referee-health-panel')
                 ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 transition-colors hover:border-red-400 hover:bg-red-100"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition-colors hover:border-danger hover:bg-danger/10"
           >
             <span aria-hidden="true">⚠</span>
             {t('organizer.refereesPage.conflict.checkButton').replace(
@@ -1478,14 +1478,12 @@ function AssignmentsTab({
         )}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
       {loading ? (
-        <p className="text-sm text-gray-400">{t('organizer.refereesPage.loading')}</p>
+        <p className="text-sm text-muted">{t('organizer.refereesPage.loading')}</p>
       ) : !board || (board.pools.length === 0 && board.unscheduledPools.length === 0) ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">
-            {t('organizer.refereesPage.noPoolsForAssignments')}
-          </p>
+        <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+          <p className="text-muted text-sm">{t('organizer.refereesPage.noPoolsForAssignments')}</p>
         </div>
       ) : (
         <>
@@ -1494,7 +1492,7 @@ function AssignmentsTab({
               has an unmistakable signal. The Lock/Unlock buttons stay
               live above this wrapper. */}
           {board.locked && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
               <span aria-hidden="true">🔒</span>
               <span>{t('organizer.refereesPage.lockedBanner')}</span>
             </div>
@@ -1523,8 +1521,8 @@ function AssignmentsTab({
                   className={[
                     'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
                     selectedDayIso === null
-                      ? 'border-red-700 bg-red-700 text-white'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+                      ? 'border-accent bg-accent text-accent-foreground'
+                      : 'border-border bg-surface text-foreground-secondary hover:border-border',
                   ].join(' ')}
                 >
                   {t('organizer.refereesPage.dayFilterAll')}
@@ -1537,8 +1535,8 @@ function AssignmentsTab({
                     className={[
                       'rounded-full border px-3 py-1 text-xs font-semibold capitalize transition-colors',
                       selectedDayIso === iso
-                        ? 'border-red-700 bg-red-700 text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+                        ? 'border-accent bg-accent text-accent-foreground'
+                        : 'border-border bg-surface text-foreground-secondary hover:border-border',
                     ].join(' ')}
                   >
                     {formatDayShort(iso)}
@@ -1555,15 +1553,15 @@ function AssignmentsTab({
               onPoolClick={handleChipClick}
             />
             {expandedPool && (
-              <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-3">
+              <div className="rounded-xl border-2 border-dashed border-border bg-background p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted">
                     {t('organizer.refereesPage.unscheduled')}
                   </p>
                   <button
                     type="button"
                     onClick={() => setExpandedPoolId(null)}
-                    className="text-xs text-gray-500 hover:text-gray-800"
+                    className="text-xs text-muted hover:text-foreground"
                   >
                     {t('organizer.refereesPage.collapseCard')}
                   </button>
@@ -1585,20 +1583,20 @@ function AssignmentsTab({
       )}
 
       {picker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-xl rounded-lg bg-surface p-5 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                   {picker.pool.name} -{' '}
                   {picker.slot.displayName ?? roleLabel(picker.slot.role, skillNameById)}
                 </h2>
-                <p className="text-sm text-gray-500">{picker.pool.tournamentName}</p>
+                <p className="text-sm text-muted">{picker.pool.tournamentName}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setPicker(null)}
-                className="text-sm text-gray-500 hover:text-gray-800"
+                className="text-sm text-muted hover:text-foreground"
               >
                 {t('organizer.refereesPage.cancel')}
               </button>
@@ -2218,20 +2216,25 @@ export default function RefereesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="flex items-center gap-2 text-sm text-muted mb-1">
+            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link
+              href={`/org/${slug}/events/${eventId}`}
+              className="hover:text-foreground-secondary"
+            >
               {t('organizer.refereesPage.eventBreadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">
+            <span className="text-foreground font-medium">
               {t('organizer.refereesPage.refereesTitle')}
             </span>
           </div>
-          <h1 className="text-2xl font-bold">{t('organizer.refereesPage.pageTitle')}</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.refereesPage.pageTitle')}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           {activeTab === 'qualifications' && (
@@ -2239,21 +2242,21 @@ export default function RefereesPage() {
               onClick={() => setSkillModal({ mode: 'add' })}
               disabled={isReadOnly}
               title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-              className="border border-red-300 text-red-700 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+              className="border border-accent text-accent hover:bg-accent/10 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
             >
               + {t('organizer.refereesPage.addCustomSkill')}
             </button>
           )}
           <Link
             href={`/org/${slug}/events/${eventId}/pools`}
-            className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+            className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
             {t('organizer.refereesPage.backToPools')}
           </Link>
         </div>
       </div>
 
-      <div className="mb-6 border-b border-gray-200">
+      <div className="mb-6 border-b border-border">
         <nav className="-mb-px flex gap-6">
           {(['referees', 'assignments', 'qualifications', 'staffing'] as RefereeWorkspaceTab[]).map(
             (tab) => (
@@ -2264,8 +2267,8 @@ export default function RefereesPage() {
                 className={[
                   'border-b-2 px-1 py-3 text-sm font-medium transition-colors',
                   activeTab === tab
-                    ? 'border-red-700 text-red-700'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted hover:border-border hover:text-foreground-secondary',
                 ].join(' ')}
               >
                 {t(`organizer.refereesPage.tabs.${tab}`)}
@@ -2275,7 +2278,7 @@ export default function RefereesPage() {
         </nav>
       </div>
 
-      <p className="mb-4 text-sm leading-relaxed text-gray-600">
+      <p className="mb-4 text-sm leading-relaxed text-foreground-secondary">
         {t(`organizer.refereesPage.tabIntros.${activeTab}`)}
       </p>
 
@@ -2318,8 +2321,8 @@ export default function RefereesPage() {
         <>
           {/* Add referee search */}
           {activeTab === 'referees' && (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-              <p className="text-sm font-medium text-gray-700 mb-2">
+            <div className="bg-background border border-border rounded-xl p-4 mb-6">
+              <p className="text-sm font-medium text-foreground-secondary mb-2">
                 {t('organizer.refereesPage.addRefereeButton')}
               </p>
               <div className="relative">
@@ -2337,20 +2340,20 @@ export default function RefereesPage() {
                       ? t('organizer.deletionRequest.archivedReadOnly')
                       : t('organizer.refereesPage.searchParticipantPlaceholder')
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 {searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
                     {searchResults.map((p) => (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                        className="flex items-center justify-between px-3 py-2 hover:bg-background border-b border-border last:border-0"
                       >
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-foreground">
                             {p.given_name} {p.family_name}
                           </p>
-                          {p.club_label && <p className="text-xs text-gray-400">{p.club_label}</p>}
+                          {p.club_label && <p className="text-xs text-muted">{p.club_label}</p>}
                         </div>
                         <button
                           onClick={() => {
@@ -2362,7 +2365,7 @@ export default function RefereesPage() {
                             setSearch('');
                             setSearchResults([]);
                           }}
-                          className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
+                          className="text-xs border border-border rounded px-2 py-0.5 hover:bg-background"
                         >
                           {t('organizer.refereesPage.addQualification')}
                         </button>
@@ -2380,16 +2383,16 @@ export default function RefereesPage() {
               operator can see what skills will be available. The body shows
               an empty-state row instead of hiding the whole table. */}
           {loading ? (
-            <p className="text-gray-400 text-sm">{t('organizer.refereesPage.loading')}</p>
+            <p className="text-muted text-sm">{t('organizer.refereesPage.loading')}</p>
           ) : referees.length === 0 ? (
-            <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-              <p className="text-gray-400 text-sm">{t('organizer.refereesPage.noReferees')}</p>
+            <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+              <p className="text-muted text-sm">{t('organizer.refereesPage.noReferees')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                  <tr className="border-b border-border text-left text-muted">
                     {/* Name column */}
                     <th className="py-2 pr-4 font-medium whitespace-nowrap">
                       {t('organizer.refereesPage.personColumn')} ({referees.length})
@@ -2410,7 +2413,7 @@ export default function RefereesPage() {
                           <div className="flex items-center justify-center gap-1">
                             <span>{skill.name}</span>
                             <span
-                              className="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+                              className="rounded-full bg-surface/70 px-1.5 py-0.5 text-[10px] font-semibold text-foreground-secondary"
                               title={t('organizer.refereesPage.catalogColCount')}
                             >
                               {qualifiedCountBySkill.get(skill.id) ?? 0}
@@ -2430,7 +2433,7 @@ export default function RefereesPage() {
                                   })
                                 }
                                 disabled={isReadOnly}
-                                className="text-gray-400 hover:text-gray-700 ml-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-muted hover:text-foreground-secondary ml-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={
                                   isReadOnly
                                     ? t('organizer.deletionRequest.archivedReadOnly')
@@ -2478,13 +2481,13 @@ export default function RefereesPage() {
                       short-circuits above and never reaches this table,
                       so the row is no longer reachable. */}
                   {referees.map((ref) => (
-                    <tr key={ref.personId} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={ref.personId} className="border-b border-border hover:bg-background">
                       {/* Name cell */}
                       <td className="py-3 pr-4 align-top">
-                        <p className="font-medium text-gray-900">{ref.displayName}</p>
-                        {ref.clubLabel && <p className="text-xs text-gray-400">{ref.clubLabel}</p>}
+                        <p className="font-medium text-foreground">{ref.displayName}</p>
+                        {ref.clubLabel && <p className="text-xs text-muted">{ref.clubLabel}</p>}
                         {ref.personId ? (
-                          <span className="text-xs text-emerald-600 font-medium">
+                          <span className="text-xs text-success font-medium">
                             {t('organizer.refereesPage.globalProfileLinked')}
                           </span>
                         ) : (
@@ -2498,10 +2501,10 @@ export default function RefereesPage() {
                                   placeholder={t(
                                     'organizer.refereesPage.searchGlobalPersonsPlaceholder',
                                   )}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                  className="border border-border rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 ring-accent"
                                 />
                                 {globalResults.length > 0 && (
-                                  <div className="bg-white border border-gray-200 rounded shadow text-xs max-h-32 overflow-y-auto">
+                                  <div className="bg-surface border border-border rounded shadow text-xs max-h-32 overflow-y-auto">
                                     {globalResults.map((gp) => (
                                       <button
                                         key={gp.id}
@@ -2513,7 +2516,7 @@ export default function RefereesPage() {
                                           if (firstQualId)
                                             void linkToGlobalPerson(firstQualId, gp.id);
                                         }}
-                                        className="block w-full text-left px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                        className="block w-full text-left px-2 py-1 hover:bg-background border-b border-border last:border-0"
                                       >
                                         {gp.display_name}
                                       </button>
@@ -2523,7 +2526,7 @@ export default function RefereesPage() {
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => void createAndLinkGlobalPerson(ref)}
-                                    className="text-xs text-amber-600 hover:text-amber-800"
+                                    className="text-xs text-gold hover:text-warning"
                                   >
                                     {t('organizer.refereesPage.createGlobalProfile')}
                                   </button>
@@ -2533,7 +2536,7 @@ export default function RefereesPage() {
                                       setGlobalSearch('');
                                       setGlobalResults([]);
                                     }}
-                                    className="text-xs text-gray-400 hover:text-gray-600"
+                                    className="text-xs text-muted hover:text-foreground-secondary"
                                   >
                                     {t('organizer.refereesPage.cancel')}
                                   </button>
@@ -2542,7 +2545,7 @@ export default function RefereesPage() {
                             ) : (
                               <button
                                 onClick={() => setLinkingPersonId(ref.personId)}
-                                className="text-xs text-amber-600 hover:text-amber-800"
+                                className="text-xs text-gold hover:text-warning"
                               >
                                 {t('organizer.refereesPage.linkGlobalProfile')}
                               </button>
@@ -2581,7 +2584,7 @@ export default function RefereesPage() {
                                         ? t('organizer.deletionRequest.archivedReadOnly')
                                         : undefined
                                     }
-                                    className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
+                                    className="text-xs text-danger hover:text-danger-hover disabled:opacity-50"
                                   >
                                     {t('organizer.refereesPage.removeQualification')}
                                   </button>
@@ -2594,7 +2597,7 @@ export default function RefereesPage() {
                                     }
                                   }}
                                   disabled={isSaving || !ref.personId || isReadOnly}
-                                  className="text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-300 rounded px-2 py-0.5 disabled:opacity-50"
+                                  className="text-xs text-muted hover:text-foreground-secondary border border-dashed border-border rounded px-2 py-0.5 disabled:opacity-50"
                                   title={
                                     isReadOnly
                                       ? t('organizer.deletionRequest.archivedReadOnly')
@@ -2650,16 +2653,16 @@ export default function RefereesPage() {
                       {activeTab === 'referees' && (
                         <td className="py-3 px-3 align-top">
                           {ref.assignments.length === 0 ? (
-                            <span className="text-xs text-gray-400">—</span>
+                            <span className="text-xs text-muted">—</span>
                           ) : (
                             <div className="flex flex-wrap gap-1">
                               {ref.assignments.slice(0, 3).map((a) => (
                                 <span
                                   key={a.tournamentId}
-                                  className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 rounded px-2 py-0.5"
+                                  className="inline-flex items-center gap-1 text-xs bg-border text-foreground-secondary rounded px-2 py-0.5"
                                 >
                                   {a.tournamentName}
-                                  <span className="text-gray-400">·</span>
+                                  <span className="text-muted">·</span>
                                   {a.matchCount}{' '}
                                   {a.matchCount === 1
                                     ? t('organizer.refereesPage.match')
@@ -2668,7 +2671,7 @@ export default function RefereesPage() {
                               ))}
                               {ref.assignments.length > 3 && (
                                 <span
-                                  className="text-xs text-gray-500 cursor-default"
+                                  className="text-xs text-muted cursor-default"
                                   title={ref.assignments
                                     .slice(3)
                                     .map(
@@ -2690,7 +2693,7 @@ export default function RefereesPage() {
                       {/* Total matches */}
                       {activeTab === 'referees' && (
                         <td className="py-3 px-3 text-center align-middle">
-                          <span className="font-medium text-gray-900">{ref.totalMatchCount}</span>
+                          <span className="font-medium text-foreground">{ref.totalMatchCount}</span>
                         </td>
                       )}
                     </tr>

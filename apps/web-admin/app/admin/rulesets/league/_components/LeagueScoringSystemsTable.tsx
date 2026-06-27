@@ -186,15 +186,15 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
       )}
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
         <table className="w-full min-w-[920px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
               {showCheckboxCol && (
                 <th className="w-10 px-4 py-3">
                   <input
@@ -204,7 +204,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
                       deletableIds.length > 0 && deletableIds.every((id) => selection.has(id))
                     }
                     onChange={() => selection.toggleAll(deletableIds)}
-                    className="h-4 w-4 rounded border-slate-300 text-red-700 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                    className="h-4 w-4 rounded border-border text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                   />
                 </th>
               )}
@@ -222,14 +222,14 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={colCount} className="py-8 text-center text-sm text-slate-400">
+                <td colSpan={colCount} className="py-8 text-center text-sm text-muted">
                   {t('admin.rulesets.league.loadingState')}
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={colCount} className="py-12 text-center text-sm text-slate-400">
+                <td colSpan={colCount} className="py-12 text-center text-sm text-muted">
                   {t('admin.rulesets.league.emptyState')}
                 </td>
               </tr>
@@ -237,7 +237,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
             {rows.map((row) => {
               const editable = !row.is_archived;
               return (
-                <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={row.id} className="border-b border-border hover:bg-background">
                   {showCheckboxCol && (
                     <td className="w-10 px-4 py-3">
                       <input
@@ -245,19 +245,21 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
                         aria-label={t('admin.rulesets.league.bulk.selectRowAria')}
                         checked={selection.has(row.id)}
                         onChange={() => selection.toggle(row.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-red-700 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                        className="h-4 w-4 rounded border-border text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                       />
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{row.name}</p>
+                    <p className="font-medium text-foreground">{row.name}</p>
                     {row.description && (
-                      <p className="mt-0.5 text-xs text-slate-500">{row.description}</p>
+                      <p className="mt-0.5 text-xs text-muted">{row.description}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.code}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-foreground-secondary">
+                    {row.code}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                    <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
                       v{row.version}
                     </span>
                   </td>
@@ -279,7 +281,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-700">
+                  <td className="px-4 py-3 text-foreground-secondary">
                     {[1, 8, 16]
                       .map((r) => {
                         const v = pickPoints(row.points_by_rank, r);
@@ -287,7 +289,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
                       })
                       .join(' / ')}
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-600">
+                  <td className="px-4 py-3 text-xs text-foreground-secondary">
                     {row.tie_breakers.length === 0 ? '—' : row.tie_breakers.join(' → ')}
                   </td>
                   {showActionsCol && (
@@ -343,7 +345,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
           <button
             type="button"
             onClick={() => setPendingBulkDelete(selectedRows)}
-            className="inline-flex items-center rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+            className="inline-flex items-center rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-danger-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
           >
             {t('admin.rulesets.league.bulk.deleteSelected')}
           </button>

@@ -38,7 +38,7 @@ export function ScoringSystemPreview({
     return (
       <div
         className={[
-          'rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500',
+          'rounded-md border border-border bg-background px-4 py-3 text-sm text-muted',
           className,
         ]
           .filter(Boolean)
@@ -51,37 +51,37 @@ export function ScoringSystemPreview({
 
   return (
     <div
-      className={['rounded-md border border-slate-200 bg-white p-4', className]
+      className={['rounded-md border border-border bg-surface p-4', className]
         .filter(Boolean)
         .join(' ')}
     >
       {(name || code || version) && (
         <div className="mb-3 flex flex-wrap items-baseline gap-2">
-          {name && <span className="text-sm font-semibold text-slate-900">{name}</span>}
-          {code && <span className="font-mono text-xs text-slate-500">{code}</span>}
+          {name && <span className="text-sm font-semibold text-foreground">{name}</span>}
+          {code && <span className="font-mono text-xs text-muted">{code}</span>}
           {version && (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">
+            <span className="rounded-full bg-background px-2 py-0.5 font-mono text-[11px] font-semibold text-foreground-secondary">
               v{version}
             </span>
           )}
         </div>
       )}
 
-      {description && <p className="mb-3 text-sm text-slate-600">{description}</p>}
+      {description && <p className="mb-3 text-sm text-foreground-secondary">{description}</p>}
 
       {ranks.length > 0 && (
         <div className="mb-3">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.league.preview.ranksHeader')}
           </p>
           <div className="grid grid-cols-4 gap-1 sm:grid-cols-8">
             {ranks.map((rank) => (
               <div
                 key={rank}
-                className="rounded border border-slate-200 px-2 py-1 text-center text-xs"
+                className="rounded border border-border px-2 py-1 text-center text-xs"
               >
-                <span className="block text-[10px] text-slate-500">#{rank}</span>
-                <span className="block font-mono text-sm font-semibold text-slate-900">
+                <span className="block text-[10px] text-muted">#{rank}</span>
+                <span className="block font-mono text-sm font-semibold text-foreground">
                   {pointsByRank[String(rank)]}
                 </span>
               </div>
@@ -92,10 +92,10 @@ export function ScoringSystemPreview({
 
       {tieBreakers.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.league.preview.tieBreakersHeader')}
           </p>
-          <ol className="list-decimal space-y-0.5 pl-5 text-sm text-slate-700">
+          <ol className="list-decimal space-y-0.5 pl-5 text-sm text-foreground-secondary">
             {tieBreakers.map((tb) => (
               <li key={tb}>{tieBreakerLabel(t, tb)}</li>
             ))}

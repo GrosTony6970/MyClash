@@ -50,7 +50,7 @@ export default function TournamentSettingsPage() {
     <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
       <Link
         href={`/org/${params.slug}/events/${params.eventId}/tournaments`}
-        className="inline-flex items-center gap-1 rounded text-sm font-medium text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+        className="inline-flex items-center gap-1 rounded text-sm font-medium text-foreground-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         ← {t('organizer.tournaments.settings.backToList')}
       </Link>
@@ -71,7 +71,9 @@ export default function TournamentSettingsPage() {
               onClick={() => selectTab(tab.key)}
               className={[
                 'text-left px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                active === tab.key ? 'bg-red-800 text-white' : 'text-slate-700 hover:bg-slate-100',
+                active === tab.key
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-foreground-secondary hover:bg-background',
               ].join(' ')}
             >
               {t(tab.labelKey)}

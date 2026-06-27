@@ -158,10 +158,10 @@ export default function OrgScoringRulesetsPage() {
     if (row.is_system)
       return {
         label: t('admin.rulesets.shared.badges.builtin'),
-        className: 'bg-emerald-100 text-emerald-800',
+        className: 'bg-success/10 text-success',
       };
     if (row.owner_organization_id === orgId)
-      return { label: t('admin.rulesets.sourceMine'), className: 'bg-blue-100 text-blue-800' };
+      return { label: t('admin.rulesets.sourceMine'), className: 'bg-info/10 text-info' };
     return {
       label: t('admin.rulesets.sourceShared'),
       className: 'bg-purple-100 text-purple-800',
@@ -173,58 +173,62 @@ export default function OrgScoringRulesetsPage() {
     if (row.public_visibility)
       return {
         label: t('admin.rulesets.submissionApproved'),
-        className: 'bg-emerald-100 text-emerald-800',
+        className: 'bg-success/10 text-success',
       };
     if (row.submitted_for_review_at)
       return {
         label: t('admin.rulesets.submissionPending'),
-        className: 'bg-amber-100 text-amber-800',
+        className: 'bg-warning/10 text-warning',
       };
     if (row.rejected_reason)
       return {
         label: t('admin.rulesets.submissionRejected'),
-        className: 'bg-red-100 text-red-800',
+        className: 'bg-danger/10 text-danger',
       };
     return {
       label: t('admin.rulesets.submissionNotSubmitted'),
-      className: 'bg-slate-200 text-slate-700',
+      className: 'bg-background text-foreground-secondary',
     };
   }
 
   return (
     <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">{t('admin.rulesets.title')}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t('admin.rulesets.description')}</p>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+          {t('admin.rulesets.title')}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{t('admin.rulesets.description')}</p>
       </div>
 
       <RulesetsTopNav active="scoring" basePath={`/org/${slugForLink}/rulesets`} />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">{t('admin.rulesets.curatedTitle')}</h2>
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+          {t('admin.rulesets.curatedTitle')}
+        </h2>
         <Link
           href={`/org/${slugForLink}/rulesets/scoring/new`}
-          className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
         >
           {t('admin.rulesets.createButton')}
         </Link>
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-400">{t('admin.rulesets.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-400">{t('admin.rulesets.curatedEmpty')}</p>
+        <p className="text-sm text-muted">{t('admin.rulesets.curatedEmpty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-2">{t('admin.rulesets.shared.columns.name')}</th>
                 <th className="px-4 py-2">{t('admin.rulesets.shared.columns.code')}</th>
                 <th className="px-4 py-2">{t('admin.rulesets.shared.columns.version')}</th>
@@ -241,22 +245,24 @@ export default function OrgScoringRulesetsPage() {
                 const canSubmit = isMine && !row.public_visibility && !row.submitted_for_review_at;
                 const actions = rulesetRowActions({ builtIn: row.is_system, mine: isMine });
                 return (
-                  <tr key={row.id} className="border-b border-slate-100">
+                  <tr key={row.id} className="border-b border-border">
                     <td className="px-4 py-2">
-                      <div className="font-semibold text-slate-800">{row.name}</div>
+                      <div className="font-semibold text-foreground">{row.name}</div>
                       {row.description && (
-                        <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                        <div className="mt-0.5 line-clamp-2 text-xs text-muted">
                           {row.description}
                         </div>
                       )}
                       {row.rejected_reason && (
-                        <div className="mt-1 rounded bg-red-50 px-2 py-1 text-[11px] text-red-700">
+                        <div className="mt-1 rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
                           {t('admin.rulesets.rejectedReasonLabel')}: {row.rejected_reason}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{row.code}</td>
-                    <td className="px-4 py-2 font-mono text-xs font-bold text-slate-700">
+                    <td className="px-4 py-2 font-mono text-xs text-foreground-secondary">
+                      {row.code}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs font-bold text-foreground-secondary">
                       {row.version}
                     </td>
                     <td className="px-4 py-2">
@@ -274,7 +280,7 @@ export default function OrgScoringRulesetsPage() {
                           {submissionBadge.label}
                         </span>
                       ) : (
-                        <span className="text-xs italic text-slate-400">—</span>
+                        <span className="text-xs italic text-muted">—</span>
                       )}
                     </td>
                     <td className="px-4 py-2">

@@ -23,7 +23,13 @@ import {
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
 import { formatInZone, zonedDay } from '@myclash/time';
-import { TournamentColorDot, accentClassFor, useConfirm } from '@myclash/ui';
+import {
+  TournamentColorDot,
+  accentClassFor,
+  useConfirm,
+  statusPillTone,
+  workshopStatusSemantic,
+} from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { Time24Input } from '@/components/Time24Input';
@@ -693,29 +699,32 @@ export default function WorkshopsAdminPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="flex items-center gap-2 text-sm text-muted mb-1">
+            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link
+              href={`/org/${slug}/events/${eventId}`}
+              className="hover:text-foreground-secondary"
+            >
               Event
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Workshops</span>
+            <span className="text-foreground font-medium">Workshops</span>
           </div>
-          <h1 className="text-2xl font-bold">Workshops</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">Workshops</h1>
         </div>
         <button
           onClick={openCreate}
-          className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+          className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
         >
           + New workshop
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="mb-5 flex gap-1 border-b border-gray-200">
+      <div className="mb-5 flex gap-1 border-b border-border">
         {(['list', 'schedule'] as const).map((tk) => (
           <button
             key={tk}
@@ -724,8 +733,8 @@ export default function WorkshopsAdminPage() {
             className={[
               '-mb-px border-b-2 px-4 py-2 text-sm font-medium',
               tab === tk
-                ? 'border-red-700 text-red-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted hover:text-foreground-secondary',
             ].join(' ')}
           >
             {tk === 'list' ? 'Workshop list' : 'Workshop schedule'}
@@ -734,7 +743,7 @@ export default function WorkshopsAdminPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <p className="text-muted text-sm">Loading…</p>
       ) : tab === 'schedule' ? (
         <WorkshopScheduleBoard
           workshops={workshops.map((w) => ({
@@ -757,14 +766,14 @@ export default function WorkshopsAdminPage() {
           onDeleteBreak={(id) => void handleDeleteBreakById(id)}
         />
       ) : workshops.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">No workshops yet.</p>
+        <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
+          <p className="text-muted text-sm">No workshops yet.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="py-2 pr-4 font-medium">Workshop name</th>
                 <th className="py-2 pr-4 font-medium">Category</th>
                 <th className="py-2 pr-4 font-medium">Level</th>
@@ -804,7 +813,7 @@ export default function WorkshopsAdminPage() {
                       }`
                     : '—';
                 return (
-                  <tr key={w.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={w.id} className="border-b border-border hover:bg-background">
                     <td className="relative py-2 pl-3 pr-4">
                       {w.color ? (
                         <span
@@ -812,33 +821,33 @@ export default function WorkshopsAdminPage() {
                           className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
                         />
                       ) : null}
-                      <p className="font-medium text-gray-900">{w.title}</p>
+                      <p className="font-medium text-foreground">{w.title}</p>
                       {w.instructors.length > 0 && (
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-muted">
                           {w.instructors.map((i) => i.displayName).join(', ')}
                         </p>
                       )}
                     </td>
-                    <td className="py-2 pr-4 text-gray-600">{w.category ?? '—'}</td>
-                    <td className="py-2 pr-4 text-gray-600">{w.level ?? '—'}</td>
-                    <td className="py-2 pr-4 text-gray-600">{w.capacity ?? '—'}</td>
-                    <td className="py-2 pr-4 text-gray-600">
+                    <td className="py-2 pr-4 text-foreground-secondary">{w.category ?? '—'}</td>
+                    <td className="py-2 pr-4 text-foreground-secondary">{w.level ?? '—'}</td>
+                    <td className="py-2 pr-4 text-foreground-secondary">{w.capacity ?? '—'}</td>
+                    <td className="py-2 pr-4 text-foreground-secondary">
                       {w.durationMinutes != null ? `${w.durationMinutes} min` : '—'}
                     </td>
-                    <td className="py-2 pr-4 text-gray-600">{timeRange}</td>
-                    <td className="py-2 pr-4 text-gray-600">{venueArea}</td>
+                    <td className="py-2 pr-4 text-foreground-secondary">{timeRange}</td>
+                    <td className="py-2 pr-4 text-foreground-secondary">{venueArea}</td>
                     <td className="py-2 pr-4">
                       <select
                         value={w.status}
                         onChange={(e) => void changeStatus(w, e.target.value)}
                         aria-label="Workshop status"
-                        className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 ${
-                          STATUS_PILL[w.status]?.cls ?? 'bg-gray-100 text-gray-600'
+                        className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          statusPillTone(workshopStatusSemantic(w.status), 'light').className
                         }`}
                       >
                         {['draft', 'published', 'running', 'completed'].map((s) => (
                           <option key={s} value={s}>
-                            {STATUS_PILL[s]?.label ?? s}
+                            {STATUS_PILL[s] ?? s}
                           </option>
                         ))}
                       </select>
@@ -848,14 +857,14 @@ export default function WorkshopsAdminPage() {
                         <button
                           type="button"
                           onClick={() => openEdit(w)}
-                          className="text-xs font-semibold text-red-700 hover:text-red-800"
+                          className="text-xs font-semibold text-accent hover:text-accent-hover"
                         >
                           Edit
                         </button>
                         {session && (
                           <button
                             onClick={() => void openRoster(session.id)}
-                            className="text-xs text-blue-600 hover:underline"
+                            className="text-xs text-info hover:underline"
                           >
                             Roster
                           </button>
@@ -872,14 +881,16 @@ export default function WorkshopsAdminPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4">
+        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
               {editingId ? 'Edit workshop' : 'New workshop'}
             </h2>
             <div className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Title *
+                </label>
                 <input
                   type="text"
                   value={form.title}
@@ -891,11 +902,13 @@ export default function WorkshopsAdminPage() {
                       slug: nextSlugFromName(f.slug, f.title, title),
                     }));
                   }}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Slug *
+                </label>
                 <input
                   type="text"
                   value={form.slug}
@@ -905,38 +918,44 @@ export default function WorkshopsAdminPage() {
                       slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
                     }))
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Category
+                  </label>
                   <input
                     type="text"
                     value={form.category}
                     onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                     placeholder="Longsword, Messer…"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Level</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Level
+                  </label>
                   <input
                     type="text"
                     value={form.level}
                     onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
                     placeholder="Beginner, Advanced…"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Language</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Language
+                  </label>
                   <select
                     value={form.language}
                     onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="fr">FR</option>
                     <option value="en">EN</option>
@@ -945,7 +964,9 @@ export default function WorkshopsAdminPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Capacity</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Capacity
+                  </label>
                   <input
                     type="number"
                     value={form.capacity}
@@ -953,11 +974,11 @@ export default function WorkshopsAdminPage() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, capacity: parseInt(e.target.value) || 1 }))
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
                     Duration (min, optional)
                   </label>
                   <input
@@ -966,7 +987,7 @@ export default function WorkshopsAdminPage() {
                     min={1}
                     placeholder="e.g. 90"
                     onChange={(e) => onTimingChange('durationMinutes', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
               </div>
@@ -974,14 +995,14 @@ export default function WorkshopsAdminPage() {
               {/* Optional scheduling — Day + Start + End auto-complete via Duration */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
                     Day (optional)
                   </label>
                   {eventDays.length > 0 ? (
                     <select
                       value={form.day}
                       onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     >
                       <option value="">—</option>
                       {eventDays.map((d) => (
@@ -1000,12 +1021,14 @@ export default function WorkshopsAdminPage() {
                       type="date"
                       value={form.day}
                       onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Start
+                  </label>
                   <Time24Input
                     value={form.start}
                     onChange={(v) => onTimingChange('start', v)}
@@ -1013,7 +1036,9 @@ export default function WorkshopsAdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    End
+                  </label>
                   <Time24Input
                     value={form.end}
                     onChange={(v) => onTimingChange('end', v)}
@@ -1023,11 +1048,13 @@ export default function WorkshopsAdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Status
+                </label>
                 <select
                   value={form.status}
                   onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   <option value="draft">Draft</option>
                   <option value="published">Published</option>
@@ -1037,14 +1064,16 @@ export default function WorkshopsAdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Instructors</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Instructors
+                </label>
                 {eventInstructors.length === 0 ? (
-                  <p className="text-xs text-amber-600">
+                  <p className="text-xs text-warning">
                     No instructors tagged yet. Tag participants as instructors on the Participants
                     page.
                   </p>
                 ) : (
-                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-border rounded-lg p-2">
                     {eventInstructors.map((ins) => (
                       <label key={ins.personId} className="flex items-center gap-2 text-sm">
                         <input
@@ -1067,13 +1096,13 @@ export default function WorkshopsAdminPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
                   Default venue
                 </label>
                 <select
                   value={form.venueId}
                   onChange={(e) => setForm((f) => ({ ...f, venueId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   <option value="">No default venue</option>
                   {venues.map((v) => (
@@ -1083,19 +1112,21 @@ export default function WorkshopsAdminPage() {
                   ))}
                 </select>
                 {venues.length === 0 && (
-                  <p className="mt-1 text-xs text-amber-600">
+                  <p className="mt-1 text-xs text-warning">
                     No workshop-capable venues in this org yet. Add one from /org/{slug}/venues.
                   </p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Color
+                </label>
                 <div className="flex items-center gap-2">
                   <TournamentColorDot color={form.color || null} size="md" />
                   <select
                     value={form.color}
                     onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="">No color</option>
                     {TOURNAMENT_COLORS.map((c) => (
@@ -1105,29 +1136,31 @@ export default function WorkshopsAdminPage() {
                     ))}
                   </select>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted">
                   Shown as a left band on the schedule and the public workshop cards.
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Description
+                </label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-none"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
                 />
               </div>
             </div>
-            {formError && <p className="text-sm text-red-600 mt-2">{formError}</p>}
+            {formError && <p className="text-sm text-danger mt-2">{formError}</p>}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={closeModal} className="text-sm text-gray-500 px-4 py-2">
+              <button onClick={closeModal} className="text-sm text-muted px-4 py-2">
                 Cancel
               </button>
               <button
                 onClick={() => void handleSubmit()}
                 disabled={formSaving}
-                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm"
+                className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm"
               >
                 {formSaving ? 'Saving…' : editingId ? 'Save' : 'Create'}
               </button>
@@ -1138,31 +1171,31 @@ export default function WorkshopsAdminPage() {
 
       {/* Roster modal */}
       {rosterSession && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Session roster</h2>
+              <h2 className="font-display font-semibold text-lg sm:text-xl">Session roster</h2>
               <button
                 onClick={() => setRosterSession(null)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
+                className="text-muted hover:text-foreground-secondary text-xl"
               >
                 ×
               </button>
             </div>
 
             {rosterLoading ? (
-              <p className="text-gray-400 text-sm">Loading…</p>
+              <p className="text-muted text-sm">Loading…</p>
             ) : roster.length === 0 ? (
-              <p className="text-gray-400 text-sm">No enrollments yet.</p>
+              <p className="text-muted text-sm">No enrollments yet.</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {roster.map((entry) => (
                   <div
                     key={entry.id}
-                    className="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2 text-sm"
+                    className="flex items-center justify-between border border-border rounded-lg px-3 py-2 text-sm"
                   >
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-foreground">
                         {entry.persons
                           ? `${entry.persons.givenName} ${entry.persons.familyName}`
                           : 'Unknown'}
@@ -1172,8 +1205,8 @@ export default function WorkshopsAdminPage() {
                           className={[
                             'text-xs px-1.5 py-0.5 rounded font-medium',
                             entry.status === 'confirmed'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-yellow-100 text-yellow-700',
+                              ? 'bg-success/10 text-success'
+                              : 'bg-warning/10 text-warning',
                           ].join(' ')}
                         >
                           {entry.status === 'waitlisted'
@@ -1181,7 +1214,7 @@ export default function WorkshopsAdminPage() {
                             : 'Confirmed'}
                         </span>
                         {entry.global_person_id ? (
-                          <span className="text-xs text-emerald-600 font-medium">Linked</span>
+                          <span className="text-xs text-success font-medium">Linked</span>
                         ) : linkingEnrollmentId === entry.id ? (
                           <div className="relative">
                             <input
@@ -1189,17 +1222,17 @@ export default function WorkshopsAdminPage() {
                               value={gpSearch}
                               onChange={(e) => setGpSearch(e.target.value)}
                               placeholder="Search global person…"
-                              className="border border-gray-300 rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="border border-border rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-accent"
                             />
                             {gpResults.length > 0 && (
-                              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow text-xs max-h-28 overflow-y-auto z-10 w-48">
+                              <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded shadow text-xs max-h-28 overflow-y-auto z-10 w-48">
                                 {gpResults.map((gp) => (
                                   <button
                                     key={gp.id}
                                     onClick={() =>
                                       void linkEnrollmentToGlobalPerson(entry.id, gp.id)
                                     }
-                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                    className="block w-full text-left px-2 py-1 hover:bg-background border-b border-border last:border-0"
                                   >
                                     {gp.display_name}
                                   </button>
@@ -1212,7 +1245,7 @@ export default function WorkshopsAdminPage() {
                                 setGpSearch('');
                                 setGpResults([]);
                               }}
-                              className="ml-1 text-xs text-gray-400"
+                              className="ml-1 text-xs text-muted"
                             >
                               ×
                             </button>
@@ -1220,7 +1253,7 @@ export default function WorkshopsAdminPage() {
                         ) : (
                           <button
                             onClick={() => setLinkingEnrollmentId(entry.id)}
-                            className="text-xs text-amber-600 hover:text-amber-800"
+                            className="text-xs text-warning hover:text-warning-hover"
                           >
                             Link
                           </button>
@@ -1231,7 +1264,7 @@ export default function WorkshopsAdminPage() {
                       {entry.status === 'waitlisted' && entry.persons && (
                         <button
                           onClick={() => void handlePromote(rosterSession, entry.persons!.id)}
-                          className="text-xs text-green-600 hover:underline"
+                          className="text-xs text-success hover:underline"
                         >
                           Promote
                         </button>
@@ -1239,7 +1272,7 @@ export default function WorkshopsAdminPage() {
                       {entry.persons && (
                         <button
                           onClick={() => void handleRemove(rosterSession, entry.persons!.id)}
-                          className="text-xs text-red-500 hover:underline"
+                          className="text-xs text-danger hover:underline"
                         >
                           Remove
                         </button>
@@ -1255,21 +1288,23 @@ export default function WorkshopsAdminPage() {
 
       {/* Break editor modal */}
       {breakModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold mb-4">
+        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
               {'id' in breakModal ? 'Edit break' : 'New break'}
             </h2>
             <div className="flex flex-col gap-3">
               {eventDays.length > 1 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Day</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Day
+                  </label>
                   <select
                     value={breakForm.dayIndex}
                     onChange={(e) =>
                       setBreakForm((f) => ({ ...f, dayIndex: Number(e.target.value) }))
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     {eventDays.map((d, i) => (
                       <option key={d} value={i}>
@@ -1281,7 +1316,9 @@ export default function WorkshopsAdminPage() {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    Start
+                  </label>
                   <Time24Input
                     value={breakForm.startTime}
                     onChange={(v) => setBreakForm((f) => ({ ...f, startTime: v }))}
@@ -1289,7 +1326,9 @@ export default function WorkshopsAdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    End
+                  </label>
                   <Time24Input
                     value={breakForm.endTime}
                     onChange={(v) => setBreakForm((f) => ({ ...f, endTime: v }))}
@@ -1298,17 +1337,21 @@ export default function WorkshopsAdminPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Label
+                </label>
                 <input
                   type="text"
                   value={breakForm.label}
                   placeholder="Lunch, changeover…"
                   onChange={(e) => setBreakForm((f) => ({ ...f, label: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Color
+                </label>
                 <div className="flex flex-wrap gap-1.5">
                   {['', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'].map(
                     (c) => (
@@ -1319,8 +1362,8 @@ export default function WorkshopsAdminPage() {
                         onClick={() => setBreakForm((f) => ({ ...f, color: c }))}
                         className={[
                           'flex h-6 w-6 items-center justify-center rounded-full border text-[10px]',
-                          breakForm.color === c ? 'ring-2 ring-slate-700 ring-offset-1' : '',
-                          c ? '' : 'bg-white text-gray-400',
+                          breakForm.color === c ? 'ring-2 ring-foreground ring-offset-1' : '',
+                          c ? '' : 'bg-surface text-muted',
                         ].join(' ')}
                         style={c ? { backgroundColor: c, borderColor: c } : undefined}
                       >
@@ -1335,7 +1378,7 @@ export default function WorkshopsAdminPage() {
               {'id' in breakModal ? (
                 <button
                   onClick={() => void deleteBreak()}
-                  className="text-sm text-red-600 hover:underline"
+                  className="text-sm text-danger hover:underline"
                 >
                   Delete
                 </button>
@@ -1345,13 +1388,13 @@ export default function WorkshopsAdminPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setBreakModal(null)}
-                  className="text-sm text-gray-500 px-4 py-2"
+                  className="text-sm text-muted px-4 py-2"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => void saveBreak()}
-                  className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-5 rounded-lg text-sm"
+                  className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm"
                 >
                   Save
                 </button>
@@ -1365,9 +1408,11 @@ export default function WorkshopsAdminPage() {
   );
 }
 
-const STATUS_PILL: Record<string, { label: string; cls: string }> = {
-  draft: { label: 'Draft', cls: 'bg-gray-100 text-gray-600' },
-  published: { label: 'Published', cls: 'bg-green-100 text-green-700' },
-  running: { label: 'Running', cls: 'bg-amber-100 text-amber-800' },
-  completed: { label: 'Completed', cls: 'bg-blue-100 text-blue-700' },
+// Option labels for the status <select>; the pill colour comes from the
+// canonical workshopStatusSemantic → statusPillTone helper.
+const STATUS_PILL: Record<string, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  running: 'Running',
+  completed: 'Completed',
 };

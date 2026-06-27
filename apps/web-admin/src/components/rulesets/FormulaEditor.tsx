@@ -81,16 +81,16 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
   }
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4">
-      <div className="mb-3 flex min-h-[42px] flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+    <div className="rounded-md border border-border bg-surface p-4">
+      <div className="mb-3 flex min-h-[42px] flex-wrap items-center gap-2 rounded-md border border-border bg-background p-2">
         {/* Round 8: "Score =" prefix frames the token row as an explicit
             equation so operators don't miss that they're building the
             score formula. */}
-        <span className="select-none font-mono text-sm font-semibold text-slate-700">
+        <span className="select-none font-mono text-sm font-semibold text-foreground-secondary">
           {t('admin.rulesets.scoreEquals')}
         </span>
         {tokens.length === 0 ? (
-          <p className="text-sm italic text-slate-400">{t('admin.rulesets.formulaEmpty')}</p>
+          <p className="text-sm italic text-muted">{t('admin.rulesets.formulaEmpty')}</p>
         ) : (
           tokens.map((token, idx) => (
             <button
@@ -115,7 +115,7 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
         )}
       </div>
 
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
         {t('admin.rulesets.variablesTitle')}
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
@@ -132,7 +132,7 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
         ))}
       </div>
 
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
         {t('admin.rulesets.operatorsTitle')}
       </div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -151,7 +151,7 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
           type="button"
           onClick={() => appendParen('lparen')}
           disabled={disabled}
-          className="h-8 rounded-md border border-slate-200 bg-slate-50 px-2 font-mono text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="h-8 rounded-md border border-border bg-background px-2 font-mono text-sm font-bold text-foreground-secondary hover:bg-surface disabled:opacity-50"
         >
           (
         </button>
@@ -159,7 +159,7 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
           type="button"
           onClick={() => appendParen('rparen')}
           disabled={disabled}
-          className="h-8 rounded-md border border-slate-200 bg-slate-50 px-2 font-mono text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="h-8 rounded-md border border-border bg-background px-2 font-mono text-sm font-bold text-foreground-secondary hover:bg-surface disabled:opacity-50"
         >
           )
         </button>
@@ -183,20 +183,20 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
           type="button"
           onClick={clear}
           disabled={disabled || tokens.length === 0}
-          className="ml-auto rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="ml-auto rounded-md border border-border px-2 py-1 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
         >
           {t('admin.rulesets.clearFormula')}
         </button>
       </div>
 
-      <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-sm">
-        <span className="mr-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mt-3 rounded-md border border-border bg-background p-2 text-sm">
+        <span className="mr-2 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.rulesets.preview')}
         </span>
         {ast ? (
-          <code className="font-mono text-slate-800">{renderAst(ast, t)}</code>
+          <code className="font-mono text-foreground">{renderAst(ast, t)}</code>
         ) : (
-          <span className="italic text-red-600">{error ?? t('admin.rulesets.formulaInvalid')}</span>
+          <span className="italic text-danger">{error ?? t('admin.rulesets.formulaInvalid')}</span>
         )}
       </div>
     </div>

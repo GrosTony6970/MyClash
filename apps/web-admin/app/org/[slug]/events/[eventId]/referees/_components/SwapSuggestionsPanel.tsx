@@ -44,32 +44,32 @@ export function SwapSuggestionsPanel({ suggestions, isReadOnly, busy, onApply }:
   if (suggestions.length === 0) return null;
 
   return (
-    <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
-      <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-amber-800">
+    <section className="rounded-lg border border-warning/30 bg-warning/10 p-4">
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-warning">
         {t('organizer.refereesPage.swapSuggestionsTitle')}
       </h3>
-      <p className="mb-3 text-xs text-amber-700">
+      <p className="mb-3 text-xs text-warning">
         {t('organizer.refereesPage.swapSuggestionsHelp', { count: suggestions.length })}
       </p>
       <ul className="space-y-1.5">
         {suggestions.map((s) => (
           <li
             key={`${s.fromPoolId}:${s.fromSlotIndex}:${s.fromPersonId}:${s.toPersonId}`}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/30 bg-surface px-3 py-2 text-sm"
           >
             <div className="min-w-0">
-              <p className="text-gray-900">
+              <p className="text-foreground">
                 <span className="font-semibold">{s.fromPersonName}</span>
-                <span className="mx-1 text-gray-400">→</span>
-                <span className="font-semibold text-emerald-700">{s.toPersonName}</span>
+                <span className="mx-1 text-muted">→</span>
+                <span className="font-semibold text-success">{s.toPersonName}</span>
               </p>
-              <p className="text-xs text-gray-500">{s.detail}</p>
+              <p className="text-xs text-muted">{s.detail}</p>
             </div>
             <button
               type="button"
               disabled={isReadOnly || busy}
               onClick={() => void onApply(s)}
-              className="rounded border border-amber-600 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-warning px-3 py-1 text-xs font-semibold text-warning hover:bg-warning/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy
                 ? t('organizer.refereesPage.swapApplying')

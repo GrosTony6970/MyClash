@@ -447,57 +447,57 @@ export default function OrgEventsListPage() {
   }
 
   return (
-    <main className="p-6 lg:p-8">
+    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
+          <p className="text-xs font-semibold uppercase tracking-wider text-accent">
             {t('organizer.events.eyebrow')}
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">
+          <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('organizer.events.listTitle')}
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted">
             {t('organizer.events.listDescription', { organization: orgName })}
           </p>
         </div>
         <Link
           href={`/org/${slug}/events/new`}
-          className="inline-flex w-fit items-center rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+          className="inline-flex w-fit items-center rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         >
           {t('organizer.events.create')}
         </Link>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
       {notice && (
-        <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="mb-6 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           {notice}
         </div>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
         {loading && (
-          <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-red-700" />
+          <div className="flex items-center gap-2 px-5 py-8 text-sm text-muted">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent" />
             {t('organizer.events.loading')}
           </div>
         )}
 
         {!loading && events.length === 0 && (
           <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-slate-900">
+            <h2 className="mb-3 font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('organizer.dashboard.emptyTitle')}
             </h2>
-            <p className="mb-6 max-w-md text-sm text-slate-500">
+            <p className="mb-6 max-w-md text-sm text-muted">
               {t('organizer.dashboard.emptyDescription')}
             </p>
             <Link
               href={`/org/${slug}/events/new`}
-              className="rounded-md bg-red-700 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+              className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               {t('organizer.events.create')}
             </Link>
@@ -506,8 +506,8 @@ export default function OrgEventsListPage() {
 
         {!loading && events.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-background text-left text-xs font-bold uppercase tracking-[0.14em] text-muted">
                 <tr>
                   <th className="px-4 py-3">{t('organizer.events.table.logo')}</th>
                   <th className="px-4 py-3">
@@ -587,20 +587,20 @@ export default function OrgEventsListPage() {
                   <th className="px-4 py-3">{t('organizer.events.table.actions')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {sortedEvents.map((event) => (
                   <tr key={event.id} className="align-top">
                     <td className="px-4 py-4">
                       <Link
                         href={`/org/${slug}/events/${event.id}`}
-                        className="block h-10 w-10 overflow-hidden rounded-md border border-slate-200 bg-slate-50"
+                        className="block h-10 w-10 overflow-hidden rounded-md border border-border bg-background"
                         aria-label={event.name}
                       >
                         {event.logoUrl ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img src={event.logoUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wider text-muted">
                             {event.name.slice(0, 2)}
                           </div>
                         )}
@@ -609,33 +609,41 @@ export default function OrgEventsListPage() {
                     <td className="px-4 py-4">
                       <Link
                         href={`/org/${slug}/events/${event.id}`}
-                        className="font-semibold text-slate-900 hover:text-blue-700"
+                        className="font-semibold text-foreground hover:text-accent"
                       >
                         {event.name}
                       </Link>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-muted">
                         {[event.city, formatCountryName(event.country, locale)]
                           .filter(Boolean)
                           .join(', ') || t('organizer.dashboard.noLocation')}
                       </p>
                     </td>
-                    <td className="px-4 py-4 text-slate-600">{formatDate(event.createdAt)}</td>
-                    <td className="px-4 py-4 text-slate-600">{event.createdByUserName ?? '—'}</td>
-                    <td className="px-4 py-4 text-center font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-4 text-foreground-secondary">
+                      {formatDate(event.createdAt)}
+                    </td>
+                    <td className="px-4 py-4 text-foreground-secondary">
+                      {event.createdByUserName ?? '—'}
+                    </td>
+                    <td className="px-4 py-4 text-center font-mono tabular-nums text-foreground-secondary">
                       {event.tournamentCount}
                     </td>
-                    <td className="px-4 py-4 text-center font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-4 text-center font-mono tabular-nums text-foreground-secondary">
                       {event.participantCount}
                     </td>
-                    <td className="px-4 py-4 text-slate-600">{formatDate(event.startDate)}</td>
-                    <td className="px-4 py-4 text-slate-600">{formatDate(event.endDate)}</td>
+                    <td className="px-4 py-4 text-foreground-secondary">
+                      {formatDate(event.startDate)}
+                    </td>
+                    <td className="px-4 py-4 text-foreground-secondary">
+                      {formatDate(event.endDate)}
+                    </td>
                     <td className="px-4 py-4">
                       {event.status === 'draft' ? (
                         <button
                           type="button"
                           onClick={() => void toggleVisibility(event)}
                           disabled={busyId === event.id}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-success-foreground shadow-sm transition-colors hover:bg-success-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                           title={t('organizer.events.setPublic')}
                         >
                           <svg
@@ -663,7 +671,7 @@ export default function OrgEventsListPage() {
                             type="button"
                             onClick={() => void toggleVisibility(event)}
                             disabled={busyId === event.id}
-                            className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                            className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground-secondary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                             title={t('organizer.events.setDraft')}
                           >
                             {t('organizer.events.unpublish')}
@@ -733,13 +741,15 @@ export default function OrgEventsListPage() {
       </section>
 
       {editing && form && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
           <form
             onSubmit={(event) => void saveEdit(event)}
-            className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-2xl"
+            className="w-full max-w-2xl rounded-lg bg-surface p-6 shadow-2xl"
           >
-            <h2 className="text-xl font-bold text-slate-900">{t('organizer.events.editTitle')}</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+              {t('organizer.events.editTitle')}
+            </h2>
+            <p className="mt-1 text-sm text-muted">
               {t('organizer.events.slugReadOnly', { slug: editing.slug })}
             </p>
 
@@ -747,13 +757,13 @@ export default function OrgEventsListPage() {
                 preview only; the actual upload runs from saveEdit
                 alongside the field PATCH. Remove flags the slot for
                 clearing on Save without touching anything until then. */}
-            <div className="mt-5 flex items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+            <div className="mt-5 flex items-center gap-4 rounded-lg border border-border bg-background p-3">
+              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-border bg-surface">
                 {stagedLogoPreview ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={stagedLogoPreview} alt="" className="h-full w-full object-cover" />
                 ) : logoRemove || !editing.logoUrl ? (
-                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-muted">
                     {editing.name.slice(0, 2)}
                   </div>
                 ) : (
@@ -777,7 +787,7 @@ export default function OrgEventsListPage() {
                   type="button"
                   onClick={() => editLogoInput.current?.click()}
                   disabled={busyId === editing.id}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                  className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
                 >
                   {logoPendingFile || editing.logoUrl
                     ? t('organizer.events.logoReplace')
@@ -791,16 +801,16 @@ export default function OrgEventsListPage() {
                       setLogoRemove(true);
                     }}
                     disabled={busyId === editing.id}
-                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                   >
                     {t('organizer.events.logoRemove')}
                   </button>
                 )}
                 {logoPendingFile && (
-                  <span className="text-xs text-slate-500">{logoPendingFile.name}</span>
+                  <span className="text-xs text-muted">{logoPendingFile.name}</span>
                 )}
                 {logoRemove && !logoPendingFile && (
-                  <span className="text-xs italic text-slate-500">
+                  <span className="text-xs italic text-muted">
                     {t('organizer.events.logoEmpty')}
                   </span>
                 )}
@@ -808,20 +818,20 @@ export default function OrgEventsListPage() {
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.eventName')}
                 <input
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.events.visibility')}
                 <select
                   value={form.status}
                   onChange={(event) => setForm({ ...form, status: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
                     (status) => (
@@ -831,39 +841,39 @@ export default function OrgEventsListPage() {
                     ),
                   )}
                 </select>
-                <span className="text-xs font-normal text-slate-500">
+                <span className="text-xs font-normal text-muted">
                   {t('organizer.events.statusHelp')}
                 </span>
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.startDate')}
                 <input
                   type="date"
                   value={form.startDate}
                   onChange={(event) => setForm({ ...form, startDate: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.endDate')}
                 <input
                   type="date"
                   value={form.endDate}
                   min={form.startDate}
                   onChange={(event) => setForm({ ...form, endDate: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.city')}
                 <input
                   value={form.city}
                   onChange={(event) => setForm({ ...form, city: event.target.value })}
                   placeholder={t('organizer.newEvent.cityPlaceholder')}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.country')}
                 <CountryCombobox
                   value={form.country}
@@ -872,26 +882,26 @@ export default function OrgEventsListPage() {
                   placeholder={t('organizer.newEvent.countryPlaceholder')}
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary sm:col-span-2">
                 {t('organizer.events.publicLanding')}
                 <textarea
                   rows={4}
                   value={form.publicLandingMd}
                   onChange={(event) => setForm({ ...form, publicLandingMd: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 />
               </label>
               {orgVenues.length > 0 && (
-                <div className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
+                <div className="grid gap-1 text-sm font-semibold text-foreground-secondary sm:col-span-2">
                   <span>{t('organizer.events.venuesSection')}</span>
-                  <p className="text-xs font-normal text-slate-500">
+                  <p className="text-xs font-normal text-muted">
                     {t('organizer.events.venuesHelp')}
                   </p>
                   <div className="grid gap-1.5 sm:grid-cols-2">
                     {orgVenues.map((v) => (
                       <label
                         key={v.id}
-                        className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-normal"
+                        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-normal"
                       >
                         <input
                           type="checkbox"
@@ -900,12 +910,12 @@ export default function OrgEventsListPage() {
                         />
                         <span className="min-w-0 flex-1 truncate">{v.name}</span>
                         {v.hosts_tournament && (
-                          <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                          <span className="shrink-0 rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">
                             {t('organizer.venues.tournamentBadge')}
                           </span>
                         )}
                         {v.hosts_workshop && (
-                          <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
+                          <span className="shrink-0 rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
                             {t('organizer.venues.workshopBadge')}
                           </span>
                         )}
@@ -928,12 +938,12 @@ export default function OrgEventsListPage() {
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('organizer.events.deleteTitle')}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-foreground-secondary">
               {t('organizer.events.deleteWarning', { name: confirmDelete.name })}
             </p>
             <div className="mt-6 flex justify-end gap-3">

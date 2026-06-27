@@ -278,18 +278,18 @@ export default function HemaRatingsAdminPage() {
   }
 
   return (
-    <main className="px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {/* Header strip */}
       <header className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
+        <p className="text-xs font-semibold uppercase tracking-wider text-accent">
           {t('admin.shell.sectionPlatformHealth')}
         </p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-2xl font-medium tracking-tight text-slate-900">
+            <h1 className="font-display font-bold text-2xl sm:text-3xl tracking-tight text-foreground">
               {t('admin.hemaRatings.title')}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               {t('admin.hemaRatings.subtitle', {
                 relative: formatRelative(latestSyncedAt),
               })}
@@ -300,7 +300,7 @@ export default function HemaRatingsAdminPage() {
               type="button"
               onClick={() => void handleRunSync()}
               disabled={syncing}
-              className="rounded-lg bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
             >
               {syncing ? t('admin.hemaRatings.runSyncRunning') : t('admin.hemaRatings.runSyncNow')}
             </button>
@@ -308,28 +308,28 @@ export default function HemaRatingsAdminPage() {
               type="button"
               onClick={() => void handleHealthCheck()}
               disabled={checkingHealth}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
             >
               {checkingHealth ? '…' : t('admin.hemaRatings.healthCheck')}
             </button>
             <button
               type="button"
               onClick={() => void handleOpenHistory()}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('admin.hemaRatings.syncHistory')}
             </button>
           </div>
         </div>
         {syncMessage && (
-          <p className="mt-3 inline-block rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+          <p className="mt-3 inline-block rounded-md bg-warning/10 px-3 py-1.5 text-xs text-warning">
             {syncMessage}
           </p>
         )}
         {health && (
-          <p className="mt-3 inline-block rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-mono">
+          <p className="mt-3 inline-block rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-mono">
             <span
-              className={health.ok ? 'text-emerald-700' : 'text-red-700'}
+              className={health.ok ? 'text-success' : 'text-danger'}
               aria-label={health.ok ? 'ok' : 'failed'}
             >
               ●
@@ -347,31 +347,31 @@ export default function HemaRatingsAdminPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('admin.hemaRatings.searchPlaceholder')}
-          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="w-full max-w-md rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
         />
       </div>
 
       {loadError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {loadError}
         </div>
       )}
 
       {/* Table */}
       {fighters === null ? (
-        <p className="text-sm text-slate-500">{t('admin.hemaRatings.loading')}</p>
+        <p className="text-sm text-muted">{t('admin.hemaRatings.loading')}</p>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
-          <p className="text-sm text-slate-500">
+        <div className="rounded-xl border border-border bg-surface px-6 py-12 text-center">
+          <p className="text-sm text-muted">
             {fighters.length === 0
               ? t('admin.hemaRatings.emptyState')
               : t('admin.hemaRatings.noMatch')}
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <table className="w-full table-fixed text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <thead className="bg-background text-left text-xs font-semibold uppercase tracking-wide text-muted">
               <tr>
                 <th className="w-8 px-3 py-2"></th>
                 <th className="w-1/4 px-3 py-2">{t('admin.hemaRatings.colName')}</th>
@@ -382,33 +382,35 @@ export default function HemaRatingsAdminPage() {
                 <th className="w-20 px-3 py-2 text-right">{t('admin.hemaRatings.colActions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {filtered.map((f) => {
                 const isExpanded = expanded.has(f.globalPersonId);
                 const isRefreshing = refreshing.has(f.globalPersonId);
                 const isEditing = editing?.globalPersonId === f.globalPersonId;
                 return (
                   <>
-                    <tr key={f.globalPersonId} className="hover:bg-slate-50">
+                    <tr key={f.globalPersonId} className="hover:bg-background">
                       <td className="px-3 py-2 align-top">
                         <button
                           type="button"
                           aria-label={isExpanded ? 'Collapse' : 'Expand'}
                           onClick={() => toggleExpanded(f.globalPersonId)}
-                          className="text-slate-400 hover:text-slate-700"
+                          className="text-muted hover:text-foreground-secondary"
                         >
                           {isExpanded ? '▾' : '▸'}
                         </button>
                       </td>
                       <td className="px-3 py-2 align-top">
-                        <p className="font-medium text-slate-900">{f.displayName}</p>
+                        <p className="font-medium text-foreground">{f.displayName}</p>
                         {f.profileMissing && (
-                          <p className="mt-0.5 text-[10px] uppercase tracking-wide text-amber-700">
+                          <p className="mt-0.5 text-[10px] uppercase tracking-wide text-warning">
                             {t('admin.hemaRatings.profileMissing')}
                           </p>
                         )}
                       </td>
-                      <td className="px-3 py-2 align-top text-slate-600">{f.clubName ?? '—'}</td>
+                      <td className="px-3 py-2 align-top text-foreground-secondary">
+                        {f.clubName ?? '—'}
+                      </td>
                       <td className="px-3 py-2 align-top">
                         {isEditing ? (
                           <div className="flex items-center gap-1">
@@ -422,19 +424,19 @@ export default function HemaRatingsAdminPage() {
                                 })
                               }
                               autoFocus
-                              className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-red-600"
+                              className="w-20 rounded border border-border px-2 py-1 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-accent"
                             />
                             <button
                               type="button"
                               onClick={() => void handleSaveEdit(f.globalPersonId, editing!.value)}
-                              className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+                              className="text-xs font-semibold text-success hover:text-success/80"
                             >
                               {t('admin.hemaRatings.save')}
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditing(null)}
-                              className="text-xs text-slate-500 hover:text-slate-700"
+                              className="text-xs text-muted hover:text-foreground-secondary"
                             >
                               {t('admin.hemaRatings.cancel')}
                             </button>
@@ -448,37 +450,35 @@ export default function HemaRatingsAdminPage() {
                                 value: f.hemaRatingsId,
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700 hover:bg-slate-200"
+                            className="inline-flex items-center gap-1 rounded bg-background px-2 py-0.5 font-mono text-xs text-foreground-secondary hover:bg-border"
                           >
                             {f.hemaRatingsId}
-                            <span className="text-slate-400">✎</span>
+                            <span className="text-muted">✎</span>
                           </button>
                         )}
                       </td>
                       <td className="px-3 py-2 align-top">
                         <div className="flex flex-wrap gap-1">
                           {f.ratings.length === 0 ? (
-                            <span className="text-xs italic text-slate-400">
+                            <span className="text-xs italic text-muted">
                               {t('admin.hemaRatings.noRatings')}
                             </span>
                           ) : (
                             f.ratings.map((r) => (
                               <span
                                 key={`${r.weapon}-${r.category}`}
-                                className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+                                className="inline-flex items-center gap-1 rounded bg-background px-2 py-0.5 text-[11px] text-foreground-secondary"
                                 title={`${r.weapon} · ${r.category}`}
                               >
                                 {r.weapon}
-                                {r.rank !== null && (
-                                  <span className="text-slate-400">#{r.rank}</span>
-                                )}
+                                {r.rank !== null && <span className="text-muted">#{r.rank}</span>}
                                 <span className="font-mono">{r.weightedRating.toFixed(1)}</span>
                               </span>
                             ))
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 align-top font-mono text-xs text-slate-500">
+                      <td className="px-3 py-2 align-top font-mono text-xs text-muted">
                         {formatDate(f.lastCompeted)}
                       </td>
                       <td className="px-3 py-2 align-top text-right">
@@ -488,23 +488,23 @@ export default function HemaRatingsAdminPage() {
                           disabled={isRefreshing}
                           aria-label={t('admin.hemaRatings.refreshFighter')}
                           title={t('admin.hemaRatings.refreshFighter')}
-                          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-wait disabled:opacity-50"
+                          className="rounded p-1 text-muted hover:bg-background hover:text-foreground-secondary disabled:cursor-wait disabled:opacity-50"
                         >
                           {isRefreshing ? '…' : '↻'}
                         </button>
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr key={`${f.globalPersonId}-detail`} className="bg-slate-50/60">
+                      <tr key={`${f.globalPersonId}-detail`} className="bg-background/60">
                         <td></td>
                         <td colSpan={6} className="px-3 py-3">
                           {f.ratings.length === 0 ? (
-                            <p className="text-xs italic text-slate-400">
+                            <p className="text-xs italic text-muted">
                               {t('admin.hemaRatings.detailEmpty')}
                             </p>
                           ) : (
                             <table className="w-full text-xs">
-                              <thead className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                              <thead className="text-left text-[10px] uppercase tracking-wide text-muted">
                                 <tr>
                                   <th className="py-1">{t('admin.hemaRatings.detailWeapon')}</th>
                                   <th className="py-1">{t('admin.hemaRatings.detailCategory')}</th>
@@ -522,15 +522,15 @@ export default function HemaRatingsAdminPage() {
                               <tbody>
                                 {f.ratings.map((r) => (
                                   <tr key={`${r.weapon}-${r.category}`}>
-                                    <td className="py-1 font-medium text-slate-900">{r.weapon}</td>
-                                    <td className="py-1 text-slate-600">{r.category}</td>
-                                    <td className="py-1 text-center font-mono tabular-nums text-slate-700">
+                                    <td className="py-1 font-medium text-foreground">{r.weapon}</td>
+                                    <td className="py-1 text-foreground-secondary">{r.category}</td>
+                                    <td className="py-1 text-center font-mono tabular-nums text-foreground-secondary">
                                       {r.rank ?? '—'}
                                     </td>
-                                    <td className="py-1 text-center font-mono tabular-nums text-slate-900">
+                                    <td className="py-1 text-center font-mono tabular-nums text-foreground">
                                       {r.weightedRating.toFixed(1)}
                                     </td>
-                                    <td className="py-1 text-right font-mono text-slate-500">
+                                    <td className="py-1 text-right font-mono text-muted">
                                       {formatDate(r.lastCompeted)}
                                     </td>
                                   </tr>
@@ -563,35 +563,35 @@ export default function HemaRatingsAdminPage() {
             className="absolute inset-0 bg-slate-950/40"
             onClick={() => setHistoryOpen(false)}
           />
-          <div className="relative ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
-            <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-              <h2 className="font-display text-lg font-medium">
+          <div className="relative ml-auto flex h-full w-full max-w-md flex-col bg-surface shadow-2xl">
+            <header className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h2 className="font-display font-semibold text-lg sm:text-xl">
                 {t('admin.hemaRatings.syncHistoryTitle')}
               </h2>
               <button
                 type="button"
                 onClick={() => setHistoryOpen(false)}
-                className="text-sm text-slate-500 hover:text-slate-700"
+                className="text-sm text-muted hover:text-foreground-secondary"
               >
                 {t('admin.hemaRatings.close')}
               </button>
             </header>
             <div className="flex-1 overflow-y-auto px-5 py-4 text-sm">
               {history === null ? (
-                <p className="text-slate-500">{t('admin.hemaRatings.loading')}</p>
+                <p className="text-muted">{t('admin.hemaRatings.loading')}</p>
               ) : history.length === 0 ? (
-                <p className="text-slate-500">{t('admin.hemaRatings.syncHistoryEmpty')}</p>
+                <p className="text-muted">{t('admin.hemaRatings.syncHistoryEmpty')}</p>
               ) : (
                 <ul className="space-y-2">
                   {history.map((row) => (
                     <li
                       key={row.id}
-                      className="flex items-baseline justify-between rounded-md border border-slate-200 px-3 py-2"
+                      className="flex items-baseline justify-between rounded-md border border-border px-3 py-2"
                     >
-                      <span className="font-mono text-xs text-slate-700">
+                      <span className="font-mono text-xs text-foreground-secondary">
                         {new Date(row.syncedAt).toLocaleString()}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-muted">
                         {row.fighterCount.toLocaleString()} {t('admin.hemaRatings.fightersLabel')}
                       </span>
                     </li>

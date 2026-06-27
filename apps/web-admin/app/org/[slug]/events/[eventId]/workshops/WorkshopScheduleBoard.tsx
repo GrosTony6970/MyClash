@@ -484,21 +484,21 @@ export function WorkshopScheduleBoard({
               className={[
                 'rounded-lg px-3 py-1 text-sm font-medium',
                 d === activeDay
-                  ? 'bg-red-700 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                  ? 'bg-accent text-accent-foreground'
+                  : 'bg-border text-foreground-secondary hover:bg-border',
               ].join(' ')}
             >
               {`Jour ${i + 1} · ${formatDayLabel(d)}`}
             </button>
           ))}
-        <div className="ml-auto flex items-center gap-1 text-gray-500">
+        <div className="ml-auto flex items-center gap-1 text-muted">
           <span className="text-[11px] font-medium">Zoom</span>
           <button
             type="button"
             aria-label="Zoom out"
             onClick={() => zoom(-4)}
             disabled={slotHeightPx <= SLOT_HEIGHT_MIN}
-            className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50 disabled:opacity-40"
+            className="rounded border border-border px-1.5 leading-none hover:bg-background disabled:opacity-40"
           >
             −
           </button>
@@ -507,21 +507,21 @@ export function WorkshopScheduleBoard({
             aria-label="Zoom in"
             onClick={() => zoom(4)}
             disabled={slotHeightPx >= SLOT_HEIGHT_MAX}
-            className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50 disabled:opacity-40"
+            className="rounded border border-border px-1.5 leading-none hover:bg-background disabled:opacity-40"
           >
             +
           </button>
           <button
             type="button"
             onClick={exportCsv}
-            className="ml-2 rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="ml-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
             Export CSV
           </button>
           <button
             type="button"
             onClick={printDay}
-            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
             Print
           </button>
@@ -539,12 +539,12 @@ export function WorkshopScheduleBoard({
             setGhost(null);
           }}
         >
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-500">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
             Unscheduled
           </h3>
           <div className="flex flex-col gap-2">
             {drawer.length === 0 ? (
-              <p className="text-xs text-gray-400">All workshops are scheduled.</p>
+              <p className="text-xs text-muted">All workshops are scheduled.</p>
             ) : (
               drawer.map((w) => (
                 <div
@@ -560,11 +560,11 @@ export function WorkshopScheduleBoard({
                     e.dataTransfer.setData('span', String(span));
                   }}
                   onDragEnd={() => setGhost(null)}
-                  className="cursor-grab rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm hover:border-red-300"
+                  className="cursor-grab rounded-lg border border-border bg-surface px-3 py-2 text-sm shadow-sm hover:border-accent"
                   title={w.title}
                 >
-                  <span className="block truncate font-medium text-gray-800">{w.title}</span>
-                  <span className="text-xs text-gray-400">
+                  <span className="block truncate font-medium text-foreground">{w.title}</span>
+                  <span className="text-xs text-muted">
                     {[w.category, w.level].filter(Boolean).join(' · ') ||
                       (w.durationMinutes != null ? `${w.durationMinutes} min` : '—')}
                   </span>
@@ -576,15 +576,15 @@ export function WorkshopScheduleBoard({
             <button
               type="button"
               onClick={() => onAddBreak(dayIndex)}
-              className="mt-3 w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-800"
+              className="mt-3 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs font-semibold text-foreground-secondary hover:border-border hover:text-foreground"
             >
               + Add block
             </button>
           )}
 
           {/* Grid window config */}
-          <div className="mt-4 rounded-lg border border-gray-200 p-3">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
+          <div className="mt-4 rounded-lg border border-border p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
               Grid window
             </p>
             <div className="flex items-center gap-2 text-xs">
@@ -593,7 +593,7 @@ export function WorkshopScheduleBoard({
                 <select
                   value={startHour}
                   onChange={(e) => setWindow({ startHour: Number(e.target.value), endHour })}
-                  className="rounded border border-gray-300 px-1.5 py-1"
+                  className="rounded border border-border px-1.5 py-1"
                 >
                   {hourOptions(0, endHour - 1).map((h) => (
                     <option key={h} value={h}>
@@ -607,7 +607,7 @@ export function WorkshopScheduleBoard({
                 <select
                   value={endHour}
                   onChange={(e) => setWindow({ startHour, endHour: Number(e.target.value) })}
-                  className="rounded border border-gray-300 px-1.5 py-1"
+                  className="rounded border border-border px-1.5 py-1"
                 >
                   {hourOptions(startHour + 1, 24).map((h) => (
                     <option key={h} value={h}>
@@ -623,7 +623,7 @@ export function WorkshopScheduleBoard({
         {/* Grid (RIGHT) */}
         <div ref={gridScrollRef} className="flex-1 overflow-x-auto">
           {columns.length === 0 ? (
-            <p className="text-sm text-amber-600">
+            <p className="text-sm text-warning">
               No workshop-capable venues for this event yet. Add one from the Venues tab.
             </p>
           ) : (
@@ -633,7 +633,7 @@ export function WorkshopScheduleBoard({
                 {bands.map((band) => (
                   <div
                     key={band.venueId}
-                    className="border-b border-r border-gray-200 bg-gray-50 px-2 py-2 text-center text-lg font-bold text-gray-900 truncate"
+                    className="border-b border-r border-border bg-background px-2 py-2 text-center text-lg font-bold text-foreground truncate"
                     style={{ width: band.span * colWidth }}
                   >
                     {band.venueName}
@@ -645,7 +645,7 @@ export function WorkshopScheduleBoard({
                 {columns.map((c) => (
                   <div
                     key={c.key}
-                    className="border-b border-r border-gray-200 px-2 py-1 text-center text-[11px] text-gray-500 truncate"
+                    className="border-b border-r border-border px-2 py-1 text-center text-[11px] text-muted truncate"
                     style={{ width: colWidth }}
                   >
                     {c.areaName ?? '—'}
@@ -660,7 +660,7 @@ export function WorkshopScheduleBoard({
                   {hourLines.map((s) => (
                     <div
                       key={s}
-                      className="absolute right-1 -translate-y-1/2 font-mono text-[10px] text-gray-400"
+                      className="absolute right-1 -translate-y-1/2 font-mono text-[10px] text-muted"
                       style={{ top: s * slotHeightPx }}
                     >
                       {slotToHHMM(s, startHour)}
@@ -678,13 +678,13 @@ export function WorkshopScheduleBoard({
                       key={c.key}
                       onDragOver={(e) => handleDragOver(c, e)}
                       onDrop={(e) => handleDrop(c, e)}
-                      className="relative border-r border-gray-100"
+                      className="relative border-r border-border"
                       style={{ width: colWidth, height: gridHeight }}
                     >
                       {hourLines.map((s) => (
                         <div
                           key={s}
-                          className="absolute left-0 right-0 border-t border-gray-100"
+                          className="absolute left-0 right-0 border-t border-border"
                           style={{ top: s * slotHeightPx }}
                         />
                       ))}
@@ -693,7 +693,7 @@ export function WorkshopScheduleBoard({
                       {ghost && ghost.columnKey === c.key && (
                         <div
                           aria-hidden="true"
-                          className="pointer-events-none absolute left-0.5 right-0.5 z-20 flex items-start justify-center rounded-md border-2 border-dashed border-red-400 bg-red-200/40 text-xs font-mono font-semibold text-red-700 shadow-lg"
+                          className="pointer-events-none absolute left-0.5 right-0.5 z-20 flex items-start justify-center rounded-md border-2 border-dashed border-accent bg-accent/20 text-xs font-mono font-semibold text-accent shadow-lg"
                           style={{
                             top: ghost.slot * slotHeightPx,
                             height: ghost.span * slotHeightPx,
@@ -734,7 +734,7 @@ export function WorkshopScheduleBoard({
                               className={[
                                 'group absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
                                 conflict
-                                  ? 'border-red-500 bg-red-50 text-red-900 ring-2 ring-red-500'
+                                  ? 'border-danger bg-danger/10 text-danger ring-2 ring-danger'
                                   : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`,
                               ].join(' ')}
                               style={{ top: startSlot * slotHeightPx, height: span * slotHeightPx }}
@@ -834,7 +834,7 @@ export function WorkshopScheduleBoard({
                           });
                           e.preventDefault();
                         }}
-                        className="group absolute left-0 right-0 z-10 cursor-grab select-none overflow-hidden border-y border-slate-300 bg-slate-200/70 px-2 py-0.5 text-slate-700"
+                        className="group absolute left-0 right-0 z-10 cursor-grab select-none overflow-hidden border-y border-border bg-border/70 px-2 py-0.5 text-foreground-secondary"
                         style={{ top: startSlot * slotHeightPx, height: h, ...tint }}
                       >
                         {/* Top resize grip */}
@@ -850,7 +850,7 @@ export function WorkshopScheduleBoard({
                               curEnd: endSlot,
                             });
                           }}
-                          className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-slate-400/50"
+                          className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-muted/50"
                         />
                         <span className="text-sm font-semibold">{b.label ?? 'Break'}</span>
                         <span className="ml-2 font-mono text-xs">
@@ -865,7 +865,7 @@ export function WorkshopScheduleBoard({
                               e.stopPropagation();
                               onDeleteBreak(b.id);
                             }}
-                            className="absolute right-1 top-0.5 rounded px-1 text-sm leading-none text-slate-500 opacity-0 hover:bg-slate-300 hover:text-slate-800 group-hover:opacity-100"
+                            className="absolute right-1 top-0.5 rounded px-1 text-sm leading-none text-muted opacity-0 hover:bg-border hover:text-foreground group-hover:opacity-100"
                           >
                             ×
                           </button>
@@ -879,7 +879,7 @@ export function WorkshopScheduleBoard({
                               e.stopPropagation();
                               onEditBreak(b);
                             }}
-                            className="absolute bottom-0.5 right-1 rounded px-1 text-[11px] leading-none text-slate-500 opacity-0 hover:text-slate-800 group-hover:opacity-100"
+                            className="absolute bottom-0.5 right-1 rounded px-1 text-[11px] leading-none text-muted opacity-0 hover:text-foreground group-hover:opacity-100"
                           >
                             edit
                           </button>
@@ -897,7 +897,7 @@ export function WorkshopScheduleBoard({
                               curEnd: endSlot,
                             });
                           }}
-                          className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-slate-400/50"
+                          className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-muted/50"
                         />
                       </div>
                     );
@@ -907,10 +907,10 @@ export function WorkshopScheduleBoard({
                   {nowSlot !== null && nowSlot <= totalSlots && (
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute left-0 right-0 z-30 border-t-2 border-red-500"
+                      className="pointer-events-none absolute left-0 right-0 z-30 border-t-2 border-danger"
                       style={{ top: nowSlot * slotHeightPx }}
                     >
-                      <span className="absolute -top-2 left-0 rounded bg-red-500 px-1 text-[9px] font-bold text-white">
+                      <span className="absolute -top-2 left-0 rounded bg-danger px-1 text-[9px] font-bold text-danger-foreground">
                         {slotToHHMM(nowSlot, startHour)}
                       </span>
                     </div>

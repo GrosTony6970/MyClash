@@ -33,18 +33,20 @@ export default function EventLeagueAttachmentPage() {
     [
       'px-4 py-2 text-sm font-medium rounded-t-lg transition-colors -mb-px',
       tab === key
-        ? 'bg-white border border-b-white border-gray-200 text-gray-900'
-        : 'text-gray-500 hover:text-gray-700',
+        ? 'bg-surface border border-b-surface border-border text-foreground'
+        : 'text-muted hover:text-foreground-secondary',
     ].join(' ');
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">{t('admin.leagues.requestAttach')}</h1>
-        <p className="text-gray-500 text-sm mt-1">{t('admin.leagues.attachDescription')}</p>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl">
+          {t('admin.leagues.requestAttach')}
+        </h1>
+        <p className="text-muted text-sm mt-1">{t('admin.leagues.attachDescription')}</p>
       </div>
 
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
+      <div className="flex gap-1 border-b border-border mb-6">
         <button onClick={() => setTab('requests')} className={tabClass('requests')}>
           {t('admin.leagues.tabs.requests')}
         </button>

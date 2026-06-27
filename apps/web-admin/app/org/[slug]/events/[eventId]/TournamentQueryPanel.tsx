@@ -188,21 +188,23 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
   if (tournaments.length === 0) return null;
 
   return (
-    <section className="mb-8 rounded-xl border border-gray-200 bg-white p-5">
+    <section className="mb-8 rounded-xl border border-border bg-surface p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
             {t('organizer.tournamentQuery.title')}
           </h2>
-          <p className="mt-1 text-sm text-gray-600">{t('organizer.tournamentQuery.description')}</p>
+          <p className="mt-1 text-sm text-foreground-secondary">
+            {t('organizer.tournamentQuery.description')}
+          </p>
         </div>
-        <label className="text-sm font-medium text-gray-700" htmlFor="queryTournament">
+        <label className="text-sm font-medium text-foreground-secondary" htmlFor="queryTournament">
           {t('organizer.tournamentQuery.tournament')}
           <select
             id="queryTournament"
             value={activeTournamentId}
             onChange={(event) => setSelectedTournamentId(event.target.value)}
-            className="ml-2 rounded-lg border border-gray-300 px-3 py-2"
+            className="ml-2 rounded-lg border border-border px-3 py-2"
           >
             {tournaments.map((tournament) => (
               <option key={tournament.id} value={tournament.id}>
@@ -228,19 +230,19 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             placeholder={t('organizer.tournamentQuery.placeholder')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-border px-3 py-2 text-sm"
           />
         </label>
         <button
           type="submit"
           disabled={busy || !estimate?.allowed || question.trim().length < 4}
-          className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {busy ? t('organizer.tournamentQuery.asking') : t('organizer.tournamentQuery.ask')}
         </button>
       </form>
 
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-muted">
         {estimate
           ? t('organizer.tournamentQuery.estimate', {
               cost: estimate.estimatedCostEur.toFixed(3),
@@ -256,19 +258,21 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
             key={suggestion}
             type="button"
             onClick={() => setQuestion(suggestion)}
-            className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-700 hover:border-red-300"
+            className="rounded-full border border-border px-3 py-1 text-xs text-foreground-secondary hover:border-accent"
           >
             {suggestion}
           </button>
         ))}
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
       {response && (
-        <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div className="mt-5 rounded-lg border border-border bg-background p-4">
           {response.kind === 'result' && response.result ? (
             <>
-              {response.summary && <p className="mb-3 text-sm text-gray-800">{response.summary}</p>}
+              {response.summary && (
+                <p className="mb-3 text-sm text-foreground">{response.summary}</p>
+              )}
               <ResultView
                 result={response.result}
                 metricLabel={t('organizer.tournamentQuery.metric')}
@@ -276,30 +280,30 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
               <button
                 type="button"
                 onClick={() => setMetadataOpen(!metadataOpen)}
-                className="mt-3 text-xs font-medium text-gray-500 hover:text-gray-800"
+                className="mt-3 text-xs font-medium text-muted hover:text-foreground"
               >
                 {t('organizer.tournamentQuery.metadata')}
               </button>
               {metadataOpen && (
-                <pre className="mt-2 overflow-auto rounded bg-white p-3 text-xs text-gray-700">
+                <pre className="mt-2 overflow-auto rounded bg-surface p-3 text-xs text-foreground-secondary">
                   {JSON.stringify(response.result.metadata, null, 2)}
                 </pre>
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-700">{response.message}</p>
+            <p className="text-sm text-foreground-secondary">{response.message}</p>
           )}
         </div>
       )}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div>
-          <h3 className="text-sm font-semibold text-gray-800">
+          <h3 className="text-sm font-semibold text-foreground">
             {t('organizer.tournamentQuery.history')}
           </h3>
           <div className="mt-2 space-y-2">
             {history.length === 0 && (
-              <p className="text-sm text-gray-500">{t('organizer.tournamentQuery.emptyHistory')}</p>
+              <p className="text-sm text-muted">{t('organizer.tournamentQuery.emptyHistory')}</p>
             )}
             {history.map((item) => (
               <button
@@ -309,21 +313,21 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
                   setQuestion(item.question);
                   void askQuestion(item.question);
                 }}
-                className="block w-full rounded border border-gray-200 bg-white p-2 text-left text-xs hover:border-red-300"
+                className="block w-full rounded border border-border bg-surface p-2 text-left text-xs hover:border-accent"
               >
-                <span className="font-medium text-gray-800">{item.question}</span>
-                {item.summary && <span className="mt-1 block text-gray-500">{item.summary}</span>}
+                <span className="font-medium text-foreground">{item.question}</span>
+                {item.summary && <span className="mt-1 block text-muted">{item.summary}</span>}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-gray-800">
+          <h3 className="text-sm font-semibold text-foreground">
             {t('organizer.tournamentQuery.settings')}
           </h3>
           <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
-            <label className="text-xs text-gray-600" htmlFor="queryAccessPolicy">
+            <label className="text-xs text-foreground-secondary" htmlFor="queryAccessPolicy">
               {t('organizer.tournamentQuery.accessPolicy')}
               <select
                 id="queryAccessPolicy"
@@ -331,7 +335,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
                 onChange={(event) =>
                   setSettings((current) => ({ ...current, accessPolicy: event.target.value }))
                 }
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded border border-border px-2 py-1 text-sm"
               >
                 <option value="organizers_only">
                   {t('organizer.tournamentQuery.access.organizersOnly')}
@@ -347,7 +351,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
                 </option>
               </select>
             </label>
-            <label className="text-xs text-gray-600" htmlFor="queryRateLimit">
+            <label className="text-xs text-foreground-secondary" htmlFor="queryRateLimit">
               {t('organizer.tournamentQuery.rateLimit')}
               <input
                 id="queryRateLimit"
@@ -362,14 +366,14 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
                     rateLimitPerHour: Number(event.target.value),
                   }))
                 }
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded border border-border px-2 py-1 text-sm"
               />
             </label>
             <button
               type="button"
               onClick={() => void saveSettings()}
               disabled={busy}
-              className="self-end rounded border border-gray-300 px-3 py-1 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+              className="self-end rounded border border-border px-3 py-1 text-sm font-medium hover:bg-background disabled:opacity-50"
             >
               {t('actions.save')}
             </button>
@@ -382,17 +386,21 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
 
 function ResultView({ result, metricLabel }: { result: ToolResult; metricLabel: string }) {
   if (result.render_hint === 'empty') {
-    return <p className="text-sm text-gray-600">{result.metadata.notes?.[0] ?? result.title}</p>;
+    return (
+      <p className="text-sm text-foreground-secondary">
+        {result.metadata.notes?.[0] ?? result.title}
+      </p>
+    );
   }
   if (result.render_hint === 'card' && result.card) {
     return (
       <div>
-        <h3 className="font-semibold text-gray-900">{result.title}</h3>
+        <h3 className="font-semibold text-foreground">{result.title}</h3>
         <dl className="mt-2 grid gap-2 sm:grid-cols-2">
           {Object.entries(result.card).map(([label, value]) => (
-            <div key={label} className="rounded bg-white p-2">
-              <dt className="text-xs text-gray-500">{label}</dt>
-              <dd className="text-sm font-semibold text-gray-900">{value}</dd>
+            <div key={label} className="rounded bg-surface p-2">
+              <dt className="text-xs text-muted">{label}</dt>
+              <dd className="text-sm font-semibold text-foreground">{value}</dd>
             </div>
           ))}
         </dl>
@@ -402,7 +410,7 @@ function ResultView({ result, metricLabel }: { result: ToolResult; metricLabel: 
   if (result.render_hint === 'list' && result.items) {
     return (
       <div>
-        <h3 className="font-semibold text-gray-900">{result.title}</h3>
+        <h3 className="font-semibold text-foreground">{result.title}</h3>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
           {result.items.map((item) => (
             <li key={`${item.label}-${item.value}`}>
@@ -416,7 +424,7 @@ function ResultView({ result, metricLabel }: { result: ToolResult; metricLabel: 
   if (result.render_hint === 'comparison' && result.comparison) {
     return (
       <div>
-        <h3 className="font-semibold text-gray-900">{result.title}</h3>
+        <h3 className="font-semibold text-foreground">{result.title}</h3>
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr>
@@ -451,12 +459,12 @@ function ResultView({ result, metricLabel }: { result: ToolResult; metricLabel: 
   if (result.render_hint === 'summary_stats' && result.items) {
     return (
       <div>
-        <h3 className="font-semibold text-gray-900">{result.title}</h3>
+        <h3 className="font-semibold text-foreground">{result.title}</h3>
         <div className="mt-2 grid gap-2 sm:grid-cols-4">
           {result.items.map((item) => (
-            <div key={item.label} className="rounded bg-white p-3">
-              <p className="text-xs text-gray-500">{item.label}</p>
-              <p className="text-lg font-bold text-gray-900">{item.value}</p>
+            <div key={item.label} className="rounded bg-surface p-3">
+              <p className="text-xs text-muted">{item.label}</p>
+              <p className="text-lg font-bold text-foreground">{item.value}</p>
             </div>
           ))}
         </div>
@@ -465,7 +473,7 @@ function ResultView({ result, metricLabel }: { result: ToolResult; metricLabel: 
   }
   return (
     <div>
-      <h3 className="font-semibold text-gray-900">{result.title}</h3>
+      <h3 className="font-semibold text-foreground">{result.title}</h3>
       <div className="mt-2 overflow-auto">
         <table className="w-full text-sm">
           <thead>
@@ -479,7 +487,7 @@ function ResultView({ result, metricLabel }: { result: ToolResult; metricLabel: 
           </thead>
           <tbody>
             {(result.rows ?? []).map((row, index) => (
-              <tr key={index} className="border-t border-gray-200">
+              <tr key={index} className="border-t border-border">
                 {(result.columns ?? []).map((column) => (
                   <td key={column} className="px-2 py-1">
                     {row[column]}
