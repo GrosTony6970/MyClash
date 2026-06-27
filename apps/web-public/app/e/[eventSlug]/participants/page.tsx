@@ -1,7 +1,5 @@
-/* eslint-disable myclash/no-literal-string -- pre-i18n public page (matches the workshops page). */
-
 import { BackLink } from '@/components/BackLink';
-import { defaultLocale } from '@myclash/i18n';
+import { defaultLocale, t } from '@myclash/i18n';
 import { formatCountryName } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
@@ -83,10 +81,13 @@ export async function generateMetadata({
 }): Promise<{ title: string; description: string }> {
   const { eventSlug } = await params;
   const event = await fetchEventInfo(eventSlug);
-  if (!event) return { title: 'Participants · MyClash', description: '' };
+  if (!event) return { title: t('publicApp.participants.metaTitleFallback'), description: '' };
+  const place = formatEventPlace(event);
   return {
-    title: `Participants · ${event.name} · MyClash`,
-    description: `Roster for ${event.name}${formatEventPlace(event) ? ` in ${formatEventPlace(event)}` : ''}.`,
+    title: t('publicApp.participants.metaTitle', { name: event.name }),
+    description: place
+      ? t('publicApp.participants.metaDescriptionWithPlace', { name: event.name, place })
+      : t('publicApp.participants.metaDescription', { name: event.name }),
   };
 }
 
@@ -127,7 +128,7 @@ export default async function ParticipantsPage({
           )}
           <div className="flex-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Participants
+              {t('publicApp.people.title')}
             </p>
             <h1 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
               {event.name}
@@ -142,7 +143,11 @@ export default async function ParticipantsPage({
             <p className="text-sm text-slate-500">
               {formatDateRange(event.startDate, event.endDate)}
             </p>
-            <BackLink href={`/e/${eventSlug}/home`} label="Back to event home" className="mt-3" />
+            <BackLink
+              href={`/e/${eventSlug}/home`}
+              label={t('publicApp.tournament.backToEventHome')}
+              className="mt-3"
+            />
           </div>
         </header>
       )}

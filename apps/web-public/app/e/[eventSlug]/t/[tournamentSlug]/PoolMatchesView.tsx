@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string -- pre-i18n public page (matches the other public tournament tabs). */
-
 /**
  * PoolMatchesView — read-only matches table per pool, surfaced on the
  * public tournament page's new "Pool Matches" tab. Mirrors the admin
@@ -20,10 +18,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sideStyle, tintTextClassFor } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
-import { t } from '@myclash/i18n';
 import { formatInZone } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { naturalCompare } from './pool-matches-sort';
 import { matchesQuery } from './pool-matches-filter';
 import { poolMatchWinner } from './pool-match-winner';
@@ -89,6 +87,7 @@ function parseFocusPoolId(hash: string): string | null {
 }
 
 export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props) {
+  const { t } = useI18n();
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [sideColors, setSideColors] = useState<SideColors>(DEFAULT_SIDE_COLORS);
@@ -209,12 +208,12 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
   }, [focusPoolId, pools]);
 
   if (loading && pools.length === 0) {
-    return <p className="text-sm italic text-slate-500">Loading…</p>;
+    return <p className="text-sm italic text-slate-500">{t('publicApp.tournament.loading')}</p>;
   }
   if (pools.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
-        Pool matches will be published once the organizer generates the schedule.
+        {t('publicApp.tournament.poolMatchesEmpty')}
       </p>
     );
   }
@@ -275,23 +274,39 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
               })()}
             </div>
             <span className="shrink-0 text-xs uppercase tracking-wider text-slate-500">
-              {pool.matches.length} matches
+              {t('publicApp.tournament.poolMatchesCount', { count: pool.matches.length })}
             </span>
           </header>
           {pool.matches.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm italic text-slate-500">No matches yet.</p>
+            <p className="px-4 py-6 text-center text-sm italic text-slate-500">
+              {t('publicApp.tournament.poolMatchesNoMatchesYet')}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-stone-100 bg-stone-50 text-left text-xs uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="w-32 px-4 py-2">Round</th>
-                    <th className="px-4 py-2">Fighter 1</th>
-                    <th className="w-12 px-2 py-2 text-center">Pts</th>
-                    <th className="w-12 px-2 py-2 text-center">Pts</th>
-                    <th className="px-4 py-2">Fighter 2</th>
-                    <th className="w-24 px-4 py-2">Status</th>
-                    <th className="w-32 px-4 py-2">Lice</th>
+                    <th className="w-32 px-4 py-2">
+                      {t('publicApp.tournament.poolMatches.colRound')}
+                    </th>
+                    <th className="px-4 py-2">
+                      {t('publicApp.tournament.poolMatches.colFighter1')}
+                    </th>
+                    <th className="w-12 px-2 py-2 text-center">
+                      {t('publicApp.tournament.poolMatches.colPts')}
+                    </th>
+                    <th className="w-12 px-2 py-2 text-center">
+                      {t('publicApp.tournament.poolMatches.colPts')}
+                    </th>
+                    <th className="px-4 py-2">
+                      {t('publicApp.tournament.poolMatches.colFighter2')}
+                    </th>
+                    <th className="w-24 px-4 py-2">
+                      {t('publicApp.tournament.poolMatches.colStatus')}
+                    </th>
+                    <th className="w-32 px-4 py-2">
+                      {t('publicApp.tournament.poolMatches.colLice')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

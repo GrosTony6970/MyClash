@@ -11,8 +11,6 @@
  *   ✓ Standings table matches lyonamhe.fr layout (V/Pts+/Pts−/Dbl/Score)
  */
 
-/* eslint-disable myclash/no-literal-string */
-
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
@@ -42,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   );
   return {
     title: `${data.tournament.name} · MyClash`,
-    description: `${fighterCount} fighters · ${data.tournament.rulesetCode}`,
+    description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetCode}`,
   };
 }
 
@@ -247,11 +245,9 @@ export default async function TournamentPage({ params }: Props) {
         <div className="text-center">
           <p className="text-4xl mb-3">⚔️</p>
           <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
-            Tournament not found
+            {t('publicApp.tournament.errors.notFoundTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">
-            Check the URL or come back when the schedule is published.
-          </p>
+          <p className="text-gray-400 text-sm">{t('publicApp.tournament.errors.notFoundBody')}</p>
         </div>
       </main>
     );
@@ -263,14 +259,14 @@ export default async function TournamentPage({ params }: Props) {
         <div className="max-w-md text-center">
           <p className="text-4xl mb-3">⚠️</p>
           <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
-            This tournament couldn&apos;t be loaded
+            {t('publicApp.tournament.errors.loadFailedTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">
-            Please retry — if it keeps happening, let the organizer know.
-          </p>
+          <p className="text-gray-400 text-sm">{t('publicApp.tournament.errors.loadFailedBody')}</p>
           {(outcome.message || outcome.status) && (
             <details className="mt-4 text-left text-xs text-gray-500">
-              <summary className="cursor-pointer">Technical details</summary>
+              <summary className="cursor-pointer">
+                {t('publicApp.tournament.errors.technicalDetails')}
+              </summary>
               <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-gray-900 px-3 py-2 text-gray-400">
                 {outcome.status ? `HTTP ${outcome.status}\n` : ''}
                 {outcome.message ?? ''}
@@ -386,7 +382,8 @@ export default async function TournamentPage({ params }: Props) {
           <p className="mt-0.5 text-sm text-slate-500">
             {tournament.weapon && `${tournament.weapon} · `}
             {tournament.rulesetCode}
-            {fighterCount > 0 && ` · ${fighterCount} fighters`}
+            {fighterCount > 0 &&
+              ` · ${t('publicApp.tournament.fighterCount', { count: fighterCount })}`}
           </p>
         </div>
       </div>
@@ -397,7 +394,7 @@ export default async function TournamentPage({ params }: Props) {
         tabs={[
           {
             key: 'participants',
-            label: 'Participants',
+            label: t('publicApp.tournament.tabs.participants'),
             visible: participantsTabVisible,
             panel: <ParticipantsTab entries={participantsTabEntries} />,
           },
@@ -468,8 +465,7 @@ export default async function TournamentPage({ params }: Props) {
                 />
               ) : (
                 <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-slate-500">
-                  No bracket yet — the bracket will appear here once the tournament&apos;s
-                  elimination phase is generated.
+                  {t('publicApp.tournament.bracket.placeholder')}
                 </div>
               ),
           },
@@ -486,7 +482,7 @@ export default async function TournamentPage({ params }: Props) {
           },
           {
             key: 'finalranking',
-            label: 'Final Ranking',
+            label: t('publicApp.tournament.tabs.finalRanking'),
             visible: finalRankingTabVisible,
             panel: (
               <FinalRankingTab

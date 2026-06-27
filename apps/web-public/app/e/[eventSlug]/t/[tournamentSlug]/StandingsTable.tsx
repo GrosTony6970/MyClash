@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import type { StandingRow } from './page';
 
 interface Props {
@@ -27,6 +28,7 @@ export function StandingsTable({
   initialStandings,
   tournamentId: _tournamentId,
 }: Props) {
+  const { t } = useI18n();
   const [standings, setStandings] = useState<StandingRow[]>(initialStandings);
   const [updating, setUpdating] = useState(false);
 
@@ -77,7 +79,7 @@ export function StandingsTable({
     <div
       className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
       role="region"
-      aria-label={`${poolName} standings`}
+      aria-label={t('publicApp.tournament.standings.poolRegionLabel', { pool: poolName })}
       aria-live="polite"
     >
       <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold text-slate-900 sm:text-xl">
@@ -94,12 +96,24 @@ export function StandingsTable({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-slate-500">
-              <th className="py-2 pr-3 text-left font-semibold">Fighter</th>
-              <th className="w-8 px-2 py-2 text-center font-semibold">V</th>
-              <th className="w-10 px-2 py-2 text-center font-semibold">Pts+</th>
-              <th className="w-10 px-2 py-2 text-center font-semibold">Pts−</th>
-              <th className="w-8 px-2 py-2 text-center font-semibold">Dbl</th>
-              <th className="w-16 py-2 pl-2 text-right font-semibold">Score</th>
+              <th className="py-2 pr-3 text-left font-semibold">
+                {t('publicApp.tournament.standings.colFighter')}
+              </th>
+              <th className="w-8 px-2 py-2 text-center font-semibold">
+                {t('publicApp.tournament.standings.colWins')}
+              </th>
+              <th className="w-10 px-2 py-2 text-center font-semibold">
+                {t('publicApp.tournament.standings.colPointsFor')}
+              </th>
+              <th className="w-10 px-2 py-2 text-center font-semibold">
+                {t('publicApp.tournament.standings.colPointsAgainst')}
+              </th>
+              <th className="w-8 px-2 py-2 text-center font-semibold">
+                {t('publicApp.tournament.standings.colDoubles')}
+              </th>
+              <th className="w-16 py-2 pl-2 text-right font-semibold">
+                {t('publicApp.tournament.standings.colScore')}
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 import { useSearchParams } from 'next/navigation';
@@ -42,7 +41,7 @@ function ClaimForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!personId) {
-      setError('Missing person ID. Please use the link provided by the organizer.');
+      setError(t('publicApp.claim.missingPersonId'));
       return;
     }
     setLoading(true);
@@ -58,12 +57,12 @@ function ClaimForm() {
 
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Request failed');
+        throw new Error(body.message ?? t('publicApp.claim.errors.generic'));
       }
 
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(err instanceof Error ? err.message : t('publicApp.claim.errors.generic'));
     } finally {
       setLoading(false);
     }
@@ -72,23 +71,24 @@ function ClaimForm() {
   if (submitted) {
     return (
       <div className="w-full max-w-sm text-center">
-        <h1 className="font-display font-bold text-2xl sm:text-3xl mb-4">Check your email</h1>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl mb-4">
+          {t('publicApp.claim.sentTitle')}
+        </h1>
         <p className="text-gray-600">
-          We sent a confirmation link to <strong>{email}</strong>. Click it to confirm your profile
-          and access your schedule across all your devices.
+          {t('publicApp.claim.confirmSentPrefix')} <strong>{email}</strong>.{' '}
+          {t('publicApp.claim.confirmSentSuffix')}
         </p>
-        <p className="mt-4 text-sm text-gray-400">The link expires in 1 hour.</p>
+        <p className="mt-4 text-sm text-gray-400">{t('publicApp.claim.linkExpires')}</p>
       </div>
     );
   }
 
   return (
     <div className="w-full max-w-sm">
-      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-2">Confirm your profile</h1>
-      <p className="text-gray-600 mb-8">
-        Enter the email address the organizer registered for you. We&apos;ll send you a confirmation
-        link.
-      </p>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-2">
+        {t('publicApp.claim.confirmProfileTitle')}
+      </h1>
+      <p className="text-gray-600 mb-8">{t('publicApp.claim.confirmProfileDescription')}</p>
 
       <form
         onSubmit={(e) => {
@@ -98,7 +98,7 @@ function ClaimForm() {
       >
         <div>
           <label htmlFor="email" className="block text-sm font-medium mb-1">
-            Your registered email
+            {t('publicApp.claim.registeredEmailLabel')}
           </label>
           <input
             id="email"
@@ -107,7 +107,7 @@ function ClaimForm() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder={t('publicApp.claim.emailPlaceholder')}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
           />
         </div>
@@ -123,7 +123,7 @@ function ClaimForm() {
           disabled={loading || !personId}
           className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
         >
-          {loading ? 'Sending…' : 'Send confirmation link'}
+          {loading ? t('publicApp.claim.sending') : t('publicApp.claim.sendConfirmationLink')}
         </button>
       </form>
 
@@ -140,17 +140,18 @@ function ClaimForm() {
       </button>
 
       <p className="mt-6 text-sm text-gray-500">
-        Your email doesn&apos;t match?{' '}
-        <span className="text-gray-700">Ask the organizer to check your registration.</span>
+        {t('publicApp.claim.emailMismatch')}{' '}
+        <span className="text-gray-700">{t('publicApp.claim.emailMismatchAction')}</span>
       </p>
     </div>
   );
 }
 
 export default function ClaimPage() {
+  const { t } = useI18n();
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <Suspense fallback={<p className="text-gray-500">Loading…</p>}>
+      <Suspense fallback={<p className="text-gray-500">{t('publicApp.claim.loading')}</p>}>
         <ClaimForm />
       </Suspense>
     </main>

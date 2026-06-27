@@ -6,6 +6,7 @@
  */
 
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 import { EventBackLink } from './_components/EventBackLink';
 
 interface Match {
@@ -92,7 +93,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Next match */}
       <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Next match
+          {t('publicApp.competitorHome.nextMatch')}
         </h2>
         {nextMatch ? (
           <Link
@@ -100,7 +101,11 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
             className="block rounded-xl border border-emerald-300 bg-white p-5 transition-colors hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-red-500/40"
           >
             <p className="mb-1 text-xs text-slate-500">{nextMatch.matchNumberLabel}</p>
-            <p className="text-xl font-bold text-slate-900">vs {nextMatch.opponentName ?? 'TBD'}</p>
+            <p className="text-xl font-bold text-slate-900">
+              {t('publicApp.competitorHome.versus', {
+                name: nextMatch.opponentName ?? t('publicApp.competitorHome.tbd'),
+              })}
+            </p>
             {nextMatch.scheduledAt && (
               <p className="mt-1 text-sm text-slate-500">
                 {new Date(nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
@@ -122,12 +127,16 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
               {nextMatch.status === 'running' && (
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
               )}
-              {nextMatch.status === 'running' ? 'LIVE' : nextMatch.status}
+              {nextMatch.status === 'running'
+                ? t('publicApp.competitorHome.live')
+                : nextMatch.status}
             </span>
           </Link>
         ) : (
           <div className="rounded-xl border border-stone-200 bg-white p-5 text-center">
-            <p className="text-sm text-slate-500">No upcoming matches</p>
+            <p className="text-sm text-slate-500">
+              {t('publicApp.competitorHome.noUpcomingMatches')}
+            </p>
           </div>
         )}
       </section>
@@ -136,7 +145,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {upcoming.length > 1 && (
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Today&apos;s schedule
+            {t('publicApp.competitorHome.todaysSchedule')}
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.slice(1).map((m) => (
@@ -148,7 +157,9 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      vs {m.opponentName ?? 'TBD'}
+                      {t('publicApp.competitorHome.versus', {
+                        name: m.opponentName ?? t('publicApp.competitorHome.tbd'),
+                      })}
                     </p>
                     <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
                   </div>
@@ -172,7 +183,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {past.length > 0 && (
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Recent results
+            {t('publicApp.fighterProfile.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
             {past.map((m) => (
@@ -184,7 +195,9 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      vs {m.opponentName ?? 'TBD'}
+                      {t('publicApp.competitorHome.versus', {
+                        name: m.opponentName ?? t('publicApp.competitorHome.tbd'),
+                      })}
                     </p>
                     <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
                   </div>
@@ -208,7 +221,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {matches.length === 0 && (
         <div className="py-12 text-center">
           <p className="mb-3 text-4xl">⚔️</p>
-          <p className="text-slate-500">Your matches will appear here once the schedule is set.</p>
+          <p className="text-slate-500">{t('publicApp.competitorHome.emptyMatches')}</p>
         </div>
       )}
     </main>

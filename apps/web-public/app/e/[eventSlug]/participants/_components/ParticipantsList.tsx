@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { filterParticipants, type ParticipantLike } from './filter-participants';
 import { tournamentPillClasses } from './tournament-pill-classes';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface Props {
   eventSlug: string;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function ParticipantsList({ eventSlug, participants }: Props) {
+  const { t: tr } = useI18n();
   const [query, setQuery] = useState('');
   const visible = useMemo(() => filterParticipants(participants, query), [participants, query]);
 
@@ -18,24 +20,24 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
     <div className="flex flex-col gap-4">
       <div className="sticky top-0 z-10 -mx-4 bg-stone-50/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-stone-50/80 sm:mx-0 sm:rounded-md">
         <label htmlFor="participants-search" className="sr-only">
-          Search participants
+          {tr('publicApp.participants.searchLabel')}
         </label>
         <input
           id="participants-search"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or club…"
+          placeholder={tr('publicApp.participants.searchPlaceholder')}
           className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 sm:max-w-md"
-          aria-label="Search participants by name or club"
+          aria-label={tr('publicApp.participants.searchAria')}
         />
       </div>
 
       {visible.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
           {query.trim() === ''
-            ? 'No participants registered yet.'
-            : 'No participant matches that search.'}
+            ? tr('publicApp.tournament.participants.emptyMain')
+            : tr('publicApp.participants.noSearchMatch')}
         </p>
       ) : (
         <>
@@ -70,7 +72,9 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                         >
                           {t.name}
                           {t.registrationState === 'waitlist' && (
-                            <span className="ml-1 text-[10px]">· Waitlist</span>
+                            <span className="ml-1 text-[10px]">
+                              {tr('publicApp.participants.waitlistPill')}
+                            </span>
                           )}
                         </Link>
                       </li>
@@ -87,13 +91,13 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
               <thead>
                 <tr className="border-b border-stone-200 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <th scope="col" className="py-2 pr-4">
-                    Name
+                    {tr('publicApp.tournament.participants.colName')}
                   </th>
                   <th scope="col" className="py-2 pr-4">
-                    Club
+                    {tr('publicApp.tournament.participants.colClub')}
                   </th>
                   <th scope="col" className="py-2 pr-4">
-                    Tournaments
+                    {tr('publicApp.home.colTournaments')}
                   </th>
                 </tr>
               </thead>
@@ -132,7 +136,9 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                               >
                                 {t.name}
                                 {t.registrationState === 'waitlist' && (
-                                  <span className="ml-1 text-[10px]">· Waitlist</span>
+                                  <span className="ml-1 text-[10px]">
+                                    {tr('publicApp.participants.waitlistPill')}
+                                  </span>
                                 )}
                               </Link>
                             </li>
@@ -149,7 +155,10 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
       )}
 
       <p className="text-xs text-slate-500">
-        {visible.length} of {participants.length} participants
+        {tr('publicApp.participants.countSummary', {
+          visible: visible.length,
+          total: participants.length,
+        })}
       </p>
     </div>
   );

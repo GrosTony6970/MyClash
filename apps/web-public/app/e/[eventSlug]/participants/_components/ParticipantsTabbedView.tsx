@@ -18,6 +18,7 @@
 import { useEffect, useState } from 'react';
 import { ParticipantsList } from './ParticipantsList';
 import type { ParticipantLike } from './filter-participants';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface WaitlistTab {
   tournamentId: string;
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
+  const { t: tr } = useI18n();
   // Active participants: anyone with at least one 'active' registration.
   const mainList = participants.filter((p) =>
     p.tournaments.some((t) => t.registrationState === 'active'),
@@ -122,7 +124,8 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
               : 'text-slate-500 hover:text-slate-700')
           }
         >
-          Main list <span className="ml-1 text-xs text-slate-400">({mainList.length})</span>
+          {tr('publicApp.participants.mainListTab')}{' '}
+          <span className="ml-1 text-xs text-slate-400">({mainList.length})</span>
         </button>
         {waitlistTabs.map((tab) => {
           const key = `waitlist-${tab.tournamentSlug}`;
@@ -141,7 +144,7 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
                   : 'text-slate-500 hover:text-slate-700')
               }
             >
-              Waitlist · {tab.tournamentName}
+              {tr('publicApp.participants.waitlistTab', { name: tab.tournamentName })}
               <span className="ml-1 text-xs text-amber-700">({tab.entries.length})</span>
             </button>
           );
@@ -155,11 +158,10 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
 }
 
 function WaitlistView({ tab }: { tab: WaitlistTab }) {
+  const { t } = useI18n();
   return (
     <section>
-      <p className="mb-3 text-xs text-slate-500">
-        Ordered by waitlist position — the next free slot goes to the person at the top.
-      </p>
+      <p className="mb-3 text-xs text-slate-500">{t('publicApp.participants.waitlistOrderHint')}</p>
       <ol className="space-y-1">
         {tab.entries.map((entry) => (
           <li

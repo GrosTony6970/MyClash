@@ -113,14 +113,14 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
       setPermission(nextPermission);
 
       if (nextPermission !== 'granted') {
-        setMessage('Notifications were not enabled.');
+        setMessage(t('publicApp.notifications.msgNotEnabled'));
         return;
       }
 
       const keyResponse = await fetch(`${apiUrl}/api/v1/notifications/vapid-public-key`, {
         credentials: 'include',
       });
-      if (!keyResponse.ok) throw new Error('Notification keys are not configured.');
+      if (!keyResponse.ok) throw new Error(t('publicApp.notifications.errKeysNotConfigured'));
 
       const { publicKey } = (await keyResponse.json()) as { publicKey: string };
       const registration = await navigator.serviceWorker.ready;
@@ -134,7 +134,7 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
 
       const json = subscription.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) {
-        throw new Error('Browser returned an incomplete push subscription.');
+        throw new Error(t('publicApp.notifications.errIncompleteSubscription'));
       }
 
       const response = await fetch(`${apiUrl}/api/v1/notifications/subscribe`, {
@@ -151,16 +151,16 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
       });
 
       if (response.status === 401) {
-        throw new Error('Sign in with your magic link before enabling push notifications.');
+        throw new Error(t('publicApp.notifications.errSignInRequired'));
       }
-      if (!response.ok) throw new Error('Could not save this notification subscription.');
+      if (!response.ok) throw new Error(t('publicApp.notifications.errSaveSubscription'));
 
       const saved = (await response.json()) as SubscribeResponse;
       setSubscriptionId(saved.id);
       setEnabled(true);
-      setMessage('Push notifications are enabled.');
+      setMessage(t('publicApp.notifications.msgEnabled'));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not enable notifications.');
+      setMessage(error instanceof Error ? error.message : t('publicApp.notifications.errEnable'));
     } finally {
       setBusy(false);
     }
@@ -185,9 +185,9 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
 
       setSubscriptionId(null);
       setEnabled(false);
-      setMessage('Push notifications are disabled on this device.');
+      setMessage(t('publicApp.notifications.msgDisabled'));
     } catch {
-      setMessage('Could not disable notifications.');
+      setMessage(t('publicApp.notifications.errDisable'));
     } finally {
       setBusy(false);
     }

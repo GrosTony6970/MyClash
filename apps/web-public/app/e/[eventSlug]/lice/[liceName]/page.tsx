@@ -17,6 +17,7 @@ import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface LiceMatch {
   id: string;
@@ -39,6 +40,7 @@ interface LiceData {
 }
 
 export default function LicePage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string; liceName: string }>();
   const { eventSlug, liceName } = params;
   const apiUrl = getApiUrl();
@@ -123,10 +125,10 @@ export default function LicePage() {
         <div>
           <p className="text-4xl mb-3">🏟️</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
-            Lice not found
+            {t('publicApp.live.liceNotFound')}
           </h1>
           <p className="text-gray-400 text-sm">
-            &ldquo;{liceName}&rdquo; is not a known Lice for this event.
+            {t('publicApp.live.liceNotFoundBody', { name: liceName })}
           </p>
         </div>
       </main>
@@ -137,7 +139,9 @@ export default function LicePage() {
     <main className="flex flex-col min-h-screen px-4 py-6 max-w-md mx-auto gap-6">
       {/* Header */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Lice</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+          {t('publicApp.live.liceEyebrow')}
+        </p>
         <h1
           className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
@@ -160,7 +164,7 @@ export default function LicePage() {
           {data.current?.status === 'running' && (
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           )}
-          {data.current ? 'Now playing' : 'No match in progress'}
+          {data.current ? t('publicApp.live.nowPlaying') : t('scoring.lice.noMatchTitle')}
         </h2>
 
         {data.current ? (
@@ -204,7 +208,7 @@ export default function LicePage() {
           </Link>
         ) : (
           <div className="rounded-xl border border-gray-800 p-6 text-center">
-            <p className="text-gray-500 text-sm">Waiting for next match…</p>
+            <p className="text-gray-500 text-sm">{t('scoring.liveMatch.waitingForMatch')}</p>
           </div>
         )}
       </section>
@@ -216,7 +220,7 @@ export default function LicePage() {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Up next
+            {t('publicApp.live.upNext')}
           </h2>
           <div className="flex flex-col gap-2">
             {data.queue.map((m, idx) => (
@@ -225,7 +229,8 @@ export default function LicePage() {
                   <span className="text-gray-600 font-bold text-sm w-5 text-center">{idx + 1}</span>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-white">
-                      {m.redFighterName ?? '?'} vs {m.blueFighterName ?? '?'}
+                      {m.redFighterName ?? '?'} {t('scoring.liveMatch.versus')}{' '}
+                      {m.blueFighterName ?? '?'}
                     </p>
                     <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
                   </div>

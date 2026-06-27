@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string -- pre-i18n public page (matches the workshop detail page). */
-
 /**
  * WorkshopsBrowser — client-side filtering for the public workshop catalog:
  * a fuzzy search box (matches workshop title OR any instructor name) plus the
@@ -15,6 +13,9 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { accentClassFor, fuzzyMatch } from '@myclash/ui';
 import { formatInZone, zonedDay } from '@myclash/time';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
+
+type TFn = ReturnType<typeof useI18n>['t'];
 
 export interface WorkshopListItem {
   id: string;
@@ -39,23 +40,23 @@ export interface WorkshopListItem {
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
 
-function capacityBadge(confirmed: number, capacity: number) {
+function capacityBadge(confirmed: number, capacity: number, t: TFn) {
   const pct = confirmed / capacity;
   if (pct >= 1)
     return (
       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-        Full
+        {t('publicApp.workshops.full')}
       </span>
     );
   if (pct >= 0.8)
     return (
       <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
-        Almost full
+        {t('publicApp.workshops.almostFull')}
       </span>
     );
   return (
     <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-      {capacity - confirmed} spots left
+      {t('publicApp.workshops.spotsLeft', { count: capacity - confirmed })}
     </span>
   );
 }
@@ -83,6 +84,7 @@ export function WorkshopsBrowser({
   eventSlug: string;
   timezone: string;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [day, setDay] = useState('');
   const [category, setCategory] = useState('');
@@ -148,7 +150,7 @@ export function WorkshopsBrowser({
   }, [filtered, dayKeyOf]);
 
   const dayLabel = (key: string): string => {
-    if (key === UNSCHEDULED) return 'Date to be announced';
+    if (key === UNSCHEDULED) return t('publicApp.workshops.dateToBeAnnounced');
     const rep = dayOptions.find(([k]) => k === key)?.[1];
     return rep
       ? formatInZone(rep, timezone, { weekday: 'long', day: 'numeric', month: 'long' })
@@ -162,7 +164,7 @@ export function WorkshopsBrowser({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by workshop or instructor…"
+          placeholder={t('publicApp.workshops.searchPlaceholder')}
           className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/40"
         />
       </div>
@@ -175,10 +177,10 @@ export function WorkshopsBrowser({
             <select
               value={day}
               onChange={(e) => setDay(e.target.value)}
-              aria-label="Day"
+              aria-label={t('publicApp.workshops.filterDay')}
               className={SELECT_CLS}
             >
-              <option value="">All days</option>
+              <option value="">{t('publicApp.workshops.allDays')}</option>
               {dayOptions.map(([key, rep]) => (
                 <option key={key} value={key}>
                   {formatInZone(rep, timezone, {
@@ -194,10 +196,10 @@ export function WorkshopsBrowser({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              aria-label="Category"
+              aria-label={t('publicApp.workshops.filterCategory')}
               className={SELECT_CLS}
             >
-              <option value="">All categories</option>
+              <option value="">{t('publicApp.workshops.allCategories')}</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -209,10 +211,10 @@ export function WorkshopsBrowser({
             <select
               value={level}
               onChange={(e) => setLevel(e.target.value)}
-              aria-label="Level"
+              aria-label={t('publicApp.workshops.filterLevel')}
               className={SELECT_CLS}
             >
-              <option value="">All levels</option>
+              <option value="">{t('publicApp.workshops.allLevels')}</option>
               {levels.map((l) => (
                 <option key={l} value={l}>
                   {l}
@@ -224,10 +226,10 @@ export function WorkshopsBrowser({
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              aria-label="Language"
+              aria-label={t('publicApp.workshops.filterLanguage')}
               className={SELECT_CLS}
             >
-              <option value="">All languages</option>
+              <option value="">{t('publicApp.workshops.allLanguages')}</option>
               {languages.map((lang) => (
                 <option key={lang} value={lang}>
                   {lang.toUpperCase()}
@@ -240,7 +242,7 @@ export function WorkshopsBrowser({
 
       {filtered.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-sm text-gray-400">No workshops match your search.</p>
+          <p className="text-sm text-gray-400">{t('publicApp.workshops.emptySearch')}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-8">
@@ -251,7 +253,7 @@ export function WorkshopsBrowser({
               </h2>
               <div className="flex flex-col gap-4">
                 {group.items.map((w) => (
-                  <WorkshopCard key={w.id} w={w} eventSlug={eventSlug} timezone={timezone} />
+                  <WorkshopCard key={w.id} w={w} eventSlug={eventSlug} timezone={timezone} t={t} />
                 ))}
               </div>
             </section>
@@ -266,10 +268,12 @@ function WorkshopCard({
   w,
   eventSlug,
   timezone,
+  t,
 }: {
   w: WorkshopListItem;
   eventSlug: string;
   timezone: string;
+  t: TFn;
 }) {
   const instructorNames = w.instructors.map((i) => i.displayName);
   const totalConfirmed = w.sessions.reduce((s, sess) => s + sess.confirmedCount, 0);
@@ -314,7 +318,7 @@ function WorkshopCard({
             )}
             {w.durationMinutes != null && (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
-                {w.durationMinutes} min
+                {t('publicApp.workshops.durationMinutes', { count: w.durationMinutes })}
               </span>
             )}
             {w.language && (
@@ -337,14 +341,21 @@ function WorkshopCard({
                   hour: '2-digit',
                   minute: '2-digit',
                 })}`}
-              {moreCount > 0 && <span className="text-slate-400"> · +{moreCount} more</span>}
+              {moreCount > 0 && (
+                <span className="text-slate-400">
+                  {' '}
+                  · {t('publicApp.workshops.moreSessions', { count: moreCount })}
+                </span>
+              )}
             </p>
           )}
         </div>
         <div className="flex-shrink-0 text-right">
-          {totalCapacity > 0 && capacityBadge(totalConfirmed, totalCapacity)}
+          {totalCapacity > 0 && capacityBadge(totalConfirmed, totalCapacity, t)}
           <p className="mt-1 text-xs text-slate-400">
-            {w.sessions.length} session{w.sessions.length !== 1 ? 's' : ''}
+            {w.sessions.length === 1
+              ? t('publicApp.workshops.sessionCountSingular', { count: w.sessions.length })
+              : t('publicApp.workshops.sessionCountPlural', { count: w.sessions.length })}
           </p>
         </div>
       </div>

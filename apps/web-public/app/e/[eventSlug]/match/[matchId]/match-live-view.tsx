@@ -292,6 +292,12 @@ function PenaltyFeed({
     black: 'border-gray-900 bg-gray-900 text-white',
   };
 
+  const cardLabel: Record<MatchPenaltyRow['card'], string> = {
+    yellow: t('scoring.penalties.cards.yellow'),
+    red: t('scoring.penalties.cards.red'),
+    black: t('scoring.penalties.cards.black'),
+  };
+
   const fighterFor = (registrationId: string): { name: string; className: string } | null => {
     if (registrationId === match.redRegistrationId)
       return { name: redName, className: 'text-red-600' };
@@ -317,7 +323,7 @@ function PenaltyFeed({
                 <span
                   className={`mr-2 rounded border px-2 py-0.5 text-xs font-black uppercase ${cardClass[penalty.card]}`}
                 >
-                  {penalty.card}
+                  {cardLabel[penalty.card]}
                 </span>
                 {fighter && (
                   <span className={`font-semibold ${fighter.className}`}>{fighter.name} · </span>

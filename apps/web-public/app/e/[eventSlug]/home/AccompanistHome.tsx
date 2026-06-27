@@ -6,6 +6,7 @@
  */
 
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 import { EventBackLink } from './_components/EventBackLink';
 
 interface FavoriteMatch {
@@ -94,7 +95,7 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-            Live now
+            {t('publicApp.eventHome.liveNow')}
           </h2>
           <div className="flex flex-col gap-3">
             {live.map((m) => (
@@ -130,7 +131,7 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {upcoming.length > 0 && (
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Coming up
+            {t('publicApp.accompanistHome.comingUp')}
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.map((m) => (
@@ -142,7 +143,10 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      {m.redFighterName ?? '?'} vs {m.blueFighterName ?? '?'}
+                      {t('publicApp.accompanistHome.fighterVersus', {
+                        red: m.redFighterName ?? '?',
+                        blue: m.blueFighterName ?? '?',
+                      })}
                     </p>
                     <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
                   </div>
@@ -166,12 +170,12 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {matches.length === 0 && (
         <div className="py-12 text-center">
           <p className="mb-3 text-4xl">👥</p>
-          <p className="mb-4 text-slate-500">Follow fighters to see their matches here.</p>
+          <p className="mb-4 text-slate-500">{t('publicApp.accompanistHome.emptyFollowing')}</p>
           <Link
             href={`/e/${eventSlug}/people`}
             className="text-sm font-semibold text-red-700 underline hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
           >
-            Browse participants →
+            {t('publicApp.accompanistHome.browseParticipants')}
           </Link>
         </div>
       )}

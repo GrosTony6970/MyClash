@@ -1,6 +1,5 @@
-/* eslint-disable myclash/no-literal-string -- the "min" duration suffix is English-for-now (matches the event home + workshops public pages). */
-
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 import { formatInZone } from '@myclash/time';
 import { accentClassFor } from '@myclash/ui';
 import type { PublicWorkshop } from '../_lib/public-event-data';
@@ -58,7 +57,7 @@ export function WorkshopCard({
           )}
           {w.durationMinutes != null && (
             <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
-              {w.durationMinutes} min
+              {t('publicApp.fighterProfile.minutes', { count: w.durationMinutes })}
             </span>
           )}
         </div>

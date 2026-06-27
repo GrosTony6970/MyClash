@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; i18n strings tracked in backlog */
 'use client';
 
 /**
@@ -16,6 +15,9 @@ import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
+
+type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -69,8 +71,8 @@ function getTime(item: ScheduleItem): number {
   return t ? new Date(t).getTime() : Infinity;
 }
 
-function formatTime(iso: string | null): string {
-  if (!iso) return 'TBD';
+function formatTime(iso: string | null, t: TranslateFn): string {
+  if (!iso) return t('publicApp.mySchedule.tbd');
   return new Date(iso).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit',
@@ -85,7 +87,7 @@ function formatDay(iso: string): string {
   });
 }
 
-function detectConflicts(items: ScheduleItem[]): Map<string, string[]> {
+function detectConflicts(items: ScheduleItem[], t: TranslateFn): Map<string, string[]> {
   const conflicts = new Map<string, string[]>();
   const timed = items.filter((i) => i.time);
 
@@ -101,8 +103,8 @@ function detectConflicts(items: ScheduleItem[]): Map<string, string[]> {
       if (Math.abs(aStart - bStart) < duration) {
         const aKey = itemKey(a);
         const bKey = itemKey(b);
-        const aLabel = itemLabel(a);
-        const bLabel = itemLabel(b);
+        const aLabel = itemLabel(a, t);
+        const bLabel = itemLabel(b, t);
 
         conflicts.set(aKey, [...(conflicts.get(aKey) ?? []), bLabel]);
         conflicts.set(bKey, [...(conflicts.get(bKey) ?? []), aLabel]);
@@ -118,15 +120,17 @@ function itemKey(item: ScheduleItem): string {
   return `ws-${item.data.workshopId}`;
 }
 
-function itemLabel(item: ScheduleItem): string {
+function itemLabel(item: ScheduleItem, t: TranslateFn): string {
   if (item.kind === 'match') return item.data.matchNumberLabel;
-  if (item.kind === 'referee') return `Referee: ${item.data.matchNumberLabel}`;
+  if (item.kind === 'referee')
+    return t('publicApp.mySchedule.refereeLabel', { match: item.data.matchNumberLabel });
   return item.data.workshopName;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MySchedulePage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = getApiUrl();
@@ -184,14 +188,14 @@ export default function MySchedulePage() {
         <div>
           <p className="text-4xl mb-3">📅</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
-            Sign in to see your schedule
+            {t('publicApp.mySchedule.signInTitle')}
           </h1>
           <Link
             href={`/e/${eventSlug}/onboarding`}
             className="text-sm underline"
             style={{ color: 'var(--event-primary, #c0392b)' }}
           >
-            Find yourself in the participant list →
+            {t('publicApp.mySchedule.findYourself')}
           </Link>
         </div>
       </main>
@@ -231,7 +235,7 @@ export default function MySchedulePage() {
   const sorted = [...filtered].sort((a, b) => getTime(a) - getTime(b));
 
   // Conflict detection
-  const conflicts = detectConflicts(sorted);
+  const conflicts = detectConflicts(sorted, t);
 
   // Group by day
   const byDay = new Map<string, ScheduleItem[]>();
@@ -252,7 +256,7 @@ export default function MySchedulePage() {
           className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
-          My Schedule
+          {t('publicApp.mySchedule.title')}
         </h1>
 
         {/* Focus toggle */}
@@ -261,7 +265,7 @@ export default function MySchedulePage() {
           aria-pressed={focusMode}
           className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-400 transition-colors"
         >
-          {focusMode ? 'Show all' : 'Focus on me'}
+          {focusMode ? t('publicApp.mySchedule.showAll') : t('publicApp.mySchedule.focusOnMe')}
         </button>
       </div>
 
@@ -269,7 +273,7 @@ export default function MySchedulePage() {
       {days.length > 1 && (
         <div
           role="group"
-          aria-label="Filter by day"
+          aria-label={t('publicApp.mySchedule.filterByDay')}
           className="flex gap-2 mb-4 overflow-x-auto pb-1"
         >
           <button
@@ -283,7 +287,7 @@ export default function MySchedulePage() {
             ].join(' ')}
             style={dayFilter === 'all' ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
           >
-            All days
+            {t('publicApp.mySchedule.allDays')}
           </button>
           {days.map((day) => (
             <button
@@ -310,8 +314,8 @@ export default function MySchedulePage() {
           <p className="text-4xl mb-3">📅</p>
           <p className="text-gray-400 text-sm">
             {dayFilter !== 'all'
-              ? 'Nothing scheduled on this day.'
-              : 'Your schedule is empty. Check back once the organizer publishes the schedule.'}
+              ? t('publicApp.mySchedule.emptyDay')
+              : t('publicApp.mySchedule.emptyAll')}
           </p>
         </div>
       )}
@@ -348,7 +352,7 @@ export default function MySchedulePage() {
                     <div className="flex-1">
                       {/* Time */}
                       <p className="text-xs text-gray-400 mb-0.5">
-                        {formatTime(item.time)}
+                        {formatTime(item.time, t)}
                         {item.kind === 'match' && item.data.liceName && (
                           <span className="ml-1">· {item.data.liceName}</span>
                         )}
@@ -364,7 +368,8 @@ export default function MySchedulePage() {
                             {item.data.matchNumberLabel}
                           </p>
                           <p className="text-gray-500 text-xs mt-0.5">
-                            vs {item.data.opponentName ?? 'TBD'}
+                            {t('publicApp.mySchedule.vs')}{' '}
+                            {item.data.opponentName ?? t('publicApp.mySchedule.tbd')}
                             {item.data.tournamentName && ` · ${item.data.tournamentName}`}
                           </p>
                           {item.data.status === 'completed' && (
@@ -380,7 +385,7 @@ export default function MySchedulePage() {
                       {item.kind === 'referee' && (
                         <>
                           <p className="font-semibold text-blue-800">
-                            Referee — {item.data.matchNumberLabel}
+                            {t('publicApp.mySchedule.refereePrefix')} — {item.data.matchNumberLabel}
                           </p>
                           <p className="text-blue-600 text-xs mt-0.5">
                             {item.data.role.replace(/_/g, ' ')}
@@ -401,7 +406,9 @@ export default function MySchedulePage() {
                       {/* Conflict warning */}
                       {hasConflict && (
                         <p className="text-xs text-red-600 mt-1 font-medium">
-                          ⚠ Conflicts with: {itemConflicts.join(', ')}
+                          {t('publicApp.mySchedule.conflictsWith', {
+                            items: itemConflicts.join(', '),
+                          })}
                         </p>
                       )}
                     </div>
@@ -410,7 +417,7 @@ export default function MySchedulePage() {
                     {item.kind === 'match' && item.data.status === 'running' && (
                       <span className="flex items-center gap-1 text-xs font-bold text-red-500 flex-shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                        LIVE
+                        {t('publicApp.mySchedule.live')}
                       </span>
                     )}
                   </div>

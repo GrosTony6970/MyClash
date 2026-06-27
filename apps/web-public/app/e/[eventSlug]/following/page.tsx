@@ -17,6 +17,7 @@ import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,13 +52,16 @@ function getRowState(person: FollowedPerson): RowState {
 }
 
 function StateBadge({ person }: { person: FollowedPerson }) {
+  const { t } = useI18n();
   const state = getRowState(person);
 
   if (state === 'live') {
     return (
       <span className="flex items-center gap-1.5 text-xs font-bold text-red-300 bg-red-900/60 border border-red-800 px-2 py-0.5 rounded-full">
         <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-        Live now{person.liceName ? ` · ${person.liceName}` : ''}
+        {person.liceName
+          ? t('publicApp.following.liveNowAtLice', { name: person.liceName })
+          : t('publicApp.fighterProfile.liveNow')}
       </span>
     );
   }
@@ -69,7 +73,7 @@ function StateBadge({ person }: { person: FollowedPerson }) {
     });
     return (
       <span className="text-xs text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
-        Next: {person.nextEvent.label} · {time}
+        {t('publicApp.following.nextBadge', { label: person.nextEvent.label, time })}
       </span>
     );
   }
@@ -98,6 +102,7 @@ function Initials({ name }: { name: string }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FollowingPage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = getApiUrl();
@@ -187,7 +192,10 @@ export default function FollowingPage() {
               return {
                 ...f,
                 liveMatchId: null,
-                lastResultLabel: `Just finished ${redScore}–${blueScore}`,
+                lastResultLabel: t('publicApp.following.justFinished', {
+                  red: redScore,
+                  blue: blueScore,
+                }),
                 lastResultAt: Date.now(),
               };
             }
@@ -200,7 +208,7 @@ export default function FollowingPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [eventId]);
+  }, [eventId, t]);
 
   // ── Tick: expire "Just won" badges after 5 min ───────────────────────────────
 
@@ -258,23 +266,23 @@ export default function FollowingPage() {
           color: 'var(--event-primary, #c0392b)',
         }}
       >
-        Following
+        {t('publicApp.following.title')}
       </h1>
 
       {/* Guest migration cue */}
       {isGuest && (
         <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 mb-4 text-sm">
           {claimSent ? (
-            <p className="text-green-400">✓ Login link sent to your email.</p>
+            <p className="text-green-400">{t('publicApp.following.loginLinkSent')}</p>
           ) : (
             <div className="flex items-center justify-between gap-3">
-              <p className="text-gray-400">Get push notifications when your favorites fight.</p>
+              <p className="text-gray-400">{t('publicApp.following.guestCta')}</p>
               <button
                 onClick={() => void handleRequestClaim()}
                 className="text-sm font-semibold underline flex-shrink-0"
                 style={{ color: 'var(--event-primary, #c0392b)' }}
               >
-                Send login link
+                {t('publicApp.following.sendLoginLink')}
               </button>
             </div>
           )}
@@ -285,13 +293,13 @@ export default function FollowingPage() {
       {sorted.length === 0 && (
         <div className="text-center py-16">
           <p className="text-4xl mb-3">👥</p>
-          <p className="text-gray-400 mb-4">You&apos;re not following anyone yet.</p>
+          <p className="text-gray-400 mb-4">{t('publicApp.following.emptyTitle')}</p>
           <Link
             href={`/e/${eventSlug}/people`}
             className="text-sm font-semibold underline"
             style={{ color: 'var(--event-primary, #c0392b)' }}
           >
-            Find people to follow on the People page →
+            {t('publicApp.following.emptyFindPeople')}
           </Link>
         </div>
       )}

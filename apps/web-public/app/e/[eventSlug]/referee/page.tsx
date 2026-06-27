@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 type AssignmentStatus = 'assigned' | 'confirmed' | 'declined';
 
@@ -33,12 +34,6 @@ interface RefereeAssignment {
   }>;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  arbitre_declarant: 'Arbitre déclarant',
-  arbitre_assesseur: 'Arbitre assesseur',
-  arbitre_table: 'Arbitre de table',
-};
-
 const STATUS_COLORS: Record<AssignmentStatus, string> = {
   assigned: 'bg-yellow-100 text-yellow-700 border-yellow-300',
   confirmed: 'bg-green-100 text-green-700 border-green-300',
@@ -46,9 +41,22 @@ const STATUS_COLORS: Record<AssignmentStatus, string> = {
 };
 
 export default function RefereeDashboardPage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = getApiUrl();
+
+  const roleLabels: Record<string, string> = {
+    arbitre_declarant: t('publicApp.fighterProfile.arbitreDeclarant'),
+    arbitre_assesseur: t('publicApp.fighterProfile.arbitreAssesseur'),
+    arbitre_table: t('publicApp.fighterProfile.arbitreTable'),
+  };
+
+  const statusLabels: Record<AssignmentStatus, string> = {
+    assigned: t('publicApp.refereePublic.statusAssigned'),
+    confirmed: t('publicApp.refereePublic.statusConfirmed'),
+    declined: t('publicApp.refereePublic.statusDeclined'),
+  };
 
   const [assignments, setAssignments] = useState<RefereeAssignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,22 +111,20 @@ export default function RefereeDashboardPage() {
           className="font-display font-bold text-2xl sm:text-3xl"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
-          My Referee Duties
+          {t('publicApp.refereePublic.dutiesTitle')}
         </h1>
         <Link
           href={`/e/${eventSlug}/my-schedule`}
           className="text-sm text-gray-500 hover:text-gray-700 underline"
         >
-          My Schedule
+          {t('publicApp.refereePublic.mySchedule')}
         </Link>
       </div>
 
       {assignments.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-4xl mb-3">🏛️</p>
-          <p className="text-gray-400 text-sm">
-            No referee assignments yet. Check back once the organizer assigns referees.
-          </p>
+          <p className="text-gray-400 text-sm">{t('publicApp.refereePublic.noAssignments')}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -139,7 +145,7 @@ export default function RefereeDashboardPage() {
                     className="text-sm font-medium mt-0.5"
                     style={{ color: 'var(--event-primary, #c0392b)' }}
                   >
-                    {ROLE_LABELS[a.role] ?? a.role}
+                    {roleLabels[a.role] ?? a.role}
                   </p>
                 </div>
                 <span
@@ -148,7 +154,7 @@ export default function RefereeDashboardPage() {
                     STATUS_COLORS[a.status],
                   ].join(' ')}
                 >
-                  {a.status}
+                  {statusLabels[a.status]}
                 </span>
               </div>
 
@@ -164,7 +170,8 @@ export default function RefereeDashboardPage() {
                       <div>
                         <p className="font-medium text-gray-900">{m.matchNumberLabel}</p>
                         <p className="text-xs text-gray-500">
-                          {m.redFighterName ?? '?'} vs {m.blueFighterName ?? '?'}
+                          {m.redFighterName ?? '?'} {t('scoring.liveMatch.versus')}{' '}
+                          {m.blueFighterName ?? '?'}
                         </p>
                       </div>
                       {m.scheduledAt && (
@@ -190,7 +197,7 @@ export default function RefereeDashboardPage() {
                       className="flex-1 py-1.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50"
                       style={{ backgroundColor: 'var(--event-primary, #c0392b)' }}
                     >
-                      {updating === a.id ? '…' : 'Confirm'}
+                      {updating === a.id ? '…' : t('publicApp.refereePublic.confirm')}
                     </button>
                   )}
                   <button
@@ -198,7 +205,7 @@ export default function RefereeDashboardPage() {
                     disabled={updating === a.id}
                     className="flex-1 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-600 hover:border-gray-400 transition-colors disabled:opacity-50"
                   >
-                    Decline
+                    {t('publicApp.refereePublic.decline')}
                   </button>
                 </div>
               )}

@@ -8,6 +8,7 @@
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -70,9 +71,11 @@ export default async function ClubPage({ params }: Props) {
         <div>
           <p className="text-4xl mb-3">🏛️</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
-            Club not found
+            {t('publicApp.clubs.notFoundTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">No club with slug &ldquo;{slug}&rdquo;.</p>
+          <p className="text-gray-400 text-sm">
+            {t('publicApp.clubs.notFoundDescription', { slug })}
+          </p>
         </div>
       </main>
     );
@@ -104,7 +107,7 @@ export default async function ClubPage({ params }: Props) {
       {club.members.length > 0 && (
         <section className="mb-6">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
-            Members ({club.members.length})
+            {t('publicApp.clubs.members', { count: club.members.length })}
           </h2>
           <div className="flex flex-col gap-2">
             {club.members.map((m) => (
@@ -125,7 +128,7 @@ export default async function ClubPage({ params }: Props) {
       {club.recentResults.length > 0 && (
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
-            Recent results
+            {t('publicApp.clubs.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
             {club.recentResults.map((r) => {
@@ -139,7 +142,10 @@ export default async function ClubPage({ params }: Props) {
                   <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
                     <div>
                       <p className="text-sm font-medium text-white">
-                        {r.fighterName} vs {r.opponentName ?? '?'}
+                        {t('publicApp.clubs.versus', {
+                          fighter: r.fighterName,
+                          opponent: r.opponentName ?? '?',
+                        })}
                       </p>
                       {r.eventName && <p className="text-xs text-gray-500">{r.eventName}</p>}
                     </div>
@@ -166,7 +172,7 @@ export default async function ClubPage({ params }: Props) {
 
       {club.members.length === 0 && club.recentResults.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-sm">No data yet for this club.</p>
+          <p className="text-gray-500 text-sm">{t('publicApp.clubs.noData')}</p>
         </div>
       )}
     </main>

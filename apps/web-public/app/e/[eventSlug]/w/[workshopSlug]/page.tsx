@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 /**
@@ -95,7 +94,7 @@ export default function WorkshopDetailPage() {
       document.cookie.includes('mc_guest=') || document.cookie.includes('sb-access-token=');
 
     if (!hasCookie) {
-      setToast('Sign in to enroll in workshops.');
+      setToast(t('publicApp.workshopDetail.signInToEnroll'));
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -109,7 +108,10 @@ export default function WorkshopDetailPage() {
 
       if (res.ok) {
         const data = (await res.json()) as { status: string };
-        const msg = data.status === 'waitlisted' ? 'Added to waitlist' : 'Enrolled successfully';
+        const msg =
+          data.status === 'waitlisted'
+            ? t('publicApp.workshopDetail.addedToWaitlist')
+            : t('publicApp.workshopDetail.enrolledSuccess');
         setToast(msg);
         setTimeout(() => setToast(null), 3000);
 
@@ -121,7 +123,7 @@ export default function WorkshopDetailPage() {
         if (refreshRes.ok) setWorkshop((await refreshRes.json()) as Workshop);
       } else {
         const body = (await res.json()) as { message?: string };
-        setToast(body.message ?? 'Enrollment failed');
+        setToast(body.message ?? t('publicApp.workshopDetail.enrollmentFailed'));
         setTimeout(() => setToast(null), 3000);
       }
     } finally {
@@ -161,9 +163,13 @@ export default function WorkshopDetailPage() {
         <div>
           <p className="text-4xl mb-3">📚</p>
           <h1 className="mb-3 font-display text-2xl font-bold text-gray-900 sm:text-3xl">
-            Workshop not found
+            {t('publicApp.workshopDetail.notFound')}
           </h1>
-          <BackLink href={`/e/${eventSlug}/workshops`} label="Workshops" className="mx-auto" />
+          <BackLink
+            href={`/e/${eventSlug}/workshops`}
+            label={t('publicApp.eventHome.section.workshops')}
+            className="mx-auto"
+          />
         </div>
       </main>
     );
@@ -184,8 +190,11 @@ export default function WorkshopDetailPage() {
 
       {/* Back links — to the workshop list and the event home */}
       <div className="flex flex-wrap items-center gap-2">
-        <BackLink href={`/e/${eventSlug}/workshops`} label="Workshops" />
-        <BackLink href={`/e/${eventSlug}/home`} label="Event home" />
+        <BackLink
+          href={`/e/${eventSlug}/workshops`}
+          label={t('publicApp.eventHome.section.workshops')}
+        />
+        <BackLink href={`/e/${eventSlug}/home`} label={t('publicApp.workshopDetail.eventHome')} />
       </div>
 
       {/* Shared event identity band — matches the event home page. */}
@@ -233,7 +242,7 @@ export default function WorkshopDetailPage() {
           )}
           {workshop.durationMinutes != null && (
             <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-              {workshop.durationMinutes} min
+              {t('publicApp.workshops.durationMinutes', { count: workshop.durationMinutes })}
             </span>
           )}
         </div>
@@ -266,7 +275,7 @@ export default function WorkshopDetailPage() {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Sessions
+            {t('publicApp.workshopDetail.sessions')}
           </h2>
           <div className="flex flex-col gap-3">
             {workshop.sessions.map((session) => {
@@ -308,7 +317,10 @@ export default function WorkshopDetailPage() {
                       )}
                       {cap > 0 && (
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {session.confirmedCount}/{cap} enrolled
+                          {t('publicApp.workshopDetail.enrolledCount', {
+                            confirmed: session.confirmedCount,
+                            capacity: cap,
+                          })}
                         </p>
                       )}
                     </div>
@@ -316,11 +328,11 @@ export default function WorkshopDetailPage() {
                     <div className="flex-shrink-0">
                       {enrolled === 'confirmed' ? (
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                          ✓ Enrolled
+                          {t('publicApp.workshopDetail.enrolled')}
                         </span>
                       ) : enrolled === 'waitlisted' ? (
                         <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
-                          Waitlisted
+                          {t('publicApp.workshopDetail.waitlisted')}
                         </span>
                       ) : (
                         <Button
@@ -330,7 +342,9 @@ export default function WorkshopDetailPage() {
                           onClick={() => void handleEnroll(session.id)}
                           loading={enrolling === session.id}
                         >
-                          {isFull ? 'Join waitlist' : 'Add to schedule'}
+                          {isFull
+                            ? t('publicApp.workshopDetail.joinWaitlist')
+                            : t('publicApp.workshopDetail.addToSchedule')}
                         </Button>
                       )}
                     </div>

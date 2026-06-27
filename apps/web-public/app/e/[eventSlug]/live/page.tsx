@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- public live page, i18n tracked in backlog */
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +5,7 @@ import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface LiveMatch {
   id: string;
@@ -39,15 +39,17 @@ function scheduledTime(iso: string | null): string {
 }
 
 function LiveBadge() {
+  const { t } = useI18n();
   return (
     <span className="inline-flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-      LIVE
+      {t('publicApp.live.badge')}
     </span>
   );
 }
 
 function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
+  const { t } = useI18n();
   const isLive = match.status === 'running';
   return (
     <div
@@ -66,7 +68,8 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
       </div>
       <p className="text-sm font-bold text-white">{match.matchNumberLabel}</p>
       <p className="text-sm text-gray-300 mt-0.5">
-        {match.redFighterName ?? '?'} <span className="text-gray-500 text-xs">vs</span>{' '}
+        {match.redFighterName ?? '?'}{' '}
+        <span className="text-gray-500 text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
         {match.blueFighterName ?? '?'}
       </p>
       {match.tournamentName && <p className="text-xs text-gray-500 mt-1">{match.tournamentName}</p>}
@@ -75,6 +78,7 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
 }
 
 export default function LivePage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -162,9 +166,9 @@ export default function LivePage() {
         <div>
           <p className="text-4xl mb-3">📅</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
-            Schedule not available
+            {t('publicApp.live.scheduleUnavailableTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">No live schedule data found for this event.</p>
+          <p className="text-gray-400 text-sm">{t('publicApp.live.scheduleUnavailableBody')}</p>
         </div>
       </main>
     );
@@ -177,12 +181,12 @@ export default function LivePage() {
       return (
         <main className="flex min-h-screen items-center justify-center px-4 text-center">
           <div>
-            <p className="text-gray-400 text-sm">Lice not found.</p>
+            <p className="text-gray-400 text-sm">{t('publicApp.live.liceNotFound')}</p>
             <button
               onClick={() => router.push(`/e/${eventSlug}/live`)}
               className="mt-4 text-sm text-blue-400 hover:underline"
             >
-              ← Back to overview
+              ← {t('publicApp.live.backToOverview')}
             </button>
           </div>
         </main>
@@ -195,11 +199,13 @@ export default function LivePage() {
           onClick={() => router.push(`/e/${eventSlug}/live`)}
           className="text-sm text-gray-400 hover:text-white flex items-center gap-1 self-start"
         >
-          ← All pistes
+          ← {t('publicApp.live.allPistes')}
         </button>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Piste</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+            {t('publicApp.live.piste')}
+          </p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">{ls.lice.name}</h1>
         </div>
 
@@ -211,19 +217,19 @@ export default function LivePage() {
         )}
 
         {ls.runningMatch ? (
-          <MatchCard match={ls.runningMatch} label="Now fighting" />
+          <MatchCard match={ls.runningMatch} label={t('publicApp.live.nowFighting')} />
         ) : (
           <div className="rounded-xl p-4 bg-gray-800 border border-gray-700 text-center">
-            <p className="text-gray-400 text-sm">No active match</p>
+            <p className="text-gray-400 text-sm">{t('publicApp.live.noActiveMatch')}</p>
           </div>
         )}
 
         {ls.nextMatch && (
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-              Up next
+              {t('publicApp.live.upNext')}
             </p>
-            <MatchCard match={ls.nextMatch} label="Next" />
+            <MatchCard match={ls.nextMatch} label={t('publicApp.live.next')} />
           </div>
         )}
       </main>
@@ -239,7 +245,7 @@ export default function LivePage() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-            Live schedule
+            {t('publicApp.live.liveSchedule')}
           </p>
           {state.currentBlock ? (
             <>
@@ -253,15 +259,18 @@ export default function LivePage() {
           ) : state.nextBlock ? (
             <>
               <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-400">
-                Between sessions
+                {t('publicApp.live.betweenSessions')}
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                Next: {state.nextBlock.label} at {formatTime(state.nextBlock.startTime)}
+                {t('publicApp.live.nextBlock', {
+                  label: state.nextBlock.label,
+                  time: formatTime(state.nextBlock.startTime),
+                })}
               </p>
             </>
           ) : (
             <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-400">
-              No active session
+              {t('publicApp.live.noActiveSession')}
             </h1>
           )}
         </div>
@@ -270,7 +279,7 @@ export default function LivePage() {
 
       {/* Lice grid */}
       {state.lices.length === 0 ? (
-        <p className="text-gray-500 text-sm">No pistes configured for this event.</p>
+        <p className="text-gray-500 text-sm">{t('publicApp.live.noPistesConfigured')}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {state.lices.map((ls) => (
@@ -291,19 +300,19 @@ export default function LivePage() {
                   <p className="text-sm font-bold text-white">{ls.runningMatch.matchNumberLabel}</p>
                   <p className="text-sm text-gray-300 mt-0.5">
                     {ls.runningMatch.redFighterName ?? '?'}{' '}
-                    <span className="text-gray-500 text-xs">vs</span>{' '}
+                    <span className="text-gray-500 text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
                     {ls.runningMatch.blueFighterName ?? '?'}
                   </p>
                 </div>
               ) : ls.nextMatch ? (
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Next up</p>
+                  <p className="text-xs text-gray-500 mb-1">{t('publicApp.live.nextUp')}</p>
                   <p className="text-sm font-medium text-gray-300">
                     {ls.nextMatch.matchNumberLabel}
                   </p>
                   <p className="text-sm text-gray-400">
                     {ls.nextMatch.redFighterName ?? '?'}{' '}
-                    <span className="text-gray-500 text-xs">vs</span>{' '}
+                    <span className="text-gray-500 text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
                     {ls.nextMatch.blueFighterName ?? '?'}
                   </p>
                   {ls.nextMatch.scheduledAt && (
@@ -320,7 +329,9 @@ export default function LivePage() {
         </div>
       )}
 
-      <p className="text-xs text-gray-600 text-center">Updates automatically</p>
+      <p className="text-xs text-gray-600 text-center">
+        {t('publicApp.live.updatesAutomatically')}
+      </p>
     </main>
   );
 }

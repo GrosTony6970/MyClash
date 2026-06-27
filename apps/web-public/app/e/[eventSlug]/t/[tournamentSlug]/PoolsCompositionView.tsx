@@ -14,6 +14,7 @@
  */
 
 import { SkillBadge, tintTextClassFor } from '@myclash/ui';
+import { t } from '@myclash/i18n';
 import { groupPoolsByStart } from './pool-sections';
 
 export interface PoolMember {
@@ -106,7 +107,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
   if (pools.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
-        Pool rosters will be published before the event starts.
+        {t('publicApp.tournament.pools.rostersPending')}
       </p>
     );
   }
@@ -121,7 +122,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
             <h3 className={`text-xs font-semibold uppercase tracking-wider ${titleClass}`}>
               {section.startAt
                 ? `${formatDay(section.startAt)} · ${formatTime(section.startAt)}`
-                : 'Not scheduled'}
+                : t('publicApp.tournament.pools.notScheduled')}
             </h3>
             <span aria-hidden="true" className="h-px flex-1 bg-stone-200" />
           </header>
@@ -131,7 +132,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
               <a
                 key={pool.id}
                 href={`#poolmatches/${pool.id}`}
-                aria-label={`${pool.name} — view pool matches`}
+                aria-label={t('publicApp.tournament.pools.viewMatchesAria', { pool: pool.name })}
                 className="relative block overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-shadow hover:border-stone-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-300"
               >
                 <span
@@ -157,14 +158,16 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
                       </span>
                     )}
                     <span className="whitespace-nowrap text-xs uppercase tracking-wider text-slate-500">
-                      {pool.members.length} fighters
+                      {t('publicApp.tournament.fighterCount', { count: pool.members.length })}
                     </span>
                   </span>
                 </header>
 
                 <div className="px-4 py-3 pl-5">
                   {pool.members.length === 0 ? (
-                    <p className="text-sm italic text-slate-500">No members assigned yet.</p>
+                    <p className="text-sm italic text-slate-500">
+                      {t('publicApp.tournament.pools.noMembers')}
+                    </p>
                   ) : (
                     <ul className="flex flex-col divide-y divide-stone-100">
                       {pool.members.map((m) => (
@@ -175,7 +178,11 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
                           <span className="flex items-center gap-3 min-w-0">
                             <span
                               className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
-                              aria-label={m.seed !== null ? `Seed ${m.seed}` : 'Unseeded'}
+                              aria-label={
+                                m.seed !== null
+                                  ? t('publicApp.tournament.pools.seedAria', { seed: m.seed })
+                                  : t('publicApp.tournament.pools.unseeded')
+                              }
                             >
                               {m.seed ?? '—'}
                             </span>
@@ -197,7 +204,7 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
                 {pool.referees.length > 0 && (
                   <footer className="border-t border-stone-100 bg-stone-50/60 px-4 py-3 pl-5">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Referees
+                      {t('publicApp.tournament.pools.referees')}
                     </p>
                     <ul className="flex flex-col gap-1.5">
                       {pool.referees.map((r, idx) => (

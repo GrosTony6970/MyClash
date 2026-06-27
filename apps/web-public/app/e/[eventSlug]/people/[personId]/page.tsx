@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface PersonProfile {
   id: string;
@@ -52,6 +53,7 @@ interface PersonSchedule {
 }
 
 export default function PersonProfilePage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string; personId: string }>();
   const { eventSlug, personId } = params;
   const apiUrl = getApiUrl();
@@ -102,7 +104,7 @@ export default function PersonProfilePage() {
         localStorage.setItem(key, JSON.stringify([...stored, personId]));
       }
       setFollowing(true);
-      setToast('Saved locally. Sign in to sync across devices.');
+      setToast(t('publicApp.following.savedLocally'));
       setTimeout(() => setToast(null), 4000);
       return;
     }
@@ -126,12 +128,12 @@ export default function PersonProfilePage() {
         setFollowing(true);
       }
     } catch {
-      setToast('Could not update follow. Try again.');
+      setToast(t('publicApp.following.followUpdateError'));
       setTimeout(() => setToast(null), 3000);
     } finally {
       setFollowLoading(false);
     }
-  }, [following, eventSlug, personId, apiUrl]);
+  }, [following, eventSlug, personId, apiUrl, t]);
 
   if (loading) {
     return (
@@ -147,7 +149,7 @@ export default function PersonProfilePage() {
         <div>
           <p className="text-4xl mb-3">👤</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
-            Person not found
+            {t('publicApp.following.personNotFound')}
           </h1>
         </div>
       </main>
@@ -201,11 +203,13 @@ export default function PersonProfilePage() {
             ].join(' ')}
             style={!following ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
           >
-            {following ? 'Following ✓' : 'Follow'}
+            {following
+              ? t('publicApp.following.followingButton')
+              : t('publicApp.following.followButton')}
           </button>
         ) : (
           <p className="text-xs text-gray-600 flex-shrink-0 max-w-[120px] text-right">
-            This person prefers not to be followed
+            {t('publicApp.following.prefersNotFollowed')}
           </p>
         )}
       </div>
@@ -215,13 +219,15 @@ export default function PersonProfilePage() {
         <section className="mb-6">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            Live now
+            {t('publicApp.fighterProfile.liveNow')}
           </h2>
           {live.map((m) => (
             <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
               <div className="rounded-xl border-2 border-red-700 bg-red-950/30 p-4 mb-2">
                 <p className="text-xs text-gray-400 mb-1">{m.matchNumberLabel}</p>
-                <p className="font-bold text-white">vs {m.opponentName ?? '?'}</p>
+                <p className="font-bold text-white">
+                  {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
+                </p>
               </div>
             </Link>
           ))}
@@ -235,14 +241,16 @@ export default function PersonProfilePage() {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Upcoming
+            {t('publicApp.following.upcoming')}
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.map((m) => (
               <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
                 <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
                   <div>
-                    <p className="text-sm font-medium text-white">vs {m.opponentName ?? '?'}</p>
+                    <p className="text-sm font-medium text-white">
+                      {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
+                    </p>
                     <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
                   </div>
                   {m.scheduledAt && (
@@ -267,7 +275,7 @@ export default function PersonProfilePage() {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Referee duties
+            {t('publicApp.following.refereeDuties')}
           </h2>
           <div className="flex flex-col gap-2">
             {schedule.refereeSlots.map((s) => (
@@ -300,7 +308,7 @@ export default function PersonProfilePage() {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Results
+            {t('publicApp.following.results')}
           </h2>
           <div className="flex flex-col gap-2">
             {past.map((m) => {
@@ -311,7 +319,9 @@ export default function PersonProfilePage() {
                 <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
                   <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
                     <div>
-                      <p className="text-sm font-medium text-white">vs {m.opponentName ?? '?'}</p>
+                      <p className="text-sm font-medium text-white">
+                        {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
+                      </p>
                       <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -321,7 +331,9 @@ export default function PersonProfilePage() {
                           won ? 'bg-green-900 text-green-300' : 'bg-red-900/50 text-red-400',
                         ].join(' ')}
                       >
-                        {won ? 'W' : 'L'}
+                        {won
+                          ? t('publicApp.following.resultWin')
+                          : t('publicApp.following.resultLoss')}
                       </span>
                       <p className="text-sm font-mono font-bold text-white tabular-nums">
                         {myScore}–{oppScore}

@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; i18n strings tracked in backlog */
 'use client';
 
 /**
@@ -17,45 +16,46 @@
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 type Persona = 'competitor' | 'referee' | 'workshop_attendee' | 'accompanist' | 'public';
 
 interface PersonaOption {
   id: Persona;
-  label: string;
-  sublabel: string;
+  labelKey: string;
+  sublabelKey: string;
   emoji: string;
 }
 
 const PERSONAS: PersonaOption[] = [
   {
     id: 'competitor',
-    label: 'Competitor',
-    sublabel: "I'm fighting in this event",
+    labelKey: 'publicApp.onboarding.persona.competitor',
+    sublabelKey: 'publicApp.onboarding.persona.competitorSub',
     emoji: '⚔️',
   },
   {
     id: 'referee',
-    label: 'Referee',
-    sublabel: "I'm officiating matches",
+    labelKey: 'publicApp.onboarding.persona.referee',
+    sublabelKey: 'publicApp.onboarding.persona.refereeSub',
     emoji: '🏛️',
   },
   {
     id: 'workshop_attendee',
-    label: 'Workshop Attendee',
-    sublabel: "I'm attending workshops",
+    labelKey: 'publicApp.onboarding.persona.workshopAttendee',
+    sublabelKey: 'publicApp.onboarding.persona.workshopAttendeeSub',
     emoji: '📚',
   },
   {
     id: 'accompanist',
-    label: 'Accompanist',
-    sublabel: "I'm here to support someone",
+    labelKey: 'publicApp.onboarding.persona.accompanist',
+    sublabelKey: 'publicApp.onboarding.persona.accompanistSub',
     emoji: '👥',
   },
   {
     id: 'public',
-    label: 'Public',
-    sublabel: "I'm watching the event",
+    labelKey: 'publicApp.onboarding.persona.public',
+    sublabelKey: 'publicApp.onboarding.persona.publicSub',
     emoji: '👁️',
   },
 ];
@@ -65,6 +65,7 @@ interface Props {
 }
 
 export default function PersonaPage({ params }: Props) {
+  const { t } = useI18n();
   const router = useRouter();
   const [eventSlug, setEventSlug] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<Persona>>(new Set());
@@ -120,7 +121,7 @@ export default function PersonaPage({ params }: Props) {
       if (!res.ok) throw new Error('Failed to send link');
       setClaimSent(true);
     } catch {
-      setClaimError('Could not send link. Try again later.');
+      setClaimError(t('publicApp.onboarding.linkSendError'));
     }
   }
 
@@ -140,9 +141,9 @@ export default function PersonaPage({ params }: Props) {
           className="font-display font-bold text-2xl sm:text-3xl mb-1"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
-          How are you here today?
+          {t('publicApp.onboarding.persona.title')}
         </h1>
-        <p className="text-gray-400 text-sm">Select all that apply. You can change this later.</p>
+        <p className="text-gray-400 text-sm">{t('publicApp.onboarding.persona.subtitle')}</p>
       </div>
 
       {/* Persona grid */}
@@ -169,8 +170,8 @@ export default function PersonaPage({ params }: Props) {
                 {p.emoji}
               </span>
               <div className="flex-1">
-                <p className="font-semibold text-white">{p.label}</p>
-                <p className="text-sm text-gray-400">{p.sublabel}</p>
+                <p className="font-semibold text-white">{t(p.labelKey)}</p>
+                <p className="text-sm text-gray-400">{t(p.sublabelKey)}</p>
               </div>
               <span
                 className="w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
@@ -200,10 +201,7 @@ export default function PersonaPage({ params }: Props) {
       </div>
 
       {/* Note: personas are hints */}
-      <p className="text-xs text-gray-600 mb-6">
-        These are hints to personalise your experience. Your actual access is determined by your
-        registrations and qualifications.
-      </p>
+      <p className="text-xs text-gray-600 mb-6">{t('publicApp.onboarding.persona.hintNote')}</p>
 
       {/* Save button */}
       <button
@@ -213,26 +211,30 @@ export default function PersonaPage({ params }: Props) {
         className="w-full py-4 rounded-xl font-bold text-lg text-white mb-4 disabled:opacity-50 transition-colors"
         style={{ backgroundColor: 'var(--event-primary, #c0392b)' }}
       >
-        {saving ? 'Saving…' : selected.size === 0 ? 'Skip for now' : 'Continue →'}
+        {saving
+          ? t('publicApp.onboarding.persona.saving')
+          : selected.size === 0
+            ? t('publicApp.onboarding.persona.skipForNow')
+            : t('publicApp.onboarding.persona.continue')}
       </button>
 
       {/* Claim link */}
       <div className="border-t border-gray-800 pt-4">
         {claimSent ? (
           <p className="text-sm text-green-400 text-center">
-            ✓ Login link sent to your registered email.
+            {t('publicApp.onboarding.persona.loginLinkSent')}
           </p>
         ) : (
           <div className="text-center">
             <p className="text-xs text-gray-500 mb-2">
-              Want to access your account from any device?
+              {t('publicApp.onboarding.persona.accessAnyDevice')}
             </p>
             <button
               onClick={() => void handleRequestClaim()}
               aria-describedby={claimError ? 'claim-error' : undefined}
               className="text-sm underline text-gray-400 hover:text-white transition-colors"
             >
-              Send me a login link
+              {t('publicApp.onboarding.persona.sendLoginLink')}
             </button>
             {claimError && (
               <p id="claim-error" className="text-xs text-red-400 mt-1">

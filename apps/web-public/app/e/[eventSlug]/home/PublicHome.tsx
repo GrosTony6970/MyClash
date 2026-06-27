@@ -1,5 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-i18n public page; section labels/CTA are English-for-now (matches the workshops + workshop-detail public pages). */
-
 /**
  * PublicHome — T-604
  * Persona: public (default)
@@ -95,31 +93,35 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Participants
+            {tr('publicApp.people.title')}
           </h2>
           <Link
             href={`/e/${eventSlug}/participants`}
             className="group block max-w-sm rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
           >
             <p className="font-display text-xs font-bold uppercase tracking-widest text-slate-500">
-              Participants
+              {tr('publicApp.people.title')}
             </p>
             <p className="mt-2 flex items-baseline gap-2">
               <span className="text-4xl font-black tabular-nums text-slate-900">
                 {participantsCounts.active}
               </span>
-              <span className="text-sm text-slate-500">registered</span>
+              <span className="text-sm text-slate-500">
+                {tr('publicApp.eventHome.participants.registered')}
+              </span>
             </p>
             {participantsCounts.waitlist > 0 && (
               <p className="mt-1 flex items-baseline gap-2 border-t border-stone-200 pt-2">
                 <span className="text-2xl font-bold tabular-nums text-amber-700">
                   {participantsCounts.waitlist}
                 </span>
-                <span className="text-sm text-slate-500">on waitlist</span>
+                <span className="text-sm text-slate-500">
+                  {tr('publicApp.eventHome.participants.onWaitlist')}
+                </span>
               </p>
             )}
             <p className="mt-3 text-xs font-semibold text-red-700 group-hover:text-red-800">
-              View list →
+              {tr('publicApp.eventHome.participants.viewList')}
             </p>
           </Link>
         </section>
@@ -129,7 +131,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Tournaments
+              {tr('publicApp.eventHome.section.tournaments')}
             </h2>
             {tournaments.length > 3 && (
               <Link
@@ -241,7 +243,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {venues.length > 0 && (
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Venues
+            {tr('publicApp.eventHome.section.venues')}
           </h2>
           <div className={CARD_SCROLL_2}>
             {venues.map((v) => {
@@ -263,20 +265,27 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                     <div className="flex flex-wrap gap-1">
                       {v.hosts_tournament && (
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                          Tournament
+                          {tr('publicApp.eventHome.schedule.tournament')}
                         </span>
                       )}
                       {v.hosts_workshop && (
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
-                          Workshop
+                          {tr('publicApp.eventHome.schedule.workshop')}
                         </span>
                       )}
                     </div>
                   </div>
                   {v.venue_areas && v.venue_areas.length > 0 && (
                     <p className="text-xs text-slate-500">
-                      {v.venue_areas.length} area{v.venue_areas.length === 1 ? '' : 's'}:{' '}
-                      {v.venue_areas.map((a) => a.name).join(' · ')}
+                      {tr(
+                        v.venue_areas.length === 1
+                          ? 'publicApp.eventHome.venues.areaCountSingular'
+                          : 'publicApp.eventHome.venues.areaCountPlural',
+                        {
+                          count: v.venue_areas.length,
+                          names: v.venue_areas.map((a) => a.name).join(' · '),
+                        },
+                      )}
                     </p>
                   )}
                   {mapsHref && (
@@ -286,7 +295,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                       rel="noreferrer noopener"
                       className="text-xs font-semibold text-red-700 hover:text-red-800"
                     >
-                      Open in Google Maps →
+                      {tr('publicApp.eventHome.venues.openInMaps')}
                     </a>
                   )}
                 </article>
@@ -300,7 +309,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-            Live now
+            {tr('publicApp.eventHome.liveNow')}
           </h2>
           <div className="flex flex-col gap-3">
             {live.map((m) => (
@@ -335,7 +344,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {!isCompleted && upcoming.length > 0 && (
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Schedule highlights
+            {tr('publicApp.eventHome.scheduleHighlights')}
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.map((m) => (
@@ -347,7 +356,10 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      {m.redFighterName ?? '?'} vs {m.blueFighterName ?? '?'}
+                      {tr('publicApp.eventHome.matchVersus', {
+                        red: m.redFighterName ?? '?',
+                        blue: m.blueFighterName ?? '?',
+                      })}
                     </p>
                     <p className="text-xs text-slate-500">
                       {m.tournamentName} · {m.matchNumberLabel}
@@ -372,28 +384,26 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       <section className="border-t border-stone-200 pt-6">
         {isCompleted ? (
           <>
-            <p className="mb-3 text-sm text-slate-600">
-              This event is over. Browse the per-tournament results below.
-            </p>
+            <p className="mb-3 text-sm text-slate-600">{tr('publicApp.eventHome.cta.eventOver')}</p>
             {tournaments[0] && (
               <Link
                 href={`/e/${eventSlug}/t/${encodeURIComponent(tournaments[0].slug)}`}
                 className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
               >
-                View results →
+                {tr('publicApp.eventHome.cta.viewResults')}
               </Link>
             )}
           </>
         ) : (
           <>
             <p className="mb-3 text-sm text-slate-600">
-              Are you a participant? Find yourself in the list to get a personalised view.
+              {tr('publicApp.eventHome.cta.participantPrompt')}
             </p>
             <Link
               href={`/e/${eventSlug}/onboarding`}
               className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
             >
-              I&apos;m a participant →
+              {tr('publicApp.eventHome.cta.imAParticipant')}
             </Link>
           </>
         )}

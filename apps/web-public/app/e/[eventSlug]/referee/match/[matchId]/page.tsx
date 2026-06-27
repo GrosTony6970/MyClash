@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface MatchInfo {
   id: string;
@@ -40,18 +41,42 @@ type WarningReason =
   | 'excessive_force'
   | 'other';
 
-const WARNING_REASONS: { id: WarningReason; label: string }[] = [
-  { id: 'unsportsmanlike_conduct', label: 'Unsportsmanlike conduct' },
-  { id: 'illegal_technique', label: 'Illegal technique' },
-  { id: 'equipment_violation', label: 'Equipment violation' },
-  { id: 'excessive_force', label: 'Excessive force' },
-  { id: 'other', label: 'Other' },
+const WARNING_REASON_IDS: WarningReason[] = [
+  'unsportsmanlike_conduct',
+  'illegal_technique',
+  'equipment_violation',
+  'excessive_force',
+  'other',
 ];
 
 export default function RefereeMatchPage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string; matchId: string }>();
   const { eventSlug, matchId } = params;
   const apiUrl = getApiUrl();
+
+  const warningReasonLabels: Record<WarningReason, string> = {
+    unsportsmanlike_conduct: t('publicApp.refereePublic.warningReasons.unsportsmanlikeConduct'),
+    illegal_technique: t('publicApp.refereePublic.warningReasons.illegalTechnique'),
+    equipment_violation: t('publicApp.refereePublic.warningReasons.equipmentViolation'),
+    excessive_force: t('publicApp.refereePublic.warningReasons.excessiveForce'),
+    other: t('publicApp.refereePublic.warningReasons.other'),
+  };
+
+  const roleLabels: Record<string, string> = {
+    arbitre_declarant: t('publicApp.fighterProfile.arbitreDeclarant'),
+    arbitre_assesseur: t('publicApp.fighterProfile.arbitreAssesseur'),
+    arbitre_table: t('publicApp.fighterProfile.arbitreTable'),
+  };
+
+  const statusLabels: Record<string, string> = {
+    scheduled: t('scoring.liveMatch.status.scheduled'),
+    running: t('scoring.liveMatch.status.running'),
+    halted: t('publicApp.refereePublic.matchStatusHalted'),
+    paused: t('scoring.liveMatch.status.paused'),
+    completed: t('scoring.liveMatch.status.completed'),
+    voided: t('scoring.liveMatch.status.voided'),
+  };
 
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [refereeCtx, setRefereeCtx] = useState<RefereeContext | null>(null);
@@ -137,7 +162,10 @@ export default function RefereeMatchPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: 'Referee requests attention', role: refereeCtx?.role }),
+        body: JSON.stringify({
+          message: t('publicApp.refereePublic.attentionMessage'),
+          role: refereeCtx?.role,
+        }),
       });
     } finally {
       setActing(false);
@@ -161,10 +189,10 @@ export default function RefereeMatchPage() {
         <div>
           <p className="text-4xl mb-3">⚔️</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
-            Match not found
+            {t('publicApp.refereePublic.matchNotFound')}
           </h1>
           <Link href={`/e/${eventSlug}/referee`} className="text-sm text-gray-500 hover:underline">
-            ← Back to duties
+            ← {t('publicApp.refereePublic.backToDuties')}
           </Link>
         </div>
       </main>
@@ -178,7 +206,7 @@ export default function RefereeMatchPage() {
         href={`/e/${eventSlug}/referee`}
         className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
       >
-        ← Referee duties
+        ← {t('publicApp.refereePublic.refereeDuties')}
       </Link>
 
       {/* Match header */}
@@ -191,7 +219,8 @@ export default function RefereeMatchPage() {
         </h1>
         {refereeCtx && (
           <p className="text-sm text-gray-500 mt-0.5">
-            Your role: <strong>{refereeCtx.role.replace(/_/g, ' ')}</strong>
+            {t('publicApp.refereePublic.yourRole')}{' '}
+            <strong>{roleLabels[refereeCtx.role] ?? refereeCtx.role}</strong>
           </p>
         )}
       </div>
@@ -200,7 +229,9 @@ export default function RefereeMatchPage() {
       <div className="grid grid-cols-3 items-center gap-3 mb-6">
         <div className="text-center">
           <div className="bg-red-950 border-2 border-red-700 rounded-xl p-3">
-            <p className="text-xs text-red-300 font-bold uppercase mb-0.5">Rouge</p>
+            <p className="text-xs text-red-300 font-bold uppercase mb-0.5">
+              {t('publicApp.refereePublic.cornerRed')}
+            </p>
             <p className="font-bold text-white text-sm leading-tight">
               {match.redFighterName ?? '?'}
             </p>
@@ -208,12 +239,16 @@ export default function RefereeMatchPage() {
           <p className="text-4xl font-black text-red-400 mt-2 tabular-nums">{match.redScore}</p>
         </div>
         <div className="text-center">
-          <p className="text-gray-500 text-xl font-bold">VS</p>
-          <p className="text-xs text-gray-600 mt-1 uppercase tracking-widest">{match.status}</p>
+          <p className="text-gray-500 text-xl font-bold">{t('publicApp.refereePublic.vs')}</p>
+          <p className="text-xs text-gray-600 mt-1 uppercase tracking-widest">
+            {statusLabels[match.status] ?? match.status}
+          </p>
         </div>
         <div className="text-center">
           <div className="bg-blue-950 border-2 border-blue-700 rounded-xl p-3">
-            <p className="text-xs text-blue-300 font-bold uppercase mb-0.5">Bleu</p>
+            <p className="text-xs text-blue-300 font-bold uppercase mb-0.5">
+              {t('publicApp.refereePublic.cornerBlue')}
+            </p>
             <p className="font-bold text-white text-sm leading-tight">
               {match.blueFighterName ?? '?'}
             </p>
@@ -231,14 +266,14 @@ export default function RefereeMatchPage() {
             disabled={acting || match.status !== 'running'}
             className="py-4 rounded-xl font-bold text-lg bg-yellow-700 hover:bg-yellow-600 text-white disabled:opacity-40 transition-colors"
           >
-            Halt
+            {t('scoring.clock.halt')}
           </button>
           <button
             onClick={() => void clockAction('resume')}
             disabled={acting || match.status !== 'halted'}
             className="py-4 rounded-xl font-bold text-lg bg-green-700 hover:bg-green-600 text-white disabled:opacity-40 transition-colors"
           >
-            Resume
+            {t('scoring.clock.resume')}
           </button>
         </div>
 
@@ -249,7 +284,7 @@ export default function RefereeMatchPage() {
             disabled={acting}
             className="py-3 rounded-xl font-bold text-base bg-orange-700 hover:bg-orange-600 text-white disabled:opacity-40 transition-colors"
           >
-            Issue Warning
+            {t('publicApp.refereePublic.issueWarning')}
           </button>
         )}
 
@@ -259,17 +294,16 @@ export default function RefereeMatchPage() {
           disabled={acting}
           className="py-3 rounded-xl font-bold text-base border-2 border-gray-600 text-gray-300 hover:border-gray-400 disabled:opacity-40 transition-colors"
         >
-          🔔 Request Attention
+          🔔 {t('publicApp.refereePublic.requestAttention')}
         </button>
 
         {/* Table-specific tools */}
         {isTable && (
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-gray-400">
-            <p className="font-medium text-gray-300 mb-1">Scoring oversight</p>
-            <p className="text-xs">
-              Monitor exchange entries on the scoring tablet. Use Request Attention if a correction
-              is needed.
+            <p className="font-medium text-gray-300 mb-1">
+              {t('publicApp.refereePublic.scoringOversight')}
             </p>
+            <p className="text-xs">{t('publicApp.refereePublic.scoringOversightBody')}</p>
           </div>
         )}
       </div>
@@ -278,11 +312,15 @@ export default function RefereeMatchPage() {
       {showWarning && (
         <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-5">
-            <h2 className="text-lg font-bold text-white mb-4">Issue Warning</h2>
+            <h2 className="text-lg font-bold text-white mb-4">
+              {t('publicApp.refereePublic.issueWarning')}
+            </h2>
 
             {/* Target */}
             <div className="mb-4">
-              <p className="text-xs text-gray-400 mb-2">Target fighter</p>
+              <p className="text-xs text-gray-400 mb-2">
+                {t('publicApp.refereePublic.targetFighter')}
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {(['red', 'blue'] as const).map((color) => (
                   <button
@@ -298,8 +336,8 @@ export default function RefereeMatchPage() {
                     ].join(' ')}
                   >
                     {color === 'red'
-                      ? (match.redFighterName ?? 'Rouge')
-                      : (match.blueFighterName ?? 'Bleu')}
+                      ? (match.redFighterName ?? t('publicApp.refereePublic.cornerRed'))
+                      : (match.blueFighterName ?? t('publicApp.refereePublic.cornerBlue'))}
                   </button>
                 ))}
               </div>
@@ -307,20 +345,20 @@ export default function RefereeMatchPage() {
 
             {/* Reason */}
             <div className="mb-4">
-              <p className="text-xs text-gray-400 mb-2">Reason</p>
+              <p className="text-xs text-gray-400 mb-2">{t('publicApp.refereePublic.reason')}</p>
               <div className="flex flex-col gap-1.5">
-                {WARNING_REASONS.map((r) => (
+                {WARNING_REASON_IDS.map((id) => (
                   <button
-                    key={r.id}
-                    onClick={() => setWarningReason(r.id)}
+                    key={id}
+                    onClick={() => setWarningReason(id)}
                     className={[
                       'text-left px-3 py-2 rounded-lg text-sm border transition-colors',
-                      warningReason === r.id
+                      warningReason === id
                         ? 'border-orange-500 bg-orange-900/40 text-orange-200'
                         : 'border-gray-700 text-gray-400',
                     ].join(' ')}
                   >
-                    {r.label}
+                    {warningReasonLabels[id]}
                   </button>
                 ))}
               </div>
@@ -328,12 +366,14 @@ export default function RefereeMatchPage() {
 
             {/* Note */}
             <div className="mb-4">
-              <p className="text-xs text-gray-400 mb-1">Note (optional)</p>
+              <p className="text-xs text-gray-400 mb-1">
+                {t('publicApp.refereePublic.noteOptional')}
+              </p>
               <input
                 type="text"
                 value={warningNote}
                 onChange={(e) => setWarningNote(e.target.value)}
-                placeholder="Additional details…"
+                placeholder={t('publicApp.refereePublic.notePlaceholder')}
                 className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -343,14 +383,14 @@ export default function RefereeMatchPage() {
                 onClick={() => setShowWarning(false)}
                 className="flex-1 py-2 rounded-lg border border-gray-700 text-gray-400 text-sm"
               >
-                Cancel
+                {t('actions.cancel')}
               </button>
               <button
                 onClick={() => void issueWarning()}
                 disabled={acting}
                 className="flex-1 py-2 rounded-lg bg-orange-700 hover:bg-orange-600 text-white font-semibold text-sm disabled:opacity-50"
               >
-                {acting ? '…' : 'Issue Warning'}
+                {acting ? '…' : t('publicApp.refereePublic.issueWarning')}
               </button>
             </div>
           </div>

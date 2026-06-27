@@ -1,5 +1,4 @@
 /* eslint-disable @next/next/no-img-element -- storage host not whitelisted in next.config remotePatterns yet; plain <img> matches the rest of the public app. */
-/* eslint-disable myclash/no-literal-string -- pre-i18n public component; strings moved verbatim from PublicHome. */
 
 /**
  * EventHeader — the shared event identity band used across the public event
@@ -10,7 +9,7 @@
  * Presentational + a colocated `fetchEventInfo` loader. No hooks, so it renders
  * in both server (PublicHome) and client (workshop detail) components.
  */
-import { defaultLocale } from '@myclash/i18n';
+import { defaultLocale, t } from '@myclash/i18n';
 import { formatCountryName } from '@myclash/ui';
 
 export interface EventInfo {
@@ -96,7 +95,7 @@ export function EventHeader({ event }: { event: EventInfo }) {
     <>
       {event.heroImageUrl && (
         <section
-          aria-label="Event hero"
+          aria-label={t('publicApp.eventHome.eventHero')}
           className="relative -mx-4 aspect-[16/7] max-h-[200px] overflow-hidden rounded-none sm:aspect-[9/2] sm:rounded-xl"
         >
           {/* Decorative banner — the event name is in the H1 below, so alt="" is correct. */}
@@ -128,7 +127,7 @@ export function EventHeader({ event }: { event: EventInfo }) {
             {event.status === 'running' && (
               <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-                Live now
+                {t('publicApp.eventHome.liveNow')}
               </span>
             )}
 

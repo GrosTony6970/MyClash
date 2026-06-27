@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 export type TabKey =
   | 'participants'
@@ -62,6 +63,7 @@ const TAB_ORDER: TabKey[] = [
 ];
 
 export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
+  const { t: tr } = useI18n();
   const visibleTabs = tabs.filter((t) => t.visible);
   const visibleKeys = visibleTabs.map((t) => t.key);
   const activeClasses = activeTabClassesFor(colorToken);
@@ -126,7 +128,7 @@ export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
     <div className="flex flex-col gap-6">
       <div
         role="tablist"
-        aria-label="Tournament sections"
+        aria-label={tr('publicApp.tournament.tablistLabel')}
         className="flex flex-wrap items-center gap-1 border-b border-stone-200"
       >
         {visibleTabs.map((tab) => {

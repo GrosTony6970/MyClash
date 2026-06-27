@@ -15,6 +15,7 @@
 
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
+import { t } from '@myclash/i18n';
 import Link from 'next/link';
 
 interface Props {
@@ -23,7 +24,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tournamentSlug } = await params;
-  return { title: `Stats — ${tournamentSlug}` };
+  return { title: `${t('publicApp.tournamentStats.metaTitle')} — ${tournamentSlug}` };
 }
 
 // ── API types ─────────────────────────────────────────────────────────────────
@@ -141,13 +142,13 @@ export default async function StatsPage({ params }: Props) {
         <div>
           <p className="text-4xl mb-3">📊</p>
           <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
-            Stats not available
+            {t('publicApp.tournamentStats.unavailable')}
           </h1>
           <Link
             href={`/e/${eventSlug}/t/${tournamentSlug}`}
             className="text-sm text-gray-400 hover:underline"
           >
-            ← Back to tournament
+            ← {t('publicApp.tournamentStats.backToTournament')}
           </Link>
         </div>
       </main>
@@ -175,7 +176,7 @@ export default async function StatsPage({ params }: Props) {
             href={`/e/${eventSlug}/t/${tournamentSlug}`}
             className="text-sm text-gray-400 hover:text-gray-200 mb-1 inline-block"
           >
-            ← Tournament
+            ← {t('publicApp.tournamentStats.tournament')}
           </Link>
           <h1
             className="font-display text-2xl font-bold sm:text-3xl"
@@ -184,7 +185,7 @@ export default async function StatsPage({ params }: Props) {
               color: 'var(--event-primary, #c0392b)',
             }}
           >
-            Statistics
+            {t('publicApp.tournamentStats.title')}
           </h1>
         </div>
       </div>
@@ -193,11 +194,14 @@ export default async function StatsPage({ params }: Props) {
       {overview && (
         <div className="grid grid-cols-2 gap-3 mb-8 sm:grid-cols-4">
           {[
-            { label: 'Participants', value: overview.participantCount },
-            { label: 'Matches', value: overview.matchCount },
-            { label: 'Exchanges', value: overview.exchangeCount },
             {
-              label: 'Doubles',
+              label: t('publicApp.tournamentStats.heroParticipants'),
+              value: overview.participantCount,
+            },
+            { label: t('publicApp.tournamentStats.heroMatches'), value: overview.matchCount },
+            { label: t('publicApp.tournamentStats.heroExchanges'), value: overview.exchangeCount },
+            {
+              label: t('publicApp.tournamentStats.heroDoubles'),
               value: `${overview.doublesCount} (${overview.doublesPercent}%)`,
             },
           ].map(({ label, value }) => (
@@ -219,7 +223,7 @@ export default async function StatsPage({ params }: Props) {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Exchange distribution
+            {t('publicApp.tournamentStats.exchangeDistribution')}
           </h2>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
@@ -227,17 +231,17 @@ export default async function StatsPage({ params }: Props) {
                 {
                   n: totalClean,
                   color: 'bg-green-700',
-                  label: 'Clean',
+                  label: t('publicApp.tournamentStats.exchangeClean'),
                 },
                 {
                   n: totalAfterblows,
                   color: 'bg-orange-700',
-                  label: 'Afterblow',
+                  label: t('publicApp.tournamentStats.exchangeAfterblow'),
                 },
                 {
                   n: totalDoubles,
                   color: 'bg-red-800',
-                  label: 'Double',
+                  label: t('publicApp.tournamentStats.exchangeDouble'),
                 },
               ].map(({ n, color }) => (
                 <div
@@ -250,15 +254,15 @@ export default async function StatsPage({ params }: Props) {
             <div className="flex gap-4 text-xs text-gray-400">
               <span>
                 <span className="inline-block w-2 h-2 rounded-full bg-green-700 mr-1" />
-                Clean {pct(totalClean, totalEx)}
+                {t('publicApp.tournamentStats.exchangeClean')} {pct(totalClean, totalEx)}
               </span>
               <span>
                 <span className="inline-block w-2 h-2 rounded-full bg-orange-700 mr-1" />
-                Afterblow {pct(totalAfterblows, totalEx)}
+                {t('publicApp.tournamentStats.exchangeAfterblow')} {pct(totalAfterblows, totalEx)}
               </span>
               <span>
                 <span className="inline-block w-2 h-2 rounded-full bg-red-800 mr-1" />
-                Double {pct(totalDoubles, totalEx)}
+                {t('publicApp.tournamentStats.exchangeDouble')} {pct(totalDoubles, totalEx)}
               </span>
             </div>
           </div>
@@ -272,7 +276,7 @@ export default async function StatsPage({ params }: Props) {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Top fighters — blow ratio (mode-independent)
+            {t('publicApp.tournamentStats.topFightersTitle')}
           </h2>
           <div className="flex flex-col gap-2">
             {overview.topFighters.map((f, i) => (
@@ -295,8 +299,7 @@ export default async function StatsPage({ params }: Props) {
             ))}
           </div>
           <p className="text-xs text-gray-600 mt-2">
-            Blow ratio = blows given ÷ blows received. Counts all afterblows regardless of afterblow
-            mode (deductive or full).
+            {t('publicApp.tournamentStats.topFightersCaption')}
           </p>
         </section>
       )}
@@ -308,72 +311,80 @@ export default async function StatsPage({ params }: Props) {
             className="text-xs font-semibold uppercase tracking-wider mb-3"
             style={{ color: 'var(--event-accent, #f59e0b)' }}
           >
-            Detailed stats
+            {t('publicApp.tournamentStats.detailedStats')}
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-gray-800 text-gray-500">
-                  <th className="text-left py-2 pr-3 font-medium">Fighter</th>
-                  <th className="text-center py-2 px-1.5 font-medium" title="Doubles">
-                    Dbl
+                  <th className="text-left py-2 pr-3 font-medium">
+                    {t('publicApp.tournamentStats.colFighter')}
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium"
+                    title={t('publicApp.tournamentStats.colDoublesTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colDoubles')}
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-green-500"
-                    title="Clean 1pt given"
+                    title={t('publicApp.tournamentStats.colClean1GivenTitle')}
                   >
                     ✓1
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-orange-400"
-                    title="Afterblow 1pt given"
+                    title={t('publicApp.tournamentStats.colAfterblow1GivenTitle')}
                   >
                     ✓1-1
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-green-500"
-                    title="Clean 2pt given"
+                    title={t('publicApp.tournamentStats.colClean2GivenTitle')}
                   >
                     ✓2
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-orange-400"
-                    title="Afterblow 2pt given"
+                    title={t('publicApp.tournamentStats.colAfterblow2GivenTitle')}
                   >
                     ✓2-1
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-red-400"
-                    title="Clean 1pt received"
+                    title={t('publicApp.tournamentStats.colClean1ReceivedTitle')}
                   >
                     ✗1
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-red-300"
-                    title="Afterblow 1pt received (blow always counted)"
+                    title={t('publicApp.tournamentStats.colAfterblow1ReceivedTitle')}
                   >
                     ✗1-1
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-red-400"
-                    title="Clean 2pt received"
+                    title={t('publicApp.tournamentStats.colClean2ReceivedTitle')}
                   >
                     ✗2
                   </th>
                   <th
                     className="text-center py-2 px-1.5 font-medium text-red-300"
-                    title="Afterblow 2pt received (blow always counted)"
+                    title={t('publicApp.tournamentStats.colAfterblow2ReceivedTitle')}
                   >
                     ✗2-1
                   </th>
-                  <th className="text-center py-2 px-1.5 font-medium" title="Total exchanges">
-                    Tot
+                  <th
+                    className="text-center py-2 px-1.5 font-medium"
+                    title={t('publicApp.tournamentStats.colTotalTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colTotal')}
                   </th>
                   <th
                     className="text-right py-2 pl-2 font-medium"
-                    title="Blow ratio (mode-independent)"
+                    title={t('publicApp.tournamentStats.colRatioTitle')}
                   >
-                    Ratio
+                    {t('publicApp.tournamentStats.colRatio')}
                   </th>
                 </tr>
               </thead>
@@ -404,14 +415,14 @@ export default async function StatsPage({ params }: Props) {
                     <td className="text-center py-2 px-1.5 text-red-400">{fmt(f.hitsReceived1)}</td>
                     <td
                       className="text-center py-2 px-1.5 text-red-300"
-                      title="Blow always counted regardless of afterblow mode"
+                      title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
                     >
                       {fmt(f.afterblowReceived1)}
                     </td>
                     <td className="text-center py-2 px-1.5 text-red-400">{fmt(f.hitsReceived2)}</td>
                     <td
                       className="text-center py-2 px-1.5 text-red-300"
-                      title="Blow always counted regardless of afterblow mode"
+                      title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
                     >
                       {fmt(f.afterblowReceived2)}
                     </td>
@@ -425,8 +436,7 @@ export default async function StatsPage({ params }: Props) {
             </table>
           </div>
           <p className="text-xs text-gray-600 mt-2">
-            ✗1-1 and ✗2-1 columns count afterblow blows received regardless of afterblow mode. Ratio
-            = blows given ÷ blows received (blow-based, mode-independent).
+            {t('publicApp.tournamentStats.detailedStatsCaption')}
           </p>
         </section>
       )}
@@ -434,9 +444,7 @@ export default async function StatsPage({ params }: Props) {
       {fighters.length === 0 && (
         <div className="text-center py-16">
           <p className="text-4xl mb-3">📊</p>
-          <p className="text-gray-400 text-sm">
-            No stats yet. Stats appear once matches have been scored.
-          </p>
+          <p className="text-gray-400 text-sm">{t('publicApp.tournamentStats.emptyState')}</p>
         </div>
       )}
     </main>

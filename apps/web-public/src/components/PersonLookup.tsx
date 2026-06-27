@@ -48,9 +48,10 @@ export function PersonLookup({
   apiUrl,
   onSelect,
   onNotInList,
-  placeholder = 'Type your name…',
+  placeholder,
 }: PersonLookupProps) {
   const { t } = useI18n();
+  const resolvedPlaceholder = placeholder ?? t('publicApp.personLookup.searchPlaceholder');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PersonMatch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,13 +82,13 @@ export function PersonLookup({
         setResults(data);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        setError('Search failed. Check your connection.');
+        setError(t('publicApp.personLookup.searchFailed'));
         setResults([]);
       } finally {
         setLoading(false);
       }
     },
-    [eventId, apiUrl],
+    [eventId, apiUrl, t],
   );
 
   useEffect(() => {
@@ -110,7 +111,7 @@ export function PersonLookup({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           autoComplete="off"
           className="w-full bg-gray-900 border border-gray-700 text-white placeholder-gray-500
                      px-4 py-3 text-lg rounded-xl

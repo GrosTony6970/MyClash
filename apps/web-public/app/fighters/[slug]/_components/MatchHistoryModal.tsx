@@ -95,7 +95,7 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
           <button
             onClick={onClose}
             className="rounded p-1 text-gray-400 transition-colors hover:text-white"
-            aria-label="Close"
+            aria-label={t('actions.close')}
           >
             ✕
           </button>

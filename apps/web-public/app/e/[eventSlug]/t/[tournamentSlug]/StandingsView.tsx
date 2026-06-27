@@ -198,14 +198,14 @@ function OverallTable({ data }: { data: OverallResponse | null }) {
   if (!data) {
     return (
       <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
-        Loading…
+        {t('publicApp.tournament.loading')}
       </p>
     );
   }
   if (data.rows.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
-        No standings yet. Results will appear once pool matches are completed.
+        {t('publicApp.tournament.standings.emptyOverall')}
       </p>
     );
   }
@@ -215,7 +215,9 @@ function OverallTable({ data }: { data: OverallResponse | null }) {
         <thead>
           <tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-slate-500">
             <th className="w-12 py-2 pr-3 text-center font-semibold">#</th>
-            <th className="py-2 pr-3 text-left font-semibold">Fighter</th>
+            <th className="py-2 pr-3 text-left font-semibold">
+              {t('publicApp.tournament.standings.colFighter')}
+            </th>
             {data.columns.map((c) => (
               <th key={c.key} className="px-2 py-2 text-right font-semibold">
                 {c.label}

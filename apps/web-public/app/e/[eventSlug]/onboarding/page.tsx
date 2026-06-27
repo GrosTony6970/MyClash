@@ -17,6 +17,7 @@ import { useEffect, useReducer } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { PersonLookup, type PersonMatch } from '../../../../src/components/PersonLookup';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 // ── State machine ─────────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ interface Props {
 }
 
 export default function OnboardingPage({ params, searchParams }: Props) {
+  const { t } = useI18n();
   const router = useRouter();
   const [eventSlug, setEventSlug] = React.useState<string | null>(null);
   const [eventId, setEventId] = React.useState<string | null>(null);
@@ -101,14 +103,14 @@ export default function OnboardingPage({ params, searchParams }: Props) {
 
       if (!res.ok) {
         const data = (await res.json()) as { message?: string };
-        dispatch({ type: 'ERROR', error: data.message ?? 'Failed to create session' });
+        dispatch({ type: 'ERROR', error: data.message ?? t('publicApp.onboarding.sessionFailed') });
         return;
       }
 
       // Cookie set by server — redirect to persona selection
       router.push(`/e/${eventSlug}/onboarding/persona`);
     } catch {
-      dispatch({ type: 'ERROR', error: 'Network error. Please try again.' });
+      dispatch({ type: 'ERROR', error: t('publicApp.onboarding.networkError') });
     }
   }
 
@@ -128,9 +130,9 @@ export default function OnboardingPage({ params, searchParams }: Props) {
           className="font-display font-bold text-2xl sm:text-3xl mb-2"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
-          Welcome
+          {t('publicApp.onboarding.welcome')}
         </h1>
-        <p className="text-gray-400">Find yourself in the participant list to get started.</p>
+        <p className="text-gray-400">{t('publicApp.onboarding.findYourself')}</p>
       </div>
 
       {/* ── Step: Lookup ── */}
@@ -148,7 +150,7 @@ export default function OnboardingPage({ params, searchParams }: Props) {
         <div className="flex flex-col gap-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-              You selected
+              {t('publicApp.onboarding.youSelected')}
             </p>
             <p className="text-xl font-bold text-white">
               {state.selected.given_name} {state.selected.family_name}
@@ -160,8 +162,9 @@ export default function OnboardingPage({ params, searchParams }: Props) {
           </div>
 
           <p className="text-sm text-gray-400">
-            Is this you? Tap <strong className="text-white">Yes, that&apos;s me</strong> to
-            continue.
+            {t('publicApp.onboarding.isThisYouPrefix')}{' '}
+            <strong className="text-white">{t('publicApp.onboarding.yesThatsMe')}</strong>{' '}
+            {t('publicApp.onboarding.isThisYouSuffix')}
           </p>
 
           {state.error && (
@@ -177,7 +180,9 @@ export default function OnboardingPage({ params, searchParams }: Props) {
                          disabled:opacity-50"
             style={{ backgroundColor: 'var(--event-primary, #c0392b)' }}
           >
-            {state.step === 'creating_session' ? 'Setting up…' : "Yes, that's me"}
+            {state.step === 'creating_session'
+              ? t('publicApp.onboarding.settingUp')
+              : t('publicApp.onboarding.yesThatsMe')}
           </button>
 
           <button
@@ -186,7 +191,7 @@ export default function OnboardingPage({ params, searchParams }: Props) {
             className="w-full py-3 rounded-xl font-medium text-gray-400 hover:text-white
                          border border-gray-700 hover:border-gray-500 transition-colors"
           >
-            ← Search again
+            {t('publicApp.onboarding.searchAgain')}
           </button>
         </div>
       )}
@@ -196,15 +201,14 @@ export default function OnboardingPage({ params, searchParams }: Props) {
         <div className="flex flex-col gap-6">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5">
             <p className="text-gray-300 leading-relaxed italic">
-              Only people pre-registered by the organizer can use this app. If you should be in the
-              list, please find an organizer at the registration desk.
+              {t('publicApp.onboarding.notInListBody')}
             </p>
           </div>
           <button
             onClick={() => dispatch({ type: 'BACK' })}
             className="text-sm text-gray-500 hover:text-gray-300 underline self-start"
           >
-            ← Try searching again
+            {t('publicApp.onboarding.trySearchingAgain')}
           </button>
         </div>
       )}

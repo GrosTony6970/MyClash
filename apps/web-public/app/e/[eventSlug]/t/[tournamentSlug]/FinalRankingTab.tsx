@@ -1,3 +1,4 @@
+import { t } from '@myclash/i18n';
 import type { BracketSlot } from './page';
 
 interface PodiumLike {
@@ -29,7 +30,7 @@ export function FinalRankingTab({ isTournamentCompleted, podium, bracketSlots }:
   if (!isTournamentCompleted) {
     return (
       <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-slate-500">
-        Final ranking will appear here once every match is complete.
+        {t('publicApp.tournament.finalRankingPending')}
       </div>
     );
   }
@@ -95,7 +96,7 @@ export function FinalRankingTab({ isTournamentCompleted, podium, bracketSlots }:
   if (allEntries.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-slate-500">
-        Final ranking is being computed. Refresh in a moment.
+        {t('publicApp.tournament.finalRankingComputing')}
       </div>
     );
   }

@@ -21,6 +21,7 @@ import {
 } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import type { BracketSlot } from './page';
 
 interface Props {
@@ -70,6 +71,7 @@ export function BracketLive({
   podium,
   podiumDecided,
 }: Props) {
+  const { t } = useI18n();
   const router = useRouter();
   const [slots, setSlots] = useState<BracketSlot[]>(initialSlots);
   const [, startTransition] = useTransition();
@@ -144,7 +146,11 @@ export function BracketLive({
   const { bronze, mainSlots } = extractBronzeMatch(adminShapeSlots);
 
   return (
-    <div role="region" aria-label="Tournament bracket" aria-live="polite">
+    <div
+      role="region"
+      aria-label={t('publicApp.tournament.bracket.regionLabel')}
+      aria-live="polite"
+    >
       {podium && podiumDecided && (
         <div className="mb-6 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
@@ -169,11 +175,17 @@ export function BracketLive({
         onMatchClick={onMatchClick}
       />
       <p className="mt-4 text-xs text-slate-500">
-        {bracketSize}-fighter bracket
-        {mainBracketSize && mainBracketSize !== bracketSize && ` · main ${mainBracketSize}`}
-        {hasPlayInRound && playInMatchCount ? ` · ${playInMatchCount} play-in matches` : ''}
-        {byeCount ? ` · ${byeCount} byes` : ''}
-        {byeSeedCount ? ` · top ${byeSeedCount} seeded` : ''}
+        {t('publicApp.tournament.bracket.summarySize', { count: bracketSize })}
+        {mainBracketSize &&
+          mainBracketSize !== bracketSize &&
+          ` · ${t('publicApp.tournament.bracket.summaryMain', { count: mainBracketSize })}`}
+        {hasPlayInRound && playInMatchCount
+          ? ` · ${t('publicApp.tournament.bracket.summaryPlayIn', { count: playInMatchCount })}`
+          : ''}
+        {byeCount ? ` · ${t('publicApp.tournament.bracket.summaryByes', { count: byeCount })}` : ''}
+        {byeSeedCount
+          ? ` · ${t('publicApp.tournament.bracket.summarySeeded', { count: byeSeedCount })}`
+          : ''}
       </p>
     </div>
   );

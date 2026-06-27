@@ -1,5 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-i18n public page (matches the workshop detail page). */
-
 /**
  * Workshop catalog — T-803
  * Route: /e/[eventSlug]/workshops
@@ -10,6 +8,7 @@
  */
 
 import type { Metadata } from 'next';
+import { t } from '@myclash/i18n';
 import { BackLink } from '@/components/BackLink';
 import { getApiUrl } from '@/lib/api-url';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
@@ -21,7 +20,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventSlug } = await params;
-  return { title: `Workshops — ${eventSlug}` };
+  return { title: t('publicApp.workshops.metadataTitle', { name: eventSlug }) };
 }
 
 async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<WorkshopListItem[]> {
@@ -46,12 +45,16 @@ export default async function WorkshopsPage({ params }: Props) {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6">
-      <BackLink href={`/e/${eventSlug}/home`} label="Back to event home" className="mb-4" />
+      <BackLink
+        href={`/e/${eventSlug}/home`}
+        label={t('publicApp.eventHome.backToHome')}
+        className="mb-4"
+      />
       <h1
         className="mb-4 font-display text-2xl font-bold sm:text-3xl"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
       >
-        Workshops
+        {t('publicApp.eventHome.section.workshops')}
       </h1>
 
       <WorkshopsBrowser
