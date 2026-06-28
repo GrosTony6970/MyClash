@@ -57,10 +57,22 @@ async function fetchPenalties(matchId: string): Promise<MatchPenaltyRow[]> {
 
 interface Props {
   params: Promise<{ eventSlug: string; matchId: string }>;
+  searchParams: Promise<{ return?: string }>;
 }
 
-export default async function MatchPage({ params }: Props) {
-  const { matchId } = await params;
+/**
+ * Validate a `?return=` value before using it as a back-link href: accept only
+ * a root-relative path (`/x`, not the protocol-relative `//x`) — open-redirect
+ * hygiene, mirroring web-scoring's `safeReturnHref`.
+ */
+function safeReturnHref(raw: string | undefined): string | null {
+  if (!raw) return null;
+  return raw.startsWith('/') && !raw.startsWith('//') ? raw : null;
+}
+
+export default async function MatchPage({ params, searchParams }: Props) {
+  const { eventSlug, matchId } = await params;
+  const { return: returnParam } = await searchParams;
 
   const [match, summary, exchanges, penalties] = await Promise.all([
     fetchMatch(matchId),
@@ -71,6 +83,11 @@ export default async function MatchPage({ params }: Props) {
 
   if (!match) notFound();
 
+  // Back leads to the pool-matches list when we arrived with a valid `return`,
+  // otherwise to the event home so the affordance always renders.
+  const validReturn = safeReturnHref(returnParam);
+  const backHref = validReturn ?? `/e/${eventSlug}/home`;
+
   return (
     <MatchLiveView
       matchId={matchId}
@@ -79,6 +96,8 @@ export default async function MatchPage({ params }: Props) {
       initialExchanges={exchanges}
       initialPenalties={penalties}
       apiUrl={API_URL}
+      backHref={backHref}
+      backToMatchList={validReturn !== null}
     />
   );
 }

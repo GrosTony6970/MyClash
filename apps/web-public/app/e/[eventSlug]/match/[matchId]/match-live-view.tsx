@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMatchClock } from '@myclash/ui';
 import { formatInZone } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
+import { BackLink } from '@/components/BackLink';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { showReconnecting } from './show-reconnecting';
 import { resolveMatchWinner } from './resolve-match-winner';
@@ -111,7 +112,6 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
       <div className="flex items-start justify-between gap-4">
         {/* Red side */}
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
-          <div className="h-3 w-3 rounded-full bg-red-600" />
           <span className={`text-6xl font-bold tabular-nums ${scoreClass('red')}`}>
             {match.redScore}
           </span>
@@ -126,7 +126,6 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
 
         {/* Blue side */}
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
-          <div className="h-3 w-3 rounded-full bg-blue-600" />
           <span className={`text-6xl font-bold tabular-nums ${scoreClass('blue')}`}>
             {match.blueScore}
           </span>
@@ -243,15 +242,19 @@ function ExchangeFeed({
         {active.map((ex) => (
           <li
             key={ex.id}
-            className="flex items-baseline justify-between rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm shadow-xs"
+            className="rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm shadow-xs"
           >
-            <span className="mr-3 text-xs tabular-nums text-gray-400">#{ex.sequence}</span>
-            <span className="flex-1">
-              <ExchangeLabel exchange={ex} redName={redName} blueName={blueName} />
-            </span>
-            <span className="ml-3 tabular-nums text-xs text-gray-400">
+            <div className="flex items-baseline gap-2">
+              <span className="w-6 shrink-0 font-mono text-xs tabular-nums text-gray-400">
+                #{ex.sequence}
+              </span>
+              <span className="flex-1">
+                <ExchangeLabel exchange={ex} redName={redName} blueName={blueName} />
+              </span>
+            </div>
+            <p className="ml-8 mt-0.5 text-xs tabular-nums text-gray-400">
               {formatMatchClock(ex.clockTimeMs)}
-            </span>
+            </p>
           </li>
         ))}
       </ol>
@@ -351,6 +354,10 @@ interface Props {
   initialExchanges: ExchangeRow[];
   initialPenalties: MatchPenaltyRow[];
   apiUrl: string;
+  /** Where the top back-link leads (validated root-relative path). */
+  backHref: string;
+  /** True when `backHref` returns to the pool-matches list (vs. event home). */
+  backToMatchList: boolean;
 }
 
 export function MatchLiveView({
@@ -360,6 +367,8 @@ export function MatchLiveView({
   initialExchanges,
   initialPenalties,
   apiUrl,
+  backHref,
+  backToMatchList,
 }: Props) {
   const { t } = useI18n();
   const [match, setMatch] = useState<MatchRow>(initialMatch);
@@ -471,6 +480,16 @@ export function MatchLiveView({
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
+      <BackLink
+        href={backHref}
+        label={
+          backToMatchList
+            ? t('scoring.lice.backToMatchList')
+            : t('publicApp.tournament.backToEventHome')
+        }
+        className="mb-4"
+      />
+
       {/* Connection indicator — only for a live match that lost its channel. */}
       {showReconnecting(connected, match.status) && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-yellow-50 px-4 py-2 text-sm text-yellow-700">

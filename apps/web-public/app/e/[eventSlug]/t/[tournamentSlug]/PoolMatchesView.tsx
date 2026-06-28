@@ -311,7 +311,13 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                 </thead>
                 <tbody>
                   {pool.matches.map((m) => {
-                    const openMatch = () => router.push(`/e/${eventSlug}/match/${m.matchId}`);
+                    // Carry where "back" leads so the match page can return the
+                    // spectator to this exact pool-matches tab.
+                    const returnTo = encodeURIComponent(
+                      `/e/${eventSlug}/t/${tournamentSlug}#poolmatches`,
+                    );
+                    const openMatch = () =>
+                      router.push(`/e/${eventSlug}/match/${m.matchId}?return=${returnTo}`);
                     const winner = poolMatchWinner(m);
                     return (
                       <tr
