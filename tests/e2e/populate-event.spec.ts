@@ -151,11 +151,16 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const shared = rest.slice(0, 15); // in Longsword + Sidesword + referees
   const aOnly = rest.slice(15, 31); // 16 → Longsword only
   const bOnly = rest.slice(31, 48); // 17 → Sidesword only
-  const refOnly = rest.slice(48, 57); // 9 → referee only
-  const instructors = rest.slice(57, 63); // 6 → workshop instructors
+  // 12 PURE (non-fighting) referees — the max concurrent slots in any window
+  // (4 lices × 3 roles). They're free in every window (pools day 1, bracket day 2),
+  // so 12 are exactly enough to fill every position; the 15 shared + Anthony also
+  // referee but fight the day-1 pools, so they can't cover those parallel windows.
+  const refOnly = rest.slice(48, 60); // 12 → referee only (free all day)
+  const instructors = rest.slice(60, 66); // 6 → workshop instructors
+  const extras = rest.slice(66); // leftover roster → tournament waiting lists
   const fightersA = [anthony, ...shared, ...aOnly]; // 32, Longsword (incl. Anthony)
   const fightersB = [...shared, ...bOnly]; // 32, Sidesword
-  const referees = [anthony, ...shared, ...refOnly]; // 25 (Anthony + the 15 shared + 9)
+  const referees = [anthony, ...shared, ...refOnly]; // 28 (Anthony + 15 shared + 12 pure)
   console.log(
     `  → ${persons.length} persons: ${fightersA.length}+${fightersB.length} fighters, ${referees.length} referees, ${instructors.length} instructors ` +
       `(${shared.length} fight both tournaments AND referee; Anthony fights + referees)`,
@@ -178,23 +183,53 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     ),
   );
 
+  // ── Venue find-or-create ─────────────────────────────────────────────────────
+  // Venues are org-scoped and UNIQUE(organization_id, name); they persist across
+  // runs (and can't be deleted once their lices have scored matches). So the demo
+  // names stay clean (no per-run token) and uniqueness is met by REUSING an
+  // existing venue / area by name rather than recreating it (which would 409).
+  // Event lices have no unique constraint and are recreated for each fresh event,
+  // so pointing this run's pistes at a reused venue is safe.
+  const findOrCreateVenue = async (data: {
+    name: string;
+    address: string;
+    hostsTournament: boolean;
+    hostsWorkshop: boolean;
+  }): Promise<{ id: string; name: string }> => {
+    const existing = (
+      (await (await reqOk(await get(`organizations/${orgId}/venues`))).json()) as Array<{
+        id: string;
+        name: string;
+      }>
+    ).find((v) => v.name === data.name);
+    if (existing) return existing;
+    return (await reqOk(await post(`organizations/${orgId}/venues`, { data }))).json();
+  };
+  const findOrCreateArea = async (
+    venueId: string,
+    data: { name: string; sortOrder: number },
+  ): Promise<{ id: string } | null> => {
+    const vRes = await get(`venues/${venueId}`);
+    if (vRes.ok()) {
+      const venue = (await vRes.json()) as { venue_areas?: Array<{ id: string; name: string }> };
+      const existing = (venue.venue_areas ?? []).find((a) => a.name === data.name);
+      if (existing) return existing;
+    }
+    const aRes = await post(`venues/${venueId}/areas`, { data });
+    return aRes.ok() ? ((await aRes.json()) as { id: string }) : null;
+  };
+
   // ── Tournament venue (Centre Sportif et de Loisirs) with 4 pistes ────────────
   // The 4 event lices are created AT this venue, so every match's venue derives
   // via matches.lice_id → lices.venue_id. Each tournament's phases are then
   // pinned to it below via PUT /tournaments/:id/phase-venues.
   const tournamentVenue = await step('create tournament venue', async () =>
-    (
-      await reqOk(
-        await post(`organizations/${orgId}/venues`, {
-          data: {
-            name: `Centre Sportif et de Loisirs ${tok}`,
-            address: 'Rue Jean Rigaud, 69130 Écully',
-            hostsTournament: true,
-            hostsWorkshop: false,
-          },
-        }),
-      )
-    ).json(),
+    findOrCreateVenue({
+      name: 'Centre Sportif et de Loisirs',
+      address: 'Rue Jean Rigaud, 69130 Écully',
+      hostsTournament: true,
+      hostsWorkshop: false,
+    }),
   );
   const tournamentVenueId = tournamentVenue?.id as string | undefined;
 
@@ -220,11 +255,28 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   await adminBlock('Registration & Gear Check', '08:00', '08:45');
   await adminBlock('Referee meeting', '08:45', '09:00');
 
+  // Default penalty ruleset = the built-in FFAMHE one, mirroring what the
+  // create-tournament wizard pre-selects (apps/web-admin .../_wizard/wizard-defaults.ts:
+  // prefer built_in, else code 'ffamhe_tf_2026'). null → omit it and let the API
+  // apply the built-in default at runtime.
+  const penaltyRulesetId =
+    (await step('resolve default penalty ruleset', async () => {
+      const list = (await (await reqOk(await get('penalty-rulesets'))).json()) as Array<{
+        id: string;
+        built_in?: boolean;
+        code?: string;
+      }>;
+      const def = list.find((r) => r.built_in) ?? list.find((r) => r.code === 'ffamhe_tf_2026');
+      if (!def) throw new Error('no built-in penalty ruleset visible');
+      return def.id;
+    })) ?? null;
+
   // ── Build one tournament (structure only — matches played later) ──────────────
   const buildTournament = async (
     name: string,
     weapon: string,
     fighters: Person[],
+    waitlist: Person[],
     startHour: string,
     color: string,
   ): Promise<{ id: string; poolIds: string[] }> => {
@@ -232,7 +284,16 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       (
         await reqOk(
           await post(`events/${eventId}/tournaments`, {
-            data: { name, slug: `${weapon}-open-${tok}`, weapon, color },
+            data: {
+              name,
+              slug: `${weapon}-open-${tok}`,
+              weapon,
+              color,
+              // Cap at 32 seats with a 10-deep waiting list, default penalty ruleset.
+              maxParticipants: 32,
+              maxWaitlist: 10,
+              ...(penaltyRulesetId ? { penaltyRulesetId } : {}),
+            },
           }),
         )
       ).json(),
@@ -259,6 +320,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         data: { personId: p.id },
       });
       if (r.ok()) reg++;
+    }
+    // Seat a few extras on the waiting list (the 32 fighters fill maxParticipants,
+    // so these go via the dedicated waitlist endpoint, not the registration cap).
+    let wl = 0;
+    for (const p of waitlist) {
+      const r = await post(`tournaments/${tournamentId}/waitlist`, {
+        data: { personId: p.id },
+      });
+      if (r.ok()) wl++;
     }
     await step(`${name}: 4 pools`, async () =>
       reqOk(await post(`tournaments/${tournamentId}/generate-pools`, { data: { poolCount: 4 } })),
@@ -303,7 +373,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         }),
       ),
     );
-    console.log(`  → ${name}: ${reg} fighters, ${poolIds.length} pools, deductive afterblow`);
+    console.log(
+      `  → ${name}: ${reg} fighters, ${poolIds.length} pools, ${wl} waitlisted, deductive afterblow`,
+    );
     return { id: tournamentId, poolIds }; // publish later — published pools aren't editable
   };
 
@@ -313,7 +385,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // with a running cursor that only ever pushes a block LATER (never earlier), so
   // pool matches can never land before 09:00 — i.e. they never overlap
   // Registration & Gear Check or the Referee meeting.
-  const long = await buildTournament('Longsword Open', 'longsword', fightersA, '09', 'red');
+  const long = await buildTournament(
+    'Longsword Open',
+    'longsword',
+    fightersA,
+    extras.slice(0, 6),
+    '09',
+    'red',
+  );
   // Lunch break between the two tournaments. Created BETWEEN the buildTournament
   // calls so its sort_order lands between the Longsword (sort_order 2) and
   // Sidesword (sort_order 4) pool blocks; generate's cursor slides it to 12:00
@@ -332,7 +411,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       }),
     ),
   );
-  const side = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13', 'blue');
+  const side = await buildTournament(
+    'Sidesword Open',
+    'sidesword',
+    fightersB,
+    extras.slice(6, 12),
+    '13',
+    'blue',
+  );
   const allPoolIds = [...long.poolIds, ...side.poolIds];
   const tournamentIds = [long.id, side.id].filter(Boolean);
 
@@ -365,7 +451,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
   }
 
-  // ── 25 referees: register → resolve global ids → skills → assign ───────────────
+  // ── Referees: register → resolve global ids → grant every qualification ────────
+  // Assignment itself runs once at the very end (fillReferees), after BOTH the
+  // pools and the day-2 bracket are scheduled, so the conflict-aware board can
+  // fill every pool AND bracket slot in one pass.
   let rReg = 0;
   for (const r of referees) {
     const reg = await post(`events/${eventId}/referees/${r.id}`);
@@ -373,7 +462,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   const globalOf = new Map((await listPersons()).map((p) => [p.id, p.globalPersonId ?? p.id]));
   const refId = (p: Person) => globalOf.get(p.id) ?? gid(p);
-  console.log(`  ✓ registered ${rReg}/25 referees`);
+  console.log(`  ✓ registered ${rReg}/${referees.length} referees`);
 
   let rSkill = 0;
   for (const r of referees) {
@@ -384,27 +473,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       if (q.ok()) rSkill++;
     }
   }
-  console.log(`  ✓ granted ${rSkill} referee skills`);
-
-  // Assign referees to each pool's role slots via the board's manual-assign
-  // endpoint (the "click a slot → pick a referee" tab action). Round-robin the
-  // 25 referees across 8 pools × 3 roles.
-  let assigned = 0;
-  let ri = 0;
-  for (const poolId of allPoolIds) {
-    for (const role of SKILLS) {
-      const ref = referees[ri % Math.max(referees.length, 1)];
-      ri++;
-      if (!ref) continue;
-      const res = await post(`events/${eventId}/referee-assignments`, {
-        data: { poolId, role, personId: refId(ref) },
-      });
-      if (res.ok()) assigned++;
-      else if (assigned === 0 && ri <= 2)
-        console.log(`    ↳ assign failed: ${res.status()} ${(await res.text()).slice(0, 200)}`);
-    }
-  }
-  console.log(`  ✓ assigned ${assigned} referee slots across ${allPoolIds.length} pools`);
+  console.log(`  ✓ granted ${rSkill} referee skills (all 3 roles each → interchangeable)`);
 
   // ── Play every pool match: clean hits, afterblows, cards ───────────────────────
   // Scores are derived from exchanges; the API never infers the winner, so we
@@ -758,29 +827,113 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
   );
 
-  // ── Workshop venue + area, a midday break, then 6 scheduled workshops ───────────
-  const venue = await step('create workshop venue', async () =>
-    (
-      await reqOk(
-        await post(`organizations/${orgId}/venues`, {
+  // ── Schedule each bracket on day 2 (dayIndex 1) ────────────────────────────────
+  // Bracket matches exist now (played above). One competition block per tournament
+  // on day 2 + a day-2-scoped generate times them across the 4 lices WITHOUT
+  // touching the day-1 pools or their per-pool lice pinning. Longsword 09:00,
+  // Sidesword 13:00 → the per-day cursor sequences them, so never >4 concurrent
+  // (≤12 referee slots at any instant). generate schedules already-played matches
+  // too (fetchCompetitionMatches has no status filter).
+  for (const t of [long, side].filter((x) => x.id)) {
+    const name = t === long ? 'Longsword Open' : 'Sidesword Open';
+    const startHour = t === long ? '09' : '13';
+    await step(`${name}: bracket block (day 2)`, async () =>
+      reqOk(
+        await post(`events/${eventId}/programme/blocks`, {
           data: {
-            name: `Gymnase des Cerisiers ${tok}`,
-            address: '4 Rue Jean Rigaud, 69130 Écully',
-            hostsWorkshop: true,
-            hostsTournament: false,
+            dayIndex: 1,
+            blockType: 'competition',
+            label: `${name} — Bracket`,
+            startTime: `${startHour}:00`,
+            endTime: `${Number(startHour) + 4}:00`,
+            liceCount: liceIds.length,
+            matchGapSeconds: 30,
+            matchDurationMinutes: 5,
+            minRestMinutes: 0,
+            competitionId: t.id,
+            competitionPhase: 'bracket',
           },
         }),
-      )
+      ),
+    );
+  }
+  const genB = (await step('schedule brackets on day 2', async () =>
+    (
+      await reqOk(await post(`events/${eventId}/programme/generate`, { data: { dayIndices: [1] } }))
     ).json(),
+  )) as { matchesScheduled?: number } | null;
+  console.log(`    ↳ bracket matchesScheduled: ${genB?.matchesScheduled}`);
+
+  // ── Fill EVERY referee position (pools + bracket) ──────────────────────────────
+  // Pools (day 1) and brackets (day 2) are both scheduled now, so the conflict-aware
+  // assignment board exposes every slot with a time window. The product's auto-assign
+  // engine does a bulk optimal pass; then a deterministic top-up assigns from each
+  // open slot's board-computed `candidates.recommended` (already filtered for
+  // fighting / double-booking / qualification), re-reading the board each pass so
+  // freshly-used referees drop out — converging on 100% coverage.
+  type BoardSlot = {
+    role: string;
+    assignment: unknown | null;
+    candidates?: { recommended?: Array<{ personId: string }> };
+  };
+  type BoardPool = { id: string; roleSlots: BoardSlot[] };
+  const getBoard = async () =>
+    (await (await reqOk(await get(`events/${eventId}/referee-assignment-board`))).json()) as {
+      pools: BoardPool[];
+      unscheduledPools?: BoardPool[];
+    };
+
+  await step('auto-assign referees (engine)', async () =>
+    reqOk(await post(`events/${eventId}/auto-assign-referees?dryRun=false`)),
+  );
+
+  for (let pass = 0; pass < 20; pass++) {
+    const board = await getBoard();
+    const open = board.pools.flatMap((p) =>
+      p.roleSlots
+        .filter((s) => !s.assignment)
+        .map((s) => ({ poolId: p.id, role: s.role, recommended: s.candidates?.recommended ?? [] })),
+    );
+    if (open.length === 0) break;
+    const usedThisPass = new Set<string>();
+    let did = 0;
+    for (const slot of open) {
+      const cand = slot.recommended.find((c) => !usedThisPass.has(c.personId));
+      if (!cand) continue;
+      usedThisPass.add(cand.personId);
+      const res = await post(`events/${eventId}/referee-assignments`, {
+        data: { poolId: slot.poolId, role: slot.role, personId: cand.personId },
+      });
+      if (res.ok()) did++;
+    }
+    if (did === 0) break; // remaining open slots have no available candidate
+  }
+
+  const finalBoard = await getBoard();
+  const allSlots = finalBoard.pools.flatMap((p) => p.roleSlots);
+  const filled = allSlots.filter((s) => s.assignment).length;
+  const unscheduled = (finalBoard.unscheduledPools ?? []).length;
+  console.log(
+    `  ✓ referees: ${filled}/${allSlots.length} slots filled` +
+      (filled < allSlots.length ? ` (${allSlots.length - filled} unfillable)` : '') +
+      (unscheduled ? ` — ${unscheduled} unscheduled pool(s) skipped` : ''),
+  );
+
+  // ── Workshop venue + area, a midday break, then 6 scheduled workshops ───────────
+  const venue = await step('create workshop venue', async () =>
+    findOrCreateVenue({
+      name: 'Gymnase des Cerisiers',
+      address: '4 Rue Jean Rigaud, 69130 Écully',
+      hostsWorkshop: true,
+      hostsTournament: false,
+    }),
   );
   const venueId = venue?.id as string | undefined;
   const areaIds: string[] = [];
   if (venueId) {
     for (let i = 1; i <= 1; i++) {
-      const a = await post(`venues/${venueId}/areas`, {
-        data: { name: `Area ${i}`, sortOrder: i },
-      });
-      if (a.ok()) areaIds.push(((await a.json()) as { id: string }).id);
+      const a = await findOrCreateArea(venueId, { name: `Area ${i}`, sortOrder: i });
+      if (a) areaIds.push(a.id);
     }
   }
 
