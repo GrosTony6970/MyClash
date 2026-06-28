@@ -230,16 +230,14 @@ export function ScoringPad({
   }
 
   function onAfterblowBtn(color: Color, btn: AfterblowButton) {
-    const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
-      config.afterblowMode,
-      btn.attackerPts,
-      btn.defenderPts,
-    );
+    // Send the RAW button values; the server nets per the tournament's
+    // afterblow mode when deriving scores. The pills below still preview the
+    // netted result via computeAfterblowDeltas.
     void submit({
       type: 'afterblow',
       firstStrikerColor: color,
-      firstStrikeValue: attackerDelta,
-      afterblowValue: defenderDelta,
+      firstStrikeValue: btn.attackerPts,
+      afterblowValue: btn.defenderPts,
     });
   }
 

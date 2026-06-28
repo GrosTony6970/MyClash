@@ -225,6 +225,33 @@ export class MatchesController {
   }
 
   /**
+   * POST /api/v1/matches/:id/rounds/advance
+   * Start the next round of a best-of-N match (scorekeeper+). Resets the clock.
+   */
+  @Post('matches/:id/rounds/advance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Advance to the next round in a best-of-N match (scorekeeper+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async advanceRound(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.advanceRound(id, actor);
+  }
+
+  /**
+   * POST /api/v1/matches/:id/rounds/end
+   * End the current round on time in a best-of-N match (scorekeeper+). The round
+   * winner is whoever leads; a tied round is rejected (play a sudden-death point).
+   */
+  @Post('matches/:id/rounds/end')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'End the current round on time in a best-of-N match (scorekeeper+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async endRound(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.endRoundOnTime(id, actor);
+  }
+
+  /**
    * PATCH /api/v1/exchanges/:id/void
    * Sets voided=true. Never deletes the row.
    */

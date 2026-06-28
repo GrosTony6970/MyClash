@@ -31,6 +31,13 @@ export interface DisplayMatch {
   tournament?: { name?: string; weapon?: string } | null;
   scoringConfig?: TournamentScoringConfig | null;
   matchFormat?: MatchFormatConfig | null;
+  // Best-of-N round state. `bestOf` is the EFFECTIVE number for this match's
+  // phase, resolved server-side (1 = single round → the round UI stays hidden).
+  bestOf?: number;
+  currentRound?: number;
+  redRoundWins?: number;
+  blueRoundWins?: number;
+  awaitingRoundAdvance?: boolean;
   sideOrder?: 'red_left' | 'blue_left';
   poolName?: string | null;
   fightIndex?: number | null;

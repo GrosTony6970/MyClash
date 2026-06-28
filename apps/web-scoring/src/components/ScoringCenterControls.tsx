@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { ConfirmDialog, clockStatusSemantic, statusPillTone } from '@myclash/ui';
+import { ConfirmDialog, clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
 import {
   clockShouldTick,
   displayClockMs,
@@ -72,6 +72,16 @@ interface ScoringCenterControlsProps {
   onExchangeVoided?: () => void;
   /** Locked match → read-only: hide clock/scoring controls, keep timer + timeline. */
   readOnly?: boolean;
+  // ── Best-of-N rounds ──
+  /** True when bestOf > 1: the End button becomes "End round" + round pips show. */
+  isBestOf?: boolean;
+  currentRound?: number;
+  redRoundWins?: number;
+  blueRoundWins?: number;
+  /** Round action POST in flight (advance / end-round). */
+  roundBusy?: boolean;
+  /** End the current round on time (best-of). Leader wins; tie → server rejects. */
+  onEndRound?: () => void;
 }
 
 /** Renders MM:SS at full size with the centiseconds (:CS) smaller + muted. */
@@ -109,6 +119,12 @@ export function ScoringCenterControls({
   refreshKey,
   onExchangeVoided,
   readOnly,
+  isBestOf = false,
+  currentRound = 1,
+  redRoundWins = 0,
+  blueRoundWins = 0,
+  roundBusy = false,
+  onEndRound,
 }: ScoringCenterControlsProps) {
   const { t } = useI18n();
   const status = clockState?.status ?? 'idle';
@@ -295,16 +311,18 @@ export function ScoringCenterControls({
             </button>
           )}
 
-          {/* Secondary row: End + Reset */}
+          {/* Secondary row: End + Reset. In best-of, the End button ends the
+              current ROUND on time (leader wins; the server completes the match
+              only when the series clinches). */}
           <div className="flex gap-2">
             {status !== 'idle' && status !== 'ended' && (
               <button
                 type="button"
-                disabled={clockLoading}
-                onClick={() => onClockAction('end')}
+                disabled={clockLoading || roundBusy}
+                onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
                 className="min-h-[44px] rounded-lg border-2 border-red-700 bg-red-950 px-4 py-1.5 text-sm font-bold text-red-200 hover:bg-red-900 active:bg-red-800 disabled:opacity-40"
               >
-                {t('scoring.clock.endMatch')}
+                {isBestOf ? t('scoring.rounds.endRound') : t('scoring.clock.endMatch')}
               </button>
             )}
             {status === 'halted' && (
@@ -333,6 +351,20 @@ export function ScoringCenterControls({
             cancelLabel={t('scoring.clock.resetConfirmCancel')}
             danger
           />
+
+          {/* Best-of round counter + round-win pips (Round N / R wins – B wins) */}
+          {isBestOf && (
+            <div className="mt-2 flex items-center justify-center gap-2 text-xs font-bold">
+              <span className="text-slate-400">
+                {t('scoring.rounds.label', { current: String(currentRound) })}
+              </span>
+              <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-0.5 tabular-nums text-slate-200">
+                <span style={{ color: sideStyle(config, 'red').border }}>{redRoundWins}</span>
+                <span className="mx-1 text-slate-500">–</span>
+                <span style={{ color: sideStyle(config, 'blue').border }}>{blueRoundWins}</span>
+              </span>
+            </div>
+          )}
 
           {/* Double-count X/Y chip + Double button */}
           <div className="flex flex-col items-center gap-1 mt-2 w-full">

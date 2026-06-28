@@ -14,6 +14,7 @@ interface MatchFormat {
   maxDoubleHits: number | null;
   afterblowMode: 'full' | 'deductive';
   scoringDirection: 'normal' | 'reverse_zero_loses';
+  bestOf: { pool: number; bracket: number; finals: number };
 }
 
 const DEFAULTS: MatchFormat = {
@@ -24,7 +25,16 @@ const DEFAULTS: MatchFormat = {
   maxDoubleHits: 3,
   afterblowMode: 'full',
   scoringDirection: 'normal',
+  bestOf: { pool: 1, bracket: 1, finals: 1 },
 };
+
+// Best-of selector options — odd values only (the engine rejects even N).
+const BEST_OF_OPTIONS = [
+  { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
+  { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
+  { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
+  { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
+];
 
 export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
   const toast = useToast();
@@ -49,6 +59,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
           maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
           scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
           afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
+          bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
         });
       });
   }, [tournamentId]);
@@ -69,6 +80,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
               timeLimitsSeconds: data.timeLimitsSeconds,
               softClockLimitSeconds: data.softClockLimitSeconds,
               maxDoubleHits: data.maxDoubleHits,
+              bestOf: data.bestOf,
             },
           },
           scoringConfig: { afterblowMode: data.afterblowMode },
@@ -179,6 +191,36 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         min={0}
         max={3600}
         suffix="s"
+      />
+
+      <SelectField
+        label={t('organizer.tournaments.settings.bestOfPool')}
+        hint={t('organizer.tournaments.settings.bestOfHelp')}
+        value={String(data.bestOf.pool)}
+        defaultValue={String(DEFAULTS.bestOf.pool)}
+        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, pool: Number(v) } })}
+        onReset={() => setData({ ...data, bestOf: { ...data.bestOf, pool: DEFAULTS.bestOf.pool } })}
+        options={BEST_OF_OPTIONS}
+      />
+      <SelectField
+        label={t('organizer.tournaments.settings.bestOfBracket')}
+        value={String(data.bestOf.bracket)}
+        defaultValue={String(DEFAULTS.bestOf.bracket)}
+        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, bracket: Number(v) } })}
+        onReset={() =>
+          setData({ ...data, bestOf: { ...data.bestOf, bracket: DEFAULTS.bestOf.bracket } })
+        }
+        options={BEST_OF_OPTIONS}
+      />
+      <SelectField
+        label={t('organizer.tournaments.settings.bestOfFinals')}
+        value={String(data.bestOf.finals)}
+        defaultValue={String(DEFAULTS.bestOf.finals)}
+        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, finals: Number(v) } })}
+        onReset={() =>
+          setData({ ...data, bestOf: { ...data.bestOf, finals: DEFAULTS.bestOf.finals } })
+        }
+        options={BEST_OF_OPTIONS}
       />
 
       <NumberField

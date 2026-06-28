@@ -91,6 +91,16 @@ export async function clearMatch(matchId: string): Promise<void> {
   await db.outbox.where('matchId').equals(matchId).delete();
 }
 
+/**
+ * Permanently drop an entry the server TERMINALLY rejected (HTTP 400 — e.g. the
+ * best-of round is awaiting advance, or a stale/invalid payload). Retrying can
+ * never succeed, so delete it WITHOUT writing to `synced` (it never landed on
+ * the server). The max-based nextSequence stays correct across the gap.
+ */
+export async function dropTerminal(id: number): Promise<void> {
+  await db.outbox.delete(id);
+}
+
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
 /**

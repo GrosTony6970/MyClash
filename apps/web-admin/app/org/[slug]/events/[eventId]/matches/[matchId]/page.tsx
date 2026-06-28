@@ -76,6 +76,11 @@ interface MatchSummary {
   weapon: string;
   tournamentId: string;
   phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
+  // Best-of-N round state (bestOf = 1 for single-round matches).
+  bestOf?: number;
+  currentRound?: number;
+  redRoundWins?: number;
+  blueRoundWins?: number;
 }
 
 interface AuditEntry {
@@ -106,8 +111,13 @@ function exchangeLabel(ex: Exchange): string {
   switch (ex.type) {
     case 'clean':
       return `Clean hit — ${ex.firstStrikerColor ?? '?'} +${ex.firstStrikeValue ?? 0}`;
-    case 'afterblow':
-      return `Afterblow — ${ex.firstStrikerColor ?? '?'} +${ex.firstStrikeValue ?? 0} / afterblow +${ex.afterblowValue ?? 0}`;
+    case 'afterblow': {
+      // Show the NETTED score impact (0 for the defender in deductive mode), not
+      // the raw button values — the raw afterblow stays in the data + exports.
+      const strikerDelta = ex.firstStrikerColor === 'red' ? ex.redScoreDelta : ex.blueScoreDelta;
+      const defenderDelta = ex.firstStrikerColor === 'red' ? ex.blueScoreDelta : ex.redScoreDelta;
+      return `Afterblow — ${ex.firstStrikerColor ?? '?'} +${strikerDelta} / afterblow +${defenderDelta}`;
+    }
     case 'double':
       return 'Double';
     case 'no_exchange':
@@ -381,6 +391,14 @@ export default function MatchDetailPage() {
               <span className="text-muted mx-2">–</span>
               <span className="text-blue-600">{match?.blueScore ?? 0}</span>
             </p>
+            {summary?.bestOf != null && summary.bestOf > 1 && (
+              <p className="mt-0.5 text-xs font-semibold text-muted tabular-nums">
+                {`Best of ${summary.bestOf} · Round ${summary.currentRound ?? 1} · Rounds `}
+                <span className="text-red-600">{summary.redRoundWins ?? 0}</span>
+                <span className="mx-1">–</span>
+                <span className="text-blue-600">{summary.blueRoundWins ?? 0}</span>
+              </p>
+            )}
             <div className="mt-3 flex flex-col items-end gap-1.5">
               <button
                 type="button"

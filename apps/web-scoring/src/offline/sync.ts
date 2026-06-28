@@ -10,7 +10,7 @@
  *   - UI shows pending count, syncing indicator, error state
  */
 
-import { getAllPending, markFailed, markSynced, totalPendingCount } from './outbox';
+import { dropTerminal, getAllPending, markFailed, markSynced, totalPendingCount } from './outbox';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -119,6 +119,17 @@ export class SyncEngine {
             data.id ?? entry.clientUuid,
           );
           consecutiveFailures = 0;
+        } else if (res.status === 400) {
+          // Terminal rejection — retrying can never succeed (best-of round
+          // awaiting advance, stale sequence, invalid payload). Drop it so the
+          // queue keeps draining instead of looping forever.
+          const body = (await res.json().catch(() => ({}))) as { message?: string };
+          console.warn(
+            `Dropping rejected exchange ${entry.clientUuid}: ${body.message ?? 'HTTP 400'}`,
+          );
+          await dropTerminal(entry.id!);
+          consecutiveFailures = 0;
+          await this.emit('syncing');
         } else {
           // Server error — mark failed, continue to next
           const body = (await res.json().catch(() => ({}))) as {

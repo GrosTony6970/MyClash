@@ -8,6 +8,7 @@
  *
  * Pure function. No DB, no I/O.
  */
+import { computeAfterblowDeltas, type AfterblowMode } from '../match-format';
 import type { Exchange, Match } from '../types';
 import type { DerivedFighterStats } from './types';
 
@@ -19,9 +20,11 @@ interface MatchOutcome {
 /**
  * Compute a match's red/blue score from its exchanges. Mirrors the simple
  * "first-strike point + (optional) afterblow point" arithmetic used by the
- * existing pool-standings code path, ignoring per-ruleset bonuses.
+ * existing pool-standings code path, ignoring per-ruleset bonuses. Afterblows
+ * are netted per the tournament's afterblow mode (deductive subtracts the
+ * afterblow from the attacker); exchanges store the raw button values.
  */
-function computeRawScore(exchanges: Exchange[]): MatchOutcome {
+function computeRawScore(exchanges: Exchange[], afterblowMode: AfterblowMode): MatchOutcome {
   let red = 0;
   let blue = 0;
   for (const ex of exchanges) {
@@ -30,12 +33,16 @@ function computeRawScore(exchanges: Exchange[]): MatchOutcome {
     const striker = ex.firstStrikerColor;
     const firstValue = ex.firstStrikeValue ?? 0;
     const afterValue = ex.afterblowValue ?? 0;
+    const { attackerDelta, defenderDelta } =
+      ex.type === 'afterblow'
+        ? computeAfterblowDeltas(afterblowMode, firstValue, afterValue)
+        : { attackerDelta: firstValue, defenderDelta: 0 };
     if (striker === 'red') {
-      red += firstValue;
-      blue += afterValue;
+      red += attackerDelta;
+      blue += defenderDelta;
     } else if (striker === 'blue') {
-      blue += firstValue;
-      red += afterValue;
+      blue += attackerDelta;
+      red += defenderDelta;
     }
   }
   return { redScore: red, blueScore: blue };
@@ -45,6 +52,7 @@ export function deriveFighterStats(
   registrationId: string,
   matches: Match[],
   exchangesByMatch: Map<string, Exchange[]>,
+  afterblowMode: AfterblowMode = 'full',
 ): DerivedFighterStats {
   const stats: DerivedFighterStats = {
     victories: 0,
@@ -62,7 +70,7 @@ export function deriveFighterStats(
     if (!isRed && !isBlue) continue;
 
     const exchanges = exchangesByMatch.get(match.id) ?? [];
-    const { redScore, blueScore } = computeRawScore(exchanges);
+    const { redScore, blueScore } = computeRawScore(exchanges, afterblowMode);
     const myScore = isRed ? redScore : blueScore;
     const oppScore = isRed ? blueScore : redScore;
 

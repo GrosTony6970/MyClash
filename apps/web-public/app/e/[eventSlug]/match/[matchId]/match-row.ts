@@ -10,6 +10,15 @@
 export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
 export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 
+/** A closed round in a best-of-N match (snapshot from `matches.rounds_json`). */
+export interface RoundSnapshot {
+  round: number;
+  redScore: number;
+  blueScore: number;
+  winnerColor: 'red' | 'blue' | null;
+  endReason: 'first_to_points' | 'max_doubles' | 'time_limit' | null;
+}
+
 export interface MatchRow {
   id: string;
   matchNumberLabel: string | null;
@@ -21,6 +30,13 @@ export interface MatchRow {
   winnerRegistrationId: string | null;
   redRegistrationId: string;
   blueRegistrationId: string;
+  // Best-of-N round state (defaults reproduce a single round). bestOf itself is
+  // NOT a matches column — it comes from MatchSummary.bestOf below.
+  currentRound: number;
+  redRoundWins: number;
+  blueRoundWins: number;
+  awaitingRoundAdvance: boolean;
+  roundsJson: RoundSnapshot[] | null;
 }
 
 /** Header labels from `/matches/:id/summary` (fighter names, schools, referee, tz). */
@@ -32,6 +48,8 @@ export interface MatchSummary {
   blueClub: string | null;
   eventTimezone: string;
   referees: string[];
+  /** Effective best-of for this match's phase (1 = single round). */
+  bestOf: number;
 }
 
 /** Mirrors the API's `listExchanges` shape (scoringSide/scoreDelta/clockTimeMs). */
@@ -75,5 +93,10 @@ export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
     winnerRegistrationId: (raw['winner_registration_id'] as string | null) ?? null,
     redRegistrationId: (raw['red_registration_id'] as string | null) ?? '',
     blueRegistrationId: (raw['blue_registration_id'] as string | null) ?? '',
+    currentRound: (raw['current_round'] as number | null) ?? 1,
+    redRoundWins: (raw['red_round_wins'] as number | null) ?? 0,
+    blueRoundWins: (raw['blue_round_wins'] as number | null) ?? 0,
+    awaitingRoundAdvance: (raw['awaiting_round_advance'] as boolean | null) ?? false,
+    roundsJson: Array.isArray(raw['rounds_json']) ? (raw['rounds_json'] as RoundSnapshot[]) : null,
   };
 }

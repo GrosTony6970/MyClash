@@ -6,6 +6,9 @@ import {
   Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
+import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
+import type { Match as RulesetMatch } from '@myclash/rulesets';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -131,14 +134,39 @@ export class MatchesService {
       phase_type: string | null;
     };
 
-    // Fetch weapon from tournament (not in view).
+    // Fetch weapon + ruleset_config from tournament (not in view). ruleset_config
+    // drives the effective best-of for this match's phase.
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
-      .select('weapon, name')
+      .select('weapon, name, ruleset_config')
       .eq('id', row.tournament_id)
       .maybeSingle();
     const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
     const tournamentName = (tournament as { name?: string | null } | null)?.name ?? null;
+    const rulesetConfig = (tournament as { ruleset_config?: unknown } | null)?.ruleset_config ?? {};
+    const matchFormat = normalizeMatchFormatConfig(
+      (rulesetConfig as { matchFormat?: unknown }).matchFormat ?? {},
+    );
+    const summaryPhaseType =
+      row.phase_type === 'pool' ||
+      row.phase_type === 'single_elim' ||
+      row.phase_type === 'double_elim' ||
+      row.phase_type === 'swiss'
+        ? row.phase_type
+        : undefined;
+    const bestOf = getEffectiveBestOf(
+      {
+        id: matchId,
+        redRegistrationId: '',
+        blueRegistrationId: '',
+        rulesetCode: 'TF_v1',
+        rulesetVersion: '1.0.0',
+        status: 'running',
+        phaseType: summaryPhaseType,
+        matchNumberLabel: row.match_number_label,
+      } satisfies RulesetMatch,
+      matchFormat,
+    );
 
     // For bracket matches, fetch the phase's bracketSize so the
     // formatter resolves bracket_round → R16/QF/SF/F instead of
@@ -195,10 +223,20 @@ export class MatchesService {
     // (Tournament · Pool · Piste). lice_id lives on the match row, not the view.
     const { data: matchLiceRow } = await this.supabase.service
       .from('matches')
-      .select('lice_id')
+      .select(
+        'lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance',
+      )
       .eq('id', matchId)
       .maybeSingle();
-    const summaryLiceId = (matchLiceRow as { lice_id?: string | null } | null)?.lice_id ?? null;
+    const matchRoundRow = matchLiceRow as {
+      lice_id?: string | null;
+      current_round?: number | null;
+      red_round_wins?: number | null;
+      blue_round_wins?: number | null;
+      rounds_json?: unknown;
+      awaiting_round_advance?: boolean | null;
+    } | null;
+    const summaryLiceId = matchRoundRow?.lice_id ?? null;
     let liceName: string | null = null;
     if (summaryLiceId) {
       const { data: lice } = await this.supabase.service
@@ -229,6 +267,14 @@ export class MatchesService {
       // (per-match route, no lice context).
       tournamentId: row.tournament_id,
       phaseType: row.phase_type ?? null,
+      // Best-of-N round state. bestOf = 1 (single round) for unconfigured
+      // tournaments, so the scoreboard hides the round counter by default.
+      bestOf,
+      currentRound: matchRoundRow?.current_round ?? 1,
+      redRoundWins: matchRoundRow?.red_round_wins ?? 0,
+      blueRoundWins: matchRoundRow?.blue_round_wins ?? 0,
+      roundsJson: Array.isArray(matchRoundRow?.rounds_json) ? matchRoundRow?.rounds_json : null,
+      awaitingRoundAdvance: matchRoundRow?.awaiting_round_advance ?? false,
     };
   }
 
@@ -529,13 +575,24 @@ export class MatchesService {
           : scoringSide === 'blue'
             ? r.blue_score_delta
             : null;
+      // The defender's NETTED afterblow points (the opposite side's delta) —
+      // 0 in deductive mode, the raw afterblow value in full. Use the delta,
+      // not raw afterblow_value, so the timeline shows the real score impact.
+      const defenderDelta =
+        r.type === 'afterblow'
+          ? scoringSide === 'red'
+            ? r.blue_score_delta
+            : scoringSide === 'blue'
+              ? r.red_score_delta
+              : null
+          : null;
       return {
         ...r,
         occurredAt: r.occurred_at,
         clockTimeMs: r.clock_time_ms ?? null,
         scoringSide,
         scoreDelta,
-        defenderDelta: r.afterblow_value ?? null,
+        defenderDelta,
       };
     });
   }
@@ -563,14 +620,35 @@ export class MatchesService {
       return existing;
     }
 
-    // Compute score deltas for materialized columns
-    const { redDelta, blueDelta } = this.computeDeltas(dto);
+    // Best-of: a new exchange belongs to the current open round, and scoring is
+    // blocked while a round is awaiting advance (the operator must start the next
+    // round first). current_round defaults to 1 and awaiting is never set for a
+    // single-round match, so this leaves bestOf = 1 behaviour unchanged.
+    const { data: matchRoundRow } = await this.supabase.service
+      .from('matches')
+      .select('current_round, awaiting_round_advance')
+      .eq('id', matchId)
+      .maybeSingle();
+    const roundState = matchRoundRow as {
+      current_round?: number | null;
+      awaiting_round_advance?: boolean | null;
+    } | null;
+    if (roundState?.awaiting_round_advance) {
+      throw new BadRequestException('Round ended — advance to the next round before scoring');
+    }
+    const roundNumber = roundState?.current_round ?? 1;
+
+    // Compute netted score deltas for materialized columns (raw afterblow
+    // values are still stored below — only the deltas apply the mode).
+    const afterblowMode = dto.type === 'afterblow' ? await this.getAfterblowMode(matchId) : 'full';
+    const { redDelta, blueDelta } = this.computeDeltas(dto, afterblowMode);
 
     const { data, error } = await this.supabase.service
       .from('exchanges')
       .insert({
         client_uuid: dto.clientUuid,
         match_id: matchId,
+        round_number: roundNumber,
         sequence: dto.sequence,
         type: dto.type,
         occurred_at: dto.occurredAt,
@@ -762,16 +840,20 @@ export class MatchesService {
     const matchId = row['match_id'] as string;
     await this.assertMatchUnlocked(matchId, context);
 
-    const { redDelta, blueDelta } = this.computeDeltas({
-      clientUuid: randomUUID(),
-      sequence: Number(row['sequence'] ?? 1),
-      type: dto.type,
-      occurredAt: new Date().toISOString(),
-      firstStrikerColor: dto.firstStrikerColor,
-      firstStrikeValue: dto.firstStrikeValue,
-      afterblowValue: dto.afterblowValue,
-      noExchangeReason: dto.noExchangeReason,
-    });
+    const afterblowMode = dto.type === 'afterblow' ? await this.getAfterblowMode(matchId) : 'full';
+    const { redDelta, blueDelta } = this.computeDeltas(
+      {
+        clientUuid: randomUUID(),
+        sequence: Number(row['sequence'] ?? 1),
+        type: dto.type,
+        occurredAt: new Date().toISOString(),
+        firstStrikerColor: dto.firstStrikerColor,
+        firstStrikeValue: dto.firstStrikeValue,
+        afterblowValue: dto.afterblowValue,
+        noExchangeReason: dto.noExchangeReason,
+      },
+      afterblowMode,
+    );
 
     await this.supabase.service
       .from('exchanges')
@@ -787,6 +869,8 @@ export class MatchesService {
       .insert({
         client_uuid: randomUUID(),
         match_id: matchId,
+        // Keep the correction in the SAME round as the exchange it replaces.
+        round_number: (row['round_number'] as number | null) ?? 1,
         sequence,
         type: dto.type,
         occurred_at: new Date().toISOString(),
@@ -904,6 +988,12 @@ export class MatchesService {
         winner_registration_id: null,
         started_at: null,
         ended_at: null,
+        // Reset best-of round state back to a single open round.
+        current_round: 1,
+        red_round_wins: 0,
+        blue_round_wins: 0,
+        rounds_json: null,
+        awaiting_round_advance: false,
         updated_at: new Date().toISOString(),
       })
       .eq('id', matchId)
@@ -911,6 +1001,19 @@ export class MatchesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  /**
+   * Advance a best-of match to the next round (delegates to the scoring service,
+   * which owns the round lifecycle + clock reset).
+   */
+  async advanceRound(matchId: string, context?: MatchActor) {
+    return this.scoring.advanceRound(matchId, context);
+  }
+
+  /** End the current round on time in a best-of match (operator-driven). */
+  async endRoundOnTime(matchId: string, context?: MatchActor) {
+    return this.scoring.endRoundOnTime(matchId, context);
   }
 
   async lockMatch(
@@ -958,7 +1061,16 @@ export class MatchesService {
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  private computeDeltas(dto: CreateExchangeDto): { redDelta: number; blueDelta: number } {
+  /**
+   * Net per-fighter score deltas for the materialized red/blue_score_delta
+   * columns. The raw button values stay on first_strike_value/afterblow_value;
+   * these deltas apply the tournament's afterblow mode (deductive subtracts the
+   * afterblow from the attacker; the afterblow-lander gains 0).
+   */
+  private computeDeltas(
+    dto: CreateExchangeDto,
+    afterblowMode: AfterblowMode = 'full',
+  ): { redDelta: number; blueDelta: number } {
     let redDelta = 0;
     let blueDelta = 0;
 
@@ -967,21 +1079,49 @@ export class MatchesService {
         if (dto.firstStrikerColor === 'red') redDelta = dto.firstStrikeValue ?? 0;
         else if (dto.firstStrikerColor === 'blue') blueDelta = dto.firstStrikeValue ?? 0;
         break;
-      case 'afterblow':
+      case 'afterblow': {
+        const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
+          afterblowMode,
+          dto.firstStrikeValue ?? 0,
+          dto.afterblowValue ?? 0,
+        );
         if (dto.firstStrikerColor === 'red') {
-          redDelta = dto.firstStrikeValue ?? 0;
-          blueDelta = dto.afterblowValue ?? 0;
+          redDelta = attackerDelta;
+          blueDelta = defenderDelta;
         } else if (dto.firstStrikerColor === 'blue') {
-          blueDelta = dto.firstStrikeValue ?? 0;
-          redDelta = dto.afterblowValue ?? 0;
+          blueDelta = attackerDelta;
+          redDelta = defenderDelta;
         }
         break;
+      }
       case 'double':
       case 'no_exchange':
         break;
     }
 
     return { redDelta, blueDelta };
+  }
+
+  /**
+   * Resolve a match's tournament afterblow mode from scoring_config_json
+   * (defaults to 'full'). Used at exchange write to net the materialized
+   * score deltas; the raw afterblow values are preserved on the row.
+   */
+  private async getAfterblowMode(matchId: string): Promise<AfterblowMode> {
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('phases(tournaments(scoring_config_json))')
+      .eq('id', matchId)
+      .maybeSingle();
+    const phases = (data as { phases?: unknown } | null)?.phases;
+    const phase = Array.isArray(phases) ? phases[0] : phases;
+    const tournaments = (phase as { tournaments?: unknown } | null)?.tournaments;
+    const tournament = Array.isArray(tournaments) ? tournaments[0] : tournaments;
+    const scoringConfig = (tournament as { scoring_config_json?: unknown } | null)
+      ?.scoring_config_json;
+    return (scoringConfig as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
+      ? 'deductive'
+      : 'full';
   }
 
   private async assertMatchUnlocked(

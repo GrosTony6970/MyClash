@@ -8,6 +8,8 @@ import {
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { buildRoundCode } from '../matches/round-code.helper';
+import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
+import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -914,6 +916,26 @@ export class StaffService {
       roundNumber: null,
     });
 
+    // Effective best-of for this match's phase (1 = single round → TV hides the
+    // round counter). phaseType is derived from pool membership; medal matches
+    // resolve to finals via matchNumberLabel inside getEffectiveBestOf.
+    const displayMatchFormat = normalizeMatchFormatConfig(
+      phases?.tournaments?.ruleset_config?.matchFormat ?? {},
+    );
+    const effectiveBestOf = getEffectiveBestOf(
+      {
+        id: String(match['id'] ?? ''),
+        redRegistrationId: '',
+        blueRegistrationId: '',
+        rulesetCode: 'TF_v1',
+        rulesetVersion: '1.0.0',
+        status: 'running',
+        phaseType: pool ? 'pool' : undefined,
+        matchNumberLabel,
+      } satisfies RulesetMatch,
+      displayMatchFormat,
+    );
+
     return {
       id: match['id'],
       status: match['status'],
@@ -942,6 +964,12 @@ export class StaffService {
       tournament: phases?.tournaments ?? null,
       scoringConfig: phases?.tournaments?.scoring_config_json ?? null,
       matchFormat: phases?.tournaments?.ruleset_config?.matchFormat ?? null,
+      // Best-of-N round state for the TV/projector scoreboard.
+      bestOf: effectiveBestOf,
+      currentRound: (match['current_round'] as number | null) ?? 1,
+      redRoundWins: (match['red_round_wins'] as number | null) ?? 0,
+      blueRoundWins: (match['blue_round_wins'] as number | null) ?? 0,
+      awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
       poolName,
       fightIndex: extras.fightIndex,
       totalFightsInPool: extras.totalFightsInPool,

@@ -16,6 +16,8 @@ export interface WizardMatchFormat {
   maxDoubleHits: number | null;
   afterblowMode: 'full' | 'deductive';
   scoringDirection: 'normal' | 'reverse_zero_loses';
+  /** Best-of-N rounds per phase; 1 = single round. Odd values only (1/3/5/7). */
+  bestOf: { pool: number; bracket: number; finals: number };
 }
 
 export const MATCH_FORMAT_DEFAULTS: WizardMatchFormat = {
@@ -26,6 +28,7 @@ export const MATCH_FORMAT_DEFAULTS: WizardMatchFormat = {
   maxDoubleHits: 3,
   afterblowMode: 'full',
   scoringDirection: 'normal',
+  bestOf: { pool: 1, bracket: 1, finals: 1 },
 };
 
 interface MatchFormatLike {
@@ -35,6 +38,7 @@ interface MatchFormatLike {
   softClockLimitSeconds?: unknown;
   maxDoubleHits?: unknown;
   scoringDirection?: unknown;
+  bestOf?: { pool?: unknown; bracket?: unknown; finals?: unknown } | null;
 }
 
 function numberOrNull(value: unknown, fallback: number | null): number | null {
@@ -58,6 +62,7 @@ export function buildMatchFormatFromRow(
     bracket?: unknown;
     finals?: unknown;
   };
+  const bo = (mf.bestOf ?? {}) as { pool?: unknown; bracket?: unknown; finals?: unknown };
   return {
     pointCap: num(mf.pointCap, defaults.pointCap),
     timerMode: mf.timerMode === 'countup' ? 'countup' : defaults.timerMode,
@@ -74,5 +79,10 @@ export function buildMatchFormatFromRow(
         : defaults.scoringDirection,
     afterblowMode:
       scoringConfig['afterblowMode'] === 'deductive' ? 'deductive' : defaults.afterblowMode,
+    bestOf: {
+      pool: num(bo.pool, defaults.bestOf.pool),
+      bracket: num(bo.bracket, defaults.bestOf.bracket),
+      finals: num(bo.finals, defaults.bestOf.finals),
+    },
   };
 }

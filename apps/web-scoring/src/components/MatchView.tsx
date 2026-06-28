@@ -51,6 +51,16 @@ export interface MatchInfo {
   /** Why the match ended ('max_doubles' | 'black_card' | 'forfeit' | ...).
    *  Drives the centre column's black-card banner. Null while in progress. */
   endReason?: string | null;
+  // ── Best-of-N rounds (bestOf = 1 → single round, all unset/0 → today's UI) ──
+  /** Effective best-of for this match's phase (from GET /matches/:id/summary). */
+  bestOf?: number;
+  currentRound?: number;
+  redRoundWins?: number;
+  blueRoundWins?: number;
+  /** Closed-round snapshots [{round, redScore, blueScore, winnerColor, endReason}]. */
+  roundsJson?: unknown;
+  /** A round ended but the series isn't decided — show the Start-round overlay. */
+  awaitingRoundAdvance?: boolean;
 }
 
 export interface MatchViewProps {
@@ -219,14 +229,75 @@ export function MatchView({
     }
   }
 
+  // ── Best-of-N round lifecycle ──────────────────────────────────────────────
+  const bestOf = match.bestOf ?? 1;
+  const currentRound = match.currentRound ?? 1;
+  const redRoundWins = match.redRoundWins ?? 0;
+  const blueRoundWins = match.blueRoundWins ?? 0;
+  const isBestOf = bestOf > 1;
+  const awaitingRoundAdvance = !!match.awaitingRoundAdvance;
+  const [roundBusy, setRoundBusy] = useState(false);
+
+  // Start the next round (best-of). Resets the clock + open-round score server-side.
+  const onRoundAdvance = useCallback(async () => {
+    setRoundBusy(true);
+    setClockError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/rounds/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('scoring.clock.actionFailed'));
+      }
+      await fetchClockState();
+      onRefresh();
+    } catch (err) {
+      setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
+    } finally {
+      setRoundBusy(false);
+    }
+  }, [apiUrl, match.id, fetchClockState, onRefresh, t]);
+
+  // End the current round on time (best-of). The server picks the leader as the
+  // round winner; a tied round is rejected so the operator plays a sudden-death point.
+  const onEndRound = useCallback(async () => {
+    setRoundBusy(true);
+    setClockError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/rounds/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('scoring.clock.actionFailed'));
+      }
+      await fetchClockState();
+      onRefresh();
+    } catch (err) {
+      setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
+    } finally {
+      setRoundBusy(false);
+    }
+  }, [apiUrl, match.id, fetchClockState, onRefresh, t]);
+
   // Scoring gate — DB status enum is 'scheduled' | 'running' | 'paused'
   // | 'completed' | 'voided'. Active scoring requires running OR paused.
   // The soft-clock zone does NOT lock scoring any more: with the clock
   // stopped at zero / inside the soft zone the operator keeps full control
   // (points, penalties, corrections) — the ruleset warning moved to the
-  // Start/Resume action instead (resume guard below).
+  // Start/Resume action instead (resume guard below). Best-of also blocks
+  // scoring while a round is awaiting advance (the operator must start the next).
   const scoringEnabled =
-    (match.status === 'running' || match.status === 'paused') && !match.lockedAt;
+    (match.status === 'running' || match.status === 'paused') &&
+    !match.lockedAt &&
+    !awaitingRoundAdvance;
   const clockRunning = clockState?.status === 'running';
   const canScore = scoringEnabled && !clockRunning;
   const clockTimeMs = clockState?.activeMs ?? null;
@@ -327,6 +398,10 @@ export function MatchView({
         externalDisplayUrl={externalDisplayUrl ?? null}
         refreshKey={refreshKey}
         onOpenCorrections={() => setDrawerOpen(true)}
+        bestOf={bestOf}
+        currentRound={currentRound}
+        redRoundWins={redRoundWins}
+        blueRoundWins={blueRoundWins}
       />
 
       {match.lockedAt && (
@@ -391,6 +466,12 @@ export function MatchView({
           submit={submit}
           refreshKey={refreshKey}
           onExchangeVoided={handleExchangeVoided}
+          isBestOf={isBestOf}
+          currentRound={currentRound}
+          redRoundWins={redRoundWins}
+          blueRoundWins={blueRoundWins}
+          roundBusy={roundBusy}
+          onEndRound={onEndRound}
         />
 
         <ScoringColumn
@@ -482,6 +563,50 @@ export function MatchView({
               className="mt-4 text-xs text-gray-500 hover:text-gray-300"
             >
               {t('scoring.result.close')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Best-of round break: a round ended without clinching the match — show
+          the round result and let the operator start the next round (resets the
+          clock + score to 0–0). Mutually exclusive with the final-result overlay
+          (a clinched round ends the clock instead of awaiting). */}
+      {isBestOf && awaitingRoundAdvance && clockState?.status !== 'ended' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-sky-600 bg-gray-900 p-8 text-center shadow-2xl">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-sky-400">
+              {t('scoring.rounds.roundComplete', { round: String(currentRound) })}
+            </p>
+            {(() => {
+              const winner = matchWinnerSide(match.redScore, match.blueScore);
+              const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
+              const winnerColor = winner ? sideStyle(scoringConfig, winner).border : undefined;
+              return winnerName ? (
+                <p className="mb-2 text-2xl font-black" style={{ color: winnerColor }}>
+                  <span aria-hidden>🏆</span> {winnerName}
+                </p>
+              ) : null;
+            })()}
+            <p className="mb-4 font-mono text-2xl font-bold text-gray-300">
+              {match.redScore} – {match.blueScore}
+            </p>
+            <p className="mb-6 text-sm font-semibold text-gray-400">
+              {t('scoring.rounds.seriesTally')}{' '}
+              <span style={{ color: sideStyle(scoringConfig, 'red').border }}>{redRoundWins}</span>
+              {' – '}
+              <span style={{ color: sideStyle(scoringConfig, 'blue').border }}>
+                {blueRoundWins}
+              </span>
+            </p>
+            {clockError && <p className="mb-3 text-xs font-normal text-red-300">{clockError}</p>}
+            <button
+              type="button"
+              disabled={roundBusy}
+              onClick={() => void onRoundAdvance()}
+              className="rounded-lg border-2 border-sky-600 bg-sky-700 px-6 py-2 text-sm font-bold text-white hover:bg-sky-800 disabled:opacity-40"
+            >
+              {t('scoring.rounds.startRound', { round: String(currentRound + 1) })} →
             </button>
           </div>
         </div>

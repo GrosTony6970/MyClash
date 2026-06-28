@@ -20,6 +20,17 @@ export interface MatchFormatConfig {
   softClockLimitSeconds: number;
   maxDoubleHits: number | null;
   maxDoubleHitOutcome: 'double_loss_zero_scores';
+  /**
+   * Best-of-N rounds per phase. A match is decided by winning ⌈N/2⌉ rounds.
+   * 1 = single round (default everywhere — today's behaviour). Odd values only
+   * (1/3/5/7). Mirrors {@link timeLimitsSeconds} so each phase configures
+   * independently (e.g. single-round pools, BO3 bracket, BO5 finals).
+   */
+  bestOf: {
+    pool: number;
+    bracket: number;
+    finals: number;
+  };
 }
 export const TOURNAMENT_SIDE_COLORS = [
   'white',
@@ -49,6 +60,7 @@ export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = {
   softClockLimitSeconds: 0,
   maxDoubleHits: null,
   maxDoubleHitOutcome: 'double_loss_zero_scores',
+  bestOf: { pool: 1, bracket: 1, finals: 1 },
 };
 
 export interface TournamentDisplayConfig {

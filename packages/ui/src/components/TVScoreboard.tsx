@@ -255,6 +255,16 @@ function TVHeader({
               {matchCode}
             </span>
           )}
+          {(match.bestOf ?? 1) > 1 && (
+            <span className="rounded-full border-2 border-sky-300 bg-sky-50 px-4 py-1 text-base font-bold tabular-nums text-sky-700">
+              Round {match.currentRound ?? 1}/{match.bestOf}
+              {' · '}
+              <span style={{ color: redOnLight }}>{match.redRoundWins ?? 0}</span>
+              <span className="mx-0.5 text-slate-400">–</span>
+              <span style={{ color: blueOnLight }}>{match.blueRoundWins ?? 0}</span>
+              {match.awaitingRoundAdvance ? ' · ⏸' : ''}
+            </span>
+          )}
           <p className="text-2xl font-bold">
             <span style={{ color: leftColor }}>{leftName}</span>{' '}
             <span className="text-slate-500">vs</span>{' '}

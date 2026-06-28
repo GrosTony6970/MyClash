@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 import type { Exchange, Match } from './types';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
+  computeAfterblowDeltas,
   computeMatchClockMs,
   computeMatchFormatScore,
+  evaluateRound,
+  getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
+  getEffectiveMaxDoubles,
   isMedalMatch,
   getPointCapWinnerRegistrationId,
   isSoftClockLocked,
   normalizeMatchFormatConfig,
+  pointCapWinnerColor,
+  roundWinTarget,
 } from './match-format';
 
 const BASE_MATCH: Match = {
@@ -90,12 +96,15 @@ describe('match format config', () => {
     expect(score.blueScore).toBe(0);
   });
 
-  it('resets result scores to zero when the configured double-hit limit is reached', () => {
+  it('resets a POOL match to zero when the configured double-hit limit is reached', () => {
+    // Max-doubles "double loss" is a pool-only rule, so the match must be a pool
+    // match for the limit to bite. A scoring hit is included to prove the reset.
     const score = computeMatchFormatScore(
-      BASE_MATCH,
+      { ...BASE_MATCH, phaseType: 'pool' },
       [
-        makeExchange({ id: 'e1', sequence: 1, type: 'double', firstStrikerColor: null }),
-        makeExchange({ id: 'e2', sequence: 2, type: 'double', firstStrikerColor: null }),
+        makeExchange({ id: 'e0', sequence: 1, firstStrikerColor: 'red', firstStrikeValue: 2 }),
+        makeExchange({ id: 'e1', sequence: 2, type: 'double', firstStrikerColor: null }),
+        makeExchange({ id: 'e2', sequence: 3, type: 'double', firstStrikerColor: null }),
       ],
       { ...DEFAULT_MATCH_FORMAT_CONFIG, maxDoubleHits: 2 },
     );
@@ -103,6 +112,29 @@ describe('match format config', () => {
     expect(score.redScore).toBe(0);
     expect(score.blueScore).toBe(0);
     expect(score.doubles).toBe(2);
+  });
+
+  it('does NOT reset bracket/finals on max-doubles (pool-only rule)', () => {
+    // Same exchanges in a bracket match keep their score — bracket & finals must
+    // always resolve to a winner, so they never end on max-doubles.
+    const exchanges = [
+      makeExchange({ id: 'e0', sequence: 1, firstStrikerColor: 'red', firstStrikeValue: 2 }),
+      makeExchange({ id: 'e1', sequence: 2, type: 'double', firstStrikerColor: null }),
+      makeExchange({ id: 'e2', sequence: 3, type: 'double', firstStrikerColor: null }),
+    ];
+    const cfg = { ...DEFAULT_MATCH_FORMAT_CONFIG, maxDoubleHits: 2 };
+
+    const bracket = computeMatchFormatScore(
+      { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' },
+      exchanges,
+      cfg,
+    );
+    expect(bracket.redScore).toBe(2);
+    expect(bracket.doubles).toBe(2);
+
+    expect(getEffectiveMaxDoubles({ ...BASE_MATCH, phaseType: 'pool' }, cfg)).toBe(2);
+    expect(getEffectiveMaxDoubles({ ...BASE_MATCH, phaseType: 'single_elim' }, cfg)).toBeNull();
+    expect(getEffectiveMaxDoubles({ ...BASE_MATCH, matchNumberLabel: 'F' }, cfg)).toBeNull();
   });
 
   it('uses pool, bracket, and medal-match final time limits', () => {
@@ -146,6 +178,54 @@ describe('match format config', () => {
     expect(computeMatchClockMs({ ...BASE_MATCH, phaseType: 'pool' }, 176_000, config)).toBe(4_000);
   });
 
+  it('nets afterblows per mode — full awards both, deductive subtracts from the attacker', () => {
+    // A "2-1" afterblow: red strikes first (raw 2), blue lands the afterblow (raw 1).
+    const ex = [
+      makeExchange({
+        type: 'afterblow',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 2,
+        afterblowValue: 1,
+      }),
+    ];
+    const cfg = { ...DEFAULT_MATCH_FORMAT_CONFIG, pointCap: 5 };
+
+    // Default (full): both keep their points.
+    const full = computeMatchFormatScore(BASE_MATCH, ex, cfg);
+    expect(full.redScore).toBe(2);
+    expect(full.blueScore).toBe(1);
+
+    // Deductive: attacker nets max(0, 2 - 1) = 1, defender 0.
+    const deductive = computeMatchFormatScore(BASE_MATCH, ex, cfg, 'deductive');
+    expect(deductive.redScore).toBe(1);
+    expect(deductive.blueScore).toBe(0);
+
+    // A "1-1" afterblow cancels the attacker entirely in deductive mode.
+    const evenAfterblow = [
+      makeExchange({
+        type: 'afterblow',
+        firstStrikerColor: 'blue',
+        firstStrikeValue: 1,
+        afterblowValue: 1,
+      }),
+    ];
+    const evenDeductive = computeMatchFormatScore(BASE_MATCH, evenAfterblow, cfg, 'deductive');
+    expect(evenDeductive.redScore).toBe(0);
+    expect(evenDeductive.blueScore).toBe(0);
+  });
+
+  it('computeAfterblowDeltas: deductive clamps at zero, full keeps both', () => {
+    expect(computeAfterblowDeltas('full', 2, 1)).toEqual({ attackerDelta: 2, defenderDelta: 1 });
+    expect(computeAfterblowDeltas('deductive', 2, 1)).toEqual({
+      attackerDelta: 1,
+      defenderDelta: 0,
+    });
+    expect(computeAfterblowDeltas('deductive', 1, 2)).toEqual({
+      attackerDelta: 0,
+      defenderDelta: 0,
+    });
+  });
+
   it('resolves point-cap winners for normal and reverse scoring', () => {
     expect(
       getPointCapWinnerRegistrationId(
@@ -170,5 +250,119 @@ describe('match format config', () => {
         },
       ),
     ).toBe('reg-red');
+  });
+});
+
+describe('best-of rounds', () => {
+  it('defaults bestOf to a single round in every phase', () => {
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.bestOf).toEqual({ pool: 1, bracket: 1, finals: 1 });
+  });
+
+  it('dispatches effective bestOf by phase like the time limits', () => {
+    const config = {
+      ...DEFAULT_MATCH_FORMAT_CONFIG,
+      bestOf: { pool: 1, bracket: 3, finals: 5 },
+    };
+    expect(getEffectiveBestOf({ ...BASE_MATCH, phaseType: 'pool' }, config)).toBe(1);
+    expect(
+      getEffectiveBestOf(
+        { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' },
+        config,
+      ),
+    ).toBe(3);
+    expect(
+      getEffectiveBestOf(
+        { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'F' },
+        config,
+      ),
+    ).toBe(5);
+  });
+
+  it('treats a missing bestOf (legacy config) as single round', () => {
+    const legacy = { ...DEFAULT_MATCH_FORMAT_CONFIG } as Record<string, unknown>;
+    delete legacy.bestOf;
+    expect(getEffectiveBestOf({ ...BASE_MATCH, phaseType: 'pool' }, legacy as never)).toBe(1);
+  });
+
+  it('computes the round win target as ceil(N/2)', () => {
+    expect(roundWinTarget(1)).toBe(1);
+    expect(roundWinTarget(3)).toBe(2);
+    expect(roundWinTarget(5)).toBe(3);
+    expect(roundWinTarget(7)).toBe(4);
+  });
+
+  it('resolves the cap winner colour for normal and reverse scoring', () => {
+    const normal = {
+      ...DEFAULT_MATCH_FORMAT_CONFIG,
+      pointCap: 5,
+      scoringDirection: 'normal' as const,
+    };
+    expect(pointCapWinnerColor({ redScore: 5, blueScore: 3 }, normal)).toBe('red');
+    expect(pointCapWinnerColor({ redScore: 2, blueScore: 5 }, normal)).toBe('blue');
+    expect(pointCapWinnerColor({ redScore: 3, blueScore: 3 }, normal)).toBeNull();
+
+    const reverse = {
+      ...DEFAULT_MATCH_FORMAT_CONFIG,
+      pointCap: 5,
+      scoringDirection: 'reverse_zero_loses' as const,
+    };
+    expect(pointCapWinnerColor({ redScore: 0, blueScore: 2 }, reverse)).toBe('blue');
+  });
+
+  describe('evaluateRound', () => {
+    const cfg = { ...DEFAULT_MATCH_FORMAT_CONFIG, pointCap: 3 };
+
+    it('closes the round when a side reaches the point cap', () => {
+      const ev = evaluateRound(
+        { ...BASE_MATCH, phaseType: 'single_elim' },
+        [
+          makeExchange({ id: 'r1', sequence: 1, firstStrikerColor: 'red', firstStrikeValue: 2 }),
+          makeExchange({ id: 'r2', sequence: 2, firstStrikerColor: 'red', firstStrikeValue: 1 }),
+        ],
+        cfg,
+      );
+      expect(ev.autoOver).toBe(true);
+      expect(ev.winnerColor).toBe('red');
+      expect(ev.endReason).toBe('first_to_points');
+      expect(ev.score.redScore).toBe(3);
+    });
+
+    it('leaves the round open (operator must end on time) below the cap', () => {
+      const ev = evaluateRound(
+        { ...BASE_MATCH, phaseType: 'single_elim' },
+        [makeExchange({ id: 'r1', sequence: 1, firstStrikerColor: 'blue', firstStrikeValue: 1 })],
+        cfg,
+      );
+      expect(ev.autoOver).toBe(false);
+      expect(ev.winnerColor).toBeNull();
+      expect(ev.endReason).toBeNull();
+      expect(ev.score.blueScore).toBe(1);
+    });
+
+    it('draws a POOL round on max-doubles (no round winner)', () => {
+      const ev = evaluateRound(
+        { ...BASE_MATCH, phaseType: 'pool' },
+        [
+          makeExchange({ id: 'd1', sequence: 1, type: 'double', firstStrikerColor: null }),
+          makeExchange({ id: 'd2', sequence: 2, type: 'double', firstStrikerColor: null }),
+        ],
+        { ...cfg, maxDoubleHits: 2 },
+      );
+      expect(ev.autoOver).toBe(true);
+      expect(ev.winnerColor).toBeNull();
+      expect(ev.endReason).toBe('max_doubles');
+    });
+
+    it('does NOT auto-close a bracket round on max-doubles', () => {
+      const ev = evaluateRound(
+        { ...BASE_MATCH, phaseType: 'single_elim' },
+        [
+          makeExchange({ id: 'd1', sequence: 1, type: 'double', firstStrikerColor: null }),
+          makeExchange({ id: 'd2', sequence: 2, type: 'double', firstStrikerColor: null }),
+        ],
+        { ...cfg, maxDoubleHits: 2 },
+      );
+      expect(ev.autoOver).toBe(false);
+    });
   });
 });

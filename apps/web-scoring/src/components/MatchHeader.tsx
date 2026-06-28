@@ -44,6 +44,11 @@ interface MatchHeaderProps {
   refreshKey: number;
   /** Called when ⚙ Corrections is tapped. */
   onOpenCorrections: () => void;
+  /** Best-of-N round state — the round counter chip only shows when bestOf > 1. */
+  bestOf?: number;
+  currentRound?: number;
+  redRoundWins?: number;
+  blueRoundWins?: number;
 }
 
 export function MatchHeader({
@@ -62,6 +67,10 @@ export function MatchHeader({
   externalDisplayUrl,
   refreshKey,
   onOpenCorrections,
+  bestOf = 1,
+  currentRound = 1,
+  redRoundWins = 0,
+  blueRoundWins = 0,
 }: MatchHeaderProps) {
   const { t } = useI18n();
   const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
@@ -125,6 +134,19 @@ export function MatchHeader({
           {matchCode && (
             <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-0.5 font-mono text-sm font-bold tracking-widest text-amber-700">
               {matchCode}
+            </span>
+          )}
+          {bestOf > 1 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-50 px-3 py-0.5 text-xs font-bold text-sky-700">
+              {t('scoring.rounds.counter', {
+                current: String(currentRound),
+                total: String(bestOf),
+              })}
+              <span className="font-semibold tabular-nums">
+                <span style={{ color: redStyle.border }}>{redRoundWins}</span>
+                <span className="mx-0.5 text-slate-400">–</span>
+                <span style={{ color: blueStyle.border }}>{blueRoundWins}</span>
+              </span>
             </span>
           )}
           {contextLine && (

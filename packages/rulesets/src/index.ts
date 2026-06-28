@@ -26,20 +26,31 @@ export type {
 // Registry
 export { registry } from './registry';
 export {
+  BestOfConfigSchema,
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
   ScoringDirectionSchema,
   TimerModeSchema,
   computeMatchClockMs,
   computeMatchFormatScore,
+  evaluateRound,
+  getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
+  getEffectiveMaxDoubles,
   getPointCapWinnerRegistrationId,
   isMedalMatch,
   isPointCapReached,
   isSoftClockLocked,
   normalizeMatchFormatConfig,
+  pointCapWinnerColor,
+  roundWinTarget,
 } from './match-format';
-export type { MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
+export type {
+  MatchFormatConfig,
+  RoundEvaluation,
+  ScoringDirection,
+  TimerMode,
+} from './match-format';
 
 // Forfeit policies
 export {

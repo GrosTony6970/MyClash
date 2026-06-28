@@ -1031,6 +1031,14 @@ export const en = {
       draw: 'Draw',
       close: 'Close',
     },
+    rounds: {
+      counter: 'Round {current}/{total}',
+      label: 'Round {current}',
+      roundComplete: 'Round {round} complete',
+      seriesTally: 'Rounds',
+      startRound: 'Start round {round}',
+      endRound: 'End round',
+    },
     liveMatch: {
       status: {
         scheduled: 'Scheduled',
@@ -3273,6 +3281,15 @@ export const en = {
         timePool: 'Pool match time',
         timeBracket: 'Bracket match time',
         timeFinals: 'Finals match time',
+        bestOfPool: 'Pool best-of',
+        bestOfBracket: 'Bracket best-of',
+        bestOfFinals: 'Finals best-of',
+        bestOfSingle: 'Single round',
+        bestOf3: 'Best of 3',
+        bestOf5: 'Best of 5',
+        bestOf7: 'Best of 7',
+        bestOfHelp:
+          'Number of rounds; winning the majority of rounds takes the match. Single round = current behaviour.',
         softClock: 'Soft clock',
         maxDoubleHits: 'Max double hits',
         afterblowMode: 'Afterblow mode',
@@ -5593,6 +5610,14 @@ export const fr = {
       draw: 'Egalite',
       close: 'Fermer',
     },
+    rounds: {
+      counter: 'Manche {current}/{total}',
+      label: 'Manche {current}',
+      roundComplete: 'Manche {round} terminee',
+      seriesTally: 'Manches',
+      startRound: 'Demarrer la manche {round}',
+      endRound: 'Terminer la manche',
+    },
     liveMatch: {
       status: {
         scheduled: 'Programme',
@@ -7860,6 +7885,15 @@ export const fr = {
         timePool: 'Duree des poules',
         timeBracket: 'Duree des brackets',
         timeFinals: 'Duree des finales',
+        bestOfPool: 'Manches poules',
+        bestOfBracket: 'Manches brackets',
+        bestOfFinals: 'Manches finales',
+        bestOfSingle: 'Manche unique',
+        bestOf3: 'Au meilleur des 3',
+        bestOf5: 'Au meilleur des 5',
+        bestOf7: 'Au meilleur des 7',
+        bestOfHelp:
+          'Nombre de manches; gagner la majorite des manches remporte le match. Manche unique = comportement actuel.',
         softClock: 'Horloge souple',
         maxDoubleHits: 'Doubles maximum',
         afterblowMode: 'Mode contre-frappe',

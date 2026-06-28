@@ -9,10 +9,13 @@
  */
 import type { Exchange, Match, MatchEndDecision, MatchScore } from '../types';
 import {
+  computeAfterblowDeltas,
   computeMatchFormatScore,
   getEffectiveMatchTimeLimitSeconds,
+  getEffectiveMaxDoubles,
   isPointCapReached,
   normalizeMatchFormatConfig,
+  type AfterblowMode,
 } from '../match-format';
 import type { TFv1Config } from './config';
 
@@ -48,6 +51,7 @@ export function computeAggregates(
   match: Match,
   exchanges: Exchange[],
   isWinner: boolean,
+  afterblowMode: AfterblowMode = 'full',
 ): FighterAggregates {
   const isRed = match.redRegistrationId === registrationId;
   const myColor = isRed ? 'red' : 'blue';
@@ -71,19 +75,28 @@ export function computeAggregates(
         }
         break;
 
-      case 'afterblow':
+      case 'afterblow': {
+        // Raw button values are stored; the mode decides how they net. In
+        // 'deductive' the afterblow is subtracted from the attacker and the
+        // afterblow-lander gains 0.
+        const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
+          afterblowMode,
+          ex.firstStrikeValue ?? 0,
+          ex.afterblowValue ?? 0,
+        );
         if (ex.firstStrikerColor === myColor) {
-          // I struck first → I gain first_strike_value
-          targetPoints += ex.firstStrikeValue ?? 0;
+          // I struck first → I gain the (possibly deducted) attacker points
+          targetPoints += attackerDelta;
           // NOTE: in afterblow, the FIRST striker receives the afterblow
           // (opponent landed afterblow on me) → I was hit
           timesHit += 1;
         } else if (ex.firstStrikerColor === opponentColor) {
-          // Opponent struck first → opponent gains first_strike_value
-          // I landed the afterblow → I gain afterblow_value
-          targetPoints += ex.afterblowValue ?? 0;
+          // Opponent struck first → I landed the afterblow → I gain the
+          // defender points (0 in deductive mode)
+          targetPoints += defenderDelta;
         }
         break;
+      }
 
       case 'double':
         // Both struck simultaneously — no points, counts toward penalty
@@ -133,8 +146,14 @@ export function computeMatchScore(
   match: Match,
   exchanges: Exchange[],
   config: TFv1Config,
+  afterblowMode: AfterblowMode = 'full',
 ): MatchScore {
-  return computeMatchFormatScore(match, exchanges, normalizeMatchFormatConfig(config.matchFormat));
+  return computeMatchFormatScore(
+    match,
+    exchanges,
+    normalizeMatchFormatConfig(config.matchFormat),
+    afterblowMode,
+  );
 }
 
 // ── Match end decision ────────────────────────────────────────────────────────
@@ -148,6 +167,7 @@ export function isMatchOver(
   exchanges: Exchange[],
   clockMs: number,
   config: TFv1Config,
+  afterblowMode: AfterblowMode = 'full',
 ): MatchEndDecision {
   const active = exchanges.filter((e) => !e.voided);
   const matchFormat = normalizeMatchFormatConfig(config.matchFormat);
@@ -159,14 +179,17 @@ export function isMatchOver(
     }
   }
 
-  const score = computeMatchScore(_match, active, config);
+  const score = computeMatchScore(_match, active, config, afterblowMode);
   if (isPointCapReached(score, matchFormat)) {
     return { isOver: true, reason: 'first_to_points' };
   }
 
-  if (matchFormat.maxDoubleHits !== null) {
+  // Max-doubles ends a match only in pools (bracket/finals must resolve to a
+  // winner); getEffectiveMaxDoubles returns null off the pool phase.
+  const effectiveMaxDoubles = getEffectiveMaxDoubles(_match, matchFormat);
+  if (effectiveMaxDoubles !== null) {
     const doubleCount = active.filter((e) => e.type === 'double').length;
-    if (doubleCount >= matchFormat.maxDoubleHits) {
+    if (doubleCount >= effectiveMaxDoubles) {
       return { isOver: true, reason: 'max_doubles' };
     }
   }

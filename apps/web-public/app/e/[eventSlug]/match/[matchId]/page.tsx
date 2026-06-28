@@ -34,6 +34,7 @@ async function fetchSummary(matchId: string): Promise<MatchSummary> {
       blueClub: null,
       eventTimezone: 'Europe/Paris',
       referees: [],
+      bestOf: 1,
     };
   }
   return (await res.json()) as MatchSummary;

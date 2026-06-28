@@ -62,6 +62,7 @@ export function Step2MatchFormat({
               timeLimitsSeconds: data.timeLimitsSeconds,
               softClockLimitSeconds: data.softClockLimitSeconds,
               maxDoubleHits: data.maxDoubleHits,
+              bestOf: data.bestOf,
             },
           },
           scoringConfig: { afterblowMode: data.afterblowMode },
@@ -142,6 +143,41 @@ export function Step2MatchFormat({
         min={0}
         max={3600}
         suffix="s"
+      />
+
+      <SelectField
+        label={t('organizer.tournaments.settings.bestOfPool')}
+        hint={t('organizer.tournaments.settings.bestOfHelp')}
+        value={String(data.bestOf.pool)}
+        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, pool: Number(v) } })}
+        options={[
+          { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
+          { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
+          { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
+          { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
+        ]}
+      />
+      <SelectField
+        label={t('organizer.tournaments.settings.bestOfBracket')}
+        value={String(data.bestOf.bracket)}
+        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, bracket: Number(v) } })}
+        options={[
+          { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
+          { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
+          { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
+          { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
+        ]}
+      />
+      <SelectField
+        label={t('organizer.tournaments.settings.bestOfFinals')}
+        value={String(data.bestOf.finals)}
+        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, finals: Number(v) } })}
+        options={[
+          { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
+          { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
+          { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
+          { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
+        ]}
       />
 
       <NumberField

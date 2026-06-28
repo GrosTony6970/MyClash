@@ -33,6 +33,7 @@ describe('buildMatchFormatFromRow', () => {
       maxDoubleHits: 4,
       scoringDirection: 'reverse_zero_loses',
       afterblowMode: 'deductive',
+      bestOf: { pool: 1, bracket: 1, finals: 1 },
     });
   });
 
@@ -58,6 +59,7 @@ describe('buildMatchFormatFromRow', () => {
     expect(Object.keys(out).sort()).toEqual(
       [
         'afterblowMode',
+        'bestOf',
         'maxDoubleHits',
         'pointCap',
         'scoringDirection',

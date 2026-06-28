@@ -45,6 +45,26 @@ describe('UpdateTournamentDto — rulesetConfig.matchFormat', () => {
       false,
     );
   });
+
+  it('accepts a per-phase best-of (odd values)', () => {
+    expect(
+      schema.safeParse({
+        rulesetConfig: { matchFormat: { bestOf: { pool: 1, bracket: 3, finals: 5 } } },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects an even best-of value', () => {
+    expect(
+      schema.safeParse({ rulesetConfig: { matchFormat: { bestOf: { bracket: 2 } } } }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown key inside bestOf (strict)', () => {
+    expect(
+      schema.safeParse({ rulesetConfig: { matchFormat: { bestOf: { semis: 3 } } } }).success,
+    ).toBe(false);
+  });
 });
 
 describe('UpdateTournamentDto — logoUrl', () => {

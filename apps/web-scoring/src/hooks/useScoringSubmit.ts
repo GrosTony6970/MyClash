@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AfterblowButton, CleanButton, TournamentScoringConfig } from '@myclash/types';
-import { computeAfterblowDeltas } from '@myclash/types';
+import type { AfterblowButton, CleanButton } from '@myclash/types';
 
 export type ExchangeSide = 'red' | 'blue';
 export type NoExchangeReason = 'out_of_bounds' | 'simultaneous_stop' | 'no_valid_hit' | 'other';
@@ -21,7 +20,6 @@ export interface UseScoringSubmitArgs {
   nextSequence: number;
   /** Clock active ms at submission time — recorded BE-side per exchange. */
   clockTimeMs: number | null;
-  config: TournamentScoringConfig;
   onExchangeRecorded?: (exchangeId: string) => void;
 }
 
@@ -46,7 +44,6 @@ export function useScoringSubmit({
   matchId,
   nextSequence,
   clockTimeMs,
-  config,
   onExchangeRecorded,
 }: UseScoringSubmitArgs): UseScoringSubmitResult {
   const [submitting, setSubmitting] = useState(false);
@@ -102,19 +99,17 @@ export function useScoringSubmit({
 
   const submitAfterblow = useCallback(
     (side: ExchangeSide, btn: AfterblowButton) => {
-      const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
-        config.afterblowMode,
-        btn.attackerPts,
-        btn.defenderPts,
-      );
+      // Send the RAW button values. The server applies the tournament's
+      // afterblow mode when deriving scores (deductive nets the afterblow
+      // against the attacker); storing raw preserves blow fidelity for stats.
       void submit({
         type: 'afterblow',
         firstStrikerColor: side,
-        firstStrikeValue: attackerDelta,
-        afterblowValue: defenderDelta,
+        firstStrikeValue: btn.attackerPts,
+        afterblowValue: btn.defenderPts,
       });
     },
-    [submit, config.afterblowMode],
+    [submit],
   );
 
   const submitDouble = useCallback(() => {

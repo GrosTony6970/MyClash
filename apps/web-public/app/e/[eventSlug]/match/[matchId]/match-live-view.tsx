@@ -50,6 +50,16 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
       : scoringSide === 'blue'
         ? raw.blue_score_delta
         : null;
+  // Defender's NETTED afterblow points (the opposite side's delta) — 0 in
+  // deductive mode, the raw afterblow in full. Mirrors the API's listExchanges.
+  const defenderDelta =
+    raw.type === 'afterblow'
+      ? scoringSide === 'red'
+        ? raw.blue_score_delta
+        : scoringSide === 'blue'
+          ? raw.red_score_delta
+          : null
+      : null;
   return {
     id: raw.id,
     sequence: raw.sequence,
@@ -58,7 +68,7 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
     noExchangeReason: raw.no_exchange_reason,
     scoringSide,
     scoreDelta,
-    defenderDelta: raw.afterblow_value,
+    defenderDelta,
     clockTimeMs: raw.clock_time_ms,
   };
 }
@@ -109,6 +119,20 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
         </p>
       )}
 
+      {summary.bestOf > 1 && (
+        <p className="mb-3 text-center text-xs font-bold tracking-wide text-sky-600">
+          {t('scoring.rounds.counter', {
+            current: String(match.currentRound),
+            total: String(summary.bestOf),
+          })}
+          {' · '}
+          {t('scoring.rounds.seriesTally')}{' '}
+          <span className="text-red-600">{match.redRoundWins}</span>
+          <span className="text-gray-400">–</span>
+          <span className="text-blue-600">{match.blueRoundWins}</span>
+        </p>
+      )}
+
       <div className="flex items-start justify-between gap-4">
         {/* Red side */}
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
@@ -138,6 +162,11 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
 
       {/* Meta: winner, start/end, referee, status */}
       <div className="mt-5 flex flex-col items-center gap-1 border-t border-gray-100 pt-4 text-center">
+        {summary.bestOf > 1 && match.awaitingRoundAdvance && (
+          <p className="text-sm font-bold text-sky-600">
+            {t('scoring.rounds.roundComplete', { round: String(match.currentRound) })}
+          </p>
+        )}
         {winnerName && <p className="text-lg font-black text-gray-900">🏆 {winnerName}</p>}
         {(match.startedAt || match.endedAt) && (
           <p className="text-xs text-gray-500">

@@ -13,9 +13,22 @@ import type {
   StandingsColumn,
   RankingRule,
 } from '../types';
+import type { AfterblowMode } from '../match-format';
 import { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config } from './config';
 import { computeMatchScore, isMatchOver } from './score';
 import { computePoolStandings } from './standings';
+
+/**
+ * `afterblowMode` lives in the tournament's `scoring_config_json`, not in the
+ * ruleset config — the API attaches it onto the config object before calling
+ * the engine. Read it off the raw config here, BEFORE `TFv1ConfigSchema.parse`
+ * (Zod strips unknown keys), defaulting to 'full'.
+ */
+function readAfterblowMode(config: unknown): AfterblowMode {
+  return (config as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
+    ? 'deductive'
+    : 'full';
+}
 
 const TF_V1_STANDINGS_COLUMNS: StandingsColumn[] = [
   // The TF_v1 ranking metric: (wins·winBonus + targetPoints) /
@@ -50,12 +63,12 @@ export const TF_v1: Ruleset = {
 
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
-    return computeMatchScore(match, exchanges, cfg);
+    return computeMatchScore(match, exchanges, cfg, readAfterblowMode(config));
   },
 
   isMatchOver(match: Match, exchanges: Exchange[], clockMs: number, config: unknown) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
-    return isMatchOver(match, exchanges, clockMs, cfg);
+    return isMatchOver(match, exchanges, clockMs, cfg, readAfterblowMode(config));
   },
 
   computePoolStandings(
@@ -65,7 +78,7 @@ export const TF_v1: Ruleset = {
     config: unknown,
   ) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
-    return computePoolStandings(pool, matches, registrations, cfg);
+    return computePoolStandings(pool, matches, registrations, cfg, readAfterblowMode(config));
   },
 
   standingsColumns: TF_V1_STANDINGS_COLUMNS,

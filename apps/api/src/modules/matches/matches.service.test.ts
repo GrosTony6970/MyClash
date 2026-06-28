@@ -217,11 +217,20 @@ describe('MatchesService', () => {
       const checkChain = makeChain({ data: null, error: null });
       checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
+      // round state: single round, not awaiting
+      const roundChain = makeChain({
+        data: { current_round: 1, awaiting_round_advance: false },
+        error: null,
+      });
+
       // insert: success
       const insertChain = makeChain({ data: null, error: null });
       insertChain.single.mockResolvedValue({ data: newExchange, error: null });
 
-      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
+      fromMock
+        .mockReturnValueOnce(checkChain)
+        .mockReturnValueOnce(roundChain)
+        .mockReturnValueOnce(insertChain);
 
       const result = await service.createExchange('m1', {
         clientUuid: 'uuid-new',
@@ -265,6 +274,65 @@ describe('MatchesService', () => {
       ).rejects.toThrow(BadRequestException);
       expect(fromMock).not.toHaveBeenCalled();
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
+  });
+
+  // The exchange row stores the referee's RAW button values; the materialized
+  // red/blue_score_delta apply the tournament's afterblow mode. Deductive
+  // subtracts the afterblow from the attacker (defender nets 0).
+  describe('createExchange — afterblow mode netting', () => {
+    async function recordAfterblow(
+      afterblowMode: 'full' | 'deductive',
+      firstStrikerColor: 'red' | 'blue',
+    ) {
+      const checkChain = makeChain({ data: null, error: null }); // idempotency: fresh
+      const modeChain = makeChain({
+        data: { phases: { tournaments: { scoring_config_json: { afterblowMode } } } },
+        error: null,
+      });
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({ data: { id: 'ex-ab' }, error: null });
+      const roundChain = makeChain({
+        data: { current_round: 1, awaiting_round_advance: false },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(checkChain) // exchanges — idempotency check
+        .mockReturnValueOnce(roundChain) // matches — round state (round_number + gate)
+        .mockReturnValueOnce(modeChain) // matches — getAfterblowMode
+        .mockReturnValueOnce(insertChain); // exchanges — insert
+
+      await service.createExchange('m1', {
+        clientUuid: 'uuid-ab',
+        sequence: 3,
+        type: 'afterblow',
+        occurredAt: new Date().toISOString(),
+        firstStrikerColor,
+        firstStrikeValue: 2,
+        afterblowValue: 1,
+      });
+
+      return insertChain.insert.mock.calls[0]![0] as Record<string, number>;
+    }
+
+    it('deductive: stores raw 2/1 but nets attacker +1 / defender 0', async () => {
+      const inserted = await recordAfterblow('deductive', 'red');
+      // Raw button values preserved for blow-count stats.
+      expect(inserted['first_strike_value']).toBe(2);
+      expect(inserted['afterblow_value']).toBe(1);
+      // Netted: attacker max(0, 2 - 1) = 1, defender 0.
+      expect(inserted['red_score_delta']).toBe(1);
+      expect(inserted['blue_score_delta']).toBe(0);
+    });
+
+    it('full: both fighters keep their points', async () => {
+      const inserted = await recordAfterblow('full', 'blue');
+      expect(inserted['first_strike_value']).toBe(2);
+      expect(inserted['afterblow_value']).toBe(1);
+      // blue struck first → blue +2, red (afterblow) +1.
+      expect(inserted['blue_score_delta']).toBe(2);
+      expect(inserted['red_score_delta']).toBe(1);
     });
   });
 
@@ -411,8 +479,15 @@ describe('MatchesService', () => {
 
       const insertChain = makeChain({ data: null, error: null });
       insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
+      const roundChain = makeChain({
+        data: { current_round: 1, awaiting_round_advance: false },
+        error: null,
+      });
 
-      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
+      fromMock
+        .mockReturnValueOnce(checkChain)
+        .mockReturnValueOnce(roundChain)
+        .mockReturnValueOnce(insertChain);
 
       await service.createExchange('match-1', {
         clientUuid: 'fresh-uuid',
@@ -435,7 +510,14 @@ describe('MatchesService', () => {
       checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
       const insertChain = makeChain({ data: null, error: null });
       insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
-      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
+      const roundChain = makeChain({
+        data: { current_round: 1, awaiting_round_advance: false },
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(checkChain)
+        .mockReturnValueOnce(roundChain)
+        .mockReturnValueOnce(insertChain);
 
       await service.createExchange('match-1', {
         clientUuid: 'uuid-clock',
@@ -450,6 +532,58 @@ describe('MatchesService', () => {
       expect(insertChain.insert).toHaveBeenCalledWith(
         expect.objectContaining({ clock_time_ms: 90_000 }),
       );
+    });
+  });
+
+  // Best-of-N: a new exchange is stamped with the match's current open round,
+  // and scoring is blocked between rounds (while awaiting_round_advance).
+  describe('createExchange — best-of rounds', () => {
+    it('stamps round_number from the match current_round on the inserted row', async () => {
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const roundChain = makeChain({
+        data: { current_round: 3, awaiting_round_advance: false },
+        error: null,
+      });
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({ data: { id: 'ex-r3' }, error: null });
+      fromMock
+        .mockReturnValueOnce(checkChain)
+        .mockReturnValueOnce(roundChain)
+        .mockReturnValueOnce(insertChain);
+
+      await service.createExchange('match-1', {
+        clientUuid: 'uuid-r3',
+        sequence: 1,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 1,
+        occurredAt: new Date().toISOString(),
+      });
+
+      expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({ round_number: 3 }));
+    });
+
+    it('rejects scoring while a round is awaiting advance', async () => {
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const roundChain = makeChain({
+        data: { current_round: 2, awaiting_round_advance: true },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(roundChain);
+
+      await expect(
+        service.createExchange('match-1', {
+          clientUuid: 'uuid-blocked',
+          sequence: 1,
+          type: 'clean',
+          firstStrikerColor: 'red',
+          firstStrikeValue: 1,
+          occurredAt: new Date().toISOString(),
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
   });
 
@@ -511,18 +645,15 @@ describe('MatchesService', () => {
   describe('throughput — 50+ exchanges/sec', () => {
     it('processes 50 exchange inserts in under 1 second (mocked DB)', async () => {
       const N = 50;
+      // Concurrency makes ordered mockReturnValueOnce non-deterministic (and the
+      // extra round-state fetch per insert amplifies that), so use a single
+      // default chain: idempotency + round fetch resolve null (fresh, round 1,
+      // not awaiting); inserts resolve with an id.
+      const chain = makeChain({ data: null, error: null });
+      chain.single.mockResolvedValue({ data: { id: 'ex' }, error: null });
+      fromMock.mockReturnValue(chain);
+
       const start = Date.now();
-
-      for (let i = 0; i < N; i++) {
-        const checkChain = makeChain({ data: null, error: null });
-        checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-        const insertChain = makeChain({ data: null, error: null });
-        insertChain.single.mockResolvedValue({ data: { id: `ex-${i}` }, error: null });
-
-        fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
-      }
-
       const promises = Array.from({ length: N }, (_, i) =>
         service.createExchange('match-1', {
           clientUuid: `uuid-${i}`,

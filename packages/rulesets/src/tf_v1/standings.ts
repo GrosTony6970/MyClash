@@ -4,6 +4,7 @@
  * TF_v1 pool standings computation — pure function, no I/O.
  * Implements ARCHITECTURE.md §6.1, §6.2, §6.3 exactly.
  */
+import type { AfterblowMode } from '../match-format';
 import type { Exchange, Match, Pool, PoolStandingRow, Registration } from '../types';
 import type { TFv1Config } from './config';
 import { computeAggregates, computeScore } from './score';
@@ -23,6 +24,7 @@ export function computePoolStandings(
   matches: Match[],
   registrations: Registration[],
   _config: TFv1Config,
+  afterblowMode: AfterblowMode = 'full',
 ): PoolStandingRow[] {
   // Build a map of all exchanges per match
   // (In this pure function, exchanges are passed via matches — see index.ts)
@@ -50,7 +52,13 @@ export function computePoolStandings(
     for (const regId of [match.redRegistrationId, match.blueRegistrationId]) {
       if (!stats.has(regId)) continue;
 
-      const agg = computeAggregates(regId, match, matchExchanges, winnerId === regId);
+      const agg = computeAggregates(
+        regId,
+        match,
+        matchExchanges,
+        winnerId === regId,
+        afterblowMode,
+      );
 
       const current = stats.get(regId)!;
       current.wins += agg.wins;

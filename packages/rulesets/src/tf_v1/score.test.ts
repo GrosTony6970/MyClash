@@ -277,7 +277,8 @@ describe('isMatchOver', () => {
     expect(result.reason).toBe('first_to_points');
   });
 
-  it('over when max doubles reached', () => {
+  it('over when max doubles reached in a POOL match', () => {
+    // Max-doubles is a pool-only end condition; the match must be a pool match.
     const config = {
       ...TFv1DefaultConfig,
       matchFormat: { ...TFv1DefaultConfig.matchFormat, maxDoubles: 3, timeLimitSeconds: null },
@@ -291,8 +292,32 @@ describe('isMatchOver', () => {
         firstStrikeValue: null,
       }),
     );
-    const result = isMatchOver(BASE_MATCH, exchanges, 0, config);
+    const result = isMatchOver({ ...BASE_MATCH, phaseType: 'pool' }, exchanges, 0, config);
     expect(result.isOver).toBe(true);
     expect(result.reason).toBe('max_doubles');
+  });
+
+  it('does NOT end a bracket/finals match on max doubles', () => {
+    // Bracket & finals must resolve to a winner, so max-doubles never ends them.
+    const config = {
+      ...TFv1DefaultConfig,
+      matchFormat: { ...TFv1DefaultConfig.matchFormat, maxDoubles: 3, timeLimitSeconds: null },
+    };
+    const exchanges = Array.from({ length: 3 }, (_, i) =>
+      makeExchange({
+        id: `e${i}`,
+        sequence: i + 1,
+        type: 'double',
+        firstStrikerColor: null,
+        firstStrikeValue: null,
+      }),
+    );
+    const bracket = isMatchOver(
+      { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' },
+      exchanges,
+      0,
+      config,
+    );
+    expect(bracket.isOver).toBe(false);
   });
 });

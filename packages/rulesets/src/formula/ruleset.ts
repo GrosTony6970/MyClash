@@ -7,6 +7,7 @@
  * where the formula lives.
  */
 import { Generic_PointsCap } from '../generic_points_cap';
+import type { AfterblowMode } from '../match-format';
 import type {
   Exchange,
   Match,
@@ -83,9 +84,15 @@ export function createFormulaRuleset(
       _runtimeConfig: unknown,
     ): PoolStandingRow[] {
       const exchangesByMatch = buildExchangeIndex(matches);
+      // afterblowMode is attached to the runtime config by the API (it lives in
+      // scoring_config_json). Net deductive afterblows in the derived stats.
+      const afterblowMode: AfterblowMode =
+        (_runtimeConfig as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
+          ? 'deductive'
+          : 'full';
 
       const enriched = registrations.map((reg) => {
-        const stats = deriveFighterStats(reg.id, matches, exchangesByMatch);
+        const stats = deriveFighterStats(reg.id, matches, exchangesByMatch, afterblowMode);
         const scope = buildScope(stats, config);
         const score = evaluateFormula(config.scoreFormula, scope);
         return { reg, stats, scope, score };

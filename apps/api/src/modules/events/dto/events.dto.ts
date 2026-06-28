@@ -126,6 +126,23 @@ const timeLimitsSecondsSchema = z
   })
   .strict();
 
+// Per-phase best-of-N rounds. Odd integers (1 = single round); mirrors the
+// rulesets BestOfConfigSchema so the wizard PATCH round-trips into
+// ruleset_config.matchFormat.bestOf.
+const bestOfValue = z
+  .number()
+  .int()
+  .min(1)
+  .max(15)
+  .refine((n) => n % 2 === 1, 'bestOf must be an odd number');
+const bestOfSchema = z
+  .object({
+    pool: bestOfValue.optional(),
+    bracket: bestOfValue.optional(),
+    finals: bestOfValue.optional(),
+  })
+  .strict();
+
 /**
  * Match-format payload sent by the tournament creation wizard (Step 2)
  * and the per-tournament settings page. Persisted under
@@ -140,6 +157,7 @@ const matchFormatSchema = z
     softClockLimitSeconds: z.number().min(0).max(600).optional(),
     maxDoubleHits: z.number().min(0).max(20).nullish(),
     scoringDirection: z.enum(['normal', 'reverse_zero_loses']).optional(),
+    bestOf: bestOfSchema.optional(),
   })
   .strict();
 

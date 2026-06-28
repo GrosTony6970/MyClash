@@ -110,6 +110,12 @@ export default function MatchScoringPage({ params }: Props) {
           locked_at: string | null;
           lice_id: string | null;
           end_reason: string | null;
+          // Best-of-N round state (matches columns; default to a single round).
+          current_round: number | null;
+          red_round_wins: number | null;
+          blue_round_wins: number | null;
+          rounds_json: unknown;
+          awaiting_round_advance: boolean | null;
         };
         // Soft requirement: summary is labels only (roundCode,
         // fighter names, clubs, weapon, tournamentId). The most
@@ -130,6 +136,8 @@ export default function MatchScoringPage({ params }: Props) {
               poolName?: string | null;
               liceName?: string | null;
               phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
+              /** Effective best-of for this match's phase (not a matches column). */
+              bestOf?: number;
             })
           : null;
         setMatch({
@@ -156,6 +164,14 @@ export default function MatchScoringPage({ params }: Props) {
           lockedAt: raw.locked_at,
           liceId: raw.lice_id,
           endReason: raw.end_reason ?? null,
+          // bestOf is the effective number from the summary; the live round
+          // counters come off the raw matches row (re-fetched on refreshKey).
+          bestOf: summary?.bestOf ?? 1,
+          currentRound: raw.current_round ?? 1,
+          redRoundWins: raw.red_round_wins ?? 0,
+          blueRoundWins: raw.blue_round_wins ?? 0,
+          roundsJson: raw.rounds_json ?? null,
+          awaitingRoundAdvance: raw.awaiting_round_advance ?? false,
         });
       } catch {
         // Offline — leave the cached match in place

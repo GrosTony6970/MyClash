@@ -49,7 +49,7 @@ export class PoolStandingsService {
     // 1. Tournament + ruleset.
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, ruleset_code, ruleset_version')
+      .select('id, ruleset_code, ruleset_version, scoring_config_json')
       .eq('id', tournamentId)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
@@ -57,6 +57,13 @@ export class PoolStandingsService {
 
     const rulesetCode = (tournament as { ruleset_code: string }).ruleset_code;
     const rulesetVersion = (tournament as { ruleset_version: string }).ruleset_version;
+    // afterblow netting for the score formula (deductive subtracts the
+    // afterblow from the attacker). Lives in scoring_config_json, defaults full.
+    const afterblowMode: 'full' | 'deductive' =
+      (tournament as { scoring_config_json?: { afterblowMode?: unknown } | null })
+        ?.scoring_config_json?.afterblowMode === 'deductive'
+        ? 'deductive'
+        : 'full';
 
     let ruleset;
     try {
@@ -204,6 +211,7 @@ export class PoolStandingsService {
         poolStatus,
         exchangesByMatch,
         forfeitCountByReg,
+        afterblowMode,
       );
       return { poolId: pool.id, poolName: pool.name, status: poolStatus, rows };
     });
@@ -248,6 +256,7 @@ export class PoolStandingsService {
     poolStatus: 'in_progress' | 'completed',
     exchangesByMatch: Map<string, Exchange[]>,
     forfeitCountByReg: Map<string, number>,
+    afterblowMode: 'full' | 'deductive' = 'full',
   ): StandingsRow[] {
     const statsByReg = new Map<string, Record<string, number>>();
     // Per-fighter exchange aggregates (targetPoints/timesHit/doubles/wins),
@@ -302,6 +311,7 @@ export class PoolStandingsService {
           rulesetMatch,
           matchExchanges,
           m.winner_registration_id === regId,
+          afterblowMode,
         );
         acc.wins += a.wins;
         acc.targetPoints += a.targetPoints;
