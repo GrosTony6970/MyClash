@@ -347,7 +347,7 @@ export function ScoringCenterControls({
           onClick={() => submit.submitDouble()}
           className="w-full max-w-[280px] rounded-xl border-2 border-amber-700 bg-amber-950 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-900 active:bg-amber-800 disabled:opacity-40"
         >
-          ⚠ Double
+          ⚔ Double
         </button>
         <button
           type="button"
@@ -368,7 +368,7 @@ export function ScoringCenterControls({
           type="button"
           disabled={activeExchanges.length === 0 || clearBusy}
           onClick={() => void clearLastExchange()}
-          className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-bold text-gray-300 hover:border-gray-500 disabled:opacity-40"
+          className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-cyan-700 bg-cyan-950 px-4 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-900 active:bg-cyan-800 disabled:opacity-40 touch-manipulation"
         >
           ↶ {t('scoring.corrections.clearLastExchange')}
         </button>
@@ -385,23 +385,28 @@ export function ScoringCenterControls({
         >
           {events.length === 0 && <p className="text-center text-xs text-gray-600 py-2">—</p>}
           {events.map((ev) => (
-            <div key={ev.id} className="flex items-center gap-2 text-xs">
-              <span className="font-mono text-gray-600 tabular-nums w-7 flex-shrink-0">
+            <div key={ev.id} className="flex items-center gap-2 text-sm py-0.5">
+              <span className="font-mono text-gray-500 tabular-nums w-7 flex-shrink-0">
                 #{ev.number}
               </span>
-              <span className="font-mono text-gray-500 tabular-nums">{ev.timeLabel}</span>
+              <span className="font-mono text-gray-400 tabular-nums">{ev.timeLabel}</span>
               {ev.sideColor && (
                 <span
                   className="inline-block h-2 w-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: ev.sideColor }}
                 />
               )}
-              <span className="font-semibold text-gray-200 truncate flex-1">{ev.fighterLabel}</span>
+              <span className="font-semibold text-gray-100 truncate flex-1">{ev.fighterLabel}</span>
               {ev.card && (
                 <span
                   title={ev.card}
                   className={`inline-block h-3.5 w-3.5 rounded-sm flex-shrink-0 ${CARD_CHIP_COLOR[ev.card]}`}
                 />
+              )}
+              {ev.icon && (
+                <span className="text-amber-300" aria-hidden>
+                  {ev.icon}
+                </span>
               )}
               <span className="text-gray-400 truncate">{ev.typeLabel}</span>
               {ev.delta && <span className="font-bold text-white">{ev.delta}</span>}

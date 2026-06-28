@@ -104,6 +104,12 @@ export function ScoringColumn({
     [ruleset],
   );
 
+  // Admin-pinned quick-pick penalties (config.display.quickPenalties = ref_numbers).
+  const quickEntries = useMemo(
+    () => entries.filter((e) => (config.display.quickPenalties ?? []).includes(e.ref_number)),
+    [entries, config.display.quickPenalties],
+  );
+
   const [penaltyQuery, setPenaltyQuery] = useState('');
   const [directReason, setDirectReason] = useState('');
   const [penaltyError, setPenaltyError] = useState<string | null>(null);
@@ -220,6 +226,9 @@ export function ScoringColumn({
                 }}
               >
                 {btn.label}
+                <span className="block text-[11px] font-semibold opacity-70">
+                  {t('scoring.lice.pointsLabel')}
+                </span>
               </button>
             ))}
           </div>
@@ -239,33 +248,56 @@ export function ScoringColumn({
                 btn.attackerPts,
                 btn.defenderPts,
               );
+              const isFull = config.afterblowMode === 'full';
               return (
                 <button
                   key={btn.label}
                   onClick={() => submit.submitAfterblow(side, btn)}
                   disabled={submit.submitting || !canScore}
-                  className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
+                  className="min-h-[56px] rounded-xl border-2 bg-transparent font-bold text-lg flex flex-col items-center justify-center gap-1 disabled:opacity-40 transition-colors touch-manipulation"
+                  style={{ borderColor: style.border, color: style.text }}
                   title={
-                    config.afterblowMode === 'deductive'
-                      ? t('scoring.pad.afterblowTitleDeductive', {
-                          attacker: fighterName,
-                          defender: '—',
-                          attackerPts: d.attackerDelta,
-                        })
-                      : t('scoring.pad.afterblowTitleFull', {
+                    isFull
+                      ? t('scoring.pad.afterblowTitleFull', {
                           attacker: fighterName,
                           defender: '—',
                           attackerPts: d.attackerDelta,
                           defenderPts: d.defenderDelta,
                         })
+                      : t('scoring.pad.afterblowTitleDeductive', {
+                          attacker: fighterName,
+                          defender: '—',
+                          attackerPts: d.attackerDelta,
+                        })
                   }
                 >
-                  {btn.label}
-                  <span className="block text-xs font-normal opacity-60">
-                    {config.afterblowMode === 'deductive'
-                      ? `+${d.attackerDelta} / 0`
-                      : `+${d.attackerDelta} / +${d.defenderDelta}`}
-                  </span>
+                  {isFull ? (
+                    // Full mode: drop the numeric label; two side-coloured pills show who scores.
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="inline-block min-w-[34px] rounded-md px-2 py-0.5 text-sm font-extrabold tabular-nums"
+                        style={{ backgroundColor: style.panel, color: style.text }}
+                      >
+                        +{d.attackerDelta}
+                      </span>
+                      <span
+                        className="inline-block min-w-[34px] rounded-md px-2 py-0.5 text-sm font-extrabold tabular-nums"
+                        style={{ backgroundColor: otherStyle.panel, color: otherStyle.text }}
+                      >
+                        +{d.defenderDelta}
+                      </span>
+                    </span>
+                  ) : (
+                    // Deductive mode: keep the label + the net points the striker keeps.
+                    <>
+                      {btn.label}
+                      <span className="block text-[11px] font-normal opacity-70">
+                        {d.attackerDelta === 1
+                          ? `${d.attackerDelta} ${t('scoring.lice.point')}`
+                          : `${d.attackerDelta} ${t('scoring.lice.points')}`}
+                      </span>
+                    </>
+                  )}
                 </button>
               );
             })}
@@ -282,6 +314,30 @@ export function ScoringColumn({
 
         {penaltyError && (
           <p className="rounded-lg bg-red-900 px-3 py-2 text-xs text-red-100">{penaltyError}</p>
+        )}
+
+        {quickEntries.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {quickEntries.map((entry) => {
+              const card = entry.sanctions[0];
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  disabled={penaltyDisabled}
+                  onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-900 px-2.5 py-2 text-xs font-semibold text-gray-100 hover:border-yellow-600 disabled:opacity-40"
+                >
+                  {card && (
+                    <span
+                      className={`inline-block h-2.5 w-2.5 rounded-sm ${CARD_CHIP_COLOR[card]}`}
+                    />
+                  )}
+                  {entry.short_name}
+                </button>
+              );
+            })}
+          </div>
         )}
 
         <input

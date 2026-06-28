@@ -32,6 +32,8 @@ export interface UnifiedEvent {
   sideColor: string | null;
   fighterLabel: string;
   typeLabel: string;
+  /** Decorative glyph for special rows (⚔ for a double). Null otherwise. */
+  icon?: string | null;
   /** Penalty card colour — null for exchange rows. */
   card: PenaltyCard | null;
   delta: string | null;
@@ -110,6 +112,7 @@ export function buildUnifiedTimeline({
       sideColor: side ? sideStyle(config, side).border : null,
       fighterLabel: e.type === 'double' ? t('scoring.lice.eventRowDouble') : sideName,
       typeLabel,
+      icon: e.type === 'double' ? '⚔' : null,
       card: null,
       delta: exchangeDeltaLabel(e.type, e.scoreDelta),
       opponentSideColor: opponentDelta && oppSide ? sideStyle(config, oppSide).border : null,
@@ -138,6 +141,7 @@ export function buildUnifiedTimeline({
       sideColor: side ? sideStyle(config, side).border : null,
       fighterLabel: sideName,
       typeLabel: (p.short_name ?? p.reason ?? '').trim(),
+      icon: null,
       card: p.card,
       delta: p.score_delta ? String(p.score_delta) : null,
     };
