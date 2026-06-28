@@ -88,6 +88,43 @@ export class PenaltiesService {
     return data;
   }
 
+  /**
+   * Effective penalty ruleset for a tournament, resolving tournament →
+   * event default → built-in (mirrors {@link getEffectiveRulesetForMatch}
+   * minus the match-level override). Powers the admin "quick-pick penalties"
+   * picker so organizers can pin common entries to the scoreboard.
+   */
+  async getEffectiveRulesetForTournament(tournamentId: string) {
+    const { data: t, error } = await this.supabase.service
+      .from('tournaments')
+      .select('penalty_ruleset_id, event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const tour = t as { penalty_ruleset_id?: string | null; event_id?: string | null } | null;
+    if (tour?.penalty_ruleset_id) return this.getRuleset(tour.penalty_ruleset_id);
+    if (tour?.event_id) {
+      const { data: ev } = await this.supabase.service
+        .from('events')
+        .select('penalty_ruleset_id')
+        .eq('id', tour.event_id)
+        .maybeSingle();
+      const evRulesetId =
+        (ev as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
+      if (evRulesetId) return this.getRuleset(evRulesetId);
+    }
+
+    const { data, error: builtinErr } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select('*, penalty_ruleset_entries(*)')
+      .eq('code', BUILTIN_CODE)
+      .eq('version', BUILTIN_VERSION)
+      .is('owner_organization_id', null)
+      .maybeSingle();
+    if (builtinErr) throw new BadRequestException(builtinErr.message);
+    return data;
+  }
+
   async createRuleset(dto: CreatePenaltyRulesetDto, userId?: string) {
     await this.assertUserCanManageOrg(dto.ownerOrganizationId, userId);
     const insertRow: Record<string, unknown> = {

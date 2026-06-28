@@ -18,9 +18,18 @@ interface AfterblowButton {
   defenderPts: number;
   visible: boolean;
 }
+interface PenaltyEntry {
+  id: string;
+  ref_number: number;
+  short_name: string;
+  group_number: number;
+  sanctions: string[];
+}
 interface DisplayState {
   sideColors: { red: string; blue: string };
   buttons: { clean: CleanButton[]; afterblow: AfterblowButton[] };
+  /** Ruleset-entry ref_numbers pinned as scoreboard quick-pick chips. */
+  quickPenalties: number[];
 }
 
 const DEFAULTS: DisplayState = {
@@ -29,6 +38,7 @@ const DEFAULTS: DisplayState = {
     clean: [{ label: 'Point', value: 1, visible: true }],
     afterblow: [{ label: 'Afterblow', attackerPts: 1, defenderPts: 1, visible: true }],
   },
+  quickPenalties: [],
 };
 
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];
@@ -36,6 +46,7 @@ const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', '
 export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
+  const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -54,7 +65,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         // and silently fell back to defaults, mirroring the Step 3
         // wizard bug).
         const sc = (row.scoring_config_json ?? {}) as {
-          display?: { sideColors?: { red: string; blue: string } };
+          display?: { sideColors?: { red: string; blue: string }; quickPenalties?: number[] };
           buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
         };
         setData({
@@ -63,8 +74,21 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
             clean: sc.buttons?.clean ?? DEFAULTS.buttons.clean,
             afterblow: sc.buttons?.afterblow ?? DEFAULTS.buttons.afterblow,
           },
+          quickPenalties: sc.display?.quickPenalties ?? [],
         });
       });
+
+    // Effective penalty ruleset entries → the quick-pick pin picker below.
+    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/penalty-ruleset`, {
+      credentials: 'include',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rs: { penalty_ruleset_entries?: PenaltyEntry[] } | null) => {
+        const entries = [...(rs?.penalty_ruleset_entries ?? [])];
+        entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
+        setPenaltyEntries(entries);
+      })
+      .catch(() => {});
   }, [tournamentId]);
 
   async function uploadLogo(file: File) {
@@ -124,7 +148,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scoringConfig: {
-            display: { sideColors: data.sideColors },
+            display: { sideColors: data.sideColors, quickPenalties: data.quickPenalties },
             buttons: data.buttons,
           },
         }),
@@ -136,6 +160,15 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleQuick(ref: number) {
+    setData((d) => ({
+      ...d,
+      quickPenalties: d.quickPenalties.includes(ref)
+        ? d.quickPenalties.filter((r) => r !== ref)
+        : [...d.quickPenalties, ref],
+    }));
   }
 
   return (
@@ -449,6 +482,37 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
           </button>
         </fieldset>
       )}
+
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-foreground-secondary">
+          {t('organizer.tournaments.settings.quickPenalties')}
+        </legend>
+        <p className="text-[11px] text-muted">
+          {t('organizer.tournaments.settings.quickPenaltiesHelp')}
+        </p>
+        {penaltyEntries.length === 0 ? (
+          <p className="text-[11px] text-muted">
+            {t('organizer.tournaments.settings.quickPenaltiesEmpty')}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {penaltyEntries.map((e) => (
+              <label
+                key={e.id}
+                className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-background"
+              >
+                <input
+                  type="checkbox"
+                  checked={data.quickPenalties.includes(e.ref_number)}
+                  onChange={() => toggleQuick(e.ref_number)}
+                />
+                <span className="font-mono text-xs text-muted">{e.ref_number}</span>
+                <span className="flex-1 truncate">{e.short_name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </fieldset>
 
       <button
         type="button"

@@ -193,6 +193,13 @@ export class PenaltiesController {
     return this.penalties.getEffectiveRulesetForMatch(id);
   }
 
+  @Get('tournaments/:id/penalty-ruleset')
+  @ApiOperation({ summary: 'Get the effective penalty ruleset for a tournament' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getTournamentPenaltyRuleset(@Param('id', ParseUUIDPipe) id: string) {
+    return this.penalties.getEffectiveRulesetForTournament(id);
+  }
+
   @Post('matches/:id/penalties')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record a match penalty card' })
