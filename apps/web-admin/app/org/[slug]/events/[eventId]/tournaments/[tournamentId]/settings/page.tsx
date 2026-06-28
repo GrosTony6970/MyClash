@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { AdminPageHeader } from '@myclash/ui';
+import { AdminPageHeader, Button } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { BasicsTab } from './_components/BasicsTab';
 import { MatchFormatTab } from './_components/MatchFormatTab';
@@ -48,12 +48,11 @@ export default function TournamentSettingsPage() {
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
-      <Link
-        href={`/org/${params.slug}/events/${params.eventId}/tournaments`}
-        className="inline-flex items-center gap-1 rounded text-sm font-medium text-foreground-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-      >
-        ← {t('organizer.tournaments.settings.backToList')}
-      </Link>
+      <Button variant="back" size="sm" asChild>
+        <Link href={`/org/${params.slug}/events/${params.eventId}/tournaments`}>
+          ← {t('organizer.tournaments.settings.backToList')}
+        </Link>
+      </Button>
       <div className="mt-4">
         <AdminPageHeader
           eyebrow="Tournament"

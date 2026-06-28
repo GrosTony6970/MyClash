@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { t } from '@myclash/i18n';
-import { useToast } from '@myclash/ui';
+import { Switch, useToast } from '@myclash/ui';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -59,40 +59,87 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
     }
   }
 
+  const dependentDisabled = !lock.autoLockEnabled;
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">Auto-lock</h2>
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+          {t('organizer.tournaments.settings.locks')}
+        </h2>
         <p className="mt-1 text-sm text-muted">
-          Locks completed pools or brackets after a delay so referees can&apos;t keep editing them.
-          This is a tournament-level setting, separate from the ruleset.
+          {t('organizer.tournaments.settings.lockHelp.intro')}
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          {t('organizer.tournaments.settings.lockHelp.lockedNote')}
         </p>
       </div>
 
-      <fieldset className="space-y-3 rounded-md border border-border p-4">
-        <legend className="px-2 text-xs font-medium text-foreground-secondary">Auto-lock</legend>
-        <BoolField
-          label="Auto-lock enabled"
-          value={lock.autoLockEnabled}
-          onChange={(v) => setLock({ ...lock, autoLockEnabled: v })}
+      <fieldset className="space-y-4 rounded-md border border-border p-4">
+        <legend className="px-2 text-xs font-medium text-foreground-secondary">
+          {t('organizer.tournaments.settings.locks')}
+        </legend>
+
+        {/* Master switch */}
+        <SettingRow
+          label={t('organizer.tournaments.settings.lockHelp.enabled')}
+          help={t('organizer.tournaments.settings.lockHelp.enabledHelp')}
+          control={
+            <Switch
+              checked={lock.autoLockEnabled}
+              onChange={(v) => setLock({ ...lock, autoLockEnabled: v })}
+              ariaLabel={t('organizer.tournaments.settings.lockHelp.enabled')}
+            />
+          }
         />
-        <NumField
-          label="Auto-lock delay (minutes)"
-          value={lock.autoLockDelayMinutes}
-          onChange={(v) => setLock({ ...lock, autoLockDelayMinutes: v })}
-          min={0}
-          max={1440}
-        />
-        <BoolField
-          label="Auto-lock completed pools"
-          value={lock.autoLockCompletedPools}
-          onChange={(v) => setLock({ ...lock, autoLockCompletedPools: v })}
-        />
-        <BoolField
-          label="Auto-lock completed brackets"
-          value={lock.autoLockCompletedBrackets}
-          onChange={(v) => setLock({ ...lock, autoLockCompletedBrackets: v })}
-        />
+
+        {/* Dependent settings — greyed out + disabled until the master is on */}
+        <div
+          aria-disabled={dependentDisabled}
+          className={`space-y-4 border-t border-border pt-4 ${
+            dependentDisabled ? 'pointer-events-none opacity-50' : ''
+          }`}
+        >
+          <SettingRow
+            label={t('organizer.tournaments.settings.lockHelp.delay')}
+            help={t('organizer.tournaments.settings.lockHelp.delayHelp')}
+            control={
+              <input
+                type="number"
+                value={lock.autoLockDelayMinutes}
+                min={0}
+                max={1440}
+                disabled={dependentDisabled}
+                onChange={(e) => setLock({ ...lock, autoLockDelayMinutes: Number(e.target.value) })}
+                className="w-24 rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+              />
+            }
+          />
+          <SettingRow
+            label={t('organizer.tournaments.settings.lockHelp.completedPools')}
+            help={t('organizer.tournaments.settings.lockHelp.completedPoolsHelp')}
+            control={
+              <Switch
+                checked={lock.autoLockCompletedPools}
+                onChange={(v) => setLock({ ...lock, autoLockCompletedPools: v })}
+                disabled={dependentDisabled}
+                ariaLabel={t('organizer.tournaments.settings.lockHelp.completedPools')}
+              />
+            }
+          />
+          <SettingRow
+            label={t('organizer.tournaments.settings.lockHelp.completedBrackets')}
+            help={t('organizer.tournaments.settings.lockHelp.completedBracketsHelp')}
+            control={
+              <Switch
+                checked={lock.autoLockCompletedBrackets}
+                onChange={(v) => setLock({ ...lock, autoLockCompletedBrackets: v })}
+                disabled={dependentDisabled}
+                ariaLabel={t('organizer.tournaments.settings.lockHelp.completedBrackets')}
+              />
+            }
+          />
+        </div>
       </fieldset>
 
       <button
@@ -107,47 +154,15 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
   );
 }
 
-function NumField({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min: number;
-  max: number;
-}) {
+/** A settings row: label + muted help on the left, the control on the right. */
+function SettingRow({ label, help, control }: { label: string; help: string; control: ReactNode }) {
   return (
-    <label className="flex items-center justify-between gap-3">
-      <span className="text-sm text-foreground-secondary">{label}</span>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-24 rounded-md border border-border px-3 py-1.5 text-sm"
-      />
-    </label>
-  );
-}
-
-function BoolField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center justify-between gap-3">
-      <span className="text-sm text-foreground-secondary">{label}</span>
-      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
-    </label>
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col">
+        <span className="text-sm text-foreground-secondary">{label}</span>
+        <span className="text-xs text-muted">{help}</span>
+      </div>
+      <div className="mt-0.5 flex-shrink-0">{control}</div>
+    </div>
   );
 }

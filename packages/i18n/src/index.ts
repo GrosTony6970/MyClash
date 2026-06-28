@@ -3240,6 +3240,24 @@ export const en = {
         displayPreviewTitle: 'Sample',
         advanced: 'Advanced',
         locks: 'Auto-lock',
+        lockHelp: {
+          intro:
+            'Locks completed pools or brackets after a delay so referees cannot keep editing them. This is a tournament-level setting, separate from the ruleset.',
+          lockedNote:
+            'Locked matches become read-only on the scoreboard; a tournament organiser can reopen them — and when auto-lock is off, event staff can reopen them too.',
+          enabled: 'Auto-lock enabled',
+          enabledHelp:
+            'Master switch. When off, matches never lock automatically (an organiser can still lock them manually) and the options below have no effect.',
+          delay: 'Auto-lock delay (minutes)',
+          delayHelp:
+            'Grace period after the last match of a pool or bracket ends before its matches lock — leaves time for corrections. 0 locks immediately on completion.',
+          completedPools: 'Auto-lock completed pools',
+          completedPoolsHelp:
+            'When every match in a pool is finished, lock that pool after the delay. Only applies when auto-lock is enabled.',
+          completedBrackets: 'Auto-lock completed brackets',
+          completedBracketsHelp:
+            'When every match in a bracket is finished, lock that bracket after the delay. Only applies when auto-lock is enabled.',
+        },
         venues: 'Venues',
         name: 'Name',
         slug: 'URL slug',
@@ -7809,6 +7827,24 @@ export const fr = {
         displayPreviewTitle: 'Apercu',
         advanced: 'Avance',
         locks: 'Verrouillage auto',
+        lockHelp: {
+          intro:
+            'Verrouille les poules ou tableaux termines apres un delai pour empecher les arbitres de continuer a les modifier. Reglage au niveau du tournoi, distinct du bareme.',
+          lockedNote:
+            'Les assauts verrouilles passent en lecture seule sur le tableau de score ; un organisateur du tournoi peut les rouvrir — et si le verrouillage auto est desactive, le staff de l evenement peut aussi les rouvrir.',
+          enabled: 'Verrouillage auto active',
+          enabledHelp:
+            'Interrupteur principal. Desactive, les assauts ne se verrouillent jamais automatiquement (un organisateur peut toujours les verrouiller manuellement) et les options ci-dessous n ont aucun effet.',
+          delay: 'Delai de verrouillage auto (minutes)',
+          delayHelp:
+            'Delai de grace apres la fin du dernier assaut d une poule ou d un tableau avant le verrouillage — laisse le temps de corriger. 0 verrouille des la fin.',
+          completedPools: 'Verrouiller les poules terminees',
+          completedPoolsHelp:
+            'Quand tous les assauts d une poule sont termines, verrouille cette poule apres le delai. Uniquement si le verrouillage auto est active.',
+          completedBrackets: 'Verrouiller les tableaux termines',
+          completedBracketsHelp:
+            'Quand tous les assauts d un tableau sont termines, verrouille ce tableau apres le delai. Uniquement si le verrouillage auto est active.',
+        },
         venues: 'Lieux',
         name: 'Nom',
         slug: 'Slug URL',

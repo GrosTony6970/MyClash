@@ -26,6 +26,9 @@ export type { InputProps } from './components/Input';
 export { Spinner } from './components/Spinner';
 export type { SpinnerProps } from './components/Spinner';
 
+export { Switch } from './components/Switch';
+export type { SwitchProps } from './components/Switch';
+
 export { Divider } from './components/Divider';
 export type { DividerProps } from './components/Divider';
 
