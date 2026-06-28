@@ -26,6 +26,10 @@ interface MatchHeaderProps {
   matchId: string;
   apiUrl: string;
   matchCode: string;
+  /** Header context line: Tournament · Pool · Piste (from match summary). */
+  tournamentName?: string | null;
+  poolName?: string | null;
+  liceName?: string | null;
   redName: string;
   blueName: string;
   config: TournamentScoringConfig;
@@ -46,6 +50,9 @@ export function MatchHeader({
   matchId,
   apiUrl,
   matchCode,
+  tournamentName,
+  poolName,
+  liceName,
   redName,
   blueName,
   config,
@@ -58,6 +65,10 @@ export function MatchHeader({
 }: MatchHeaderProps) {
   const { t } = useI18n();
   const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
+  // Tournament · Pool · Piste — skips any part that's missing (e.g. bracket matches have no pool).
+  const contextLine = [tournamentName, poolName, liceName]
+    .filter((p): p is string => !!p && p.trim().length > 0)
+    .join(' · ');
 
   const resolvedBackHref = backHref ?? (liceId ? `/lices/${liceId}` : '/lices');
   // An absolute `?return=` target is a different app behind the same origin
@@ -115,6 +126,9 @@ export function MatchHeader({
             <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-0.5 font-mono text-sm font-bold tracking-widest text-amber-700">
               {matchCode}
             </span>
+          )}
+          {contextLine && (
+            <span className="text-xs font-semibold text-slate-500">{contextLine}</span>
           )}
           <p className="text-base font-semibold text-slate-900">
             <span style={{ color: redStyle.border }}>{redName}</span>{' '}

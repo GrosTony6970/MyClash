@@ -288,6 +288,9 @@ export function MatchView({
         matchId={match.id}
         apiUrl={apiUrl}
         matchCode={match.roundCode ?? match.matchNumberLabel}
+        tournamentName={match.tournamentName ?? null}
+        poolName={match.poolName ?? null}
+        liceName={match.liceName ?? null}
         redName={redName}
         blueName={blueName}
         config={scoringConfig}
