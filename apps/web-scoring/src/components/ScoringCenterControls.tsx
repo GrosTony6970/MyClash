@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { clockStatusSemantic, statusPillTone } from '@myclash/ui';
+import { ConfirmDialog, clockStatusSemantic, statusPillTone } from '@myclash/ui';
 import {
   clockShouldTick,
   displayClockMs,
@@ -298,40 +298,20 @@ export function ScoringCenterControls({
         )}
       </div>
 
-      {/* Reset confirmation dialog (inline, no @myclash/ui dep) */}
-      {resetConfirmOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setResetConfirmOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border border-gray-700 bg-gray-900 p-5"
-          >
-            <h3 className="text-lg font-bold text-white">{t('scoring.clock.resetConfirmTitle')}</h3>
-            <p className="mt-2 text-sm text-gray-300">{t('scoring.clock.resetConfirmBody')}</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setResetConfirmOpen(false)}
-                className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm font-bold text-gray-200"
-              >
-                {t('scoring.clock.resetConfirmCancel')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onClockAction('reset_clock');
-                  setResetConfirmOpen(false);
-                }}
-                className="rounded-lg border border-red-600 bg-red-700 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-800"
-              >
-                {t('scoring.clock.resetConfirmAction')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Reset clock confirmation — shared ConfirmDialog */}
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        onConfirm={() => {
+          onClockAction('reset_clock');
+          setResetConfirmOpen(false);
+        }}
+        onCancel={() => setResetConfirmOpen(false)}
+        title={t('scoring.clock.resetConfirmTitle')}
+        description={t('scoring.clock.resetConfirmBody')}
+        confirmLabel={t('scoring.clock.resetConfirmAction')}
+        cancelLabel={t('scoring.clock.resetConfirmCancel')}
+        danger
+      />
 
       {/* Double-count X/Y chip + Double button */}
       <div className="flex flex-col items-center gap-1 mt-2 w-full">

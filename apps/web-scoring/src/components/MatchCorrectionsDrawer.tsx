@@ -23,6 +23,7 @@ import { clockAdjustmentMs } from './clock-adjustment';
 import { buildUnifiedTimeline, exchangeOptionLabel } from './exchange-timeline';
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties } from '../hooks/usePenalties';
+import { ForfeitPanel } from './ForfeitPanel';
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -48,6 +49,8 @@ interface MatchCorrectionsDrawerProps {
   config: TournamentScoringConfig;
   /** Bumped after any scoring/correction so the picker re-fetches. */
   refreshKey: number;
+  /** Forfeit is only allowed while the match is running/paused and unlocked. */
+  forfeitDisabled: boolean;
 }
 
 export function MatchCorrectionsDrawer({
@@ -67,6 +70,7 @@ export function MatchCorrectionsDrawer({
   blueRegistrationId,
   config,
   refreshKey,
+  forfeitDisabled,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -188,7 +192,7 @@ export function MatchCorrectionsDrawer({
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
           <h2 className="text-base font-bold uppercase tracking-wide">
-            {t('scoring.lice.matchCorrections')}
+            {t('scoring.lice.matchActions')}
           </h2>
           <button
             type="button"
@@ -328,6 +332,20 @@ export function MatchCorrectionsDrawer({
             aria-label={t('scoring.corrections.reason')}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+
+          {/* Forfeit — consolidated here (no longer a bottom panel). */}
+          <div className="border-t border-slate-200 pt-4">
+            <ForfeitPanel
+              matchId={matchId}
+              apiUrl={apiUrl}
+              redRegistrationId={redRegistrationId}
+              blueRegistrationId={blueRegistrationId}
+              redName={redName}
+              blueName={blueName}
+              disabled={forfeitDisabled}
+              onForfeitRecorded={onDone}
+            />
+          </div>
 
           {/* Danger zone */}
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">

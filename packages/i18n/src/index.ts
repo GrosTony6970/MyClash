@@ -948,6 +948,7 @@ export const en = {
       externalDisplay: 'External display',
       softClockLocked: 'Soft clock limit reached',
       matchCorrections: 'Match corrections',
+      matchActions: 'Match actions',
       nextMatchLabel: 'NEXT',
       previousMatchLabel: 'PREVIOUS',
       noNextMatch: 'No next match',
@@ -1101,6 +1102,8 @@ export const en = {
       record: 'Record forfeit',
       recording: 'Recording...',
       recordError: 'Could not record forfeit.',
+      confirmTitle: 'Record forfeit?',
+      confirmBody: '{fighter} will forfeit this match. This ends the bout.',
       reasons: {
         injury: 'Injury',
         voluntary: 'Voluntary',
@@ -5481,6 +5484,7 @@ export const fr = {
       externalDisplay: 'Affichage externe',
       softClockLocked: 'Limite douce du chrono atteinte',
       matchCorrections: 'Corrections du match',
+      matchActions: 'Actions du match',
       nextMatchLabel: 'SUIVANT',
       previousMatchLabel: 'PRÉCÉDENT',
       noNextMatch: 'Aucun assaut suivant',
@@ -5635,6 +5639,8 @@ export const fr = {
       record: 'Enregistrer le forfait',
       recording: 'Enregistrement...',
       recordError: 'Impossible d enregistrer le forfait.',
+      confirmTitle: 'Enregistrer le forfait ?',
+      confirmBody: '{fighter} abandonne ce match. Cela met fin a l assaut.',
       reasons: {
         injury: 'Blessure',
         voluntary: 'Volontaire',

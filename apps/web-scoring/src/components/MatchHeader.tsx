@@ -140,7 +140,7 @@ export function MatchHeader({
             onClick={onOpenCorrections}
             className="mt-1 inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
           >
-            ⚙ {t('scoring.lice.matchCorrections')}
+            ⋯ {t('scoring.lice.matchActions')}
           </button>
         </div>
 

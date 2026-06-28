@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ForfeitPanel } from './ForfeitPanel';
 import { MatchHeader } from './MatchHeader';
 import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
@@ -376,20 +375,6 @@ export function MatchView({
         />
       </div>
 
-      {/* Forfeit / withdraw at the bottom in light chrome */}
-      <div className="border-t border-slate-200 bg-white p-4">
-        <ForfeitPanel
-          matchId={match.id}
-          apiUrl={apiUrl}
-          redRegistrationId={match.redRegistrationId}
-          blueRegistrationId={match.blueRegistrationId}
-          redName={redName}
-          blueName={blueName}
-          disabled={(match.status !== 'running' && match.status !== 'paused') || !!match.lockedAt}
-          onForfeitRecorded={onRefresh}
-        />
-      </div>
-
       <MatchCorrectionsDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -406,6 +391,9 @@ export function MatchView({
         blueRegistrationId={match.blueRegistrationId}
         config={scoringConfig}
         refreshKey={refreshKey}
+        forfeitDisabled={
+          (match.status !== 'running' && match.status !== 'paused') || !!match.lockedAt
+        }
         onDone={() => {
           onRefresh();
           setRefreshKey((k) => k + 1);

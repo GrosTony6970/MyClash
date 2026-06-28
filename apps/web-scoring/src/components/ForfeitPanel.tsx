@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 
 type ForfeitReason = 'injury' | 'voluntary' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
@@ -44,6 +45,7 @@ export function ForfeitPanel({
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const fighterId = `forfeit-fighter-${matchId}`;
   const reasonId = `forfeit-reason-${matchId}`;
   const noteId = `forfeit-note-${matchId}`;
@@ -77,27 +79,29 @@ export function ForfeitPanel({
     }
   }
 
+  const forfeitingName = fighter === 'red' ? redName : blueName;
+
   return (
-    <section className="rounded-xl border border-red-900 bg-gray-950 p-4 text-gray-100">
-      <div className="mb-3">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-200">
-          {t('scoring.forfeits.title')}
-        </h2>
-      </div>
+    <section className="text-slate-900">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+        {t('scoring.forfeits.title')}
+      </h3>
       {error && (
-        <p className="mb-3 rounded-lg bg-red-900 px-3 py-2 text-xs text-red-100">{error}</p>
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label
           htmlFor={fighterId}
-          className="text-xs font-semibold uppercase tracking-wide text-gray-500"
+          className="text-xs font-semibold uppercase tracking-wide text-slate-500"
         >
           {t('scoring.forfeits.fighter')}
           <select
             id={fighterId}
             value={fighter}
             onChange={(event) => setFighter(event.target.value as FighterColor)}
-            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
           >
             <option value="red">{redName}</option>
             <option value="blue">{blueName}</option>
@@ -105,14 +109,14 @@ export function ForfeitPanel({
         </label>
         <label
           htmlFor={reasonId}
-          className="text-xs font-semibold uppercase tracking-wide text-gray-500"
+          className="text-xs font-semibold uppercase tracking-wide text-slate-500"
         >
           {t('scoring.forfeits.reason')}
           <select
             id={reasonId}
             value={reason}
             onChange={(event) => setReason(event.target.value as ForfeitReason)}
-            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
           >
             {REASONS.map((item) => (
               <option key={item} value={item}>
@@ -125,7 +129,7 @@ export function ForfeitPanel({
       {ASK_CONTINUE.has(reason) && (
         <label
           htmlFor={canContinueId}
-          className="mt-3 flex items-center gap-2 text-sm text-gray-300"
+          className="mt-3 flex items-center gap-2 text-sm text-slate-700"
         >
           <input
             id={canContinueId}
@@ -143,16 +147,31 @@ export function ForfeitPanel({
         value={note}
         onChange={(event) => setNote(event.target.value)}
         placeholder={t('scoring.forfeits.note')}
-        className="mt-3 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+        className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
       />
+      {/* Neutral trigger — the danger-red only appears on the confirm step (P0-2/P0-3). */}
       <button
         type="button"
         disabled={disabled || submitting}
-        onClick={() => void submit()}
-        className="mt-3 w-full rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+        onClick={() => setConfirmOpen(true)}
+        className="mt-3 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
       >
         {submitting ? t('scoring.forfeits.recording') : t('scoring.forfeits.record')}
       </button>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void submit();
+        }}
+        onCancel={() => setConfirmOpen(false)}
+        title={t('scoring.forfeits.confirmTitle')}
+        description={t('scoring.forfeits.confirmBody', { fighter: forfeitingName })}
+        confirmLabel={t('scoring.forfeits.record')}
+        busy={submitting}
+        danger
+      />
     </section>
   );
 }
