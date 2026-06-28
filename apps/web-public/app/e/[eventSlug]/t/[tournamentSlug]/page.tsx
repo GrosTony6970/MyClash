@@ -438,6 +438,7 @@ export default async function TournamentPage({ params }: Props) {
               <StandingsView
                 tournamentId={tournament.id}
                 pools={pools}
+                bracketSize={bracketSize}
                 colorToken={tournamentColor}
               />
             ),
@@ -493,7 +494,7 @@ export default async function TournamentPage({ params }: Props) {
                 // the old status gate left this empty while the admin (which
                 // computes from completed matches) showed it.
                 isTournamentCompleted={Boolean(podium?.gold && podium?.silver)}
-                podium={podium ?? null}
+                tournamentId={tournament.id}
                 bracketSlots={bracketSlots}
               />
             ),

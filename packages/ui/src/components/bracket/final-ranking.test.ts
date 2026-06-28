@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinalRanking, type PoolEntry, type RankingSlot } from './compute-final-ranking';
+import { computeFinalRanking, type PoolEntry, type RankingSlot } from './final-ranking';
 
 let seq = 0;
 function mk(

@@ -77,17 +77,17 @@ export function StandingsTable({
 
   return (
     <div
-      className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
       role="region"
       aria-label={t('publicApp.tournament.standings.poolRegionLabel', { pool: poolName })}
       aria-live="polite"
     >
-      <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold text-slate-900 sm:text-xl">
+      <h3 className="mb-3 flex items-center gap-2 font-display text-lg font-semibold text-foreground sm:text-xl">
         {poolName}
         {updating && (
           <span
             aria-hidden="true"
-            className="h-3 w-3 animate-spin rounded-full border border-stone-300 border-t-red-700"
+            className="h-3 w-3 animate-spin rounded-full border border-border border-t-accent"
           />
         )}
       </h3>
@@ -95,7 +95,7 @@ export function StandingsTable({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-slate-500">
+            <tr className="border-b border-border text-xs uppercase tracking-wider text-muted">
               <th className="py-2 pr-3 text-left font-semibold">
                 {t('publicApp.tournament.standings.colFighter')}
               </th>
@@ -111,7 +111,7 @@ export function StandingsTable({
               <th className="w-8 px-2 py-2 text-center font-semibold">
                 {t('publicApp.tournament.standings.colDoubles')}
               </th>
-              <th className="w-16 py-2 pl-2 text-right font-semibold">
+              <th className="w-16 bg-accent/10 px-2 py-2 text-right font-bold normal-case tracking-normal text-accent">
                 {t('publicApp.tournament.standings.colScore')}
               </th>
             </tr>
@@ -121,19 +121,21 @@ export function StandingsTable({
               <tr
                 key={row.registrationId}
                 className={[
-                  'border-b border-stone-100',
-                  idx === 0 ? 'text-slate-900' : 'text-slate-700',
+                  'border-b border-border last:border-0',
+                  idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
                 ].join(' ')}
               >
                 <td className="py-2 pr-3">
-                  <p className="font-medium leading-tight">{row.fighterName}</p>
-                  {row.clubName && <p className="text-xs text-slate-500">{row.clubName}</p>}
+                  <p className="font-medium leading-tight text-foreground">{row.fighterName}</p>
+                  {row.clubName && <p className="text-xs text-muted">{row.clubName}</p>}
                 </td>
                 <td className="px-2 py-2 text-center font-bold">{row.wins}</td>
                 <td className="px-2 py-2 text-center">{row.pointsFor}</td>
                 <td className="px-2 py-2 text-center">{row.pointsAgainst}</td>
                 <td className="px-2 py-2 text-center">{row.doubles}</td>
-                <td className="py-2 pl-2 text-right font-mono font-bold">{row.score.toFixed(2)}</td>
+                <td className="bg-accent/5 py-2 px-2 text-right font-mono font-bold text-foreground">
+                  {row.score.toFixed(2)}
+                </td>
               </tr>
             ))}
           </tbody>

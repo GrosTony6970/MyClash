@@ -14,14 +14,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { TournamentColorDot } from '@myclash/ui';
-import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import {
+  TournamentColorDot,
   computeFinalRanking,
   type FinalRankingEntry,
   type PoolEntry,
   type RankingSlot,
-} from './compute-final-ranking';
+} from '@myclash/ui';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
 
 interface Tournament {

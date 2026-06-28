@@ -1,7 +1,8 @@
 /**
- * Final-ranking computation for a single-elimination bracket — the admin
- * mirror of the public final ranking, plus a pool-score tiebreak, and a tail
- * of everyone who competed in the pools but didn't reach the bracket.
+ * Final-ranking computation for a single-elimination bracket — shared by the
+ * admin Final ranking page and the public tournament page so both render the
+ * exact same order. Adds a pool-score tiebreak, and a tail of everyone who
+ * competed in the pools but didn't reach the bracket.
  *
  * Order:
  *   1. Champion  = winner of the Final

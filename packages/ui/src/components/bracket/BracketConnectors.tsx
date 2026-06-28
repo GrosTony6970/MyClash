@@ -129,8 +129,11 @@ export function BracketConnectors({ cardRefs, edges, containerRef }: BracketConn
           key={p.key}
           d={p.d}
           fill="none"
-          stroke={p.kind === 'bronze' ? '#854F0B' : '#B4B2A9'}
-          strokeWidth={1.5}
+          // Winner lines: slate-500 at 2px so they actually read on the light
+          // page (the old #B4B2A9 @1.5px was effectively invisible). Bronze
+          // stays dashed amber.
+          stroke={p.kind === 'bronze' ? '#854F0B' : '#64748b'}
+          strokeWidth={2}
           strokeDasharray={p.kind === 'bronze' ? '3,3' : undefined}
         />
       ))}

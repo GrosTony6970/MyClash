@@ -48,6 +48,13 @@ export type {
 export { MedalPodium } from './components/bracket/MedalPodium';
 export type { MedalPodiumProps } from './components/bracket/MedalPodium';
 export { extractBronzeMatch } from './components/bracket/extract-bronze-match';
+export { computeFinalRanking } from './components/bracket/final-ranking';
+export type {
+  RankingSlot,
+  PoolEntry,
+  FinalRankingEntry,
+  FinalRankingResultKind,
+} from './components/bracket/final-ranking';
 
 export { TournamentColorDot } from './components/TournamentColorDot';
 export type { TournamentColorDotProps } from './components/TournamentColorDot';

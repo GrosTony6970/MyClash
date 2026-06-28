@@ -83,7 +83,7 @@ export function MatchCard({
   // FighterRow does the colour-coding. Adding an amber/slate card
   // background here would fight the row tints visually.
   const cardClasses = [
-    'group relative flex h-[52px] w-full min-w-[220px] max-w-[360px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow',
+    'group relative flex h-[52px] w-full min-w-[256px] max-w-[360px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow',
     borderClass,
     handleClick ? 'cursor-pointer hover:shadow-md' : '',
   ]
@@ -102,7 +102,7 @@ export function MatchCard({
     // The width constraint moves here so the pill row tracks the card's
     // resolved width (it's a flex column — children stretch to the
     // wrapper's width which equals the card's).
-    <div className="relative flex w-full min-w-[220px] max-w-[360px] flex-col gap-1.5">
+    <div className="relative flex w-full min-w-[256px] max-w-[360px] flex-col gap-1.5">
       <div
         ref={refCallback}
         role={handleClick ? 'button' : undefined}
@@ -120,8 +120,11 @@ export function MatchCard({
         {/* Stacked fighter rows. The two side colours render
             horizontally: each row owns a left stripe + tinted
             background driven by its sideColor (sourced from the
-            tournament's scoring_config.display.sideColors). */}
-        <div className="flex flex-1 flex-col">
+            tournament's scoring_config.display.sideColors).
+            `min-w-0` lets this column shrink to the card so the
+            FighterRow content truncates instead of overflowing the
+            card's `overflow-hidden` box (which clipped the score). */}
+        <div className="flex min-w-0 flex-1 flex-col">
           <FighterRow
             name={slot.redFighterName}
             club={slot.redClubAbbrev}
@@ -224,9 +227,9 @@ function FighterRow({
   const stripeClass = isTbd ? 'bg-slate-200' : accentClassFor(sideColor);
 
   return (
-    <div className={`flex h-[26px] flex-1 items-stretch ${rowTintClass}`}>
+    <div className={`flex h-[26px] min-w-0 flex-1 items-stretch ${rowTintClass}`}>
       <span aria-hidden="true" className={`w-[3px] shrink-0 ${stripeClass}`} />
-      <div className="flex flex-1 items-center justify-between gap-1 pl-2 pr-2">
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-1 pl-2 pr-2">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {/* Name takes priority for the row width (grows, truncates only as a
               last resort); the club yields first — capped + truncating — so a

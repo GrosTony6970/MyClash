@@ -16,7 +16,7 @@
  * triggers a refetch.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
@@ -64,6 +64,12 @@ interface OverallResponse {
 interface Props {
   tournamentId: string;
   pools: Pool[];
+  /**
+   * Bracket size (e.g. 16) — the qualification cutoff. The Overall table draws
+   * a thick rule under fighter #N to separate who qualified for the bracket,
+   * mirroring the admin standings.
+   */
+  bracketSize?: number | null;
   /** Optional tournament brand color token for the active toggle pill. */
   colorToken?: string | null;
 }
@@ -74,8 +80,19 @@ function readHashMode(): Mode {
   return hash === 'standings-by-pool' ? 'by-pool' : 'overall';
 }
 
-export function StandingsView({ tournamentId, pools, colorToken }: Props) {
-  const [mode, setMode] = useState<Mode>('overall');
+/** Subscribe a useSyncExternalStore consumer to URL-hash changes. */
+function subscribeHash(onStoreChange: () => void): () => void {
+  window.addEventListener('hashchange', onStoreChange);
+  return () => window.removeEventListener('hashchange', onStoreChange);
+}
+
+export function StandingsView({ tournamentId, pools, bracketSize, colorToken }: Props) {
+  // Mode is derived from the URL hash via useSyncExternalStore — the
+  // SSR-safe, lint-clean way to read an external mutable source. The server
+  // snapshot is always 'overall' (matches the SSR HTML); after hydration the
+  // client snapshot reads the real hash, so there's no hydration mismatch AND
+  // no setState-in-effect (which the old mount effect tripped).
+  const mode = useSyncExternalStore(subscribeHash, readHashMode, () => 'overall');
   const [overall, setOverall] = useState<OverallResponse | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -85,16 +102,6 @@ export function StandingsView({ tournamentId, pools, colorToken }: Props) {
   const activePillClass = colorToken
     ? `${accentClassFor(colorToken)} text-white`
     : 'bg-red-800 text-white';
-
-  // Sync hash → mode on mount + browser back/forward.
-  useEffect(() => {
-    setMode(readHashMode());
-    function onHash() {
-      setMode(readHashMode());
-    }
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
 
   // Fetch overall standings when the mode is `overall` (or on refresh).
   useEffect(() => {
@@ -146,10 +153,11 @@ export function StandingsView({ tournamentId, pools, colorToken }: Props) {
   }, [tournamentId, pools, refresh]);
 
   function selectMode(next: Mode) {
+    // Writing the hash fires `hashchange`, which the useSyncExternalStore
+    // subscription picks up → `mode` re-derives. No explicit setState needed.
     if (typeof window !== 'undefined') {
       window.location.hash = next === 'overall' ? '#standings' : '#standings-by-pool';
     }
-    setMode(next);
   }
 
   return (
@@ -176,7 +184,7 @@ export function StandingsView({ tournamentId, pools, colorToken }: Props) {
       </div>
 
       {mode === 'overall' ? (
-        <OverallTable data={overall} />
+        <OverallTable data={overall} bracketSize={bracketSize ?? null} />
       ) : (
         <div className="flex flex-col gap-6">
           {pools.map((pool) => (
@@ -194,60 +202,94 @@ export function StandingsView({ tournamentId, pools, colorToken }: Props) {
   );
 }
 
-function OverallTable({ data }: { data: OverallResponse | null }) {
+function OverallTable({
+  data,
+  bracketSize,
+}: {
+  data: OverallResponse | null;
+  bracketSize: number | null;
+}) {
   if (!data) {
     return (
-      <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
         {t('publicApp.tournament.loading')}
       </p>
     );
   }
   if (data.rows.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
         {t('publicApp.tournament.standings.emptyOverall')}
       </p>
     );
   }
+  // Score column moves first and is highlighted — mirrors the admin standings,
+  // where the ranking score is the headline stat.
+  const orderedColumns = [
+    ...data.columns.filter((c) => c.key === 'score'),
+    ...data.columns.filter((c) => c.key !== 'score'),
+  ];
+  // The qualification cut line sits under fighter #N (N = bracket size) when
+  // there are fighters below it — the visual "made the bracket" boundary.
+  const cutAfterIndex = bracketSize != null && bracketSize > 0 ? bracketSize : null;
   return (
-    <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-slate-500">
-            <th className="w-12 py-2 pr-3 text-center font-semibold">#</th>
-            <th className="py-2 pr-3 text-left font-semibold">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
+      <table className="w-full text-sm">
+        <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
+          <tr>
+            <th className="w-12 px-3 py-2 text-center font-semibold">#</th>
+            <th className="px-3 py-2 text-left font-semibold">
               {t('publicApp.tournament.standings.colFighter')}
             </th>
-            {data.columns.map((c) => (
-              <th key={c.key} className="px-2 py-2 text-right font-semibold">
+            {orderedColumns.map((c) => (
+              <th
+                key={c.key}
+                className={
+                  c.key === 'score'
+                    ? 'bg-accent/10 px-3 py-2 text-center text-sm font-bold normal-case tracking-normal text-accent'
+                    : 'px-2 py-2 text-right font-semibold'
+                }
+              >
                 {c.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {data.rows.map((row, idx) => (
-            <tr
-              key={row.registrationId}
-              className={[
-                'border-b border-stone-100',
-                idx === 0 ? 'text-slate-900' : 'text-slate-700',
-              ].join(' ')}
-            >
-              <td className="py-2 pr-3 text-center font-mono">{row.rank}</td>
-              <td className="py-2 pr-3">
-                <p className="font-medium leading-tight">{row.displayName}</p>
-                {row.club && (
-                  <p className="text-xs text-slate-500">{row.club.abbreviation ?? row.club.name}</p>
-                )}
-              </td>
-              {data.columns.map((c) => (
-                <td key={c.key} className="px-2 py-2 text-right font-mono">
-                  {formatStat(c, row.stats[c.key])}
+          {data.rows.map((row, idx) => {
+            const isCut =
+              cutAfterIndex != null && idx === cutAfterIndex - 1 && idx < data.rows.length - 1;
+            return (
+              <tr
+                key={row.registrationId}
+                className={[
+                  isCut ? 'border-b-2 border-foreground' : 'border-b border-border',
+                  'last:border-0',
+                  idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
+                ].join(' ')}
+              >
+                <td className="px-3 py-2 text-center font-mono tabular-nums">{row.rank}</td>
+                <td className="px-3 py-2">
+                  <p className="font-medium leading-tight text-foreground">{row.displayName}</p>
+                  {row.club && (
+                    <p className="text-xs text-muted">{row.club.abbreviation ?? row.club.name}</p>
+                  )}
                 </td>
-              ))}
-            </tr>
-          ))}
+                {orderedColumns.map((c) => (
+                  <td
+                    key={c.key}
+                    className={
+                      c.key === 'score'
+                        ? 'bg-accent/5 px-3 py-2 text-center font-mono text-base font-bold tabular-nums text-foreground'
+                        : 'px-2 py-2 text-right font-mono tabular-nums'
+                    }
+                  >
+                    {formatStat(c, row.stats[c.key])}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
