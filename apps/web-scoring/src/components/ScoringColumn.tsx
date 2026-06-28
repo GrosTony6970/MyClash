@@ -39,9 +39,11 @@ interface ScoringColumnProps {
   fighterName: string;
   club?: string | null;
   score: number;
-  /** This side has won by reaching the point cap — highlights the score gold. */
+  /** This side has won by reaching the point cap — highlights the score gold + cup. */
   reachedCap?: boolean;
-  /** Point cap, shown as an "X / cap" caption in normal scoring. */
+  /** This side currently leads (not yet capped) — adds a subtle side-colour glow. */
+  leading?: boolean;
+  /** Point cap, shown as an "X / cap" caption + progress bar in normal scoring. */
   pointCap?: number;
   /** Reverse (zero-loses) scoring — suppresses the "X / cap" caption. */
   reverse?: boolean;
@@ -79,6 +81,7 @@ export function ScoringColumn({
   club,
   score,
   reachedCap,
+  leading,
   pointCap,
   reverse,
   config,
@@ -163,24 +166,44 @@ export function ScoringColumn({
 
   return (
     <div className="flex flex-col gap-3 px-2">
-      {/* Score numeral — turns gold when this side wins by reaching the cap. */}
+      {/* Score numeral — gold when capped (winner), subtle side-colour glow when leading. */}
       <p
-        className={`text-center text-8xl font-black tabular-nums leading-none mt-2 ${
-          reachedCap ? 'drop-shadow-[0_0_12px_rgba(251,191,36,0.5)]' : ''
-        }`}
-        style={{ color: reachedCap ? '#fbbf24' : style.border }}
+        className="text-center text-8xl font-black tabular-nums leading-none mt-2"
+        style={{
+          color: reachedCap ? '#fbbf24' : style.border,
+          textShadow: reachedCap
+            ? '0 0 14px rgba(251,191,36,0.55)'
+            : leading
+              ? `0 0 14px ${style.border}`
+              : 'none',
+        }}
       >
         {score}
       </p>
       {pointCap !== undefined && !reverse && (
-        <p className="-mt-2 text-center text-sm font-semibold tabular-nums text-gray-500">
-          {`${score} / ${pointCap}`}
-        </p>
+        <>
+          <p className="-mt-2 text-center text-sm font-semibold tabular-nums text-gray-500">
+            {`${score} / ${pointCap}`}
+          </p>
+          {/* Cap-progress bar */}
+          <div className="mx-auto h-1 w-24 overflow-hidden rounded-full bg-gray-800">
+            <div
+              className="h-full rounded-full transition-[width] duration-300"
+              style={{
+                width: `${Math.min(100, Math.round((score / pointCap) * 100))}%`,
+                backgroundColor: reachedCap ? '#fbbf24' : style.border,
+              }}
+            />
+          </div>
+        </>
       )}
 
-      {/* Fighter name + club */}
+      {/* Fighter name + club — live winner cup beside the name once capped. */}
       <div className="text-center">
-        <p className="text-3xl font-bold text-white leading-tight truncate">{fighterName}</p>
+        <p className="flex items-center justify-center gap-2 text-3xl font-bold text-white leading-tight truncate">
+          {reachedCap && <span aria-hidden>🏆</span>}
+          {fighterName}
+        </p>
         {club && <p className="text-lg text-gray-400 mt-0.5 truncate">{club}</p>}
       </div>
 

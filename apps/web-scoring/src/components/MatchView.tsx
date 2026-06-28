@@ -14,6 +14,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   pointCapWinnerSide,
 } from '@myclash/types';
+import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { phaseTimeLimitSeconds } from './scoreboard-clock';
 import { matchWinnerSide } from './match-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
@@ -84,6 +85,8 @@ export function MatchView({
   const [clockError, setClockError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Next bout in the lice queue — powers the "Next match →" action on the result overlay.
+  const { next: nextMatch } = useAdjacentMatches(apiUrl, match.id, refreshKey);
   // Resume guard: when the operator starts/resumes at zero / in the soft
   // zone, hold the action here and ask first (continue anyway / end match).
   const [pendingResume, setPendingResume] = useState<'start' | 'resume' | null>(null);
@@ -319,6 +322,7 @@ export function MatchView({
           club={match.redClub ?? null}
           score={match.redScore}
           reachedCap={capWinnerSide === 'red'}
+          leading={!reverseScoring && match.redScore > match.blueScore}
           pointCap={matchFormat.pointCap}
           reverse={reverseScoring}
           config={scoringConfig}
@@ -363,6 +367,7 @@ export function MatchView({
           club={match.blueClub ?? null}
           score={match.blueScore}
           reachedCap={capWinnerSide === 'blue'}
+          leading={!reverseScoring && match.blueScore > match.redScore}
           pointCap={matchFormat.pointCap}
           reverse={reverseScoring}
           config={scoringConfig}
@@ -448,13 +453,19 @@ export function MatchView({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-lg rounded-xl border border-amber-600 bg-gray-900 p-8 text-center shadow-2xl">
             <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-amber-400">
-              {t('scoring.result.matchEnded')}
+              {t('scoring.result.finalResult')}
             </p>
             {(() => {
               const winner = matchWinnerSide(match.redScore, match.blueScore);
-              return winner ? (
-                <p className="mb-2 text-3xl font-black text-white">
-                  🏆 {winner === 'red' ? redName : blueName}
+              const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
+              // Winner shown in their own side colour (not gold) + a pulse to stand out.
+              const winnerColor = winner ? sideStyle(scoringConfig, winner).border : undefined;
+              return winnerName ? (
+                <p
+                  className="mb-2 flex items-center justify-center gap-2 text-3xl font-black animate-pulse"
+                  style={{ color: winnerColor }}
+                >
+                  <span aria-hidden>🏆</span> {winnerName}
                 </p>
               ) : (
                 <p className="mb-2 text-3xl font-black text-white">{t('scoring.result.draw')}</p>
@@ -463,13 +474,23 @@ export function MatchView({
             <p className="mb-6 font-mono text-2xl font-bold text-gray-300">
               {match.redScore} – {match.blueScore}
             </p>
-            <button
-              type="button"
-              onClick={() => setResultDismissed(true)}
-              className="rounded-lg border-2 border-gray-600 bg-gray-800 px-6 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700"
-            >
-              {t('scoring.result.close')}
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setResultDismissed(true)}
+                className="rounded-lg border-2 border-gray-600 bg-gray-800 px-6 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700"
+              >
+                {t('scoring.result.close')}
+              </button>
+              {nextMatch && (
+                <a
+                  href={(buildMatchHref ?? ((id) => `/matches/${id}`))(nextMatch.id)}
+                  className="rounded-lg border-2 border-green-600 bg-green-700 px-6 py-2 text-sm font-bold text-white hover:bg-green-800"
+                >
+                  {t('scoring.lice.nextMatchLabel')} →
+                </a>
+              )}
+            </div>
           </div>
         </div>
       )}

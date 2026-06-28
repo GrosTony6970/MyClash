@@ -1020,6 +1020,7 @@ export const en = {
     },
     result: {
       matchEnded: 'Match ended',
+      finalResult: 'Final result',
       winner: 'Winner',
       draw: 'Draw',
       close: 'Close',
@@ -5557,6 +5558,7 @@ export const fr = {
     },
     result: {
       matchEnded: 'Match termine',
+      finalResult: 'Résultat final',
       winner: 'Vainqueur',
       draw: 'Egalite',
       close: 'Fermer',

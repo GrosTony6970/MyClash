@@ -72,6 +72,19 @@ interface ScoringCenterControlsProps {
   onExchangeVoided?: () => void;
 }
 
+/** Renders MM:SS at full size with the centiseconds (:CS) smaller + muted. */
+function ClockText({ ms }: { ms: number }) {
+  const s = formatClockMs(ms);
+  const i = s.lastIndexOf(':');
+  if (i <= 0) return <>{s}</>;
+  return (
+    <>
+      {s.slice(0, i)}
+      <span className="text-[0.5em] font-bold opacity-60">{s.slice(i)}</span>
+    </>
+  );
+}
+
 export function ScoringCenterControls({
   matchId,
   apiUrl,
@@ -250,13 +263,16 @@ export function ScoringCenterControls({
                   : 'text-gray-600'
         }`}
       >
-        {formatClockMs(shownMs)}
+        <ClockText ms={shownMs} />
       </p>
 
       {/* Total time */}
       {clockState?.startedAt && (
         <p className="text-xs uppercase tracking-widest text-gray-500">
-          {t('scoring.clock.totalTime')} <span className="font-mono">{formatClockMs(totalMs)}</span>
+          {t('scoring.clock.totalTime')}{' '}
+          <span className="font-mono">
+            <ClockText ms={totalMs} />
+          </span>
         </p>
       )}
 
