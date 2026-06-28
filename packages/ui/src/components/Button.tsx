@@ -16,6 +16,13 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   loading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /**
+   * Paint the button styling onto the single child element instead of rendering
+   * a <button>. Lets a navigation link (e.g. a Next.js <Link>) become a real
+   * design-system button:
+   *   <Button asChild variant="primary"><Link href="…">Label</Link></Button>
+   */
+  asChild?: boolean;
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -52,30 +59,52 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       disabled,
       className = '',
+      asChild = false,
       ...props
     },
     ref,
   ) => {
+    const classes = [
+      'inline-flex items-center justify-center font-semibold border transition-colors',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
+      'disabled:opacity-40 disabled:cursor-not-allowed',
+      variantClasses[variant],
+      sizeClasses[size],
+      className,
+    ].join(' ');
+
+    const spinnerOrLeftIcon = loading ? (
+      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+    ) : (
+      leftIcon
+    );
+
+    // Polymorphic: render onto the provided child element (e.g. a <Link>) so a
+    // navigation link can be a real design-system button while keeping its own
+    // routing behaviour.
+    if (asChild && React.isValidElement(children)) {
+      const child = children as React.ReactElement<{
+        className?: string;
+        children?: React.ReactNode;
+      }>;
+      return React.cloneElement(
+        child,
+        { ...props, className: [classes, child.props.className].filter(Boolean).join(' ') },
+        spinnerOrLeftIcon,
+        child.props.children,
+        !loading && rightIcon,
+      );
+    }
+
     return (
       <button
         ref={ref}
         disabled={disabled ?? loading}
         aria-busy={loading || undefined}
-        className={[
-          'inline-flex items-center justify-center font-semibold border transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
-          'disabled:opacity-40 disabled:cursor-not-allowed',
-          variantClasses[variant],
-          sizeClasses[size],
-          className,
-        ].join(' ')}
+        className={classes}
         {...props}
       >
-        {loading ? (
-          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          leftIcon
-        )}
+        {spinnerOrLeftIcon}
         {children}
         {!loading && rightIcon}
       </button>

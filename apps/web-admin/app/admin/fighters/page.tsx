@@ -2,7 +2,7 @@
 
 import { t } from '@myclash/i18n';
 import { getDateFormat } from '@myclash/types';
-import { SortableHeader, useConfirm, useSortableList } from '@myclash/ui';
+import { Button, SortableHeader, useConfirm, useSortableList } from '@myclash/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -539,12 +539,9 @@ export default function AdminFightersPage() {
           </h1>
           <p className="text-muted text-sm mt-1">{t('admin.globalProfiles.description')}</p>
         </div>
-        <Link
-          href="/admin/global-persons/import"
-          className="text-sm bg-background hover:bg-background text-foreground-secondary font-medium py-2 px-4 rounded-lg"
-        >
-          {t('admin.globalProfiles.csvImport')}
-        </Link>
+        <Button asChild variant="primary">
+          <Link href="/admin/global-persons/import">{t('admin.globalProfiles.csvImport')}</Link>
+        </Button>
       </div>
 
       {/* Tabs */}
