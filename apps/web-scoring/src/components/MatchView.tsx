@@ -322,6 +322,7 @@ export function MatchView({
           score={match.redScore}
           reachedCap={capWinnerSide === 'red'}
           leading={!reverseScoring && match.redScore > match.blueScore}
+          readOnly={!!match.lockedAt}
           pointCap={matchFormat.pointCap}
           reverse={reverseScoring}
           config={scoringConfig}
@@ -337,6 +338,7 @@ export function MatchView({
           matchId={match.id}
           apiUrl={apiUrl}
           matchStatus={match.status}
+          readOnly={!!match.lockedAt}
           endReason={match.endReason ?? null}
           matchFormat={matchFormat}
           phaseType={match.phaseType ?? undefined}
@@ -367,6 +369,7 @@ export function MatchView({
           score={match.blueScore}
           reachedCap={capWinnerSide === 'blue'}
           leading={!reverseScoring && match.blueScore > match.redScore}
+          readOnly={!!match.lockedAt}
           pointCap={matchFormat.pointCap}
           reverse={reverseScoring}
           config={scoringConfig}

@@ -43,6 +43,8 @@ interface ScoringColumnProps {
   reachedCap?: boolean;
   /** This side currently leads (not yet capped) — adds a subtle side-colour glow. */
   leading?: boolean;
+  /** Locked match → read-only: hide the action controls, show score/name/cards only. */
+  readOnly?: boolean;
   /** Point cap, shown as an "X / cap" caption + progress bar in normal scoring. */
   pointCap?: number;
   /** Reverse (zero-loses) scoring — suppresses the "X / cap" caption. */
@@ -82,6 +84,7 @@ export function ScoringColumn({
   score,
   reachedCap,
   leading,
+  readOnly,
   pointCap,
   reverse,
   config,
@@ -228,7 +231,7 @@ export function ScoringColumn({
       </div>
 
       {/* CLEAN HIT */}
-      {visibleClean.length > 0 && (
+      {!readOnly && visibleClean.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
             {t('scoring.lice.cleanHitsHeader')}
@@ -257,7 +260,7 @@ export function ScoringColumn({
       )}
 
       {/* AFTERBLOW */}
-      {visibleAfterblows.length > 0 && (
+      {!readOnly && visibleAfterblows.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
             {t('scoring.lice.afterblowHeader')}
@@ -326,65 +329,66 @@ export function ScoringColumn({
         </div>
       )}
 
-      {/* PENALTIES — inline picker. Extra top margin + a divider separate
-          this clearly from the afterblow buttons above it. */}
-      <div className="flex flex-col gap-2 mt-6 border-t border-gray-800 pt-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
-          {t('scoring.lice.penaltiesHeader')}
-        </p>
+      {/* PENALTIES — inline picker (hidden in the read-only / locked view). */}
+      {!readOnly && (
+        <div className="flex flex-col gap-2 mt-6 border-t border-gray-800 pt-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+            {t('scoring.lice.penaltiesHeader')}
+          </p>
 
-        {penaltyError && (
-          <p className="rounded-lg bg-red-900 px-3 py-2 text-xs text-red-100">{penaltyError}</p>
-        )}
-
-        {quickEntries.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {quickEntries.map((entry) => {
-              const card = entry.sanctions[0];
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  disabled={penaltyDisabled}
-                  onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
-                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-900 px-2.5 py-2 text-xs font-semibold text-gray-100 hover:border-yellow-600 disabled:opacity-40"
-                >
-                  {card && (
-                    <span
-                      className={`inline-block h-2.5 w-2.5 rounded-sm ${CARD_CHIP_COLOR[card]}`}
-                    />
-                  )}
-                  {entry.short_name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <input
-          value={penaltyQuery}
-          onChange={(e) => setPenaltyQuery(e.target.value)}
-          placeholder={t('scoring.lice.penaltySearch')}
-          className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 outline-none focus:border-yellow-500"
-        />
-
-        <div className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
-          {filteredEntries.length === 0 && (
-            <p className="text-center text-xs text-gray-500 py-3">
-              {t('scoring.lice.penaltiesNone')}
-            </p>
+          {penaltyError && (
+            <p className="rounded-lg bg-red-900 px-3 py-2 text-xs text-red-100">{penaltyError}</p>
           )}
-          {filteredEntries.slice(0, 30).map((entry) => (
-            <PenaltyEntryRow
-              key={entry.id}
-              entry={entry}
-              groupLabel={t('scoring.penalties.group')}
-              disabled={penaltyDisabled}
-              onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
-            />
-          ))}
+
+          {quickEntries.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {quickEntries.map((entry) => {
+                const card = entry.sanctions[0];
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    disabled={penaltyDisabled}
+                    onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-900 px-2.5 py-2 text-xs font-semibold text-gray-100 hover:border-yellow-600 disabled:opacity-40"
+                  >
+                    {card && (
+                      <span
+                        className={`inline-block h-2.5 w-2.5 rounded-sm ${CARD_CHIP_COLOR[card]}`}
+                      />
+                    )}
+                    {entry.short_name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <input
+            value={penaltyQuery}
+            onChange={(e) => setPenaltyQuery(e.target.value)}
+            placeholder={t('scoring.lice.penaltySearch')}
+            className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 outline-none focus:border-yellow-500"
+          />
+
+          <div className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
+            {filteredEntries.length === 0 && (
+              <p className="text-center text-xs text-gray-500 py-3">
+                {t('scoring.lice.penaltiesNone')}
+              </p>
+            )}
+            {filteredEntries.slice(0, 30).map((entry) => (
+              <PenaltyEntryRow
+                key={entry.id}
+                entry={entry}
+                groupLabel={t('scoring.penalties.group')}
+                disabled={penaltyDisabled}
+                onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Silence unused warning — otherStyle reserved for cross-side UI hooks. */}
       <span className="hidden" aria-hidden style={{ color: otherStyle.muted }} />
@@ -409,7 +413,7 @@ function PenaltyEntryRow({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="w-full rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-left text-sm hover:border-yellow-600 disabled:opacity-40 flex items-center gap-2"
+      className="w-full min-h-[44px] rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-left text-sm hover:border-yellow-600 disabled:opacity-40 flex items-center gap-2"
     >
       <div className="flex-1 min-w-0">
         <span className="font-semibold text-gray-100">

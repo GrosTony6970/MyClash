@@ -70,6 +70,8 @@ interface ScoringCenterControlsProps {
   refreshKey: number;
   /** Called after Clear-last-exchange voids a row. */
   onExchangeVoided?: () => void;
+  /** Locked match → read-only: hide clock/scoring controls, keep timer + timeline. */
+  readOnly?: boolean;
 }
 
 /** Renders MM:SS at full size with the centiseconds (:CS) smaller + muted. */
@@ -106,6 +108,7 @@ export function ScoringCenterControls({
   submit,
   refreshKey,
   onExchangeVoided,
+  readOnly,
 }: ScoringCenterControlsProps) {
   const { t } = useI18n();
   const status = clockState?.status ?? 'idle';
@@ -278,97 +281,101 @@ export function ScoringCenterControls({
 
       {clockError && <p className="text-center text-xs text-red-400">{clockError}</p>}
 
-      {/* Primary Play/Pause toggle */}
-      {primary && (
-        <button
-          type="button"
-          disabled={clockLoading}
-          onClick={() => onClockAction(primary.action)}
-          className={`min-h-[64px] w-full max-w-[280px] rounded-2xl border-2 px-6 text-lg font-bold transition-colors disabled:opacity-40 ${primary.classes}`}
-        >
-          {primary.icon} {t(primary.labelKey)}
-        </button>
+      {!readOnly && (
+        <>
+          {/* Primary Play/Pause toggle */}
+          {primary && (
+            <button
+              type="button"
+              disabled={clockLoading}
+              onClick={() => onClockAction(primary.action)}
+              className={`min-h-[64px] w-full max-w-[280px] rounded-2xl border-2 px-6 text-lg font-bold transition-colors disabled:opacity-40 ${primary.classes}`}
+            >
+              {primary.icon} {t(primary.labelKey)}
+            </button>
+          )}
+
+          {/* Secondary row: End + Reset */}
+          <div className="flex gap-2">
+            {status !== 'idle' && status !== 'ended' && (
+              <button
+                type="button"
+                disabled={clockLoading}
+                onClick={() => onClockAction('end')}
+                className="min-h-[44px] rounded-lg border-2 border-red-700 bg-red-950 px-4 py-1.5 text-sm font-bold text-red-200 hover:bg-red-900 active:bg-red-800 disabled:opacity-40"
+              >
+                {t('scoring.clock.endMatch')}
+              </button>
+            )}
+            {status === 'halted' && (
+              <button
+                type="button"
+                disabled={clockLoading}
+                onClick={() => setResetConfirmOpen(true)}
+                className="min-h-[44px] rounded-lg border-2 border-gray-600 bg-gray-800 px-4 py-1.5 text-sm font-bold text-gray-200 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40"
+              >
+                {t('scoring.clock.reset')}
+              </button>
+            )}
+          </div>
+
+          {/* Reset clock confirmation — shared ConfirmDialog */}
+          <ConfirmDialog
+            open={resetConfirmOpen}
+            onConfirm={() => {
+              onClockAction('reset_clock');
+              setResetConfirmOpen(false);
+            }}
+            onCancel={() => setResetConfirmOpen(false)}
+            title={t('scoring.clock.resetConfirmTitle')}
+            description={t('scoring.clock.resetConfirmBody')}
+            confirmLabel={t('scoring.clock.resetConfirmAction')}
+            cancelLabel={t('scoring.clock.resetConfirmCancel')}
+            danger
+          />
+
+          {/* Double-count X/Y chip + Double button */}
+          <div className="flex flex-col items-center gap-1 mt-2 w-full">
+            <span
+              title={t('scoring.lice.doubleLimitTooltip')}
+              className={`rounded-full px-3 py-0.5 text-xs font-bold tabular-nums ${doubleChipTone}`}
+            >
+              {doubleCount}/{maxDoubles ?? '∞'}
+            </span>
+            <button
+              type="button"
+              disabled={!canScore || submit.submitting}
+              onClick={() => submit.submitDouble()}
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-amber-700 bg-amber-950 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-900 active:bg-amber-800 disabled:opacity-40"
+            >
+              ⚔ Double
+            </button>
+            <button
+              type="button"
+              disabled={!canScore || submit.submitting}
+              onClick={() => submit.submitNoExchange('other')}
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-gray-600 bg-gray-800 px-4 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40"
+            >
+              ⏸ {t('scoring.lice.eventRowNoExchange')}
+            </button>
+          </div>
+
+          {/* Exchanges count + Clear last exchange */}
+          <div className="flex flex-col items-center gap-1 mt-3 w-full">
+            <p className="text-xs text-gray-500">
+              {t('scoring.lice.exchangesCount', { count: String(events.length) })}
+            </p>
+            <button
+              type="button"
+              disabled={activeExchanges.length === 0 || clearBusy}
+              onClick={() => void clearLastExchange()}
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-cyan-700 bg-cyan-950 px-4 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-900 active:bg-cyan-800 disabled:opacity-40 touch-manipulation"
+            >
+              ↶ {t('scoring.corrections.clearLastExchange')}
+            </button>
+          </div>
+        </>
       )}
-
-      {/* Secondary row: End + Reset */}
-      <div className="flex gap-2">
-        {status !== 'idle' && status !== 'ended' && (
-          <button
-            type="button"
-            disabled={clockLoading}
-            onClick={() => onClockAction('end')}
-            className="rounded-lg border-2 border-red-700 bg-red-950 px-4 py-1.5 text-sm font-bold text-red-200 hover:bg-red-900 active:bg-red-800 disabled:opacity-40"
-          >
-            {t('scoring.clock.endMatch')}
-          </button>
-        )}
-        {status === 'halted' && (
-          <button
-            type="button"
-            disabled={clockLoading}
-            onClick={() => setResetConfirmOpen(true)}
-            className="rounded-lg border-2 border-gray-600 bg-gray-800 px-4 py-1.5 text-sm font-bold text-gray-200 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40"
-          >
-            {t('scoring.clock.reset')}
-          </button>
-        )}
-      </div>
-
-      {/* Reset clock confirmation — shared ConfirmDialog */}
-      <ConfirmDialog
-        open={resetConfirmOpen}
-        onConfirm={() => {
-          onClockAction('reset_clock');
-          setResetConfirmOpen(false);
-        }}
-        onCancel={() => setResetConfirmOpen(false)}
-        title={t('scoring.clock.resetConfirmTitle')}
-        description={t('scoring.clock.resetConfirmBody')}
-        confirmLabel={t('scoring.clock.resetConfirmAction')}
-        cancelLabel={t('scoring.clock.resetConfirmCancel')}
-        danger
-      />
-
-      {/* Double-count X/Y chip + Double button */}
-      <div className="flex flex-col items-center gap-1 mt-2 w-full">
-        <span
-          title={t('scoring.lice.doubleLimitTooltip')}
-          className={`rounded-full px-3 py-0.5 text-xs font-bold tabular-nums ${doubleChipTone}`}
-        >
-          {doubleCount}/{maxDoubles ?? '∞'}
-        </span>
-        <button
-          type="button"
-          disabled={!canScore || submit.submitting}
-          onClick={() => submit.submitDouble()}
-          className="w-full max-w-[280px] rounded-xl border-2 border-amber-700 bg-amber-950 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-900 active:bg-amber-800 disabled:opacity-40"
-        >
-          ⚔ Double
-        </button>
-        <button
-          type="button"
-          disabled={!canScore || submit.submitting}
-          onClick={() => submit.submitNoExchange('other')}
-          className="w-full max-w-[280px] rounded-xl border-2 border-gray-600 bg-gray-800 px-4 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40"
-        >
-          ⏸ {t('scoring.lice.eventRowNoExchange')}
-        </button>
-      </div>
-
-      {/* Exchanges count + Clear last exchange */}
-      <div className="flex flex-col items-center gap-1 mt-3 w-full">
-        <p className="text-xs text-gray-500">
-          {t('scoring.lice.exchangesCount', { count: String(events.length) })}
-        </p>
-        <button
-          type="button"
-          disabled={activeExchanges.length === 0 || clearBusy}
-          onClick={() => void clearLastExchange()}
-          className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-cyan-700 bg-cyan-950 px-4 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-900 active:bg-cyan-800 disabled:opacity-40 touch-manipulation"
-        >
-          ↶ {t('scoring.corrections.clearLastExchange')}
-        </button>
-      </div>
 
       {/* Events list — scrollable unified timeline */}
       <div className="w-full mt-3">
@@ -427,7 +434,7 @@ export function ScoringCenterControls({
       </div>
 
       {/* Spacebar hint (when idle) */}
-      {status === 'idle' && (
+      {!readOnly && status === 'idle' && (
         <p className="mt-2 text-[10px] text-gray-600">{t('scoring.lice.spacebarHint')}</p>
       )}
     </div>
