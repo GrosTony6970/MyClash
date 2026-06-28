@@ -42,6 +42,11 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
     display['sideColors'] && typeof display['sideColors'] === 'object'
       ? (display['sideColors'] as Record<string, unknown>)
       : {};
+  const quickPenalties = Array.isArray(display['quickPenalties'])
+    ? (display['quickPenalties'] as unknown[]).filter(
+        (n): n is number => typeof n === 'number' && Number.isFinite(n),
+      )
+    : [];
 
   return {
     afterblowMode: raw['afterblowMode'] === 'deductive' ? 'deductive' : 'full',
@@ -54,6 +59,7 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
         red: parseSideColor(sideColors['red'], DEFAULT_SCORING_CONFIG.display.sideColors.red),
         blue: parseSideColor(sideColors['blue'], DEFAULT_SCORING_CONFIG.display.sideColors.blue),
       },
+      quickPenalties,
     },
   };
 }

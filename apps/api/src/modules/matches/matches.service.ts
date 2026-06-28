@@ -134,10 +134,11 @@ export class MatchesService {
     // Fetch weapon from tournament (not in view).
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
-      .select('weapon')
+      .select('weapon, name')
       .eq('id', row.tournament_id)
       .maybeSingle();
     const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
+    const tournamentName = (tournament as { name?: string | null } | null)?.name ?? null;
 
     // For bracket matches, fetch the phase's bracketSize so the
     // formatter resolves bracket_round → R16/QF/SF/F instead of
@@ -190,11 +191,31 @@ export class MatchesService {
 
     const referees = await this.resolveMatchRefereesForSummary(row.event_id, matchId, row.pool_id);
 
+    // Piste/lice display name for the scoreboard header context line
+    // (Tournament · Pool · Piste). lice_id lives on the match row, not the view.
+    const { data: matchLiceRow } = await this.supabase.service
+      .from('matches')
+      .select('lice_id')
+      .eq('id', matchId)
+      .maybeSingle();
+    const summaryLiceId = (matchLiceRow as { lice_id?: string | null } | null)?.lice_id ?? null;
+    let liceName: string | null = null;
+    if (summaryLiceId) {
+      const { data: lice } = await this.supabase.service
+        .from('lices')
+        .select('name')
+        .eq('id', summaryLiceId)
+        .maybeSingle();
+      liceName = (lice as { name?: string | null } | null)?.name ?? null;
+    }
+
     return {
       matchLabel: row.match_number_label ?? '',
       roundCode,
       status: row.status,
       poolName: row.pool_name ?? '',
+      tournamentName: tournamentName ?? '',
+      liceName: liceName ?? '',
       redName: row.red_name ?? '',
       redClub: row.red_club ?? null,
       blueName: row.blue_name ?? '',

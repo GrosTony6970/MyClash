@@ -37,6 +37,10 @@ export interface MatchInfo {
   blueClub?: string | null;
   weapon?: string;
   tournamentId?: string;
+  /** Header context line (Tournament · Pool · Piste) — from GET /matches/:id/summary. */
+  tournamentName?: string | null;
+  poolName?: string | null;
+  liceName?: string | null;
   eventSlug?: string;
   phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
   sideOrder?: 'red_left' | 'blue_left';

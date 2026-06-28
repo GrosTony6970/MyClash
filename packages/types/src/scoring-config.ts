@@ -56,6 +56,12 @@ export interface TournamentDisplayConfig {
     red: TournamentSideColor;
     blue: TournamentSideColor;
   };
+  /**
+   * Ruleset-entry `ref_number`s pinned (in admin) as quick-pick penalty chips
+   * on the scoreboard. Keyed by ref_number so pins survive ruleset-version
+   * bumps; the scoreboard skips any ref that no longer exists.
+   */
+  quickPenalties?: number[];
 }
 
 export interface CleanButton {

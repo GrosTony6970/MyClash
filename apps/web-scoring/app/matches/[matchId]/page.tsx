@@ -126,6 +126,9 @@ export default function MatchScoringPage({ params }: Props) {
               blueClub?: string | null;
               weapon: string;
               tournamentId: string;
+              tournamentName?: string | null;
+              poolName?: string | null;
+              liceName?: string | null;
               phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
             })
           : null;
@@ -146,6 +149,9 @@ export default function MatchScoringPage({ params }: Props) {
           blueClub: summary?.blueClub ?? null,
           weapon: summary?.weapon ?? '',
           tournamentId: summary?.tournamentId,
+          tournamentName: summary?.tournamentName ?? null,
+          poolName: summary?.poolName ?? null,
+          liceName: summary?.liceName ?? null,
           phaseType: summary?.phaseType ?? null,
           lockedAt: raw.locked_at,
           liceId: raw.lice_id,
