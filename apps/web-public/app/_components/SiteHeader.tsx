@@ -1,10 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { getApiUrl } from '@/lib/api-url';
+
+type AuthState = 'unknown' | 'signed-out' | 'signed-in';
+
+// Auth state is derived from the session cookie via useSyncExternalStore — the
+// SSR-safe, lint-clean way to read an external source. Server snapshot is
+// 'unknown' (renders neither auth button, matching the SSR HTML); after
+// hydration the client snapshot reads the cookie, so there's no hydration
+// mismatch and no setState-in-effect. The cookie only changes on login/logout,
+// which navigate away, so the subscription is a no-op.
+const subscribeAuth = (): (() => void) => () => {};
+function readAuthSnapshot(): AuthState {
+  return document.cookie.includes('sb-access-token=') ? 'signed-in' : 'signed-out';
+}
+function readAuthServerSnapshot(): AuthState {
+  return 'unknown';
+}
 
 /**
  * Shared global header for the public site.
@@ -20,16 +36,16 @@ import { getApiUrl } from '@/lib/api-url';
  * same place as Sign in for signed-out users).
  */
 export function SiteHeader() {
-  const [authState, setAuthState] = useState<'unknown' | 'signed-out' | 'signed-in'>('unknown');
+  const authState = useSyncExternalStore(subscribeAuth, readAuthSnapshot, readAuthServerSnapshot);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const apiUrl = getApiUrl();
 
+  // Fetch the display name once the client knows the user is signed in. The
+  // setState lives in the async .then (not the effect body), so it doesn't trip
+  // set-state-in-effect.
   useEffect(() => {
-    const isSignedIn = document.cookie.includes('sb-access-token=');
-    setAuthState(isSignedIn ? 'signed-in' : 'signed-out');
-    if (!isSignedIn) return;
-
+    if (authState !== 'signed-in') return;
     const controller = new AbortController();
     fetch(`${apiUrl}/api/v1/me/personal-space`, {
       credentials: 'include',
@@ -45,7 +61,7 @@ export function SiteHeader() {
         if (err instanceof Error && err.name === 'AbortError') return;
       });
     return () => controller.abort();
-  }, [apiUrl]);
+  }, [authState, apiUrl]);
 
   async function signOut() {
     if (loggingOut) return;

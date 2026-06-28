@@ -183,8 +183,11 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     }
   }, [apiUrl]);
 
+  // No synchronous setLoading(true) here: the initial mount relies on the
+  // `loading` state's initial `true`, and the claim re-load sets it from its
+  // async callback below. Keeping it out of `load` lets the mount effect call
+  // load() without tripping set-state-in-effect.
   const load = useCallback(() => {
-    setLoading(true);
     Promise.all([
       fetch(`${apiUrl}/api/v1/fighters/me/dashboard`, { credentials: 'include' }),
       fetch(`${apiUrl}/api/v1/weapons`, { credentials: 'include' }),
@@ -226,6 +229,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         if (!res.ok) throw new Error('claim');
         // Claiming links the global profile → the dashboard now resolves.
         setClaimable([]);
+        setLoading(true);
         load();
       })
       .catch(() => {

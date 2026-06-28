@@ -112,11 +112,16 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
     display: { ...DEFAULT_SCORING_CONFIG.display, sideColors },
   };
 
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  // `loading` starts true for the first paint; a realtime-driven refetch sets
+  // it from here (an event callback) rather than in the effect body, so we
+  // don't trip set-state-in-effect.
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
     // Resolve the API base URL client-side: getApiUrl() returns the
     // public NEXT_PUBLIC_API_URL in the browser. A server-passed prop
     // would carry the docker-internal http://api:4000, which is

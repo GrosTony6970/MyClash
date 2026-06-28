@@ -11,7 +11,7 @@
  * use Next 15's experimental ViewTransition API yet — it adds a
  * client-component RSC boundary the rest of the page doesn't need.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
@@ -64,8 +64,14 @@ const TAB_ORDER: TabKey[] = [
 
 export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   const { t: tr } = useI18n();
-  const visibleTabs = tabs.filter((t) => t.visible);
-  const visibleKeys = visibleTabs.map((t) => t.key);
+  // Memoise so the derived arrays keep a stable identity across this client
+  // component's internal re-renders (state / i18n context). `switchTo` depends
+  // on `visibleKeys`, and the hash-sync effect depends on it too — an unstable
+  // reference re-created the callback and re-subscribed the listener every
+  // render (and tripped preserve-manual-memoization). A genuine new `tabs`
+  // payload still recomputes correctly.
+  const visibleTabs = useMemo(() => tabs.filter((t) => t.visible), [tabs]);
+  const visibleKeys = useMemo(() => visibleTabs.map((t) => t.key), [visibleTabs]);
   const activeClasses = activeTabClassesFor(colorToken);
 
   const [active, setActive] = useState<TabKey>(defaultTab);

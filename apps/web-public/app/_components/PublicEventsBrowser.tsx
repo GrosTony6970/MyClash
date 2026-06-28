@@ -58,7 +58,6 @@ async function fetchPublicEvents(): Promise<EventLoadResult> {
       } catch {
         // ignore — the body wasn't readable, status code is enough
       }
-      // eslint-disable-next-line no-console
       console.error('[public-events] /events returned non-OK', {
         target,
         status: res.status,
@@ -74,7 +73,6 @@ async function fetchPublicEvents(): Promise<EventLoadResult> {
 
     return { events, unavailable: false };
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[public-events] /events fetch threw', {
       target,
       error: err instanceof Error ? { name: err.name, message: err.message } : err,
@@ -92,7 +90,6 @@ async function fetchPublicLeagues(): Promise<PublicLeague[]> {
       // Soft-fail so a public-leagues outage doesn't take the events
       // tab down with it. The Leagues tab renders its empty state and
       // the operator still has Events.
-      // eslint-disable-next-line no-console
       console.error('[public-events] /leagues returned non-OK', {
         target,
         status: res.status,
@@ -102,7 +99,6 @@ async function fetchPublicLeagues(): Promise<PublicLeague[]> {
     }
     return (await res.json()) as PublicLeague[];
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[public-events] /leagues fetch threw', {
       target,
       error: err instanceof Error ? { name: err.name, message: err.message } : err,

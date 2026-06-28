@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface MatchSummary {
@@ -34,27 +34,45 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const backdropRef = useRef<HTMLDivElement>(null);
 
-  const fetchPage = async (currentOffset: number, append: boolean) => {
-    if (append) setLoadingMore(true);
-    else setLoading(true);
+  // Append the next page. The initial load lives in the effect below; this is
+  // only ever the "Load more" path, so it always appends + drives loadingMore.
+  const loadMore = async (currentOffset: number) => {
+    setLoadingMore(true);
     try {
       const url = `${apiUrl}/api/v1/fighters/${slug}/matches?limit=${PAGE_SIZE}&offset=${currentOffset}`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) return;
       const data = (await res.json()) as { items: MatchSummary[]; total: number };
       setTotal(data.total);
-      setItems((prev) => (append ? [...prev, ...data.items] : data.items));
+      setItems((prev) => [...prev, ...data.items]);
     } finally {
-      if (append) setLoadingMore(false);
-      else setLoading(false);
+      setLoadingMore(false);
     }
   };
 
+  // Initial load. `loading` starts true, so we don't setState synchronously in
+  // the effect body (which trips set-state-in-effect) — the spinner shows from
+  // the initial state and we flip it off only after the fetch resolves.
   useEffect(() => {
-    void fetchPage(0, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `${apiUrl}/api/v1/fighters/${slug}/matches?limit=${PAGE_SIZE}&offset=0`,
+          { cache: 'no-store', signal: controller.signal },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { items: MatchSummary[]; total: number };
+        setTotal(data.total);
+        setItems(data.items);
+      } catch {
+        // ignore (incl. AbortError on unmount / slug change)
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => controller.abort();
   }, [slug, apiUrl]);
 
   // Close on Escape
@@ -69,27 +87,36 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
   const handleLoadMore = async () => {
     const nextOffset = offset + PAGE_SIZE;
     setOffset(nextOffset);
-    await fetchPage(nextOffset, true);
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === backdropRef.current) onClose();
+    await loadMore(nextOffset);
   };
 
   const hasMore = items.length < total;
 
   return (
-    <div
-      ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={handleBackdropClick}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      {/* Pointer-only click-outside-to-close. A real <button> (so it's not a
+          non-interactive element with a click handler), but hidden from the
+          tab order + AT — keyboard/SR users close via Escape or the header ✕,
+          so it doesn't duplicate the "Close" control. */}
+      <button
+        type="button"
+        aria-hidden="true"
+        tabIndex={-1}
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
       <div
-        className="flex w-full max-w-2xl flex-col rounded-xl border border-gray-700 bg-gray-950 shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="match-history-title"
+        className="relative z-10 flex w-full max-w-2xl flex-col rounded-xl border border-gray-700 bg-gray-950 shadow-2xl"
         style={{ maxHeight: '85vh' }}
       >
         <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+          <h2
+            id="match-history-title"
+            className="text-xs font-semibold uppercase tracking-wider text-amber-400"
+          >
             {t('publicApp.fighterProfile.matchHistoryTitle')}
           </h2>
           <button
