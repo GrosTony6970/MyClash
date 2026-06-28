@@ -12,6 +12,7 @@ import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffJwtService } from './staff-jwt.service';
+import { normalizeTournamentLockConfig } from '../events/tournament-config';
 import type {
   CreateStaffAccountDto,
   ResetStaffPinDto,
@@ -247,6 +248,22 @@ export class StaffService {
     const match = await this.getMatchContext(matchId);
     await this.orgs.assertOrgRole(match.organizationId, userId, 'editor');
     return { userId, canOverrideLocked: true };
+  }
+
+  /**
+   * Reopen (unlock) a locked match. The required role depends on the
+   * tournament's auto-lock setting: a tournament organiser (editor+) may
+   * always reopen, but when auto-lock is DISABLED the event staff running
+   * the piste (scorekeeper user or assigned staff account) may reopen too.
+   */
+  async authorizeMatchUnlock(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
+    const match = await this.getMatchContext(matchId);
+    const lockConfig = normalizeTournamentLockConfig(match.lockConfigJson);
+    if (!lockConfig.autoLockEnabled) {
+      const actor = await this.authorizeMatchScoring(req, matchId);
+      return { ...actor, canOverrideLocked: true };
+    }
+    return this.authorizeMatchOrganizer(req, matchId);
   }
 
   async authorizeExchangeScoring(req: FastifyRequest, exchangeId: string): Promise<ScoringActor> {
@@ -563,7 +580,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,lice_id,phases!inner(tournaments!inner(event_id,events!inner(organization_id,status)))',
+        'id,lice_id,phases!inner(tournaments!inner(id,event_id,lock_config_json,events!inner(organization_id,status)))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -572,11 +589,28 @@ export class StaffService {
     const row = data as unknown as {
       lice_id: string | null;
       phases:
-        | { tournaments: { event_id: string; events: { organization_id: string; status: string } } }
+        | {
+            tournaments: {
+              id: string;
+              event_id: string;
+              lock_config_json: unknown;
+              events: { organization_id: string; status: string };
+            };
+          }
         | Array<{
             tournaments:
-              | { event_id: string; events: { organization_id: string; status: string } }
-              | Array<{ event_id: string; events: { organization_id: string; status: string } }>;
+              | {
+                  id: string;
+                  event_id: string;
+                  lock_config_json: unknown;
+                  events: { organization_id: string; status: string };
+                }
+              | Array<{
+                  id: string;
+                  event_id: string;
+                  lock_config_json: unknown;
+                  events: { organization_id: string; status: string };
+                }>;
           }>;
     };
     const phase = Array.isArray(row.phases) ? row.phases[0] : row.phases;
@@ -591,6 +625,8 @@ export class StaffService {
       liceId: row.lice_id,
       eventId: tournament.event_id,
       organizationId: tournament.events.organization_id,
+      tournamentId: tournament.id,
+      lockConfigJson: tournament.lock_config_json,
     };
   }
 

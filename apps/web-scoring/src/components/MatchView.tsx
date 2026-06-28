@@ -85,6 +85,8 @@ export function MatchView({
   const [clockError, setClockError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
   // Next bout in the lice queue — powers the "Next match →" action on the result overlay.
   const { next: nextMatch } = useAdjacentMatches(apiUrl, match.id, refreshKey);
   // Resume guard: when the operator starts/resumes at zero / in the soft
@@ -192,6 +194,30 @@ export function MatchView({
       t,
     ],
   );
+
+  // Reopen (unlock) a locked match. The API authorizes: organiser always,
+  // event staff only when the tournament's auto-lock is disabled (403 otherwise).
+  async function handleUnlock() {
+    setUnlockBusy(true);
+    setUnlockError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('scoring.match.unlockFailed'));
+      }
+      onRefresh();
+    } catch (err) {
+      setUnlockError(err instanceof Error ? err.message : t('scoring.match.unlockFailed'));
+    } finally {
+      setUnlockBusy(false);
+    }
+  }
 
   // Scoring gate — DB status enum is 'scheduled' | 'running' | 'paused'
   // | 'completed' | 'voided'. Active scoring requires running OR paused.
@@ -304,8 +330,17 @@ export function MatchView({
       />
 
       {match.lockedAt && (
-        <div className="mx-4 mt-3 rounded-xl border border-yellow-700 bg-yellow-950 px-4 py-3 text-center text-sm font-bold text-yellow-100">
-          {t('scoring.corrections.matchLocked')}
+        <div className="mx-4 mt-3 flex flex-col items-center gap-2 rounded-xl border border-yellow-700 bg-yellow-950 px-4 py-3 text-center text-sm font-bold text-yellow-100">
+          <span>{t('scoring.corrections.matchLocked')}</span>
+          {unlockError && <span className="text-xs font-normal text-red-300">{unlockError}</span>}
+          <button
+            type="button"
+            disabled={unlockBusy}
+            onClick={() => void handleUnlock()}
+            className="min-h-[44px] rounded-lg border-2 border-yellow-600 bg-yellow-900 px-4 py-2 text-sm font-bold text-yellow-100 hover:bg-yellow-800 disabled:opacity-40"
+          >
+            ↻ {unlockBusy ? t('scoring.match.reopening') : t('scoring.match.reopen')}
+          </button>
         </div>
       )}
 

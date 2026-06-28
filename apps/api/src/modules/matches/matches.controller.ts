@@ -191,9 +191,10 @@ export class MatchesController {
 
   @Post('matches/:id/unlock')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Unlock match scoring (organizer+)' })
+  @ApiOperation({ summary: 'Unlock match scoring (organizer; or staff when auto-lock disabled)' })
   async unlockMatch(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const actor = await this.staff.authorizeMatchOrganizer(req, id);
+    // Organiser may always reopen; event staff may reopen when auto-lock is disabled.
+    const actor = await this.staff.authorizeMatchUnlock(req, id);
     return this.matches.unlockMatch(id, actor);
   }
 

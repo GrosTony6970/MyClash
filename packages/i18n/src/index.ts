@@ -977,6 +977,9 @@ export const en = {
     match: {
       unavailableTitle: 'Match unavailable',
       unavailableBody: 'This match could not be loaded — it may have been deleted or rescheduled.',
+      reopen: 'Reopen match',
+      reopening: 'Reopening...',
+      unlockFailed: 'Could not reopen this match.',
     },
     corrections: {
       title: 'Match corrections',
@@ -5518,6 +5521,9 @@ export const fr = {
       unavailableTitle: 'Assaut indisponible',
       unavailableBody:
         'Cet assaut n a pas pu etre charge — il a peut-etre ete supprime ou reprogramme.',
+      reopen: 'Rouvrir l assaut',
+      reopening: 'Reouverture...',
+      unlockFailed: 'Impossible de rouvrir cet assaut.',
     },
     corrections: {
       title: 'Corrections du match',
