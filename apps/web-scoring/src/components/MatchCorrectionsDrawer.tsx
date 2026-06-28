@@ -21,9 +21,21 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
 import { buildUnifiedTimeline, exchangeOptionLabel } from './exchange-timeline';
+import { ConfirmDialog } from '@myclash/ui';
 import { useExchanges } from '../hooks/useExchanges';
-import { usePenalties } from '../hooks/usePenalties';
+import { usePenalties, type PenaltyCard } from '../hooks/usePenalties';
 import { ForfeitPanel } from './ForfeitPanel';
+
+const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
+  yellow: '#eab308',
+  red: '#dc2626',
+  black: '#111827',
+};
+const DIRECT_CARD_LABEL: Record<PenaltyCard, string> = {
+  yellow: 'Yellow',
+  red: 'Red',
+  black: 'Black',
+};
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -51,6 +63,9 @@ interface MatchCorrectionsDrawerProps {
   refreshKey: number;
   /** Forfeit is only allowed while the match is running/paused and unlocked. */
   forfeitDisabled: boolean;
+  /** Next penalty sequence + match-clock position — for direct cards. */
+  nextSequence: number;
+  clockTimeMs: number | null;
 }
 
 export function MatchCorrectionsDrawer({
@@ -71,6 +86,8 @@ export function MatchCorrectionsDrawer({
   config,
   refreshKey,
   forfeitDisabled,
+  nextSequence,
+  clockTimeMs,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -81,7 +98,10 @@ export function MatchCorrectionsDrawer({
   const [selectedExchangeId, setSelectedExchangeId] = useState('');
 
   const { active: activeExchanges } = useExchanges(apiUrl, matchId, refreshKey);
-  const { active: activePenalties } = usePenalties(apiUrl, matchId, refreshKey);
+  const { active: activePenalties, ruleSetCards } = usePenalties(apiUrl, matchId, refreshKey);
+  const [dcFighter, setDcFighter] = useState<'red' | 'blue'>('red');
+  const [dcReason, setDcReason] = useState('');
+  const [dcConfirm, setDcConfirm] = useState<PenaltyCard | null>(null);
 
   // The same numbered timeline as the centre history; the picker only offers
   // the exchange rows (its void/edit action is exchange-only), but their `#`
@@ -179,6 +199,26 @@ export function MatchCorrectionsDrawer({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitDirectCard(card: PenaltyCard) {
+    const registrationId = dcFighter === 'red' ? redRegistrationId : blueRegistrationId;
+    await post(`/api/v1/matches/${matchId}/penalties`, {
+      clientUuid: crypto.randomUUID(),
+      sequence: nextSequence,
+      registrationId,
+      occurredAt: new Date().toISOString(),
+      clockTimeMs,
+      directCard: card,
+      reason: dcReason.trim(),
+    });
+    setDcReason('');
+  }
+
+  // Yellow issues directly; red/black go through the confirm dialog.
+  function requestDirectCard(card: PenaltyCard) {
+    if (card === 'yellow') void submitDirectCard('yellow');
+    else setDcConfirm(card);
   }
 
   if (!open) return null;
@@ -347,6 +387,56 @@ export function MatchCorrectionsDrawer({
             />
           </div>
 
+          {/* Direct card — manual card issuance as chips (not solid bars). */}
+          <div className="border-t border-slate-200 pt-4">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              {t('scoring.lice.directCardSection')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('scoring.forfeits.fighter')}
+                <select
+                  value={dcFighter}
+                  onChange={(e) => setDcFighter(e.target.value as 'red' | 'blue')}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="red">{redName}</option>
+                  <option value="blue">{blueName}</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('scoring.lice.directCardReason')}
+                <input
+                  value={dcReason}
+                  onChange={(e) => setDcReason(e.target.value)}
+                  placeholder={t('scoring.lice.directCardReason')}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div
+              className="mt-2 grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${ruleSetCards.length}, minmax(0, 1fr))` }}
+            >
+              {ruleSetCards.map((card) => (
+                <button
+                  key={card}
+                  type="button"
+                  disabled={disabled || dcReason.trim().length === 0}
+                  onClick={() => requestDirectCard(card)}
+                  className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border-2 bg-white px-2 py-2 text-xs font-bold uppercase text-slate-900 hover:bg-slate-50 disabled:opacity-40"
+                  style={{ borderColor: DIRECT_CARD_HEX[card] }}
+                >
+                  <span
+                    className="inline-block h-3 w-3 rounded-sm"
+                    style={{ backgroundColor: DIRECT_CARD_HEX[card] }}
+                  />
+                  {DIRECT_CARD_LABEL[card]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Danger zone */}
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-red-700">
@@ -374,6 +464,23 @@ export function MatchCorrectionsDrawer({
             </button>
           </div>
         </div>
+
+        <ConfirmDialog
+          open={dcConfirm !== null}
+          onConfirm={() => {
+            const card = dcConfirm;
+            setDcConfirm(null);
+            if (card) void submitDirectCard(card);
+          }}
+          onCancel={() => setDcConfirm(null)}
+          title={t('scoring.lice.directCardConfirmTitle')}
+          description={t('scoring.lice.directCardConfirmBody', {
+            fighter: dcFighter === 'red' ? redName : blueName,
+          })}
+          confirmLabel={t('scoring.lice.directCardConfirm')}
+          cancelLabel={t('common.cancel')}
+          danger
+        />
       </aside>
     </div>
   );

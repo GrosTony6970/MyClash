@@ -243,7 +243,6 @@ export function MatchView({
     matchId: match.id,
     nextSequence,
     clockTimeMs,
-    config: scoringConfig,
     onExchangeRecorded: handleScoreMutation,
   });
 
@@ -394,6 +393,8 @@ export function MatchView({
         blueName={blueName}
         redRegistrationId={match.redRegistrationId}
         blueRegistrationId={match.blueRegistrationId}
+        nextSequence={nextSequence}
+        clockTimeMs={clockTimeMs}
         config={scoringConfig}
         refreshKey={refreshKey}
         forfeitDisabled={

@@ -169,6 +169,7 @@ export function ForfeitPanel({
         title={t('scoring.forfeits.confirmTitle')}
         description={t('scoring.forfeits.confirmBody', { fighter: forfeitingName })}
         confirmLabel={t('scoring.forfeits.record')}
+        cancelLabel={t('common.cancel')}
         busy={submitting}
         danger
       />

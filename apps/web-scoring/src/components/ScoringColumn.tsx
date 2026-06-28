@@ -114,7 +114,6 @@ export function ScoringColumn({
   );
 
   const [penaltyQuery, setPenaltyQuery] = useState('');
-  const [directReason, setDirectReason] = useState('');
   const [penaltyError, setPenaltyError] = useState<string | null>(null);
   const [penaltySubmitting, setPenaltySubmitting] = useState(false);
   const penaltyDisabled = !scoringEnabled || penaltySubmitting;
@@ -155,7 +154,6 @@ export function ScoringColumn({
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? 'Failed to record penalty');
       }
-      setDirectReason('');
       onPenaltyRecorded?.();
     } catch (err) {
       setPenaltyError(err instanceof Error ? err.message : 'Network error');
@@ -385,34 +383,6 @@ export function ScoringColumn({
               onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
             />
           ))}
-        </div>
-
-        <div className="border-t border-gray-800 pt-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-            {t('scoring.lice.directCardSection')}
-          </p>
-          <input
-            value={directReason}
-            onChange={(e) => setDirectReason(e.target.value)}
-            placeholder={t('scoring.lice.directCardReason')}
-            className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 outline-none focus:border-yellow-500 mb-2"
-          />
-          <div
-            className="grid gap-1.5"
-            style={{ gridTemplateColumns: `repeat(${ruleSetCards.length}, minmax(0, 1fr))` }}
-          >
-            {ruleSetCards.map((card) => (
-              <button
-                key={card}
-                type="button"
-                disabled={penaltyDisabled || directReason.trim().length === 0}
-                onClick={() => void submitPenalty({ directCard: card, reason: directReason })}
-                className={`rounded-lg border-2 px-2 py-2 text-xs font-black uppercase text-white disabled:opacity-40 ${CARD_CHIP_COLOR[card]}`}
-              >
-                {CARD_LABEL[card]}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
