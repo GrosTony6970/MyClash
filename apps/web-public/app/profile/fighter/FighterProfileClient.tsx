@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { getDateFormat } from '@myclash/types';
+import { Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface ClubLink {
   role?: string;
-  clubs?: { name?: string | null } | null;
+  clubs?: { id?: string | null; name?: string | null } | null;
 }
 
 interface WeaponLink {
@@ -84,9 +85,9 @@ interface FormState {
   dateOfBirth: string;
   bio: string;
   photoUrl: string;
-  mainClub: string;
-  secondaryClubs: string;
-  previousClubs: string;
+  mainClub: ClubValue | null;
+  secondaryClubs: ClubValue[];
+  previousClubs: ClubValue[];
   selectedWeapons: Record<string, { name: string; favorite: boolean }>;
 }
 
@@ -98,26 +99,24 @@ const emptyForm: FormState = {
   dateOfBirth: '',
   bio: '',
   photoUrl: '',
-  mainClub: '',
-  secondaryClubs: '',
-  previousClubs: '',
+  mainClub: null,
+  secondaryClubs: [],
+  previousClubs: [],
   selectedWeapons: {},
 };
 
-function clubsByRole(clubs: ClubLink[] | undefined, role: string): string {
+/** Build the ClubCombobox values for a given role from the profile club links,
+ *  carrying the club id so an existing club re-saves by id (never duplicated). */
+function clubValuesByRole(clubs: ClubLink[] | undefined, role: string): ClubValue[] {
   return (clubs ?? [])
-    .filter((club) => club.role === role)
-    .map((club) => club.clubs?.name)
-    .filter((name): name is string => Boolean(name))
-    .join(', ');
+    .filter((club) => club.role === role && club.clubs?.name)
+    .map((club) => ({ clubId: club.clubs?.id ?? null, clubName: club.clubs?.name ?? '' }));
 }
 
-function splitNames(value: string): Array<{ clubName: string }> {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((clubName) => ({ clubName }));
+/** A picked club re-saves by id; a typed-but-new one saves by name (the API
+ *  resolves the name → an unverified club). */
+function toClubInput(value: ClubValue): { clubId: string } | { clubName: string } {
+  return value.clubId ? { clubId: value.clubId } : { clubName: value.clubName };
 }
 
 function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => string): FormState {
@@ -129,6 +128,7 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
     selectedWeapons[id] = { name, favorite: Boolean(weapon.favorite) };
   }
 
+  const mainClubs = clubValuesByRole(profile.clubs, 'main');
   return {
     displayName: profile.display_name ?? '',
     givenName: profile.given_name ?? '',
@@ -137,9 +137,9 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
     dateOfBirth: formatDob(profile.dateOfBirth ?? ''),
     bio: profile.bio ?? '',
     photoUrl: profile.photo_url ?? '',
-    mainClub: clubsByRole(profile.clubs, 'main'),
-    secondaryClubs: clubsByRole(profile.clubs, 'secondary'),
-    previousClubs: clubsByRole(profile.clubs, 'previous'),
+    mainClub: mainClubs[0] ?? null,
+    secondaryClubs: clubValuesByRole(profile.clubs, 'secondary'),
+    previousClubs: clubValuesByRole(profile.clubs, 'previous'),
     selectedWeapons,
   };
 }
@@ -169,6 +169,36 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     Array<{ id: string; name: string; eventName: string }>
   >([]);
   const [claiming, setClaiming] = useState(false);
+
+  // Async fuzzy club search powering every ClubCombobox (main + secondary +
+  // previous). The combobox stays API-agnostic; the URL lives here.
+  const searchClubs = useCallback(
+    async (query: string): Promise<ClubOption[]> => {
+      const url = `${apiUrl}/api/v1/clubs?q=${encodeURIComponent(query)}&searchAbv=true`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = (await res.json()) as
+        | Array<{ id: string; name: string; city?: string | null; abbreviation?: string | null }>
+        | {
+            clubs?: Array<{
+              id: string;
+              name: string;
+              city?: string | null;
+              abbreviation?: string | null;
+            }>;
+          };
+      const rows = Array.isArray(data) ? data : (data.clubs ?? []);
+      return rows
+        .filter((c) => c.id && c.name)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          city: c.city ?? null,
+          abbreviation: c.abbreviation ?? null,
+        }));
+    },
+    [apiUrl],
+  );
 
   const loadClaimable = useCallback(async () => {
     try {
@@ -310,9 +340,9 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         dateOfBirth: dateOfBirthIso,
         bio: form.bio || undefined,
         photoUrl: form.photoUrl || undefined,
-        mainClub: form.mainClub ? { clubName: form.mainClub } : undefined,
-        secondaryClubs: splitNames(form.secondaryClubs),
-        previousClubs: splitNames(form.previousClubs),
+        mainClub: form.mainClub ? toClubInput(form.mainClub) : undefined,
+        secondaryClubs: form.secondaryClubs.map(toClubInput),
+        previousClubs: form.previousClubs.map(toClubInput),
         weapons: selectedWeaponRows,
       }),
     })
@@ -333,9 +363,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-gray-800 bg-gray-950 p-4 text-sm text-gray-400">
-        {t('publicApp.fighterProfile.loadingDashboard')}
-      </section>
+      <Card className="text-sm text-muted">{t('publicApp.fighterProfile.loadingDashboard')}</Card>
     );
   }
 
@@ -345,54 +373,51 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     // dashboard); otherwise point them to their personal space.
     if (claimable.length > 0) {
       return (
-        <section className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-gray-100">
+        <Card>
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('publicApp.personalSpace.claimable.title')}
           </h2>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-muted">
             {t('publicApp.personalSpace.claimable.description')}
           </p>
           <ul className="mt-3 space-y-2">
             {claimable.map((person) => (
               <li
                 key={person.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-gray-800 bg-gray-900 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
               >
-                <span className="min-w-0 text-sm text-gray-100">
+                <span className="min-w-0 text-sm text-foreground">
                   <span className="font-semibold">{person.name}</span>
-                  {person.eventName && <span className="text-gray-400"> — {person.eventName}</span>}
+                  {person.eventName && <span className="text-muted"> — {person.eventName}</span>}
                 </span>
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={claiming}
                   onClick={() => claim(person.id)}
-                  className="shrink-0 rounded-md border border-emerald-500/40 px-3 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/10 disabled:opacity-60"
                 >
                   {t('publicApp.personalSpace.claimable.claim')}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       );
     }
     return (
-      <section className="rounded-xl border border-red-900 bg-red-950/30 p-4">
-        <p className="text-sm text-red-200">{error}</p>
-        <p className="mt-2 text-xs text-gray-400">{t('publicApp.fighterProfile.accessRequired')}</p>
-        <a
-          href="/me"
-          className="mt-3 inline-block rounded-md border border-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-200 hover:bg-gray-800"
-        >
-          {t('publicApp.fighterProfile.goToPersonalSpace')}
-        </a>
-      </section>
+      <div className="rounded-xl border border-danger/40 bg-danger/5 p-4">
+        <p className="text-sm text-danger">{error}</p>
+        <p className="mt-2 text-xs text-muted">{t('publicApp.fighterProfile.accessRequired')}</p>
+        <Button asChild variant="secondary" size="sm" className="mt-3">
+          <a href="/me">{t('publicApp.fighterProfile.goToPersonalSpace')}</a>
+        </Button>
+      </div>
     );
   }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      <section className="rounded-xl border border-gray-800 bg-gray-950 p-4">
+      <Card>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label={t('publicApp.fighterProfile.displayName')}
@@ -434,38 +459,55 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         </div>
 
         <label className="mt-3 block text-sm" htmlFor="fighter-profile-bio">
-          <span className="text-gray-300">{t('publicApp.fighterProfile.bio')}</span>
+          <span className="text-foreground-secondary">{t('publicApp.fighterProfile.bio')}</span>
           <textarea
             id="fighter-profile-bio"
             aria-label={t('publicApp.fighterProfile.bio')}
-            className="mt-1 min-h-28 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white outline-none focus:border-amber-500"
+            className="mt-1 min-h-28 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
             value={form.bio}
             onChange={(event) => updateField('bio', event.target.value)}
           />
         </label>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <Field
-            label={t('publicApp.fighterProfile.mainClub')}
-            value={form.mainClub}
-            onChange={(value) => updateField('mainClub', value)}
-          />
-          <Field
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <ClubField label={t('publicApp.fighterProfile.mainClub')}>
+            <ClubCombobox
+              value={form.mainClub}
+              onChange={(value) => setForm((current) => ({ ...current, mainClub: value }))}
+              searchClubs={searchClubs}
+              placeholder={t('publicApp.fighterProfile.clubSearchPlaceholder')}
+              createLabel={(q) => t('publicApp.fighterProfile.clubCreate', { name: q })}
+              noMatchLabel={t('publicApp.fighterProfile.clubNoMatch')}
+              clearLabel={t('publicApp.fighterProfile.clubClear')}
+              aria-label={t('publicApp.fighterProfile.mainClub')}
+            />
+          </ClubField>
+          <ClubField
             label={t('publicApp.fighterProfile.secondaryClubs')}
-            value={form.secondaryClubs}
-            hint={t('publicApp.fighterProfile.clubNamesHelp')}
-            onChange={(value) => updateField('secondaryClubs', value)}
-          />
-          <Field
+            hint={t('publicApp.fighterProfile.clubMultiHelp')}
+          >
+            <ClubMultiField
+              values={form.secondaryClubs}
+              onChange={(values) => setForm((current) => ({ ...current, secondaryClubs: values }))}
+              searchClubs={searchClubs}
+              t={t}
+            />
+          </ClubField>
+          <ClubField
             label={t('publicApp.fighterProfile.previousClubs')}
-            value={form.previousClubs}
-            hint={t('publicApp.fighterProfile.clubNamesHelp')}
-            onChange={(value) => updateField('previousClubs', value)}
-          />
+            hint={t('publicApp.fighterProfile.clubMultiHelp')}
+          >
+            <ClubMultiField
+              values={form.previousClubs}
+              onChange={(values) => setForm((current) => ({ ...current, previousClubs: values }))}
+              searchClubs={searchClubs}
+              t={t}
+            />
+          </ClubField>
         </div>
 
         <div className="mt-4">
-          <h2 className="mb-2 font-display font-semibold text-lg sm:text-xl text-white">
+          <h2 className="mb-2 font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('publicApp.fighterProfile.weapons')}
           </h2>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -476,10 +518,10 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
               return (
                 <div
                   key={weapon.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900 px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
                 >
                   <label
-                    className="flex items-center gap-2 text-sm text-gray-200"
+                    className="flex items-center gap-2 text-sm text-foreground"
                     htmlFor={selectedId}
                   >
                     <input
@@ -492,7 +534,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
                     {weapon.name}
                   </label>
                   <label
-                    className="flex items-center gap-1 text-xs text-gray-400"
+                    className="flex items-center gap-1 text-xs text-muted"
                     htmlFor={favoriteId}
                   >
                     <input
@@ -512,22 +554,17 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         </div>
 
         <div className="mt-5 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? t('common.loading') : t('actions.save')}
-          </button>
-          {message && <p className="text-sm text-green-300">{message}</p>}
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          <Button variant="primary" onClick={save} loading={saving} disabled={saving}>
+            {t('actions.save')}
+          </Button>
+          {message && <p className="text-sm text-success">{message}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
         </div>
-      </section>
+      </Card>
 
       {dashboard && (
-        <aside className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
+        <Card>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
             {t('publicApp.fighterProfile.stats')}
           </h2>
           <div className="grid gap-2">
@@ -545,8 +582,8 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
             />
           </div>
           {dashboard.refereeStats && dashboard.refereeStats.totalMatches > 0 && (
-            <div className="mt-5 border-t border-gray-800 pt-4">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
+            <div className="mt-5 border-t border-border pt-4">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
                 {t('publicApp.fighterProfile.refereeing')}
               </h2>
               <div className="grid gap-2">
@@ -573,8 +610,76 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
               </div>
             </div>
           )}
-        </aside>
+        </Card>
       )}
+    </div>
+  );
+}
+
+/** Label + hint wrapper around a club control (combobox or multi-combobox). */
+function ClubField({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="block text-sm">
+      <span className="text-foreground-secondary">{label}</span>
+      <div className="mt-1">{children}</div>
+      {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
+    </div>
+  );
+}
+
+/** A list of clubs as stacked ClubComboboxes (clearing a row removes it); the
+ *  trailing empty combobox appends a new club when picked/created. */
+function ClubMultiField({
+  values,
+  onChange,
+  searchClubs,
+  t,
+}: {
+  values: ClubValue[];
+  onChange: (values: ClubValue[]) => void;
+  searchClubs: (query: string) => Promise<ClubOption[]>;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const comboProps = {
+    searchClubs,
+    placeholder: t('publicApp.fighterProfile.clubSearchPlaceholder'),
+    createLabel: (q: string) => t('publicApp.fighterProfile.clubCreate', { name: q }),
+    noMatchLabel: t('publicApp.fighterProfile.clubNoMatch'),
+    clearLabel: t('publicApp.fighterProfile.clubClear'),
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      {values.map((value, index) => (
+        <ClubCombobox
+          key={value.clubId ?? `name-${index}`}
+          value={value}
+          onChange={(next) => {
+            const list = values.slice();
+            if (next === null) list.splice(index, 1);
+            else list[index] = next;
+            onChange(list);
+          }}
+          aria-label={t('publicApp.fighterProfile.clubRowLabel', { index: index + 1 })}
+          {...comboProps}
+        />
+      ))}
+      <ClubCombobox
+        key={`add-${values.length}`}
+        value={null}
+        onChange={(next) => {
+          if (next) onChange([...values, next]);
+        }}
+        aria-label={t('publicApp.fighterProfile.clubAdd')}
+        {...comboProps}
+      />
     </div>
   );
 }
@@ -597,26 +702,26 @@ function Field({
   const inputId = useId();
   return (
     <label className="block text-sm" htmlFor={inputId}>
-      <span className="text-gray-300">{label}</span>
+      <span className="text-foreground-secondary">{label}</span>
       <input
         id={inputId}
         type={type}
         aria-label={label}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white outline-none focus:border-amber-500"
+        className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      {hint && <span className="mt-1 block text-xs text-gray-500">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
     </label>
   );
 }
 
 function DashboardStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900 px-3 py-3">
-      <p className="text-[11px] uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="mt-1 text-xl font-black tabular-nums text-white">{value}</p>
+    <div className="rounded-lg border border-border bg-background px-3 py-3">
+      <p className="text-[11px] uppercase tracking-widest text-muted">{label}</p>
+      <p className="mt-1 text-xl font-black tabular-nums text-foreground">{value}</p>
     </div>
   );
 }

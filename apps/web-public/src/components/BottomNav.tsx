@@ -75,7 +75,7 @@ const ITEMS: Array<{
   { key: 'events', href: '/me/events', icon: CalIcon, match: (p) => p.startsWith('/me/events') },
   {
     key: 'profile',
-    href: '/me/fighter',
+    href: '/me/profile',
     icon: UserIcon,
     match: (p) =>
       p.startsWith('/me/fighter') || p.startsWith('/me/referee') || p.startsWith('/me/profile'),
