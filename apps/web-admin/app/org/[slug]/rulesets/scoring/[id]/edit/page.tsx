@@ -84,7 +84,7 @@ export default function OrgEditScoringRulesetPage() {
   useEffect(() => {
     if (!params.slug) return;
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`, {
+    void fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`, {
       credentials: 'include',
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -205,30 +205,32 @@ export default function OrgEditScoringRulesetPage() {
           systemMetadata={initial.systemMetadata}
           systemRankingChain={initial.systemRankingChain}
           submitLabel={t('admin.rulesets.saveAction')}
-          onSubmit={async (data) => {
-            if (!orgId) return;
-            setBusy(true);
-            setError(null);
-            try {
-              const res = await fetch(
-                `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,
-                {
-                  method: 'PATCH',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
-                },
-              );
-              if (!res.ok) {
-                const body = (await res.json().catch(() => ({}))) as { message?: string };
-                throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+          onSubmit={(data) =>
+            void (async () => {
+              if (!orgId) return;
+              setBusy(true);
+              setError(null);
+              try {
+                const res = await fetch(
+                  `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,
+                  {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                  },
+                );
+                if (!res.ok) {
+                  const body = (await res.json().catch(() => ({}))) as { message?: string };
+                  throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+                }
+                router.push(`/org/${slugForLink}/rulesets/scoring`);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                setBusy(false);
               }
-              router.push(`/org/${slugForLink}/rulesets/scoring`);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-              setBusy(false);
-            }
-          }}
+            })()
+          }
           onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
         />
       )}

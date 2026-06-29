@@ -92,6 +92,7 @@ export default function ReviewQueuePage() {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- toggling loading flag before the fetch this effect performs
     setLoading(true);
 
     fetch(endpoint, { credentials: 'include', signal: controller.signal })

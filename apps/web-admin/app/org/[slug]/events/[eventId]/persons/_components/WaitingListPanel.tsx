@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useConfirm, useToast } from '@myclash/ui';
 import { formatRosterName } from '../roster-name';
+import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 
 /**
  * Slice 5 of the tournament capacity + waitlist overhaul.
@@ -51,6 +52,7 @@ export function WaitingListPanel({
   personById,
   onChange,
 }: Props) {
+  const { t: translate } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
   const grouped = useMemo(() => {
@@ -122,7 +124,7 @@ export function WaitingListPanel({
   if (tournaments.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
-        No tournaments in this event yet.
+        {translate('admin.orgPersons.noTournamentsYet')}
       </p>
     );
   }
@@ -136,11 +138,17 @@ export function WaitingListPanel({
           <section key={t.id} className="rounded-lg border border-border bg-surface p-4">
             <header className="mb-3 flex items-baseline justify-between">
               <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-                {t.name} — Waiting list ({rows.length} / {max ?? '∞'})
+                {translate('admin.orgPersons.waitingListHeader', {
+                  name: t.name,
+                  count: rows.length,
+                  max: max ?? '∞',
+                })}
               </h3>
             </header>
             {rows.length === 0 ? (
-              <p className="text-sm italic text-muted">No one on the waiting list.</p>
+              <p className="text-sm italic text-muted">
+                {translate('admin.orgPersons.noOneWaiting')}
+              </p>
             ) : (
               <WaitingListTable
                 rows={rows}
@@ -171,6 +179,7 @@ function WaitingListTable({
   onRemove: (reg: WaitlistRegistration) => void;
   onReorder: (orderedRegistrationIds: string[]) => void;
 }) {
+  const { t } = useI18n();
   const [dragId, setDragId] = useState<string | null>(null);
 
   function handleDrop(targetReg: WaitlistRegistration) {
@@ -196,16 +205,16 @@ function WaitingListTable({
       <thead>
         <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
           <th scope="col" className="py-2 pr-3 w-12">
-            Pos
+            {t('admin.orgPersons.colPos')}
           </th>
           <th scope="col" className="py-2 pr-3">
-            Name
+            {t('admin.orgPersons.colName')}
           </th>
           <th scope="col" className="py-2 pr-3">
-            Club
+            {t('admin.orgPersons.colClub')}
           </th>
           <th scope="col" className="py-2 pr-3 text-right">
-            Actions
+            {t('admin.orgPersons.colActions')}
           </th>
         </tr>
       </thead>
@@ -246,14 +255,14 @@ function WaitingListTable({
                   onClick={() => onPromote(reg)}
                   className="mr-2 text-xs font-semibold text-success hover:text-success-hover"
                 >
-                  Promote
+                  {t('admin.orgPersons.promote')}
                 </button>
                 <button
                   type="button"
                   onClick={() => onRemove(reg)}
                   className="text-xs text-danger hover:text-danger-hover"
                 >
-                  Remove
+                  {t('admin.orgPersons.remove')}
                 </button>
               </td>
             </tr>

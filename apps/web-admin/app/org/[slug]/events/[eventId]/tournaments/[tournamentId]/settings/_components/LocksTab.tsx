@@ -26,7 +26,7 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
+    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;

@@ -39,16 +39,16 @@ export default function DesignSystemPage() {
       >
         <div className="grid gap-8 md:grid-cols-3">
           <Specimen
-            label="font-display"
+            label={t('admin.adminDesignReq.fontDisplayLabel')}
             usage={t('admin.designSystem.typography.displayUsage')}
             sample={
               <p className="font-display text-3xl font-medium leading-tight text-foreground">
-                Lyon AMHE
+                {t('admin.adminDesignReq.fontDisplaySample')}
               </p>
             }
           />
           <Specimen
-            label="font-body"
+            label={t('admin.adminDesignReq.fontBodyLabel')}
             usage={t('admin.designSystem.typography.bodyUsage')}
             sample={
               <p className="text-base text-foreground-secondary">
@@ -57,13 +57,13 @@ export default function DesignSystemPage() {
             }
           />
           <Specimen
-            label="font-mono"
+            label={t('admin.adminDesignReq.fontMonoLabel')}
             usage={t('admin.designSystem.typography.monoUsage')}
             sample={
               <p className="font-mono text-sm text-muted">
-                TF_v1@1.0.0
+                {t('admin.adminDesignReq.fontMonoSample1')}
                 <br />
-                custom_my-cool-ruleset
+                {t('admin.adminDesignReq.fontMonoSample2')}
               </p>
             }
           />
@@ -151,7 +151,7 @@ export default function DesignSystemPage() {
         <div className="rounded-lg border border-border bg-surface px-6 pb-6 pt-2">
           <AdminPageHeader
             eyebrow={t('admin.designSystem.headerDemo.eyebrow')}
-            title="Lyon AMHE — Cercle des Arts Martiaux"
+            title={t('admin.adminDesignReq.headerDemoTitle')}
             subtitle={t('admin.designSystem.headerDemo.subtitle')}
             actions={
               <>
@@ -209,32 +209,38 @@ export default function DesignSystemPage() {
           <tbody>
             <DataTableRow>
               <DataTableCell>
-                <p className="font-display text-base text-foreground">TF v1 (Tournoi de Frappe)</p>
+                <p className="font-display text-base text-foreground">
+                  {t('admin.adminDesignReq.tableDemoTfName')}
+                </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('admin.designSystem.tableDemo.tfV1Description')}
                 </p>
               </DataTableCell>
-              <DataTableCell mono>TF_v1@1.0.0</DataTableCell>
+              <DataTableCell mono>{t('admin.adminDesignReq.tableDemoTfVersion')}</DataTableCell>
               <DataTableCell>
-                <StatusBadge variant="published">published</StatusBadge>
+                <StatusBadge variant="published">
+                  {t('admin.adminDesignReq.statusPublished')}
+                </StatusBadge>
               </DataTableCell>
               <DataTableCell>
-                <StatusBadge variant="system">system</StatusBadge>
+                <StatusBadge variant="system">{t('admin.adminDesignReq.statusSystem')}</StatusBadge>
               </DataTableCell>
             </DataTableRow>
             <DataTableRow>
               <DataTableCell>
-                <p className="font-display text-base text-foreground">Lyon Open 2026</p>
+                <p className="font-display text-base text-foreground">
+                  {t('admin.adminDesignReq.tableDemoLyonName')}
+                </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('admin.designSystem.tableDemo.lyonOpenDescription')}
                 </p>
               </DataTableCell>
-              <DataTableCell mono>custom_lyon-open-2026@1.0.0</DataTableCell>
+              <DataTableCell mono>{t('admin.adminDesignReq.tableDemoLyonVersion')}</DataTableCell>
               <DataTableCell>
-                <StatusBadge variant="draft">draft</StatusBadge>
+                <StatusBadge variant="draft">{t('admin.adminDesignReq.statusDraft')}</StatusBadge>
               </DataTableCell>
               <DataTableCell>
-                <StatusBadge variant="custom">custom</StatusBadge>
+                <StatusBadge variant="custom">{t('admin.adminDesignReq.statusCustom')}</StatusBadge>
               </DataTableCell>
             </DataTableRow>
           </tbody>
@@ -269,12 +275,12 @@ export default function DesignSystemPage() {
         <div className="grid gap-5 md:grid-cols-2">
           <FormField
             label={t('admin.designSystem.formDemo.orgNameLabel')}
-            placeholder="Lyon AMHE"
+            placeholder={t('admin.adminDesignReq.formDemoOrgNamePlaceholder')}
             required
           />
           <FormField
             label={t('admin.designSystem.formDemo.slugLabel')}
-            placeholder="lyon-amhe"
+            placeholder={t('admin.adminDesignReq.formDemoSlugPlaceholder')}
             hint={t('admin.designSystem.formDemo.slugHint')}
           />
           <FormField
@@ -287,8 +293,8 @@ export default function DesignSystemPage() {
             error={t('admin.designSystem.formDemo.countryError')}
           >
             <select className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm">
-              <option>France</option>
-              <option>Belgique</option>
+              <option>{t('admin.adminDesignReq.formDemoCountryFrance')}</option>
+              <option>{t('admin.adminDesignReq.formDemoCountryBelgium')}</option>
             </select>
           </FormField>
         </div>

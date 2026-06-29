@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Live sample for step-3 "Display": a compact mock scoreboard + scoring
  * buttons reflecting the chosen side colours, visible buttons and logo, so
@@ -64,6 +62,7 @@ export function DisplayPreview({
       <div className="rounded-xl border border-slate-200 bg-slate-900 p-3 shadow-sm">
         {logoUrl && (
           <div className="mb-2 flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative preview of user-uploaded logo from external API origin; next/image not configured for this host */}
             <img src={logoUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
           </div>
         )}

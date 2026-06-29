@@ -61,7 +61,7 @@ export function ScoringSystemPreview({
           {code && <span className="font-mono text-xs text-muted">{code}</span>}
           {version && (
             <span className="rounded-full bg-background px-2 py-0.5 font-mono text-[11px] font-semibold text-foreground-secondary">
-              v{version}
+              {t('admin.adminRulesetsReview.versionLabel', { version })}
             </span>
           )}
         </div>

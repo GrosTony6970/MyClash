@@ -279,7 +279,7 @@ function GroupSection(props: GroupSectionProps) {
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-background/50 text-left text-xs font-semibold uppercase tracking-wider text-muted">
-              <th className="w-8 px-2 py-2" aria-label="Drag handle" />
+              <th className="w-8 px-2 py-2" aria-label={t('admin.srcComponents.dragHandle')} />
               <th className="w-24 px-3 py-2">{t('admin.penaltyRulesets.colRef')}</th>
               <th className="w-48 px-3 py-2">{t('admin.penaltyRulesets.colShortName')}</th>
               <th className="px-3 py-2">{t('admin.penaltyRulesets.colDescription')}</th>

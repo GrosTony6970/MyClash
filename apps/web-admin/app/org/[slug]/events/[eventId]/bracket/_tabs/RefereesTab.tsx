@@ -113,6 +113,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
    *  back up to the page-level dropdown. Defaults to the prop. */
   const [activeTournamentId, setActiveTournamentId] = useState<string>(tournamentId);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local override when the tournamentId prop changes
     setActiveTournamentId(tournamentId);
   }, [tournamentId]);
 
@@ -169,6 +170,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch sets state in a callback, not synchronously
     void loadBoard(controller.signal);
     return () => controller.abort();
   }, [loadBoard]);

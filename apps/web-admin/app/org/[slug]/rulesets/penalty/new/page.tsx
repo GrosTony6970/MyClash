@@ -157,31 +157,33 @@ export default function OrgNewPenaltyRulesetPage() {
           initial={initial}
           busy={busy || !orgId}
           submitLabel={t('admin.penaltyRulesets.createButton')}
-          onSubmit={async (data) => {
-            if (!orgId) return;
-            setBusy(true);
-            setError(null);
-            try {
-              const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  ownerOrganizationId: orgId,
-                  ...data,
-                }),
-              });
-              if (!res.ok) {
-                const body = (await res.json().catch(() => ({}))) as { message?: string };
-                throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+          onSubmit={(data) =>
+            void (async () => {
+              if (!orgId) return;
+              setBusy(true);
+              setError(null);
+              try {
+                const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    ownerOrganizationId: orgId,
+                    ...data,
+                  }),
+                });
+                if (!res.ok) {
+                  const body = (await res.json().catch(() => ({}))) as { message?: string };
+                  throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+                }
+                const created = (await res.json()) as { id: string };
+                router.push(`/org/${slugForLink}/rulesets/penalty/${created.id}/edit`);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                setBusy(false);
               }
-              const created = (await res.json()) as { id: string };
-              router.push(`/org/${slugForLink}/rulesets/penalty/${created.id}/edit`);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-              setBusy(false);
-            }
-          }}
+            })()
+          }
           onCancel={() => router.push(`/org/${slugForLink}/rulesets/penalty`)}
         />
       )}

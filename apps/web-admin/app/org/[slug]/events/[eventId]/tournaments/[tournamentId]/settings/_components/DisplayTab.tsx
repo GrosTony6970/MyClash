@@ -54,7 +54,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   const logoInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
+    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;
@@ -184,6 +184,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         <div className="flex items-center gap-3">
           <div className="h-16 w-16 rounded-full overflow-hidden border border-border bg-background flex items-center justify-center shrink-0">
             {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded logo from external API origin; next/image optimization not configured for this host
               <img
                 src={logoUrl}
                 alt={t('organizer.tournaments.settings.logoPreviewAlt')}
@@ -296,7 +297,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                 })
               }
               className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
-              placeholder="Label"
+              placeholder={t('admin.orgTournaments.buttonLabelPlaceholder')}
             />
             <input
               type="number"
@@ -339,7 +340,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
               }
               className="text-xs text-danger hover:underline"
             >
-              Remove
+              {t('admin.orgTournaments.remove')}
             </button>
           </div>
         ))}
@@ -356,7 +357,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
           }
           className="text-xs text-foreground-secondary hover:underline"
         >
-          + Add clean button
+          {t('admin.orgTournaments.addCleanButton')}
         </button>
       </fieldset>
 
@@ -396,7 +397,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                   })
                 }
                 className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
-                placeholder="Label"
+                placeholder={t('admin.orgTournaments.buttonLabelPlaceholder')}
               />
               <input
                 type="number"
@@ -458,7 +459,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
                 }
                 className="text-xs text-danger hover:underline"
               >
-                Remove
+                {t('admin.orgTournaments.remove')}
               </button>
             </div>
           ))}
@@ -478,7 +479,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
             }
             className="text-xs text-foreground-secondary hover:underline"
           >
-            + Add afterblow button
+            {t('admin.orgTournaments.addAfterblowButton')}
           </button>
         </fieldset>
       )}

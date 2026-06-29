@@ -18,6 +18,7 @@ export function useEventStatus(eventId: string): {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for an async fetch on mount; behaviour-preserving
     setIsLoading(true);
     fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))

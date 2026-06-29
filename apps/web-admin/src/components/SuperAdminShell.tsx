@@ -403,6 +403,7 @@ function NotificationBell({
   const aiFindings = summary?.aiFindings ?? 0;
   const aiScanCrashes = summary?.aiScanCrashes ?? 0;
   const total = summary?.total ?? 0;
+  // eslint-disable-next-line react-hooks/purity -- Date.now() gates a transient "recently dismissed" badge; exact freshness on render is intentional and harmless
   const showBadge = total > 0 && Date.now() > dismissedUntil;
   const displayCount = total > 9 ? t('admin.notifications.count9Plus') : String(total);
 

@@ -9,6 +9,8 @@
  * everyone is available everywhere (the default).
  */
 
+import { t } from '@myclash/i18n';
+
 interface Option<TValue extends string | number> {
   value: TValue;
   label: string;
@@ -93,7 +95,7 @@ export function AvailabilityChips<TValue extends string | number>({
           onClick={selectAll}
           className="ml-1 text-[10px] text-muted underline hover:text-foreground-secondary disabled:opacity-50"
         >
-          all
+          {t('admin.orgRefBracket.availabilityAll')}
         </button>
       )}
     </div>

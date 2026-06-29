@@ -245,6 +245,7 @@ export default function EditLeaguePage() {
     if (versionsByCode[scoringSystem]) return;
     const opt = scoringSystemOptions.find((o) => o.code === scoringSystem);
     if (!opt) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch caches version snapshots on demand
     void loadVersionsForSystem(opt.id, scoringSystem);
   }, [scoringSystem, scoringSystemOptions, versionsByCode, loadVersionsForSystem]);
 
@@ -324,6 +325,7 @@ export default function EditLeaguePage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial async load populates form state from the API
     void loadLeague().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : t('admin.leagues.editPage.loadError'));
     });
@@ -732,7 +734,7 @@ export default function EditLeaguePage() {
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
               {scoringSystemOptions.length === 0 && (
-                <option value="ffamhe_tf_2026">FFAMHE TF 2026</option>
+                <option value="ffamhe_tf_2026">{t('admin.adminLeagues.ffamheTf2026Option')}</option>
               )}
               {scoringSystemOptions.map((opt) => (
                 <option key={opt.id} value={opt.code}>
@@ -760,7 +762,10 @@ export default function EditLeaguePage() {
                 <option value="">{t('admin.leagues.editPage.basics.versionLatestOption')}</option>
                 {(versionsByCode[scoringSystem] ?? []).map((v) => (
                   <option key={v.id} value={v.version}>
-                    v{v.version} · {new Date(v.published_at).toLocaleDateString()}
+                    {t('admin.adminLeagues.versionOption', {
+                      version: v.version,
+                      date: new Date(v.published_at).toLocaleDateString(),
+                    })}
                   </option>
                 ))}
               </select>

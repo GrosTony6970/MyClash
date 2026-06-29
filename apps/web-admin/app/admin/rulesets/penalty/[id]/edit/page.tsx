@@ -136,36 +136,38 @@ export default function EditPenaltyRulesetPage() {
             codeLocked
             busy={busy}
             submitLabel={t('admin.rulesets.saveAction')}
-            onSubmit={async (data) => {
-              setBusy(true);
-              setError(null);
-              try {
-                const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/${id}`, {
-                  method: 'PATCH',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    name: data.name,
-                    description: data.description,
-                    accumulationScope: data.accumulationScope,
-                    publicVisibility: data.publicVisibility,
-                    entries: data.entries,
-                    yellowCardPoints: data.yellowCardPoints,
-                    redCardPoints: data.redCardPoints,
-                    blackCardPoints: data.blackCardPoints,
-                    firstBlackCardForfeit: data.firstBlackCardForfeit,
-                    secondBlackCardForfeit: data.secondBlackCardForfeit,
-                  }),
-                });
-                if (!res.ok) {
-                  const body = (await res.json().catch(() => ({}))) as { message?: string };
-                  throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+            onSubmit={(data) => {
+              void (async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/${id}`, {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      name: data.name,
+                      description: data.description,
+                      accumulationScope: data.accumulationScope,
+                      publicVisibility: data.publicVisibility,
+                      entries: data.entries,
+                      yellowCardPoints: data.yellowCardPoints,
+                      redCardPoints: data.redCardPoints,
+                      blackCardPoints: data.blackCardPoints,
+                      firstBlackCardForfeit: data.firstBlackCardForfeit,
+                      secondBlackCardForfeit: data.secondBlackCardForfeit,
+                    }),
+                  });
+                  if (!res.ok) {
+                    const body = (await res.json().catch(() => ({}))) as { message?: string };
+                    throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+                  }
+                  router.push('/admin/rulesets/penalty');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                  setBusy(false);
                 }
-                router.push('/admin/rulesets/penalty');
-              } catch (err) {
-                setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-                setBusy(false);
-              }
+              })();
             }}
             onCancel={() => router.push('/admin/rulesets/penalty')}
           />

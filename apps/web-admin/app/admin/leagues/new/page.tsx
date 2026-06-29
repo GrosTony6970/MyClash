@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -38,6 +39,7 @@ const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
 export default function NewLeaguePage() {
+  const { t } = useI18n();
   const router = useRouter();
 
   // Basics
@@ -119,6 +121,7 @@ export default function NewLeaguePage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derives slug from name until the user manually overrides it
     if (!slugDetached) setSlug(toSlug(name));
   }, [name, slugDetached]);
 
@@ -311,10 +314,12 @@ export default function NewLeaguePage() {
     <main className="p-8 max-w-4xl">
       <div className="mb-2 text-sm">
         <Link href="/admin/leagues" className="text-muted hover:underline">
-          Back to leagues
+          {t('admin.adminLeagues.backToLeagues')}
         </Link>
       </div>
-      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">Create league</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
+        {t('admin.adminLeagues.newPageTitle')}
+      </h1>
 
       {error && (
         <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-2 text-sm text-danger">
@@ -323,10 +328,12 @@ export default function NewLeaguePage() {
       )}
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">Basics</h2>
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('admin.adminLeagues.basicsHeading')}
+        </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-medium text-foreground-secondary">
-            Name *
+            {t('admin.adminLeagues.nameLabel')}
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -334,7 +341,7 @@ export default function NewLeaguePage() {
             />
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
-            Year *
+            {t('admin.adminLeagues.yearLabel')}
             <input
               type="number"
               value={seasonYear}
@@ -343,7 +350,7 @@ export default function NewLeaguePage() {
             />
           </label>
           <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
-            Slug *
+            {t('admin.adminLeagues.slugLabel')}
             <input
               value={slug}
               onChange={(e) => {
@@ -353,33 +360,37 @@ export default function NewLeaguePage() {
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
             <span className="mt-1 block text-[11px] font-normal text-muted">
-              Auto-generated from the name. Edit manually to override.
+              {t('admin.adminLeagues.slugHelp')}
             </span>
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
-            Category
+            {t('admin.adminLeagues.categoryLabel')}
             <select
               value={rankingDimensions}
               onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
-              <option value="weapon">Weapon</option>
-              <option value="weapon_category">Weapon + Category</option>
+              <option value="weapon">{t('admin.adminLeagues.categoryWeapon')}</option>
+              <option value="weapon_category">
+                {t('admin.adminLeagues.categoryWeaponCategory')}
+              </option>
             </select>
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
-            Scoring system
+            {t('admin.adminLeagues.scoringSystemLabel')}
             <select
               value={scoringSystem}
               onChange={(e) => setScoringSystem(e.target.value as 'ffamhe_tf_2026' | 'custom')}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
-              <option value="ffamhe_tf_2026">FFAMHE TF 2026 (default)</option>
-              <option value="custom">Custom</option>
+              <option value="ffamhe_tf_2026">
+                {t('admin.adminLeagues.scoringSystemFfamheDefault')}
+              </option>
+              <option value="custom">{t('admin.adminLeagues.scoringSystemCustom')}</option>
             </select>
           </label>
           <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
-            Description
+            {t('admin.adminLeagues.descriptionLabel')}
             <textarea
               rows={3}
               value={description}
@@ -391,11 +402,13 @@ export default function NewLeaguePage() {
 
         {scoringSystem === 'custom' && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-foreground-secondary mb-2">Points by rank</p>
+            <p className="text-xs font-medium text-foreground-secondary mb-2">
+              {t('admin.adminLeagues.pointsByRank')}
+            </p>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
               {Object.entries(customPoints).map(([rank, points]) => (
                 <label key={rank} className="text-[11px] text-muted">
-                  Rank {rank}
+                  {t('admin.adminLeagues.rankLabel', { rank })}
                   <input
                     type="number"
                     value={points}
@@ -416,7 +429,7 @@ export default function NewLeaguePage() {
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
-          Logo (optional)
+          {t('admin.adminLeagues.logoHeading')}
         </h2>
         <input
           type="file"
@@ -424,13 +437,13 @@ export default function NewLeaguePage() {
           onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
           className="block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background"
         />
-        <p className="mt-1 text-[11px] text-muted">PNG, JPEG, or WebP. Maximum 10 MB.</p>
+        <p className="mt-1 text-[11px] text-muted">{t('admin.adminLeagues.logoHint')}</p>
         {logoPreviewUrl && (
           <div className="mt-3 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={logoPreviewUrl}
-              alt="Preview"
+              alt={t('admin.adminLeagues.logoPreviewAlt')}
               className="h-20 w-20 rounded-md border border-border bg-surface object-contain"
             />
             <button
@@ -438,7 +451,7 @@ export default function NewLeaguePage() {
               onClick={() => handleLogoFile(null)}
               className="text-xs text-muted hover:text-foreground"
             >
-              Clear
+              {t('admin.adminLeagues.clearButton')}
             </button>
           </div>
         )}
@@ -446,13 +459,13 @@ export default function NewLeaguePage() {
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
-          Owner platform accounts
+          {t('admin.adminLeagues.ownersHeading')}
         </h2>
         <input
           type="search"
           value={userSearch}
           onChange={(e) => setUserSearch(e.target.value)}
-          placeholder="Search by name or email…"
+          placeholder={t('admin.adminLeagues.userSearchPlaceholder')}
           className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
         {filteredUsers.length > 0 && (
@@ -504,7 +517,7 @@ export default function NewLeaguePage() {
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
-          Member organisations
+          {t('admin.adminLeagues.memberOrgsHeading')}
         </h2>
         <div className="grid gap-1 sm:grid-cols-2 max-h-60 overflow-y-auto">
           {orgs.map((o) => {
@@ -534,11 +547,10 @@ export default function NewLeaguePage() {
       </section>
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Groups</h2>
-        <p className="mb-3 text-xs text-muted">
-          Operator-defined buckets (e.g. &quot;Sabre Mixed&quot;, &quot;Longsword Open&quot;).
-          Tournaments attached to this league are assigned to one of these groups.
-        </p>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('admin.adminLeagues.groupsHeading')}
+        </h2>
+        <p className="mb-3 text-xs text-muted">{t('admin.adminLeagues.groupsHelp')}</p>
         <div className="space-y-2">
           {leagueGroups.map((g) => (
             <div key={g.tmpId} className="flex items-center gap-2">
@@ -546,7 +558,7 @@ export default function NewLeaguePage() {
                 type="text"
                 value={g.name}
                 onChange={(e) => updateGroupName(g.tmpId, e.target.value)}
-                placeholder="Group name"
+                placeholder={t('admin.adminLeagues.groupNamePlaceholder')}
                 className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <button
@@ -554,7 +566,7 @@ export default function NewLeaguePage() {
                 onClick={() => removeGroup(g.tmpId)}
                 className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground-secondary hover:bg-background"
               >
-                Remove
+                {t('admin.adminLeagues.removeButton')}
               </button>
             </div>
           ))}
@@ -564,19 +576,19 @@ export default function NewLeaguePage() {
           onClick={addGroup}
           className="mt-3 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:bg-background"
         >
-          + Add group
+          {t('admin.adminLeagues.addGroupButton')}
         </button>
       </section>
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
-          Linked tournaments
+          {t('admin.adminLeagues.linkedTournamentsHeading')}
         </h2>
         <input
           type="search"
           value={eventQuery}
           onChange={(e) => setEventQuery(e.target.value)}
-          placeholder="Search events…"
+          placeholder={t('admin.adminLeagues.eventSearchPlaceholder')}
           className="w-full rounded-md border border-border px-3 py-2 text-sm"
         />
         {filteredEvents.length > 0 && (
@@ -599,7 +611,9 @@ export default function NewLeaguePage() {
                 {expandedEventId === ev.id && (
                   <div className="border-t border-border bg-background px-3 py-2">
                     {(tournamentsByEvent[ev.id] ?? []).length === 0 ? (
-                      <p className="text-xs text-muted italic">No tournaments.</p>
+                      <p className="text-xs text-muted italic">
+                        {t('admin.adminLeagues.noTournaments')}
+                      </p>
                     ) : (
                       <ul className="space-y-1">
                         {(tournamentsByEvent[ev.id] ?? []).map((t) => {
@@ -656,24 +670,24 @@ export default function NewLeaguePage() {
         {selectedTournaments.length > 0 && (
           <div className="mt-3">
             <p className="text-xs font-medium text-foreground-secondary mb-1">
-              Selected ({selectedTournaments.length}):
+              {t('admin.adminLeagues.selectedCount', { count: selectedTournaments.length })}
             </p>
             <ul className="space-y-1">
-              {selectedTournaments.map((t) => (
+              {selectedTournaments.map((sel) => (
                 <li
-                  key={t.tournamentId}
+                  key={sel.tournamentId}
                   className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1 text-xs"
                 >
                   <span className="flex-1 truncate">
-                    {t.tournamentName} <span className="text-muted">· {t.eventName}</span>
+                    {sel.tournamentName} <span className="text-muted">· {sel.eventName}</span>
                   </span>
                   {leagueGroups.length > 0 && (
                     <select
-                      value={t.groupTmpId ?? ''}
-                      onChange={(e) => setTournamentGroup(t.tournamentId, e.target.value || null)}
+                      value={sel.groupTmpId ?? ''}
+                      onChange={(e) => setTournamentGroup(sel.tournamentId, e.target.value || null)}
                       className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs"
                     >
-                      <option value="">— no group —</option>
+                      <option value="">{t('admin.adminLeagues.noGroupOption')}</option>
                       {leagueGroups.map((g) => (
                         <option key={g.tmpId} value={g.tmpId}>
                           {g.name.trim() || '(unnamed)'}
@@ -685,7 +699,7 @@ export default function NewLeaguePage() {
                     type="button"
                     onClick={() =>
                       setSelectedTournaments((prev) =>
-                        prev.filter((x) => x.tournamentId !== t.tournamentId),
+                        prev.filter((x) => x.tournamentId !== sel.tournamentId),
                       )
                     }
                     className="text-danger hover:text-danger"
@@ -704,7 +718,7 @@ export default function NewLeaguePage() {
           href="/admin/leagues"
           className="rounded-md border border-border px-4 py-2 text-sm text-foreground-secondary hover:bg-background"
         >
-          Cancel
+          {t('admin.adminLeagues.cancelButton')}
         </Link>
         <button
           type="button"

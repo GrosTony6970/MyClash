@@ -278,35 +278,36 @@ export function RulesetForm({
 
       <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          Double-hit penalty formula
+          {t('admin.srcComponents.doublePenaltyFormulaTitle')}
         </h3>
         <p className="mb-2 text-xs text-muted">
-          Expression evaluated against <code className="font-mono">n</code> (the number of
-          double-hits). Only digits, the variable <code className="font-mono">n</code>, operators{' '}
-          <code className="font-mono">+ - * /</code>, parentheses and decimal points are allowed.
-          Example: <code className="font-mono">n*(n-1)/3</code>.
+          {t('admin.srcComponents.doublePenaltyFormulaHelpA')} <code className="font-mono">n</code>{' '}
+          {t('admin.srcComponents.doublePenaltyFormulaHelpB')} <code className="font-mono">n</code>
+          {t('admin.srcComponents.doublePenaltyFormulaHelpC')}{' '}
+          <code className="font-mono">+ - * /</code>
+          {t('admin.srcComponents.doublePenaltyFormulaHelpD')}{' '}
+          <code className="font-mono">n*(n-1)/3</code>.
         </p>
         <input
           type="text"
           value={doublePenaltyFormula}
           onChange={(e) => setDoublePenaltyFormula(e.target.value)}
           disabled={disabled}
-          placeholder="n*(n-1)/3"
+          placeholder={t('admin.srcComponents.doublePenaltyFormulaPlaceholder')}
           className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
         />
       </div>
 
       <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          Match-format defaults
+          {t('admin.srcComponents.matchFormatDefaultsTitle')}
         </h3>
         <p className="mb-3 text-xs text-muted">
-          Defaults that a new tournament inherits when this ruleset is selected. Operators can still
-          override any of these per tournament from the Match-format settings tab.
+          {t('admin.srcComponents.matchFormatDefaultsHelp')}
         </p>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <NumberInput
-            label="Point cap"
+            label={t('admin.srcComponents.pointCapLabel')}
             value={matchFormatDefaults.pointCap}
             disabled={disabled}
             min={1}
@@ -314,7 +315,7 @@ export function RulesetForm({
             onChange={(n) => setMatchFormatDefaults({ ...matchFormatDefaults, pointCap: n })}
           />
           <SelectInput
-            label="Timer mode"
+            label={t('admin.srcComponents.timerModeLabel')}
             value={matchFormatDefaults.timerMode}
             disabled={disabled}
             options={[
@@ -329,7 +330,7 @@ export function RulesetForm({
             }
           />
           <SelectInput
-            label="Scoring direction"
+            label={t('admin.srcComponents.scoringDirectionLabel')}
             value={matchFormatDefaults.scoringDirection}
             disabled={disabled}
             options={[
@@ -344,7 +345,7 @@ export function RulesetForm({
             }
           />
           <NumberInput
-            label="Time limit · pool (s)"
+            label={t('admin.srcComponents.timeLimitPoolLabel')}
             value={matchFormatDefaults.timeLimitsSeconds.pool ?? 0}
             disabled={disabled}
             min={0}
@@ -357,7 +358,7 @@ export function RulesetForm({
             }
           />
           <NumberInput
-            label="Time limit · bracket (s)"
+            label={t('admin.srcComponents.timeLimitBracketLabel')}
             value={matchFormatDefaults.timeLimitsSeconds.bracket ?? 0}
             disabled={disabled}
             min={0}
@@ -370,7 +371,7 @@ export function RulesetForm({
             }
           />
           <NumberInput
-            label="Time limit · finals (s)"
+            label={t('admin.srcComponents.timeLimitFinalsLabel')}
             value={matchFormatDefaults.timeLimitsSeconds.finals ?? 0}
             disabled={disabled}
             min={0}
@@ -383,7 +384,7 @@ export function RulesetForm({
             }
           />
           <NumberInput
-            label="Soft clock (s)"
+            label={t('admin.srcComponents.softClockLabel')}
             value={matchFormatDefaults.softClockLimitSeconds}
             disabled={disabled}
             min={0}
@@ -393,7 +394,7 @@ export function RulesetForm({
             }
           />
           <NumberInput
-            label="Max double hits"
+            label={t('admin.srcComponents.maxDoubleHitsLabel')}
             value={matchFormatDefaults.maxDoubleHits ?? 0}
             disabled={disabled}
             min={0}
@@ -646,6 +647,7 @@ function SelectInput({
 //   3 wins, 1 tie, 1 loss, 1 double-hit
 // score = 3 * pPV + 1 * pPT + 1 * pPL - 1 * doublePenalty
 function ScorePreviewChip({ constants }: { constants: FormulaConstants }) {
+  const { t } = useI18n();
   const wins = 3;
   const ties = 1;
   const losses = 1;
@@ -657,10 +659,13 @@ function ScorePreviewChip({ constants }: { constants: FormulaConstants }) {
     doubles * constants.doublePenalty;
   return (
     <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground-secondary">
-      <span className="text-xs font-semibold uppercase tracking-wider text-muted">Preview</span>
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+        {t('admin.srcComponents.previewLabel')}
+      </span>
       <span>
-        {wins}W + {ties}T + {losses}L − {doubles} double ={' '}
-        <span className="font-mono font-semibold text-foreground">{score.toFixed(2)}</span> pts
+        {t('admin.srcComponents.previewFormula', { wins, ties, losses, doubles })}{' '}
+        <span className="font-mono font-semibold text-foreground">{score.toFixed(2)}</span>{' '}
+        {t('admin.srcComponents.previewPts')}
       </span>
     </div>
   );

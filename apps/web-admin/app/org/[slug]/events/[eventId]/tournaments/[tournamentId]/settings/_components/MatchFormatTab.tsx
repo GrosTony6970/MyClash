@@ -43,7 +43,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
+    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;
@@ -103,10 +103,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         {t('organizer.tournaments.settings.matchFormat')}
       </h2>
 
-      <p className="text-xs text-muted">
-        Defaults come from the ruleset. Any value you change here is stored as a per-tournament
-        override; use the Reset link to restore the ruleset default.
-      </p>
+      <p className="text-xs text-muted">{t('admin.orgTournaments.matchFormatHint')}</p>
 
       <NumberField
         label={t('organizer.tournaments.settings.pointCap')}
@@ -322,7 +319,7 @@ function NumberField({
             title={`Default: ${defaultValue}`}
             className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
-            modified
+            {t('admin.orgTournaments.modifiedBadge')}
           </span>
         )}
         {modified && onReset && (
@@ -332,7 +329,7 @@ function NumberField({
             className="ml-auto text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${defaultValue}`}
           >
-            Reset
+            {t('admin.orgTournaments.reset')}
           </button>
         )}
       </span>
@@ -379,7 +376,7 @@ function SelectField({
             title={`Default: ${defaultValue}`}
             className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
-            modified
+            {t('admin.orgTournaments.modifiedBadge')}
           </span>
         )}
         {modified && onReset && (
@@ -389,7 +386,7 @@ function SelectField({
             className="ml-auto text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${defaultValue}`}
           >
-            Reset
+            {t('admin.orgTournaments.reset')}
           </button>
         )}
       </span>

@@ -100,6 +100,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
   }, [leagueId, t]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial/keyed data fetch; setState happens async after the awaited request resolves
     void reload();
   }, [reload]);
 
@@ -450,6 +451,7 @@ function RejectInline({ busy, reason, setReason, onConfirm, onCancel }: RejectIn
         onChange={(e) => setReason(e.target.value)}
         placeholder={t('admin.leagues.requestsPanel.reasonPlaceholder')}
         className="min-w-0 flex-1 rounded border border-border px-2 py-1 text-xs"
+        // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: inline reason field appears on demand, focus should move to it immediately
         autoFocus
       />
       <button

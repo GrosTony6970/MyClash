@@ -62,6 +62,7 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
   }, [systemId, t]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload() fetches then sets state; intentional initial data load
     void reload();
   }, [reload]);
 
@@ -127,11 +128,11 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="font-mono text-sm font-semibold text-foreground">
-                    v{v.version}
+                    {t('admin.adminRulesetsReview.versionLabel', { version: v.version })}
                   </span>
                   {isCurrent && (
                     <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                      current
+                      {t('admin.adminRulesetsReview.current')}
                     </span>
                   )}
                   <span className="text-xs text-muted">

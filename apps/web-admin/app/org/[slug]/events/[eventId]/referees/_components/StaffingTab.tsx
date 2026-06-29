@@ -132,6 +132,7 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
   }, [apiUrl, eventId, selectedTournamentId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadConfig sets state asynchronously in fetch callbacks, not synchronously
     const cleanup = loadConfig();
     return cleanup;
   }, [loadConfig]);

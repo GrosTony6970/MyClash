@@ -414,7 +414,7 @@ export default function EventTournamentsPage() {
                                 {t('organizer.tournaments.list.resumeSetup')}
                               </Link>
                               <span className="text-xs text-muted">
-                                Draft — step {wizardStep} of 4
+                                {t('admin.orgTournaments.draftStep', { step: wizardStep })}
                               </span>
                             </>
                           );

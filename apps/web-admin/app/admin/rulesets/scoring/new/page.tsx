@@ -49,26 +49,28 @@ export default function NewRulesetPage() {
         }}
         busy={busy}
         submitLabel={t('admin.rulesets.createButton')}
-        onSubmit={async (data) => {
-          setBusy(true);
-          setError(null);
-          try {
-            const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data),
-            });
-            if (!res.ok) {
-              const body = (await res.json().catch(() => ({}))) as { message?: string };
-              throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+        onSubmit={(data) => {
+          void (async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+              });
+              if (!res.ok) {
+                const body = (await res.json().catch(() => ({}))) as { message?: string };
+                throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+              }
+              const created = (await res.json()) as { id: string };
+              router.push(`/admin/rulesets/scoring/${created.id}/edit`);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+              setBusy(false);
             }
-            const created = (await res.json()) as { id: string };
-            router.push(`/admin/rulesets/scoring/${created.id}/edit`);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-            setBusy(false);
-          }
+          })();
         }}
         onCancel={() => router.push('/admin/rulesets/scoring')}
       />

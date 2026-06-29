@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -823,6 +823,7 @@ function DeleteAllDialog({
             value={token}
             onChange={(event) => onTokenChange(event.target.value)}
             placeholder={t('admin.backups.deleteAllConfirmTokenPlaceholder')}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus on the destructive-confirm token input in modal
             autoFocus
             className="rounded-md border border-border px-3 py-2 font-mono text-sm"
           />

@@ -142,6 +142,7 @@ export default function PoolsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('configure');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs the active tab from the URL hash on mount and on hashchange
     setActiveTab(readHashTab());
     function onHash() {
       setActiveTab(readHashTab());
@@ -151,6 +152,7 @@ export default function PoolsPage() {
   }, []);
 
   function selectTab(key: TabKey) {
+    // eslint-disable-next-line react-hooks/immutability -- intentional navigation side-effect: hashchange listener drives the tab state
     window.location.hash = `#${key}`;
   }
 
@@ -219,6 +221,7 @@ export default function PoolsPage() {
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadPools sets state only after the awaited request resolves
     void loadPools(selectedTournament, controller.signal).catch(() => undefined);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -390,6 +393,7 @@ export default function PoolsPage() {
       body: t('organizer.phaseVisibility.poolsReadyBody'),
     });
     return `/org/${slug}/events/${eventId}/notifications?${query.toString()}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t is a stable EN-bound import from @myclash/i18n, not a reactive dependency
   }, [poolPhaseId, selectedTournament, slug, eventId]);
 
   // ── Drag-drop pool member edit ──────────────────────────────────────────────
@@ -714,6 +718,7 @@ export default function PoolsPage() {
                                 if (e.key === 'Enter') void saveRename(pool.id);
                                 if (e.key === 'Escape') setRenamingPoolId(null);
                               }}
+                              // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus of the inline rename field when it appears
                               autoFocus
                               className="flex-1 rounded-md border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                             />

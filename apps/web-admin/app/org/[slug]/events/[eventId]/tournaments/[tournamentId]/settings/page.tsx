@@ -34,6 +34,7 @@ export default function TournamentSettingsPage() {
   const [active, setActive] = useState<TabKey>('basics');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync active tab from window.location.hash on mount (SSR-safe initial 'basics', client reads real hash)
     setActive(readHashTab());
     function onHash() {
       setActive(readHashTab());
@@ -43,6 +44,7 @@ export default function TournamentSettingsPage() {
   }, []);
 
   function selectTab(key: TabKey) {
+    // eslint-disable-next-line react-hooks/immutability -- intentional navigation side effect; setting location.hash fires hashchange which updates state
     window.location.hash = `#${key}`;
   }
 
@@ -62,7 +64,10 @@ export default function TournamentSettingsPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-[200px_1fr] gap-8">
-        <nav aria-label="Settings sections" className="flex flex-col gap-1">
+        <nav
+          aria-label={t('admin.orgTournaments.settingsSectionsNav')}
+          className="flex flex-col gap-1"
+        >
           {TABS.map((tab) => (
             <button
               key={tab.key}

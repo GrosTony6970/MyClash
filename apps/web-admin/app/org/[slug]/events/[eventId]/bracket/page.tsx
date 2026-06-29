@@ -178,6 +178,7 @@ export default function BracketPage() {
   // ── R5: tab state ─────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<BracketTabKey>('bracket');
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read initial tab from the URL hash on mount
     setActiveTab(readBracketHashTab());
     function onHash() {
       setActiveTab(readBracketHashTab());
@@ -186,6 +187,7 @@ export default function BracketPage() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   function selectTab(key: BracketTabKey) {
+    // eslint-disable-next-line react-hooks/immutability -- navigating via the URL hash is an intentional external side effect
     window.location.hash = `#${key}`;
   }
 
@@ -398,6 +400,7 @@ export default function BracketPage() {
   // bracket to empty before reloading.
   useEffect(() => {
     if (!selectedTournament) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset bracket-derived state when the selected tournament changes
     setBracket(null);
     setBracketPhaseId(null);
     setExistingBracket(false);
@@ -437,6 +440,7 @@ export default function BracketPage() {
   // without a page reload.
   useEffect(() => {
     if (!selectedTournament) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale picker data when no tournament is selected
       setPickerRegistrations([]);
       return;
     }
@@ -744,7 +748,7 @@ export default function BracketPage() {
       body: t('organizer.phaseVisibility.bracketReadyBody'),
     });
     return `/org/${slug}/events/${eventId}/notifications?${query.toString()}`;
-  }, [bracketPhaseId, selectedTournament, slug, eventId]);
+  }, [bracketPhaseId, selectedTournament, t, slug, eventId]);
 
   // Open the edit modal for a slot, seeding the lice from the slot's current
   // match placement so the dropdown shows where it's assigned.

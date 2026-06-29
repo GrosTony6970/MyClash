@@ -25,7 +25,6 @@ export default function OrganizerLayout({ children }: { children: ReactNode }) {
   // hook. Costs nothing on the happy path (`slug === 'test-org'`).
   useEffect(() => {
     if (slug === 'undefined' || slug === '') {
-      // eslint-disable-next-line no-console
       console.error('[OrganizerLayout] empty or literal-"undefined" slug', {
         pathname: typeof window !== 'undefined' ? window.location.pathname : null,
         referrer: typeof document !== 'undefined' ? document.referrer : null,

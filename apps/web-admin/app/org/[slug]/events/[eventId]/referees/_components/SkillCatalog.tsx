@@ -219,6 +219,7 @@ export function SkillCatalog({
                   {countsBySkill.get(skill.id) ?? 0}
                 </td>
                 <td className="px-4 py-3 text-right">
+                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper, not an interactive control (buttons inside are focusable) */}
                   <div
                     className="inline-flex gap-2"
                     onClick={(e) => e.stopPropagation()}
@@ -258,7 +259,7 @@ export function SkillCatalog({
                       <button
                         type="button"
                         disabled={isReadOnly}
-                        onClick={() => onToggleVisibility(skill, !skill.isHidden)}
+                        onClick={() => void onToggleVisibility(skill, !skill.isHidden)}
                         className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                         title={
                           skill.isHidden
@@ -311,7 +312,9 @@ function SkillDrillDownDrawer({
   onRemoveQualification,
 }: DrawerProps) {
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop, dismiss-on-click; the close button provides keyboard access
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40" onClick={onClose}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper so backdrop clicks inside the panel don't dismiss */}
       <aside
         className="h-full w-full max-w-md bg-surface shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}

@@ -1289,6 +1289,7 @@ export default function AdminClubsPage() {
       )}
 
       {lightboxClub && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop; dismiss via Esc/close button, keyboard not required on overlay
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onClick={() => {
@@ -1298,6 +1299,7 @@ export default function AdminClubsPage() {
           aria-modal="true"
           aria-label={t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
         >
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper to keep clicks inside the dialog from closing it; no keyboard handler needed */}
           <div
             className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -1387,6 +1389,7 @@ export default function AdminClubsPage() {
 
       {/* Bulk-edit modal — applies city / country across the selected clubs */}
       {showBulkEditModal && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop; dismiss via Esc/close button, keyboard not required on overlay
         <div
           role="dialog"
           aria-modal="true"
@@ -1467,6 +1470,7 @@ export default function AdminClubsPage() {
 
       {/* Create-club modal — opens from the +Create CTA in the page header */}
       {showCreateModal && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop; dismiss via Esc/close button, keyboard not required on overlay
         <div
           role="dialog"
           aria-modal="true"

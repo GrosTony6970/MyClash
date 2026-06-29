@@ -146,8 +146,9 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
               </p>
             ) : item.status === 'cancelled' ? (
               <p>
-                Cancelled on{' '}
-                {item.createdAt ? new Date(item.createdAt).toLocaleDateString('fr-FR') : '—'}
+                {t('admin.adminRulesetsReview.cancelledOn', {
+                  date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('fr-FR') : '—',
+                })}
               </p>
             ) : (
               <p>—</p>

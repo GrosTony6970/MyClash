@@ -147,7 +147,7 @@ export function PenaltyRulesetForm({
               value={code}
               onChange={(e) => setCode(e.target.value)}
               disabled={disabled || codeLocked}
-              placeholder="my_org_penalties"
+              placeholder={t('admin.srcComponents.penaltyCodePlaceholder')}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
             />
           </label>

@@ -16,7 +16,6 @@ import {
 import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
 import { WaitingListPanel } from './_components/WaitingListPanel';
 import { addToWaitingList, tryRegisterInTournament } from './_components/registration-helpers';
-import { formatCountOfMax } from '../format-count-of-max';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface Person {
@@ -207,6 +206,7 @@ export default function ParticipantsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading flag before the fetch fan-out
     setLoading(true);
     Promise.all([
       fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
@@ -309,6 +309,7 @@ export default function ParticipantsPage() {
 
   useEffect(() => {
     if (globalSearch.trim().length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale suggestions when the query is too short
       setGlobalSuggestions([]);
       return;
     }
@@ -328,6 +329,7 @@ export default function ParticipantsPage() {
 
   useEffect(() => {
     if (!showAdd || selectedClubId || clubSearch.trim().length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale club suggestions when the picker is inactive
       if (!selectedClubId) setClubSuggestions([]);
       return;
     }
@@ -345,6 +347,7 @@ export default function ParticipantsPage() {
 
   useEffect(() => {
     if (!editPerson || editClubId || editClubSearch.trim().length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale club suggestions when the edit picker is inactive
       if (!editClubId) setEditClubSuggestions([]);
       return;
     }
@@ -924,12 +927,16 @@ export default function ParticipantsPage() {
               href={`/org/${slug}/events/${eventId}`}
               className="hover:text-foreground-secondary"
             >
-              Event
+              {t('admin.orgPersons.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">Participants</span>
+            <span className="text-foreground font-medium">
+              {t('admin.orgPersons.breadcrumbParticipants')}
+            </span>
           </div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Participants</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('admin.orgPersons.pageTitle')}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -937,7 +944,7 @@ export default function ParticipantsPage() {
             data-testid="persons-import-link"
             className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
-            CSV import
+            {t('admin.orgPersons.csvImport')}
           </Link>
           <button
             onClick={() => setShowAdd(true)}
@@ -946,7 +953,7 @@ export default function ParticipantsPage() {
             title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
-            + Add participant
+            {t('admin.orgPersons.addParticipantButton')}
           </button>
         </div>
       </div>
@@ -964,7 +971,7 @@ export default function ParticipantsPage() {
               : 'text-foreground-secondary hover:bg-background',
           ].join(' ')}
         >
-          Persons
+          {t('admin.orgPersons.modePersons')}
         </button>
         <button
           type="button"
@@ -976,7 +983,7 @@ export default function ParticipantsPage() {
               : 'text-foreground-secondary hover:bg-background',
           ].join(' ')}
         >
-          Waiting list
+          {t('admin.orgPersons.modeWaitingList')}
         </button>
       </div>
 
@@ -1008,7 +1015,7 @@ export default function ParticipantsPage() {
             {(['all', ...tournaments.map((tour) => tour.id)] as string[]).map((tabId) => {
               const label =
                 tabId === 'all'
-                  ? 'All event'
+                  ? t('admin.orgPersons.tabAllEvent')
                   : (tournaments.find((tour) => tour.id === tabId)?.name ?? tabId);
               const active = activeTab === tabId;
               const count =
@@ -1178,7 +1185,7 @@ export default function ParticipantsPage() {
           )}
 
           {loading ? (
-            <p className="text-muted text-sm">Loading…</p>
+            <p className="text-muted text-sm">{t('admin.orgPersons.loading')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
@@ -1195,7 +1202,7 @@ export default function ParticipantsPage() {
                       />
                     </th>
                     <SortableTh
-                      label="Name"
+                      label={t('admin.orgPersons.colName')}
                       sortKey="name"
                       activeKey={sortKey}
                       dir={sortDir}
@@ -1211,7 +1218,7 @@ export default function ParticipantsPage() {
                       />
                     </SortableTh>
                     <SortableTh
-                      label="Club"
+                      label={t('admin.orgPersons.colClub')}
                       sortKey="club"
                       activeKey={sortKey}
                       dir={sortDir}
@@ -1233,14 +1240,14 @@ export default function ParticipantsPage() {
                       </select>
                     </SortableTh>
                     <SortableTh
-                      label="Claim status"
+                      label={t('admin.orgPersons.colClaimStatus')}
                       sortKey="claim"
                       activeKey={sortKey}
                       dir={sortDir}
                       onClick={() => toggleSort('claim')}
                     />
                     <SortableTh
-                      label="Tournaments"
+                      label={t('admin.orgPersons.colTournaments')}
                       sortKey="tournaments"
                       activeKey={sortKey}
                       dir={sortDir}
@@ -1293,7 +1300,7 @@ export default function ParticipantsPage() {
                       </select>
                     </SortableTh>
                     <th className="sticky right-0 z-10 bg-surface py-2 pl-3 font-medium whitespace-nowrap shadow-[inset_1px_0_0_var(--color-border)]">
-                      Actions
+                      {t('admin.orgPersons.colActions')}
                     </th>
                   </tr>
                 </thead>
@@ -1301,7 +1308,7 @@ export default function ParticipantsPage() {
                   {filteredPersons.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-16 text-center text-sm text-muted">
-                        No participants found.
+                        {t('admin.orgPersons.noParticipantsFound')}
                       </td>
                     </tr>
                   ) : (
@@ -1403,7 +1410,7 @@ export default function ParticipantsPage() {
                                 }
                                 className="text-xs text-info hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                Edit
+                                {t('admin.orgPersons.edit')}
                               </button>
                               <button
                                 onClick={() => void handleDelete(p.id)}
@@ -1415,7 +1422,7 @@ export default function ParticipantsPage() {
                                 }
                                 className="text-xs text-danger hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                Delete
+                                {t('admin.orgPersons.delete')}
                               </button>
                             </div>
                           </td>
@@ -1431,24 +1438,26 @@ export default function ParticipantsPage() {
           {/* Claim-status legend. Pills match the column palette exactly so the
           column reads as documented. */}
           <div className="mt-3 flex flex-col gap-1 text-xs text-foreground-secondary sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            <span className="font-semibold text-muted">Claim status:</span>
+            <span className="font-semibold text-muted">
+              {t('admin.orgPersons.claimStatusLegend')}
+            </span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.unclaimed} px-2 py-0.5 rounded-full font-medium`}>
-                unclaimed
+                {t('admin.orgPersons.claimUnclaimed')}
               </span>
-              <span>no MyClash account yet; organizer added them, no claim made</span>
+              <span>{t('admin.orgPersons.claimUnclaimedHint')}</span>
             </span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.guest_active} px-2 py-0.5 rounded-full font-medium`}>
-                guest active
+                {t('admin.orgPersons.claimGuestActive')}
               </span>
-              <span>guest session active (followed the event, no permanent account)</span>
+              <span>{t('admin.orgPersons.claimGuestActiveHint')}</span>
             </span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.claimed} px-2 py-0.5 rounded-full font-medium`}>
-                claimed
+                {t('admin.orgPersons.claimClaimed')}
               </span>
-              <span>linked to a real MyClash account</span>
+              <span>{t('admin.orgPersons.claimClaimedHint')}</span>
             </span>
           </div>
 
@@ -1487,12 +1496,12 @@ export default function ParticipantsPage() {
             <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
               <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                 <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-                  Add participant
+                  {t('admin.orgPersons.addParticipantTitle')}
                 </h2>
 
                 <div className="mb-4">
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Search global profiles by name
+                    {t('admin.orgPersons.searchGlobalProfiles')}
                   </label>
                   <input
                     type="search"
@@ -1501,7 +1510,7 @@ export default function ParticipantsPage() {
                       setGlobalSearch(e.target.value);
                       setSelectedGlobalId(null);
                     }}
-                    placeholder="Type a name to search…"
+                    placeholder={t('admin.orgPersons.searchNamePlaceholder')}
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                   {globalSuggestions.length > 0 && !selectedGlobalId && (
@@ -1543,7 +1552,7 @@ export default function ParticipantsPage() {
                             )}
                             {alreadyAdded && (
                               <span className="ml-2 text-xs italic text-muted">
-                                already in event
+                                {t('admin.orgPersons.alreadyInEvent')}
                               </span>
                             )}
                           </button>
@@ -1553,7 +1562,7 @@ export default function ParticipantsPage() {
                   )}
                   {selectedGlobalId && (
                     <p className="text-xs text-success mt-1">
-                      Linked to global profile.{' '}
+                      {t('admin.orgPersons.linkedToGlobalProfile')}{' '}
                       <button
                         type="button"
                         className="underline"
@@ -1562,7 +1571,7 @@ export default function ParticipantsPage() {
                           setGlobalSearch('');
                         }}
                       >
-                        Clear
+                        {t('admin.orgPersons.clear')}
                       </button>
                     </p>
                   )}
@@ -1571,14 +1580,14 @@ export default function ParticipantsPage() {
                 <hr className="my-3 border-border" />
 
                 <p className="mb-3 text-sm font-semibold text-foreground-secondary">
-                  Or create profile manually if it does not exist:
+                  {t('admin.orgPersons.orCreateManually')}
                 </p>
 
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        Given name *
+                        {t('admin.orgPersons.givenName')}
                       </label>
                       <input
                         type="text"
@@ -1590,7 +1599,7 @@ export default function ParticipantsPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        Family name *
+                        {t('admin.orgPersons.familyName')}
                       </label>
                       <input
                         type="text"
@@ -1604,7 +1613,7 @@ export default function ParticipantsPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      Email
+                      {t('admin.orgPersons.email')}
                     </label>
                     <input
                       type="email"
@@ -1616,7 +1625,7 @@ export default function ParticipantsPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      Club
+                      {t('admin.orgPersons.club')}
                     </label>
                     <input
                       type="search"
@@ -1627,7 +1636,7 @@ export default function ParticipantsPage() {
                         setSelectedClubLabel('');
                         setNewClubName(null);
                       }}
-                      placeholder="Search by name or abbreviation, or type to create a new one…"
+                      placeholder={t('admin.orgPersons.clubSearchPlaceholder')}
                       className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                     {!selectedClubId &&
@@ -1673,7 +1682,7 @@ export default function ParticipantsPage() {
                                   }}
                                   className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 border-b border-border last:border-0 font-medium"
                                 >
-                                  + Create new club &quot;{row.name}&quot; (unverified)
+                                  {t('admin.orgPersons.createNewClub', { name: row.name })}
                                 </button>
                               ),
                             )}
@@ -1692,14 +1701,15 @@ export default function ParticipantsPage() {
                             setClubSearch('');
                           }}
                         >
-                          Clear
+                          {t('admin.orgPersons.clear')}
                         </button>
                       </p>
                     )}
                     {newClubName && (
                       <p className="text-xs text-success mt-1" data-testid="new-club-chip">
-                        New club: <span className="font-medium">{newClubName}</span> (will be
-                        created){' '}
+                        {t('admin.orgPersons.newClubPrefix')}{' '}
+                        <span className="font-medium">{newClubName}</span>{' '}
+                        {t('admin.orgPersons.newClubSuffix')}{' '}
                         <button
                           type="button"
                           className="underline"
@@ -1708,7 +1718,7 @@ export default function ParticipantsPage() {
                             setClubSearch('');
                           }}
                         >
-                          Clear
+                          {t('admin.orgPersons.clear')}
                         </button>
                       </p>
                     )}
@@ -1716,13 +1726,13 @@ export default function ParticipantsPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      HEMA Ratings ID (optional)
+                      {t('admin.orgPersons.hemaRatingsIdOptional')}
                     </label>
                     <input
                       type="text"
                       value={addForm.hemaRatingsId}
                       onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
-                      placeholder="Paste an ID or pick from the suggestions below"
+                      placeholder={t('admin.orgPersons.hemaRatingsIdPlaceholder')}
                       className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
@@ -1736,7 +1746,7 @@ export default function ParticipantsPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      Seed (optional)
+                      {t('admin.orgPersons.seedOptional')}
                     </label>
                     <input
                       type="number"
@@ -1772,7 +1782,7 @@ export default function ParticipantsPage() {
                   {tournaments.length > 0 && (
                     <div>
                       <label className="block text-xs font-medium text-foreground-secondary mb-2">
-                        Register in tournaments (optional)
+                        {t('admin.orgPersons.registerInTournaments')}
                       </label>
                       <div className="flex flex-col gap-1.5">
                         {tournaments.map((tour) => (
@@ -1812,7 +1822,7 @@ export default function ParticipantsPage() {
                     onClick={closeAddModal}
                     className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
                   >
-                    Cancel
+                    {t('admin.orgPersons.cancel')}
                   </button>
                   <button
                     onClick={() => void handleAdd()}
@@ -1820,7 +1830,9 @@ export default function ParticipantsPage() {
                     disabled={addSaving}
                     className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
                   >
-                    {addSaving ? 'Adding…' : 'Add participant'}
+                    {addSaving
+                      ? t('admin.orgPersons.adding')
+                      : t('admin.orgPersons.addParticipantTitle')}
                   </button>
                 </div>
               </div>
@@ -1831,13 +1843,13 @@ export default function ParticipantsPage() {
             <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
               <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
                 <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-                  Edit participant
+                  {t('admin.orgPersons.editParticipantTitle')}
                 </h2>
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        Given name *
+                        {t('admin.orgPersons.givenName')}
                       </label>
                       <input
                         type="text"
@@ -1848,7 +1860,7 @@ export default function ParticipantsPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        Family name *
+                        {t('admin.orgPersons.familyName')}
                       </label>
                       <input
                         type="text"
@@ -1860,7 +1872,7 @@ export default function ParticipantsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      Email
+                      {t('admin.orgPersons.email')}
                     </label>
                     <input
                       type="email"
@@ -1871,7 +1883,7 @@ export default function ParticipantsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      Club
+                      {t('admin.orgPersons.club')}
                     </label>
                     <input
                       type="search"
@@ -1881,7 +1893,7 @@ export default function ParticipantsPage() {
                         setEditClubId(null);
                         setEditClubLabel('');
                       }}
-                      placeholder="Search club…"
+                      placeholder={t('admin.orgPersons.searchClubPlaceholder')}
                       className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                     {editClubSuggestions.length > 0 && !editClubId && (
@@ -1918,14 +1930,14 @@ export default function ParticipantsPage() {
                             setEditClubSearch('');
                           }}
                         >
-                          Clear
+                          {t('admin.orgPersons.clear')}
                         </button>
                       </p>
                     )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      HEMA Ratings ID
+                      {t('admin.orgPersons.hemaRatingsId')}
                     </label>
                     <input
                       type="text"
@@ -1933,7 +1945,7 @@ export default function ParticipantsPage() {
                       onChange={(e) =>
                         setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))
                       }
-                      placeholder="hr-12345"
+                      placeholder={t('admin.orgPersons.hemaRatingsIdShortPlaceholder')}
                       className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
@@ -1978,7 +1990,7 @@ export default function ParticipantsPage() {
                   {tournaments.length > 0 && (
                     <div>
                       <label className="block text-xs font-medium text-foreground-secondary mb-2">
-                        Tournaments
+                        {t('admin.orgPersons.tournaments')}
                       </label>
                       <div className="flex flex-col gap-1.5">
                         {tournaments.map((tour) => (
@@ -2016,14 +2028,14 @@ export default function ParticipantsPage() {
                     onClick={() => setEditPerson(null)}
                     className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
                   >
-                    Cancel
+                    {t('admin.orgPersons.cancel')}
                   </button>
                   <button
                     onClick={() => void handleEditSave()}
                     disabled={editSaving}
                     className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
                   >
-                    {editSaving ? 'Saving…' : 'Save changes'}
+                    {editSaving ? t('admin.orgPersons.saving') : t('admin.orgPersons.saveChanges')}
                   </button>
                 </div>
               </div>

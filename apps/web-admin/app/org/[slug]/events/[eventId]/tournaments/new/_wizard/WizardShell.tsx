@@ -64,6 +64,8 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
         {STEPS.map((s) => (
           <li
             key={s.n}
+            role={s.n < step ? 'button' : undefined}
+            tabIndex={s.n < step ? 0 : undefined}
             className={[
               'flex items-center gap-1 px-3 py-1.5 rounded-full',
               s.n === step
@@ -73,6 +75,12 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
                   : 'bg-background text-muted',
             ].join(' ')}
             onClick={() => s.n < step && setStep(s.n)}
+            onKeyDown={(e) => {
+              if (s.n < step && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                setStep(s.n);
+              }
+            }}
           >
             <span>
               {s.n}/{STEPS.length}

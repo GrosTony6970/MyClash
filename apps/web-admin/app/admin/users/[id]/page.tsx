@@ -160,6 +160,7 @@ export default function AdminUserEditPage() {
   }, [apiUrl, t]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; state set after await, not synchronously
     void fetchUser().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : t('admin.users.edit.saveError'));
     });
@@ -179,6 +180,7 @@ export default function AdminUserEditPage() {
 
   useEffect(() => {
     if (availableOrgs.length > 0 && !availableOrgs.find((o) => o.id === addOrgId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- keep the selected add-org valid when the available list changes
       setAddOrgId(availableOrgs[0]!.id);
     } else if (availableOrgs.length === 0) {
       setAddOrgId('');

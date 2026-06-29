@@ -133,6 +133,7 @@ export default function EditRulesetPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadVersions() fetches then sets state; intentional initial data load
     void loadVersions();
     return () => {
       cancelled = true;
@@ -229,7 +230,7 @@ export default function EditRulesetPage() {
                 <span>{t('admin.rulesets.versionFrozenBanner')}</span>
                 <button
                   type="button"
-                  onClick={handlePublishNewVersion}
+                  onClick={() => void handlePublishNewVersion()}
                   disabled={busy}
                   className="rounded-md bg-warning px-3 py-1 text-xs font-semibold text-white hover:bg-warning-hover disabled:opacity-50"
                 >
@@ -247,46 +248,48 @@ export default function EditRulesetPage() {
               systemMetadata={initial.systemMetadata}
               systemRankingChain={initial.systemRankingChain}
               submitLabel={t('admin.rulesets.saveAction')}
-              onSubmit={async (data) => {
-                setBusy(true);
-                setError(null);
-                try {
-                  // For TF v1 the operator's edits land in `tf_config` —
-                  // the back-end merges that over TFv1DefaultConfig at
-                  // tournament creation. For custom rulesets we send the
-                  // sibling columns as before.
-                  const body =
-                    initial.code === 'TF_v1'
-                      ? {
-                          name: data.name,
-                          description: data.description,
-                          version: data.version,
-                          tfConfig: {
-                            winBonus: data.tfV1Internals?.winBonus,
-                            targetValues: {
-                              deepTarget: data.tfV1Internals?.deepTarget,
-                              shallowTarget: data.tfV1Internals?.shallowTarget,
+              onSubmit={(data) => {
+                void (async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    // For TF v1 the operator's edits land in `tf_config` —
+                    // the back-end merges that over TFv1DefaultConfig at
+                    // tournament creation. For custom rulesets we send the
+                    // sibling columns as before.
+                    const body =
+                      initial.code === 'TF_v1'
+                        ? {
+                            name: data.name,
+                            description: data.description,
+                            version: data.version,
+                            tfConfig: {
+                              winBonus: data.tfV1Internals?.winBonus,
+                              targetValues: {
+                                deepTarget: data.tfV1Internals?.deepTarget,
+                                shallowTarget: data.tfV1Internals?.shallowTarget,
+                              },
+                              matchFormat: data.matchFormatDefaults,
+                              doublePenaltyFormula: data.doublePenaltyFormula || undefined,
                             },
-                            matchFormat: data.matchFormatDefaults,
-                            doublePenaltyFormula: data.doublePenaltyFormula || undefined,
-                          },
-                        }
-                      : data;
-                  const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}`, {
-                    method: 'PATCH',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                  });
-                  if (!res.ok) {
-                    const resp = (await res.json().catch(() => ({}))) as { message?: string };
-                    throw new Error(resp.message ?? t('admin.rulesets.actionFailed'));
+                          }
+                        : data;
+                    const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}`, {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body),
+                    });
+                    if (!res.ok) {
+                      const resp = (await res.json().catch(() => ({}))) as { message?: string };
+                      throw new Error(resp.message ?? t('admin.rulesets.actionFailed'));
+                    }
+                    router.push('/admin/rulesets/scoring');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                    setBusy(false);
                   }
-                  router.push('/admin/rulesets/scoring');
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-                  setBusy(false);
-                }
+                })();
               }}
               onCancel={() => router.push('/admin/rulesets/scoring')}
             />

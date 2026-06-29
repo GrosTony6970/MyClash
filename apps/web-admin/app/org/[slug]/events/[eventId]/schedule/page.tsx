@@ -23,7 +23,7 @@ export default function SchedulePage() {
   //   - programmeRefreshKey   → planner re-runs its mount fetch after the grid
   //                             mutates a block (inline ×, drag-move). Symmetric to
   //                             gridRefreshKey so both surfaces stay in sync (grid → drawer).
-  const [topSuggestNonce, setTopSuggestNonce] = useState(0);
+  const [topSuggestNonce, _setTopSuggestNonce] = useState(0);
   const [gridRefreshKey, setGridRefreshKey] = useState(0);
   const [programmeRefreshKey, setProgrammeRefreshKey] = useState(0);
 

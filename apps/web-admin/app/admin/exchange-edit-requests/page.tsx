@@ -2,6 +2,7 @@
 
 import { RowActionButton } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type RequestStatus = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -31,6 +32,7 @@ function payloadPreview(payload: unknown): string {
 }
 
 export default function ExchangeEditRequestsPage() {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [status, setStatus] = useState<RequestStatus>('pending');
   const [items, setItems] = useState<ExchangeEditRequest[]>([]);
@@ -136,13 +138,15 @@ export default function ExchangeEditRequestsPage() {
     <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Frozen Results</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('admin.adminDesignReq.frozenResultsTitle')}
+          </h1>
           <p className="text-muted text-sm mt-1">
-            Review organizer correction requests for completed events.
+            {t('admin.adminDesignReq.frozenResultsSubtitle')}
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm text-foreground-secondary">
-          Status
+          {t('admin.adminDesignReq.statusFilterLabel')}
           <select
             value={status}
             onChange={(event) => {
@@ -151,10 +155,10 @@ export default function ExchangeEditRequestsPage() {
             }}
             className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="all">All</option>
+            <option value="pending">{t('admin.adminDesignReq.filterPending')}</option>
+            <option value="approved">{t('admin.adminDesignReq.filterApproved')}</option>
+            <option value="rejected">{t('admin.adminDesignReq.filterRejected')}</option>
+            <option value="all">{t('admin.adminDesignReq.filterAll')}</option>
           </select>
         </label>
       </div>
@@ -170,19 +174,19 @@ export default function ExchangeEditRequestsPage() {
       </div>
 
       {items.length === 0 && !loading ? (
-        <p className="text-muted text-sm">No exchange edit requests match this status.</p>
+        <p className="text-muted text-sm">{t('admin.adminDesignReq.emptyState')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] text-sm border-collapse">
             <thead>
               <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4">Created</th>
-                <th className="py-2 pr-4">Request</th>
-                <th className="py-2 pr-4">Requester</th>
-                <th className="py-2 pr-4">Event / match / exchange</th>
-                <th className="py-2 pr-4">Reason</th>
-                <th className="py-2 pr-4">Review</th>
-                <th className="py-2">Payload</th>
+                <th className="py-2 pr-4">{t('admin.adminDesignReq.colCreated')}</th>
+                <th className="py-2 pr-4">{t('admin.adminDesignReq.colRequest')}</th>
+                <th className="py-2 pr-4">{t('admin.adminDesignReq.colRequester')}</th>
+                <th className="py-2 pr-4">{t('admin.adminDesignReq.colEventMatchExchange')}</th>
+                <th className="py-2 pr-4">{t('admin.adminDesignReq.colReason')}</th>
+                <th className="py-2 pr-4">{t('admin.adminDesignReq.colReview')}</th>
+                <th className="py-2">{t('admin.adminDesignReq.colPayload')}</th>
               </tr>
             </thead>
             <tbody>
@@ -219,7 +223,7 @@ export default function ExchangeEditRequestsPage() {
                           onClick={() => void approve(request.id)}
                           disabled={busyId === request.id}
                         >
-                          Approve
+                          {t('admin.adminDesignReq.approve')}
                         </RowActionButton>
                         <RowActionButton
                           variant="danger"
@@ -229,7 +233,7 @@ export default function ExchangeEditRequestsPage() {
                           }}
                           disabled={busyId === request.id}
                         >
-                          Reject
+                          {t('admin.adminDesignReq.reject')}
                         </RowActionButton>
                       </div>
                     ) : (
@@ -262,14 +266,14 @@ export default function ExchangeEditRequestsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
           <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
             <h2 className="font-display font-semibold text-lg sm:text-xl">
-              Reject correction request
+              {t('admin.adminDesignReq.rejectModalTitle')}
             </h2>
             <p className="mt-1 text-sm text-muted">{typeLabel(rejectTarget.request_type)}</p>
             <textarea
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
               rows={4}
-              placeholder="Reason shown to requester"
+              placeholder={t('admin.adminDesignReq.rejectReasonPlaceholder')}
               className="mt-4 w-full resize-none rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
             <div className="mt-4 flex justify-end gap-2">
@@ -277,14 +281,14 @@ export default function ExchangeEditRequestsPage() {
                 onClick={() => setRejectTarget(null)}
                 className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary"
               >
-                Cancel
+                {t('admin.adminDesignReq.cancel')}
               </button>
               <button
                 onClick={() => void reject()}
                 disabled={busyId === rejectTarget.id || !rejectReason.trim()}
                 className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
               >
-                Reject
+                {t('admin.adminDesignReq.rejectConfirm')}
               </button>
             </div>
           </div>

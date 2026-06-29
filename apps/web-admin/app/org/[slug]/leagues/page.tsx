@@ -23,13 +23,6 @@ interface LeagueRow {
   public_visibility: boolean;
 }
 
-interface MembershipRow {
-  organizationId: string;
-  organization_id?: string; // tolerate either shape from the API
-  role: string;
-  name?: string;
-}
-
 interface MembershipRequestRow {
   id: string;
   league_id: string;
@@ -111,6 +104,7 @@ export default function OrgLeaguesPage() {
   }, [orgSlug, t]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; setState runs in promise callback, not synchronously
     void loadAll();
   }, [loadAll]);
 

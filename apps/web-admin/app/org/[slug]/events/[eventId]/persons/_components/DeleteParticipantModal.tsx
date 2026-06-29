@@ -24,6 +24,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
+
 interface BlockingMatch {
   matchId: string;
   label: string;
@@ -109,6 +111,7 @@ export function DeleteParticipantModal({
   onClose,
   onDeleted,
 }: Props) {
+  const { t } = useI18n();
   const [rows, setRows] = useState<Row[]>(() =>
     persons.map((p) => ({
       personId: p.id,
@@ -122,7 +125,7 @@ export function DeleteParticipantModal({
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all(
+    void Promise.all(
       persons.map(async (p) => {
         const query = tournamentId ? `?tournamentId=${tournamentId}` : '';
         const url = `${apiUrl}/api/v1/events/${eventId}/persons/${p.id}/assignments${query}`;
@@ -255,7 +258,7 @@ export function DeleteParticipantModal({
               disabled={busy}
               className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
             >
-              Close
+              {t('admin.orgPersons.close')}
             </button>
             <button
               type="button"
@@ -286,10 +289,11 @@ async function extractBackendReason(res: Response): Promise<string> {
 }
 
 function PersonAssignmentCard({ row }: { row: Row }) {
+  const { t } = useI18n();
   if (row.loading) {
     return (
       <div className="rounded-md border border-border bg-background p-3 text-sm text-muted">
-        Loading {row.displayName}…
+        {t('admin.orgPersons.loadingName', { name: row.displayName })}
       </div>
     );
   }
@@ -313,7 +317,7 @@ function PersonAssignmentCard({ row }: { row: Row }) {
         <p className="text-sm font-semibold text-foreground">{row.displayName}</p>
         {blocked && (
           <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger">
-            Blocked
+            {t('admin.orgPersons.blocked')}
           </span>
         )}
       </div>
@@ -322,7 +326,9 @@ function PersonAssignmentCard({ row }: { row: Row }) {
         <ul className="mt-2 list-disc pl-5 text-xs text-danger">
           {r.blockingMatches.map((m) => (
             <li key={`${m.matchId}-${m.reason}`}>
-              {m.reason === 'fighter' ? 'Fighting' : 'Refereeing'} match{' '}
+              {m.reason === 'fighter'
+                ? t('admin.orgPersons.fightingMatch')
+                : t('admin.orgPersons.refereeingMatch')}{' '}
               <span className="font-mono">{m.label || m.matchId}</span> ({m.status})
             </li>
           ))}
@@ -336,12 +342,13 @@ function PersonAssignmentCard({ row }: { row: Row }) {
         <ul className="mt-2 list-disc pl-5 text-xs text-foreground-secondary">
           {r.pools.map((p) => (
             <li key={`pool-${p.poolId}`}>
-              {p.poolName} (pool) — <span className="italic">{p.tournamentName}</span>
+              {p.poolName} {t('admin.orgPersons.poolTag')}{' '}
+              <span className="italic">{p.tournamentName}</span>
             </li>
           ))}
           {r.bracketSlots.map((b) => (
             <li key={`slot-${b.slotId}`}>
-              Bracket slot R{b.round}P{b.position} —{' '}
+              {t('admin.orgPersons.bracketSlot', { round: b.round, position: b.position })}{' '}
               <span className="italic">{b.tournamentName}</span>
             </li>
           ))}
@@ -349,16 +356,18 @@ function PersonAssignmentCard({ row }: { row: Row }) {
             .filter((m) => !r.blockingMatches.some((bm) => bm.matchId === m.matchId))
             .map((m) => (
               <li key={`f-${m.matchId}`}>
-                Fighting match <span className="font-mono">{m.label || m.matchId}</span> ({m.status}
-                ) — <span className="italic">{m.tournamentName}</span>
+                {t('admin.orgPersons.fightingMatch')}{' '}
+                <span className="font-mono">{m.label || m.matchId}</span> ({m.status}){' '}
+                {t('admin.orgPersons.separator')} <span className="italic">{m.tournamentName}</span>
               </li>
             ))}
           {r.matchesAsReferee
             .filter((m) => !r.blockingMatches.some((bm) => bm.matchId === m.matchId))
             .map((m) => (
               <li key={`r-${m.matchId}`}>
-                Refereeing match <span className="font-mono">{m.label || m.matchId}</span> (
-                {m.status}) — <span className="italic">{m.tournamentName}</span>
+                {t('admin.orgPersons.refereeingMatch')}{' '}
+                <span className="font-mono">{m.label || m.matchId}</span> ({m.status}){' '}
+                {t('admin.orgPersons.separator')} <span className="italic">{m.tournamentName}</span>
               </li>
             ))}
         </ul>
@@ -369,7 +378,9 @@ function PersonAssignmentCard({ row }: { row: Row }) {
         r.bracketSlots.length === 0 &&
         r.matchesAsFighter.length === 0 &&
         r.matchesAsReferee.length === 0 && (
-          <p className="mt-1 text-xs text-muted italic">No active assignments.</p>
+          <p className="mt-1 text-xs text-muted italic">
+            {t('admin.orgPersons.noActiveAssignments')}
+          </p>
         )}
     </div>
   );

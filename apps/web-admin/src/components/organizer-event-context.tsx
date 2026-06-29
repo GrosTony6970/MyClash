@@ -140,6 +140,7 @@ export function OrganizerEventContextProvider({
   useEffect(() => {
     if (!slug) return;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async org fetch; setState runs after the awaited request, not synchronously
     void refetchOrg(controller.signal);
     return () => controller.abort();
   }, [slug, refetchOrg]);
@@ -182,6 +183,7 @@ export function OrganizerEventContextProvider({
   useEffect(() => {
     if (!orgId) return;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async events fetch; setState runs after the awaited request, not synchronously
     void refetchEvents(controller.signal);
     return () => controller.abort();
   }, [orgId, refetchEvents]);
@@ -192,6 +194,7 @@ export function OrganizerEventContextProvider({
   // route updates "last seen" for next non-event nav.
   useEffect(() => {
     if (urlEventId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs selected event from the URL param into local state; behaviour-preserving
       setSelectedEventIdState(urlEventId);
       if (typeof window !== 'undefined') {
         try {

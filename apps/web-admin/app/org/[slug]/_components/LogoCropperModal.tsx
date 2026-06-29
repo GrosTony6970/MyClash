@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
@@ -47,6 +45,7 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
   useEffect(() => {
     const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync of an external resource (object URL) into state, paired with the revoke teardown below
     setImageSrc(url);
     return () => {
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
@@ -78,6 +77,9 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(ev) => {
         if (ev.target === ev.currentTarget && !saving) onCancel();
+      }}
+      onKeyDown={(ev) => {
+        if (ev.key === 'Escape' && !saving) onCancel();
       }}
     >
       <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl bg-surface p-5 shadow-xl">

@@ -48,6 +48,7 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop click-to-close, Cancel button provides keyboard exit
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(e) => {
@@ -68,6 +69,7 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus of the reason field on modal open
             autoFocus
             placeholder={t('admin.reviewQueue.rejectReasonPlaceholder')}
             className="w-full resize-none rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
@@ -94,7 +96,7 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
             disabled={submitting}
             className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
           >
-            Cancel
+            {t('admin.adminRulesetsReview.cancel')}
           </button>
           <button
             onClick={() => void handleReject()}

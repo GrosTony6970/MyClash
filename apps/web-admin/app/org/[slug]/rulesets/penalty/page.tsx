@@ -318,7 +318,7 @@ export default function OrgPenaltyRulesetsPage() {
         cancelLabel={t('admin.rulesets.cancel')}
         danger
         busy={busy}
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleteTarget(null)}
       />
 
@@ -329,7 +329,7 @@ export default function OrgPenaltyRulesetsPage() {
         confirmLabel={t('admin.rulesets.submitForReviewAction')}
         cancelLabel={t('admin.rulesets.cancel')}
         busy={busy}
-        onConfirm={confirmSubmitShare}
+        onConfirm={() => void confirmSubmitShare()}
         onCancel={() => setSubmitShareTarget(null)}
       />
     </main>

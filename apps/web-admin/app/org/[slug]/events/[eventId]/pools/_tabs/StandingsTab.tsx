@@ -84,6 +84,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs mode from the URL hash on mount and on hashchange
     setMode(readHashMode());
     function onHash() {
       setMode(readHashMode());
@@ -93,6 +94,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: revalidating flag toggled before the network request resolves
     setRevalidating(true);
     const url = `${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=${mode}`;
     void fetch(url, { credentials: 'include' })

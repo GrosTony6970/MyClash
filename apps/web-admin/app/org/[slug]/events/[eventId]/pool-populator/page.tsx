@@ -16,6 +16,7 @@
 import { useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface Fighter {
   registrationId: string;
@@ -50,6 +51,7 @@ interface Proposal {
 }
 
 export default function PoolPopulatorPage() {
+  const { t } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -212,30 +214,34 @@ export default function PoolPopulatorPage() {
               href={`/org/${slug}/events/${eventId}`}
               className="hover:text-foreground-secondary"
             >
-              Event
+              {t('admin.orgPools.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">Pool populator</span>
+            <span className="text-foreground font-medium">{t('admin.orgPools.poolPopulator')}</span>
           </div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Pool populator</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('admin.orgPools.poolPopulator')}
+          </h1>
         </div>
         <Link
           href={`/org/${slug}/events/${eventId}/pools`}
           className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >
-          ← Pools
+          {t('admin.orgPools.backToPools')}
         </Link>
       </div>
 
       {/* Config panel */}
       <div className="bg-background border border-border rounded-xl p-5 mb-6">
         <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground-secondary mb-4">
-          Configuration
+          {t('admin.orgPools.configuration')}
         </h2>
         <div className="flex flex-wrap gap-6 items-end">
           {/* Mode */}
           <div>
-            <p className="text-xs font-medium text-foreground-secondary mb-2">Size mode</p>
+            <p className="text-xs font-medium text-foreground-secondary mb-2">
+              {t('admin.orgPools.sizeMode')}
+            </p>
             <div className="flex gap-2">
               {(['targetSize', 'poolCount'] as const).map((m) => (
                 <button
@@ -295,7 +301,7 @@ export default function PoolPopulatorPage() {
                 onChange={(e) => setSchoolSep(e.target.checked)}
                 className="rounded"
               />
-              School separation
+              {t('admin.orgPools.schoolSeparation')}
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
@@ -304,13 +310,15 @@ export default function PoolPopulatorPage() {
                 onChange={(e) => setSkillBalance(e.target.checked)}
                 className="rounded"
               />
-              Skill balance
+              {t('admin.orgPools.skillBalance')}
             </label>
           </div>
 
           {/* Seed */}
           <div>
-            <p className="text-xs font-medium text-foreground-secondary mb-2">PRNG seed</p>
+            <p className="text-xs font-medium text-foreground-secondary mb-2">
+              {t('admin.orgPools.prngSeed')}
+            </p>
             <input
               type="number"
               value={seed}
@@ -340,10 +348,17 @@ export default function PoolPopulatorPage() {
         <>
           <div className="flex items-center gap-4 mb-4 text-sm text-muted">
             <span>
-              {proposal.poolCount} pools · {proposal.fighterCount} fighters
+              {t('admin.orgPools.poolsFightersSummary', {
+                pools: proposal.poolCount,
+                fighters: proposal.fighterCount,
+              })}
             </span>
             <span>·</span>
-            <span>Cost: {proposal.costReport.totalCost.toFixed(1)}</span>
+            <span>
+              {t('admin.orgPools.costLabel', {
+                cost: proposal.costReport.totalCost.toFixed(1),
+              })}
+            </span>
             {proposal.violations.length > 0 && (
               <>
                 <span>·</span>
@@ -367,7 +382,9 @@ export default function PoolPopulatorPage() {
                     <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                       {pool.name}
                     </h3>
-                    <span className="text-xs text-muted">{pool.matchCount} matches</span>
+                    <span className="text-xs text-muted">
+                      {t('admin.orgPools.matchCount', { count: pool.matchCount })}
+                    </span>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {pool.fighters.map((f) => (
@@ -403,7 +420,9 @@ export default function PoolPopulatorPage() {
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">
                           {sameClub.has(f.registrationId) && (
-                            <span className="text-xs text-warning">⚠ club</span>
+                            <span className="text-xs text-warning">
+                              {t('admin.orgPools.sameClubBadge')}
+                            </span>
                           )}
                           <span className="text-xs text-muted">#{f.seed}</span>
                         </div>
@@ -418,7 +437,9 @@ export default function PoolPopulatorPage() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             {saved ? (
-              <span className="text-sm text-success font-medium">✓ Saved to database</span>
+              <span className="text-sm text-success font-medium">
+                {t('admin.orgPools.savedToDatabase')}
+              </span>
             ) : (
               <button
                 onClick={() => void save()}
@@ -433,7 +454,7 @@ export default function PoolPopulatorPage() {
               disabled={generating}
               className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
             >
-              Regenerate
+              {t('admin.orgPools.regenerate')}
             </button>
           </div>
         </>
@@ -441,9 +462,7 @@ export default function PoolPopulatorPage() {
 
       {!proposal && !generating && (
         <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
-          <p className="text-muted text-sm">
-            Configure above and click Generate to see a proposal.
-          </p>
+          <p className="text-muted text-sm">{t('admin.orgPools.emptyStateHint')}</p>
         </div>
       )}
     </main>

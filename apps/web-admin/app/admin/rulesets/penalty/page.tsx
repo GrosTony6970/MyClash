@@ -200,7 +200,7 @@ export default function AdminPenaltyRulesetsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
-                      v{row.version}
+                      {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -274,7 +274,7 @@ export default function AdminPenaltyRulesetsPage() {
         cancelLabel={t('admin.rulesets.cancel')}
         danger
         busy={busy}
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleteTarget(null)}
       />
 

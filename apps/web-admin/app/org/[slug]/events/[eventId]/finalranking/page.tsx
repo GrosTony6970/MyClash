@@ -92,12 +92,13 @@ export default function FinalRankingPage() {
   // Fetch bracket + pool standings for the selected tournament.
   useEffect(() => {
     if (!selectedTournament) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear loading flag when no tournament is selected
       setLoading(false);
       return;
     }
     const controller = new AbortController();
     setLoading(true);
-    Promise.all([
+    void Promise.all([
       fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/bracket`, {
         credentials: 'include',
         signal: controller.signal,

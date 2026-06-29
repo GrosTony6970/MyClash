@@ -55,6 +55,7 @@ export default function PendingClaimsPage() {
   }, [apiUrl]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; state set after await, not synchronously
     void load();
   }, [load]);
 

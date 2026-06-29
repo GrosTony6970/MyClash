@@ -270,7 +270,9 @@ export function ScheduleGrid({
   const [redoStack, setRedoStack] = useState<ScheduleMove[]>([]);
   const undoStackRef = useRef(undoStack);
   const redoStackRef = useRef(redoStack);
+  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest stacks for stable callbacks
   undoStackRef.current = undoStack;
+  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest stacks for stable callbacks
   redoStackRef.current = redoStack;
 
   // Default to the readable block view (one block per pool/round); the
@@ -617,8 +619,10 @@ export function ScheduleGrid({
   //    operator). Debounced + suppressed during a local save so it never
   //    fights an in-flight optimistic drag. 30s poll fallback in the hook. ──
   const refetchRef = useRef(refetchScheduleAndBlocks);
+  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest refetch fn for stable debounced callback
   refetchRef.current = refetchScheduleAndBlocks;
   const savingRef = useRef(saving);
+  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest saving flag for stable debounced callback
   savingRef.current = saving;
   const refetchTimer = useRef<number | null>(null);
   const scheduleRefetch = useCallback(() => {
@@ -713,7 +717,10 @@ export function ScheduleGrid({
         prev && prev.id === block.id ? { ...prev, previewSpan: nextSpan } : prev,
       );
     }
-    async function onUp(e: PointerEvent) {
+    function onUp(e: PointerEvent): void {
+      void onUpAsync(e);
+    }
+    async function onUpAsync(e: PointerEvent) {
       handle.releasePointerCapture(e.pointerId);
       handle.removeEventListener('pointermove', onMove);
       handle.removeEventListener('pointerup', onUp);
@@ -1072,6 +1079,7 @@ export function ScheduleGrid({
   // history across days would let an undo move a match back to a day
   // the operator isn't looking at, which is more confusing than useful.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset of undo/redo history on day change
     setUndoStack([]);
     setRedoStack([]);
   }, [activeDay]);
@@ -1743,6 +1751,7 @@ export function ScheduleGrid({
         matchIds: run.matchIds,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
   }, [scheduledOnActiveDay, lices, activeDay]);
 
   // Reserve-space layout: distinct slots where a run header begins. Every
@@ -1814,6 +1823,7 @@ export function ScheduleGrid({
       null,
     );
     return computeGridEndSlot({ blockEndSlots, breakEndSlots, dayEndHHMM });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
   }, [dayBlocks, blocksOnActiveDay, activeDay]);
 
   // Admin / break / workshop bars for the block grid (competition excluded —
@@ -1966,6 +1976,7 @@ export function ScheduleGrid({
               placeholder="Lice 4"
               maxLength={50}
               className="rounded-md border border-border px-2 py-1 text-xs"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus on the inline new-lice name field
               autoFocus
             />
           </label>
@@ -2585,6 +2596,7 @@ export function ScheduleGrid({
                 // signals pool-vs-bracket; conflicts override with
                 // red-200 so they stay the dominant signal.
                 return (
+                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- draggable match card; onClick is a modifier-gated (ctrl/meta) shortcut, not the primary affordance
                   <div
                     key={m.id}
                     draggable
@@ -2969,6 +2981,7 @@ function MatchChip({
 }) {
   const isBracket = match.phaseType !== null && match.phaseType !== 'pool';
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- draggable match card; onClick is a modifier-gated (ctrl/meta) shortcut, not the primary affordance
     <div
       draggable
       onDragStart={onDragStart}

@@ -133,7 +133,7 @@ export default function WorkshopsAdminPage() {
   const [eventTz, setEventTz] = useState<string>('Europe/Paris');
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const res = await fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' });
         if (!res.ok) return;
@@ -160,7 +160,7 @@ export default function WorkshopsAdminPage() {
   >([]);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/instructors`, {
           credentials: 'include',
@@ -275,7 +275,7 @@ export default function WorkshopsAdminPage() {
   const [venues, setVenues] = useState<EventVenue[]>([]);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const orgRes = await fetch(
           `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
@@ -560,6 +560,7 @@ export default function WorkshopsAdminPage() {
     return () => window.removeEventListener('hashchange', sync);
   }, []);
   function selectTab(next: 'list' | 'schedule') {
+    // eslint-disable-next-line react-hooks/immutability -- intentional DOM side-effect: sync the URL hash with the active tab
     window.location.hash = next === 'schedule' ? '#schedule' : '#list';
     setTab(next);
   }
@@ -568,7 +569,7 @@ export default function WorkshopsAdminPage() {
   const [breaks, setBreaks] = useState<WorkshopBreak[]>([]);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/workshop-breaks`, {
           credentials: 'include',

@@ -200,36 +200,6 @@ function StarRating({
   );
 }
 
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={[
-        'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 ring-accent focus:ring-offset-1 disabled:opacity-50',
-        checked ? 'bg-accent' : 'bg-border',
-      ].join(' ')}
-    >
-      <span
-        className={[
-          'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surface shadow ring-0 transition duration-200 ease-in-out',
-          checked ? 'translate-x-4' : 'translate-x-0',
-        ].join(' ')}
-      />
-    </button>
-  );
-}
-
 // ── Color token list for the skill modal ─────────────────────────────────────
 
 const COLOR_OPTIONS: string[] = [
@@ -388,6 +358,7 @@ function SkillModal({
 
   return (
     /* backdrop */
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop, dismiss-on-click; the dialog provides keyboard-accessible controls
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40"
       onClick={(e) => {
@@ -892,6 +863,7 @@ function AssignmentsTab({
     const controller = new AbortController();
     void loadBoard(controller.signal);
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when the event/API changes; loadBoard identity is stable for these deps
   }, [eventId, apiUrl]);
 
   // Fetch the lice list once for id → name resolution in the table.
@@ -1921,6 +1893,7 @@ export default function RefereesPage() {
 
   useEffect(() => {
     if (!searchFocused) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale search results when the input loses focus
       setSearchResults([]);
       return;
     }

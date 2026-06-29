@@ -94,7 +94,6 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
 
     // Kill-switch path: skip the websocket entirely.
     if (realtimeDisabled) {
-      // eslint-disable-next-line no-console
       console.info(`[realtime] disabled by flag, polling only: ${opts.channelName}`);
       startPolling();
       return () => {
@@ -128,16 +127,13 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           if (wasConnectedRef.current) {
-            // eslint-disable-next-line no-console
             console.info(`[realtime] reconnected: ${opts.channelName}`);
           } else {
-            // eslint-disable-next-line no-console
             console.info(`[realtime] connected: ${opts.channelName}`);
             wasConnectedRef.current = true;
           }
           stopPolling();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          // eslint-disable-next-line no-console
           console.info(`[realtime] dropped (${status}): ${opts.channelName}`);
           startPolling();
         }

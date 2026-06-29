@@ -195,6 +195,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadBoard sets state only after the awaited request resolves
     void loadBoard(controller.signal);
     return () => controller.abort();
   }, [loadBoard]);

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface RankingRow {
   league_id: string;
@@ -60,6 +61,7 @@ function fighterClubLabel(row: RankingRow): string | null {
 }
 
 export default function AdminLeagueRankingPage() {
+  const { t } = useI18n();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
   const [data, setData] = useState<StandingsPayload | null>(null);
@@ -108,7 +110,7 @@ export default function AdminLeagueRankingPage() {
         href="/admin/leagues"
         className="mb-3 inline-flex items-center gap-1 rounded text-sm font-medium text-foreground-secondary hover:text-foreground"
       >
-        ← Back to leagues
+        {t('admin.adminLeagues.backToLeagues')}
       </Link>
       <AdminPageHeader
         eyebrow="League ranking"
@@ -130,15 +132,15 @@ export default function AdminLeagueRankingPage() {
 
       {loading && (
         <div className="rounded-lg border border-border bg-surface p-12 text-center text-sm text-muted">
-          Loading…
+          {t('admin.adminLeagues.loading')}
         </div>
       )}
 
       {!loading && data && data.rows.length === 0 && (
         <div className="rounded-lg border border-border bg-surface p-12 text-center text-sm text-muted">
-          No rankings computed yet. The standings engine writes
+          {t('admin.adminLeagues.emptyRankingsBefore')}
           <code className="mx-1 rounded bg-background px-1 font-mono">league_rankings</code>
-          on tournament completion — once a linked tournament finishes, the standings appear here.
+          {t('admin.adminLeagues.emptyRankingsAfter')}
         </div>
       )}
 
@@ -157,12 +159,18 @@ export default function AdminLeagueRankingPage() {
               <table className="w-full min-w-[720px] text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                    <th className="px-4 py-3 w-16 text-center">Rank</th>
-                    <th className="px-4 py-3">Fighter</th>
-                    <th className="px-4 py-3 text-center">Points</th>
-                    <th className="px-4 py-3 text-center">Participations</th>
-                    <th className="px-4 py-3 text-center">Medals</th>
-                    <th className="px-4 py-3 text-center">Avg double hits</th>
+                    <th className="px-4 py-3 w-16 text-center">
+                      {t('admin.adminLeagues.colRank')}
+                    </th>
+                    <th className="px-4 py-3">{t('admin.adminLeagues.colFighter')}</th>
+                    <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colPoints')}</th>
+                    <th className="px-4 py-3 text-center">
+                      {t('admin.adminLeagues.colParticipations')}
+                    </th>
+                    <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colMedals')}</th>
+                    <th className="px-4 py-3 text-center">
+                      {t('admin.adminLeagues.colAvgDoubleHits')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

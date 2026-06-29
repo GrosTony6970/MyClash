@@ -80,7 +80,7 @@ export function Step1Basics({
     });
 
     if (initialTournamentId) {
-      fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, { credentials: 'include' })
+      void fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, { credentials: 'include' })
         .then((r) => (r.ok ? r.json() : null))
         .then((row) => {
           if (!row) return;
@@ -290,27 +290,27 @@ export function Step1Basics({
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-xs font-medium text-foreground-secondary mb-1">
-            Max participants
+            {t('admin.orgTournaments.maxParticipants')}
           </span>
           <input
             type="number"
             min={1}
             value={maxParticipants}
             onChange={(e) => setMaxParticipants(e.target.value)}
-            placeholder="No cap"
+            placeholder={t('admin.orgTournaments.noCap')}
             className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
         </label>
         <label className="block">
           <span className="block text-xs font-medium text-foreground-secondary mb-1">
-            Max waitlist
+            {t('admin.orgTournaments.maxWaitlist')}
           </span>
           <input
             type="number"
             min={0}
             value={maxWaitlist}
             onChange={(e) => setMaxWaitlist(e.target.value)}
-            placeholder="No cap"
+            placeholder={t('admin.orgTournaments.noCap')}
             className="w-full rounded-md border border-border px-3 py-2 text-sm"
           />
         </label>

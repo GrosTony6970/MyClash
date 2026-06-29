@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 export const SWATCH_PALETTE: readonly string[] = [
   '#ef4444',
   '#f97316',

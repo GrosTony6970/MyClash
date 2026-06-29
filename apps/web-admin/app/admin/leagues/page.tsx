@@ -144,14 +144,14 @@ export default function AdminLeaguesPage() {
     <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Leagues"
-        title="Leagues"
+        title={t('admin.adminLeagues.pageTitle')}
         subtitle="Manage league setup, scoring, member orgs, and linked tournaments."
         actions={
           <Link
             href="/admin/leagues/new"
             className="inline-flex items-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover"
           >
-            + Create league
+            {t('admin.adminLeagues.createButton')}
           </Link>
         }
       />
@@ -190,27 +190,27 @@ export default function AdminLeaguesPage() {
           <table className="w-full min-w-[820px] text-sm border-collapse">
             <thead>
               <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 w-16">Logo</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Year</th>
-                <th className="px-4 py-3 text-center">Events</th>
-                <th className="px-4 py-3 text-center">Tournaments</th>
-                <th className="px-4 py-3 text-center">Groups</th>
-                <th className="px-4 py-3 text-center">Fighters</th>
+                <th className="px-4 py-3 w-16">{t('admin.adminLeagues.colLogo')}</th>
+                <th className="px-4 py-3">{t('admin.adminLeagues.colName')}</th>
+                <th className="px-4 py-3">{t('admin.adminLeagues.colYear')}</th>
+                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colEvents')}</th>
+                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colTournaments')}</th>
+                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colGroups')}</th>
+                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colFighters')}</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-sm text-muted">
-                    Loading…
+                    {t('admin.adminLeagues.loading')}
                   </td>
                 </tr>
               )}
               {!loading && leagues.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-sm text-muted">
-                    No leagues yet.
+                    {t('admin.adminLeagues.noLeaguesYet')}
                   </td>
                 </tr>
               )}
@@ -264,10 +264,10 @@ export default function AdminLeaguesPage() {
           <table className="w-full min-w-[920px] text-sm border-collapse">
             <thead>
               <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 w-16">Logo</th>
+                <th className="px-4 py-3 w-16">{t('admin.adminLeagues.colLogo')}</th>
                 <th className="px-4 py-3">
                   <SortableHeader
-                    label="Name"
+                    label={t('admin.adminLeagues.colName')}
                     columnKey="name"
                     currentKey={sortKey}
                     direction={direction}
@@ -278,7 +278,7 @@ export default function AdminLeaguesPage() {
                 </th>
                 <th className="px-4 py-3">
                   <SortableHeader
-                    label="Year"
+                    label={t('admin.adminLeagues.colYear')}
                     columnKey="year"
                     currentKey={sortKey}
                     direction={direction}
@@ -289,7 +289,7 @@ export default function AdminLeaguesPage() {
                 </th>
                 <th className="px-4 py-3">
                   <SortableHeader
-                    label="Grouping"
+                    label={t('admin.adminLeagues.colGrouping')}
                     columnKey="category"
                     currentKey={sortKey}
                     direction={direction}
@@ -300,7 +300,7 @@ export default function AdminLeaguesPage() {
                 </th>
                 <th className="px-4 py-3">
                   <SortableHeader
-                    label="Scoring system"
+                    label={t('admin.adminLeagues.colScoringSystem')}
                     columnKey="scoringSystem"
                     currentKey={sortKey}
                     direction={direction}
@@ -311,7 +311,7 @@ export default function AdminLeaguesPage() {
                 </th>
                 <th className="px-4 py-3">
                   <SortableHeader
-                    label="Status"
+                    label={t('admin.adminLeagues.colStatus')}
                     columnKey="status"
                     currentKey={sortKey}
                     direction={direction}
@@ -320,22 +320,24 @@ export default function AdminLeaguesPage() {
                     ariaSortDesc={t('admin.common.sortDescLabel')}
                   />
                 </th>
-                <th className="px-4 py-3">Public</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="px-4 py-3">{t('admin.adminLeagues.colPublic')}</th>
+                <th className="px-4 py-3">{t('admin.adminLeagues.colActions')}</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-sm text-muted">
-                    Loading…
+                    {t('admin.adminLeagues.loading')}
                   </td>
                 </tr>
               )}
               {!loading && leagues.length === 0 && (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-muted">
-                    No leagues yet. Click <strong>Create league</strong> to add one.
+                    {t('admin.adminLeagues.emptyHintBefore')}{' '}
+                    <strong>{t('admin.adminLeagues.emptyHintAction')}</strong>{' '}
+                    {t('admin.adminLeagues.emptyHintAfter')}
                   </td>
                 </tr>
               )}
@@ -389,14 +391,14 @@ export default function AdminLeaguesPage() {
                         href={`/admin/leagues/${league.id}/edit`}
                         className={rowActionClasses('edit')}
                       >
-                        Edit
+                        {t('admin.adminLeagues.editAction')}
                       </Link>
                       <RowActionButton
                         variant="danger"
                         onClick={() => setPendingDelete(league)}
                         disabled={busyId === league.id}
                       >
-                        Delete
+                        {t('admin.adminLeagues.deleteAction')}
                       </RowActionButton>
                     </div>
                   </td>
@@ -409,7 +411,7 @@ export default function AdminLeaguesPage() {
 
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Delete league"
+        title={t('admin.adminLeagues.deleteDialogTitle')}
         description={
           pendingDelete ? `Delete league "${pendingDelete.name}"? This cannot be undone.` : ''
         }

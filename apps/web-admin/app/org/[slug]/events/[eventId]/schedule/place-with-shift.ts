@@ -53,7 +53,6 @@ export function placeWithShift(input: PlaceWithShiftInput): PlaceWithShiftOutput
   const { items, dropped, dropSlot, gridEndSlot } = input;
 
   // Drop slot is free? Just place and return.
-  const dropEnd = dropSlot + dropped.span;
   const collides = items.some((it) => slotsOverlap(it.slot, it.span, dropSlot, dropped.span));
   if (!collides) {
     return {

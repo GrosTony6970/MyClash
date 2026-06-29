@@ -103,6 +103,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   const sideConfig = { ...DEFAULT_SCORING_CONFIG, display: { sideColors } };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loading flag toggled before the network call resolves
     setLoading(true);
     void Promise.all([
       fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pools-with-matches`, {
@@ -184,7 +185,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
     // mounted; only changed rows re-render. The "Refresh" button at
     // the top of the tab still calls full `refresh` for an explicit
     // operator override.
-    onFallbackPoll: syncScores,
+    onFallbackPoll: () => void syncScores(),
     fallbackPollMs: 30_000,
   });
 
@@ -209,7 +210,6 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       });
       if (!res.ok) throw new Error('Update failed');
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Match assignment update failed:', err);
       refresh();
     }
@@ -254,7 +254,6 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       });
       if (!res.ok) throw new Error('Role assignment update failed');
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Referee role assignment failed:', err);
       refresh();
     }
@@ -282,7 +281,6 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       });
       if (!res.ok) throw new Error('Pool lice update failed');
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Pool lice update failed:', err);
       refresh();
     }
@@ -314,7 +312,6 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       });
       if (!res.ok) throw new Error('Pool referee role assignment failed');
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('Pool referee role assignment failed:', err);
       refresh();
     }
@@ -378,7 +375,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                   {pool.poolName}
                 </h3>
                 <p className="mt-0.5 text-xs text-muted">
-                  {countPoolFighters(pool.matches)} fighters
+                  {t('admin.orgPools.fighterCount', { count: countPoolFighters(pool.matches) })}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">
                   {t('organizer.pools.matches.summary', {

@@ -83,6 +83,7 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
   }, [apiUrl, eventId, loadAttachments]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() drives an async fetch on mount; behaviour-preserving
     load();
   }, [load]);
 
@@ -91,6 +92,7 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
   // doesn't define any; submit without a groupId.
   useEffect(() => {
     if (!leagueId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear dependent group selection when no league is chosen; behaviour-preserving
       setGroups([]);
       setGroupId('');
       return;

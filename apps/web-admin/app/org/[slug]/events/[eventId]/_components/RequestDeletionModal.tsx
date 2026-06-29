@@ -58,6 +58,7 @@ export function RequestDeletionModal({
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop: click-outside to close; Escape handling is the dialog's job
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40"
       onClick={(e) => {

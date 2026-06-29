@@ -192,6 +192,7 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
   // could mask a server-side change after we refetch.
   useEffect(() => {
     const next = bannerPayload(row?.payloadJson ?? null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional resync of local edit state when the server row refreshes
     setMessage(next.message);
     setSeverity(next.severity);
   }, [row?.payloadJson]);

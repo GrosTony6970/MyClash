@@ -33,7 +33,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
+    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;
@@ -76,14 +76,11 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
       {rulesetCode === 'TF_v1' && (
         <fieldset className="space-y-3 rounded-md border border-border p-4">
           <legend className="px-2 text-xs font-medium text-foreground-secondary">
-            Ruleset (TF v1) — per-tournament overrides
+            {t('admin.orgTournaments.tfRulesetLegend')}
           </legend>
-          <p className="px-2 pb-2 text-xs text-muted">
-            Defaults come from the ruleset. Any value you change here is stored as a per-tournament
-            override; use &quot;Reset&quot; to restore the ruleset default.
-          </p>
+          <p className="px-2 pb-2 text-xs text-muted">{t('admin.orgTournaments.tfRulesetHint')}</p>
           <NumField
-            label="Win bonus"
+            label={t('admin.orgTournaments.winBonus')}
             value={tf.winBonus}
             defaultValue={TF_DEFAULTS.winBonus}
             onChange={(v) => setTf({ ...tf, winBonus: v })}
@@ -92,7 +89,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
             max={20}
           />
           <NumField
-            label="Deep target points"
+            label={t('admin.orgTournaments.deepTarget')}
             value={tf.targetValues.deepTarget}
             defaultValue={TF_DEFAULTS.targetValues.deepTarget}
             onChange={(v) => setTf({ ...tf, targetValues: { ...tf.targetValues, deepTarget: v } })}
@@ -109,7 +106,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
             max={20}
           />
           <NumField
-            label="Shallow target points"
+            label={t('admin.orgTournaments.shallowTarget')}
             value={tf.targetValues.shallowTarget}
             defaultValue={TF_DEFAULTS.targetValues.shallowTarget}
             onChange={(v) =>
@@ -128,7 +125,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
             max={20}
           />
           <BoolField
-            label="Forfeit counts as draw"
+            label={t('admin.orgTournaments.forfeitDrawsCount')}
             value={tf.forfeitPolicy.forfeitDrawsCount}
             defaultValue={TF_DEFAULTS.forfeitPolicy.forfeitDrawsCount}
             onChange={(v) =>
@@ -145,7 +142,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
             }
           />
           <BoolField
-            label="Forfeit before 1st match → auto-DQ"
+            label={t('admin.orgTournaments.forfeitBeforeFirstMatchDq')}
             value={tf.forfeitPolicy.forfeitFighterBefore1stMatch}
             defaultValue={TF_DEFAULTS.forfeitPolicy.forfeitFighterBefore1stMatch}
             onChange={(v) =>
@@ -166,7 +163,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
             }
           />
           <NumField
-            label="Disqualify after N forfeits"
+            label={t('admin.orgTournaments.disqualifyAfter')}
             value={tf.forfeitPolicy.disqualifyAfter}
             defaultValue={TF_DEFAULTS.forfeitPolicy.disqualifyAfter}
             onChange={(v) =>
@@ -226,7 +223,7 @@ function NumField({
             title={`Default: ${defaultValue}`}
             className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
-            modified
+            {t('admin.orgTournaments.modifiedBadge')}
           </span>
         )}
       </span>
@@ -238,7 +235,7 @@ function NumField({
             className="text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${defaultValue}`}
           >
-            Reset
+            {t('admin.orgTournaments.reset')}
           </button>
         )}
         <input
@@ -277,7 +274,7 @@ function BoolField({
             title={`Default: ${String(defaultValue)}`}
             className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
-            modified
+            {t('admin.orgTournaments.modifiedBadge')}
           </span>
         )}
       </span>
@@ -289,7 +286,7 @@ function BoolField({
             className="text-xs text-muted underline hover:text-foreground"
             title={`Reset to ${String(defaultValue)}`}
           >
-            Reset
+            {t('admin.orgTournaments.reset')}
           </button>
         )}
         <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />

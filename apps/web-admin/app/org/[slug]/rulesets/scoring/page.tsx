@@ -340,7 +340,7 @@ export default function OrgScoringRulesetsPage() {
         cancelLabel={t('admin.rulesets.cancel')}
         danger
         busy={busy}
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleteTarget(null)}
       />
 
@@ -351,7 +351,7 @@ export default function OrgScoringRulesetsPage() {
         confirmLabel={t('admin.rulesets.submitForReviewAction')}
         cancelLabel={t('admin.rulesets.cancel')}
         busy={busy}
-        onConfirm={confirmSubmit}
+        onConfirm={() => void confirmSubmit()}
         onCancel={() => setSubmitTarget(null)}
       />
     </main>

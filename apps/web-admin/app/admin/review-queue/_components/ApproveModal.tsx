@@ -52,6 +52,7 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop click-to-close, Cancel button provides keyboard exit
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
       onClick={(e) => {
@@ -75,6 +76,7 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
               type="text"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus of the destructive-confirmation input on modal open
               autoFocus
               className="mt-2 w-full rounded-md border border-danger/30 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-danger"
               placeholder="DELETE"
@@ -84,7 +86,7 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
 
         {!isDeletion && (
           <p className="mt-4 text-sm text-foreground-secondary">
-            Are you sure you want to approve this request?
+            {t('admin.adminRulesetsReview.approveConfirmPrompt')}
           </p>
         )}
 
@@ -100,7 +102,7 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
             disabled={submitting}
             className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
           >
-            Cancel
+            {t('admin.adminRulesetsReview.cancel')}
           </button>
           <button
             onClick={() => void handleApprove()}

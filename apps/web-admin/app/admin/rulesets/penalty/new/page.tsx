@@ -61,29 +61,31 @@ export default function NewPenaltyRulesetPage() {
         initial={initial}
         busy={busy}
         submitLabel={t('admin.penaltyRulesets.createButton')}
-        onSubmit={async (data) => {
-          setBusy(true);
-          setError(null);
-          try {
-            const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ownerOrganizationId: ADMIN_PLATFORM_OWNER_PLACEHOLDER,
-                ...data,
-              }),
-            });
-            if (!res.ok) {
-              const body = (await res.json().catch(() => ({}))) as { message?: string };
-              throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+        onSubmit={(data) => {
+          void (async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ownerOrganizationId: ADMIN_PLATFORM_OWNER_PLACEHOLDER,
+                  ...data,
+                }),
+              });
+              if (!res.ok) {
+                const body = (await res.json().catch(() => ({}))) as { message?: string };
+                throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+              }
+              const created = (await res.json()) as { id: string };
+              router.push(`/admin/rulesets/penalty/${created.id}/edit`);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+              setBusy(false);
             }
-            const created = (await res.json()) as { id: string };
-            router.push(`/admin/rulesets/penalty/${created.id}/edit`);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-            setBusy(false);
-          }
+          })();
         }}
         onCancel={() => router.push('/admin/rulesets/penalty')}
       />

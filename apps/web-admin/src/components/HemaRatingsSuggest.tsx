@@ -87,8 +87,10 @@ export function HemaRatingsSuggest({
     <div className="rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">HEMA Ratings</p>
-          <p className="text-xs text-muted">Optional global fighter link</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {t('admin.srcComponents.hemaRatingsTitle')}
+          </p>
+          <p className="text-xs text-muted">{t('admin.srcComponents.hemaRatingsSubtitle')}</p>
         </div>
         {selected && (
           <button
@@ -96,16 +98,18 @@ export function HemaRatingsSuggest({
             onClick={() => onSelect(null)}
             className="text-xs font-medium text-danger hover:text-danger-hover"
           >
-            Clear
+            {t('admin.srcComponents.hemaRatingsClear')}
           </button>
         )}
       </div>
 
-      {loading ? <p className="text-xs text-muted">Searching...</p> : null}
+      {loading ? (
+        <p className="text-xs text-muted">{t('admin.srcComponents.hemaRatingsSearching')}</p>
+      ) : null}
       {error ? <p className="text-xs text-danger">{error}</p> : null}
 
       {!loading && !error && suggestions.length === 0 ? (
-        <p className="text-xs text-muted">No HEMA Ratings profile selected.</p>
+        <p className="text-xs text-muted">{t('admin.srcComponents.hemaRatingsNoProfile')}</p>
       ) : null}
 
       {suggestions.length > 0 ? (

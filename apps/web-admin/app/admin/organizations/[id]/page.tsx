@@ -774,7 +774,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                             {label}
                             {isCurrentOwner ? (
                               <span className="ml-2 rounded bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gold">
-                                owner
+                                {t('admin.adminMisc.ownerBadge')}
                               </span>
                             ) : row.isMember ? (
                               <span className="ml-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
@@ -813,7 +813,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                                 {accountLabel(account)}
                                 {isSuperAdmin && (
                                   <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
-                                    super-admin
+                                    {t('admin.adminMisc.superAdminBadge')}
                                   </span>
                                 )}
                               </span>

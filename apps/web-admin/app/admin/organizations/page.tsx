@@ -112,6 +112,7 @@ export default function AdminOrganizationsPage() {
     if (form.ownerMode !== 'existing') return;
     const q = ownerSearch.trim();
     if (!q) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale search results when the query is emptied
       setOwnerResults([]);
       return;
     }

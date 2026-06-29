@@ -194,7 +194,7 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
        *  When the participant cap is reached, the registrations create
        *  endpoint returns 409 and the admin UI offers an explicit
        *  'Add to waitlist instead?' confirmation. */}
-      <Field label="Max participants">
+      <Field label={t('admin.orgTournaments.maxParticipants')}>
         <input
           type="number"
           min={1}
@@ -205,12 +205,12 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
               maxParticipants: e.target.value === '' ? null : Number(e.target.value),
             })
           }
-          placeholder="No cap"
+          placeholder={t('admin.orgTournaments.noCap')}
           className="w-full rounded-md border border-border px-3 py-2 text-sm"
         />
       </Field>
 
-      <Field label="Max waitlist">
+      <Field label={t('admin.orgTournaments.maxWaitlist')}>
         <input
           type="number"
           min={0}
@@ -221,13 +221,11 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
               maxWaitlist: e.target.value === '' ? null : Number(e.target.value),
             })
           }
-          placeholder="No cap"
+          placeholder={t('admin.orgTournaments.noCap')}
           className="w-full rounded-md border border-border px-3 py-2 text-sm"
         />
         {data.maxWaitlist != null && data.maxWaitlist > 0 && data.maxParticipants == null && (
-          <p className="mt-1 text-xs text-warning">
-            Set a participant cap above to make the waitlist meaningful.
-          </p>
+          <p className="mt-1 text-xs text-warning">{t('admin.orgTournaments.waitlistNeedsCap')}</p>
         )}
       </Field>
 

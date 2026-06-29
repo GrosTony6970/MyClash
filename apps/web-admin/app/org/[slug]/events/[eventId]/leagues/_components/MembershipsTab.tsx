@@ -81,6 +81,7 @@ export function MembershipsTab({ eventId, apiUrl }: Props) {
   }, [apiUrl, eventId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() drives an async fetch on mount; behaviour-preserving
     void load();
   }, [load]);
 
@@ -121,6 +122,7 @@ export function MembershipsTab({ eventId, apiUrl }: Props) {
   useEffect(() => {
     if (cards.length === 0) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset error before an async sibling-load; behaviour-preserving
     setSiblingsError(null);
     void Promise.all(
       cards.map(async (card) => {

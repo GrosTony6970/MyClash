@@ -70,6 +70,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
   }, [t]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload() fetches then sets state; intentional initial data load
     void reload();
   }, [reload]);
 
@@ -260,7 +261,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
-                      v{row.version}
+                      {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
                     </span>
                   </td>
                   <td className="px-4 py-3">

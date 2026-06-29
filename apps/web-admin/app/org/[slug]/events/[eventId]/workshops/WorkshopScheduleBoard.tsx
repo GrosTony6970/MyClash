@@ -126,6 +126,7 @@ export function WorkshopScheduleBoard({
 }: Props) {
   const [activeDay, setActiveDay] = useState<string>(days[0] ?? '');
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- keep activeDay valid when the days list changes; behaviour-preserving
     if (days.length > 0 && !days.includes(activeDay)) setActiveDay(days[0]!);
   }, [days, activeDay]);
 
@@ -727,7 +728,15 @@ export function WorkshopScheduleBoard({
                                 e.dataTransfer.setData('span', String(bl.span));
                               }}
                               onDragEnd={() => setGhost(null)}
+                              role="button"
+                              tabIndex={0}
                               onClick={() => onBlockClick?.(bl.workshopId)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  onBlockClick?.(bl.workshopId);
+                                }
+                              }}
                               title={
                                 conflict ? `${bl.title} — overlaps another workshop` : bl.title
                               }

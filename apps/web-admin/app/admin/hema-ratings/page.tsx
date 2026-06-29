@@ -123,6 +123,7 @@ export default function HemaRatingsAdminPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; state set after await, not synchronously
     void loadFighters();
   }, [loadFighters]);
 
@@ -334,7 +335,10 @@ export default function HemaRatingsAdminPage() {
             >
               ●
             </span>{' '}
-            {health.status ?? 'ERR'} · {health.latencyMs}ms
+            {t('admin.adminMisc.hemaHealthLine', {
+              status: health.status ?? 'ERR',
+              latency: health.latencyMs,
+            })}
             {health.error ? ` · ${health.error}` : ''}
           </p>
         )}
@@ -423,6 +427,7 @@ export default function HemaRatingsAdminPage() {
                                   value: e.target.value,
                                 })
                               }
+                              // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus on the inline edit input when a row enters edit mode
                               autoFocus
                               className="w-20 rounded border border-border px-2 py-1 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-accent"
                             />
@@ -559,7 +564,7 @@ export default function HemaRatingsAdminPage() {
         >
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t('admin.adminMisc.close')}
             className="absolute inset-0 bg-slate-950/40"
             onClick={() => setHistoryOpen(false)}
           />

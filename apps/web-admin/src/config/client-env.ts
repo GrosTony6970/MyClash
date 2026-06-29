@@ -44,7 +44,6 @@ export function requireClientEnv(
 ): string {
   if (value && value.length > 0) return value;
   if (process.env.NODE_ENV === 'production') {
-    // eslint-disable-next-line no-console
     console.error(
       `[client-env] ${name} is required in production but was not set at build time. ` +
         `Check that apps/web-admin/Dockerfile declares ARG ${name} and the docker-compose build passes a value. ` +
