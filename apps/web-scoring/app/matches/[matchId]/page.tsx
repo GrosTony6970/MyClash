@@ -51,10 +51,12 @@ export default function MatchScoringPage({ params }: Props) {
     const url = new URL(window.location.href);
     const ext = url.searchParams.get('externalDisplay');
     const ret = url.searchParams.get('return');
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time sync of UI state from window.location on mount (SSR-safe). */
     setExternalDisplayUrl(ext);
     setReturnParam(ret);
     setBackHref(safeReturnHref(ret, window.location.origin));
     setRoutePrefix(scoringRoutePrefix(window.location.pathname));
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   // Build in-scoring match hrefs (prev/next tiles) that carry the

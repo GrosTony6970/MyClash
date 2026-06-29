@@ -147,6 +147,7 @@ export function ScoringCenterControls({
   const shownMs = displayClockMs(elapsedMs, matchFormat, phaseType, matchNumberLabel);
   const warned = shouldWarnClock(elapsedMs, matchFormat, phaseType, matchNumberLabel);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional manual memo the React Compiler cannot preserve.
   const totalMs = useMemo(() => {
     if (!clockState?.startedAt) return 0;
     return now - new Date(clockState.startedAt).getTime();
@@ -380,7 +381,7 @@ export function ScoringCenterControls({
               onClick={() => submit.submitDouble()}
               className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-amber-700 bg-amber-950 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-900 active:bg-amber-800 disabled:opacity-40"
             >
-              ⚔ Double
+              ⚔ {t('scoring.lice.eventRowDouble')}
             </button>
             <button
               type="button"

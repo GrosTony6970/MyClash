@@ -106,6 +106,7 @@ export function MatchView({
   // 'ended' so Reopen → end shows it again.
   const [resultDismissed, setResultDismissed] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the dismiss flag when the clock leaves 'ended'.
     if (clockState?.status !== 'ended') setResultDismissed(false);
   }, [clockState?.status]);
 
@@ -145,6 +146,7 @@ export function MatchView({
   }, [apiUrl, match.id, t]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchClockState() loads + syncs the clock on mount/refresh.
     void fetchClockState();
   }, [fetchClockState, refreshKey]);
 
@@ -462,7 +464,7 @@ export function MatchView({
           clockState={clockState}
           clockLoading={clockLoading}
           clockError={clockError}
-          onClockAction={onClockAction}
+          onClockAction={(action) => void onClockAction(action)}
           submit={submit}
           refreshKey={refreshKey}
           onExchangeVoided={handleExchangeVoided}
@@ -471,7 +473,7 @@ export function MatchView({
           redRoundWins={redRoundWins}
           blueRoundWins={blueRoundWins}
           roundBusy={roundBusy}
-          onEndRound={onEndRound}
+          onEndRound={() => void onEndRound()}
         />
 
         <ScoringColumn

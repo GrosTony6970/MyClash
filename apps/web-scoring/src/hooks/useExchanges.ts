@@ -76,6 +76,7 @@ export function useExchanges(
   }, [apiUrl, matchId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() kicks off the fetch (sets loading); intentional on mount/refresh.
     const cleanup = refresh();
     return cleanup;
   }, [refresh, refreshKey]);

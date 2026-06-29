@@ -139,6 +139,7 @@ export default function MatchClock({
         setLoading(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onMatchChanged is excluded intentionally to avoid re-creating this handler / re-subscribing the clock.
     [matchId, apiUrl, onStateChange, t],
   );
 
