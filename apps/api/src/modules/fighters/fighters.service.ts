@@ -264,28 +264,33 @@ export class FightersService {
   private async applyMainClubFallback(userId: string, row: Row, clubs: Row[]): Promise<Row[]> {
     if (clubs.some((c) => (c['role'] as string) === 'main')) return clubs;
 
-    let clubId = (row['club_id'] as string | null) ?? null;
-    if (!clubId) {
-      const { data } = await this.supabase.service
-        .from('persons')
-        .select('club_id, created_at')
-        .eq('claimed_by_user_id', userId)
-        .not('club_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
+    // Best-effort: a failure here must never break loading the profile.
+    try {
+      let clubId = (row['club_id'] as string | null) ?? null;
+      if (!clubId) {
+        const { data } = await this.supabase.service
+          .from('persons')
+          .select('club_id, created_at')
+          .eq('claimed_by_user_id', userId)
+          .not('club_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        clubId = (data as { club_id: string | null } | null)?.club_id ?? null;
+      }
+      if (!clubId) return clubs;
+
+      const { data: club } = await this.supabase.service
+        .from('clubs')
+        .select('id, slug, name, city, country_code')
+        .eq('id', clubId)
         .maybeSingle();
-      clubId = (data as { club_id: string | null } | null)?.club_id ?? null;
+      if (!club) return clubs;
+
+      return [{ role: 'main', sort_order: 0, clubs: club }, ...clubs];
+    } catch {
+      return clubs;
     }
-    if (!clubId) return clubs;
-
-    const { data: club } = await this.supabase.service
-      .from('clubs')
-      .select('id, slug, name, city, country_code')
-      .eq('id', clubId)
-      .maybeSingle();
-    if (!club) return clubs;
-
-    return [{ role: 'main', sort_order: 0, clubs: club }, ...clubs];
   }
 
   async updateMyProfile(userId: string, dto: UpdateMyFighterProfileDto) {
