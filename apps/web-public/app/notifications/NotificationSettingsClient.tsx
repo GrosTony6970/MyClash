@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Button } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { markBroadcastsSeen } from '../../src/components/me/useUnreadBroadcasts';
 
 type PermissionStateLabel = NotificationPermission | 'unsupported' | 'loading';
 
@@ -27,9 +29,9 @@ interface BroadcastNotification {
 }
 
 const severityClasses: Record<BroadcastSeverity, string> = {
-  info: 'border-green-500/40 bg-green-500/10 text-green-200',
-  warning: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-100',
-  alert: 'border-red-500/40 bg-red-500/10 text-red-100',
+  info: 'border-info/40 bg-info/10 text-info',
+  warning: 'border-warning/40 bg-warning/10 text-warning',
+  alert: 'border-danger/40 bg-danger/10 text-danger',
 };
 
 function base64UrlToArrayBuffer(value: string): ArrayBuffer {
@@ -92,6 +94,9 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
         if (response.status === 401) return;
         if (!response.ok) throw new Error('load failed');
         setBroadcasts((await response.json()) as BroadcastNotification[]);
+        // Opening the inbox marks everything delivered so far as read and
+        // clears the unread badge in the personal-shell nav.
+        markBroadcastsSeen();
       })
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === 'AbortError') return;
@@ -210,25 +215,31 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
 
   const content = (
     <section className="mx-auto flex w-full max-w-lg flex-col gap-6">
-      <header>
-        <p className="text-sm font-semibold uppercase tracking-wide text-red-300">
-          {t('publicApp.name')}
-        </p>
-        <h1 className="mt-2 text-3xl font-bold">{t('publicApp.notifications.title')}</h1>
-        <p className="mt-3 text-sm leading-6 text-zinc-400">
-          {t('publicApp.notifications.description')}
-        </p>
-      </header>
+      {!embedded && (
+        <header>
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent">
+            {t('publicApp.name')}
+          </p>
+          <h1 className="mt-2 font-display text-3xl font-bold text-foreground">
+            {t('publicApp.notifications.title')}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            {t('publicApp.notifications.description')}
+          </p>
+        </header>
+      )}
 
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <div className="rounded-lg border border-border bg-surface p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold">{t('publicApp.notifications.deviceStatus')}</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">{statusText}</p>
+            <h2 className="text-base font-semibold text-foreground">
+              {t('publicApp.notifications.deviceStatus')}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-muted">{statusText}</p>
           </div>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-              enabled ? 'bg-green-500/15 text-green-300' : 'bg-zinc-800 text-zinc-300'
+              enabled ? 'bg-success/15 text-success' : 'bg-foreground/10 text-muted'
             }`}
           >
             {enabled ? t('publicApp.notifications.enabled') : t('publicApp.notifications.off')}
@@ -236,21 +247,19 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
         </div>
 
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
+          <Button
+            variant="primary"
             disabled={!canEnable || busy}
+            loading={busy && !enabled}
             onClick={() => void enableNotifications()}
-            className="rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
           >
-            {busy && !enabled
-              ? t('publicApp.notifications.enabling')
-              : t('publicApp.notifications.enable')}
-          </button>
+            {t('publicApp.notifications.enable')}
+          </Button>
           <button
             type="button"
             disabled={!canDisable || busy}
             onClick={() => void disableNotifications()}
-            className="rounded-md border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-500"
+            className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy && enabled
               ? t('publicApp.notifications.disabling')
@@ -258,14 +267,16 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
           </button>
         </div>
 
-        {message && <p className="mt-4 text-sm text-zinc-300">{message}</p>}
+        {message && <p className="mt-4 text-sm text-muted">{message}</p>}
       </div>
 
-      <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-        <h2 className="text-base font-semibold">{t('publicApp.notifications.broadcastHistory')}</h2>
-        {broadcastError && <p className="mt-3 text-sm text-red-300">{broadcastError}</p>}
+      <section className="rounded-lg border border-border bg-surface p-4">
+        <h2 className="text-base font-semibold text-foreground">
+          {t('publicApp.notifications.broadcastHistory')}
+        </h2>
+        {broadcastError && <p className="mt-3 text-sm text-danger">{broadcastError}</p>}
         {!broadcastError && broadcasts.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-400">{t('publicApp.notifications.noBroadcasts')}</p>
+          <p className="mt-3 text-sm text-muted">{t('publicApp.notifications.noBroadcasts')}</p>
         ) : (
           <div className="mt-4 space-y-3">
             {broadcasts.map((broadcast) => (
@@ -297,5 +308,5 @@ export default function NotificationSettingsClient({ apiUrl, embedded = false }:
     return content;
   }
 
-  return <main className="min-h-screen bg-zinc-950 px-4 py-8 text-zinc-100">{content}</main>;
+  return <main className="min-h-screen bg-background px-4 py-8 text-foreground">{content}</main>;
 }

@@ -220,6 +220,7 @@ export const en = {
         profile: 'Profile',
         more: 'More',
         myEvents: 'My events',
+        unreadLabel: '{count} unread',
       },
       profile: {
         tabsLabel: 'Switch between fighter and referee profile',
@@ -5228,6 +5229,7 @@ export const fr = {
         profile: 'Profil',
         more: 'Plus',
         myEvents: 'Mes événements',
+        unreadLabel: '{count} non lus',
       },
       profile: {
         tabsLabel: 'Basculer entre le profil combattant et arbitre',

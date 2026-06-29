@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useI18n } from '../i18n/I18nProvider';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
+import { useUnreadBroadcasts } from './me/useUnreadBroadcasts';
 
 const navItems = [
   { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', badge: 'D' },
@@ -31,6 +32,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
     null,
   );
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const notificationsUnread = useUnreadBroadcasts(apiUrl);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -124,6 +126,14 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
                 {item.badge}
               </span>
               <span>{t(item.labelKey)}</span>
+              {item.href === '/me/notifications' && notificationsUnread > 0 && (
+                <span
+                  className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
+                  aria-label={t('publicApp.me.nav.unreadLabel', { count: notificationsUnread })}
+                >
+                  {notificationsUnread > 9 ? '9+' : notificationsUnread}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -278,7 +288,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
       <div id="main-content" className="min-h-screen pt-16 pb-20 lg:pb-0 lg:pl-72">
         {children}
       </div>
-      <BottomNav />
+      <BottomNav notificationsUnread={notificationsUnread} />
     </div>
   );
 }
