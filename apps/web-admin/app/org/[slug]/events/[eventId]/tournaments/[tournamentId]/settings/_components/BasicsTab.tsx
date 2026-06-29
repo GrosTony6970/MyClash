@@ -99,10 +99,10 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           maxWaitlist: data.maxWaitlist,
         }),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
       toast.success(t('organizer.tournaments.settings.saved'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setSaving(false);
     }

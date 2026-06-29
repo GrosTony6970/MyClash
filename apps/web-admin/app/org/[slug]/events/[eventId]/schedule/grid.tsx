@@ -4,6 +4,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import {
   ConfirmDialog,
   accentClassFor,
@@ -209,6 +210,7 @@ export function ScheduleGrid({
    *  nonces stay intact; the grid just places it. */
   configurePanel?: ReactNode;
 }) {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [lices, setLices] = useState<Lice[]>([]);
@@ -469,7 +471,7 @@ export function ScheduleGrid({
   async function addLice() {
     const name = newLiceName.trim();
     if (!name) {
-      setAddLiceError('Name required');
+      setAddLiceError(t('admin.common.nameRequired'));
       return;
     }
     setAddLiceBusy(true);
@@ -487,13 +489,13 @@ export function ScheduleGrid({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Failed to add lice');
+        throw new Error(body.message ?? t('admin.common.addLiceFailed'));
       }
       await refetchLices();
       setNewLiceName('');
       setShowAddLice(false);
     } catch (err) {
-      setAddLiceError(err instanceof Error ? err.message : 'Failed to add lice');
+      setAddLiceError(err instanceof Error ? err.message : t('admin.common.addLiceFailed'));
     } finally {
       setAddLiceBusy(false);
     }
@@ -580,10 +582,10 @@ export function ScheduleGrid({
       .catch((err: unknown) => {
         setLoading(false);
         if (err instanceof Error && err.name === 'AbortError') return;
-        setFetchError(err instanceof Error ? err.message : 'Schedule failed to load');
+        setFetchError(err instanceof Error ? err.message : t('admin.common.scheduleLoadFailed'));
       });
     return () => controller.abort();
-  }, [eventId, apiUrl]);
+  }, [eventId, apiUrl, t]);
 
   async function saveMatchPosition(matchId: string, liceId: string, scheduledAt: string) {
     setSaving(matchId);
@@ -1462,7 +1464,7 @@ export function ScheduleGrid({
           'bracket-branch',
         );
         if (ok) await refetchScheduleAndBlocks();
-        else setAutoDistributeError('Could not re-fan the bracket across those lices.');
+        else setAutoDistributeError(t('admin.common.couldNotRefanBracket'));
       })();
       return;
     }
@@ -1624,7 +1626,7 @@ export function ScheduleGrid({
       okAll =
         (await postScheduleGroup(r.matchIds, allLiceIds, dayStartSlot, 'bracket-branch')) && okAll;
     }
-    if (!okAll) setAutoDistributeError('Some selected groups could not be scheduled.');
+    if (!okAll) setAutoDistributeError(t('admin.common.someGroupsNotScheduled'));
     await refetchScheduleAndBlocks();
     setTickedKeys(new Set());
   }

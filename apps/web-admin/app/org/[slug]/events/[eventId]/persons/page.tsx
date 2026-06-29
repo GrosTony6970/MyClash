@@ -450,7 +450,7 @@ export default function ParticipantsPage() {
 
   async function handleAdd() {
     if (!addForm.givenName.trim() || !addForm.familyName.trim()) {
-      setAddError('Given name and family name are required');
+      setAddError(t('admin.common.givenAndFamilyNameRequired'));
       return;
     }
     setAddSaving(true);
@@ -473,7 +473,7 @@ export default function ParticipantsPage() {
       });
       if (!personRes.ok) {
         const body = (await personRes.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to create participant');
+        throw new Error(body.message ?? t('admin.common.createParticipantFailed'));
       }
       const person = (await personRes.json()) as {
         id: string;
@@ -563,7 +563,7 @@ export default function ParticipantsPage() {
       closeAddModal();
       refresh();
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Failed');
+      setAddError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setAddSaving(false);
     }
@@ -602,7 +602,7 @@ export default function ParticipantsPage() {
   async function handleEditSave() {
     if (!editPerson) return;
     if (!editForm.givenName.trim() || !editForm.familyName.trim()) {
-      setEditError('Given name and family name are required');
+      setEditError(t('admin.common.givenAndFamilyNameRequired'));
       return;
     }
     setEditSaving(true);
@@ -622,7 +622,7 @@ export default function ParticipantsPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Save failed');
+        throw new Error(body.message ?? t('admin.common.saveFailed'));
       }
 
       // Diff tournament selection vs the original set.
@@ -717,7 +717,7 @@ export default function ParticipantsPage() {
       setEditPerson(null);
       refresh();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Save failed');
+      setEditError(err instanceof Error ? err.message : t('admin.common.saveFailed'));
     } finally {
       setEditSaving(false);
     }

@@ -32,6 +32,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useI18n } from '../i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -98,6 +99,7 @@ export function OrganizerEventContextProvider({
   urlEventId: string | null;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
@@ -166,7 +168,7 @@ export function OrganizerEventContextProvider({
           ...(signal ? { signal } : {}),
         });
         if (!res.ok) {
-          setEventsError(`${res.status} ${res.statusText || 'request failed'}`);
+          setEventsError(`${res.status} ${res.statusText || t('admin.common.requestFailed')}`);
           return;
         }
         const data = (await res.json()) as OrgEventSummary[];
@@ -174,10 +176,10 @@ export function OrganizerEventContextProvider({
         setEventsError(null);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        setEventsError(err instanceof Error ? err.message : 'Failed to load events');
+        setEventsError(err instanceof Error ? err.message : t('admin.common.loadEventsFailed'));
       }
     },
-    [orgId],
+    [orgId, t],
   );
 
   useEffect(() => {

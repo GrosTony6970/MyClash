@@ -461,7 +461,7 @@ export default function AdminClubsPage() {
 
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? 'Save failed');
+        throw new Error(data.message ?? t('admin.common.saveFailed'));
       }
 
       let updated = (await res.json()) as ClubRow;
@@ -480,7 +480,7 @@ export default function AdminClubsPage() {
       updateEditLogoPreview(null);
       setEditingId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setError(err instanceof Error ? err.message : t('admin.common.saveFailed'));
     } finally {
       setSaving(false);
     }

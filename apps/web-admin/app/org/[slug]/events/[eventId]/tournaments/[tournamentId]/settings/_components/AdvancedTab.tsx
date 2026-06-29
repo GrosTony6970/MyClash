@@ -58,10 +58,10 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
       toast.success(t('organizer.tournaments.settings.saved'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setSaving(false);
     }

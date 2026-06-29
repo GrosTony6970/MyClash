@@ -54,7 +54,7 @@ export function HemaRatingsSuggest({
         .catch((err: unknown) => {
           if (err instanceof Error && err.name === 'AbortError') return;
           setSuggestions([]);
-          setError('Unable to load HEMA Ratings suggestions.');
+          setError(t('admin.common.hemaSuggestLoadFailed'));
         })
         .finally(() => setLoading(false));
     }, 250);

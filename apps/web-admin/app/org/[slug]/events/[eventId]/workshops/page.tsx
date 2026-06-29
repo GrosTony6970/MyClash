@@ -33,6 +33,7 @@ import {
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { Time24Input } from '@/components/Time24Input';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface NamedRef {
   id: string;
@@ -123,6 +124,7 @@ export default function WorkshopsAdminPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { confirm, confirmDialog } = useConfirm();
+  const { t } = useI18n();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -332,7 +334,7 @@ export default function WorkshopsAdminPage() {
 
   async function handleSubmit() {
     if (!form.title.trim() || !form.slug.trim()) {
-      setFormError('Title and slug are required');
+      setFormError(t('admin.common.titleAndSlugRequired'));
       return;
     }
     setFormSaving(true);
@@ -361,7 +363,7 @@ export default function WorkshopsAdminPage() {
         });
         if (!patchRes.ok) {
           const body = (await patchRes.json()) as { message?: string };
-          throw new Error(body.message ?? 'Save failed');
+          throw new Error(body.message ?? t('admin.common.saveFailed'));
         }
 
         // Reconcile instructors against the chosen set.
@@ -438,7 +440,7 @@ export default function WorkshopsAdminPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Create failed');
+        throw new Error(body.message ?? t('admin.common.createFailed'));
       }
       const created = (await res.json()) as { id: string };
 
@@ -468,7 +470,7 @@ export default function WorkshopsAdminPage() {
       closeModal();
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Save failed');
+      setFormError(err instanceof Error ? err.message : t('admin.common.saveFailed'));
     } finally {
       setFormSaving(false);
     }

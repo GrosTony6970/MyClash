@@ -10,6 +10,7 @@ import type {
   ProgrammeSuggestion,
 } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 import { blockTint } from './block-tint';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
@@ -106,6 +107,7 @@ export function ProgrammePlanner({
 }) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { confirm, confirmDialog } = useConfirm();
+  const { t } = useI18n();
 
   const [blocks, setBlocks] = useState<ProgrammeBlock[]>([]);
   const [warnings, setWarnings] = useState<BlockWarning[]>([]);
@@ -197,7 +199,7 @@ export function ProgrammePlanner({
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to generate suggestion');
+        throw new Error(body.message ?? t('admin.common.suggestionFailed'));
       }
       const suggestion = (await res.json()) as ProgrammeSuggestion;
       // Auto-save: every suggestion overwrites whatever was in
@@ -209,7 +211,7 @@ export function ProgrammePlanner({
       setWarnings(suggestion.warnings);
       setActiveDay(0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSuggesting(false);
     }
@@ -257,7 +259,7 @@ export function ProgrammePlanner({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ blocks: payloadBlocks }),
     });
-    if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save'));
+    if (!res.ok) throw new Error(await readErrorMessage(res, t('admin.common.saveFailed')));
     return (await res.json()) as ProgrammeBlock[];
   }
 
@@ -269,7 +271,7 @@ export function ProgrammePlanner({
       setBlocks(saved);
       onBlocksChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSaving(false);
     }
@@ -301,13 +303,14 @@ export function ProgrammePlanner({
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to reset'));
+      if (!res.ok)
+        throw new Error(await readErrorMessage(res, t('admin.common.resetScheduleFailed')));
       setBlocks([]);
       setWarnings([]);
       setGenerateResult(null);
       onBlocksChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setResetting(false);
     }
@@ -344,7 +347,7 @@ export function ProgrammePlanner({
             }
           : {}),
       });
-      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to generate'));
+      if (!res.ok) throw new Error(await readErrorMessage(res, t('admin.common.generationFailed')));
       const result = (await res.json()) as GenerateResult;
       // Generation packs the day sequentially, so it may have shifted
       // admin/break/competition block times to remove overlaps. Re-fetch the
@@ -371,7 +374,7 @@ export function ProgrammePlanner({
         onBlocksChanged?.();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setGenerating(false);
     }

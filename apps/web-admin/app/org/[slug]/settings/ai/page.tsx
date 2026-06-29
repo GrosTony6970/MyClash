@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 type AIProvider = 'anthropic' | 'openai' | 'mistral';
 
@@ -23,6 +24,7 @@ export default function OrgAISettingsPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [config, setConfig] = useState<AIConfig | null>(null);
@@ -59,11 +61,11 @@ export default function OrgAISettingsPage() {
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
-        setError('Failed to load AI settings');
+        setError(t('admin.common.loadAiSettingsFailed'));
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [slug, apiUrl]);
+  }, [slug, apiUrl, t]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -78,14 +80,14 @@ export default function OrgAISettingsPage() {
         body: JSON.stringify({ provider: selectedProvider, apiKey: apiKey.trim() }),
       });
       if (!res.ok) {
-        setSaveError('Failed to save API key');
+        setSaveError(t('admin.common.saveApiKeyFailed'));
         return;
       }
       const updated = (await res.json()) as AIConfig | null;
       setConfig(updated);
       setApiKey('');
     } catch {
-      setSaveError('Failed to save API key');
+      setSaveError(t('admin.common.saveApiKeyFailed'));
     } finally {
       setSaving(false);
     }
@@ -101,7 +103,7 @@ export default function OrgAISettingsPage() {
       });
       setConfig(null);
     } catch {
-      setRemoveError('Failed to remove key');
+      setRemoveError(t('admin.common.removeApiKeyFailed'));
     } finally {
       setRemoving(false);
     }

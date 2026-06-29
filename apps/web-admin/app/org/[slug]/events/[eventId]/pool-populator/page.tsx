@@ -100,14 +100,14 @@ export default function PoolPopulatorPage() {
 
       if (!res.ok) {
         const b = (await res.json()) as { message?: string; error?: string };
-        throw new Error(b.message ?? b.error ?? 'Generation failed');
+        throw new Error(b.message ?? b.error ?? t('admin.common.generationFailed'));
       }
 
       const data = (await res.json()) as Proposal;
       setProposal(data);
       setPools(data.pools);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      setError(err instanceof Error ? err.message : t('admin.common.generationFailed'));
     } finally {
       setGenerating(false);
     }
@@ -137,12 +137,12 @@ export default function PoolPopulatorPage() {
 
       if (!res.ok) {
         const b = (await res.json()) as { message?: string };
-        throw new Error(b.message ?? 'Save failed');
+        throw new Error(b.message ?? t('admin.common.saveFailed'));
       }
 
       setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setError(err instanceof Error ? err.message : t('admin.common.saveFailed'));
     } finally {
       setSaving(false);
     }

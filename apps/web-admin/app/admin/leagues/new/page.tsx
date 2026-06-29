@@ -154,11 +154,11 @@ export default function NewLeaguePage() {
       return;
     }
     if (!ALLOWED_LOGO_TYPES.has(file.type)) {
-      setError('Logo must be PNG, JPEG, or WebP.');
+      setError(t('admin.common.logoTypeInvalid'));
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
-      setError('Logo must be 10 MB or smaller.');
+      setError(t('admin.common.logoTooLarge'));
       return;
     }
     setLogoFile(file);
@@ -203,7 +203,7 @@ export default function NewLeaguePage() {
 
   async function handleSubmit() {
     if (!name.trim() || !slug.trim()) {
-      setError('Name and slug are required.');
+      setError(t('admin.common.nameAndSlugRequired'));
       return;
     }
     setSubmitting(true);
@@ -233,7 +233,7 @@ export default function NewLeaguePage() {
       });
       if (!createRes.ok) {
         const body = (await createRes.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Create failed');
+        throw new Error(body.message ?? t('admin.common.createFailed'));
       }
       const league = (await createRes.json()) as { id: string };
       const leagueId = league.id;
@@ -304,7 +304,7 @@ export default function NewLeaguePage() {
 
       router.push(`/admin/leagues/${leagueId}/edit?created=1`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Create failed');
+      setError(err instanceof Error ? err.message : t('admin.common.createFailed'));
     } finally {
       setSubmitting(false);
     }

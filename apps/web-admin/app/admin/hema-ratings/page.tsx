@@ -116,11 +116,13 @@ export default function HemaRatingsAdminPage() {
       setFighters(data);
       return data;
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load tracked fighters');
+      setLoadError(
+        err instanceof Error ? err.message : t('admin.common.loadTrackedFightersFailed'),
+      );
       setFighters([]);
       return [];
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; state set after await, not synchronously
@@ -231,7 +233,7 @@ export default function HemaRatingsAdminPage() {
       const body = (await res.json()) as HealthResult;
       setHealth(body);
     } catch {
-      setHealth({ ok: false, status: null, latencyMs: 0, error: 'Network error' });
+      setHealth({ ok: false, status: null, latencyMs: 0, error: t('admin.common.networkError') });
     } finally {
       setCheckingHealth(false);
     }

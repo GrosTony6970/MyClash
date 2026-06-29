@@ -68,7 +68,7 @@ export function Step2MatchFormat({
           scoringConfig: { afterblowMode: data.afterblowMode },
         }),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
       toast.success(t('organizer.tournaments.settings.saved'));
       window.history.replaceState(
         null,
@@ -77,7 +77,7 @@ export function Step2MatchFormat({
       );
       onNext();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSaving(false);
     }

@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 const MAX_HERO_BYTES = 10 * 1024 * 1024;
@@ -30,6 +31,7 @@ export default function BrandingEditorPage() {
   const searchParams = useSearchParams();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
@@ -95,11 +97,11 @@ export default function BrandingEditorPage() {
 
   async function handleLogoUpload(file: File) {
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      setError('Logo must be a PNG, JPEG, or WebP image.');
+      setError(t('admin.common.logoTypeInvalid'));
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
-      setError('Logo must be 10 MB or smaller.');
+      setError(t('admin.common.logoTooLarge'));
       return;
     }
     setError(null);
@@ -112,11 +114,11 @@ export default function BrandingEditorPage() {
         credentials: 'include',
         body: formData,
       });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) throw new Error(t('admin.common.uploadFailed'));
       const data = (await res.json()) as { url: string };
       setLogoUrl(data.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Logo upload failed');
+      setError(err instanceof Error ? err.message : t('admin.common.logoUploadFailed'));
     } finally {
       setUploadingLogo(false);
     }
@@ -124,11 +126,11 @@ export default function BrandingEditorPage() {
 
   async function handleHeroUpload(file: File) {
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      setError('Hero must be a PNG, JPEG, or WebP image.');
+      setError(t('admin.common.heroTypeInvalid'));
       return;
     }
     if (file.size > MAX_HERO_BYTES) {
-      setError('Hero must be 10 MB or smaller.');
+      setError(t('admin.common.heroTooLarge'));
       return;
     }
     setError(null);
@@ -141,11 +143,11 @@ export default function BrandingEditorPage() {
         credentials: 'include',
         body: formData,
       });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) throw new Error(t('admin.common.uploadFailed'));
       const data = (await res.json()) as { url: string };
       setHeroImageUrl(data.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Hero upload failed');
+      setError(err instanceof Error ? err.message : t('admin.common.heroUploadFailed'));
     } finally {
       setUploadingHero(false);
     }

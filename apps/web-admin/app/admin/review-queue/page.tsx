@@ -99,11 +99,11 @@ export default function ReviewQueuePage() {
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 401 || res.status === 403) {
-          setError('Access denied. Super admin required.');
+          setError(t('admin.common.accessDeniedSuperAdmin'));
           setLoading(false);
           return;
         }
-        if (!res.ok) throw new Error('Failed to load review queue');
+        if (!res.ok) throw new Error(t('admin.common.loadReviewQueueFailed'));
         const data = (await res.json()) as ReviewQueueItem[];
         if (!cancelled) {
           setItems(data);
@@ -113,7 +113,7 @@ export default function ReviewQueuePage() {
       })
       .catch((err: unknown) => {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
           setLoading(false);
         }
       });

@@ -138,7 +138,7 @@ export function DeleteParticipantModal({
           return {
             personId: p.id,
             report: null,
-            error: err instanceof Error ? err.message : 'Probe failed',
+            error: err instanceof Error ? err.message : t('admin.common.probeFailed'),
           };
         }
       }),
@@ -155,7 +155,7 @@ export function DeleteParticipantModal({
     return () => {
       cancelled = true;
     };
-  }, [apiUrl, eventId, persons, tournamentId]);
+  }, [apiUrl, eventId, persons, tournamentId, t]);
 
   const counts = useMemo(() => {
     const ready = rows.filter((r) => !r.loading && r.report);
@@ -179,7 +179,7 @@ export function DeleteParticipantModal({
     // already found a running/completed/forfeit match for them.
     const skipped: SkippedRow[] = counts.blockedRows.map((r) => ({
       name: r.displayName,
-      reason: 'Has an active or completed match',
+      reason: t('admin.common.hasActiveOrCompletedMatch'),
     }));
     for (const row of counts.cleanRows) {
       try {
@@ -207,7 +207,9 @@ export function DeleteParticipantModal({
         skipped.push({
           name: row.displayName,
           reason:
-            err instanceof Error && err.message ? err.message : 'Server rejected the deletion',
+            err instanceof Error && err.message
+              ? err.message
+              : t('admin.common.serverRejectedDeletion'),
         });
       }
     }
@@ -300,7 +302,7 @@ function PersonAssignmentCard({ row }: { row: Row }) {
   if (row.error || !row.report) {
     return (
       <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-        {row.displayName}: {row.error ?? 'No data.'}
+        {row.displayName}: {row.error ?? t('admin.common.noData')}
       </div>
     );
   }

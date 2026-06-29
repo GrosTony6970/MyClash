@@ -267,7 +267,7 @@ export default function PoolsPage() {
         } | null;
         const message = Array.isArray(body2?.message)
           ? body2!.message.join(', ')
-          : (body2?.message ?? `Pool generation failed (HTTP ${res.status}).`);
+          : (body2?.message ?? t('admin.common.poolGenerationFailedHttp', { status: res.status }));
         throw new Error(message);
       }
 
@@ -284,7 +284,7 @@ export default function PoolsPage() {
       // Pools just created — take the operator straight to the matches view.
       selectTab('matches');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Pool generation failed.';
+      const message = err instanceof Error ? err.message : t('admin.common.poolGenerationFailed');
       setError(message);
       toast.error(message);
     } finally {
@@ -305,13 +305,13 @@ export default function PoolsPage() {
       });
       if (!res.ok && res.status !== 204) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? 'Could not delete the pool.');
+        throw new Error(body?.message ?? t('admin.common.couldNotDeletePool'));
       }
       toast.success('Pool deleted.');
       setPendingDeletePoolId(null);
       if (selectedTournament) await loadPools(selectedTournament);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not delete the pool.';
+      const message = err instanceof Error ? err.message : t('admin.common.couldNotDeletePool');
       setError(message);
       toast.error(message);
     } finally {
@@ -330,14 +330,15 @@ export default function PoolsPage() {
       });
       if (!res.ok && res.status !== 204) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? 'Could not clear the pool layout.');
+        throw new Error(body?.message ?? t('admin.common.couldNotClearPoolLayout'));
       }
       toast.success('All pools deleted.');
       setPendingDeleteAll(false);
       setExistingPhase(false);
       await loadPools(selectedTournament);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not clear the pool layout.';
+      const message =
+        err instanceof Error ? err.message : t('admin.common.couldNotClearPoolLayout');
       setError(message);
       toast.error(message);
     } finally {
@@ -356,14 +357,14 @@ export default function PoolsPage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? 'Could not add an empty pool.');
+        throw new Error(body?.message ?? t('admin.common.couldNotAddEmptyPool'));
       }
       const created = (await res.json()) as { id: string; name: string; sortOrder: number };
       toast.success(`${created.name} added.`);
       setExistingPhase(true);
       await loadPools(selectedTournament);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not add an empty pool.';
+      const message = err instanceof Error ? err.message : t('admin.common.couldNotAddEmptyPool');
       setError(message);
       toast.error(message);
     } finally {
@@ -405,9 +406,7 @@ export default function PoolsPage() {
     }
     if (res.status === 409) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      setLockBanner(
-        body.message ?? 'Pool is locked because scoring has started in at least one match.',
-      );
+      setLockBanner(body.message ?? t('admin.common.poolLockedScoringStarted'));
       return false;
     }
     const body = (await res.json().catch(() => ({}))) as { message?: string };

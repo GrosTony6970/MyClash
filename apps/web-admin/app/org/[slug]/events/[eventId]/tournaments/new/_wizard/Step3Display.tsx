@@ -92,10 +92,10 @@ export function Step3Display({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ logoUrl: null }),
       });
-      if (!res.ok) throw new Error('Remove failed');
+      if (!res.ok) throw new Error(t('admin.common.removeFailed'));
       setLogoUrl(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error');
+      toast.error(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setUploadingLogo(false);
     }
@@ -117,7 +117,7 @@ export function Step3Display({
           },
         }),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
       toast.success(t('organizer.tournaments.settings.saved'));
       window.history.replaceState(
         null,
@@ -126,7 +126,7 @@ export function Step3Display({
       );
       onNext();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSaving(false);
     }

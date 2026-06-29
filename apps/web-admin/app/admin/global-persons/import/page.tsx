@@ -64,7 +64,7 @@ function defaultAction(status: RowStatus): RowAction {
 
 export default function GlobalPersonsImportPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
 
   const [file, setFile] = useState<File | null>(null);
@@ -96,14 +96,14 @@ export default function GlobalPersonsImportPage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Preview failed');
+        throw new Error(body.message ?? t('admin.common.previewFailed'));
       }
       const data = (await res.json()) as PreviewResponse;
       setPreview(data);
       setDecisions(data.rows.map((row) => ({ ...row, action: defaultAction(row.status) })));
       setStep('review');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Preview failed');
+      setError(err instanceof Error ? err.message : t('admin.common.previewFailed'));
     } finally {
       setBusy(false);
     }
@@ -140,12 +140,12 @@ export default function GlobalPersonsImportPage() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? 'Commit failed');
+        throw new Error(data.message ?? t('admin.common.commitFailed'));
       }
       setReport((await res.json()) as CommitReport);
       setStep('done');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Commit failed');
+      setError(err instanceof Error ? err.message : t('admin.common.commitFailed'));
     } finally {
       setBusy(false);
     }

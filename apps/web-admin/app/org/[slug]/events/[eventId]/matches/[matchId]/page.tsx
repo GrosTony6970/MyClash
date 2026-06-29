@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useConfirm, useToast } from '@myclash/ui';
+import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -137,6 +138,7 @@ export default function MatchDetailPage() {
   }>();
   const { slug, eventId, matchId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
 
@@ -203,7 +205,7 @@ export default function MatchDetailPage() {
 
   async function handleVoid() {
     if (!voidTarget || !voidReason.trim()) {
-      setVoidError('Reason is required');
+      setVoidError(t('admin.common.reasonRequired'));
       return;
     }
     setVoidSaving(true);
@@ -219,7 +221,7 @@ export default function MatchDetailPage() {
 
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Void failed');
+        throw new Error(body.message ?? t('admin.common.voidFailed'));
       }
 
       const body = (await res.json()) as PendingReviewResponse;
@@ -232,7 +234,7 @@ export default function MatchDetailPage() {
       setVoidReason('');
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setVoidError(err instanceof Error ? err.message : 'Void failed');
+      setVoidError(err instanceof Error ? err.message : t('admin.common.voidFailed'));
     } finally {
       setVoidSaving(false);
     }
@@ -264,7 +266,7 @@ export default function MatchDetailPage() {
       setRefreshKey((k) => k + 1);
     } else {
       const body = (await res.json()) as { message?: string };
-      toast.error(body.message ?? 'Revert failed');
+      toast.error(body.message ?? t('admin.common.revertFailed'));
     }
   }
 
@@ -281,7 +283,7 @@ export default function MatchDetailPage() {
       setRefreshKey((key) => key + 1);
     } else {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? 'Lock operation failed');
+      toast.error(body.message ?? t('admin.common.lockOperationFailed'));
     }
   }
 
@@ -306,7 +308,7 @@ export default function MatchDetailPage() {
       setRefreshKey((key) => key + 1);
     } else {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? 'Could not re-open the match.');
+      toast.error(body.message ?? t('admin.common.couldNotReopenMatch'));
     }
   }
 
@@ -316,7 +318,7 @@ export default function MatchDetailPage() {
     const blueId = match.blueRegistrationId ?? match.blue_registration_id;
     const forfeitingRegistrationId = forfeitSide === 'red' ? redId : blueId;
     if (!forfeitingRegistrationId) {
-      toast.error('Missing registration id for this side');
+      toast.error(t('admin.common.missingRegistrationId'));
       return;
     }
     setForfeitSaving(true);
@@ -335,7 +337,7 @@ export default function MatchDetailPage() {
     setForfeitSaving(false);
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? 'Forfeit failed');
+      toast.error(body.message ?? t('admin.common.forfeitFailed'));
       return;
     }
     setRefreshKey((key) => key + 1);

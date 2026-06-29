@@ -93,26 +93,27 @@ export default function SignupPage() {
 
   function validateStep1(): string | null {
     if (method === 'google') return null;
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Valid email required';
-    if (!displayName || displayName.trim().length < 2) return 'Display name required (min 2 chars)';
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return t('admin.common.validEmailRequired');
+    if (!displayName || displayName.trim().length < 2) return t('admin.common.displayNameRequired');
     if (method === 'password') {
-      if (password.length < 8) return 'Password must be at least 8 characters';
-      if (password !== passwordConfirm) return 'Passwords do not match';
+      if (password.length < 8) return t('admin.common.passwordMinLength');
+      if (password !== passwordConfirm) return t('admin.common.passwordsDoNotMatch');
     }
     return null;
   }
 
   async function handleGoogleSignup() {
     if (!orgName.trim()) {
-      setError('Organization name required');
+      setError(t('admin.common.orgNameRequired'));
       return;
     }
     if (!orgSlug || orgSlug.length < 3) {
-      setError('Slug must be at least 3 characters');
+      setError(t('admin.common.slugMinLength'));
       return;
     }
     if (slugStatus.available === false) {
-      setError('Please choose a different slug');
+      setError(t('admin.common.chooseDifferentSlug'));
       return;
     }
 
@@ -147,15 +148,15 @@ export default function SignupPage() {
   async function handleStep2(e: React.FormEvent) {
     e.preventDefault();
     if (!orgName.trim()) {
-      setError('Organization name required');
+      setError(t('admin.common.orgNameRequired'));
       return;
     }
     if (!orgSlug || orgSlug.length < 3) {
-      setError('Slug must be at least 3 characters');
+      setError(t('admin.common.slugMinLength'));
       return;
     }
     if (slugStatus.available === false) {
-      setError('Please choose a different slug');
+      setError(t('admin.common.chooseDifferentSlug'));
       return;
     }
     setError(null);
@@ -180,12 +181,12 @@ export default function SignupPage() {
 
       if (!res.ok) {
         const data = (await res.json()) as { message?: string };
-        throw new Error(data.message ?? 'Signup failed');
+        throw new Error(data.message ?? t('admin.common.signupFailed'));
       }
 
       setDone({ type: method, orgSlug });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setLoading(false);
     }

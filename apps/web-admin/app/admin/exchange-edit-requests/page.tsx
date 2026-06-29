@@ -61,11 +61,11 @@ export default function ExchangeEditRequestsPage() {
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 401 || res.status === 403) {
-          setError('Access denied. Super admin required.');
+          setError(t('admin.common.accessDeniedSuperAdmin'));
           setLoading(false);
           return;
         }
-        if (!res.ok) throw new Error('Failed to load exchange edit requests');
+        if (!res.ok) throw new Error(t('admin.common.loadExchangeEditRequestsFailed'));
         const data = (await res.json()) as ExchangeEditRequest[];
         if (!cancelled) {
           setItems(data);
@@ -75,7 +75,7 @@ export default function ExchangeEditRequestsPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
           setLoading(false);
         }
       });
@@ -84,7 +84,7 @@ export default function ExchangeEditRequestsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [endpoint, refreshKey]);
+  }, [endpoint, refreshKey, t]);
 
   async function approve(id: string) {
     setBusyId(id);
@@ -96,11 +96,11 @@ export default function ExchangeEditRequestsPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Approval failed');
+        throw new Error(body.message ?? t('admin.common.approvalFailed'));
       }
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approval failed');
+      setError(err instanceof Error ? err.message : t('admin.common.approvalFailed'));
     } finally {
       setBusyId(null);
     }
@@ -122,13 +122,13 @@ export default function ExchangeEditRequestsPage() {
       );
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Rejection failed');
+        throw new Error(body.message ?? t('admin.common.rejectionFailed'));
       }
       setRejectTarget(null);
       setRejectReason('');
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rejection failed');
+      setError(err instanceof Error ? err.message : t('admin.common.rejectionFailed'));
     } finally {
       setBusyId(null);
     }

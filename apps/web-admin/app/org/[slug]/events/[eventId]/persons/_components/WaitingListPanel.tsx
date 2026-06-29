@@ -83,11 +83,11 @@ export function WaitingListPanel({
           return;
         }
       }
-      if (!res.ok) throw new Error('Promote failed');
+      if (!res.ok) throw new Error(translate('admin.common.promoteFailed'));
       toast.success('Promoted from waitlist');
       onChange();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
     }
   }
 
@@ -98,11 +98,11 @@ export function WaitingListPanel({
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Remove failed');
+      if (!res.ok) throw new Error(translate('admin.common.removeFailed'));
       toast.success('Removed from waitlist');
       onChange();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
     }
   }
 
@@ -114,10 +114,10 @@ export function WaitingListPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedRegistrationIds }),
       });
-      if (!res.ok) throw new Error('Reorder failed');
+      if (!res.ok) throw new Error(translate('admin.common.reorderFailed'));
       onChange();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
     }
   }
 

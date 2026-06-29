@@ -244,7 +244,7 @@ export default function BracketPage() {
     const forfeitingRegistrationId =
       forfeitSide === 'red' ? slot?.redRegistrationId : slot?.blueRegistrationId;
     if (!forfeitingRegistrationId) {
-      setForfeitError('This side has no registration id yet.');
+      setForfeitError(t('admin.common.sideNoRegistrationYet'));
       return;
     }
     setForfeitBusy(true);
@@ -268,7 +268,7 @@ export default function BracketPage() {
       setPickerFilter('');
       refreshBracket();
     } catch (err) {
-      setForfeitError(err instanceof Error ? err.message : 'Forfeit failed');
+      setForfeitError(err instanceof Error ? err.message : t('admin.common.forfeitFailed'));
     } finally {
       setForfeitBusy(false);
     }
@@ -641,7 +641,7 @@ export default function BracketPage() {
 
       if (!res.ok) {
         const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? 'Generation failed');
+        throw new Error(errBody.message ?? t('admin.common.generationFailed'));
       }
 
       const result = (await res.json()) as BracketResult;
@@ -650,7 +650,7 @@ export default function BracketPage() {
       setExistingBracket(true);
       setEditGrandFinalReset(Boolean(result.grandFinalReset));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      setError(err instanceof Error ? err.message : t('admin.common.generationFailed'));
     } finally {
       setGenerating(false);
     }
@@ -686,7 +686,7 @@ export default function BracketPage() {
         const msg =
           res.status === 409
             ? (errBody?.message ?? t('organizer.bracket.autoPopulatePoolsNotFinished'))
-            : (errBody?.message ?? 'Populate failed');
+            : (errBody?.message ?? t('admin.common.populateFailed'));
         throw new Error(msg);
       }
       // The BE returns `source: 'pool-standings' | 'registration-seed'`.
@@ -703,7 +703,7 @@ export default function BracketPage() {
       setPopulateMessage(t(successKey));
       refreshBracket();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Populate failed');
+      setError(err instanceof Error ? err.message : t('admin.common.populateFailed'));
     } finally {
       setPopulating(false);
     }
@@ -720,7 +720,7 @@ export default function BracketPage() {
       });
       if (!res.ok && res.status !== 204) {
         const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(errBody?.message ?? 'Delete failed');
+        throw new Error(errBody?.message ?? t('admin.common.deleteFailed'));
       }
       // Drop client state and fall back to the empty state.
       setBracket(null);
@@ -728,7 +728,7 @@ export default function BracketPage() {
       setExistingBracket(false);
       setShowDeleteConfirm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
+      setError(err instanceof Error ? err.message : t('admin.common.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -784,7 +784,7 @@ export default function BracketPage() {
         });
         if (!res.ok) {
           const errBody = (await res.json()) as { message?: string };
-          throw new Error(errBody.message ?? 'Override failed');
+          throw new Error(errBody.message ?? t('admin.common.overrideFailed'));
         }
       }
 
@@ -802,7 +802,7 @@ export default function BracketPage() {
           });
           if (!res.ok) {
             const errBody = (await res.json()) as { message?: string };
-            throw new Error(errBody.message ?? 'Lice update failed');
+            throw new Error(errBody.message ?? t('admin.common.liceUpdateFailed'));
           }
         }
 
@@ -828,7 +828,7 @@ export default function BracketPage() {
           });
           if (!res.ok) {
             const errBody = (await res.json()) as { message?: string };
-            throw new Error(errBody.message ?? 'Referee update failed');
+            throw new Error(errBody.message ?? t('admin.common.refereeUpdateFailed'));
           }
         }
       }
@@ -837,7 +837,7 @@ export default function BracketPage() {
       setPickerFilter('');
       refreshBracket();
     } catch (err) {
-      setOverrideError(err instanceof Error ? err.message : 'Override failed');
+      setOverrideError(err instanceof Error ? err.message : t('admin.common.overrideFailed'));
     } finally {
       setOverriding(false);
     }
@@ -860,11 +860,11 @@ export default function BracketPage() {
       }
       if (!res.ok) {
         const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? 'Could not save configuration');
+        throw new Error(errBody.message ?? t('admin.common.couldNotSaveConfig'));
       }
       refreshBracket();
     } catch (err) {
-      setConfigError(err instanceof Error ? err.message : 'Could not save configuration');
+      setConfigError(err instanceof Error ? err.message : t('admin.common.couldNotSaveConfig'));
     } finally {
       setConfigSaving(false);
     }
@@ -888,18 +888,18 @@ export default function BracketPage() {
       }
       if (res.status === 501) {
         const errBody = (await res.json()) as { message?: string };
-        setReseedError(errBody.message ?? 'Strategy not implemented');
+        setReseedError(errBody.message ?? t('admin.common.strategyNotImplemented'));
         return;
       }
       if (!res.ok) {
         const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? 'Reseed failed');
+        throw new Error(errBody.message ?? t('admin.common.reseedFailed'));
       }
       setReseedMessage(t('organizer.phaseVisibility.reseedSuccess'));
       setReseedOpen(false);
       refreshBracket();
     } catch (err) {
-      setReseedError(err instanceof Error ? err.message : 'Reseed failed');
+      setReseedError(err instanceof Error ? err.message : t('admin.common.reseedFailed'));
     } finally {
       setReseedRunning(false);
     }

@@ -78,7 +78,7 @@ export default function AdminLeagueRankingPage() {
       .then(async (res) => {
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? 'Could not load standings');
+          throw new Error(body.message ?? t('admin.common.loadStandingsFailed'));
         }
         return (await res.json()) as StandingsPayload;
       })
@@ -88,11 +88,11 @@ export default function AdminLeagueRankingPage() {
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : 'Could not load standings');
+        setError(err instanceof Error ? err.message : t('admin.common.loadStandingsFailed'));
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [leagueId]);
+  }, [leagueId, t]);
 
   // Group rows by ranking_group_key so leagues with weapon_category
   // dimension render one sub-table per group.

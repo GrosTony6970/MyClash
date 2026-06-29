@@ -134,7 +134,9 @@ export default function AdminSystemVersionsPage() {
       if (!result.ok) {
         throw new Error(
           result.stderr?.trim() ||
-            (result.timedOut ? 'Timed out waiting for docker compose.' : 'Action failed.'),
+            (result.timedOut
+              ? t('admin.common.dockerComposeTimedOut')
+              : t('admin.common.componentActionFailed')),
         );
       }
       const successKey =
@@ -147,7 +149,7 @@ export default function AdminSystemVersionsPage() {
       setPending(null);
       loadVersions({ refresh: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : t('admin.common.unknownError');
       toast.error(t('admin.systemVersions.actions.failed', { message }));
     } finally {
       setBusyKey(null);

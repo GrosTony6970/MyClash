@@ -69,7 +69,7 @@ export default function AdminLeaguesPage() {
       credentials: 'include',
       signal,
     });
-    if (!res.ok) throw new Error('Could not load leagues');
+    if (!res.ok) throw new Error(t('admin.common.loadLeaguesFailed'));
     return (await res.json()) as League[];
   }, []);
 
@@ -82,7 +82,7 @@ export default function AdminLeaguesPage() {
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : 'Could not load leagues');
+        setError(err instanceof Error ? err.message : t('admin.common.loadLeaguesFailed'));
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -103,13 +103,13 @@ export default function AdminLeaguesPage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Delete failed');
+        throw new Error(body.message ?? t('admin.common.deleteFailed'));
       }
       setLeagues((prev) => prev.filter((l) => l.id !== league.id));
       toast.success(`Deleted "${league.name}"`);
       setPendingDelete(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Delete failed';
+      const msg = err instanceof Error ? err.message : t('admin.common.deleteFailed');
       setError(msg);
       toast.error(msg);
     } finally {

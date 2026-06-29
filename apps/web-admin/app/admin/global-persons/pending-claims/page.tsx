@@ -10,6 +10,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface GlobalPersonPreview {
   id: string;
@@ -30,6 +31,7 @@ interface PendingRequest {
 }
 
 export default function PendingClaimsPage() {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [rows, setRows] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,11 +50,11 @@ export default function PendingClaimsPage() {
       if (!res.ok) throw new Error('list');
       setRows((await res.json()) as PendingRequest[]);
     } catch {
-      setError('Could not load pending claim requests.');
+      setError(t('admin.common.loadPendingClaimsFailed'));
     } finally {
       setLoading(false);
     }
-  }, [apiUrl]);
+  }, [apiUrl, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; state set after await, not synchronously
@@ -69,11 +71,11 @@ export default function PendingClaimsPage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'approve failed');
+        throw new Error(body.message ?? t('admin.common.approvalFailed'));
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approve failed');
+      setError(err instanceof Error ? err.message : t('admin.common.approvalFailed'));
     } finally {
       setBusyId(null);
     }
@@ -81,7 +83,7 @@ export default function PendingClaimsPage() {
 
   async function reject(id: string) {
     if (!rejectReason.trim()) {
-      setError('Enter a rejection reason.');
+      setError(t('admin.common.enterRejectionReason'));
       return;
     }
     setBusyId(id);
@@ -95,13 +97,13 @@ export default function PendingClaimsPage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'reject failed');
+        throw new Error(body.message ?? t('admin.common.rejectionFailed'));
       }
       setRejectingId(null);
       setRejectReason('');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reject failed');
+      setError(err instanceof Error ? err.message : t('admin.common.rejectionFailed'));
     } finally {
       setBusyId(null);
     }

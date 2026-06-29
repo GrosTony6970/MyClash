@@ -10,6 +10,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 import type {
   CsvImportReport,
   ImportDecision,
@@ -195,7 +196,7 @@ export default function CsvImportPage() {
 
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Preview failed');
+        throw new Error(body.message ?? t('admin.common.previewFailed'));
       }
 
       const data = (await res.json()) as ImportPreviewResponse;
@@ -210,7 +211,7 @@ export default function CsvImportPage() {
 
       setStep('preview');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Preview failed');
+      setError(err instanceof Error ? err.message : t('admin.common.previewFailed'));
     } finally {
       setUploading(false);
     }
@@ -247,13 +248,13 @@ export default function CsvImportPage() {
 
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Import failed');
+        throw new Error(body.message ?? t('admin.common.importFailed'));
       }
 
       setReport((await res.json()) as CsvImportReport);
       setStep('done');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed');
+      setError(err instanceof Error ? err.message : t('admin.common.importFailed'));
     } finally {
       setUploading(false);
     }

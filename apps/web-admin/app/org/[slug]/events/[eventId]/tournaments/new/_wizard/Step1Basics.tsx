@@ -144,14 +144,14 @@ export function Step1Basics({
             maxWaitlist: parsedMaxWaitlist ?? undefined,
           }),
         });
-        if (!res.ok) throw new Error('Create failed');
+        if (!res.ok) throw new Error(t('admin.common.createFailed'));
         const created = await res.json();
         const newUrl = `${window.location.pathname}?id=${created.id}&step=2`;
         window.history.replaceState(null, '', newUrl);
         onCreated(created.id);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
+      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSubmitting(false);
     }
