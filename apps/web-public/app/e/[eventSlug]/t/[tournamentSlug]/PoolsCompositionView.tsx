@@ -59,6 +59,8 @@ interface Props {
    * the existing slate-900 title.
    */
   colorToken?: string | null;
+  /** Personal space: mark the viewer's own member row with a "YOU" chip. */
+  highlightRegistrationId?: string | null;
 }
 
 function refereeRoleLabel(role: string | null): string {
@@ -101,7 +103,12 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) {
+export function PoolsCompositionView({
+  pools,
+  accentColor,
+  colorToken,
+  highlightRegistrationId,
+}: Props) {
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
 
   if (pools.length === 0) {
@@ -170,33 +177,50 @@ export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) 
                     </p>
                   ) : (
                     <ul className="flex flex-col divide-y divide-stone-100">
-                      {pool.members.map((m) => (
-                        <li
-                          key={m.registrationId}
-                          className="flex items-center justify-between gap-3 py-1.5 text-sm"
-                        >
-                          <span className="flex items-center gap-3 min-w-0">
-                            <span
-                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
-                              aria-label={
-                                m.seed !== null
-                                  ? t('publicApp.tournament.pools.seedAria', { seed: m.seed })
-                                  : t('publicApp.tournament.pools.unseeded')
-                              }
-                            >
-                              {m.seed ?? '—'}
+                      {pool.members.map((m) => {
+                        const isYou =
+                          !!highlightRegistrationId && m.registrationId === highlightRegistrationId;
+                        return (
+                          <li
+                            key={m.registrationId}
+                            className={[
+                              'flex items-center justify-between gap-3 py-1.5 text-sm',
+                              isYou ? 'rounded bg-accent/5' : '',
+                            ].join(' ')}
+                          >
+                            <span className="flex items-center gap-3 min-w-0">
+                              <span
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
+                                aria-label={
+                                  m.seed !== null
+                                    ? t('publicApp.tournament.pools.seedAria', { seed: m.seed })
+                                    : t('publicApp.tournament.pools.unseeded')
+                                }
+                              >
+                                {m.seed ?? '—'}
+                              </span>
+                              <span
+                                className={[
+                                  'truncate font-medium',
+                                  isYou ? 'text-accent' : 'text-slate-900',
+                                ].join(' ')}
+                              >
+                                {m.fighterName}
+                              </span>
+                              {isYou && (
+                                <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+                                  {t('publicApp.me.hub.youChip')}
+                                </span>
+                              )}
                             </span>
-                            <span className="truncate font-medium text-slate-900">
-                              {m.fighterName}
-                            </span>
-                          </span>
-                          {(m.clubAbbreviation ?? m.clubName) && (
-                            <span className="truncate text-xs text-slate-500">
-                              {m.clubAbbreviation ?? m.clubName}
-                            </span>
-                          )}
-                        </li>
-                      ))}
+                            {(m.clubAbbreviation ?? m.clubName) && (
+                              <span className="truncate text-xs text-slate-500">
+                                {m.clubAbbreviation ?? m.clubName}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>

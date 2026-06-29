@@ -72,6 +72,17 @@ interface Props {
   bracketSize?: number | null;
   /** Optional tournament brand color token for the active toggle pill. */
   colorToken?: string | null;
+  /** Personal space: mark the viewer's own row with a "YOU" chip. */
+  highlightRegistrationId?: string | null;
+}
+
+/** Personal-space "YOU" chip marking the viewer's own row. */
+function YouChip({ label }: { label: string }) {
+  return (
+    <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+      {label}
+    </span>
+  );
 }
 
 function readHashMode(): Mode {
@@ -86,7 +97,13 @@ function subscribeHash(onStoreChange: () => void): () => void {
   return () => window.removeEventListener('hashchange', onStoreChange);
 }
 
-export function StandingsView({ tournamentId, pools, bracketSize, colorToken }: Props) {
+export function StandingsView({
+  tournamentId,
+  pools,
+  bracketSize,
+  colorToken,
+  highlightRegistrationId,
+}: Props) {
   // Mode is derived from the URL hash via useSyncExternalStore — the
   // SSR-safe, lint-clean way to read an external mutable source. The server
   // snapshot is always 'overall' (matches the SSR HTML); after hydration the
@@ -184,7 +201,11 @@ export function StandingsView({ tournamentId, pools, bracketSize, colorToken }: 
       </div>
 
       {mode === 'overall' ? (
-        <OverallTable data={overall} bracketSize={bracketSize ?? null} />
+        <OverallTable
+          data={overall}
+          bracketSize={bracketSize ?? null}
+          highlightRegistrationId={highlightRegistrationId}
+        />
       ) : (
         <div className="flex flex-col gap-6">
           {pools.map((pool) => (
@@ -194,6 +215,7 @@ export function StandingsView({ tournamentId, pools, bracketSize, colorToken }: 
               poolName={pool.name}
               initialStandings={pool.standings}
               tournamentId={tournamentId}
+              highlightRegistrationId={highlightRegistrationId}
             />
           ))}
         </div>
@@ -205,9 +227,11 @@ export function StandingsView({ tournamentId, pools, bracketSize, colorToken }: 
 function OverallTable({
   data,
   bracketSize,
+  highlightRegistrationId,
 }: {
   data: OverallResponse | null;
   bracketSize: number | null;
+  highlightRegistrationId?: string | null;
 }) {
   if (!data) {
     return (
@@ -259,18 +283,29 @@ function OverallTable({
           {data.rows.map((row, idx) => {
             const isCut =
               cutAfterIndex != null && idx === cutAfterIndex - 1 && idx < data.rows.length - 1;
+            const isYou =
+              !!highlightRegistrationId && row.registrationId === highlightRegistrationId;
             return (
               <tr
                 key={row.registrationId}
                 className={[
                   isCut ? 'border-b-2 border-foreground' : 'border-b border-border',
                   'last:border-0',
+                  isYou ? 'bg-accent/5' : '',
                   idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
                 ].join(' ')}
               >
                 <td className="px-3 py-2 text-center font-mono tabular-nums">{row.rank}</td>
                 <td className="px-3 py-2">
-                  <p className="font-medium leading-tight text-foreground">{row.displayName}</p>
+                  <p
+                    className={[
+                      'flex items-center gap-1 font-medium leading-tight',
+                      isYou ? 'font-bold text-accent' : 'text-foreground',
+                    ].join(' ')}
+                  >
+                    {row.displayName}
+                    {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
+                  </p>
                   {row.club && (
                     <p className="text-xs text-muted">{row.club.abbreviation ?? row.club.name}</p>
                   )}

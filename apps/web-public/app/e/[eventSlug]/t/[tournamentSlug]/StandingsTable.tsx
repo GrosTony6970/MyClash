@@ -20,6 +20,17 @@ interface Props {
   poolName: string;
   initialStandings: StandingRow[];
   tournamentId: string;
+  /** Personal space: mark the viewer's own row with a "YOU" chip. */
+  highlightRegistrationId?: string | null;
+}
+
+/** Personal-space "YOU" chip marking the viewer's own row. */
+function YouChip({ label }: { label: string }) {
+  return (
+    <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+      {label}
+    </span>
+  );
 }
 
 export function StandingsTable({
@@ -27,6 +38,7 @@ export function StandingsTable({
   poolName,
   initialStandings,
   tournamentId: _tournamentId,
+  highlightRegistrationId,
 }: Props) {
   const { t } = useI18n();
   const [standings, setStandings] = useState<StandingRow[]>(initialStandings);
@@ -117,27 +129,40 @@ export function StandingsTable({
             </tr>
           </thead>
           <tbody>
-            {standings.map((row, idx) => (
-              <tr
-                key={row.registrationId}
-                className={[
-                  'border-b border-border last:border-0',
-                  idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
-                ].join(' ')}
-              >
-                <td className="py-2 pr-3">
-                  <p className="font-medium leading-tight text-foreground">{row.fighterName}</p>
-                  {row.clubName && <p className="text-xs text-muted">{row.clubName}</p>}
-                </td>
-                <td className="px-2 py-2 text-center font-bold">{row.wins}</td>
-                <td className="px-2 py-2 text-center">{row.pointsFor}</td>
-                <td className="px-2 py-2 text-center">{row.pointsAgainst}</td>
-                <td className="px-2 py-2 text-center">{row.doubles}</td>
-                <td className="bg-accent/5 py-2 px-2 text-right font-mono font-bold text-foreground">
-                  {row.score.toFixed(2)}
-                </td>
-              </tr>
-            ))}
+            {standings.map((row, idx) => {
+              const isYou =
+                !!highlightRegistrationId && row.registrationId === highlightRegistrationId;
+              return (
+                <tr
+                  key={row.registrationId}
+                  className={[
+                    'border-b border-border last:border-0',
+                    isYou ? 'bg-accent/5' : '',
+                    idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
+                  ].join(' ')}
+                >
+                  <td className="py-2 pr-3">
+                    <p
+                      className={[
+                        'flex items-center gap-1 font-medium leading-tight',
+                        isYou ? 'font-bold text-accent' : 'text-foreground',
+                      ].join(' ')}
+                    >
+                      {row.fighterName}
+                      {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
+                    </p>
+                    {row.clubName && <p className="text-xs text-muted">{row.clubName}</p>}
+                  </td>
+                  <td className="px-2 py-2 text-center font-bold">{row.wins}</td>
+                  <td className="px-2 py-2 text-center">{row.pointsFor}</td>
+                  <td className="px-2 py-2 text-center">{row.pointsAgainst}</td>
+                  <td className="px-2 py-2 text-center">{row.doubles}</td>
+                  <td className="bg-accent/5 py-2 px-2 text-right font-mono font-bold text-foreground">
+                    {row.score.toFixed(2)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

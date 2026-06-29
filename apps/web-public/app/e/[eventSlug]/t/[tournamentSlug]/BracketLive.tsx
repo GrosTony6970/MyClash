@@ -43,6 +43,8 @@ interface Props {
    *  same gate the Podium tab uses so an in-progress bracket
    *  doesn't render "results pending" tiles above the cards. */
   podiumDecided?: boolean;
+  /** Personal space: mark the viewer's own slots with a "YOU" chip. */
+  highlightRegistrationId?: string | null;
 }
 
 interface TournamentDataLike {
@@ -70,6 +72,7 @@ export function BracketLive({
   weapon,
   podium,
   podiumDecided,
+  highlightRegistrationId,
 }: Props) {
   const { t } = useI18n();
   const router = useRouter();
@@ -173,6 +176,8 @@ export function BracketLive({
         }}
         bronzeMatch={bronze}
         onMatchClick={onMatchClick}
+        highlightRegistrationId={highlightRegistrationId}
+        youLabel={t('publicApp.me.hub.youChip')}
       />
       <p className="mt-4 text-xs text-slate-500">
         {t('publicApp.tournament.bracket.summarySize', { count: bracketSize })}

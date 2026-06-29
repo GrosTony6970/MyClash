@@ -34,6 +34,17 @@ interface Props {
   isTournamentCompleted: boolean;
   tournamentId: string;
   bracketSlots: BracketSlot[];
+  /** Personal space: mark the viewer's own row with a "YOU" chip. */
+  highlightRegistrationId?: string | null;
+}
+
+/** Personal-space "YOU" chip marking the viewer's own row. */
+function YouChip({ label }: { label: string }) {
+  return (
+    <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+      {label}
+    </span>
+  );
 }
 
 interface OverallStandingsRow {
@@ -43,7 +54,12 @@ interface OverallStandingsRow {
   stats: Record<string, number | string>;
 }
 
-export function FinalRankingTab({ isTournamentCompleted, tournamentId, bracketSlots }: Props) {
+export function FinalRankingTab({
+  isTournamentCompleted,
+  tournamentId,
+  bracketSlots,
+  highlightRegistrationId,
+}: Props) {
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
 
   // Pool scores for the tiebreak + the "Pools" tail. Resolve client-side:
@@ -131,10 +147,15 @@ export function FinalRankingTab({ isTournamentCompleted, tournamentId, bracketSl
         <tbody>
           {ranking.map((entry) => {
             const poolScoreText = entry.poolScore != null ? entry.poolScore.toFixed(2) : '—';
+            const isYou =
+              !!highlightRegistrationId && entry.registrationId === highlightRegistrationId;
             return (
               <tr
                 key={entry.registrationId}
-                className="border-b border-border last:border-0 hover:bg-background"
+                className={[
+                  'border-b border-border last:border-0 hover:bg-background',
+                  isYou ? 'bg-accent/5' : '',
+                ].join(' ')}
               >
                 <td className="px-4 py-2 text-center font-mono tabular-nums">
                   <span className="inline-flex items-center gap-1 font-semibold text-foreground">
@@ -143,7 +164,10 @@ export function FinalRankingTab({ isTournamentCompleted, tournamentId, bracketSl
                   </span>
                 </td>
                 <td className="px-4 py-2">
-                  <span className="font-medium text-foreground">{entry.fighterName}</span>
+                  <span className={isYou ? 'font-bold text-accent' : 'font-medium text-foreground'}>
+                    {entry.fighterName}
+                  </span>
+                  {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
                   {entry.clubAbbrev && (
                     <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
                       {entry.clubAbbrev}

@@ -22,6 +22,8 @@ export interface RefereeSlot {
   role: string;
   poolName: string | null;
   tournamentName: string | null;
+  skillName: string | null;
+  skillColor: string | null;
 }
 
 export interface WorkshopEnrollment {
@@ -55,6 +57,7 @@ export interface MyEventTournament {
   name: string;
   weapon: string | null;
   registered: boolean;
+  registrationId: string | null;
   poolName: string | null;
   seed: number | null;
   bibNumber: number | null;
@@ -64,6 +67,15 @@ export interface MyEventRefereeOf {
   tournamentName: string | null;
   poolName: string | null;
   role: string | null;
+  skillName: string | null;
+  skillColor: string | null;
+  liceName: string | null;
+  venueName: string | null;
+  /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
+  matchKind: string | null;
+  roundOfCount: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
 }
 
 export interface MyEvent {

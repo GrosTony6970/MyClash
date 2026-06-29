@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
 import type { BracketSlotData, ColorToken } from './types';
+import { BracketHighlightContext } from './highlight-context';
 
 export interface MatchCardProps {
   slot: BracketSlotData;
@@ -64,6 +65,11 @@ export function MatchCard({
   const pill = statusPill(slot.status);
   const redWins = isCompleted && winsThisRow('red', slot);
   const blueWins = isCompleted && winsThisRow('blue', slot);
+
+  const { highlightRegistrationId, youLabel } = React.useContext(BracketHighlightContext);
+  const redIsYou = !!highlightRegistrationId && slot.redRegistrationId === highlightRegistrationId;
+  const blueIsYou =
+    !!highlightRegistrationId && slot.blueRegistrationId === highlightRegistrationId;
 
   const handleClick = onClick
     ? () => onClick(slot.matchId, slot.id, slot.liceId ?? null)
@@ -130,6 +136,8 @@ export function MatchCard({
             club={slot.redClubAbbrev}
             score={slot.redScore}
             highlight={redWins}
+            isYou={redIsYou}
+            youLabel={youLabel}
             isCompleted={isCompleted}
             sideColor={redColor}
           />
@@ -138,6 +146,8 @@ export function MatchCard({
             club={slot.blueClubAbbrev}
             score={slot.blueScore}
             highlight={blueWins}
+            isYou={blueIsYou}
+            youLabel={youLabel}
             isCompleted={isCompleted}
             sideColor={blueColor}
           />
@@ -194,6 +204,8 @@ function FighterRow({
   club,
   score,
   highlight,
+  isYou = false,
+  youLabel,
   isCompleted,
   sideColor,
 }: {
@@ -201,6 +213,8 @@ function FighterRow({
   club: string | null | undefined;
   score: number | null;
   highlight: boolean;
+  isYou?: boolean;
+  youLabel?: string;
   isCompleted: boolean;
   sideColor: ColorToken;
 }) {
@@ -238,17 +252,24 @@ function FighterRow({
             title={name ?? undefined}
             className={[
               'min-w-0 flex-1 truncate text-xs',
-              isTbd
-                ? 'text-slate-400'
-                : highlight
-                  ? 'font-semibold text-slate-900'
-                  : isCompleted
-                    ? 'text-slate-500'
-                    : 'text-slate-700',
+              isYou
+                ? 'font-bold text-accent'
+                : isTbd
+                  ? 'text-slate-400'
+                  : highlight
+                    ? 'font-semibold text-slate-900'
+                    : isCompleted
+                      ? 'text-slate-500'
+                      : 'text-slate-700',
             ].join(' ')}
           >
             {name ?? '-'}
           </span>
+          {isYou && youLabel && (
+            <span className="shrink-0 rounded bg-accent px-1 py-px text-[8px] font-bold uppercase leading-none text-accent-foreground">
+              {youLabel}
+            </span>
+          )}
           {club && !isTbd && (
             <span
               title={club}

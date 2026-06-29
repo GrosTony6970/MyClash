@@ -30,7 +30,8 @@ export function EventHubChrome({
   const router = useRouter();
   const tag = locale === 'fr' ? 'fr-FR' : 'en-GB';
   const base = `/me/events/${event.slug}`;
-  const routeFor = (tab: HubTab) => (tab === 'schedule' ? base : `${base}/${tab}`);
+  // Overview is the default landing (index route); schedule + workshops are nested.
+  const routeFor = (tab: HubTab) => (tab === 'overview' ? base : `${base}/${tab}`);
 
   const dates = [fmtDate(event.startDate, tag), fmtDate(event.endDate, tag)]
     .filter(Boolean)
@@ -67,8 +68,8 @@ export function EventHubChrome({
           value={active}
           onChange={(tab) => router.push(routeFor(tab as HubTab))}
           tabs={[
-            { value: 'schedule', label: t('publicApp.me.hub.tabSchedule') },
             { value: 'overview', label: t('publicApp.me.hub.tabOverview') },
+            { value: 'schedule', label: t('publicApp.me.hub.tabSchedule') },
             { value: 'workshops', label: t('publicApp.me.hub.tabWorkshops') },
           ]}
         />

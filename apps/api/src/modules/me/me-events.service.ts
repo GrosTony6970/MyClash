@@ -18,10 +18,33 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { bracketRoundLabel } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 
 type Row = Record<string, unknown>;
+
+/** Normalised referee match-kind token + (for round_of) the fighter count. */
+function computeMatchKind(
+  phaseType: string | null,
+  bracketRound: number | null,
+  bracketSize: number | null,
+): { kind: string | null; roundOfCount: number | null } {
+  if (phaseType === 'pool') return { kind: 'pool', roundOfCount: null };
+  if (phaseType === 'swiss') return { kind: 'swiss', roundOfCount: null };
+  if (phaseType === 'single_elim' || phaseType === 'double_elim') {
+    if (bracketRound === 0) return { kind: 'play_in', roundOfCount: null };
+    if (bracketRound != null && bracketRound > 0) {
+      const code = bracketRoundLabel(bracketRound, bracketSize);
+      if (code === 'F') return { kind: 'final', roundOfCount: null };
+      if (code === 'SF') return { kind: 'semi_final', roundOfCount: null };
+      if (code === 'QF') return { kind: 'quarter_final', roundOfCount: null };
+      const m = /^R(\d+)$/.exec(code);
+      return { kind: 'round_of', roundOfCount: m ? Number(m[1]) : null };
+    }
+  }
+  return { kind: null, roundOfCount: null };
+}
 
 export interface MyEventInfo {
   id: string;
@@ -39,6 +62,7 @@ export interface MyEventTournament {
   name: string;
   weapon: string | null;
   registered: boolean;
+  registrationId: string | null;
   poolName: string | null;
   seed: number | null;
   bibNumber: number | null;
@@ -48,6 +72,16 @@ export interface MyEventRefereeOf {
   tournamentName: string | null;
   poolName: string | null;
   role: string | null;
+  skillName: string | null;
+  skillColor: string | null;
+  liceName: string | null;
+  venueName: string | null;
+  /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
+  matchKind: string | null;
+  /** fighter count for matchKind === 'round_of' (e.g. 16) */
+  roundOfCount: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
 }
 
 export interface MyEvent {
@@ -132,6 +166,14 @@ export class MeEventsService {
         tournamentName: a.tournamentName,
         poolName: a.poolName,
         role: a.role,
+        skillName: a.skillName,
+        skillColor: a.skillColor,
+        liceName: a.liceName,
+        venueName: a.venueName,
+        matchKind: a.matchKind,
+        roundOfCount: a.roundOfCount,
+        startsAt: a.startsAt,
+        endsAt: a.endsAt,
       });
     }
     for (const info of workshopEvents.values()) {
@@ -163,6 +205,7 @@ export class MeEventsService {
         name: t.name,
         weapon: t.weapon,
         registered: Boolean(reg),
+        registrationId: reg?.id ?? null,
         poolName: reg?.poolName ?? null,
         seed: reg?.seed ?? null,
         bibNumber: reg?.bibNumber ?? null,
@@ -281,6 +324,14 @@ export class MeEventsService {
       role: string | null;
       tournamentName: string | null;
       poolName: string | null;
+      skillName: string | null;
+      skillColor: string | null;
+      liceName: string | null;
+      venueName: string | null;
+      matchKind: string | null;
+      roundOfCount: number | null;
+      startsAt: string | null;
+      endsAt: string | null;
     }>
   > {
     if (!globalPersonId) return [];
@@ -288,33 +339,145 @@ export class MeEventsService {
       .from('referee_assignments')
       .select(
         `
-        role,
+        role, starts_at, ends_at, pool_id,
         events ( id, slug, name, start_date, end_date, status, timezone ),
-        pools ( name, phases ( tournaments ( name ) ) ),
-        matches ( pools ( name, phases ( tournaments ( name ) ) ), phases ( tournaments ( name ) ) )
+        pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
+        matches (
+          bracket_slot_id,
+          pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
+          phases ( type, config_json, tournaments ( name ) ),
+          lices ( name, venues ( name ) )
+        ),
+        lices ( name, venues ( name ) )
       `,
       )
       .eq('person_id', globalPersonId);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
-    return rows.map((r) => {
+
+    const assignments = rows.map((r) => {
       const pool = one(r['pools']);
       const match = one(r['matches']);
       const matchPool = match ? one(match['pools']) : null;
-      const tournamentName =
-        this.tournamentNameFrom(pool) ??
-        this.tournamentNameFrom(matchPool) ??
-        this.tournamentNameFrom(match);
-      const poolName =
-        (pool?.['name'] as string | undefined) ??
-        (matchPool?.['name'] as string | undefined) ??
-        null;
+      const lice = (match ? one(match['lices']) : null) ?? one(r['lices']);
+      const venue = lice ? one(lice['venues']) : null;
+      const phase = one(pool?.['phases']) ?? one(matchPool?.['phases']) ?? one(match?.['phases']);
+      const phaseType = (phase?.['type'] as string | undefined) ?? null;
+      const config = (phase?.['config_json'] as { bracketSize?: number } | null) ?? null;
       return {
         event: this.mapEvent(one(r['events'])),
         role: (r['role'] as string | null) ?? null,
-        tournamentName,
-        poolName,
+        tournamentName:
+          this.tournamentNameFrom(pool) ??
+          this.tournamentNameFrom(matchPool) ??
+          this.tournamentNameFrom(match),
+        poolName:
+          (pool?.['name'] as string | undefined) ??
+          (matchPool?.['name'] as string | undefined) ??
+          null,
+        skillName: null as string | null,
+        skillColor: null as string | null,
+        liceName: (lice?.['name'] as string | undefined) ?? null,
+        venueName: (venue?.['name'] as string | undefined) ?? null,
+        phaseType,
+        bracketSize: config?.bracketSize ?? null,
+        bracketSlotId: (match?.['bracket_slot_id'] as string | null) ?? null,
+        matchKind: null as string | null,
+        roundOfCount: null as number | null,
+        startsAt: (r['starts_at'] as string | null) ?? null,
+        endsAt: (r['ends_at'] as string | null) ?? null,
+        poolId: (r['pool_id'] as string | null) ?? null,
       };
     });
+
+    // Bracket round (match-scoped) — resolved without a matches→bracket_slots embed.
+    const slotIds = [
+      ...new Set(assignments.map((a) => a.bracketSlotId).filter((x): x is string => !!x)),
+    ];
+    const roundBySlot = new Map<string, number | null>();
+    if (slotIds.length > 0) {
+      const { data: slots } = await this.supabase.service
+        .from('bracket_slots')
+        .select('id, round')
+        .in('id', slotIds);
+      for (const s of Array.isArray(slots) ? (slots as Row[]) : []) {
+        roundBySlot.set(String(s['id']), (s['round'] as number | null) ?? null);
+      }
+    }
+    for (const a of assignments) {
+      const round = a.bracketSlotId ? (roundBySlot.get(a.bracketSlotId) ?? null) : null;
+      const { kind, roundOfCount } = computeMatchKind(a.phaseType, round, a.bracketSize);
+      a.matchKind = kind;
+      a.roundOfCount = roundOfCount;
+    }
+
+    // Pool-scoped assignments carry no direct lice — borrow a representative
+    // scheduled match's lice/venue from within the pool.
+    const poolsNeedingLice = [
+      ...new Set(assignments.filter((a) => !a.liceName && a.poolId).map((a) => a.poolId as string)),
+    ];
+    if (poolsNeedingLice.length > 0) {
+      const { data: pm } = await this.supabase.service
+        .from('matches')
+        .select('pool_id, lices ( name, venues ( name ) )')
+        .in('pool_id', poolsNeedingLice)
+        .not('lice_id', 'is', null);
+      const byPool = new Map<string, { liceName: string | null; venueName: string | null }>();
+      for (const m of Array.isArray(pm) ? (pm as Row[]) : []) {
+        const pid = String(m['pool_id']);
+        if (byPool.has(pid)) continue;
+        const lice = one(m['lices']);
+        const venue = lice ? one(lice['venues']) : null;
+        byPool.set(pid, {
+          liceName: (lice?.['name'] as string | undefined) ?? null,
+          venueName: (venue?.['name'] as string | undefined) ?? null,
+        });
+      }
+      for (const a of assignments) {
+        const v = a.poolId ? byPool.get(a.poolId) : undefined;
+        if (!a.liceName && v) {
+          a.liceName = v.liceName;
+          a.venueName = v.venueName;
+        }
+      }
+    }
+
+    // Skill name + colour from the role id (referee_skills).
+    const roleIds = [...new Set(assignments.map((a) => a.role).filter((x): x is string => !!x))];
+    if (roleIds.length > 0) {
+      const { data: skills } = await this.supabase.service
+        .from('referee_skills')
+        .select('id, name, color')
+        .in('id', roleIds);
+      const byId = new Map<string, { name: string; color: string }>();
+      for (const s of Array.isArray(skills) ? (skills as Row[]) : []) {
+        byId.set(String(s['id']), {
+          name: String(s['name'] ?? ''),
+          color: String(s['color'] ?? ''),
+        });
+      }
+      for (const a of assignments) {
+        const skill = a.role ? byId.get(a.role) : undefined;
+        if (skill) {
+          a.skillName = skill.name;
+          a.skillColor = skill.color;
+        }
+      }
+    }
+
+    return assignments.map((a) => ({
+      event: a.event,
+      role: a.role,
+      tournamentName: a.tournamentName,
+      poolName: a.poolName,
+      skillName: a.skillName,
+      skillColor: a.skillColor,
+      liceName: a.liceName,
+      venueName: a.venueName,
+      matchKind: a.matchKind,
+      roundOfCount: a.roundOfCount,
+      startsAt: a.startsAt,
+      endsAt: a.endsAt,
+    }));
   }
 
   private tournamentNameFrom(node: Row | null): string | null {

@@ -33,12 +33,23 @@ interface PoolMatch {
   scheduledAt: string | null;
   redFighterName: string | null;
   redClubAbbrev: string | null;
+  redRegistrationId: string | null;
   redScore: number | null;
   blueFighterName: string | null;
   blueClubAbbrev: string | null;
+  blueRegistrationId: string | null;
   blueScore: number | null;
   liceName: string | null;
   liceColorHex: string | null;
+}
+
+/** Personal-space "YOU" chip marking the viewer's own row. */
+function YouChip({ label }: { label: string }) {
+  return (
+    <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+      {label}
+    </span>
+  );
 }
 
 interface PoolWithMatches {
@@ -78,6 +89,8 @@ interface Props {
   tournamentSlug: string;
   /** Optional tournament brand color token for the section title. */
   colorToken?: string | null;
+  /** Personal space: mark the viewer's own row with a "YOU" chip. */
+  highlightRegistrationId?: string | null;
 }
 
 /** Pool id deep-linked from the Pool List tab (`#poolmatches/<poolId>`). */
@@ -86,7 +99,12 @@ function parseFocusPoolId(hash: string): string | null {
   return base === 'poolmatches' && sub ? sub : null;
 }
 
-export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props) {
+export function PoolMatchesView({
+  eventSlug,
+  tournamentSlug,
+  colorToken,
+  highlightRegistrationId,
+}: Props) {
   const { t } = useI18n();
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
@@ -324,6 +342,10 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                     const openMatch = () =>
                       router.push(`/e/${eventSlug}/match/${m.matchId}?return=${returnTo}`);
                     const winner = poolMatchWinner(m);
+                    const redIsYou =
+                      !!highlightRegistrationId && m.redRegistrationId === highlightRegistrationId;
+                    const blueIsYou =
+                      !!highlightRegistrationId && m.blueRegistrationId === highlightRegistrationId;
                     return (
                       <tr
                         key={m.matchId}
@@ -350,13 +372,16 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                             />
                             <span
                               className={
-                                winner === 'red'
-                                  ? 'font-bold text-slate-900'
-                                  : 'font-medium text-slate-900'
+                                redIsYou
+                                  ? 'font-bold text-accent'
+                                  : winner === 'red'
+                                    ? 'font-bold text-slate-900'
+                                    : 'font-medium text-slate-900'
                               }
                             >
                               {m.redFighterName ?? '—'}
                             </span>
+                            {redIsYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
                             {m.redClubAbbrev && (
                               <span className="max-w-[10rem] truncate rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
                                 {m.redClubAbbrev}
@@ -387,13 +412,16 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                             />
                             <span
                               className={
-                                winner === 'blue'
-                                  ? 'font-bold text-slate-900'
-                                  : 'font-medium text-slate-900'
+                                blueIsYou
+                                  ? 'font-bold text-accent'
+                                  : winner === 'blue'
+                                    ? 'font-bold text-slate-900'
+                                    : 'font-medium text-slate-900'
                               }
                             >
                               {m.blueFighterName ?? '—'}
                             </span>
+                            {blueIsYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
                             {m.blueClubAbbrev && (
                               <span className="max-w-[10rem] truncate rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
                                 {m.blueClubAbbrev}

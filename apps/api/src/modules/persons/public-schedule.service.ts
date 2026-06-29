@@ -39,6 +39,8 @@ export interface RefereeSlot {
   role: string;
   poolName: string | null;
   tournamentName: string | null;
+  skillName: string | null;
+  skillColor: string | null;
 }
 
 export interface WorkshopEnrollment {
@@ -210,7 +212,7 @@ export class PublicScheduleService {
 
     if (!data) return [];
 
-    return (data as Array<Record<string, unknown>>).flatMap((a) => {
+    const slots: RefereeSlot[] = (data as Array<Record<string, unknown>>).flatMap((a) => {
       const match = a['matches'] as Record<string, unknown> | null;
       const pool = match?.['pools'] as { name: string } | null;
       const phase = match?.['phases'] as {
@@ -226,8 +228,34 @@ export class PublicScheduleService {
         role: a['role'] as string,
         poolName: pool?.name ?? null,
         tournamentName: phase?.tournaments?.name ?? null,
+        skillName: null,
+        skillColor: null,
       };
     });
+
+    // Enrich with the referee skill name + colour (role holds referee_skills.id).
+    const roleIds = [...new Set(slots.map((s) => s.role).filter((x): x is string => !!x))];
+    if (roleIds.length > 0) {
+      const { data: skills } = await this.supabase.service
+        .from('referee_skills')
+        .select('id, name, color')
+        .in('id', roleIds);
+      const byId = new Map<string, { name: string; color: string }>();
+      for (const s of Array.isArray(skills) ? (skills as Array<Record<string, unknown>>) : []) {
+        byId.set(String(s['id']), {
+          name: String(s['name'] ?? ''),
+          color: String(s['color'] ?? ''),
+        });
+      }
+      for (const slot of slots) {
+        const sk = byId.get(slot.role);
+        if (sk) {
+          slot.skillName = sk.name;
+          slot.skillColor = sk.color;
+        }
+      }
+    }
+    return slots;
   }
 
   private async fetchWorkshops(_eventId: string, personId: string): Promise<WorkshopEnrollment[]> {

@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-type StatusTone = 'done' | 'live' | 'pending';
+type StatusTone = 'done' | 'live' | 'pending' | 'lost' | 'draw';
 
 export interface CommitmentCardProps {
-  kind: 'fight' | 'referee';
+  kind: 'fight' | 'referee' | 'workshop';
   /** Already-formatted time (event-local) or the "TBD" label. */
   timeLabel: string;
   place?: string | null;
@@ -22,13 +22,21 @@ export interface CommitmentCardProps {
   href?: string;
 }
 
-const stripeFor = (kind: 'fight' | 'referee', side?: 'red' | 'blue') =>
-  kind === 'referee' ? 'bg-amber-500' : side === 'blue' ? 'bg-blue-700' : 'bg-red-700';
+const stripeFor = (kind: 'fight' | 'referee' | 'workshop', side?: 'red' | 'blue') =>
+  kind === 'referee'
+    ? 'bg-amber-500'
+    : kind === 'workshop'
+      ? 'bg-violet-600'
+      : side === 'blue'
+        ? 'bg-blue-700'
+        : 'bg-red-700';
 
 const toneClasses: Record<StatusTone, string> = {
   done: 'bg-success/15 text-success',
   live: 'bg-danger/15 text-danger',
   pending: 'bg-foreground/10 text-muted',
+  lost: 'bg-foreground/10 text-muted',
+  draw: 'bg-warning/15 text-warning',
 };
 
 function PinIcon() {

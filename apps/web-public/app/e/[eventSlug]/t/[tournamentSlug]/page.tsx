@@ -14,15 +14,20 @@
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
-import { MedalPodium, type PodiumData } from '@myclash/ui';
+import { MedalPodium } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { StandingsView } from './StandingsView';
 import { PoolMatchesView } from './PoolMatchesView';
 import { BracketLive } from './BracketLive';
 import { TournamentTabs, type TabKey } from './TournamentTabs';
-import { PoolsCompositionView, type PoolMember, type PoolReferee } from './PoolsCompositionView';
+import { PoolsCompositionView } from './PoolsCompositionView';
 import { ParticipantsTab, type ParticipantsTabEntry } from './ParticipantsTab';
 import { FinalRankingTab } from './FinalRankingTab';
+import { derivePodium, colorTokenToHex, type TournamentData } from './tournament-data';
+
+// Re-exported so the sibling tab components keep importing these types from
+// `./page` while the definitions live in the shared `./tournament-data`.
+export type { StandingRow, Pool, BracketSlot } from './tournament-data';
 
 interface Props {
   params: Promise<{ eventSlug: string; tournamentSlug: string }>;
@@ -42,80 +47,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${data.tournament.name} · MyClash`,
     description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetCode}`,
   };
-}
-
-// ── API types ─────────────────────────────────────────────────────────────────
-
-export interface StandingRow {
-  registrationId: string;
-  fighterName: string;
-  clubName: string | null;
-  wins: number;
-  losses: number;
-  draws: number;
-  pointsFor: number;
-  pointsAgainst: number;
-  doubles: number;
-  score: number;
-  seed: number;
-}
-
-export interface Pool {
-  id: string;
-  name: string;
-  members: PoolMember[];
-  referees: PoolReferee[];
-  standings: StandingRow[];
-  /** Pool's lice (piste) + start time, derived server-side from its matches —
-   *  drives the Pool List's start-time sections + per-card piste badge. */
-  liceName?: string | null;
-  liceColorHex?: string | null;
-  startAt?: string | null;
-}
-
-export interface BracketSlot {
-  id: string;
-  round: number;
-  position: number;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redClubAbbrev?: string | null;
-  blueClubAbbrev?: string | null;
-  redScore: number | null;
-  blueScore: number | null;
-  status: string;
-  matchId: string | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
-}
-
-interface Tournament {
-  id: string;
-  name: string;
-  weapon: string | null;
-  rulesetCode: string;
-  status: string;
-  /**
-   * Optional brand color token (e.g. 'red', 'blue', 'amber'). The
-   * page resolves it via colorTokenToHex for the legacy stripe/title
-   * paint AND threads the raw token through TournamentTabs +
-   * PoolsCompositionView so @myclash/ui's color-token helpers can
-   * paint the accent borders + section titles.
-   */
-  color?: string | null;
-}
-
-interface TournamentData {
-  tournament: Tournament;
-  pools: Pool[];
-  bracketSlots: BracketSlot[];
-  bracketSize: number;
-  mainBracketSize?: number;
-  byeCount?: number;
-  byeSeedCount?: number;
-  playInMatchCount?: number;
-  hasPlayInRound?: boolean;
-  bracketRounds: number;
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -158,76 +89,6 @@ async function fetchTournamentData(
       status: 0,
       message: err instanceof Error ? err.message : null,
     };
-  }
-}
-
-// ── Podium derivation ─────────────────────────────────────────────────────────
-
-/** Compute the gold/silver/bronze/4th from bracketSlots. By convention
- *  position 1 at maxRound is the final; position 2 (when present) is the
- *  bronze match. Returns undefined when no bracket data is available. */
-function derivePodium(bracketSlots: BracketSlot[]): PodiumData | undefined {
-  if (bracketSlots.length === 0) return undefined;
-  const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
-  const final = bracketSlots.find((s) => s.round === maxRound && s.position === 1) ?? null;
-  const bronze = bracketSlots.find((s) => s.round === maxRound && s.position === 2) ?? null;
-  if (!final && !bronze) return undefined;
-  const winnerName = (s: BracketSlot | null) => {
-    if (!s || s.status !== 'completed') return null;
-    const rs = s.redScore ?? 0;
-    const bs = s.blueScore ?? 0;
-    if (rs === bs) return null;
-    const name = rs > bs ? s.redFighterName : s.blueFighterName;
-    return name ? { fighterName: name } : null;
-  };
-  const loserName = (s: BracketSlot | null) => {
-    if (!s || s.status !== 'completed') return null;
-    const rs = s.redScore ?? 0;
-    const bs = s.blueScore ?? 0;
-    if (rs === bs) return null;
-    const name = rs > bs ? s.blueFighterName : s.redFighterName;
-    return name ? { fighterName: name } : null;
-  };
-  return {
-    gold: winnerName(final),
-    silver: loserName(final),
-    bronze: winnerName(bronze),
-    fourth: loserName(bronze),
-  };
-}
-
-// ── Tournament colour stripe ─────────────────────────────────────────────────
-
-function colorTokenToHex(token: string | null | undefined): string {
-  switch (token) {
-    case 'red':
-      return '#ef4444';
-    case 'orange':
-      return '#f97316';
-    case 'amber':
-      return '#f59e0b';
-    case 'yellow':
-      return '#eab308';
-    case 'green':
-      return '#22c55e';
-    case 'teal':
-      return '#14b8a6';
-    case 'blue':
-      return '#3b82f6';
-    case 'violet':
-      return '#8b5cf6';
-    case 'purple':
-      return '#a855f7';
-    case 'pink':
-      return '#ec4899';
-    case 'gold':
-      return '#facc15';
-    case 'silver':
-      return '#cbd5e1';
-    case 'bronze':
-      return '#d97706';
-    default:
-      return '#64748b';
   }
 }
 

@@ -80,7 +80,7 @@ export function DashboardToday() {
                 }
                 meta={[i.eventName, i.tournamentName].filter(Boolean).join(' · ') || null}
                 side={i.isRed === false ? 'blue' : 'red'}
-                href={`/me/events/${i.eventSlug}`}
+                href={`/me/events/${i.eventSlug}/schedule`}
                 refLabel={t('publicApp.me.events.roleReferee')}
               />
             ))}

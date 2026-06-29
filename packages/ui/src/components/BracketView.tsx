@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { formatRoundCode } from '@myclash/types';
 import { MatchCard } from './bracket/MatchCard';
+import { BracketHighlightContext } from './bracket/highlight-context';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
 import { computeBracketEdges } from './bracket/compute-bracket-edges';
 import { computeSlotPositions } from './bracket/compute-slot-positions';
@@ -41,6 +42,10 @@ export interface BracketViewProps {
    * compute the position label (R32 / QF / SF / F).
    */
   bracketSize?: number | null;
+  /** Personal space: mark the viewer's own slots (matched by registration id). */
+  highlightRegistrationId?: string | null;
+  /** i18n'd "YOU" chip label (lib is i18n-free). */
+  youLabel?: string;
 }
 
 const ROUND_GAP_CLASS = 'gap-16';
@@ -64,6 +69,8 @@ export function BracketView({
   roundLabels,
   weapon = null,
   bracketSize = null,
+  highlightRegistrationId,
+  youLabel,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
 
@@ -87,22 +94,18 @@ export function BracketView({
     [weapon, bracketSize],
   );
 
-  if (isDoubleElim) {
-    return (
-      <DoubleElimLayout
-        slots={slots}
-        wbRounds={bracketConfig?.wbRounds ?? 0}
-        lbRounds={bracketConfig?.lbRounds ?? 0}
-        onMatchClick={onMatchClick}
-        onOverrideSlot={onOverrideSlot}
-        redColor={redColor}
-        blueColor={blueColor}
-        roundCodeFor={roundCodeFor}
-      />
-    );
-  }
-
-  return (
+  const layout = isDoubleElim ? (
+    <DoubleElimLayout
+      slots={slots}
+      wbRounds={bracketConfig?.wbRounds ?? 0}
+      lbRounds={bracketConfig?.lbRounds ?? 0}
+      onMatchClick={onMatchClick}
+      onOverrideSlot={onOverrideSlot}
+      redColor={redColor}
+      blueColor={blueColor}
+      roundCodeFor={roundCodeFor}
+    />
+  ) : (
     <SingleElimLayout
       slots={slots}
       rounds={rounds}
@@ -115,6 +118,14 @@ export function BracketView({
       roundLabels={roundLabels}
       roundCodeFor={roundCodeFor}
     />
+  );
+
+  // Provide the viewer's highlight to every MatchCard via context (empty by
+  // default → public + admin brackets unchanged).
+  return (
+    <BracketHighlightContext.Provider value={{ highlightRegistrationId, youLabel }}>
+      {layout}
+    </BracketHighlightContext.Provider>
   );
 }
 
