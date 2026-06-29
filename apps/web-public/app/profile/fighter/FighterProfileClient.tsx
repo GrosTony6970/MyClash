@@ -10,8 +10,11 @@ interface ClubLink {
   clubs?: { id?: string | null; name?: string | null } | null;
 }
 
+type WeaponLevel = 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced';
+
 interface WeaponLink {
   favorite?: boolean;
+  level?: string | null;
   weapon_catalog?: { id?: string; name?: string | null } | null;
 }
 
@@ -33,18 +36,37 @@ interface FighterProfile {
   weapons?: WeaponLink[];
 }
 
+/** Per-scope combat stats (overall or one weapon), as returned by
+ *  buildFighterCareer().finalizeStats — see apps/api fighter-career.ts. */
+interface WeaponStat {
+  weapon?: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  winLossRatio: number | null;
+  doubleHits: number;
+  exchanges: number;
+  doubleHitPercentage: number;
+}
+
 interface DashboardResponse {
   profile: FighterProfile;
   career: {
+    eventParticipation: Array<{ startDate?: string | null }>;
+    tournamentPlacements: unknown[];
+    upcoming: unknown[];
+    leagueRankings: Array<{ leagueName: string; rank: number; totalPoints: number }>;
     stats: {
-      overall: {
-        wins: number;
-        losses: number;
-        doubleHitPercentage: number;
-        matches: number;
-      };
+      overall: WeaponStat;
+      byWeapon: Array<WeaponStat & { weapon: string }>;
     };
   };
+  // Per-weapon HEMA Ratings, surfaced by getMyDashboard when a hema_ratings_id
+  // is linked. `ratings[].weapon` may not exactly match the tournament-derived
+  // byWeapon keys — matched case-insensitively at render, hidden on no match.
+  hemaRatings?: {
+    ratings: Array<{ weapon: string; rank: number | null; weightedRating: number }>;
+  } | null;
   refereeStats?: RefereeStats;
 }
 
@@ -88,7 +110,7 @@ interface FormState {
   mainClub: ClubValue | null;
   secondaryClubs: ClubValue[];
   previousClubs: ClubValue[];
-  selectedWeapons: Record<string, { name: string; favorite: boolean }>;
+  selectedWeapons: Record<string, { name: string; favorite: boolean; level: WeaponLevel | null }>;
 }
 
 const emptyForm: FormState = {
@@ -125,7 +147,11 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
     const id = weapon.weapon_catalog?.id;
     const name = weapon.weapon_catalog?.name;
     if (!id || !name) continue;
-    selectedWeapons[id] = { name, favorite: Boolean(weapon.favorite) };
+    selectedWeapons[id] = {
+      name,
+      favorite: Boolean(weapon.favorite),
+      level: (weapon.level as WeaponLevel | null) ?? null,
+    };
   }
 
   const mainClubs = clubValuesByRole(profile.clubs, 'main');
@@ -142,14 +168,6 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
     previousClubs: clubValuesByRole(profile.clubs, 'previous'),
     selectedWeapons,
   };
-}
-
-function formatDuration(
-  ms: number,
-  t: (key: string, values?: Record<string, string | number>) => string,
-) {
-  if (ms <= 0) return t('common.none');
-  return t('publicApp.fighterProfile.minutes', { count: Math.round(ms / 60000) });
 }
 
 export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
@@ -280,6 +298,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         weaponId,
         weaponName: weapon.name,
         favorite: weapon.favorite,
+        level: weapon.level,
       })),
     [form.selectedWeapons],
   );
@@ -292,22 +311,37 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     setForm((current) => {
       const selectedWeapons = { ...current.selectedWeapons };
       if (selectedWeapons[weapon.id]) delete selectedWeapons[weapon.id];
-      else selectedWeapons[weapon.id] = { name: weapon.name, favorite: false };
+      else selectedWeapons[weapon.id] = { name: weapon.name, favorite: false, level: null };
       return { ...current, selectedWeapons };
     });
   };
 
   const toggleFavorite = (weapon: WeaponCatalogEntry) => {
-    setForm((current) => ({
-      ...current,
-      selectedWeapons: {
-        ...current.selectedWeapons,
-        [weapon.id]: {
-          name: weapon.name,
-          favorite: !current.selectedWeapons[weapon.id]?.favorite,
+    setForm((current) => {
+      const existing = current.selectedWeapons[weapon.id];
+      if (!existing) return current;
+      return {
+        ...current,
+        selectedWeapons: {
+          ...current.selectedWeapons,
+          [weapon.id]: { ...existing, favorite: !existing.favorite },
         },
-      },
-    }));
+      };
+    });
+  };
+
+  const setWeaponLevel = (weapon: WeaponCatalogEntry, level: WeaponLevel | null) => {
+    setForm((current) => {
+      const existing = current.selectedWeapons[weapon.id];
+      if (!existing) return current;
+      return {
+        ...current,
+        selectedWeapons: {
+          ...current.selectedWeapons,
+          [weapon.id]: { ...existing, level },
+        },
+      };
+    });
   };
 
   const save = () => {
@@ -417,7 +451,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      <Card>
+      <Card className="order-2 lg:order-none">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label={t('publicApp.fighterProfile.displayName')}
@@ -510,44 +544,22 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           <h2 className="mb-2 font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('publicApp.fighterProfile.weapons')}
           </h2>
+          <p className="mb-2 text-xs text-muted">{t('publicApp.fighterProfile.weaponsHint')}</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {weapons.map((weapon) => {
-              const selected = Boolean(form.selectedWeapons[weapon.id]);
-              const selectedId = `fighter-weapon-${weapon.id}`;
-              const favoriteId = `fighter-weapon-favorite-${weapon.id}`;
+              const entry = form.selectedWeapons[weapon.id];
               return (
-                <div
+                <WeaponCard
                   key={weapon.id}
-                  className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
-                >
-                  <label
-                    className="flex items-center gap-2 text-sm text-foreground"
-                    htmlFor={selectedId}
-                  >
-                    <input
-                      id={selectedId}
-                      type="checkbox"
-                      aria-label={weapon.name}
-                      checked={selected}
-                      onChange={() => toggleWeapon(weapon)}
-                    />
-                    {weapon.name}
-                  </label>
-                  <label
-                    className="flex items-center gap-1 text-xs text-muted"
-                    htmlFor={favoriteId}
-                  >
-                    <input
-                      id={favoriteId}
-                      type="checkbox"
-                      aria-label={`${weapon.name} ${t('publicApp.fighterProfile.favorite')}`}
-                      checked={Boolean(form.selectedWeapons[weapon.id]?.favorite)}
-                      disabled={!selected}
-                      onChange={() => toggleFavorite(weapon)}
-                    />
-                    {t('publicApp.fighterProfile.favorite')}
-                  </label>
-                </div>
+                  name={weapon.name}
+                  selected={Boolean(entry)}
+                  favorite={Boolean(entry?.favorite)}
+                  level={entry?.level ?? null}
+                  onToggle={() => toggleWeapon(weapon)}
+                  onToggleFavorite={() => toggleFavorite(weapon)}
+                  onLevelChange={(level) => setWeaponLevel(weapon, level)}
+                  t={t}
+                />
               );
             })}
           </div>
@@ -563,54 +575,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
       </Card>
 
       {dashboard && (
-        <Card>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
-            {t('publicApp.fighterProfile.stats')}
-          </h2>
-          <div className="grid gap-2">
-            <DashboardStat
-              label={t('publicApp.fighterProfile.totalWins')}
-              value={dashboard.career.stats.overall.wins}
-            />
-            <DashboardStat
-              label={t('publicApp.fighterProfile.totalLosses')}
-              value={dashboard.career.stats.overall.losses}
-            />
-            <DashboardStat
-              label={t('publicApp.fighterProfile.doubleHitPercentage')}
-              value={`${dashboard.career.stats.overall.doubleHitPercentage.toFixed(2)}%`}
-            />
-          </div>
-          {dashboard.refereeStats && dashboard.refereeStats.totalMatches > 0 && (
-            <div className="mt-5 border-t border-border pt-4">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
-                {t('publicApp.fighterProfile.refereeing')}
-              </h2>
-              <div className="grid gap-2">
-                <DashboardStat
-                  label={t('publicApp.fighterProfile.refereeMatches')}
-                  value={dashboard.refereeStats.totalMatches}
-                />
-                <DashboardStat
-                  label={t('publicApp.fighterProfile.averageRefereeTime')}
-                  value={formatDuration(dashboard.refereeStats.averageRefereeTimeMs, t)}
-                />
-                <DashboardStat
-                  label={t('publicApp.fighterProfile.yellowCards')}
-                  value={dashboard.refereeStats.cards.yellow}
-                />
-                <DashboardStat
-                  label={t('publicApp.fighterProfile.redCards')}
-                  value={dashboard.refereeStats.cards.red}
-                />
-                <DashboardStat
-                  label={t('publicApp.fighterProfile.blackCards')}
-                  value={dashboard.refereeStats.cards.black}
-                />
-              </div>
-            </div>
-          )}
-        </Card>
+        <FighterStatsCard dashboard={dashboard} t={t} className="order-1 lg:order-none" />
       )}
     </div>
   );
@@ -723,5 +688,261 @@ function DashboardStat({ label, value }: { label: string; value: string | number
       <p className="text-[11px] uppercase tracking-widest text-muted">{label}</p>
       <p className="mt-1 text-xl font-black tabular-nums text-foreground">{value}</p>
     </div>
+  );
+}
+
+type TFn = (key: string, values?: Record<string, string | number>) => string;
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2.6l2.9 5.88 6.49.95-4.7 4.58 1.11 6.46L12 17.98l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.95z" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3 w-3"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
+  );
+}
+
+/** One weapon in the picker: tap the card to (de)select it, tap the star to
+ *  favourite it, and pick a self-rated level once selected. */
+function WeaponCard({
+  name,
+  selected,
+  favorite,
+  level,
+  onToggle,
+  onToggleFavorite,
+  onLevelChange,
+  t,
+}: {
+  name: string;
+  selected: boolean;
+  favorite: boolean;
+  level: WeaponLevel | null;
+  onToggle: () => void;
+  onToggleFavorite: () => void;
+  onLevelChange: (level: WeaponLevel | null) => void;
+  t: TFn;
+}) {
+  const levelId = useId();
+  return (
+    <div
+      className={[
+        'rounded-lg border px-3 py-2 transition-colors',
+        selected ? 'border-accent bg-accent/5' : 'border-border bg-background',
+      ].join(' ')}
+    >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={selected}
+          aria-label={name}
+          className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-foreground [touch-action:manipulation]"
+        >
+          <span
+            aria-hidden
+            className={[
+              'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+              selected
+                ? 'border-accent bg-accent text-accent-foreground'
+                : 'border-border text-transparent',
+            ].join(' ')}
+          >
+            <CheckIcon />
+          </span>
+          <span className="min-w-0 truncate">{name}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onToggleFavorite}
+          disabled={!selected}
+          aria-pressed={favorite}
+          aria-label={`${name} — ${t('publicApp.fighterProfile.favorite')}`}
+          className={[
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition-colors [touch-action:manipulation]',
+            'disabled:opacity-30 enabled:hover:text-accent',
+            favorite ? 'text-accent' : 'text-muted',
+          ].join(' ')}
+        >
+          <StarIcon filled={favorite} />
+        </button>
+      </div>
+      {selected && (
+        <label htmlFor={levelId} className="mt-2 flex items-center gap-2 text-xs text-muted">
+          <span className="shrink-0">{t('publicApp.fighterProfile.weaponLevel')}</span>
+          <select
+            id={levelId}
+            value={level ?? ''}
+            onChange={(event) => onLevelChange((event.target.value || null) as WeaponLevel | null)}
+            className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
+          >
+            <option value="">{t('publicApp.fighterProfile.levelUnset')}</option>
+            <option value="just_for_fun">{t('publicApp.fighterProfile.levelJustForFun')}</option>
+            <option value="beginner">{t('publicApp.fighterProfile.levelBeginner')}</option>
+            <option value="intermediate">{t('publicApp.fighterProfile.levelIntermediate')}</option>
+            <option value="advanced">{t('publicApp.fighterProfile.levelAdvanced')}</option>
+          </select>
+        </label>
+      )}
+    </div>
+  );
+}
+
+/** Career statistics card with a Global / per-weapon tab bar. The combat tiles
+ *  shift with the selected tab; the lower block holds tab-independent career
+ *  totals. HEMA rank/rating only appear on a weapon tab with a matching rating. */
+function FighterStatsCard({
+  dashboard,
+  t,
+  className,
+}: {
+  dashboard: DashboardResponse;
+  t: TFn;
+  className?: string;
+}) {
+  const career = dashboard.career;
+  const overall = career.stats.overall;
+  const fought = career.stats.byWeapon.filter((weapon) => weapon.matches > 0);
+  const [statTab, setStatTab] = useState<string>('global');
+
+  const active =
+    statTab === 'global'
+      ? overall
+      : (fought.find((weapon) => weapon.weapon === statTab) ?? overall);
+
+  const hema =
+    statTab === 'global'
+      ? null
+      : ((dashboard.hemaRatings?.ratings ?? []).find(
+          (rating) => rating.weapon.toLowerCase() === statTab.toLowerCase(),
+        ) ?? null);
+
+  const winRate =
+    active.matches === 0 ? '—' : `${Math.round((active.wins / active.matches) * 100)}%`;
+  const ratio = active.winLossRatio == null ? '—' : active.winLossRatio.toFixed(2);
+
+  const years = (career.eventParticipation ?? [])
+    .map((event) => event.startDate?.slice(0, 4))
+    .filter((year): year is string => Boolean(year));
+  const activeSince = years.length ? years.reduce((a, b) => (a < b ? a : b)) : null;
+
+  const tabs: Array<{ value: string; label: string }> = [
+    { value: 'global', label: t('publicApp.fighterProfile.statsGlobalTab') },
+    ...fought.map((weapon) => ({ value: weapon.weapon, label: weapon.weapon })),
+  ];
+
+  return (
+    <Card className={className}>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
+        {t('publicApp.fighterProfile.stats')}
+      </h2>
+
+      {tabs.length > 1 && (
+        <div
+          role="tablist"
+          aria-label={t('publicApp.fighterProfile.stats')}
+          className="mb-3 flex flex-wrap gap-1"
+        >
+          {tabs.map((tab) => {
+            const isActive = tab.value === statTab;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setStatTab(tab.value)}
+                className={[
+                  'min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors [touch-action:manipulation]',
+                  isActive
+                    ? 'bg-accent text-accent-foreground'
+                    : 'border border-border text-muted hover:text-foreground',
+                ].join(' ')}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <DashboardStat label={t('publicApp.fighterProfile.matches')} value={active.matches} />
+        <DashboardStat label={t('publicApp.fighterProfile.totalWins')} value={active.wins} />
+        <DashboardStat label={t('publicApp.fighterProfile.totalLosses')} value={active.losses} />
+        <DashboardStat label={t('publicApp.fighterProfile.winRate')} value={winRate} />
+        <DashboardStat label={t('publicApp.fighterProfile.winLossRatio')} value={ratio} />
+        <DashboardStat
+          label={t('publicApp.fighterProfile.doubleHitPercentage')}
+          value={`${active.doubleHitPercentage.toFixed(2)}%`}
+        />
+        <DashboardStat label={t('publicApp.fighterProfile.doubleHits')} value={active.doubleHits} />
+        <DashboardStat label={t('publicApp.fighterProfile.exchanges')} value={active.exchanges} />
+        {hema?.rank != null && (
+          <DashboardStat label={t('publicApp.fighterProfile.hemaRank')} value={`#${hema.rank}`} />
+        )}
+        {hema != null && (
+          <DashboardStat
+            label={t('publicApp.fighterProfile.hemaRating')}
+            value={Math.round(hema.weightedRating)}
+          />
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-4">
+        <DashboardStat
+          label={t('publicApp.fighterProfile.eventsAttended')}
+          value={career.eventParticipation.length}
+        />
+        <DashboardStat
+          label={t('publicApp.fighterProfile.tournamentsAttended')}
+          value={career.tournamentPlacements.length}
+        />
+        {career.upcoming.length > 0 && (
+          <DashboardStat
+            label={t('publicApp.fighterProfile.upcoming')}
+            value={career.upcoming.length}
+          />
+        )}
+        {activeSince && (
+          <DashboardStat label={t('publicApp.fighterProfile.activeSince')} value={activeSince} />
+        )}
+        {career.leagueRankings.map((league, index) => (
+          <DashboardStat
+            key={`${league.leagueName}-${index}`}
+            label={league.leagueName}
+            value={t('publicApp.fighterProfile.leagueValue', {
+              rank: league.rank,
+              points: league.totalPoints,
+            })}
+          />
+        ))}
+      </div>
+    </Card>
   );
 }

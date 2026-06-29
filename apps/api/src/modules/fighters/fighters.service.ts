@@ -330,7 +330,24 @@ export class FightersService {
       profile,
       career: await this.getCareerForFighter(personId),
       refereeStats: await this.getRefereeStatsForPerson(personId, true),
+      // Per-weapon HEMA Ratings (rank + weighted rating) for the profile stats
+      // tabs. Best-effort: a missing/unlinked id or an un-synced fighter must
+      // never break dashboard load — mirror getBySlug's NotFound handling.
+      hemaRatings: await this.getHemaRatingsForProfile(profile as Row),
     };
+  }
+
+  /** Resolve a fighter's HEMA Ratings profile (or null) from their linked
+   *  `hema_ratings_id`, swallowing the not-found/un-synced case. */
+  private async getHemaRatingsForProfile(profile: Row) {
+    const hemaRatingsId = profile['hema_ratings_id'] as string | null | undefined;
+    if (!hemaRatingsId || !this.hemaRatings) return null;
+    try {
+      return await this.hemaRatings.getProfile(hemaRatingsId);
+    } catch (error) {
+      if (error instanceof NotFoundException) return null;
+      throw error;
+    }
   }
 
   async getMyRefereeStats(userId: string) {
@@ -653,7 +670,7 @@ export class FightersService {
   private async getFighterWeaponLinks(fighterId: string) {
     const { data, error } = await this.supabase.service
       .from('fighter_weapons')
-      .select('favorite, sort_order, weapon_catalog(id, slug, name)')
+      .select('favorite, sort_order, level, weapon_catalog(id, slug, name)')
       .eq('global_person_id', fighterId)
       .order('favorite', { ascending: false })
       .order('sort_order', { ascending: true });
@@ -742,7 +759,12 @@ export class FightersService {
 
   private async replaceFighterWeapons(
     fighterId: string,
-    weapons: Array<{ weaponId?: string; weaponName?: string; favorite?: boolean }>,
+    weapons: Array<{
+      weaponId?: string;
+      weaponName?: string;
+      favorite?: boolean;
+      level?: 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced' | null;
+    }>,
   ): Promise<void> {
     await this.supabase.service.from('fighter_weapons').delete().eq('global_person_id', fighterId);
     const rows: Row[] = [];
@@ -753,6 +775,7 @@ export class FightersService {
         global_person_id: fighterId,
         weapon_id: weaponId,
         favorite: Boolean(weapon.favorite),
+        level: weapon.level ?? null,
         sort_order: index,
       });
     }

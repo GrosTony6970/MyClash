@@ -45,6 +45,9 @@ const fighterWeaponInputSchema = z
     weaponId: z.uuid().optional(),
     weaponName: z.string().max(100).optional(),
     favorite: z.boolean().optional(),
+    // `.nullable()` so the FE can send `null` to clear a previously set level
+    // (a plain `.optional()` would reject it — see project_zod_null_to_clear).
+    level: z.enum(['just_for_fun', 'beginner', 'intermediate', 'advanced']).nullable().optional(),
   })
   .strict();
 export class FighterWeaponInputDto extends createZodDto(fighterWeaponInputSchema) {}
