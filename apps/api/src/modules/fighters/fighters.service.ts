@@ -965,7 +965,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name))))',
       )
       .eq('person_id', personId)
       .eq('scope_type', 'match')
@@ -978,7 +978,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name))))',
       )
       .in('match_id', matchIds)
       .eq('scope_type', 'match');
@@ -1000,14 +1000,28 @@ export class FightersService {
         const phase = match?.['phases'] as Row | null;
         const tournament = phase?.['tournaments'] as Row | null;
         const event = tournament?.['events'] as Row | null;
+        const pool = match?.['pools'] as Row | null;
+        const bracketSlot = match?.['bracket_slots'] as Row | null;
+        // bracketSize lives on the phase config (same source matches.service
+        // uses to format round codes); pool sort_order is 0-indexed.
+        const cfg = (phase?.['config_json'] as Record<string, unknown> | null) ?? null;
+        const bracketSizeRaw = cfg ? (cfg['bracketSize'] ?? cfg['mainBracketSize']) : null;
+        const poolSort = pool?.['sort_order'];
+        const bracketRound = bracketSlot?.['round'];
         const assignment: RefereeAssignmentInput = {
           matchId: String(row['match_id']),
           userId: String(row['person_id']),
           role: (row['role'] as string | null) ?? null,
+          eventId: (event?.['id'] as string | null) ?? null,
           eventName: (event?.['name'] as string | null) ?? null,
+          tournamentId: (tournament?.['id'] as string | null) ?? null,
           tournamentName: (tournament?.['name'] as string | null) ?? null,
           weapon: (tournament?.['weapon'] as string | null) ?? null,
           scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
+          phaseType: (phase?.['type'] as string | null) ?? null,
+          poolNumber: typeof poolSort === 'number' ? poolSort + 1 : null,
+          bracketRound: typeof bracketRound === 'number' ? bracketRound : null,
+          bracketSize: typeof bracketSizeRaw === 'number' ? bracketSizeRaw : null,
         };
         return assignment;
       })

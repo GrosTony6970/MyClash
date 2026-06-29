@@ -1,8 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { bracketRoundLabel } from '@myclash/types';
 import { Card, SkillBadge } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+
+type TFn = (key: string, values?: Record<string, string | number>) => string;
+
+interface RefereeHistoryEntry {
+  matchId: string;
+  role: string | null;
+  eventId: string | null;
+  eventName: string | null;
+  tournamentId: string | null;
+  tournamentName: string | null;
+  weapon: string | null;
+  scheduledAt: string | null;
+  durationMs: number;
+  skillId: string | null;
+  skillName: string | null;
+  skillColor: string | null;
+  phaseType: string | null;
+  poolNumber: number | null;
+  bracketRound: number | null;
+  bracketSize: number | null;
+  cards: { yellow: number; red: number; black: number };
+}
 
 interface RefereeStats {
   totalMatches: number;
@@ -22,26 +45,146 @@ interface RefereeStats {
     displayName: string | null;
     matchesTogether: number;
   }>;
-  history?: Array<{
-    matchId: string;
-    role: string | null;
-    eventName: string | null;
-    tournamentName: string | null;
-    weapon: string | null;
-    scheduledAt: string | null;
-    durationMs: number;
-    skillId: string | null;
-    skillName: string | null;
-    skillColor: string | null;
-  }>;
+  history?: RefereeHistoryEntry[];
 }
 
-function formatDuration(
-  ms: number,
-  t: (key: string, values?: Record<string, string | number>) => string,
-) {
+function formatDuration(ms: number, t: TFn) {
   if (ms <= 0) return t('common.none');
   return t('publicApp.fighterProfile.minutes', { count: Math.round(ms / 60000) });
+}
+
+/** Sum of active time as `Xh Ym` (falls back to the minutes string under an hour). */
+function formatHoursMinutes(ms: number, t: TFn) {
+  if (ms <= 0) return t('common.none');
+  const totalMinutes = Math.round(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return t('publicApp.fighterProfile.minutes', { count: minutes });
+  return `${hours}h ${minutes}m`;
+}
+
+/** A refereed match's type/tier, used both to group the history tree and to
+ *  detect finals / pool-vs-bracket in the stat panel. Pool matches sort first,
+ *  then play-ins, then bracket rounds in chronological order (earlier round =
+ *  more fighters remaining). */
+function roundTier(entry: RefereeHistoryEntry): { key: string; order: number } {
+  if (entry.poolNumber != null || entry.phaseType === 'pool') return { key: 'pool', order: 0 };
+  if (entry.bracketRound === 0) return { key: 'playin', order: 1 };
+  if (entry.bracketRound != null) {
+    const code = bracketRoundLabel(entry.bracketRound, entry.bracketSize) || 'other';
+    return { key: code, order: 10 + entry.bracketRound };
+  }
+  return { key: 'other', order: 999 };
+}
+
+/** Localized label for a tier key. Named bracket tiers resolve to i18n; any
+ *  uncommon raw bracket code (e.g. R128, B2) shows as-is. */
+function tierLabel(key: string, t: TFn): string {
+  switch (key) {
+    case 'pool':
+      return t('publicApp.fighterProfile.tierPool');
+    case 'playin':
+      return t('publicApp.fighterProfile.tierPlayin');
+    case 'F':
+      return t('publicApp.fighterProfile.tierFinal');
+    case 'SF':
+      return t('publicApp.fighterProfile.tierSemifinal');
+    case 'QF':
+      return t('publicApp.fighterProfile.tierQuarterfinal');
+    case 'R16':
+      return t('publicApp.fighterProfile.tierR16');
+    case 'R32':
+      return t('publicApp.fighterProfile.tierR32');
+    case 'R64':
+      return t('publicApp.fighterProfile.tierR64');
+    case 'other':
+      return t('common.unknown');
+    default:
+      return key;
+  }
+}
+
+/** Stable per-event / per-tournament key (falls back to the name when an id is
+ *  somehow missing, so grouping never collapses two distinct events). */
+function eventKey(entry: RefereeHistoryEntry): string {
+  return entry.eventId ?? `name:${entry.eventName ?? 'unknown'}`;
+}
+function tournamentKey(entry: RefereeHistoryEntry): string {
+  return entry.tournamentId ?? `name:${entry.tournamentName ?? 'unknown'}`;
+}
+
+interface SkillRef {
+  id: string;
+  name: string;
+  color: string;
+}
+interface TierGroup {
+  key: string;
+  order: number;
+  matchIds: Set<string>;
+  skills: Map<string, SkillRef>;
+}
+interface TournamentGroup {
+  id: string;
+  name: string;
+  matchIds: Set<string>;
+  tiers: Map<string, TierGroup>;
+}
+interface EventGroup {
+  id: string;
+  name: string;
+  matchIds: Set<string>;
+  tournaments: Map<string, TournamentGroup>;
+}
+
+/** Group the flat history into event → tournament → match-type tiers. */
+function buildRefereeTree(history: RefereeHistoryEntry[], unknown: string): EventGroup[] {
+  const events = new Map<string, EventGroup>();
+  for (const entry of history) {
+    const eId = eventKey(entry);
+    const event =
+      events.get(eId) ??
+      ({
+        id: eId,
+        name: entry.eventName ?? unknown,
+        matchIds: new Set(),
+        tournaments: new Map(),
+      } satisfies EventGroup);
+    event.matchIds.add(entry.matchId);
+
+    const tId = tournamentKey(entry);
+    const tournament =
+      event.tournaments.get(tId) ??
+      ({
+        id: tId,
+        name: entry.tournamentName ?? unknown,
+        matchIds: new Set(),
+        tiers: new Map(),
+      } satisfies TournamentGroup);
+    tournament.matchIds.add(entry.matchId);
+
+    const tier = roundTier(entry);
+    const tierGroup =
+      tournament.tiers.get(tier.key) ??
+      ({
+        key: tier.key,
+        order: tier.order,
+        matchIds: new Set(),
+        skills: new Map(),
+      } satisfies TierGroup);
+    tierGroup.matchIds.add(entry.matchId);
+    if (entry.skillId && entry.skillName && entry.skillColor) {
+      tierGroup.skills.set(entry.skillId, {
+        id: entry.skillId,
+        name: entry.skillName,
+        color: entry.skillColor,
+      });
+    }
+    tournament.tiers.set(tier.key, tierGroup);
+    event.tournaments.set(tId, tournament);
+    events.set(eId, event);
+  }
+  return [...events.values()].sort((a, b) => b.matchIds.size - a.matchIds.size);
 }
 
 export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
@@ -49,6 +192,8 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
   const [stats, setStats] = useState<RefereeStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
+  const [scope, setScope] = useState<string>('global');
 
   useEffect(() => {
     fetch(`${apiUrl}/api/v1/fighters/me/referee-stats`, { credentials: 'include' })
@@ -63,6 +208,94 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
         setLoading(false);
       });
   }, [apiUrl, t]);
+
+  const history = useMemo(() => stats?.history ?? [], [stats]);
+  const tree = useMemo(() => buildRefereeTree(history, t('common.unknown')), [history, t]);
+
+  // Stat panel scoped to Global (all) or a single event.
+  const scoped = useMemo(
+    () => (scope === 'global' ? history : history.filter((entry) => eventKey(entry) === scope)),
+    [history, scope],
+  );
+
+  const summary = useMemo(() => {
+    const durationByMatch = new Map<string, number>();
+    const cardsByMatch = new Map<string, { yellow: number; red: number; black: number }>();
+    const skills = new Map<
+      string,
+      { name: string; color: string; hasBadge: boolean; count: number }
+    >();
+    const weapons = new Set<string>();
+    const events = new Set<string>();
+    const tournaments = new Set<string>();
+    const poolMatches = new Set<string>();
+    const bracketMatches = new Set<string>();
+    const finalMatches = new Set<string>();
+    let earliestYear: string | null = null;
+
+    for (const entry of scoped) {
+      durationByMatch.set(entry.matchId, entry.durationMs);
+      cardsByMatch.set(entry.matchId, entry.cards);
+      events.add(eventKey(entry));
+      tournaments.add(tournamentKey(entry));
+      if (entry.weapon) weapons.add(entry.weapon);
+
+      const skillId = entry.skillId ?? entry.role ?? 'unknown';
+      const skill = skills.get(skillId) ?? {
+        name: entry.skillName ?? entry.role ?? t('common.unknown'),
+        color: entry.skillColor ?? 'slate',
+        hasBadge: Boolean(entry.skillId && entry.skillColor),
+        count: 0,
+      };
+      skill.count += 1;
+      skills.set(skillId, skill);
+
+      const tier = roundTier(entry);
+      if (tier.key === 'pool') poolMatches.add(entry.matchId);
+      else bracketMatches.add(entry.matchId);
+      if (tier.key === 'F') finalMatches.add(entry.matchId);
+
+      const year = entry.scheduledAt?.slice(0, 4);
+      if (year && (earliestYear === null || year < earliestYear)) earliestYear = year;
+    }
+
+    const durations = [...durationByMatch.values()];
+    const totalTimeMs = durations.reduce((sum, value) => sum + value, 0);
+    const cards = [...cardsByMatch.values()].reduce(
+      (acc, card) => ({
+        yellow: acc.yellow + card.yellow,
+        red: acc.red + card.red,
+        black: acc.black + card.black,
+      }),
+      { yellow: 0, red: 0, black: 0 },
+    );
+
+    return {
+      totalMatches: durationByMatch.size,
+      averageRefereeTimeMs: durations.length ? Math.round(totalTimeMs / durations.length) : 0,
+      totalTimeMs,
+      cards,
+      cardsTotal: cards.yellow + cards.red + cards.black,
+      skills: [...skills.values()]
+        .filter((skill) => skill.count > 0)
+        .sort((a, b) => b.count - a.count),
+      eventsWorked: events.size,
+      tournamentsWorked: tournaments.size,
+      weaponsWorked: weapons.size,
+      poolMatches: poolMatches.size,
+      bracketMatches: bracketMatches.size,
+      finalsRefereed: finalMatches.size,
+      activeSince: earliestYear,
+    };
+  }, [scoped, t]);
+
+  const toggle = (key: string) =>
+    setOpenNodes((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   if (loading) {
     return (
@@ -89,26 +322,67 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
           {t('publicApp.fighterProfile.refereeHistory')}
         </h2>
-        {stats.history?.length ? (
-          <div className="divide-y divide-border">
-            {stats.history.slice(0, 20).map((entry) => (
-              <div key={entry.matchId} className="py-3 first:pt-0 last:pb-0">
-                <p className="text-sm font-semibold text-foreground">
-                  {entry.eventName ?? t('common.unknown')}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                  <span>{entry.tournamentName ?? t('common.unknown')}</span>
-                  <span>-</span>
-                  <span>{entry.weapon ?? t('common.unknown')}</span>
-                  <span>-</span>
-                  {entry.skillName && entry.skillColor ? (
-                    <SkillBadge color={entry.skillColor} label={entry.skillName} size="xs" />
-                  ) : (
-                    <span>{entry.role ?? t('common.unknown')}</span>
+        {tree.length ? (
+          <div className="flex flex-col gap-2">
+            {tree.map((event) => {
+              const eventOpen = openNodes.has(event.id);
+              return (
+                <div key={event.id} className="rounded-lg border border-border bg-background">
+                  <AccordionRow
+                    open={eventOpen}
+                    onToggle={() => toggle(event.id)}
+                    title={event.name}
+                    count={event.matchIds.size}
+                    t={t}
+                    strong
+                  />
+                  {eventOpen && (
+                    <div className="border-t border-border px-2 pb-2 pt-1">
+                      {[...event.tournaments.values()].map((tournament) => {
+                        const tKey = `${event.id}/${tournament.id}`;
+                        const tournamentOpen = openNodes.has(tKey);
+                        return (
+                          <div key={tKey} className="mt-1 first:mt-0">
+                            <AccordionRow
+                              open={tournamentOpen}
+                              onToggle={() => toggle(tKey)}
+                              title={tournament.name}
+                              count={tournament.matchIds.size}
+                              t={t}
+                            />
+                            {tournamentOpen && (
+                              <ul className="mb-1 ml-3 border-l border-border pl-3">
+                                {[...tournament.tiers.values()]
+                                  .sort((a, b) => a.order - b.order)
+                                  .map((tier) => (
+                                    <li
+                                      key={tier.key}
+                                      className="flex flex-wrap items-center gap-2 py-1.5 text-xs text-muted"
+                                    >
+                                      <span className="font-semibold text-foreground-secondary">
+                                        {tierLabel(tier.key, t)}
+                                      </span>
+                                      <CountBadge count={tier.matchIds.size} t={t} />
+                                      {[...tier.skills.values()].map((skill) => (
+                                        <SkillBadge
+                                          key={skill.id}
+                                          color={skill.color}
+                                          label={skill.name}
+                                          size="xs"
+                                        />
+                                      ))}
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted">{t('publicApp.fighterProfile.noRefereeStats')}</p>
@@ -119,33 +393,96 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
           {t('publicApp.fighterProfile.refereeing')}
         </h2>
-        <div className="grid gap-2">
+
+        {/* Global pill + event dropdown — scopes every card below. */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScope('global')}
+            aria-pressed={scope === 'global'}
+            className={[
+              'min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors [touch-action:manipulation]',
+              scope === 'global'
+                ? 'bg-accent text-accent-foreground'
+                : 'border border-border text-muted hover:text-foreground',
+            ].join(' ')}
+          >
+            {t('publicApp.fighterProfile.statsGlobalTab')}
+          </button>
+          <select
+            aria-label={t('publicApp.fighterProfile.statsForEvent')}
+            value={scope === 'global' ? '' : scope}
+            onChange={(event) => setScope(event.target.value || 'global')}
+            className="min-h-[36px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
+          >
+            <option value="">{t('publicApp.fighterProfile.statsForEvent')}</option>
+            {tree.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <RefereeStat
             label={t('publicApp.fighterProfile.refereeMatches')}
-            value={stats.totalMatches}
+            value={summary.totalMatches}
           />
           <RefereeStat
             label={t('publicApp.fighterProfile.averageRefereeTime')}
-            value={formatDuration(stats.averageRefereeTimeMs, t)}
+            value={formatDuration(summary.averageRefereeTimeMs, t)}
           />
           <RefereeStat
-            label={t('publicApp.fighterProfile.arbitreDeclarant')}
-            value={stats.roles.arbitre_declarant}
+            label={t('publicApp.fighterProfile.totalTimeRefereed')}
+            value={formatHoursMinutes(summary.totalTimeMs, t)}
           />
           <RefereeStat
-            label={t('publicApp.fighterProfile.arbitreAssesseur')}
-            value={stats.roles.arbitre_assesseur}
+            label={t('publicApp.fighterProfile.eventsWorked')}
+            value={summary.eventsWorked}
           />
           <RefereeStat
-            label={t('publicApp.fighterProfile.arbitreTable')}
-            value={stats.roles.arbitre_table}
+            label={t('publicApp.fighterProfile.tournamentsWorked')}
+            value={summary.tournamentsWorked}
+          />
+          <RefereeStat
+            label={t('publicApp.fighterProfile.weaponsRefereed')}
+            value={summary.weaponsWorked}
+          />
+          {summary.skills.map((skill, index) => (
+            <SkillStat key={`${skill.name}-${index}`} skill={skill} value={skill.count} />
+          ))}
+          <RefereeStat
+            label={t('publicApp.fighterProfile.finalsRefereed')}
+            value={summary.finalsRefereed}
+          />
+          <RefereeStat
+            label={t('publicApp.fighterProfile.poolMatches')}
+            value={summary.poolMatches}
+          />
+          <RefereeStat
+            label={t('publicApp.fighterProfile.bracketMatches')}
+            value={summary.bracketMatches}
           />
           <RefereeStat
             label={t('publicApp.fighterProfile.yellowCards')}
-            value={stats.cards.yellow}
+            value={summary.cards.yellow}
           />
-          <RefereeStat label={t('publicApp.fighterProfile.redCards')} value={stats.cards.red} />
-          <RefereeStat label={t('publicApp.fighterProfile.blackCards')} value={stats.cards.black} />
+          <RefereeStat label={t('publicApp.fighterProfile.redCards')} value={summary.cards.red} />
+          <RefereeStat
+            label={t('publicApp.fighterProfile.blackCards')}
+            value={summary.cards.black}
+          />
+          <RefereeStat
+            label={t('publicApp.fighterProfile.cardsIssued')}
+            value={summary.cardsTotal}
+          />
+          {summary.activeSince && (
+            <RefereeStat
+              label={t('publicApp.fighterProfile.activeSince')}
+              value={summary.activeSince}
+            />
+          )}
         </div>
 
         {stats.bestBuddies.length > 0 && (
@@ -156,8 +493,10 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
             <ul className="space-y-2 text-sm text-foreground-secondary">
               {stats.bestBuddies.slice(0, 5).map((buddy) => (
                 <li key={buddy.userId} className="flex items-center justify-between gap-3">
-                  <span>{buddy.displayName ?? t('common.unknown')}</span>
-                  <span className="text-xs text-muted">
+                  <span className="min-w-0 truncate">
+                    {buddy.displayName ?? t('common.unknown')}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted">
                     {t('publicApp.fighterProfile.matchesTogether', {
                       count: buddy.matchesTogether,
                     })}
@@ -172,11 +511,100 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
   );
 }
 
+/** Expandable event/tournament row: chevron + name + match count. */
+function AccordionRow({
+  open,
+  onToggle,
+  title,
+  count,
+  t,
+  strong = false,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  title: string;
+  count: number;
+  t: TFn;
+  strong?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="flex min-h-[44px] w-full items-center gap-2 px-3 text-left [touch-action:manipulation]"
+    >
+      <Chevron open={open} />
+      <span
+        className={[
+          'min-w-0 flex-1 truncate',
+          strong ? 'text-sm font-semibold text-foreground' : 'text-sm text-foreground-secondary',
+        ].join(' ')}
+      >
+        {title}
+      </span>
+      <CountBadge count={count} t={t} />
+    </button>
+  );
+}
+
+function CountBadge({ count, t }: { count: number; t: TFn }) {
+  return (
+    <span
+      aria-label={t('publicApp.fighterProfile.matchesRefereedCount', { count })}
+      className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs font-bold tabular-nums text-muted"
+    >
+      {count}
+    </span>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={['h-4 w-4 shrink-0 text-muted transition-transform', open ? 'rotate-90' : ''].join(
+        ' ',
+      )}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 function RefereeStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-border bg-background px-3 py-3">
       <p className="text-[11px] uppercase tracking-widest text-muted">{label}</p>
       <p className="mt-1 text-xl font-black tabular-nums text-foreground">{value}</p>
+    </div>
+  );
+}
+
+/** A stat tile whose label is the referee skill (coloured badge) it counts. */
+function SkillStat({
+  skill,
+  value,
+}: {
+  skill: { name: string; color: string; hasBadge: boolean };
+  value: number;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background px-3 py-3">
+      <div className="mb-1 flex min-w-0">
+        {skill.hasBadge ? (
+          <SkillBadge color={skill.color} label={skill.name} size="xs" />
+        ) : (
+          <p className="truncate text-[11px] uppercase tracking-widest text-muted">{skill.name}</p>
+        )}
+      </div>
+      <p className="text-xl font-black tabular-nums text-foreground">{value}</p>
     </div>
   );
 }

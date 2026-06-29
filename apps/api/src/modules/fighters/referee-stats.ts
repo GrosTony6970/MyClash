@@ -5,10 +5,20 @@ export interface RefereeAssignmentInput {
   matchId: string;
   userId: string;
   role: RefereeRole | string | null;
+  eventId?: string | null;
   eventName?: string | null;
+  tournamentId?: string | null;
   tournamentName?: string | null;
   weapon?: string | null;
   scheduledAt?: string | null;
+  // Phase/round metadata used to break refereed matches down by type
+  // (Pool vs bracket tier) in the referee profile tree. poolNumber is
+  // 1-indexed; bracketRound is bracket_slots.round (0 = play-in);
+  // bracketSize is the phase's bracket size (for the round-tier label).
+  phaseType?: string | null;
+  poolNumber?: number | null;
+  bracketRound?: number | null;
+  bracketSize?: number | null;
 }
 
 export interface RefereeMatchDurationInput {
@@ -53,7 +63,9 @@ export interface RefereeStatsInput {
 export interface RefereeHistoryEntry {
   matchId: string;
   role: string | null;
+  eventId: string | null;
   eventName: string | null;
+  tournamentId: string | null;
   tournamentName: string | null;
   weapon: string | null;
   scheduledAt: string | null;
@@ -61,6 +73,14 @@ export interface RefereeHistoryEntry {
   skillId: string | null;
   skillName: string | null;
   skillColor: string | null;
+  phaseType: string | null;
+  poolNumber: number | null;
+  bracketRound: number | null;
+  bracketSize: number | null;
+  /** Cards issued in this match, counted only when the ref was declarant
+   *  (mirrors the top-level `cards` semantics) — lets the FE sum cards per
+   *  event when the stat panel is scoped to a single event. */
+  cards: { yellow: number; red: number; black: number };
 }
 
 export interface RefereeStats {
@@ -99,9 +119,14 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
       : Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
 
   const cards = { yellow: 0, red: 0, black: 0 };
+  const cardsByMatch = new Map<string, { yellow: number; red: number; black: number }>();
   for (const penalty of input.penalties) {
     if (penalty.voided || !declarantMatchIds.has(penalty.matchId)) continue;
-    if (isRefereeCard(penalty.card)) cards[penalty.card] += 1;
+    if (!isRefereeCard(penalty.card)) continue;
+    cards[penalty.card] += 1;
+    const perMatch = cardsByMatch.get(penalty.matchId) ?? { yellow: 0, red: 0, black: 0 };
+    perMatch[penalty.card] += 1;
+    cardsByMatch.set(penalty.matchId, perMatch);
   }
 
   const buddyCounts = new Map<string, number>();
@@ -140,7 +165,9 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
             return {
               matchId: assignment.matchId,
               role: assignment.role,
+              eventId: assignment.eventId ?? null,
               eventName: assignment.eventName ?? null,
+              tournamentId: assignment.tournamentId ?? null,
               tournamentName: assignment.tournamentName ?? null,
               weapon: assignment.weapon ?? null,
               scheduledAt: assignment.scheduledAt ?? null,
@@ -148,6 +175,11 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               skillId: skill?.skillId ?? null,
               skillName: skill?.skillName ?? null,
               skillColor: skill?.skillColor ?? null,
+              phaseType: assignment.phaseType ?? null,
+              poolNumber: assignment.poolNumber ?? null,
+              bracketRound: assignment.bracketRound ?? null,
+              bracketSize: assignment.bracketSize ?? null,
+              cards: cardsByMatch.get(assignment.matchId) ?? { yellow: 0, red: 0, black: 0 },
             };
           }),
         }
