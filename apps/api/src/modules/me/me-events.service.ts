@@ -1,0 +1,447 @@
+/**
+ * me-events.service.ts
+ *
+ * Cross-event aggregation for the redesigned personal space (/me):
+ *   - listMyEvents(userId): one entry per event the user touches (competitor,
+ *     referee, or workshop participant), with the event's tournaments (flagging
+ *     the ones the user is registered in + their pool/seed/bib), the referee
+ *     tournament/pool, and lightweight counts.
+ *   - getUpcoming(userId, limit): the next N time-ordered fights + referee slots
+ *     across ALL the user's events, for the dashboard "Next up".
+ *
+ * Identity chain (reused project-wide):
+ *   global_persons.claimed_by_user_id → per-event `persons` (event-scoped) for
+ *   registrations + workshop_enrollments; global_persons.id for referee_assignments.
+ *
+ * NOTE: `workshop_enrollments.user_id` holds the EVENT-SCOPED persons.id (see
+ * workshops/enrollment.service.ts), NOT the auth user id.
+ */
+
+import { Injectable } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+import { PublicScheduleService } from '../persons/public-schedule.service';
+
+type Row = Record<string, unknown>;
+
+export interface MyEventInfo {
+  id: string;
+  slug: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: string;
+  timezone: string | null;
+}
+
+export interface MyEventTournament {
+  id: string;
+  slug: string;
+  name: string;
+  weapon: string | null;
+  registered: boolean;
+  poolName: string | null;
+  seed: number | null;
+  bibNumber: number | null;
+}
+
+export interface MyEventRefereeOf {
+  tournamentName: string | null;
+  poolName: string | null;
+  role: string | null;
+}
+
+export interface MyEvent {
+  event: MyEventInfo;
+  roles: { isCompetitor: boolean; isReferee: boolean; isWorkshopParticipant: boolean };
+  tournaments: MyEventTournament[];
+  refereeOf: MyEventRefereeOf[];
+  counts: { matches: number; refereeSlots: number; workshops: number };
+}
+
+export interface UpcomingItem {
+  kind: 'fight' | 'referee';
+  eventId: string;
+  eventSlug: string;
+  eventName: string;
+  eventTimezone: string | null;
+  scheduledAt: string;
+  matchId: string;
+  matchNumberLabel: string;
+  tournamentName: string | null;
+  poolName: string | null;
+  liceName: string | null;
+  opponentName: string | null;
+  isRed: boolean | null;
+  role: string | null;
+}
+
+/** PostgREST embeds resolve to an object (1:1) or an array (1:N); normalise to one. */
+function one<T = Row>(value: unknown): T | null {
+  if (Array.isArray(value)) return (value[0] as T) ?? null;
+  return (value as T) ?? null;
+}
+
+@Injectable()
+export class MeEventsService {
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly schedule: PublicScheduleService,
+  ) {}
+
+  // ── /me/events ────────────────────────────────────────────────────────────
+
+  async listMyEvents(userId: string): Promise<MyEvent[]> {
+    const [claimedPersons, globalPersonId] = await Promise.all([
+      this.fetchClaimedPersons(userId),
+      this.resolveGlobalPersonId(userId),
+    ]);
+
+    const personIds = claimedPersons.map((p) => p.id);
+
+    const [refAssignments, workshopEvents, registrations] = await Promise.all([
+      this.fetchRefereeAssignments(globalPersonId),
+      this.fetchWorkshopEventIds(personIds),
+      this.fetchRegistrations(personIds),
+    ]);
+
+    // Build the event set (union of competitor / referee / workshop events).
+    const events = new Map<string, MyEvent>();
+    const ensure = (info: MyEventInfo | null): MyEvent | null => {
+      if (!info) return null;
+      let entry = events.get(info.id);
+      if (!entry) {
+        entry = {
+          event: info,
+          roles: { isCompetitor: false, isReferee: false, isWorkshopParticipant: false },
+          tournaments: [],
+          refereeOf: [],
+          counts: { matches: 0, refereeSlots: 0, workshops: 0 },
+        };
+        events.set(info.id, entry);
+      }
+      return entry;
+    };
+
+    for (const p of claimedPersons) ensure(p.event);
+    for (const a of refAssignments) {
+      const entry = ensure(a.event);
+      if (!entry) continue;
+      entry.roles.isReferee = true;
+      entry.counts.refereeSlots += 1;
+      entry.refereeOf.push({
+        tournamentName: a.tournamentName,
+        poolName: a.poolName,
+        role: a.role,
+      });
+    }
+    for (const info of workshopEvents.values()) {
+      const entry = ensure(info);
+      if (!entry) continue;
+      entry.roles.isWorkshopParticipant = true;
+      entry.counts.workshops += 1;
+    }
+
+    // Tournaments for every touched event + the user's registration flags.
+    const eventIds = [...events.keys()];
+    const [allTournaments, matchCounts] = await Promise.all([
+      this.fetchTournamentsForEvents(eventIds),
+      this.fetchMatchCounts(registrations.map((r) => r.id)),
+    ]);
+    const regByTournament = new Map(registrations.map((r) => [r.tournamentId, r]));
+    const tournamentToEvent = new Map(allTournaments.map((t) => [t.id, t.eventId]));
+
+    for (const t of allTournaments) {
+      const entry = events.get(t.eventId);
+      if (!entry) continue;
+      const reg = regByTournament.get(t.id);
+      if (reg) {
+        entry.roles.isCompetitor = true;
+      }
+      entry.tournaments.push({
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        weapon: t.weapon,
+        registered: Boolean(reg),
+        poolName: reg?.poolName ?? null,
+        seed: reg?.seed ?? null,
+        bibNumber: reg?.bibNumber ?? null,
+      });
+    }
+
+    // Match counts (user's fights) per event, mapped via registration→tournament→event.
+    for (const mc of matchCounts) {
+      const reg = registrations.find((r) => r.id === mc.registrationId);
+      if (!reg) continue;
+      const eventId = tournamentToEvent.get(reg.tournamentId);
+      if (!eventId) continue;
+      const entry = events.get(eventId);
+      if (entry) entry.counts.matches += mc.count;
+    }
+
+    // Sort: live first, then by start date desc.
+    return [...events.values()].sort((a, b) => {
+      const liveA = a.event.status === 'running' || a.event.status === 'published' ? 0 : 1;
+      const liveB = b.event.status === 'running' || b.event.status === 'published' ? 0 : 1;
+      if (liveA !== liveB) return liveA - liveB;
+      return (b.event.startDate ?? '').localeCompare(a.event.startDate ?? '');
+    });
+  }
+
+  // ── /me/upcoming ──────────────────────────────────────────────────────────
+
+  async getUpcoming(userId: string, limit: number): Promise<UpcomingItem[]> {
+    const claimedPersons = await this.fetchClaimedPersons(userId);
+    const targets = claimedPersons.flatMap((p) =>
+      p.event ? [{ personId: p.id, event: p.event }] : [],
+    );
+    if (targets.length === 0) return [];
+
+    const schedules = await Promise.all(
+      targets.map(async (t) => ({
+        event: t.event,
+        schedule: await this.schedule.getSchedule(t.event.id, t.personId, t.personId),
+      })),
+    );
+
+    const items: UpcomingItem[] = [];
+    for (const { event: info, schedule } of schedules) {
+      for (const m of schedule.matches) {
+        if (!m.scheduledAt) continue;
+        items.push({
+          kind: 'fight',
+          eventId: info.id,
+          eventSlug: info.slug,
+          eventName: info.name,
+          eventTimezone: info.timezone,
+          scheduledAt: m.scheduledAt,
+          matchId: m.id,
+          matchNumberLabel: m.matchNumberLabel,
+          tournamentName: m.tournamentName,
+          poolName: m.poolName,
+          liceName: m.liceName,
+          opponentName: m.opponentName,
+          isRed: m.isRed,
+          role: null,
+        });
+      }
+      for (const s of schedule.refereeSlots) {
+        if (!s.scheduledAt) continue;
+        items.push({
+          kind: 'referee',
+          eventId: info.id,
+          eventSlug: info.slug,
+          eventName: info.name,
+          eventTimezone: info.timezone,
+          scheduledAt: s.scheduledAt,
+          matchId: s.matchId,
+          matchNumberLabel: s.matchNumberLabel,
+          tournamentName: s.tournamentName,
+          poolName: s.poolName,
+          liceName: null,
+          opponentName: null,
+          isRed: null,
+          role: s.role,
+        });
+      }
+    }
+
+    return items.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)).slice(0, limit);
+  }
+
+  // ── Private fetchers ────────────────────────────────────────────────────────
+
+  private async fetchClaimedPersons(
+    userId: string,
+  ): Promise<Array<{ id: string; eventId: string; event: MyEventInfo | null }>> {
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('id, event_id, events(id, slug, name, start_date, end_date, status, timezone)')
+      .eq('claimed_by_user_id', userId);
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    return rows.map((r) => ({
+      id: String(r['id']),
+      eventId: String(r['event_id']),
+      event: this.mapEvent(one(r['events'])),
+    }));
+  }
+
+  private async resolveGlobalPersonId(userId: string): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', userId)
+      .maybeSingle();
+    return (data as { id: string } | null)?.id ?? null;
+  }
+
+  private async fetchRefereeAssignments(globalPersonId: string | null): Promise<
+    Array<{
+      event: MyEventInfo | null;
+      role: string | null;
+      tournamentName: string | null;
+      poolName: string | null;
+    }>
+  > {
+    if (!globalPersonId) return [];
+    const { data } = await this.supabase.service
+      .from('referee_assignments')
+      .select(
+        `
+        role,
+        events ( id, slug, name, start_date, end_date, status, timezone ),
+        pools ( name, phases ( tournaments ( name ) ) ),
+        matches ( pools ( name, phases ( tournaments ( name ) ) ), phases ( tournaments ( name ) ) )
+      `,
+      )
+      .eq('person_id', globalPersonId);
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    return rows.map((r) => {
+      const pool = one(r['pools']);
+      const match = one(r['matches']);
+      const matchPool = match ? one(match['pools']) : null;
+      const tournamentName =
+        this.tournamentNameFrom(pool) ??
+        this.tournamentNameFrom(matchPool) ??
+        this.tournamentNameFrom(match);
+      const poolName =
+        (pool?.['name'] as string | undefined) ??
+        (matchPool?.['name'] as string | undefined) ??
+        null;
+      return {
+        event: this.mapEvent(one(r['events'])),
+        role: (r['role'] as string | null) ?? null,
+        tournamentName,
+        poolName,
+      };
+    });
+  }
+
+  private tournamentNameFrom(node: Row | null): string | null {
+    if (!node) return null;
+    const phases = one(node['phases']);
+    const tournaments = phases ? one(phases['tournaments']) : null;
+    return (tournaments?.['name'] as string | undefined) ?? null;
+  }
+
+  private async fetchWorkshopEventIds(
+    personIds: string[],
+  ): Promise<Map<string, MyEventInfo | null>> {
+    if (personIds.length === 0) return new Map();
+    const { data } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select(
+        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone ) ) )',
+      )
+      .in('user_id', personIds)
+      .in('status', ['confirmed', 'intent', 'waitlisted']);
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    const map = new Map<string, MyEventInfo | null>();
+    for (const r of rows) {
+      const session = one(r['workshop_sessions']);
+      const workshop = session ? one(session['workshops']) : null;
+      const event = workshop ? this.mapEvent(one(workshop['events'])) : null;
+      if (event) map.set(event.id, event);
+    }
+    return map;
+  }
+
+  private async fetchRegistrations(personIds: string[]): Promise<
+    Array<{
+      id: string;
+      tournamentId: string;
+      seed: number | null;
+      bibNumber: number | null;
+      poolName: string | null;
+    }>
+  > {
+    if (personIds.length === 0) return [];
+    const { data } = await this.supabase.service
+      .from('registrations')
+      .select('id, tournament_id, seed, bib_number, status')
+      .in('person_id', personIds)
+      .neq('status', 'withdrawn');
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    const regs = rows.map((r) => ({
+      id: String(r['id']),
+      tournamentId: String(r['tournament_id']),
+      seed: (r['seed'] as number | null) ?? null,
+      bibNumber: (r['bib_number'] as number | null) ?? null,
+      poolName: null as string | null,
+    }));
+
+    // Resolve each registration's pool (if any) via pool_members → pools.
+    const regIds = regs.map((r) => r.id);
+    if (regIds.length > 0) {
+      const { data: members } = await this.supabase.service
+        .from('pool_members')
+        .select('registration_id, pools ( name )')
+        .in('registration_id', regIds);
+      const memberRows = Array.isArray(members) ? (members as Row[]) : [];
+      const poolByReg = new Map<string, string | null>();
+      for (const m of memberRows) {
+        const pool = one(m['pools']);
+        poolByReg.set(String(m['registration_id']), (pool?.['name'] as string | undefined) ?? null);
+      }
+      for (const r of regs) r.poolName = poolByReg.get(r.id) ?? null;
+    }
+    return regs;
+  }
+
+  private async fetchTournamentsForEvents(
+    eventIds: string[],
+  ): Promise<
+    Array<{ id: string; eventId: string; slug: string; name: string; weapon: string | null }>
+  > {
+    if (eventIds.length === 0) return [];
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('id, event_id, slug, name, weapon')
+      .in('event_id', eventIds)
+      .order('name', { ascending: true });
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    return rows.map((t) => ({
+      id: String(t['id']),
+      eventId: String(t['event_id']),
+      slug: String(t['slug']),
+      name: String(t['name']),
+      weapon: (t['weapon'] as string | null) ?? null,
+    }));
+  }
+
+  private async fetchMatchCounts(
+    registrationIds: string[],
+  ): Promise<Array<{ registrationId: string; count: number }>> {
+    if (registrationIds.length === 0) return [];
+    const ids = registrationIds.join(',');
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('red_registration_id, blue_registration_id')
+      .or(`red_registration_id.in.(${ids}),blue_registration_id.in.(${ids})`);
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    const counts = new Map<string, number>();
+    const bump = (id: unknown) => {
+      if (typeof id === 'string' && registrationIds.includes(id)) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    };
+    for (const m of rows) {
+      bump(m['red_registration_id']);
+      bump(m['blue_registration_id']);
+    }
+    return [...counts.entries()].map(([registrationId, count]) => ({ registrationId, count }));
+  }
+
+  private mapEvent(row: Row | null): MyEventInfo | null {
+    if (!row) return null;
+    return {
+      id: String(row['id']),
+      slug: String(row['slug']),
+      name: String(row['name']),
+      startDate: (row['start_date'] as string | null) ?? null,
+      endDate: (row['end_date'] as string | null) ?? null,
+      status: String(row['status'] ?? ''),
+      timezone: (row['timezone'] as string | null) ?? null,
+    };
+  }
+}

@@ -10,6 +10,7 @@ import { FightersModule } from './modules/fighters/fighters.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { HealthModule } from './modules/health/health.module';
 import { HemaRatingsModule } from './modules/hema-ratings/hema-ratings.module';
+import { MeModule } from './modules/me/me.module';
 import { WorkshopsModule } from './modules/workshops/workshops.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { RefereesModule } from './modules/referees/referees.module';
@@ -94,6 +95,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
     HemaRatingsModule,
     AuthModule,
     AdminModule,
+    MeModule,
     PersonsModule,
     ClubsModule,
     CompensationModule,

@@ -891,6 +891,61 @@ export class AuthService {
       this.logger.warn(
         `global-person link failed for user ${userId} and global_persons ${globalPersonId}: ${updateError.message}`,
       );
+      return;
+    }
+    await this.seedClubFromPersons(userId, globalPersonId);
+  }
+
+  /**
+   * On claim/link, surface the organiser-entered club: if the global profile
+   * has no club yet, seed `global_persons.club_id` + a `fighter_clubs` "main"
+   * row from the most-recent claimed `persons.club_id`. Idempotent; never
+   * overwrites an existing club (the `.is('club_id', null)` guard + existing
+   * main-row check). Best-effort — failures are logged, never thrown.
+   */
+  private async seedClubFromPersons(userId: string, globalPersonId: string): Promise<void> {
+    try {
+      const { data: gp } = await this.supabase.service
+        .from('global_persons')
+        .select('club_id')
+        .eq('id', globalPersonId)
+        .maybeSingle();
+      if ((gp as { club_id: string | null } | null)?.club_id) return;
+
+      const { data: person } = await this.supabase.service
+        .from('persons')
+        .select('club_id')
+        .eq('claimed_by_user_id', userId)
+        .not('club_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const clubId = (person as { club_id: string | null } | null)?.club_id ?? null;
+      if (!clubId) return;
+
+      await this.supabase.service
+        .from('global_persons')
+        .update({ club_id: clubId, updated_at: new Date().toISOString() })
+        .eq('id', globalPersonId)
+        .is('club_id', null);
+
+      const { data: existingMain } = await this.supabase.service
+        .from('fighter_clubs')
+        .select('id')
+        .eq('global_person_id', globalPersonId)
+        .eq('role', 'main')
+        .maybeSingle();
+      if (!existingMain) {
+        await this.supabase.service.from('fighter_clubs').insert({
+          global_person_id: globalPersonId,
+          club_id: clubId,
+          role: 'main',
+          sort_order: 0,
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.debug(`club seed skipped for global_persons ${globalPersonId}: ${message}`);
     }
   }
 

@@ -111,8 +111,10 @@ export class PublicScheduleService {
 
     if (!matches) return [];
 
-    return (matches as Array<Record<string, unknown>>).flatMap((m) => {
-      const isRed = regIds.includes(m['red_registration_id'] as string);
+    const mapped = (matches as Array<Record<string, unknown>>).flatMap((m) => {
+      const redReg = (m['red_registration_id'] as string | null) ?? null;
+      const blueReg = (m['blue_registration_id'] as string | null) ?? null;
+      const isRed = redReg !== null && regIds.includes(redReg);
       const pool = m['pools'] as { name: string } | null;
       const lice = m['lices'] as { name: string } | null;
       const phase = m['phases'] as {
@@ -121,21 +123,61 @@ export class PublicScheduleService {
       } | null;
       if (phase?.visibility_status !== 'published') return [];
 
-      return {
-        id: m['id'] as string,
-        matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
-        status: m['status'] as string,
-        scheduledAt: (m['scheduled_at'] as string | null) ?? null,
-        opponentName: null, // T-608 follow-up: resolve opponent name from registration->person
-        opponentClub: null,
-        redScore: (m['red_score'] as number) ?? 0,
-        blueScore: (m['blue_score'] as number) ?? 0,
-        isRed,
-        poolName: pool?.name ?? null,
-        tournamentName: phase?.tournaments?.name ?? null,
-        liceName: lice?.name ?? null,
-      };
+      return [
+        {
+          id: m['id'] as string,
+          matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
+          status: m['status'] as string,
+          scheduledAt: (m['scheduled_at'] as string | null) ?? null,
+          opponentRegId: isRed ? blueReg : redReg,
+          redScore: (m['red_score'] as number) ?? 0,
+          blueScore: (m['blue_score'] as number) ?? 0,
+          isRed,
+          poolName: pool?.name ?? null,
+          tournamentName: phase?.tournaments?.name ?? null,
+          liceName: lice?.name ?? null,
+        },
+      ];
     });
+
+    // Resolve opponent display names in one batched lookup (the side the
+    // viewer is NOT registered on). Finishes the T-608 follow-up.
+    const opponentNames = await this.resolveRegistrationNames(
+      mapped.map((x) => x.opponentRegId).filter((id): id is string => Boolean(id)),
+    );
+
+    return mapped.map(({ opponentRegId, ...rest }) => ({
+      ...rest,
+      opponentName: opponentRegId ? (opponentNames.get(opponentRegId) ?? null) : null,
+      opponentClub: null,
+    }));
+  }
+
+  /** Batched registration_id → "Given Family" (falls back to global display name). */
+  private async resolveRegistrationNames(regIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(regIds)];
+    if (unique.length === 0) return new Map();
+    const { data } = await this.supabase.service
+      .from('registrations')
+      .select('id, persons ( given_name, family_name, global_persons ( display_name ) )')
+      .in('id', unique);
+    const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      const personRaw = r['persons'];
+      const person = (Array.isArray(personRaw) ? personRaw[0] : personRaw) as Record<
+        string,
+        unknown
+      > | null;
+      if (!person) continue;
+      const given = ((person['given_name'] as string | null) ?? '').trim();
+      const family = ((person['family_name'] as string | null) ?? '').trim();
+      const gpRaw = person['global_persons'];
+      const gp = (Array.isArray(gpRaw) ? gpRaw[0] : gpRaw) as { display_name?: string } | null;
+      const name = `${given} ${family}`.trim() || (gp?.display_name ?? '').trim();
+      if (name) map.set(String(r['id']), name);
+    }
+    return map;
   }
 
   private async fetchRefereeSlots(eventId: string, personId: string): Promise<RefereeSlot[]> {

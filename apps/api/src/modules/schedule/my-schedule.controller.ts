@@ -34,15 +34,17 @@ export class MyScheduleController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    const personId = await this.resolvePersonId(req);
+    const personId = await this.resolvePersonId(req, eventId);
     // Person can always see their own workshops (requesterPersonId = personId)
     return this.schedule.getSchedule(eventId, personId, personId);
   }
 
-  private async resolvePersonId(req: FastifyRequest): Promise<string> {
+  private async resolvePersonId(req: FastifyRequest, eventId: string): Promise<string> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
 
-    // Try claimed user
+    // Try claimed user — scope the person lookup to THIS event, otherwise a
+    // user claimed in several events resolves to an arbitrary event's person
+    // and the schedule comes back empty/wrong.
     const accessToken = cookies?.['sb-access-token'];
     if (accessToken) {
       const { data } = await this.supabase.anon.auth.getUser(accessToken);
@@ -51,6 +53,7 @@ export class MyScheduleController {
           .from('persons')
           .select('id')
           .eq('claimed_by_user_id', data.user.id)
+          .eq('event_id', eventId)
           .maybeSingle();
         if (person) return (person as { id: string }).id;
       }
