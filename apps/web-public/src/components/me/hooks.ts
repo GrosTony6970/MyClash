@@ -4,6 +4,37 @@ import { useCallback, useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import type { MyEvent, PersonSchedule, UpcomingItem } from './types';
 
+// Stale-while-revalidate cache for the in-venue schedule: the last payload is
+// kept per event in localStorage so the page paints instantly — even with no
+// signal between bouts — and is replaced once the network responds.
+const SCHEDULE_CACHE_PREFIX = 'myclash:schedule:';
+
+interface ScheduleCache {
+  schedule: PersonSchedule;
+  fetchedAt: number;
+}
+
+function readScheduleCache(eventId: string): ScheduleCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(`${SCHEDULE_CACHE_PREFIX}${eventId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ScheduleCache;
+    return parsed?.schedule ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeScheduleCache(eventId: string, value: ScheduleCache): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(`${SCHEDULE_CACHE_PREFIX}${eventId}`, JSON.stringify(value));
+  } catch {
+    // ignore — storage full / private mode; the cache just won't persist
+  }
+}
+
 /** All events the signed-in user is involved in (competitor / referee / workshops). */
 export function useMyEvents(): { events: MyEvent[] | null; loading: boolean; error: boolean } {
   const [events, setEvents] = useState<MyEvent[] | null>(null);
@@ -31,13 +62,20 @@ export function useMyEvents(): { events: MyEvent[] | null; loading: boolean; err
   return { events, loading: events === null, error };
 }
 
-/** The signed-in user's per-event schedule (fights + referee slots + workshops). */
+/** The signed-in user's per-event schedule (fights + referee slots + workshops).
+ *  Reads stale-while-revalidate from localStorage so the schedule paints
+ *  instantly — even offline — then refreshes from the network and on reconnect.
+ *  `updatedAt` (ms) + `offline` drive the "Updated HH:MM · offline" badge. */
 export function useMySchedule(eventId: string | null): {
   schedule: PersonSchedule | null;
   loading: boolean;
+  updatedAt: number | null;
+  offline: boolean;
   refresh: () => void;
 } {
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -45,22 +83,53 @@ export function useMySchedule(eventId: string | null): {
   useEffect(() => {
     if (!eventId) return;
     const controller = new AbortController();
+
+    // Instant paint from the last cached payload (works with no signal) before
+    // the network resolves; the live fetch below supersedes it on success.
+    const cached = readScheduleCache(eventId);
+    if (cached) {
+      /* eslint-disable react-hooks/set-state-in-effect -- one-time cache hydration, superseded by the live fetch */
+      setSchedule(cached.schedule);
+      setUpdatedAt(cached.fetchedAt);
+      setLoading(false);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+
     fetch(`${getApiUrl()}/api/v1/events/${eventId}/my-schedule`, {
       credentials: 'include',
       signal: controller.signal,
     })
       .then(async (res) => {
-        const data = res.ok ? ((await res.json()) as PersonSchedule) : null;
-        if (data) setSchedule(data);
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+        const data = (await res.json()) as PersonSchedule;
+        const now = Date.now();
+        setSchedule(data);
+        setUpdatedAt(now);
+        setOffline(false);
         setLoading(false);
+        writeScheduleCache(eventId, { schedule: data, fetchedAt: now });
       })
       .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) setLoading(false);
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        // Network failure → keep whatever cache is on screen, flag offline.
+        setOffline(true);
+        setLoading(false);
       });
+
     return () => controller.abort();
   }, [eventId, refreshKey]);
 
-  return { schedule, loading, refresh };
+  // Revalidate as soon as connectivity returns.
+  useEffect(() => {
+    const onOnline = () => refresh();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [refresh]);
+
+  return { schedule, loading, updatedAt, offline, refresh };
 }
 
 /** Cross-event upcoming commitments for the dashboard "Next up". */

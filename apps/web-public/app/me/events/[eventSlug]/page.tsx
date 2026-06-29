@@ -35,7 +35,15 @@ function ScheduleTab({
   timezone: string | null;
   slug: string;
 }) {
-  const { schedule, loading } = useMySchedule(eventId);
+  const { schedule, loading, updatedAt, offline } = useMySchedule(eventId);
   if (loading || !schedule) return <Skeleton className="h-40 w-full rounded-xl" />;
-  return <ScheduleView schedule={schedule} timezone={timezone} eventSlug={slug} />;
+  return (
+    <ScheduleView
+      schedule={schedule}
+      timezone={timezone}
+      eventSlug={slug}
+      updatedAt={updatedAt}
+      offline={offline}
+    />
+  );
 }
