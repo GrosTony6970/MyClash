@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useI18n } from '../i18n/I18nProvider';
+import { BottomNav } from './BottomNav';
+import { MyEventsNav } from './me/MyEventsNav';
 
 const navItems = [
   { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', badge: 'D' },
@@ -92,37 +94,43 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   }
 
   const sidebar = (
-    <nav aria-label={t('publicApp.personalShell.navigationLabel')} className="flex flex-col gap-1">
-      {navItems.map((item) => {
-        const active = isActive(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setOpen(false)}
-            className={[
-              'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-              active
-                ? 'bg-accent text-accent-foreground shadow-sm'
-                : 'text-muted hover:bg-foreground/10 hover:text-foreground',
-            ].join(' ')}
-          >
-            <span
+    <>
+      <nav
+        aria-label={t('publicApp.personalShell.navigationLabel')}
+        className="flex flex-col gap-1"
+      >
+        {navItems.map((item) => {
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
               className={[
-                'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
+                'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                 active
-                  ? 'border-foreground/30 bg-foreground/15 text-foreground'
-                  : 'border-border bg-background text-gold group-hover:border-muted',
+                  ? 'bg-accent text-accent-foreground shadow-sm'
+                  : 'text-muted hover:bg-foreground/10 hover:text-foreground',
               ].join(' ')}
-              aria-hidden="true"
             >
-              {item.badge}
-            </span>
-            <span>{t(item.labelKey)}</span>
-          </Link>
-        );
-      })}
-    </nav>
+              <span
+                className={[
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
+                  active
+                    ? 'border-foreground/30 bg-foreground/15 text-foreground'
+                    : 'border-border bg-background text-gold group-hover:border-muted',
+                ].join(' ')}
+                aria-hidden="true"
+              >
+                {item.badge}
+              </span>
+              <span>{t(item.labelKey)}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      <MyEventsNav onNavigate={() => setOpen(false)} />
+    </>
   );
 
   const accountFooter = account?.email ? (
@@ -268,9 +276,10 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div id="main-content" className="min-h-screen pt-16 lg:pl-72">
+      <div id="main-content" className="min-h-screen pt-16 pb-20 lg:pb-0 lg:pl-72">
         {children}
       </div>
+      <BottomNav />
     </div>
   );
 }

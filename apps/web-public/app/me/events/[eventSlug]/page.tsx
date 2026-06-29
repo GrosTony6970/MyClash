@@ -1,29 +1,41 @@
-import type { Metadata } from 'next';
-import { getApiUrl } from '@/lib/api-url';
-import { PublicHome } from '../../../e/[eventSlug]/home/PublicHome';
+'use client';
 
-// Mirror the public event home's freshness (the data fetches inside PublicHome
-// are no-store) so the in-shell view matches /e/[slug]/home.
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+import { useParams } from 'next/navigation';
+import { Skeleton } from '@myclash/ui';
+import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
+import { ScheduleView } from '@/components/me/ScheduleView';
+import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 
-interface Props {
-  params: Promise<{ eventSlug: string }>;
+/** Per-event hub — default tab is Schedule (the in-venue "where am I due next"). */
+export default function HubSchedulePage() {
+  const { eventSlug } = useParams<{ eventSlug: string }>();
+  const { events, loading } = useMyEvents();
+  const myEvent = events?.find((e) => e.event.slug === eventSlug) ?? null;
+
+  if (loading) return <HubLoading />;
+  if (!myEvent) return <HubNotFound />;
+
+  return (
+    <EventHubChrome event={myEvent.event} active="schedule">
+      <ScheduleTab
+        eventId={myEvent.event.id}
+        timezone={myEvent.event.timezone}
+        slug={myEvent.event.slug}
+      />
+    </EventHubChrome>
+  );
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventSlug } = await params;
-  return { title: `Event — ${eventSlug}` };
-}
-
-/**
- * Personal-space event home: the same event home as /e/[slug]/home, but rendered
- * inside the personal shell (left sidebar stays) so the user keeps their /me
- * context. Drilling into a specific tournament/workshop opens the standalone
- * public view (`personalShell` only re-points the top back-link to /me/events).
- */
-export default async function PersonalSpaceEventHomePage({ params }: Props) {
-  const { eventSlug } = await params;
-  const apiUrl = getApiUrl();
-  return <PublicHome eventSlug={eventSlug} apiUrl={apiUrl} personalShell />;
+function ScheduleTab({
+  eventId,
+  timezone,
+  slug,
+}: {
+  eventId: string;
+  timezone: string | null;
+  slug: string;
+}) {
+  const { schedule, loading } = useMySchedule(eventId);
+  if (loading || !schedule) return <Skeleton className="h-40 w-full rounded-xl" />;
+  return <ScheduleView schedule={schedule} timezone={timezone} eventSlug={slug} />;
 }

@@ -354,7 +354,7 @@ export class WorkshopsController {
   @ApiOperation({ summary: 'Enroll in a session (authenticated). Waitlisted if full.' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async enroll(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const personId = await this.resolvePersonId(req);
+    const personId = await this.resolvePersonId(req, id);
     return this.enrollment.enroll(id, personId);
   }
 
@@ -363,7 +363,7 @@ export class WorkshopsController {
   @ApiOperation({ summary: 'Cancel enrollment (authenticated)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async cancel(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const personId = await this.resolvePersonId(req);
+    const personId = await this.resolvePersonId(req, id);
     await this.enrollment.cancel(id, personId);
   }
 
@@ -385,19 +385,23 @@ export class WorkshopsController {
 
   // ── Private ───────────────────────────────────────────────────────────────────
 
-  private async resolvePersonId(req: FastifyRequest): Promise<string> {
+  private async resolvePersonId(req: FastifyRequest, sessionId: string): Promise<string> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
 
-    // Try claimed user → find their person
+    // Try claimed user → find their person FOR THIS SESSION'S EVENT. A user
+    // claimed in several events has one persons row per event; scoping to the
+    // session's event keeps the enrollment on the right person.
     const accessToken = cookies?.['sb-access-token'];
     if (accessToken) {
       const { data } = await this.supabase.anon.auth.getUser(accessToken);
       if (data.user) {
-        const { data: person } = await this.supabase.service
+        const eventId = await this.eventIdForSession(sessionId);
+        let query = this.supabase.service
           .from('persons')
           .select('id')
-          .eq('claimed_by_user_id', data.user.id)
-          .maybeSingle();
+          .eq('claimed_by_user_id', data.user.id);
+        if (eventId) query = query.eq('event_id', eventId);
+        const { data: person } = await query.maybeSingle();
         if (person) return (person as { id: string }).id;
       }
     }
@@ -417,5 +421,17 @@ export class WorkshopsController {
     }
 
     throw new Error('Authentication required');
+  }
+
+  /** Resolve a workshop session's owning event id (session → workshop → event). */
+  private async eventIdForSession(sessionId: string): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('workshops ( event_id )')
+      .eq('id', sessionId)
+      .maybeSingle();
+    const raw = (data as { workshops?: unknown } | null)?.workshops;
+    const workshop = (Array.isArray(raw) ? raw[0] : raw) as { event_id?: string } | null;
+    return workshop?.event_id ?? null;
   }
 }
