@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { formatLocalizedDate } from '@myclash/types';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { DashboardToday } from '@/components/me/DashboardToday';
 
 interface PersonalSpaceResponse {
   user: {
@@ -118,6 +119,8 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
             })}
           </p>
         </header>
+
+        <DashboardToday />
 
         {loading && (
           <section className="rounded-lg border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">
