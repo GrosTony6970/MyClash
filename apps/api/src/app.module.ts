@@ -8,6 +8,7 @@ import { ClubsModule } from './modules/clubs/clubs.module';
 import { EventsModule } from './modules/events/events.module';
 import { FightersModule } from './modules/fighters/fighters.module';
 import { FollowsModule } from './modules/follows/follows.module';
+import { DirectoryGroupsModule } from './modules/directory-groups/directory-groups.module';
 import { HealthModule } from './modules/health/health.module';
 import { HemaRatingsModule } from './modules/hema-ratings/hema-ratings.module';
 import { MeModule } from './modules/me/me.module';
@@ -117,6 +118,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
     OrganizerAIAssistantModule,
     TournamentQueryModule,
     FollowsModule,
+    DirectoryGroupsModule,
     WorkshopsModule,
     ScheduleModule,
     RefereesModule,

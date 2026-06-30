@@ -44,6 +44,23 @@ export interface FollowRowCrossEvent extends FollowRow {
   eventSlug: string | null;
 }
 
+/** Outcome of following a global person across all their current/upcoming events. */
+export interface FollowAllSummary {
+  globalPersonId: string;
+  upcomingEventCount: number;
+  followedCount: number;
+  alreadyFollowingCount: number;
+  skippedPrivacyCount: number;
+}
+
+/** Per-global-person follow state for the "People" hub cards. */
+export interface FollowState {
+  upcomingEventCount: number;
+  followingEventCount: number;
+}
+
+const TERMINAL_EVENT_STATUSES = ['completed', 'archived'];
+
 @Injectable()
 export class FollowsService {
   constructor(
@@ -268,6 +285,140 @@ export class FollowsService {
     }
 
     return migrated;
+  }
+
+  // ── Follow-from-hub (global person → all current/upcoming events) ─────────────
+
+  /**
+   * Follow a GLOBAL person across every current/upcoming event they're entered
+   * in (per the product decision: one tap follows them everywhere upcoming).
+   * Reuses the per-event follow() so privacy + idempotency are enforced per
+   * event. Anonymous identities are a no-op (a follow row needs a follower).
+   */
+  async followAllEvents(
+    globalPersonId: string,
+    identity: FollowIdentity,
+  ): Promise<FollowAllSummary> {
+    const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: true });
+    const summary: FollowAllSummary = {
+      globalPersonId,
+      upcomingEventCount: targets.length,
+      followedCount: 0,
+      alreadyFollowingCount: 0,
+      skippedPrivacyCount: 0,
+    };
+    if (!identity.userId && !identity.guestSessionId) return summary; // anonymous: nothing to write
+
+    for (const t of targets) {
+      const existing = await this.findExisting(t.eventId, t.personId, identity);
+      if (existing) {
+        summary.alreadyFollowingCount += 1;
+        continue;
+      }
+      const priv = await this.privacy.getOrCreate(t.personId);
+      if (!priv.allowBeingFollowed) {
+        summary.skippedPrivacyCount += 1;
+        continue;
+      }
+      await this.follow(t.eventId, t.personId, identity);
+      summary.followedCount += 1;
+    }
+    return summary;
+  }
+
+  /** Unfollow a global person across ALL their events (toggles the hub button
+   *  fully off, including any follow left over from a now-finished event). */
+  async unfollowAllEvents(globalPersonId: string, identity: FollowIdentity): Promise<void> {
+    if (!identity.userId && !identity.guestSessionId) return;
+    const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: false });
+    for (const t of targets) {
+      await this.unfollow(t.eventId, t.personId, identity);
+    }
+  }
+
+  /**
+   * Batched follow-state for the "My Groups" member cards: for each global
+   * person, how many current/upcoming events they're in, and how many of those
+   * the session already follows. One persons query + one follows query total.
+   */
+  async countFollowStateForGlobalPersons(
+    globalPersonIds: string[],
+    identity: FollowIdentity,
+  ): Promise<Map<string, FollowState>> {
+    const ids = [...new Set(globalPersonIds.filter(Boolean))];
+    const result = new Map<string, FollowState>();
+    if (ids.length === 0) return result;
+
+    const { data: personRows } = await this.supabase.service
+      .from('persons')
+      .select('id, global_person_id, event_id, events!inner(status, is_test_event)')
+      .in('global_person_id', ids);
+
+    // global_person_id → { upcoming distinct events, all person ids }
+    const upcomingEvents = new Map<string, Set<string>>();
+    const personIdToGlobal = new Map<string, string>();
+    for (const raw of (personRows ?? []) as Array<Record<string, unknown>>) {
+      const gp = raw['global_person_id'] as string | null;
+      if (!gp) continue;
+      const personId = raw['id'] as string;
+      const eventId = raw['event_id'] as string;
+      const ev = raw['events'] as { status: string; is_test_event: boolean | null } | null;
+      personIdToGlobal.set(personId, gp);
+      if (ev && ev.is_test_event !== true && !TERMINAL_EVENT_STATUSES.includes(ev.status)) {
+        const set = upcomingEvents.get(gp) ?? new Set<string>();
+        set.add(eventId);
+        upcomingEvents.set(gp, set);
+      }
+    }
+
+    // Count the session's follows over those person ids.
+    const followingByGlobal = new Map<string, number>();
+    const personIds = [...personIdToGlobal.keys()];
+    if (personIds.length > 0 && (identity.userId || identity.guestSessionId)) {
+      let q = this.supabase.service
+        .from('follows')
+        .select('followed_person_id')
+        .in('followed_person_id', personIds);
+      if (identity.userId) {
+        q = q.eq('follower_user_id', identity.userId) as typeof q;
+      } else if (identity.guestSessionId) {
+        q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
+      }
+      const { data: followRows } = await q;
+      for (const raw of (followRows ?? []) as Array<{ followed_person_id: string }>) {
+        const gp = personIdToGlobal.get(raw.followed_person_id);
+        if (gp) followingByGlobal.set(gp, (followingByGlobal.get(gp) ?? 0) + 1);
+      }
+    }
+
+    for (const gp of ids) {
+      result.set(gp, {
+        upcomingEventCount: upcomingEvents.get(gp)?.size ?? 0,
+        followingEventCount: followingByGlobal.get(gp) ?? 0,
+      });
+    }
+    return result;
+  }
+
+  /** Resolve a global person to their event-scoped persons rows. `upcomingOnly`
+   *  keeps only non-terminal, non-test events. */
+  private async resolveEventPersons(
+    globalPersonId: string,
+    opts: { upcomingOnly: boolean },
+  ): Promise<Array<{ eventId: string; personId: string }>> {
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('id, event_id, events!inner(status, is_test_event)')
+      .eq('global_person_id', globalPersonId);
+
+    return ((data ?? []) as Array<Record<string, unknown>>)
+      .filter((r) => {
+        const ev = r['events'] as { status: string; is_test_event: boolean | null } | null;
+        if (!ev) return false;
+        if (!opts.upcomingOnly) return true;
+        return ev.is_test_event !== true && !TERMINAL_EVENT_STATUSES.includes(ev.status);
+      })
+      .map((r) => ({ eventId: r['event_id'] as string, personId: r['id'] as string }));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────────

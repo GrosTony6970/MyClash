@@ -43,6 +43,13 @@ const updateFollowSchema = z
   .strict();
 class UpdateFollowDto extends createZodDto(updateFollowSchema) {}
 
+const followByGlobalPersonSchema = z
+  .object({
+    globalPersonId: z.uuid(),
+  })
+  .strict();
+class FollowByGlobalPersonDto extends createZodDto(followByGlobalPersonSchema) {}
+
 @ApiTags('follows')
 @Controller()
 export class FollowsController {
@@ -65,6 +72,27 @@ export class FollowsController {
   async listAll(@Req() req: FastifyRequest) {
     const identity = await this.resolveIdentity(req);
     return this.follows.listAllFollows(identity);
+  }
+
+  @Post('me/follows/by-global-person')
+  @ApiOperation({
+    summary: 'Follow a global person across all their current/upcoming events',
+  })
+  async followByGlobalPerson(@Body() dto: FollowByGlobalPersonDto, @Req() req: FastifyRequest) {
+    const identity = await this.resolveIdentity(req);
+    return this.follows.followAllEvents(dto.globalPersonId, identity);
+  }
+
+  @Delete('me/follows/by-global-person/:globalPersonId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unfollow a global person across all their events' })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async unfollowByGlobalPerson(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const identity = await this.resolveIdentity(req);
+    await this.follows.unfollowAllEvents(globalPersonId, identity);
   }
 
   @Post('events/:eventId/follows')

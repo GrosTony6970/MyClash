@@ -100,6 +100,16 @@ export class FightersService {
   // ── List ────────────────────────────────────────────────────────────────────
 
   async list(query: FighterQueryDto) {
+    // Typo-tolerant search: when a free-text query is present (and we're not also
+    // filtering by club), rank by trigram similarity via lookup_global_persons,
+    // then hydrate full rows in that order. Falls back to ilike when the RPC is
+    // unavailable or returns nothing.
+    const term = query.q?.trim();
+    if (term && term.length >= 2 && !query.club) {
+      const fuzzy = await this.fuzzySearchFighters(term);
+      if (fuzzy) return fuzzy;
+    }
+
     let q = this.supabase.service
       .from('global_persons')
       .select('*, clubs(name, slug)')
@@ -124,6 +134,31 @@ export class FightersService {
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
+  }
+
+  /** Trigram-ranked fighter search. Returns full rows (same shape as list())
+   *  ordered by similarity, or null to signal the caller to fall back to ilike. */
+  private async fuzzySearchFighters(term: string): Promise<Row[] | null> {
+    const { data, error } = await this.supabase.service.rpc('lookup_global_persons', {
+      p_query: term,
+      p_limit: 20,
+      p_threshold: 0.2,
+    });
+    if (error || !data) return null; // pre-migration / RPC error → ilike fallback
+
+    const ranked = data as Array<{ id: string }>;
+    if (ranked.length === 0) return []; // ran cleanly, genuinely no matches
+
+    const ids = ranked.map((r) => r.id);
+    const { data: rows } = await this.supabase.service
+      .from('global_persons')
+      .select('*, clubs(name, slug)')
+      .in('id', ids);
+
+    const order = new Map(ids.map((id, index) => [id, index]));
+    return ((rows ?? []) as Row[]).sort(
+      (a, b) => (order.get(a['id'] as string) ?? 0) - (order.get(b['id'] as string) ?? 0),
+    );
   }
 
   // ── Get by slug ──────────────────────────────────────────────────────────────
