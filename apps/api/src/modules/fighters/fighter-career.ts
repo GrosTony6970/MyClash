@@ -1,3 +1,5 @@
+import type { FinalRankingResultKind } from '@myclash/types';
+
 export interface CareerRegistrationInput {
   id: string;
   tournamentId: string;
@@ -41,12 +43,24 @@ export interface CareerLeagueRankingInput {
   group: string;
 }
 
+/** A fighter's final placement in one completed tournament, derived from the
+ *  shared `computeFinalRanking` (same ordering the public tournament page
+ *  shows). `place` is 1-indexed; `totalRanked` is the size of the ranked field. */
+export interface TournamentPlacement {
+  place: number;
+  resultKind: FinalRankingResultKind;
+  totalRanked: number;
+}
+
 export interface BuildFighterCareerInput {
   fighterId: string;
   registrations: CareerRegistrationInput[];
   matches: CareerMatchInput[];
   exchanges: CareerExchangeInput[];
   leagueRankings: CareerLeagueRankingInput[];
+  /** Per-registration final placement, keyed by registration id. Optional so
+   *  callers (and tests) that don't compute placements still build a career. */
+  placementByRegistrationId?: Map<string, TournamentPlacement>;
 }
 
 export interface FighterCareerStats {
@@ -186,13 +200,23 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     matches: input.matches,
     tournamentPlacements: input.registrations
       .filter((registration) => registration.tournamentStatus === 'completed')
-      .map((registration) => ({
-        tournamentId: registration.tournamentId,
-        tournamentName: registration.tournamentName,
-        eventName: registration.eventName,
-        weapon: registration.weapon,
-        rank: null as number | null,
-      })),
+      .map((registration) => {
+        const placement = input.placementByRegistrationId?.get(registration.id) ?? null;
+        return {
+          tournamentId: registration.tournamentId,
+          tournamentName: registration.tournamentName,
+          tournamentSlug: registration.tournamentSlug,
+          eventName: registration.eventName,
+          eventSlug: registration.eventSlug,
+          weapon: registration.weapon,
+          date: registration.eventStartDate,
+          place: placement?.place ?? null,
+          resultKind: placement?.resultKind ?? null,
+          totalRanked: placement?.totalRanked ?? null,
+        };
+      })
+      // Most-recent first (ISO date strings sort lexicographically).
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')),
     leagueRankings: input.leagueRankings,
     stats: {
       overall: finalizeStats(overall),

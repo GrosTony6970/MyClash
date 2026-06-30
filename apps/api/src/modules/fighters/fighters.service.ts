@@ -5,10 +5,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { computeFinalRanking, type PoolEntry, type RankingSlot } from '@myclash/types';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
+// Value imports (NOT `import type`) — these are DI-injected, so the runtime
+// needs the class metadata preserved.
+import { PhasesService } from '../phases/phases.service';
+import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
 import type {
   CreateFighterDto,
   CreateGlobalPersonDto,
@@ -28,6 +33,7 @@ import {
   type CareerLeagueRankingInput,
   type CareerMatchInput,
   type CareerRegistrationInput,
+  type TournamentPlacement,
 } from './fighter-career';
 import {
   buildRefereeStats,
@@ -84,6 +90,11 @@ export class FightersService {
     private readonly supabase: SupabaseService,
     private readonly csvImport: CsvImportService,
     private readonly hemaRatings?: HemaRatingsService,
+    // Optional like hemaRatings: provided by FightersModule, but tests may
+    // construct the service without them — placement computation degrades to
+    // null rather than throwing.
+    private readonly phases?: PhasesService,
+    private readonly poolStandings?: PoolStandingsService,
   ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
@@ -548,6 +559,7 @@ export class FightersService {
     const exchanges =
       matches.length > 0 ? await this.fetchCareerExchanges(matches.map((match) => match.id)) : [];
     const leagueRankings = await this.fetchCareerLeagueRankings(fighterId);
+    const placementByRegistrationId = await this.computeTournamentPlacements(registrations);
 
     return buildFighterCareer({
       fighterId,
@@ -555,7 +567,100 @@ export class FightersService {
       matches,
       exchanges,
       leagueRankings,
+      placementByRegistrationId,
     });
+  }
+
+  /**
+   * For each completed tournament the fighter competed in, compute their final
+   * placement using the SAME shared `computeFinalRanking` the public tournament
+   * page uses — so the number on the profile matches the number on the bracket.
+   * Best-effort per tournament: any failure leaves that placement unset rather
+   * than breaking dashboard load. Requires the phases + pool-standings services
+   * (provided in production; absent in some unit tests).
+   */
+  private async computeTournamentPlacements(
+    registrations: CareerRegistrationInput[],
+  ): Promise<Map<string, TournamentPlacement>> {
+    const placements = new Map<string, TournamentPlacement>();
+    if (!this.phases || !this.poolStandings) return placements;
+
+    const completed = registrations.filter(
+      (registration) => registration.tournamentStatus === 'completed',
+    );
+    for (const registration of completed) {
+      try {
+        const placement = await this.computeOnePlacement(
+          registration.tournamentId,
+          registration.id,
+        );
+        if (placement) placements.set(registration.id, placement);
+      } catch {
+        // A single tournament's bracket/standings failing must never break the
+        // whole career dashboard — skip and move on.
+      }
+    }
+    return placements;
+  }
+
+  /** Placement of one registration in one tournament, mirroring the public
+   *  FinalRankingTab (bracket slots + overall pool standings → computeFinalRanking).
+   *  Falls back to the overall pool rank for pool-only tournaments. */
+  private async computeOnePlacement(
+    tournamentId: string,
+    registrationId: string,
+  ): Promise<TournamentPlacement | null> {
+    let rows: StandingsRow[] = [];
+    try {
+      const standings = (await this.poolStandings!.getPoolStandings(tournamentId, 'overall')) as {
+        rows?: StandingsRow[];
+      };
+      rows = standings.rows ?? [];
+    } catch {
+      rows = [];
+    }
+    const poolEntries: PoolEntry[] = rows.map((row) => {
+      const rawScore = row.stats?.['score'];
+      const score = typeof rawScore === 'number' ? rawScore : Number(rawScore);
+      return {
+        registrationId: row.registrationId,
+        fighterName: row.displayName,
+        clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+        poolScore: Number.isFinite(score) ? score : null,
+      };
+    });
+
+    const bracket = await this.phases!.getTournamentBracket(tournamentId);
+    if (bracket?.slots?.length) {
+      const slots: RankingSlot[] = bracket.slots.map((slot) => ({
+        id: slot.id,
+        round: slot.round,
+        position: slot.position,
+        status: slot.status,
+        redRegistrationId: slot.redRegistrationId ?? null,
+        blueRegistrationId: slot.blueRegistrationId ?? null,
+        redFighterName: slot.redFighterName ?? null,
+        blueFighterName: slot.blueFighterName ?? null,
+        redClubAbbrev: slot.redClubAbbrev ?? null,
+        blueClubAbbrev: slot.blueClubAbbrev ?? null,
+        redScore: slot.redScore ?? null,
+        blueScore: slot.blueScore ?? null,
+      }));
+      // 2-arg call (no explicit bronzeSlotId) to match the public FinalRankingTab.
+      const ranking = computeFinalRanking(slots, poolEntries);
+      const entry = ranking.find((e) => e.registrationId === registrationId);
+      if (entry) {
+        return { place: entry.place, resultKind: entry.resultKind, totalRanked: ranking.length };
+      }
+    }
+
+    // Pool-only tournament (or a bracket that isn't decided yet): use the
+    // fighter's overall pool rank.
+    const row = rows.find((r) => r.registrationId === registrationId);
+    if (row && Number.isFinite(row.rank)) {
+      return { place: row.rank, resultKind: 'pool', totalRanked: rows.length };
+    }
+    return null;
   }
 
   async promote(dto: PromoteFighterDto, claimedUserId: string) {

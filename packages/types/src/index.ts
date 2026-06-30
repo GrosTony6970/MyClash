@@ -4,6 +4,7 @@
 
 export * from './compensation';
 export * from './date';
+export * from './final-ranking';
 export * from './password';
 export * from './programme';
 export * from './persons';

@@ -122,4 +122,99 @@ describe('buildFighterCareer', () => {
       { leagueName: 'TF 2026', rank: 4, totalPoints: 20, group: 'Rapier' },
     ]);
   });
+
+  it('fills tournament placements from the placement map and sorts most-recent first', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-older',
+          tournamentId: 't-older',
+          tournamentName: 'Spring Cup',
+          tournamentSlug: 'spring-cup',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'e-older',
+          eventName: 'Spring 2025',
+          eventSlug: 'spring-2025',
+          eventStatus: 'completed',
+          eventStartDate: '2025-04-01',
+          eventEndDate: '2025-04-02',
+        },
+        {
+          id: 'reg-newer',
+          tournamentId: 't-newer',
+          tournamentName: 'Winter Cup',
+          tournamentSlug: 'winter-cup',
+          tournamentStatus: 'completed',
+          weapon: 'Rapier',
+          eventId: 'e-newer',
+          eventName: 'Winter 2026',
+          eventSlug: 'winter-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-01-10',
+          eventEndDate: '2026-01-11',
+        },
+      ],
+      matches: [],
+      exchanges: [],
+      leagueRankings: [],
+      placementByRegistrationId: new Map([
+        ['reg-older', { place: 1, resultKind: 'champion', totalRanked: 16 }],
+        ['reg-newer', { place: 5, resultKind: 'round', totalRanked: 12 }],
+      ]),
+    });
+
+    // Sorted most-recent first → Winter (2026) before Spring (2025).
+    expect(career.tournamentPlacements.map((p) => p.tournamentSlug)).toEqual([
+      'winter-cup',
+      'spring-cup',
+    ]);
+    expect(career.tournamentPlacements[0]).toMatchObject({
+      tournamentName: 'Winter Cup',
+      eventSlug: 'winter-2026',
+      place: 5,
+      resultKind: 'round',
+      totalRanked: 12,
+      date: '2026-01-10',
+    });
+    expect(career.tournamentPlacements[1]).toMatchObject({
+      tournamentName: 'Spring Cup',
+      place: 1,
+      resultKind: 'champion',
+      totalRanked: 16,
+    });
+  });
+
+  it('leaves placement null when no placement map entry exists', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-1',
+          tournamentId: 't-1',
+          tournamentName: 'Open',
+          tournamentSlug: 'open',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'e-1',
+          eventName: 'Event',
+          eventSlug: 'event',
+          eventStatus: 'completed',
+          eventStartDate: '2026-02-01',
+          eventEndDate: '2026-02-02',
+        },
+      ],
+      matches: [],
+      exchanges: [],
+      leagueRankings: [],
+    });
+
+    expect(career.tournamentPlacements).toHaveLength(1);
+    expect(career.tournamentPlacements[0]).toMatchObject({
+      place: null,
+      resultKind: null,
+      totalRanked: null,
+    });
+  });
 });

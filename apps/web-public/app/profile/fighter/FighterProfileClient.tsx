@@ -49,11 +49,26 @@ interface WeaponStat {
   doubleHitPercentage: number;
 }
 
+/** A fighter's final placement in one completed tournament (server-computed via
+ *  the shared computeFinalRanking — same order the public tournament page shows). */
+interface FighterPlacement {
+  tournamentId: string;
+  tournamentName: string;
+  tournamentSlug: string;
+  eventName: string;
+  eventSlug: string;
+  weapon: string | null;
+  date: string | null;
+  place: number | null;
+  resultKind: string | null;
+  totalRanked: number | null;
+}
+
 interface DashboardResponse {
   profile: FighterProfile;
   career: {
     eventParticipation: Array<{ startDate?: string | null }>;
-    tournamentPlacements: unknown[];
+    tournamentPlacements: FighterPlacement[];
     upcoming: unknown[];
     leagueRankings: Array<{ leagueName: string; rank: number; totalPoints: number }>;
     stats: {
@@ -813,6 +828,22 @@ function WeaponCard({
   );
 }
 
+/** Medal glyph for a podium finish; empty for everyone else. */
+function medalGlyph(place: number | null): string {
+  if (place === 1) return '🥇';
+  if (place === 2) return '🥈';
+  if (place === 3) return '🥉';
+  return '';
+}
+
+/** Headline for a placement: a medal word for the podium, otherwise `#N`. */
+function placeHeadline(place: number | null, t: TFn): string {
+  if (place === 1) return t('publicApp.fighterProfile.resultChampion');
+  if (place === 2) return t('publicApp.fighterProfile.resultRunnerUp');
+  if (place === 3) return t('publicApp.fighterProfile.resultThird');
+  return place != null ? `#${place}` : '—';
+}
+
 /** Career statistics card with a Global / per-weapon tab bar. The combat tiles
  *  shift with the selected tab; the lower block holds tab-independent career
  *  totals. HEMA rank/rating only appear on a weapon tab with a matching rating. */
@@ -828,6 +859,8 @@ function FighterStatsCard({
   const career = dashboard.career;
   const overall = career.stats.overall;
   const fought = career.stats.byWeapon.filter((weapon) => weapon.matches > 0);
+  // Only show tournaments we could actually rank (a decided bracket or pool).
+  const placements = career.tournamentPlacements.filter((placement) => placement.place != null);
   const [statTab, setStatTab] = useState<string>('global');
 
   const active =
@@ -943,6 +976,54 @@ function FighterStatsCard({
           />
         ))}
       </div>
+
+      {placements.length > 0 && (
+        <div className="mt-4 border-t border-border pt-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
+            {t('publicApp.fighterProfile.resultsTitle')}
+          </h3>
+          <ul className="space-y-1.5">
+            {placements.map((placement) => (
+              <li key={placement.tournamentId}>
+                <a
+                  href={`/e/${placement.eventSlug}/t/${placement.tournamentSlug}#finalranking`}
+                  className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 hover:bg-foreground/5"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {medalGlyph(placement.place) && (
+                      <span aria-hidden className="text-base leading-none">
+                        {medalGlyph(placement.place)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-foreground">
+                        {placement.tournamentName}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        {[placement.eventName, placement.weapon, placement.date?.slice(0, 4)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex-shrink-0 text-right">
+                    <span className="block text-sm font-bold text-foreground">
+                      {placeHeadline(placement.place, t)}
+                    </span>
+                    {placement.totalRanked != null && (
+                      <span className="block text-xs text-muted">
+                        {t('publicApp.fighterProfile.resultOfTotal', {
+                          total: placement.totalRanked,
+                        })}
+                      </span>
+                    )}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }
