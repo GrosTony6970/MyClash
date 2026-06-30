@@ -31,6 +31,7 @@ import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { validateLogoFile } from '../../../../src/lib/validate-logo-file';
+import { RequestDeletionModal } from './_components/RequestDeletionModal';
 
 interface OrgEvent {
   id: string;
@@ -48,6 +49,9 @@ interface OrgEvent {
   logoUrl: string | null;
   tournamentCount: number;
   participantCount: number;
+  // True when any match has progressed past `scheduled` — hard delete is then
+  // forbidden and the event must go through the deletion-request flow.
+  hasRecordedResults: boolean;
 }
 
 interface EventForm {
@@ -89,6 +93,7 @@ function normalizeEvent(row: Record<string, unknown>): OrgEvent {
         : null,
     tournamentCount: Number(row['tournamentCount'] ?? row['tournament_count'] ?? 0),
     participantCount: Number(row['participantCount'] ?? row['participant_count'] ?? 0),
+    hasRecordedResults: (row['hasRecordedResults'] ?? row['has_recorded_results']) === true,
   };
 }
 
@@ -125,6 +130,11 @@ export default function OrgEventsListPage() {
   const [logoRemove, setLogoRemove] = useState(false);
   const editLogoInput = useRef<HTMLInputElement | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<OrgEvent | null>(null);
+  // Event targeted by the "Request deletion" modal (archive + submit request).
+  const [deletionTarget, setDeletionTarget] = useState<OrgEvent | null>(null);
+  // event id → pending deletion request, so rows under review show the pending
+  // pill + a cancel action instead of a delete button.
+  const [pendingDeletions, setPendingDeletions] = useState<Map<string, { id: string }>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<string | null>('createdAt');
@@ -163,16 +173,33 @@ export default function OrgEventsListPage() {
       .then((r) => (r.ok ? r.json() : []))
       .catch(() => []);
 
-    return { orgName: org.name, events: rows.map(normalizeEvent), venues };
+    // Pending deletion requests for the org — one fetch, mapped by event id so
+    // rows can show "under review" inline rather than the delete control.
+    const pendingRows = (await fetch(
+      `${apiUrl}/api/v1/organizations/${org.id}/deletion-requests?status=pending`,
+      { credentials: 'include', signal },
+    )
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => [])) as Array<Record<string, unknown>>;
+    const pending = new Map<string, { id: string }>();
+    for (const row of pendingRows ?? []) {
+      const targetType = String(row['targetType'] ?? row['target_type'] ?? '');
+      const targetId = String(row['targetId'] ?? row['target_id'] ?? '');
+      const id = String(row['id'] ?? '');
+      if (targetType === 'event' && targetId && id) pending.set(targetId, { id });
+    }
+
+    return { orgName: org.name, events: rows.map(normalizeEvent), venues, pending };
   };
 
   const load = () => {
     const controller = new AbortController();
     setLoading(true);
     fetchEvents(controller.signal)
-      .then(({ orgName: nextOrgName, events: nextEvents, venues }) => {
+      .then(({ orgName: nextOrgName, events: nextEvents, venues, pending }) => {
         setOrgName(nextOrgName);
         setEvents(nextEvents);
+        setPendingDeletions(pending);
         setOrgVenues(
           (venues ?? []) as Array<{
             id: string;
@@ -441,6 +468,30 @@ export default function OrgEventsListPage() {
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('organizer.events.deleteError'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function cancelDeletionRequest(event: OrgEvent) {
+    const pending = pendingDeletions.get(event.id);
+    if (!pending) return;
+    setBusyId(event.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/deletion-requests/${pending.id}/cancel`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('common.error'));
+      }
+      setNotice(t('organizer.deletionRequest.deletionRequestCancelled'));
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('common.error'));
     } finally {
       setBusyId(null);
     }
@@ -721,15 +772,42 @@ export default function OrgEventsListPage() {
                         >
                           {t('organizer.events.uploadLogo')}
                         </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="danger"
-                          disabled={busyId === event.id}
-                          onClick={() => setConfirmDelete(event)}
-                        >
-                          {t('organizer.events.hardDelete')}
-                        </Button>
+                        {pendingDeletions.has(event.id) ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2.5 py-0.5 text-xs font-semibold text-warning">
+                              {t('organizer.events.deletionPending')}
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="back"
+                              disabled={busyId === event.id}
+                              onClick={() => void cancelDeletionRequest(event)}
+                            >
+                              {t('organizer.deletionRequest.cancelRequest')}
+                            </Button>
+                          </div>
+                        ) : event.status === 'archived' || event.hasRecordedResults ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            disabled={busyId === event.id}
+                            onClick={() => setDeletionTarget(event)}
+                          >
+                            {t('organizer.deletionRequest.requestDeletion')}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            disabled={busyId === event.id}
+                            onClick={() => setConfirmDelete(event)}
+                          >
+                            {t('organizer.events.hardDelete')}
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -961,6 +1039,20 @@ export default function OrgEventsListPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {deletionTarget && (
+        <RequestDeletionModal
+          targetType="event"
+          targetId={deletionTarget.id}
+          targetLabel={deletionTarget.name}
+          archiveFirst={deletionTarget.status !== 'archived'}
+          onSuccess={() => {
+            setDeletionTarget(null);
+            load();
+          }}
+          onClose={() => setDeletionTarget(null)}
+        />
       )}
     </main>
   );

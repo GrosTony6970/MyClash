@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
-import { RequestDeletionModal } from '../_components/RequestDeletionModal';
+import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
 

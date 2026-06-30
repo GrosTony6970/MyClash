@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
-import { t } from '@myclash/i18n';
-import { RequestDeletionModal } from './RequestDeletionModal';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 
 interface DeletionRequest {
   id: string;
@@ -23,6 +23,7 @@ interface Props {
 
 export function ArchivedBanner({ eventId, eventName, updatedAt }: Props) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
   const toast = useToast();
 
   const [pendingRequest, setPendingRequest] = useState<DeletionRequest | null | undefined>(

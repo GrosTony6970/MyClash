@@ -3707,6 +3707,7 @@ export const en = {
       visibilityError: 'Could not change event visibility.',
       deleted: 'Event deleted.',
       deleteError: 'Could not delete event.',
+      deletionPending: 'Deletion pending · under review',
       editTitle: 'Edit event properties',
       slugReadOnly: 'Public slug stays /e/{slug}.',
       publicLanding: 'Public landing content',
@@ -4778,6 +4779,13 @@ export const en = {
       deletionRequestSubmitted: 'Deletion request submitted. A super admin will review it.',
       deletionRequestCancelled: 'Deletion request cancelled.',
       deletionRequestConflict: 'A pending deletion request already exists for this target.',
+      autoArchiveNotice:
+        'Submitting will archive this event and send a deletion request to MyClash admins for review.',
+      permanentDeleteWarning:
+        'Once a super admin approves, this event is permanently deleted. Its matches and results will NOT be saved and will be excluded from statistics, rankings, and fighter records.',
+      reasonPresetsLabel: 'Quick reasons:',
+      reasonPresetCreatedByError: 'Created by error',
+      reasonPresetCreatedForTest: 'Created for testing',
     },
     staffing: {
       tournamentLabel: 'Tournament',
@@ -8893,6 +8901,7 @@ export const fr = {
       visibilityError: "Impossible de changer la visibilite de l'evenement.",
       deleted: 'Evenement supprime.',
       deleteError: "Impossible de supprimer l'evenement.",
+      deletionPending: 'Suppression en attente · en revue',
       editTitle: "Modifier les proprietes de l'evenement",
       slugReadOnly: 'Le slug public reste /e/{slug}.',
       publicLanding: 'Contenu de la page publique',
@@ -9985,6 +9994,13 @@ export const fr = {
       deletionRequestSubmitted: 'Demande de suppression envoyee. Un super-admin va la revoir.',
       deletionRequestCancelled: 'Demande de suppression annulee.',
       deletionRequestConflict: 'Une demande de suppression est deja en attente pour cet element.',
+      autoArchiveNotice:
+        'En envoyant, cet evenement sera archive et une demande de suppression sera envoyee aux admins MyClash pour revue.',
+      permanentDeleteWarning:
+        'Une fois approuve par un super-admin, cet evenement est definitivement supprime. Ses matchs et resultats ne seront PAS conserves et seront exclus des statistiques, classements et historiques des combattants.',
+      reasonPresetsLabel: 'Raisons rapides :',
+      reasonPresetCreatedByError: 'Cree par erreur',
+      reasonPresetCreatedForTest: 'Cree pour un test',
     },
     staffing: {
       tournamentLabel: 'Tournoi',

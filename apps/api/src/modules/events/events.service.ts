@@ -226,6 +226,40 @@ export class EventsService {
       }
     }
 
+    // Which events have at least one recorded result (a match past
+    // `scheduled`). Same teardown rule as the hard-delete guard
+    // (assertNoRecordedResults): generated-but-unplayed schedules are safe to
+    // hard-delete; any non-scheduled match means hard delete is forbidden and
+    // the event must go through the deletion-request flow instead. Surfacing
+    // this lets the events list show "Request deletion" upfront rather than
+    // letting the operator fail a hard delete.
+    const eventsWithResults = new Set<string>();
+    if (tournamentIds.length > 0) {
+      const { data: phaseRows, error: phaseErr } = await this.supabase.service
+        .from('phases')
+        .select('id, tournament_id')
+        .in('tournament_id', tournamentIds);
+      if (phaseErr) throw new BadRequestException(phaseErr.message);
+      const phaseToEvent = new Map<string, string>();
+      for (const p of (phaseRows ?? []) as Array<{ id: string; tournament_id: string }>) {
+        const evId = tournamentToEvent.get(p.tournament_id);
+        if (evId) phaseToEvent.set(p.id, evId);
+      }
+      const phaseIds = Array.from(phaseToEvent.keys());
+      if (phaseIds.length > 0) {
+        const { data: matchRows, error: matchErr } = await this.supabase.service
+          .from('matches')
+          .select('phase_id')
+          .in('phase_id', phaseIds)
+          .neq('status', 'scheduled');
+        if (matchErr) throw new BadRequestException(matchErr.message);
+        for (const m of (matchRows ?? []) as Array<{ phase_id: string }>) {
+          const evId = phaseToEvent.get(m.phase_id);
+          if (evId) eventsWithResults.add(evId);
+        }
+      }
+    }
+
     return rows.map((row) => {
       const creatorId = row['created_by_user_id'] as string | null;
       const evId = row['id'] as string;
@@ -234,6 +268,7 @@ export class EventsService {
         created_by_user_name: creatorId ? (nameByUser.get(creatorId) ?? null) : null,
         tournament_count: tournamentCountByEvent.get(evId) ?? 0,
         participant_count: distinctPeopleByEvent.get(evId)?.size ?? 0,
+        has_recorded_results: eventsWithResults.has(evId),
       };
     });
   }
