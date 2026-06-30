@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { getDateFormat } from '@myclash/types';
 import { Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
@@ -70,7 +71,13 @@ interface DashboardResponse {
     eventParticipation: Array<{ startDate?: string | null }>;
     tournamentPlacements: FighterPlacement[];
     upcoming: unknown[];
-    leagueRankings: Array<{ leagueName: string; rank: number; totalPoints: number }>;
+    leagueRankings: Array<{
+      leagueName: string;
+      leagueSlug: string;
+      rank: number;
+      totalPoints: number;
+      medalCount: number;
+    }>;
     recentForm: Array<{
       matchId: string;
       date: string | null;
@@ -1008,14 +1015,19 @@ function FighterStatsCard({
           <DashboardStat label={t('publicApp.fighterProfile.activeSince')} value={activeSince} />
         )}
         {career.leagueRankings.map((league, index) => (
-          <DashboardStat
+          <Link
             key={`${league.leagueName}-${index}`}
-            label={league.leagueName}
-            value={t('publicApp.fighterProfile.leagueValue', {
-              rank: league.rank,
-              points: league.totalPoints,
-            })}
-          />
+            href={`/me/leagues/${league.leagueSlug}`}
+            className="block rounded-lg transition-opacity hover:opacity-80"
+          >
+            <DashboardStat
+              label={league.leagueName}
+              value={t('publicApp.fighterProfile.leagueValue', {
+                rank: league.rank,
+                points: league.totalPoints,
+              })}
+            />
+          </Link>
         ))}
       </div>
 

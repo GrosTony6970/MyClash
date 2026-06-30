@@ -53,4 +53,13 @@ export class MeController {
     const n = Math.min(20, Math.max(1, Number.isFinite(parsed) ? parsed : 5));
     return this.me.getUpcoming(userId, n);
   }
+
+  @Get('leagues')
+  @ApiOperation({
+    summary: 'Published leagues the current user is ranked in (with their standings)',
+  })
+  async leagues(@Req() req: FastifyRequest) {
+    const userId = await resolveUserId(req, this.supabase);
+    return this.me.listMyLeagues(userId);
+  }
 }

@@ -115,12 +115,87 @@ function one<T = Row>(value: unknown): T | null {
   return (value as T) ?? null;
 }
 
+export interface MyLeagueGroup {
+  groupKey: string;
+  rank: number;
+  totalPoints: number;
+  participationCount: number;
+  medalCount: number;
+}
+
+export interface MyLeague {
+  leagueId: string;
+  leagueName: string;
+  leagueSlug: string;
+  seasonYear: number;
+  logoUrl: string | null;
+  groups: MyLeagueGroup[];
+}
+
 @Injectable()
 export class MeEventsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly schedule: PublicScheduleService,
   ) {}
+
+  // ── /me/leagues ───────────────────────────────────────────────────────────
+
+  /** Every published+public league the signed-in fighter is ranked in, grouped
+   *  by league (one entry per ranking_group_key the fighter appears in). Powers
+   *  the personal-space "My leagues" surface + its self-highlighted classement. */
+  async listMyLeagues(userId: string): Promise<{ fighterId: string | null; leagues: MyLeague[] }> {
+    const fighterId = await this.resolveGlobalPersonId(userId);
+    if (!fighterId) return { fighterId: null, leagues: [] };
+
+    const { data } = await this.supabase.service
+      .from('league_rankings')
+      .select(
+        'ranking_group_key, rank, total_points, participation_count, medal_count, leagues(id, name, slug, season_year, logo_url, public_visibility, status)',
+      )
+      .eq('fighter_id', fighterId);
+
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+    const byLeague = new Map<string, MyLeague>();
+    for (const row of rows) {
+      const league = one(row['leagues']);
+      // Only leagues with a live public classement to open.
+      if (!league || league['public_visibility'] !== true || league['status'] !== 'published') {
+        continue;
+      }
+      const leagueId = String(league['id']);
+      let entry = byLeague.get(leagueId);
+      if (!entry) {
+        entry = {
+          leagueId,
+          leagueName: String(league['name'] ?? ''),
+          leagueSlug: String(league['slug'] ?? ''),
+          seasonYear: Number(league['season_year'] ?? 0),
+          logoUrl: (league['logo_url'] as string | null) ?? null,
+          groups: [],
+        };
+        byLeague.set(leagueId, entry);
+      }
+      entry.groups.push({
+        groupKey: String(row['ranking_group_key'] ?? ''),
+        rank: Number(row['rank'] ?? 0),
+        totalPoints: Number(row['total_points'] ?? 0),
+        participationCount: Number(row['participation_count'] ?? 0),
+        medalCount: Number(row['medal_count'] ?? 0),
+      });
+    }
+
+    const bestRank = (league: MyLeague) => Math.min(...league.groups.map((g) => g.rank));
+    return {
+      fighterId,
+      leagues: [...byLeague.values()]
+        .map((league) => ({
+          ...league,
+          groups: [...league.groups].sort((a, b) => a.rank - b.rank),
+        }))
+        .sort((a, b) => b.seasonYear - a.seasonYear || bestRank(a) - bestRank(b)),
+    };
+  }
 
   // ── /me/events ────────────────────────────────────────────────────────────
 

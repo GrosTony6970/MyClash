@@ -111,7 +111,16 @@ describe('buildFighterCareer', () => {
       ],
       matches: [],
       exchanges: [],
-      leagueRankings: [{ leagueName: 'TF 2026', rank: 4, totalPoints: 20, group: 'Rapier' }],
+      leagueRankings: [
+        {
+          leagueName: 'TF 2026',
+          leagueSlug: 'tf-2026',
+          rank: 4,
+          totalPoints: 20,
+          medalCount: 1,
+          group: 'Rapier',
+        },
+      ],
     });
 
     expect(career.eventParticipation).toHaveLength(1);
@@ -119,7 +128,14 @@ describe('buildFighterCareer', () => {
     expect(career.upcoming).toHaveLength(1);
     expect(career.upcoming[0]?.eventName).toBe('Next Event');
     expect(career.leagueRankings).toEqual([
-      { leagueName: 'TF 2026', rank: 4, totalPoints: 20, group: 'Rapier' },
+      {
+        leagueName: 'TF 2026',
+        leagueSlug: 'tf-2026',
+        rank: 4,
+        totalPoints: 20,
+        medalCount: 1,
+        group: 'Rapier',
+      },
     ]);
   });
 

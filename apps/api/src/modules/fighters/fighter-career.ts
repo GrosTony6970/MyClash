@@ -38,8 +38,10 @@ export interface CareerExchangeInput {
 
 export interface CareerLeagueRankingInput {
   leagueName: string;
+  leagueSlug: string;
   rank: number;
   totalPoints: number;
+  medalCount: number;
   group: string;
 }
 

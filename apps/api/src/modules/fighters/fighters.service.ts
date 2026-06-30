@@ -986,18 +986,29 @@ export class FightersService {
       .from('league_rankings')
       // league_rankings keeps the column name `fighter_id`, now referencing
       // global_persons(id) (table renamed in 0023, column not renamed).
-      .select('rank, total_points, ranking_group_key, leagues(name)')
+      .select(
+        'rank, total_points, medal_count, ranking_group_key, leagues(name, slug, public_visibility, status)',
+      )
       .eq('fighter_id', fighterId);
     if (error) return [];
 
-    return ((data ?? []) as Row[]).map((row) => {
+    // Only published+public leagues — these are the ones with a live classement
+    // the profile tile can deep-link into (matches /api/v1/me/leagues).
+    return ((data ?? []) as Row[]).flatMap((row) => {
       const league = row['leagues'] as Row | null;
-      return {
-        leagueName: String(league?.['name'] ?? ''),
-        rank: Number(row['rank'] ?? 0),
-        totalPoints: Number(row['total_points'] ?? 0),
-        group: String(row['ranking_group_key'] ?? ''),
-      };
+      if (!league || league['public_visibility'] !== true || league['status'] !== 'published') {
+        return [];
+      }
+      return [
+        {
+          leagueName: String(league['name'] ?? ''),
+          leagueSlug: String(league['slug'] ?? ''),
+          rank: Number(row['rank'] ?? 0),
+          totalPoints: Number(row['total_points'] ?? 0),
+          medalCount: Number(row['medal_count'] ?? 0),
+          group: String(row['ranking_group_key'] ?? ''),
+        },
+      ];
     });
   }
 
