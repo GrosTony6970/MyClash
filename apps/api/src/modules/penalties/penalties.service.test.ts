@@ -229,6 +229,262 @@ describe('PenaltiesService', () => {
       black_card_count: 2,
     });
   });
+
+  // The penalty ruleset's per-card-point columns override the engine's hardcoded
+  // score delta, so operators can tune card costs per ruleset.
+  it('takes score_delta from the penalty ruleset card-point columns (red = -2)', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: { maybeSingle: null, insert: { id: 'penalty-1', card: 'red' } },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      penalty_rulesets: {
+        maybeSingle: {
+          id: 'pr-1',
+          accumulation_scope: 'match',
+          yellow_card_points: 0,
+          red_card_points: -2,
+          black_card_points: 0,
+          first_black_card_forfeit: 'match',
+          second_black_card_forfeit: 'tournament',
+        },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-rs-delta',
+        sequence: 1,
+        registrationId: 'reg-red',
+        directCard: 'red',
+        reason: 'direct referee decision',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(supabase.inserted.match_penalties?.[0]).toMatchObject({
+      card: 'red',
+      score_delta: -2,
+      source: 'direct',
+    });
+  });
+
+  // First black card under a match-scope ruleset completes the match for the
+  // opponent but must NOT disqualify the fighter from the tournament.
+  it('first black card (match scope) completes the match without a tournament DQ', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: {
+        maybeSingle: null,
+        insert: { id: 'penalty-1', card: 'black' },
+        select: [{ id: 'penalty-1' }],
+      },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      penalty_rulesets: {
+        maybeSingle: {
+          id: 'pr-1',
+          accumulation_scope: 'match',
+          yellow_card_points: 0,
+          red_card_points: -1,
+          black_card_points: 0,
+          first_black_card_forfeit: 'match',
+          second_black_card_forfeit: 'tournament',
+        },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-black-match',
+        sequence: 1,
+        registrationId: 'reg-red',
+        directCard: 'black',
+        reason: 'dangerous action',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(supabase.updated.matches?.[0]).toMatchObject({
+      status: 'completed',
+      winner_registration_id: 'reg-blue',
+    });
+    expect(supabase.updated.registrations).toBeUndefined();
+  });
+
+  // A scoring-config forfeit override (tournamentState=disqualified) escalates a
+  // first black card to tournament scope → the registration is disqualified.
+  it('a scoring-config override disqualifies the fighter on a first black card', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: {
+        maybeSingle: null,
+        insert: { id: 'penalty-1', card: 'black' },
+        select: [{ id: 'penalty-1' }],
+      },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: {
+          id: 'tournament-1',
+          event_id: 'event-1',
+          penalty_ruleset_id: 'pr-1',
+          ruleset_config: {
+            forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'disqualified' } } },
+          },
+        },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      penalty_rulesets: {
+        maybeSingle: {
+          id: 'pr-1',
+          accumulation_scope: 'match',
+          yellow_card_points: 0,
+          red_card_points: -1,
+          black_card_points: 0,
+          first_black_card_forfeit: 'match',
+          second_black_card_forfeit: 'tournament',
+        },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-black-dq',
+        sequence: 1,
+        registrationId: 'reg-red',
+        directCard: 'black',
+        reason: 'dangerous action',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+  });
+
+  // A ruleset-entry penalty (no directCard) derives its card from the entry's
+  // sanctions ladder (first occurrence → sanctions[0]) and records ruleset metadata.
+  it('records a ruleset-entry penalty with the card + metadata from the entry', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: {
+        maybeSingle: null,
+        insert: { id: 'penalty-1', card: 'yellow' },
+        select: [],
+      },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      penalty_rulesets: {
+        maybeSingle: {
+          id: 'pr-1',
+          accumulation_scope: 'match',
+          yellow_card_points: 0,
+          red_card_points: -1,
+          black_card_points: 0,
+          first_black_card_forfeit: 'match',
+          second_black_card_forfeit: 'tournament',
+        },
+      },
+      penalty_ruleset_entries: {
+        maybeSingle: {
+          id: 'entry-1',
+          group_number: 3,
+          ref_number: '6',
+          short_name: 'Non-combativité',
+          description: 'Insufficient offensive action',
+          sanctions: ['yellow', 'red', 'red', 'black'],
+        },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-entry',
+        sequence: 1,
+        registrationId: 'reg-red',
+        rulesetEntryId: 'entry-1',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(supabase.inserted.match_penalties?.[0]).toMatchObject({
+      source: 'ruleset',
+      card: 'yellow',
+      ruleset_entry_id: 'entry-1',
+      group_number: 3,
+      ref_number: '6',
+      short_name: 'Non-combativité',
+      score_delta: 0,
+    });
+  });
 });
 
 type TableState = Record<

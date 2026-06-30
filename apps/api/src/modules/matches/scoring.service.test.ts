@@ -166,4 +166,69 @@ describe('ScoringService — best-of rounds', () => {
     expect(lastUpdate).toMatchObject({ awaiting_round_advance: true, red_round_wins: 1 });
     expect(lastUpdate?.['status']).toBeUndefined();
   });
+
+  it('BO5: a won round at 1-1 makes it 2-1 and keeps the series open (needs 3)', async () => {
+    const match = matchRow({
+      phases: bracketPhase(5),
+      current_round: 3,
+      red_round_wins: 1,
+      blue_round_wins: 1,
+      rounds_json: [
+        { round: 1, redScore: 1, blueScore: 3, winnerColor: 'blue', endReason: 'first_to_points' },
+        { round: 2, redScore: 3, blueScore: 2, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    // Round-3 exchanges: red reaches the cap (3) and wins the round.
+    wire(match, [ex(1, 'red', 2, 3), ex(2, 'red', 1, 3)]);
+    await service.recomputeMatchScore('m1');
+    expect(lastUpdate).toMatchObject({
+      awaiting_round_advance: true,
+      red_round_wins: 2,
+      blue_round_wins: 1,
+    });
+    expect(lastUpdate?.['status']).toBeUndefined(); // BO5 needs 3 round wins
+  });
+
+  it('pool phase resolves to BO1 → a single won round completes the match', async () => {
+    const poolPhase = {
+      type: 'pool',
+      tournaments: {
+        ruleset_config: {
+          matchFormat: { pointCap: 3, bestOf: { pool: 1, bracket: 3, finals: 3 } },
+        },
+        scoring_config_json: null,
+      },
+    };
+    const match = matchRow({ phases: poolPhase, match_number_label: 'P1M1' });
+    // Red reaches the cap → a BO1 pool match completes outright (single round,
+    // no "awaiting advance" — that's the best-of path only).
+    wire(match, [ex(1, 'red', 2), ex(2, 'red', 1)]);
+    await service.recomputeMatchScore('m1');
+    expect(lastUpdate).toMatchObject({ status: 'completed', winner_registration_id: 'red' });
+    expect(lastUpdate?.['awaiting_round_advance']).not.toBe(true);
+  });
+
+  it('advanceRound rejects when no round is awaiting advance', async () => {
+    fromMock.mockReturnValueOnce(
+      thenableResult({
+        id: 'm1',
+        status: 'running',
+        awaiting_round_advance: false,
+        current_round: 1,
+      }),
+    );
+    await expect(service.advanceRound('m1')).rejects.toThrow('No round is awaiting advance');
+  });
+
+  it('advanceRound rejects when the match is already completed', async () => {
+    fromMock.mockReturnValueOnce(
+      thenableResult({
+        id: 'm1',
+        status: 'completed',
+        awaiting_round_advance: true,
+        current_round: 2,
+      }),
+    );
+    await expect(service.advanceRound('m1')).rejects.toThrow('Match is already completed');
+  });
 });
