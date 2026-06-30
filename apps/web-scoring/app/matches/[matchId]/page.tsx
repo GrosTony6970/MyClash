@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
+import { useSyncState } from '../../../src/components/SyncStatus';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
+import { getSyncEngine } from '../../../src/offline/sync';
 import { safeReturnHref, scoringRoutePrefix } from '../../../src/lib/nav';
 
 interface Props {
@@ -21,6 +23,10 @@ interface Props {
 export default function MatchScoringPage({ params }: Props) {
   const { t } = useI18n();
   const apiUrl = getApiUrl();
+  // Durable offline sync: exchanges are written to an IndexedDB outbox and POSTed by
+  // this engine (immediately when online, on reconnect when offline). Singleton per tab.
+  const syncEngine = useMemo(() => getSyncEngine(apiUrl), [apiUrl]);
+  const syncState = useSyncState(syncEngine);
 
   const [matchId, setMatchId] = useState<string | null>(null);
   const [match, setMatch] = useState<MatchInfo | null>(null);
@@ -74,7 +80,10 @@ export default function MatchScoringPage({ params }: Props) {
   );
 
   useEffect(() => {
-    const handleOnline = () => setNetworkStatus('online');
+    const handleOnline = () => {
+      setNetworkStatus('online');
+      void syncEngine.drain(); // flush any exchanges queued while offline
+    };
     const handleOffline = () => setNetworkStatus('offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -82,7 +91,7 @@ export default function MatchScoringPage({ params }: Props) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [syncEngine]);
 
   useEffect(() => {
     if (!matchId) return;
@@ -194,6 +203,9 @@ export default function MatchScoringPage({ params }: Props) {
   return (
     <main id="main-content" className="min-h-screen flex flex-col">
       <div
+        data-testid="network-bar"
+        data-network={networkStatus}
+        data-pending={syncState?.pendingCount ?? 0}
         className={`px-4 py-1 text-xs font-bold text-center ${
           networkStatus === 'online'
             ? 'bg-green-900 text-green-300'
@@ -203,6 +215,7 @@ export default function MatchScoringPage({ params }: Props) {
         {networkStatus === 'online'
           ? `● ${t('scoring.lice.online')}`
           : `● ${t('scoring.lice.offlineQueued')}`}
+        {(syncState?.pendingCount ?? 0) > 0 && ` (${syncState?.pendingCount})`}
       </div>
 
       {match ? (
@@ -210,6 +223,7 @@ export default function MatchScoringPage({ params }: Props) {
           match={match}
           apiUrl={apiUrl}
           networkStatus={networkStatus}
+          syncEngine={syncEngine}
           onRefresh={() => setRefreshKey((key) => key + 1)}
           externalDisplayUrl={externalDisplayUrl}
           backHref={backHref}

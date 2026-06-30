@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AfterblowButton, CleanButton } from '@myclash/types';
+import { enqueue } from '../offline/outbox';
+import type { SyncEngine } from '../offline/sync';
 
 export type ExchangeSide = 'red' | 'blue';
 export type NoExchangeReason = 'out_of_bounds' | 'simultaneous_stop' | 'no_valid_hit' | 'other';
@@ -20,7 +22,10 @@ export interface UseScoringSubmitArgs {
   nextSequence: number;
   /** Clock active ms at submission time — recorded BE-side per exchange. */
   clockTimeMs: number | null;
-  onExchangeRecorded?: (exchangeId: string) => void;
+  /** Durable-sync engine. Exchanges are written to the IndexedDB outbox and POSTed
+   *  by the engine (online → immediate; offline → queued until reconnect). */
+  syncEngine?: SyncEngine | null;
+  onExchangeRecorded?: (exchangeId?: string) => void;
 }
 
 export interface UseScoringSubmitResult {
@@ -40,10 +45,10 @@ export interface UseScoringSubmitResult {
  * timestamp.
  */
 export function useScoringSubmit({
-  apiUrl,
   matchId,
   nextSequence,
   clockTimeMs,
+  syncEngine,
   onExchangeRecorded,
 }: UseScoringSubmitArgs): UseScoringSubmitResult {
   const [submitting, setSubmitting] = useState(false);
@@ -59,35 +64,32 @@ export function useScoringSubmit({
       setSubmitting(true);
       setError(null);
       try {
-        const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            clientUuid: crypto.randomUUID(),
-            sequence: sequenceRef.current,
-            type: exchange.type,
-            occurredAt: new Date().toISOString(),
-            clockTimeMs,
-            firstStrikerColor: exchange.firstStrikerColor ?? null,
-            firstStrikeValue: exchange.firstStrikeValue ?? null,
-            afterblowValue: exchange.afterblowValue ?? null,
-            noExchangeReason: exchange.noExchangeReason ?? null,
-          }),
+        // Durable-first: write to the IndexedDB outbox, then let the SyncEngine POST
+        // it. Online it syncs immediately; offline it stays queued and drains on
+        // reconnect. clientUuid makes the POST idempotent (a re-drain is a 409 no-op).
+        await enqueue({
+          clientUuid: crypto.randomUUID(),
+          matchId,
+          sequence: sequenceRef.current,
+          type: exchange.type,
+          occurredAt: new Date().toISOString(),
+          clockTimeMs,
+          firstStrikerColor: exchange.firstStrikerColor,
+          firstStrikeValue: exchange.firstStrikeValue,
+          afterblowValue: exchange.afterblowValue,
+          noExchangeReason: exchange.noExchangeReason,
         });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? 'Failed to record exchange');
-        }
-        const body = (await res.json()) as { id: string };
-        onExchangeRecorded?.(body.id);
+        await syncEngine?.drain();
+        // Re-fetch the server score/timeline (online: reflects the new exchange;
+        // offline: a harmless no-op until the outbox drains).
+        onExchangeRecorded?.();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Network error');
+        setError(err instanceof Error ? err.message : 'Failed to record exchange');
       } finally {
         setSubmitting(false);
       }
     },
-    [apiUrl, matchId, clockTimeMs, onExchangeRecorded],
+    [matchId, clockTimeMs, syncEngine, onExchangeRecorded],
   );
 
   const submitClean = useCallback(

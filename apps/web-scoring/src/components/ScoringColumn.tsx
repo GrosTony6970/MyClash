@@ -240,6 +240,8 @@ export function ScoringColumn({
             {visibleClean.map((btn) => (
               <button
                 key={btn.label}
+                data-testid="clean-hit-button"
+                data-side={side}
                 onClick={() => submit.submitClean(side, btn)}
                 disabled={submit.submitting || !canScore}
                 className="min-h-[56px] rounded-xl border-2 font-black text-xl disabled:opacity-40 transition-colors touch-manipulation"

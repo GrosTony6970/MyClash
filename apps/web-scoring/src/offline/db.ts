@@ -26,6 +26,9 @@ export interface OutboxEntry {
   firstStrikeValue?: number;
   afterblowValue?: number;
   noExchangeReason?: string;
+  /** Match-clock position (active ms) at record time — display metadata carried
+   *  through sync so an offline exchange keeps its timeline clock label. */
+  clockTimeMs?: number | null;
   /** Timestamp when this entry was created locally (ms). */
   createdAt: number;
   /** Number of failed sync attempts. */

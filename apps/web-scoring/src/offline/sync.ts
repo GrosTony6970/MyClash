@@ -99,6 +99,7 @@ export class SyncEngine {
             firstStrikeValue: entry.firstStrikeValue ?? null,
             afterblowValue: entry.afterblowValue ?? null,
             noExchangeReason: entry.noExchangeReason ?? null,
+            clockTimeMs: entry.clockTimeMs ?? null,
           }),
         });
 

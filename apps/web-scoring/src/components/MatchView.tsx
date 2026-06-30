@@ -7,6 +7,7 @@ import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { useI18n } from '../i18n/I18nProvider';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
+import type { SyncEngine } from '../offline/sync';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import {
@@ -67,6 +68,8 @@ export interface MatchViewProps {
   match: MatchInfo;
   apiUrl: string;
   networkStatus: 'online' | 'offline';
+  /** Durable-sync engine from the page; exchanges go through its outbox. */
+  syncEngine?: SyncEngine | null;
   onRefresh: () => void;
   externalDisplayUrl?: string | null;
   /** Back-link target (admin return URL); falls back to the lice queue. */
@@ -80,6 +83,7 @@ export function MatchView({
   match,
   apiUrl,
   networkStatus,
+  syncEngine,
   onRefresh,
   externalDisplayUrl,
   backHref,
@@ -342,6 +346,7 @@ export function MatchView({
     matchId: match.id,
     nextSequence,
     clockTimeMs,
+    syncEngine,
     onExchangeRecorded: handleScoreMutation,
   });
 
