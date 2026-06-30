@@ -61,6 +61,17 @@ interface Props {
   colorToken?: string | null;
   /** Personal space: mark the viewer's own member row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
+  /**
+   * Personal space: pool ids to ring as "yours" — the pool you fight in and/or
+   * referee. Undefined on the public page → no ring. Resolved client-side by
+   * `buildSelfPoolHighlight`.
+   */
+  ringPoolIds?: string[];
+  /**
+   * Personal space: `${poolId}::${role ?? ''}` keys flagging the viewer's own
+   * referee footer rows (accent name + "YOU" chip). Undefined → no highlight.
+   */
+  refereeRowKeys?: string[];
 }
 
 function refereeRoleLabel(role: string | null): string {
@@ -108,8 +119,12 @@ export function PoolsCompositionView({
   accentColor,
   colorToken,
   highlightRegistrationId,
+  ringPoolIds,
+  refereeRowKeys,
 }: Props) {
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
+  const ringIds = new Set(ringPoolIds ?? []);
+  const refRowKeys = new Set(refereeRowKeys ?? []);
 
   if (pools.length === 0) {
     return (
@@ -135,123 +150,148 @@ export function PoolsCompositionView({
           </header>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {section.pools.map((pool) => (
-              <a
-                key={pool.id}
-                href={`#poolmatches/${pool.id}`}
-                aria-label={t('publicApp.tournament.pools.viewMatchesAria', { pool: pool.name })}
-                className="relative block overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-shadow hover:border-stone-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-300"
-              >
-                <span
-                  aria-hidden="true"
-                  className="absolute left-0 top-0 h-full w-1"
-                  style={{ backgroundColor: accentColor }}
-                />
-                <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3 pl-5">
-                  <h3 className={`font-display text-lg font-semibold sm:text-xl ${titleClass}`}>
-                    {pool.name}
-                  </h3>
-                  <span className="flex items-center gap-3">
-                    {pool.liceName && (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-                        {pool.liceColorHex && (
-                          <span
-                            aria-hidden="true"
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: pool.liceColorHex }}
-                          />
-                        )}
-                        {pool.liceName}
-                      </span>
-                    )}
-                    <span className="whitespace-nowrap text-xs uppercase tracking-wider text-slate-500">
-                      {t('publicApp.tournament.fighterCount', { count: pool.members.length })}
-                    </span>
-                  </span>
-                </header>
-
-                <div className="px-4 py-3 pl-5">
-                  {pool.members.length === 0 ? (
-                    <p className="text-sm italic text-slate-500">
-                      {t('publicApp.tournament.pools.noMembers')}
-                    </p>
-                  ) : (
-                    <ul className="flex flex-col divide-y divide-stone-100">
-                      {pool.members.map((m) => {
-                        const isYou =
-                          !!highlightRegistrationId && m.registrationId === highlightRegistrationId;
-                        return (
-                          <li
-                            key={m.registrationId}
-                            className={[
-                              'flex items-center justify-between gap-3 py-1.5 text-sm',
-                              isYou ? 'rounded bg-accent/5' : '',
-                            ].join(' ')}
-                          >
-                            <span className="flex items-center gap-3 min-w-0">
-                              <span
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
-                                aria-label={
-                                  m.seed !== null
-                                    ? t('publicApp.tournament.pools.seedAria', { seed: m.seed })
-                                    : t('publicApp.tournament.pools.unseeded')
-                                }
-                              >
-                                {m.seed ?? '—'}
-                              </span>
-                              <span
-                                className={[
-                                  'truncate font-medium',
-                                  isYou ? 'text-accent' : 'text-slate-900',
-                                ].join(' ')}
-                              >
-                                {m.fighterName}
-                              </span>
-                              {isYou && (
-                                <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
-                                  {t('publicApp.me.hub.youChip')}
-                                </span>
-                              )}
-                            </span>
-                            {(m.clubAbbreviation ?? m.clubName) && (
-                              <span className="truncate text-xs text-slate-500">
-                                {m.clubAbbreviation ?? m.clubName}
-                              </span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-
-                {pool.referees.length > 0 && (
-                  <footer className="border-t border-stone-100 bg-stone-50/60 px-4 py-3 pl-5">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      {t('publicApp.tournament.pools.referees')}
-                    </p>
-                    <ul className="flex flex-col gap-1.5">
-                      {pool.referees.map((r, idx) => (
-                        <li
-                          key={`${pool.id}-ref-${idx}`}
-                          className="flex items-center justify-between gap-3 text-sm"
-                        >
-                          <span className="flex items-center gap-2 min-w-0">
+            {section.pools.map((pool) => {
+              const isMyPool = ringIds.has(pool.id);
+              return (
+                <a
+                  key={pool.id}
+                  id={`poollist-pool-${pool.id}`}
+                  href={`#poolmatches/${pool.id}`}
+                  aria-label={t('publicApp.tournament.pools.viewMatchesAria', { pool: pool.name })}
+                  className={[
+                    'relative block scroll-mt-28 overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-300',
+                    isMyPool
+                      ? 'border-accent ring-2 ring-accent'
+                      : 'border-stone-200 hover:border-stone-300',
+                  ].join(' ')}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-0 top-0 h-full w-1"
+                    style={{ backgroundColor: accentColor }}
+                  />
+                  <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3 pl-5">
+                    <h3 className={`font-display text-lg font-semibold sm:text-xl ${titleClass}`}>
+                      {pool.name}
+                    </h3>
+                    <span className="flex items-center gap-3">
+                      {pool.liceName && (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                          {pool.liceColorHex && (
                             <span
                               aria-hidden="true"
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(r.status)}`}
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: pool.liceColorHex }}
                             />
-                            <span className="sr-only">{statusLabel(r.status)}.</span>
-                            <span className="truncate text-slate-700">{r.displayName}</span>
-                          </span>
-                          <SkillBadge color={r.skillColor} label={refereeRoleLabel(r.role)} />
-                        </li>
-                      ))}
-                    </ul>
-                  </footer>
-                )}
-              </a>
-            ))}
+                          )}
+                          {pool.liceName}
+                        </span>
+                      )}
+                      <span className="whitespace-nowrap text-xs uppercase tracking-wider text-slate-500">
+                        {t('publicApp.tournament.fighterCount', { count: pool.members.length })}
+                      </span>
+                    </span>
+                  </header>
+
+                  <div className="px-4 py-3 pl-5">
+                    {pool.members.length === 0 ? (
+                      <p className="text-sm italic text-slate-500">
+                        {t('publicApp.tournament.pools.noMembers')}
+                      </p>
+                    ) : (
+                      <ul className="flex flex-col divide-y divide-stone-100">
+                        {pool.members.map((m) => {
+                          const isYou =
+                            !!highlightRegistrationId &&
+                            m.registrationId === highlightRegistrationId;
+                          return (
+                            <li
+                              key={m.registrationId}
+                              className={[
+                                'flex items-center justify-between gap-3 py-1.5 text-sm',
+                                isYou ? 'rounded bg-accent/5' : '',
+                              ].join(' ')}
+                            >
+                              <span className="flex items-center gap-3 min-w-0">
+                                <span
+                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
+                                  aria-label={
+                                    m.seed !== null
+                                      ? t('publicApp.tournament.pools.seedAria', { seed: m.seed })
+                                      : t('publicApp.tournament.pools.unseeded')
+                                  }
+                                >
+                                  {m.seed ?? '—'}
+                                </span>
+                                <span
+                                  className={[
+                                    'truncate font-medium',
+                                    isYou ? 'text-accent' : 'text-slate-900',
+                                  ].join(' ')}
+                                >
+                                  {m.fighterName}
+                                </span>
+                                {isYou && (
+                                  <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+                                    {t('publicApp.me.hub.youChip')}
+                                  </span>
+                                )}
+                              </span>
+                              {(m.clubAbbreviation ?? m.clubName) && (
+                                <span className="truncate text-xs text-slate-500">
+                                  {m.clubAbbreviation ?? m.clubName}
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  {pool.referees.length > 0 && (
+                    <footer className="border-t border-stone-100 bg-stone-50/60 px-4 py-3 pl-5">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        {t('publicApp.tournament.pools.referees')}
+                      </p>
+                      <ul className="flex flex-col gap-1.5">
+                        {pool.referees.map((r, idx) => {
+                          const isMe = refRowKeys.has(`${pool.id}::${r.role ?? ''}`);
+                          return (
+                            <li
+                              key={`${pool.id}-ref-${idx}`}
+                              className="flex items-center justify-between gap-3 text-sm"
+                            >
+                              <span className="flex items-center gap-2 min-w-0">
+                                <span
+                                  aria-hidden="true"
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(r.status)}`}
+                                />
+                                <span className="sr-only">{statusLabel(r.status)}.</span>
+                                <span
+                                  className={[
+                                    'truncate',
+                                    isMe ? 'font-bold text-accent' : 'text-slate-700',
+                                  ].join(' ')}
+                                >
+                                  {r.displayName}
+                                </span>
+                                {isMe && (
+                                  <span className="shrink-0 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase leading-none text-accent-foreground">
+                                    {t('publicApp.me.hub.youChip')}
+                                  </span>
+                                )}
+                              </span>
+                              <SkillBadge color={r.skillColor} label={refereeRoleLabel(r.role)} />
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </footer>
+                  )}
+                </a>
+              );
+            })}
           </div>
         </section>
       ))}

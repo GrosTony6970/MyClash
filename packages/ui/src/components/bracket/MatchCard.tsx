@@ -108,7 +108,13 @@ export function MatchCard({
     // The width constraint moves here so the pill row tracks the card's
     // resolved width (it's a flex column — children stretch to the
     // wrapper's width which equals the card's).
-    <div className="relative flex w-full min-w-[256px] max-w-[360px] flex-col gap-1.5">
+    // `data-bracket-slot-id` is a render-neutral locator (used by the
+    // personal-space bracket auto-focus + handy for tests); admin/public
+    // rendering is unaffected.
+    <div
+      data-bracket-slot-id={slot.id}
+      className="relative flex w-full min-w-[256px] max-w-[360px] flex-col gap-1.5"
+    >
       <div
         ref={refCallback}
         role={handleClick ? 'button' : undefined}

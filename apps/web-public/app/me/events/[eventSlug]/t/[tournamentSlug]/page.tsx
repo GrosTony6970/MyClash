@@ -28,6 +28,8 @@ import {
   type TabKey,
 } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/TournamentTabs';
 import { PoolsCompositionView } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/PoolsCompositionView';
+import { PoolListSelfFocus } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/PoolListSelfFocus';
+import { buildSelfPoolHighlight } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/self-pool-highlight';
 import { FinalRankingTab } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab';
 
 function BackIcon() {
@@ -70,6 +72,16 @@ export default function PersonalTournamentPage() {
   if (notFound || !data) return <HubNotFound />;
 
   const { tournament, pools, bracketSlots, bracketSize, bracketRounds } = data;
+  // Resolve which pools are "yours" (fight in and/or referee) for the Pool List
+  // ring + name highlight + auto-scroll. Empty/null when the viewer has no role
+  // in this tournament. The bracket self-focus is driven separately inside
+  // BracketLive off highlightRegistrationId.
+  const self = buildSelfPoolHighlight({
+    refereeOf: myEvent?.refereeOf ?? [],
+    tournamentName: tournament.name,
+    pools,
+    highlightRegistrationId,
+  });
   const podium = derivePodium(bracketSlots);
   const podiumDecided = !!(podium?.gold && podium.silver);
   const tournamentColor = tournament.color ?? null;
@@ -125,20 +137,25 @@ export default function PersonalTournamentPage() {
               label: t('publicApp.tournament.tabs.poolList'),
               visible: poolsTabVisible,
               panel: (
-                <PoolsCompositionView
-                  pools={pools.map((p) => ({
-                    id: p.id,
-                    name: p.name,
-                    members: p.members ?? [],
-                    referees: p.referees ?? [],
-                    liceName: p.liceName ?? null,
-                    liceColorHex: p.liceColorHex ?? null,
-                    startAt: p.startAt ?? null,
-                  }))}
-                  accentColor={accentColor}
-                  colorToken={tournamentColor}
-                  highlightRegistrationId={highlightRegistrationId}
-                />
+                <>
+                  <PoolListSelfFocus targetPoolId={self.scrollTargetPoolId} />
+                  <PoolsCompositionView
+                    pools={pools.map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      members: p.members ?? [],
+                      referees: p.referees ?? [],
+                      liceName: p.liceName ?? null,
+                      liceColorHex: p.liceColorHex ?? null,
+                      startAt: p.startAt ?? null,
+                    }))}
+                    accentColor={accentColor}
+                    colorToken={tournamentColor}
+                    highlightRegistrationId={highlightRegistrationId}
+                    ringPoolIds={self.ringPoolIds}
+                    refereeRowKeys={self.refereeRowKeys}
+                  />
+                </>
               ),
             },
             {

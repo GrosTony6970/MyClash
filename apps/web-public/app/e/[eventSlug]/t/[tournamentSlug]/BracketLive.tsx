@@ -10,7 +10,7 @@
  * bracket payload so scores + status update without a page reload.
  */
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   BracketView,
@@ -120,6 +120,68 @@ export function BracketLive({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentSlug]);
+
+  // Personal space only (highlightRegistrationId is set on the /me view, never
+  // on the public /e page): the bracket slot to scroll into view = the viewer's
+  // FURTHEST-round slot (their current position). Switch `s.round > best.round`
+  // to `<` to target their entry slot instead.
+  const targetSlotId = useMemo(() => {
+    if (!highlightRegistrationId) return null;
+    let best: { id: string; round: number } | null = null;
+    for (const s of slots) {
+      const mine =
+        (s as { redRegistrationId?: string | null }).redRegistrationId ===
+          highlightRegistrationId ||
+        (s as { blueRegistrationId?: string | null }).blueRegistrationId ===
+          highlightRegistrationId;
+      if (mine && (!best || s.round > best.round)) best = { id: s.id, round: s.round };
+    }
+    return best?.id ?? null;
+  }, [slots, highlightRegistrationId]);
+
+  // Center the viewer's match on landing. Fires ONCE (ref guard) so realtime
+  // score refreshes don't re-yank the scroll. `inline: 'center'` scrolls the
+  // bracket's own overflow-x container so the viewer's column centers; a brief
+  // gold pulse (inline box-shadow, cleared after 2s) helps locate the card in a
+  // wide grid — applied here rather than in the shared MatchCard so admin/public
+  // styling is untouched. Re-fires when the (initially hidden) Bracket tab opens.
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!targetSlotId) return;
+    const panel = document.getElementById('panel-bracket');
+    let raf = 0;
+    let timer = 0;
+
+    const focus = () => {
+      if (focusedRef.current) return;
+      const el = document.querySelector<HTMLElement>(`[data-bracket-slot-id="${targetSlotId}"]`);
+      if (!el || el.offsetParent === null) return; // hidden tab → wait
+      focusedRef.current = true;
+      raf = requestAnimationFrame(() =>
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }),
+      );
+      el.style.boxShadow = '0 0 0 2px #f59e0b, 0 0 0 6px rgba(245,158,11,0.25)';
+      timer = window.setTimeout(() => {
+        el.style.boxShadow = '';
+      }, 2000);
+    };
+
+    focus();
+
+    let observer: MutationObserver | undefined;
+    if (panel && !focusedRef.current) {
+      observer = new MutationObserver(() => {
+        if (!panel.hasAttribute('hidden')) focus();
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+    }
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
+      observer?.disconnect();
+    };
+  }, [targetSlotId]);
 
   function onMatchClick(matchId: string | null) {
     if (!matchId) return;
