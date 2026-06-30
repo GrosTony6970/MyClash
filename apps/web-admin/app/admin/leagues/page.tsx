@@ -117,6 +117,32 @@ export default function AdminLeaguesPage() {
     }
   }
 
+  async function changeStatus(league: League, status: string) {
+    if (status === league.status) return;
+    setBusyId(league.id);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${league.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.common.updateFailed'));
+      }
+      setLeagues((prev) => prev.map((l) => (l.id === league.id ? { ...l, status } : l)));
+      toast.success(t('admin.adminLeagues.statusUpdated'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const getLeagueSortValue = useCallback((row: League, key: string): unknown => {
     switch (key) {
       case 'name':
@@ -369,9 +395,13 @@ export default function AdminLeaguesPage() {
                     {formatScoringSystem(league.scoring_system)}
                   </td>
                   <td className="px-4 py-3">
-                    <span
+                    <select
+                      aria-label={t('admin.adminLeagues.colStatus')}
+                      value={league.status}
+                      disabled={busyId === league.id}
+                      onChange={(e) => changeStatus(league, e.target.value)}
                       className={[
-                        'rounded-full px-2 py-0.5 text-xs font-semibold',
+                        'cursor-pointer rounded-full border border-border px-2 py-0.5 text-xs font-semibold',
                         league.status === 'published'
                           ? 'bg-success/10 text-success'
                           : league.status === 'archived'
@@ -379,8 +409,10 @@ export default function AdminLeaguesPage() {
                             : 'bg-warning/10 text-warning',
                       ].join(' ')}
                     >
-                      {league.status}
-                    </span>
+                      <option value="draft">{t('admin.adminLeagues.statusDraft')}</option>
+                      <option value="published">{t('admin.adminLeagues.statusPublished')}</option>
+                      <option value="archived">{t('admin.adminLeagues.statusArchived')}</option>
+                    </select>
                   </td>
                   <td className="px-4 py-3 text-foreground-secondary">
                     {league.public_visibility ? 'Yes' : 'No'}

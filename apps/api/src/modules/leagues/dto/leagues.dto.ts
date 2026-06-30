@@ -27,8 +27,8 @@ export class CreateLeagueDto extends createZodDto(createLeagueSchema) {}
 const updateLeagueSchema = z
   .object({
     name: z.string().min(2).max(200).optional(),
-    description: z.string().optional(),
-    logoUrl: z.string().optional(),
+    description: z.string().nullish(),
+    logoUrl: z.string().nullish(),
     status: z.enum(['draft', 'published', 'archived']).optional(),
     publicVisibility: z.boolean().optional(),
     // Was @IsObject: full scoring configuration object.
