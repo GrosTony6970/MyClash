@@ -296,6 +296,7 @@ export const en = {
         offlineUpdated: 'Updated {time} · offline',
         updated: 'Updated {time}',
         emptyAll: 'Nothing scheduled yet.',
+        programmeContext: 'Event programme',
       },
       workshops: {
         register: 'Register',
@@ -5432,6 +5433,7 @@ export const fr = {
         offlineUpdated: 'Mis à jour {time} · hors ligne',
         updated: 'Mis à jour {time}',
         emptyAll: 'Rien de prévu pour le moment.',
+        programmeContext: 'Programme de l événement',
       },
       workshops: {
         register: "S'inscrire",

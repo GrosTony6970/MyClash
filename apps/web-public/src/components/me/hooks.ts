@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { ProgrammeBlock } from '@myclash/types';
 import { getApiUrl } from '@/lib/api-url';
 import type { MyEvent, PersonSchedule, UpcomingItem } from './types';
 
@@ -130,6 +131,40 @@ export function useMySchedule(eventId: string | null): {
   }, [refresh]);
 
   return { schedule, loading, updatedAt, offline, refresh };
+}
+
+/** The event's programme blocks (lunch, ceremonies, competition windows…),
+ *  read from the public programme endpoint. Used to weave non-commitment
+ *  context (break/admin blocks) into the personal schedule. */
+export function useProgramme(eventId: string | null): {
+  blocks: ProgrammeBlock[];
+  loading: boolean;
+} {
+  const [blocks, setBlocks] = useState<ProgrammeBlock[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!eventId) return;
+    const controller = new AbortController();
+    fetch(`${getApiUrl()}/api/v1/events/${eventId}/programme`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          const data = (await res.json()) as ProgrammeBlock[];
+          setBlocks(Array.isArray(data) ? data : []);
+        }
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setLoading(false);
+      });
+    return () => controller.abort();
+  }, [eventId]);
+
+  return { blocks, loading };
 }
 
 /** Cross-event upcoming commitments for the dashboard "Next up". */

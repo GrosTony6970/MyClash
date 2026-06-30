@@ -41,6 +41,16 @@ export interface PersonSchedule {
   workshops: WorkshopEnrollment[] | null;
 }
 
+/** A non-commitment programme block (lunch, ceremony, registration…) shown as
+ *  context within a schedule day. `start`/`end` are resolved to UTC ISO from the
+ *  block's wall-clock time + the event timezone. */
+export interface ProgrammeContextRow {
+  id: string;
+  label: string;
+  start: string;
+  end: string | null;
+}
+
 export interface MyEventInfo {
   id: string;
   slug: string;

@@ -6,7 +6,13 @@ import type { ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
-import type { PersonSchedule, RefereeSlot, ScheduleMatch, WorkshopEnrollment } from './types';
+import type {
+  PersonSchedule,
+  ProgrammeContextRow,
+  RefereeSlot,
+  ScheduleMatch,
+  WorkshopEnrollment,
+} from './types';
 
 const DEFAULT_TZ = 'Europe/Paris';
 
@@ -35,6 +41,8 @@ export function ScheduleView({
   schedule,
   timezone,
   eventSlug,
+  /** Non-commitment programme blocks (lunch, ceremonies…) shown as context. */
+  programme,
   /** When set, render the "Updated HH:MM (· offline)" stale badge. */
   updatedAt,
   offline = false,
@@ -42,6 +50,7 @@ export function ScheduleView({
   schedule: PersonSchedule;
   timezone: string | null;
   eventSlug?: string;
+  programme?: ProgrammeContextRow[];
   updatedAt?: number | null;
   offline?: boolean;
 }): ReactNode {
@@ -121,6 +130,23 @@ export function ScheduleView({
       ? formatInZone(item.time, tz, { year: 'numeric', month: '2-digit', day: '2-digit' }, tag)
       : 'unscheduled';
     byDay.set(day, [...(byDay.get(day) ?? []), item]);
+  }
+
+  // Programme context bars (lunch, ceremonies…) keyed by the SAME day format as
+  // byDay, so they render under the day the user has commitments. They never
+  // join `items`/`timed`, so they're excluded from conflict detection + "Next".
+  const programmeByDay = new Map<string, ProgrammeContextRow[]>();
+  for (const row of programme ?? []) {
+    const day = formatInZone(
+      row.start,
+      tz,
+      { year: 'numeric', month: '2-digit', day: '2-digit' },
+      tag,
+    );
+    programmeByDay.set(day, [...(programmeByDay.get(day) ?? []), row]);
+  }
+  for (const rows of programmeByDay.values()) {
+    rows.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }
 
   function groupKeyOf(item: DisplayItem): string {
@@ -260,6 +286,25 @@ export function ScheduleView({
             <h2 className="mb-2.5 mt-1 text-[11px] font-extrabold uppercase tracking-wider text-muted">
               {fmtDay(dayItems.find((i) => i.time)?.time ?? day)}
             </h2>
+          )}
+          {(programmeByDay.get(day)?.length ?? 0) > 0 && (
+            <div
+              className="mb-3 flex flex-col gap-1.5"
+              aria-label={t('publicApp.me.schedule.programmeContext')}
+            >
+              {programmeByDay.get(day)!.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-xs text-muted"
+                >
+                  <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                    {fmtTime(row.start)}
+                    {row.end ? `–${fmtTime(row.end)}` : ''}
+                  </span>
+                  <span className="truncate">{row.label}</span>
+                </div>
+              ))}
+            </div>
           )}
           <div className="flex flex-col gap-4">
             {groupsForDay(dayItems).map((group) => (
