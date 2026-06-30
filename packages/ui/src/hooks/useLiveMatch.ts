@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 
@@ -83,6 +83,14 @@ export interface UseLiveMatchResult {
    *  every 50ms while the clock is running. */
   elapsedMs: number;
   loadError: { status: number; message: string } | null;
+  /**
+   * Realtime channel connection: `true` once the Supabase channel reports
+   * SUBSCRIBED, `false` on CLOSED / CHANNEL_ERROR / TIMED_OUT. Lets a display
+   * surface a "live vs reconnecting" cue. NOTE: surfaces using `pollMs` stay
+   * fresh via the poll even when this is `false`, so they should treat a live
+   * poll as connected (see TVScoreboard).
+   */
+  connected: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -133,6 +141,10 @@ export function useLiveMatch(
   const [clock, setClock] = useState<ClockSnapshot | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
+  const [connected, setConnected] = useState(false);
+  // Tracks whether we were dropped, so a re-SUBSCRIBE backfills missed changes
+  // (and the first SUBSCRIBE doesn't double-fetch over the initial load).
+  const wasDisconnected = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -206,7 +218,19 @@ export function useLiveMatch(
         { event: '*', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
         () => void refresh(),
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setConnected(true);
+          // Re-fetch to catch changes missed while the channel was down.
+          if (wasDisconnected.current) {
+            wasDisconnected.current = false;
+            void refresh();
+          }
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnected(false);
+          wasDisconnected.current = true;
+        }
+      });
     return () => {
       void supabaseClient.removeChannel(channel);
     };
@@ -228,5 +252,5 @@ export function useLiveMatch(
     return () => clearInterval(id);
   }, [pollMs, refresh]);
 
-  return { match, penalties, clock, elapsedMs, loadError, refresh };
+  return { match, penalties, clock, elapsedMs, loadError, connected, refresh };
 }

@@ -78,7 +78,7 @@ export function TVScoreboard({
   className,
 }: TVScoreboardProps): React.ReactElement | null {
   const t = createTranslator(getMessages());
-  const { match, penalties, clock, elapsedMs, loadError } = useLiveMatch(
+  const { match, penalties, clock, elapsedMs, loadError, connected } = useLiveMatch(
     apiBaseUrl,
     matchId,
     supabaseClient,
@@ -121,6 +121,23 @@ export function TVScoreboard({
     return () => clearInterval(interval);
   }, [clockStatus, nextMatchId, eventSlug, rolloverDelaySeconds, buildNextDisplayHref]);
 
+  // Connection-cue debounce. A realtime-only surface (no pollMs) starts
+  // disconnected and only flips connected once the channel acks SUBSCRIBED — a
+  // separate handshake that lands after the initial HTTP fetch. Wait a grace
+  // period before alarming so a normal first connect (or a brief blip) doesn't
+  // flash "Reconnecting"; if the socket is still down after it, the warning is
+  // real — dropped mid-bout, OR a never-connecting socket that would otherwise
+  // go silently stale (the very gap this cue exists to close).
+  const [staleConnection, setStaleConnection] = useState(false);
+  useEffect(() => {
+    if (pollMs || connected) {
+      setStaleConnection(false);
+      return;
+    }
+    const id = setTimeout(() => setStaleConnection(true), 4000);
+    return () => clearTimeout(id);
+  }, [pollMs, connected]);
+
   if (loadError) {
     return (
       <div
@@ -153,6 +170,29 @@ export function TVScoreboard({
   const blueName = match.blueFighterName ?? t('scoring.lice.blue');
   const redStyle = sideStyle(match.scoringConfig, 'red');
   const blueStyle = sideStyle(match.scoringConfig, 'blue');
+
+  // Connection cue — surfaces realtime channel health so the board no longer
+  // goes stale silently. A `pollMs` surface stays fresh via its poll even when
+  // the socket drops (a poll failure surfaces as the full-screen loadError), so
+  // it never shows "reconnecting"; finished matches are static so neither chip
+  // shows.
+  const isFinalMatch = match.status === 'completed' || match.status === 'voided';
+  // `staleConnection` already implies a realtime-only surface (!pollMs) whose
+  // channel has been down past the grace window — so this only alarms on a
+  // genuine outage, never on the normal initial handshake.
+  const reconnecting = staleConnection && !isFinalMatch;
+  const isLiveBout = match.status === 'running' || match.status === 'paused';
+  const connectionCue = reconnecting ? (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-700">
+      <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+      {t('scoring.liveMatch.reconnecting')}
+    </span>
+  ) : isLiveBout ? (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-green-700">
+      <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+      {t('scoring.liveMatch.live')}
+    </span>
+  ) : null;
 
   const redColumn = (
     <FighterColumn
@@ -189,6 +229,7 @@ export function TVScoreboard({
         redBorder={redStyle.border}
         blueBorder={blueStyle.border}
         mirror={mirror}
+        connectionCue={connectionCue}
       />
 
       <div className="grid flex-1 grid-cols-[1fr_minmax(380px,28%)_1fr] gap-6 px-6 py-4">
@@ -220,6 +261,7 @@ function TVHeader({
   redBorder,
   blueBorder,
   mirror = false,
+  connectionCue,
 }: {
   match: DisplayMatch;
   redName: string;
@@ -227,6 +269,7 @@ function TVHeader({
   redBorder: string;
   blueBorder: string;
   mirror?: boolean;
+  connectionCue?: React.ReactNode;
 }) {
   const matchCode = match.roundCode ?? match.matchNumberLabel ?? '';
   const eventName = match.event?.name ?? null;
@@ -245,9 +288,10 @@ function TVHeader({
   return (
     <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
-        <div className="text-left text-sm font-semibold text-slate-600">
+        <div className="flex flex-col items-start gap-1 text-left text-sm font-semibold text-slate-600">
           {eventName && <p>◇ {eventName}</p>}
           {liceName && <p className="text-xs text-slate-500">{liceName}</p>}
+          {connectionCue}
         </div>
         <div className="flex flex-col items-center gap-1">
           {matchCode && (

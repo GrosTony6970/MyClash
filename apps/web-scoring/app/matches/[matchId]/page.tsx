@@ -200,22 +200,54 @@ export default function MatchScoringPage({ params }: Props) {
     );
   }
 
+  // 4-state durable-sync indicator. Browser-offline always wins; otherwise the
+  // bar reflects the SyncEngine's own phase (syncing / error / idle→online).
+  const pending = syncState?.pendingCount ?? 0;
+  const syncPhase: 'online' | 'syncing' | 'offline' | 'error' =
+    networkStatus === 'offline' || syncState?.status === 'offline'
+      ? 'offline'
+      : syncState?.status === 'syncing'
+        ? 'syncing'
+        : syncState?.status === 'error'
+          ? 'error'
+          : 'online';
+
   return (
     <main id="main-content" className="min-h-screen flex flex-col">
       <div
         data-testid="network-bar"
         data-network={networkStatus}
-        data-pending={syncState?.pendingCount ?? 0}
-        className={`px-4 py-1 text-xs font-bold text-center ${
-          networkStatus === 'online'
+        data-sync={syncPhase}
+        data-pending={pending}
+        className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${
+          syncPhase === 'online'
             ? 'bg-green-900 text-green-300'
-            : 'bg-red-900 text-red-300 animate-pulse'
+            : syncPhase === 'syncing'
+              ? 'bg-yellow-900 text-yellow-300 animate-pulse'
+              : syncPhase === 'error'
+                ? 'bg-orange-900 text-orange-200'
+                : 'bg-red-900 text-red-300 animate-pulse'
         }`}
       >
-        {networkStatus === 'online'
-          ? `● ${t('scoring.lice.online')}`
-          : `● ${t('scoring.lice.offlineQueued')}`}
-        {(syncState?.pendingCount ?? 0) > 0 && ` (${syncState?.pendingCount})`}
+        <span>
+          {syncPhase === 'online'
+            ? `● ${t('scoring.lice.online')}`
+            : syncPhase === 'syncing'
+              ? `⟳ ${t('scoring.lice.syncing')}`
+              : syncPhase === 'error'
+                ? `⚠ ${t('scoring.lice.syncError')}`
+                : `● ${t('scoring.lice.offlineQueued')}`}
+          {pending > 0 ? ` (${pending})` : ''}
+        </span>
+        {syncPhase === 'error' && (
+          <button
+            type="button"
+            onClick={() => void syncEngine.drain()}
+            className="rounded bg-orange-700 px-2 py-0.5 text-orange-50 transition-colors hover:bg-orange-600"
+          >
+            {t('scoring.lice.retry')}
+          </button>
+        )}
       </div>
 
       {match ? (
