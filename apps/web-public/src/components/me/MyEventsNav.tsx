@@ -86,14 +86,14 @@ export function MyEventsNav({ onNavigate }: { onNavigate?: () => void }) {
                 </div>
                 <div className="ml-4 border-l border-border pl-2">
                   <SubLink href={base} active={pathname === base} onNavigate={onNavigate}>
-                    {t('publicApp.me.hub.tabSchedule')}
+                    {t('publicApp.me.hub.tabOverview')}
                   </SubLink>
                   <SubLink
-                    href={`${base}/overview`}
-                    active={pathname === `${base}/overview`}
+                    href={`${base}/schedule`}
+                    active={pathname === `${base}/schedule`}
                     onNavigate={onNavigate}
                   >
-                    {t('publicApp.me.hub.tabOverview')}
+                    {t('publicApp.me.hub.tabSchedule')}
                   </SubLink>
                   <SubLink
                     href={`${base}/workshops`}

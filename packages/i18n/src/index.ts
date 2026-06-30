@@ -202,6 +202,7 @@ export const en = {
       logoutAriaLabel: 'Log out of personal space',
       checkingSession: 'Checking your session...',
       viaGoogle: 'via Google',
+      loggedAs: 'Logged in as',
       nav: {
         dashboard: 'Dashboard',
         fighter: 'Fighter profile',
@@ -5387,6 +5388,7 @@ export const fr = {
       logoutAriaLabel: 'Se deconnecter de l espace personnel',
       checkingSession: 'Verification de votre session...',
       viaGoogle: 'via Google',
+      loggedAs: 'Connecté en tant que',
       nav: {
         dashboard: 'Tableau de bord',
         fighter: 'Profil combattant',

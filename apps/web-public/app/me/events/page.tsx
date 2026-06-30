@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents } from '@/components/me/hooks';
@@ -26,18 +25,10 @@ function CalendarIcon({ className }: { className?: string }) {
 
 export default function MyEventsPage() {
   const { t } = useI18n();
-  const router = useRouter();
   const { events, loading } = useMyEvents();
-
-  // Single-event shortcut: skip the list, open the hub directly.
-  useEffect(() => {
-    const only = events && events.length === 1 ? events[0] : null;
-    if (only) router.replace(`/me/events/${only.event.slug}`);
-  }, [events, router]);
 
   if (loading) return <HubLoading />;
   if (!events || events.length === 0) return <ZeroState />;
-  if (events.length === 1) return <HubLoading />; // redirecting
 
   return (
     <main id="main-content" className="mx-auto min-h-screen max-w-2xl px-4 py-6">

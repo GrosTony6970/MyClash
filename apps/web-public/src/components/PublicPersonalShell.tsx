@@ -21,7 +21,9 @@ const navItems = [
 ] as const;
 
 function isActive(pathname: string, href: string) {
-  if (href === '/me') return pathname === '/me';
+  // Exact-match the index + the events list: inside an event the MyEventsNav
+  // sub-item carries the active state, so "Public events" must not light up.
+  if (href === '/me' || href === '/me/events') return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -34,6 +36,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<{ email: string | null; hasPassword: boolean } | null>(
     null,
   );
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const notificationsUnread = useUnreadBroadcasts(apiUrl);
 
@@ -50,12 +53,21 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
           return;
         }
 
-        const data = (await response.json()) as { type?: string };
+        const data = (await response.json()) as {
+          type?: string;
+          user?: { email?: string; display_name?: string };
+          person?: { given_name?: string; family_name?: string };
+        };
         if (data.type !== 'claimed') {
           window.location.replace('/login');
           return;
         }
 
+        const personName = [data.person?.given_name, data.person?.family_name]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        setDisplayName(data.user?.display_name || personName || data.user?.email || null);
         setReady(true);
       })
       .catch((error: unknown) => {
@@ -199,24 +211,32 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         data-theme="dark"
         className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground shadow-2xl lg:flex"
       >
-        <Link href="/me" className="mb-7 flex items-center gap-3">
-          <Image
-            src="/brand/Logomini_nobackground.png"
-            alt=""
-            width={44}
-            height={44}
-            className="h-11 w-11"
-            priority
-          />
-          <div>
-            <p className="font-display text-lg font-bold tracking-wide">
-              {t('publicApp.personalShell.brand')}
+        <div className="mb-7">
+          <Link href="/me" className="flex items-center gap-3">
+            <Image
+              src="/brand/Logomini_nobackground.png"
+              alt=""
+              width={44}
+              height={44}
+              className="h-11 w-11"
+              priority
+            />
+            <div>
+              <p className="font-display text-lg font-bold tracking-wide">
+                {t('publicApp.personalShell.brand')}
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">
+                {t('publicApp.personalShell.role')}
+              </p>
+            </div>
+          </Link>
+          {displayName && (
+            <p className="mt-2 pl-1 text-[0.7rem] text-muted">
+              {t('publicApp.personalShell.loggedAs')}{' '}
+              <span className="font-semibold text-foreground">{displayName}</span>
             </p>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">
-              {t('publicApp.personalShell.role')}
-            </p>
-          </div>
-        </Link>
+          )}
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
         <div className="mt-4 space-y-3 border-t border-border pt-4">
           {accountFooter}

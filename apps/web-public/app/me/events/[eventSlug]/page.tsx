@@ -173,16 +173,29 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
           <Eyebrow>{t('publicApp.me.hub.refereeing')}</Eyebrow>
           {refereeing.map((r, i) => {
             const kind = matchKindLabel(t, r.matchKind, r.roundOfCount);
-            const venueLice = [r.venueName, r.liceName].filter(Boolean).join(' · ');
+            // Pool phase: `poolName` already reads "Pool N", so the localized
+            // "Pool" kind would be redundant ("Pool 1 · Pool"). Drop it there;
+            // bracket phases keep their distinct kind label ("Final", …).
+            const phaseLabel = r.matchKind === 'pool' ? (r.poolName ?? kind) : (kind ?? r.poolName);
+            // Pool + lice are the prominent, enlarged tokens ("Pool 1 · Lice 1").
+            const prominent = [phaseLabel, r.liceName].filter(Boolean).join(' · ');
             const slot = daySlotLabel(r.startsAt, r.endsAt, tz, tag, t);
-            const meta = [r.poolName, kind, venueLice, slot].filter(Boolean).join(' · ');
             const inner = (
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-bold leading-tight">
                     {r.tournamentName ?? r.tournament?.name ?? ''}
                   </p>
-                  {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
+                  {(prominent || slot) && (
+                    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
+                      {prominent && (
+                        <span className="text-sm font-semibold text-foreground">{prominent}</span>
+                      )}
+                      {prominent && slot && <span className="text-xs text-muted">·</span>}
+                      {slot && <span className="text-xs text-muted">{slot}</span>}
+                    </p>
+                  )}
+                  {r.venueName && <p className="mt-0.5 text-xs text-muted">{r.venueName}</p>}
                 </div>
                 {r.skillName ? (
                   <SkillBadge color={r.skillColor ?? 'slate'} label={r.skillName} size="sm" />

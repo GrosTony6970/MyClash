@@ -346,6 +346,7 @@ export function PoolMatchesView({
                       !!highlightRegistrationId && m.redRegistrationId === highlightRegistrationId;
                     const blueIsYou =
                       !!highlightRegistrationId && m.blueRegistrationId === highlightRegistrationId;
+                    const youRow = redIsYou || blueIsYou;
                     return (
                       <tr
                         key={m.matchId}
@@ -358,7 +359,14 @@ export function PoolMatchesView({
                             openMatch();
                           }
                         }}
-                        className="cursor-pointer border-b border-stone-100 last:border-0 hover:bg-stone-50 focus:bg-stone-50 focus:outline-none"
+                        className={[
+                          'cursor-pointer border-b border-stone-100 last:border-0 focus:outline-none',
+                          // Tint the viewer's own row so the highlight is as
+                          // obvious as the standings/bracket tabs.
+                          youRow
+                            ? 'bg-accent/5 hover:bg-accent/10 focus:bg-accent/10'
+                            : 'hover:bg-stone-50 focus:bg-stone-50',
+                        ].join(' ')}
                       >
                         <td className="px-4 py-2 font-mono text-xs text-slate-600">
                           {m.roundCode}
