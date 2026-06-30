@@ -480,9 +480,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
 
   // ── Referees: register → resolve global ids → grant every qualification ────────
-  // Assignment itself runs once at the very end (fillReferees), after BOTH the
-  // pools and the day-2 bracket are scheduled, so the conflict-aware board can
-  // fill every pool AND bracket slot in one pass.
+  // Assignment (fillReferees) runs per phase, once that phase is scheduled: pools
+  // before they're played, the bracket after it's populated + scheduled — the
+  // conflict-aware board only exposes matches that already have a time slot.
   let rReg = 0;
   for (const r of referees) {
     const reg = await post(`events/${eventId}/referees/${r.id}`);
@@ -503,6 +503,61 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   console.log(`  ✓ granted ${rSkill} referee skills (all 3 roles each → interchangeable)`);
 
+  // Fill referee slots from the conflict-aware assignment board: the product's
+  // auto-assign engine does a bulk pass, then a deterministic top-up assigns each
+  // still-open slot from its board-computed `candidates.recommended` (already filtered
+  // for fighting / double-booking / qualification), re-reading the board each pass so
+  // freshly-used referees drop out. Called once per phase (pools, then bracket); the
+  // top-up only fills EMPTY slots, so a later pass never disturbs earlier assignments.
+  type BoardSlot = {
+    role: string;
+    assignment: unknown | null;
+    candidates?: { recommended?: Array<{ personId: string }> };
+  };
+  type BoardPool = { id: string; roleSlots: BoardSlot[] };
+  const getBoard = async () =>
+    (await (await reqOk(await get(`events/${eventId}/referee-assignment-board`))).json()) as {
+      pools: BoardPool[];
+      unscheduledPools?: BoardPool[];
+    };
+  const fillReferees = async (label: string): Promise<void> => {
+    await step(`auto-assign referees (${label})`, async () =>
+      reqOk(await post(`events/${eventId}/auto-assign-referees?dryRun=false`)),
+    );
+    for (let pass = 0; pass < 20; pass++) {
+      const board = await getBoard();
+      const open = board.pools.flatMap((p) =>
+        p.roleSlots
+          .filter((s) => !s.assignment)
+          .map((s) => ({
+            poolId: p.id,
+            role: s.role,
+            recommended: s.candidates?.recommended ?? [],
+          })),
+      );
+      if (open.length === 0) break;
+      const usedThisPass = new Set<string>();
+      let did = 0;
+      for (const slot of open) {
+        const cand = slot.recommended.find((c) => !usedThisPass.has(c.personId));
+        if (!cand) continue;
+        usedThisPass.add(cand.personId);
+        const res = await post(`events/${eventId}/referee-assignments`, {
+          data: { poolId: slot.poolId, role: slot.role, personId: cand.personId },
+        });
+        if (res.ok()) did++;
+      }
+      if (did === 0) break; // remaining open slots have no available candidate
+    }
+    const finalBoard = await getBoard();
+    const allSlots = finalBoard.pools.flatMap((p) => p.roleSlots);
+    const filled = allSlots.filter((s) => s.assignment).length;
+    console.log(
+      `  ✓ referees (${label}): ${filled}/${allSlots.length} slots filled` +
+        (filled < allSlots.length ? ` (${allSlots.length - filled} unfillable)` : ''),
+    );
+  };
+
   // ── Play every pool match: clean hits, afterblows, cards ───────────────────────
   // Scores are derived from exchanges; the API never infers the winner, so we
   // set winnerRegistrationId explicitly and keep the winner clearly ahead on
@@ -517,21 +572,47 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     blue_registration_id: string | null;
   };
   const iso = () => new Date().toISOString();
+
+  // Anchor each exchange/penalty's occurred_at to the REAL schedule so the data reads
+  // like a live event: occurred_at = the match's start instant + its match-clock
+  // offset (clockTimeMs). `matchBaseMs` is the current match's start (epoch ms), set
+  // per match by playMatch / playBracketMatch. Pools use their real scheduled_at
+  // (fetched into `scheduledByMatchId` before play); brackets use their day-2 block
+  // slot (they're only scheduled AFTER they're played). recorded_at / started_at /
+  // ended_at stay server-stamped — the API owns them and nothing renders them.
+  const scheduledByMatchId = new Map<string, string>();
+  let matchBaseMs: number | null = null;
+  const occurredAtFor = (body: Record<string, unknown>): string => {
+    const c = body['clockTimeMs'];
+    return matchBaseMs != null && typeof c === 'number'
+      ? new Date(matchBaseMs + c).toISOString()
+      : iso();
+  };
   const exchange = (mid: string, body: Record<string, unknown>) =>
     post(`matches/${mid}/exchanges`, {
-      data: { clientUuid: randomUUID(), occurredAt: iso(), ...body },
+      data: { clientUuid: randomUUID(), occurredAt: occurredAtFor(body), ...body },
     });
   const penalty = (mid: string, body: Record<string, unknown>) =>
     post(`matches/${mid}/penalties`, {
-      data: { clientUuid: randomUUID(), occurredAt: iso(), ...body },
+      data: { clientUuid: randomUUID(), occurredAt: occurredAtFor(body), ...body },
     });
 
-  // Realistic refereeing cadence: advances clockTimeMs, which the match timeline
-  // renders as MM:SS. (occurredAt / started_at / ended_at are server-stamped at the
-  // run instant and aren't displayed, so the visible "match time" is the clock.) A
-  // HEMA phrase + reset is a few active seconds; a card pauses the bout.
+  // Realistic refereeing cadence: advances clockTimeMs, which drives both the visible
+  // match-clock label (MM:SS) and — via the anchor above — the occurred_at instants.
+  // A HEMA phrase + reset is a few active seconds; a card pauses the bout.
   const gapMs = () => 6_000 + Math.floor(Math.random() * 16_000); // 6..22s between actions
   const cardPauseMs = () => 20_000 + Math.floor(Math.random() * 25_000); // 20..45s for a card
+
+  // epoch ms for a match's wall-clock start: its real scheduled_at when known, else a
+  // computed day/slot base (brackets, scheduled only after play) plus an offset.
+  const baseMsOf = (matchId: string, day: string, hhmm: string, offsetMs: number): number => {
+    const sched = scheduledByMatchId.get(matchId);
+    if (sched) return Date.parse(sched);
+    return Date.parse(zonedToUtcIso(day, hhmm, EVENT_TZ)) + offsetMs;
+  };
+  // Day-2 bracket block start hour per tournament — shared by the occurred_at anchor
+  // and the bracket programme block below so they agree.
+  const bracketStartHour = (name: string) => (name.startsWith('Longsword') ? '09' : '13');
 
   const blackCarded = new Set<string>(); // registrations already black-carded (avoid 2nd → DQ)
   // A couple of pool matches end in a "double out": posting DOUBLE_CAP doubles
@@ -550,6 +631,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const blue = m.blue_registration_id;
     if (!red || !blue || m.status === 'completed') return; // bye or already played
 
+    // Pools were scheduled on day 1 → use their real scheduled_at as the clock base.
+    matchBaseMs = baseMsOf(m.id, WS_DAYS[0]!, '09:00', idx * 90_000);
     await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
 
     if (allowDoubleOut && DOUBLE_OUT_IDXS.has(idx)) {
@@ -665,6 +748,20 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     played++;
   };
 
+  // Load the generated schedule so each pool match's exchanges are timestamped at its
+  // real scheduled_at (+ the match clock), not the test-run instant.
+  await step('load schedule (anchor pool timestamps)', async () => {
+    const rows = (await (await reqOk(await get(`events/${eventId}/schedule`))).json()) as Array<{
+      id: string;
+      scheduledAt: string | null;
+    }>;
+    for (const r of rows) if (r.scheduledAt) scheduledByMatchId.set(r.id, r.scheduledAt);
+    return scheduledByMatchId.size;
+  });
+
+  // Staff the pools now they're scheduled (referees assigned before the pools are played).
+  await fillReferees('pools');
+
   for (const tid of tournamentIds) {
     // Confine the 2 double-outs to the first tournament (1–2 total across the run).
     const allowDoubleOut = tid === tournamentIds[0];
@@ -739,10 +836,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
 
   let bracketPlayed = 0;
 
-  const playBracketMatch = async (s: BracketSlot): Promise<{ winnerName: string | null }> => {
+  const playBracketMatch = async (
+    s: BracketSlot,
+    baseMs: number,
+  ): Promise<{ winnerName: string | null }> => {
     const mid = s.matchId!;
     const red = s.redRegistrationId!;
     const blue = s.blueRegistrationId!;
+    matchBaseMs = baseMs; // brackets are scheduled only after play → computed day-2 slot
     await patch(`matches/${mid}/status`, { data: { status: 'running' } });
 
     const winnerColor: 'red' | 'blue' = Math.random() < 0.5 ? 'red' : 'blue';
@@ -830,9 +931,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   };
 
   const playBracket = async (tid: string, name: string): Promise<number> => {
-    await step(`${name}: populate bracket R1`, async () =>
-      reqOk(await post(`tournaments/${tid}/populate-bracket`, { data: {} })),
-    );
+    // Bracket is already populated + scheduled (above) — play it straight through.
     let bracket = await readBracket(tid);
     const finalRound = Math.max(...bracket.slots.map((s) => s.round));
     const rounds = [...new Set(bracket.slots.map((s) => s.round))]
@@ -861,7 +960,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         if (!s.matchId || !s.redRegistrationId || !s.blueRegistrationId) continue; // bye / unresolved
         if (s.status === 'completed') continue;
         try {
-          const { winnerName } = await playBracketMatch(s);
+          const { winnerName } = await playBracketMatch(
+            s,
+            baseMsOf(
+              s.matchId,
+              WS_DAYS[1]!,
+              `${bracketStartHour(name)}:00`,
+              ((round - 1) * 30 + (s.position - 1) * 5) * 60_000,
+            ),
+          );
           played++;
           if (round === finalRound && s.position === 1) champion = winnerName;
         } catch (e) {
@@ -876,24 +983,23 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     return played;
   };
 
+  // ── Populate each bracket from the pool results (seeds R1 into pre-created rows) ─
   for (const t of [long, side].filter((x) => x.id)) {
     const name = t === long ? 'Longsword Open' : 'Sidesword Open';
-    bracketPlayed += await playBracket(t.id, name);
+    await step(`${name}: populate bracket R1`, async () =>
+      reqOk(await post(`tournaments/${t.id}/populate-bracket`, { data: {} })),
+    );
   }
-  console.log(
-    `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
-  );
 
-  // ── Schedule each bracket on day 2 (dayIndex 1) ────────────────────────────────
-  // Bracket matches exist now (played above). One competition block per tournament
-  // on day 2 + a day-2-scoped generate times them across the 4 lices WITHOUT
-  // touching the day-1 pools or their per-pool lice pinning. Longsword 09:00,
-  // Sidesword 13:00 → the per-day cursor sequences them, so never >4 concurrent
-  // (≤12 referee slots at any instant). generate schedules already-played matches
-  // too (fetchCompetitionMatches has no status filter).
+  // ── Schedule each bracket on day 2 (dayIndex 1), BEFORE it's played ─────────────
+  // generate-bracket already created every bracket match row (all rounds, null
+  // fighters), so one day-2-scoped generate places the whole bracket across the 4
+  // lices; advancement later only UPDATEs fighters into those rows, preserving the
+  // scheduled_at set here. dayIndices:[1] leaves the day-1 pools + their pinning
+  // untouched, and it's the only bracket generate, so nothing reshuffles.
   for (const t of [long, side].filter((x) => x.id)) {
     const name = t === long ? 'Longsword Open' : 'Sidesword Open';
-    const startHour = t === long ? '09' : '13';
+    const startHour = bracketStartHour(name); // same hour the occurred_at anchor uses
     await step(`${name}: bracket block (day 2)`, async () =>
       reqOk(
         await post(`events/${eventId}/programme/blocks`, {
@@ -921,59 +1027,25 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   )) as { matchesScheduled?: number } | null;
   console.log(`    ↳ bracket matchesScheduled: ${genB?.matchesScheduled}`);
 
-  // ── Fill EVERY referee position (pools + bracket) ──────────────────────────────
-  // Pools (day 1) and brackets (day 2) are both scheduled now, so the conflict-aware
-  // assignment board exposes every slot with a time window. The product's auto-assign
-  // engine does a bulk optimal pass; then a deterministic top-up assigns from each
-  // open slot's board-computed `candidates.recommended` (already filtered for
-  // fighting / double-booking / qualification), re-reading the board each pass so
-  // freshly-used referees drop out — converging on 100% coverage.
-  type BoardSlot = {
-    role: string;
-    assignment: unknown | null;
-    candidates?: { recommended?: Array<{ personId: string }> };
-  };
-  type BoardPool = { id: string; roleSlots: BoardSlot[] };
-  const getBoard = async () =>
-    (await (await reqOk(await get(`events/${eventId}/referee-assignment-board`))).json()) as {
-      pools: BoardPool[];
-      unscheduledPools?: BoardPool[];
-    };
+  // Re-load the schedule so bracket exchanges anchor occurred_at to their real day-2
+  // scheduled_at, then staff the bracket — its slots now carry time windows.
+  await step('load schedule (anchor bracket timestamps)', async () => {
+    const rows = (await (await reqOk(await get(`events/${eventId}/schedule`))).json()) as Array<{
+      id: string;
+      scheduledAt: string | null;
+    }>;
+    for (const r of rows) if (r.scheduledAt) scheduledByMatchId.set(r.id, r.scheduledAt);
+    return scheduledByMatchId.size;
+  });
+  await fillReferees('bracket');
 
-  await step('auto-assign referees (engine)', async () =>
-    reqOk(await post(`events/${eventId}/auto-assign-referees?dryRun=false`)),
-  );
-
-  for (let pass = 0; pass < 20; pass++) {
-    const board = await getBoard();
-    const open = board.pools.flatMap((p) =>
-      p.roleSlots
-        .filter((s) => !s.assignment)
-        .map((s) => ({ poolId: p.id, role: s.role, recommended: s.candidates?.recommended ?? [] })),
-    );
-    if (open.length === 0) break;
-    const usedThisPass = new Set<string>();
-    let did = 0;
-    for (const slot of open) {
-      const cand = slot.recommended.find((c) => !usedThisPass.has(c.personId));
-      if (!cand) continue;
-      usedThisPass.add(cand.personId);
-      const res = await post(`events/${eventId}/referee-assignments`, {
-        data: { poolId: slot.poolId, role: slot.role, personId: cand.personId },
-      });
-      if (res.ok()) did++;
-    }
-    if (did === 0) break; // remaining open slots have no available candidate
+  // ── Play each bracket down to a champion (occurred_at = real scheduled_at + clock) ─
+  for (const t of [long, side].filter((x) => x.id)) {
+    const name = t === long ? 'Longsword Open' : 'Sidesword Open';
+    bracketPlayed += await playBracket(t.id, name);
   }
-
-  const finalBoard = await getBoard();
-  const allSlots = finalBoard.pools.flatMap((p) => p.roleSlots);
-  const filled = allSlots.filter((s) => s.assignment).length;
-  const unscheduled = (finalBoard.unscheduledPools ?? []).length;
   console.log(
-    `  ✓ referees: ${filled}/${allSlots.length} slots filled` +
-      (filled < allSlots.length ? ` (${allSlots.length - filled} unfillable)` : '') +
-      (unscheduled ? ` — ${unscheduled} unscheduled pool(s) skipped` : ''),
+    `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
   );
 
   // ── Workshop venue + area, a midday break, then 6 scheduled workshops ───────────
