@@ -1193,6 +1193,11 @@ export class LeaguesService {
     config: LeagueScoringConfig,
   ): Promise<LeagueTournamentContribution[]> {
     const tournament = await this.getTournamentWithEvent(tournamentId);
+    // Test events never contribute to a league. Returning no contributions
+    // makes replaceTournamentResults delete any existing rows for this
+    // tournament — so a recompute (incl. the one triggered when an event is
+    // flagged test) is self-healing and league_tournament_results stays clean.
+    if (tournament['is_test_event'] === true) return [];
     const [registrations, matches, groupName] = await Promise.all([
       this.listRegistrationsWithIdentity(tournamentId),
       this.listMatchesForTournament(tournamentId),
@@ -1365,13 +1370,17 @@ export class LeaguesService {
   private async getTournamentWithEvent(tournamentId: string): Promise<Row> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('*, events(organization_id)')
+      .select('*, events(organization_id, is_test_event)')
       .eq('id', tournamentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
     const row = data as Row & { events?: Row | null };
-    return { ...row, organization_id: row.events?.['organization_id'] };
+    return {
+      ...row,
+      organization_id: row.events?.['organization_id'],
+      is_test_event: row.events?.['is_test_event'] === true,
+    };
   }
 
   private async getLeagueById(leagueId: string): Promise<Row> {

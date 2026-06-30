@@ -901,7 +901,7 @@ export class FightersService {
         persons!inner ( global_person_id ),
         tournaments (
           id, name, slug, status, weapon,
-          events ( id, name, slug, status, start_date, end_date )
+          events ( id, name, slug, status, start_date, end_date, is_test_event )
         )
       `,
       )
@@ -913,26 +913,38 @@ export class FightersService {
     const { data, error } = await request;
     if (error) throw new BadRequestException(error.message);
 
-    return ((data ?? []) as Row[])
-      .map((row) => {
-        const tournament = row['tournaments'] as Row | null;
-        const event = tournament?.['events'] as Row | null;
-        return {
-          id: String(row['id']),
-          tournamentId: String(tournament?.['id'] ?? row['tournament_id']),
-          tournamentName: String(tournament?.['name'] ?? ''),
-          tournamentSlug: String(tournament?.['slug'] ?? ''),
-          tournamentStatus: String(tournament?.['status'] ?? ''),
-          weapon: (tournament?.['weapon'] as string | null) ?? null,
-          eventId: String(event?.['id'] ?? ''),
-          eventName: String(event?.['name'] ?? ''),
-          eventSlug: String(event?.['slug'] ?? ''),
-          eventStatus: String(event?.['status'] ?? ''),
-          eventStartDate: (event?.['start_date'] as string | null) ?? null,
-          eventEndDate: (event?.['end_date'] as string | null) ?? null,
-        } satisfies CareerRegistrationInput;
-      })
-      .filter((registration) => !query.year || registration.eventStartDate?.startsWith(query.year));
+    return (
+      ((data ?? []) as Row[])
+        // Test-event results never count toward a fighter's public career stats.
+        // Filtering registrations cascades — career matches/placements derive
+        // from this set, and league rankings are already test-free (league gate).
+        .filter((row) => {
+          const tournament = row['tournaments'] as Row | null;
+          const event = tournament?.['events'] as Row | null;
+          return event?.['is_test_event'] !== true;
+        })
+        .map((row) => {
+          const tournament = row['tournaments'] as Row | null;
+          const event = tournament?.['events'] as Row | null;
+          return {
+            id: String(row['id']),
+            tournamentId: String(tournament?.['id'] ?? row['tournament_id']),
+            tournamentName: String(tournament?.['name'] ?? ''),
+            tournamentSlug: String(tournament?.['slug'] ?? ''),
+            tournamentStatus: String(tournament?.['status'] ?? ''),
+            weapon: (tournament?.['weapon'] as string | null) ?? null,
+            eventId: String(event?.['id'] ?? ''),
+            eventName: String(event?.['name'] ?? ''),
+            eventSlug: String(event?.['slug'] ?? ''),
+            eventStatus: String(event?.['status'] ?? ''),
+            eventStartDate: (event?.['start_date'] as string | null) ?? null,
+            eventEndDate: (event?.['end_date'] as string | null) ?? null,
+          } satisfies CareerRegistrationInput;
+        })
+        .filter(
+          (registration) => !query.year || registration.eventStartDate?.startsWith(query.year),
+        )
+    );
   }
 
   private async fetchCareerMatches(registrationIds: string[]): Promise<CareerMatchInput[]> {

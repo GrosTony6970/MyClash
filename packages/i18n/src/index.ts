@@ -3704,6 +3704,10 @@ export const en = {
       edit: 'Edit',
       archive: 'Archive',
       hardDelete: 'Hard delete',
+      testEvent: 'Test event',
+      testEventHelp:
+        'Hidden from public pages, personal spaces, and statistics. Can be hard-deleted even with recorded results.',
+      testBadge: 'Test',
       status: 'Status',
       visibility: 'Visibility',
       publishCta: 'Publish',
@@ -3992,6 +3996,9 @@ export const en = {
       cityPlaceholder: 'Lyon',
       country: 'Country',
       countryPlaceholder: 'Select a country',
+      testEvent: 'Mark as a test event',
+      testEventHelp:
+        'Test events are hidden from public pages, personal spaces, and statistics, and can be hard-deleted even after matches are recorded.',
       licesCount: 'Number of Lices (pistes)',
       licesNames: 'Lice names',
       liceName: 'Lice {number} name',
@@ -8920,6 +8927,10 @@ export const fr = {
       edit: 'Modifier',
       archive: 'Archiver',
       hardDelete: 'Suppression definitive',
+      testEvent: 'Evenement de test',
+      testEventHelp:
+        'Masque des pages publiques, des espaces personnels et des statistiques. Peut etre supprime definitivement meme avec des resultats enregistres.',
+      testBadge: 'Test',
       status: 'Statut',
       visibility: 'Visibilite',
       publishCta: 'Publier',
@@ -9213,6 +9224,9 @@ export const fr = {
       cityPlaceholder: 'Lyon',
       country: 'Pays',
       countryPlaceholder: 'Choisir un pays',
+      testEvent: 'Marquer comme evenement de test',
+      testEventHelp:
+        'Les evenements de test sont masques des pages publiques, des espaces personnels et des statistiques, et peuvent etre supprimes definitivement meme avec des matchs enregistres.',
       licesCount: 'Nombre de lices (pistes)',
       licesNames: 'Noms des lices',
       liceName: 'Nom de la lice {number}',

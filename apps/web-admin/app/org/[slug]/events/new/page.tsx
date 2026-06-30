@@ -38,6 +38,7 @@ interface WizardState {
   liceNames: string[];
   areaNames: string[];
   logoUrl: string;
+  isTestEvent: boolean;
   submitting: boolean;
   error: string | null;
 }
@@ -92,6 +93,7 @@ const INITIAL: WizardState = {
   liceNames: ['Lice 1', 'Lice 2'],
   areaNames: [],
   logoUrl: '',
+  isTestEvent: false,
   submitting: false,
   error: null,
 };
@@ -335,6 +337,25 @@ function Step1({
             placeholder={t('organizer.newEvent.countryPlaceholder')}
           />
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-background p-3">
+        <label className="flex items-start gap-2.5 text-sm text-foreground-secondary">
+          <input
+            type="checkbox"
+            checked={state.isTestEvent}
+            onChange={(event) =>
+              dispatch({ type: 'SET_FIELD', field: 'isTestEvent', value: event.target.checked })
+            }
+            className="mt-0.5 h-4 w-4 rounded border-border text-accent focus:ring-accent"
+          />
+          <span>
+            <span className="font-medium text-foreground">{t('organizer.newEvent.testEvent')}</span>
+            <span className="mt-0.5 block text-xs text-muted">
+              {t('organizer.newEvent.testEventHelp')}
+            </span>
+          </span>
+        </label>
       </div>
     </div>
   );
@@ -949,6 +970,7 @@ export default function NewEventPage() {
           endDate: state.endDate,
           city: state.city.trim() || null,
           country: state.country || null,
+          isTestEvent: state.isTestEvent,
         }),
       });
       if (!eventRes.ok) {

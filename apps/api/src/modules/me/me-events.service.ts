@@ -374,7 +374,9 @@ export class MeEventsService {
   ): Promise<Array<{ id: string; eventId: string; event: MyEventInfo | null }>> {
     const { data } = await this.supabase.service
       .from('persons')
-      .select('id, event_id, events(id, slug, name, start_date, end_date, status, timezone)')
+      .select(
+        'id, event_id, events(id, slug, name, start_date, end_date, status, timezone, is_test_event)',
+      )
       .eq('claimed_by_user_id', userId);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
     return rows.map((r) => ({
@@ -415,7 +417,7 @@ export class MeEventsService {
       .select(
         `
         role, starts_at, ends_at, pool_id,
-        events ( id, slug, name, start_date, end_date, status, timezone ),
+        events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
         pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
         matches (
           bracket_slot_id,
@@ -569,7 +571,7 @@ export class MeEventsService {
     const { data } = await this.supabase.service
       .from('workshop_enrollments')
       .select(
-        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone ) ) )',
+        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ) ) )',
       )
       .in('user_id', personIds)
       .in('status', ['confirmed', 'intent', 'waitlisted']);
@@ -672,6 +674,10 @@ export class MeEventsService {
 
   private mapEvent(row: Row | null): MyEventInfo | null {
     if (!row) return null;
+    // Test events are hidden from the personal space. mapEvent is the single
+    // choke point for every /me source (competitor, referee, workshop), so
+    // dropping them here keeps listMyEvents + getUpcoming test-free.
+    if (row['is_test_event'] === true) return null;
     return {
       id: String(row['id']),
       slug: String(row['slug']),

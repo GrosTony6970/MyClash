@@ -15,6 +15,9 @@ const createEventSchema = z
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
     publicLandingMd: z.string().optional(),
+    // Mark as a test/dry-run event: hidden from public/personal/stats and
+    // hard-deletable even with recorded results.
+    isTestEvent: z.boolean().optional(),
   })
   .strict();
 export class CreateEventDto extends createZodDto(createEventSchema) {}
@@ -35,6 +38,8 @@ const updateEventSchema = z
     logoUrl: z.string().max(500).nullish(),
     // AI spend cap in EUR for this event (null = no cap)
     aiSpendCapEur: z.number().min(0).nullish(),
+    // Mark/unmark as a test event (see CreateEventDto).
+    isTestEvent: z.boolean().optional(),
   })
   .strict();
 export class UpdateEventDto extends createZodDto(updateEventSchema) {}

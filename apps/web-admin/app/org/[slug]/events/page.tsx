@@ -20,6 +20,7 @@ import {
   Button,
   CountryCombobox,
   SortableHeader,
+  Switch,
   formatCountryName,
   nextSortState,
   sortRows,
@@ -52,6 +53,9 @@ interface OrgEvent {
   // True when any match has progressed past `scheduled` — hard delete is then
   // forbidden and the event must go through the deletion-request flow.
   hasRecordedResults: boolean;
+  // Test/dry-run event: hidden from public/personal/stats and hard-deletable
+  // even with recorded results.
+  isTestEvent: boolean;
 }
 
 interface EventForm {
@@ -62,6 +66,7 @@ interface EventForm {
   country: string | null;
   status: string;
   publicLandingMd: string;
+  isTestEvent: boolean;
 }
 
 function normalizeEvent(row: Record<string, unknown>): OrgEvent {
@@ -94,6 +99,7 @@ function normalizeEvent(row: Record<string, unknown>): OrgEvent {
     tournamentCount: Number(row['tournamentCount'] ?? row['tournament_count'] ?? 0),
     participantCount: Number(row['participantCount'] ?? row['participant_count'] ?? 0),
     hasRecordedResults: (row['hasRecordedResults'] ?? row['has_recorded_results']) === true,
+    isTestEvent: (row['isTestEvent'] ?? row['is_test_event']) === true,
   };
 }
 
@@ -106,6 +112,7 @@ function toForm(event: OrgEvent): EventForm {
     country: event.country,
     status: event.status,
     publicLandingMd: event.publicLandingMd,
+    isTestEvent: event.isTestEvent,
   };
 }
 
@@ -351,6 +358,7 @@ export default function OrgEventsListPage() {
         country: form.country || null,
         status: form.status,
         publicLandingMd: form.publicLandingMd || null,
+        isTestEvent: form.isTestEvent,
       };
       if (logoRemove && !logoPendingFile) patchBody['logoUrl'] = null;
       const res = await fetch(`${apiUrl}/api/v1/events/${editing.id}`, {
@@ -664,6 +672,11 @@ export default function OrgEventsListPage() {
                       >
                         {event.name}
                       </Link>
+                      {event.isTestEvent && (
+                        <span className="ml-2 inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning align-middle">
+                          {t('organizer.events.testBadge')}
+                        </span>
+                      )}
                       <p className="mt-1 text-xs text-muted">
                         {[event.city, formatCountryName(event.country, locale)]
                           .filter(Boolean)
@@ -787,7 +800,8 @@ export default function OrgEventsListPage() {
                               {t('organizer.deletionRequest.cancelRequest')}
                             </Button>
                           </div>
-                        ) : event.status === 'archived' || event.hasRecordedResults ? (
+                        ) : !event.isTestEvent &&
+                          (event.status === 'archived' || event.hasRecordedResults) ? (
                           <Button
                             type="button"
                             size="sm"
@@ -798,6 +812,8 @@ export default function OrgEventsListPage() {
                             {t('organizer.deletionRequest.requestDeletion')}
                           </Button>
                         ) : (
+                          // Test events delete directly even with results — no
+                          // archive / deletion-request detour.
                           <Button
                             type="button"
                             size="sm"
@@ -923,6 +939,19 @@ export default function OrgEventsListPage() {
                   {t('organizer.events.statusHelp')}
                 </span>
               </label>
+              <div className="grid gap-1.5 text-sm font-semibold text-foreground-secondary sm:col-span-2">
+                <span>{t('organizer.events.testEvent')}</span>
+                <div className="flex items-start gap-3">
+                  <Switch
+                    checked={form.isTestEvent}
+                    onChange={(value) => setForm({ ...form, isTestEvent: value })}
+                    ariaLabel={t('organizer.events.testEvent')}
+                  />
+                  <span className="text-xs font-normal text-muted">
+                    {t('organizer.events.testEventHelp')}
+                  </span>
+                </div>
+              </div>
               <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.startDate')}
                 <input

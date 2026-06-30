@@ -66,6 +66,13 @@ export class AdminDashboardStatsService {
     const recentDays = 30;
     const since = new Date(Date.now() - recentDays * 24 * 60 * 60 * 1000).toISOString();
 
+    // Test events are excluded from platform stats. matches/exchanges/tournaments
+    // reach the events flag via inner-join embeds (filter restricts the count).
+    const notTestTournament = 'id, events!inner(is_test_event)';
+    const notTestMatch = 'id, phases!inner(tournaments!inner(events!inner(is_test_event)))';
+    const notTestExchange =
+      'id, matches!inner(phases!inner(tournaments!inner(events!inner(is_test_event))))';
+
     const [
       organizationsTotal,
       organizationsActive,
@@ -97,26 +104,69 @@ export class AdminDashboardStatsService {
       this.countRows('organizations'),
       this.countRows('organizations', (query) => query.eq('status', 'active')),
       this.countRows('organizations', (query) => query.eq('status', 'suspended')),
-      this.countRows('events'),
-      this.countRows('events', (query) => query.eq('status', 'draft')),
-      this.countRows('events', (query) => query.in('status', ['published', 'running'])),
-      this.countRows('events', (query) => query.eq('status', 'completed')),
-      this.countRows('tournaments'),
-      this.countRows('tournaments', (query) => query.eq('status', 'draft')),
-      this.countRows('tournaments', (query) => query.eq('status', 'completed')),
+      this.countRows('events', (query) => query.eq('is_test_event', false)),
+      this.countRows('events', (query) => query.eq('status', 'draft').eq('is_test_event', false)),
+      this.countRows('events', (query) =>
+        query.in('status', ['published', 'running']).eq('is_test_event', false),
+      ),
+      this.countRows('events', (query) =>
+        query.eq('status', 'completed').eq('is_test_event', false),
+      ),
+      this.countRows(
+        'tournaments',
+        (query) => query.eq('events.is_test_event', false),
+        notTestTournament,
+      ),
+      this.countRows(
+        'tournaments',
+        (query) => query.eq('status', 'draft').eq('events.is_test_event', false),
+        notTestTournament,
+      ),
+      this.countRows(
+        'tournaments',
+        (query) => query.eq('status', 'completed').eq('events.is_test_event', false),
+        notTestTournament,
+      ),
       this.countRows('global_persons'),
       this.countRows('global_persons', (query) => query.eq('is_fighter', true)),
       this.countRows('persons'),
       this.countRows('persons', (query) => query.eq('claim_status', 'claimed')),
       this.countRows('registrations'),
-      this.countRows('matches'),
-      this.countRows('matches', (query) => query.eq('status', 'completed')),
-      this.countRows('exchanges'),
+      this.countRows(
+        'matches',
+        (query) => query.eq('phases.tournaments.events.is_test_event', false),
+        notTestMatch,
+      ),
+      this.countRows(
+        'matches',
+        (query) =>
+          query.eq('status', 'completed').eq('phases.tournaments.events.is_test_event', false),
+        notTestMatch,
+      ),
+      this.countRows(
+        'exchanges',
+        (query) => query.eq('matches.phases.tournaments.events.is_test_event', false),
+        notTestExchange,
+      ),
       this.countRows('organizations', (query) => query.gte('created_at', since)),
-      this.countRows('events', (query) => query.gte('created_at', since)),
-      this.countRows('tournaments', (query) => query.gte('created_at', since)),
+      this.countRows('events', (query) =>
+        query.gte('created_at', since).eq('is_test_event', false),
+      ),
+      this.countRows(
+        'tournaments',
+        (query) => query.gte('created_at', since).eq('events.is_test_event', false),
+        notTestTournament,
+      ),
       this.countRows('global_persons', (query) => query.gte('created_at', since)),
-      this.countRows('matches', (query) => query.eq('status', 'completed').gte('ended_at', since)),
+      this.countRows(
+        'matches',
+        (query) =>
+          query
+            .eq('status', 'completed')
+            .gte('ended_at', since)
+            .eq('phases.tournaments.events.is_test_event', false),
+        notTestMatch,
+      ),
       this.countRows('clubs', (query) => query.is('archived_at', null)),
       this.countRows('leagues'),
       this.supabase
@@ -173,11 +223,12 @@ export class AdminDashboardStatsService {
   private async countRows(
     table: string,
     apply?: (query: CountQuery) => CountQuery,
+    selectExpr = '*',
   ): Promise<number> {
     try {
       let query = this.supabase.service
         .from(table)
-        .select('*', { count: 'exact', head: true }) as unknown as CountQuery;
+        .select(selectExpr, { count: 'exact', head: true }) as unknown as CountQuery;
       if (apply) query = apply(query);
 
       const { count, error } = await query;

@@ -92,6 +92,9 @@ export class EventsService {
     if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
     else q = q.in('status', ['published', 'running', 'completed']) as typeof q;
 
+    // Test events never appear on public surfaces.
+    q = q.eq('is_test_event', false) as typeof q;
+
     if (query.organizationId) q = q.eq('organization_id', query.organizationId) as typeof q;
 
     if (query.cursor) q = q.lt('start_date', query.cursor) as typeof q;
@@ -337,6 +340,12 @@ export class EventsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Event "${slug}" not found`);
+    // Test events are invisible to the public — this resolver backs the
+    // public GET /events/:slug. Admin reads go through getEventById /
+    // listOrgEvents, which keep test events visible to the owning org.
+    if ((data as { is_test_event?: boolean }).is_test_event === true) {
+      throw new NotFoundException(`Event "${slug}" not found`);
+    }
     return data;
   }
 
@@ -367,6 +376,7 @@ export class EventsService {
         country: dto.country ?? null,
         public_landing_md: dto.publicLandingMd ?? null,
         status: 'draft',
+        is_test_event: dto.isTestEvent ?? false,
         created_by_user_id: userId,
       })
       .select('*')
@@ -395,6 +405,10 @@ export class EventsService {
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
+    if (dto.isTestEvent !== undefined) updates['is_test_event'] = dto.isTestEvent;
+
+    const wasTest = (event as { is_test_event?: boolean }).is_test_event === true;
+    const testFlagChanged = dto.isTestEvent !== undefined && dto.isTestEvent !== wasTest;
 
     const { data, error } = await this.supabase.service
       .from('events')
@@ -404,8 +418,22 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    if (dto.status === 'completed') {
+    // Recompute league standings on completion, and whenever the test flag
+    // flips — the league gate (computeTournamentContributions) writes empty
+    // contributions for a now-test event, so recompute drops/re-adds its rows
+    // from league_tournament_results + rankings. Also refresh the materialized
+    // exchange stats so they pick up the new exclusion.
+    if (dto.status === 'completed' || testFlagChanged) {
       await this.leagues?.recomputeForEvent(eventId);
+    }
+    if (testFlagChanged) {
+      // Best-effort: the MV also auto-refreshes via its exchange trigger, so a
+      // transient refresh failure must not fail the edit save.
+      try {
+        await this.supabase.service.rpc('refresh_fighter_exchange_stats');
+      } catch {
+        /* ignore — picked up by the next scheduled/trigger refresh */
+      }
     }
     return data;
   }
@@ -786,7 +814,10 @@ export class EventsService {
     }
 
     const event = await this.getEventById(eventId);
-    if ((event as { status: string }).status === 'archived') {
+    // Test events are throwaway dry-runs: the org admin can hard-delete them
+    // directly, results and all, with no archive/deletion-request detour.
+    const isTest = (event as { is_test_event?: boolean }).is_test_event === true;
+    if (!isTest && (event as { status: string }).status === 'archived') {
       throw new ForbiddenException(
         'Archived events require super-admin approval. Submit a deletion request.',
       );
@@ -809,10 +840,12 @@ export class EventsService {
       .eq('event_id', eventId);
     const tournamentIds = ((tournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
 
-    await this.assertNoRecordedResults(
-      tournamentIds,
-      'This event has recorded match results. Submit a deletion request instead of a hard delete.',
-    );
+    if (!isTest) {
+      await this.assertNoRecordedResults(
+        tournamentIds,
+        'This event has recorded match results. Submit a deletion request instead of a hard delete.',
+      );
+    }
     // Clear referee assignments up-front: deleting their matches/pools/lices would
     // SET NULL the scope columns and violate referee_assignments_scope_check.
     const { error: raErr } = await this.supabase.service
@@ -2528,7 +2561,7 @@ export class EventsService {
     const { data, error } = await this.supabase.service
       .from('events')
       .select(
-        'id, organization_id, status, name, slug, start_date, end_date, city, country, logo_url, created_by_user_id',
+        'id, organization_id, status, name, slug, start_date, end_date, city, country, logo_url, created_by_user_id, is_test_event',
       )
       .eq('id', eventId)
       .maybeSingle();
