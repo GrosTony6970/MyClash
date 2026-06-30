@@ -271,6 +271,34 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       return def.id;
     })) ?? null;
 
+  // Pull the chosen ruleset's penalty ENTRIES so matches card fighters with real
+  // FFAMHE infractions (rulesetEntryId) instead of manual directCards — the API
+  // derives the card from each entry's `sanctions` escalation ladder by how many
+  // times that fighter has been penalised in the same group this match. Bucket by
+  // first-occurrence card to keep the cosmetic winner-ahead invariant (red/black
+  // deduct from the CARDED fighter): first-yellow entries are safe on anyone; a red
+  // comes from repeating a yellow→red entry on the loser; black (disqualifying)
+  // entries feed only the rare loser forfeit.
+  type PenaltyEntry = { id: string; sanctions: string[] };
+  const penaltyEntries =
+    (penaltyRulesetId
+      ? await step('load penalty ruleset entries', async () => {
+          const ruleset = (await (
+            await reqOk(await get(`penalty-rulesets/${penaltyRulesetId}`))
+          ).json()) as { penalty_ruleset_entries?: PenaltyEntry[] };
+          return ruleset.penalty_ruleset_entries ?? [];
+        })
+      : null) ?? [];
+  const yellowEntries = penaltyEntries.filter((e) => e.sanctions?.[0] === 'yellow');
+  const escalatingEntries = yellowEntries.filter((e) => e.sanctions?.[1] === 'red');
+  const blackEntries = penaltyEntries.filter((e) => e.sanctions?.[0] === 'black');
+  const pickEntry = (arr: PenaltyEntry[]): PenaltyEntry | null =>
+    arr.length ? arr[Math.floor(Math.random() * arr.length)]! : null;
+  console.log(
+    `  ✓ penalty entries: ${penaltyEntries.length} ` +
+      `(${yellowEntries.length} yellow-first, ${escalatingEntries.length} yellow→red, ${blackEntries.length} disqualifying)`,
+  );
+
   // ── Build one tournament (structure only — matches played later) ──────────────
   const buildTournament = async (
     name: string,
@@ -498,6 +526,13 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       data: { clientUuid: randomUUID(), occurredAt: iso(), ...body },
     });
 
+  // Realistic refereeing cadence: advances clockTimeMs, which the match timeline
+  // renders as MM:SS. (occurredAt / started_at / ended_at are server-stamped at the
+  // run instant and aren't displayed, so the visible "match time" is the clock.) A
+  // HEMA phrase + reset is a few active seconds; a card pauses the bout.
+  const gapMs = () => 6_000 + Math.floor(Math.random() * 16_000); // 6..22s between actions
+  const cardPauseMs = () => 20_000 + Math.floor(Math.random() * 25_000); // 20..45s for a card
+
   const blackCarded = new Set<string>(); // registrations already black-carded (avoid 2nd → DQ)
   // A couple of pool matches end in a "double out": posting DOUBLE_CAP doubles
   // auto-completes the match as a 0–0 double loss (both fighters lose,
@@ -529,90 +564,99 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       return; // the 4th double auto-completed the match as a 0–0 double loss
     }
 
-    const winnerColor = idx % 2 === 0 ? 'red' : 'blue';
+    // Random winner side + margin so pools aren't a wall of identical 5–2s. The
+    // lead always comes from CLEAN hits (loserPts < winnerPts), so it survives any
+    // net-zero afterblow, and doubles/cards never favour the loser — the explicit
+    // winnerRegistrationId therefore always agrees with the score.
+    const winnerColor: 'red' | 'blue' = Math.random() < 0.5 ? 'red' : 'blue';
     const loserColor = winnerColor === 'red' ? 'blue' : 'red';
     const winnerReg = winnerColor === 'red' ? red : blue;
     const loserReg = winnerColor === 'red' ? blue : red;
+    const winnerPts = 5 + Math.floor(Math.random() * 4); // 5..8
+    const loserPts = Math.floor(Math.random() * winnerPts); // 0..winnerPts-1 (always behind)
 
     let seq = 1;
-    let clock = 12_000;
-    await exchange(m.id, {
-      sequence: seq++,
-      type: 'clean',
-      firstStrikerColor: winnerColor,
-      firstStrikeValue: 2,
-      clockTimeMs: clock,
-    });
-    clock += 30_000;
-    await exchange(m.id, {
-      sequence: seq++,
-      type: 'clean',
-      firstStrikerColor: winnerColor,
-      firstStrikeValue: 2,
-      clockTimeMs: clock,
-    });
-    clock += 30_000;
-    await exchange(m.id, {
-      sequence: seq++,
-      type: 'afterblow',
-      firstStrikerColor: winnerColor,
-      firstStrikeValue: 1,
-      afterblowValue: 1,
-      clockTimeMs: clock,
-    });
-    clock += 30_000;
-    await exchange(m.id, {
-      sequence: seq++,
-      type: 'clean',
-      firstStrikerColor: loserColor,
-      firstStrikeValue: 1,
-      clockTimeMs: clock,
-    });
-    exchangesPosted += 4;
+    let clock = 4_000 + Math.floor(Math.random() * 8_000); // start a few seconds in
+    const hit = async (color: 'red' | 'blue', value: number) => {
+      await exchange(m.id, {
+        sequence: seq++,
+        type: 'clean',
+        firstStrikerColor: color,
+        firstStrikeValue: value,
+        clockTimeMs: clock,
+      });
+      clock += gapMs();
+      exchangesPosted++;
+    };
+    // Interleave winner/loser clean hits, each a varied mix of 1s and 2s.
+    let w = winnerPts;
+    let l = loserPts;
+    while (w > 0 || l > 0) {
+      if (w > 0 && (l === 0 || Math.random() < 0.6)) {
+        const v = w >= 2 && Math.random() < 0.6 ? 2 : 1;
+        await hit(winnerColor, v);
+        w -= v;
+      } else {
+        const v = l >= 2 && Math.random() < 0.3 ? 2 : 1;
+        await hit(loserColor, v);
+        l -= v;
+      }
+    }
 
-    // ~25% of matches get ONE extra "double" exchange — a single double stays
-    // below DOUBLE_CAP so this stays a normal win (never a double-out); a double
-    // scores nobody but dents the TF_v1 score ratio (it grows the denominator).
-    if (idx % 4 === 1) {
-      clock += 30_000;
+    // ~30%: a net-zero afterblow for the winner (deductive nets ~0 → still ahead).
+    if (Math.random() < 0.3) {
+      await exchange(m.id, {
+        sequence: seq++,
+        type: 'afterblow',
+        firstStrikerColor: winnerColor,
+        firstStrikeValue: 1,
+        afterblowValue: 1,
+        clockTimeMs: clock,
+      });
+      clock += gapMs();
+      exchangesPosted++;
+    }
+    // ~25%: ONE extra "double" — a single double stays below DOUBLE_CAP so this
+    // stays a normal win (never a double-out); it scores nobody but dents the
+    // TF_v1 score ratio (it grows the denominator).
+    if (Math.random() < 0.25) {
       await exchange(m.id, { sequence: seq++, type: 'double', clockTimeMs: clock });
+      clock += gapMs();
       exchangesPosted++;
     }
 
-    // Cards mix (penalty sequence is numbered independently of exchanges).
+    // Cards come from the ruleset's REAL entries (rulesetEntryId) — the API derives
+    // the card from each entry's `sanctions` ladder by group occurrence. Each card
+    // pauses the bout, advancing the match clock. First-occurrence yellow = 0 pts
+    // (safe on either fighter); repeating ONE yellow→red entry on the LOSER escalates
+    // to a red (−1 to the carded fighter → widens the winner's lead); a disqualifying
+    // (black) entry on the loser is the rare, controlled, deterministic forfeit (never
+    // a 2nd black for one fighter → DQ).
     let pseq = 1;
-    if (idx % 41 === 0 && !blackCarded.has(loserReg)) {
-      blackCarded.add(loserReg);
+    const card = async (registrationId: string, entry: PenaltyEntry | null) => {
+      if (!entry) return;
+      clock += cardPauseMs();
       await penalty(m.id, {
         sequence: pseq++,
-        registrationId: loserReg,
-        directCard: 'black',
-        reason: 'E2E demo: black card (forfeit)',
+        registrationId,
+        rulesetEntryId: entry.id,
         clockTimeMs: clock,
       });
       cardsPosted++;
+    };
+    if (idx % 41 === 0 && blackEntries.length && !blackCarded.has(loserReg)) {
+      blackCarded.add(loserReg);
+      await card(loserReg, pickEntry(blackEntries));
       played++;
       return; // forfeit auto-completed the match (winner = opponent)
     }
-    if (idx % 3 === 0) {
-      await penalty(m.id, {
-        sequence: pseq++,
-        registrationId: loserReg,
-        directCard: 'yellow',
-        reason: 'E2E demo: warning',
-        clockTimeMs: clock,
-      });
-      cardsPosted++;
-    }
-    if (idx % 7 === 0) {
-      await penalty(m.id, {
-        sequence: pseq++,
-        registrationId: loserReg,
-        directCard: 'red',
-        reason: 'E2E demo: penalty',
-        clockTimeMs: clock,
-      });
-      cardsPosted++;
+    if (Math.random() < 0.45) await card(loserReg, pickEntry(yellowEntries));
+    if (Math.random() < 0.25) await card(winnerReg, pickEntry(yellowEntries));
+    if (Math.random() < 0.22) {
+      // Same yellow→red entry twice on the loser: 1st = yellow, 2nd = red (−1 loser).
+      const e = pickEntry(escalatingEntries);
+      await card(loserReg, e);
+      await card(loserReg, e);
     }
 
     await patch(`matches/${m.id}/status`, {
@@ -706,25 +750,20 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const winnerReg = winnerColor === 'red' ? red : blue;
     const loserReg = winnerColor === 'red' ? blue : red;
     const winnerName = winnerColor === 'red' ? s.redFighterName : s.blueFighterName;
-    const winnerPts = 4 + Math.floor(Math.random() * 4); // 4..7
-    const loserPts = Math.floor(Math.random() * 4); // 0..3 (< winner, keeps winner ahead)
+    const winnerPts = 4 + Math.floor(Math.random() * 5); // 4..8
+    const loserPts = Math.floor(Math.random() * winnerPts); // 0..winnerPts-1 (blowouts + nail-biters)
 
     let seq = 1;
-    let clock = 6_000;
-    const hit = async (
-      color: 'red' | 'blue',
-      value: number,
-      extra: Record<string, unknown> = {},
-    ) => {
+    let clock = 4_000 + Math.floor(Math.random() * 8_000); // start a few seconds in
+    const hit = async (color: 'red' | 'blue', value: number) => {
       await exchange(mid, {
         sequence: seq++,
         type: 'clean',
         firstStrikerColor: color,
         firstStrikeValue: value,
         clockTimeMs: clock,
-        ...extra,
       });
-      clock += 20_000;
+      clock += gapMs();
       exchangesPosted++;
     };
     let w = winnerPts;
@@ -733,7 +772,12 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       await hit(winnerColor, v);
       w -= v;
     }
-    for (let i = 0; i < loserPts; i++) await hit(loserColor, 1);
+    let l = loserPts;
+    while (l > 0) {
+      const v = l >= 2 && Math.random() < 0.4 ? 2 : 1;
+      await hit(loserColor, v);
+      l -= v;
+    }
     // ~25%: a net-zero afterblow for the winner (deductive nets ~0 → winner stays ahead).
     if (Math.random() < 0.25) {
       await exchange(mid, {
@@ -744,26 +788,39 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         afterblowValue: 1,
         clockTimeMs: clock,
       });
+      clock += gapMs();
       exchangesPosted++;
     }
     // ~25%: ONE "double" exchange (scores nobody) — a single double stays below
     // DOUBLE_CAP, so a bracket match never double-outs and always resolves to a
     // winner that can advance.
     if (Math.random() < 0.25) {
-      clock += 20_000;
       await exchange(mid, { sequence: seq++, type: 'double', clockTimeMs: clock });
+      clock += gapMs();
       exchangesPosted++;
     }
-    // ~20%: a yellow card (warning, no score effect) on the loser.
-    if (Math.random() < 0.2) {
+    // Cards from the ruleset's REAL entries (rulesetEntryId). First-occurrence yellow
+    // = 0 pts (either fighter); repeating ONE yellow→red entry on the LOSER escalates
+    // to a red (−1 to the loser, never flips the winner). No black here — a bracket
+    // match must resolve to a winner that can advance.
+    let pseq = 1;
+    const card = async (registrationId: string, entry: PenaltyEntry | null) => {
+      if (!entry) return;
+      clock += cardPauseMs();
       await penalty(mid, {
-        sequence: 1,
-        registrationId: loserReg,
-        directCard: 'yellow',
-        reason: 'E2E demo: warning',
+        sequence: pseq++,
+        registrationId,
+        rulesetEntryId: entry.id,
         clockTimeMs: clock,
       });
       cardsPosted++;
+    };
+    if (Math.random() < 0.35) await card(loserReg, pickEntry(yellowEntries));
+    if (Math.random() < 0.2) await card(winnerReg, pickEntry(yellowEntries));
+    if (Math.random() < 0.15) {
+      const e = pickEntry(escalatingEntries);
+      await card(loserReg, e);
+      await card(loserReg, e);
     }
 
     await patch(`matches/${mid}/status`, {
