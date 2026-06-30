@@ -7,16 +7,16 @@ describe('detectScheduleOverlaps', () => {
   it('returns nothing for back-to-back blocks on one lice', () => {
     expect(
       detectScheduleOverlaps([
-        { key: 'a', liceIds: ['l1'], startIso: T(9), endIso: T(9, 30) },
-        { key: 'b', liceIds: ['l1'], startIso: T(9, 30), endIso: T(10) },
+        { key: 'a', matches: [{ liceId: 'l1', startIso: T(9), durationMinutes: 30 }] },
+        { key: 'b', matches: [{ liceId: 'l1', startIso: T(9, 30), durationMinutes: 30 }] },
       ]),
     ).toEqual([]);
   });
 
   it('flags two blocks overlapping in time on the same lice', () => {
     const out = detectScheduleOverlaps([
-      { key: 'a', liceIds: ['l1'], startIso: T(9), endIso: T(9, 30) },
-      { key: 'b', liceIds: ['l1'], startIso: T(9, 15), endIso: T(9, 45) },
+      { key: 'a', matches: [{ liceId: 'l1', startIso: T(9), durationMinutes: 30 }] },
+      { key: 'b', matches: [{ liceId: 'l1', startIso: T(9, 15), durationMinutes: 30 }] },
     ]);
     expect(out).toEqual([{ liceId: 'l1', aKey: 'a', bKey: 'b' }]);
   });
@@ -24,18 +24,49 @@ describe('detectScheduleOverlaps', () => {
   it('does not flag same-time blocks on different lices', () => {
     expect(
       detectScheduleOverlaps([
-        { key: 'a', liceIds: ['l1'], startIso: T(9), endIso: T(9, 30) },
-        { key: 'b', liceIds: ['l2'], startIso: T(9), endIso: T(9, 30) },
+        { key: 'a', matches: [{ liceId: 'l1', startIso: T(9), durationMinutes: 30 }] },
+        { key: 'b', matches: [{ liceId: 'l2', startIso: T(9), durationMinutes: 30 }] },
       ]),
     ).toEqual([]);
   });
 
   it('flags a wide bracket block overlapping a pool on a shared lice', () => {
     const out = detectScheduleOverlaps([
-      { key: 'r16', liceIds: ['l1', 'l2', 'l3'], startIso: T(10), endIso: T(10, 40) },
-      { key: 'pool', liceIds: ['l2'], startIso: T(10, 20), endIso: T(11) },
+      {
+        key: 'r16',
+        matches: [
+          { liceId: 'l1', startIso: T(10), durationMinutes: 40 },
+          { liceId: 'l2', startIso: T(10), durationMinutes: 40 },
+          { liceId: 'l3', startIso: T(10), durationMinutes: 40 },
+        ],
+      },
+      { key: 'pool', matches: [{ liceId: 'l2', startIso: T(10, 20), durationMinutes: 40 }] },
     ]);
     expect(out).toEqual([{ liceId: 'l2', aKey: 'r16', bKey: 'pool' }]);
+  });
+
+  it('does NOT flag two wide runs that pipeline sequentially on each shared lice', () => {
+    // R16 then QF both span l1+l2. Their GLOBAL intervals overlap (R16 09:00–09:10,
+    // QF 09:05–09:15) but PER LICE every fight is back-to-back — no real clash.
+    // (durationMinutes omitted → 5-min slot fallback.)
+    expect(
+      detectScheduleOverlaps([
+        {
+          key: 'r16',
+          matches: [
+            { liceId: 'l1', startIso: T(9) },
+            { liceId: 'l2', startIso: T(9, 5) },
+          ],
+        },
+        {
+          key: 'qf',
+          matches: [
+            { liceId: 'l1', startIso: T(9, 5) },
+            { liceId: 'l2', startIso: T(9, 10) },
+          ],
+        },
+      ]),
+    ).toEqual([]);
   });
 });
 

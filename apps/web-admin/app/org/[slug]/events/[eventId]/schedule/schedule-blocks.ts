@@ -1,13 +1,14 @@
 /**
  * Build the "block" model for the schedule board: collapse scheduled matches
  * into ONE block per pool / per bracket round. A run fanned across several
- * lices is a single block that SPANS those lice columns (`liceIds`), with a
- * rounded-up-to-30-min time span and the nested match details (code · start ·
- * lice · fighters) for the inline accordion + per-lice counts.
+ * lices is a single block that SPANS those lice columns (`liceIds`), sized to
+ * its ACTUAL span (first fight start → last fight end), with the nested match
+ * details (code · start · lice · fighters) for the inline accordion + per-lice
+ * counts. The span is deliberately NOT padded — pipelined rounds must touch,
+ * not overlap, so the board matches the detailed grid.
  *
  * Pure: no React, no I/O.
  */
-import { roundUpToHalfHourMin } from './round-duration';
 import { parseBracketRound } from './bracket-round-group';
 
 export interface BlockMatchInput {
@@ -47,7 +48,7 @@ export interface ScheduleBlock {
   tournamentName: string | null;
   kind: 'pool' | 'bracket' | 'other';
   startIso: string;
-  /** Start + the block's duration rounded UP to the next 30 min. */
+  /** Last fight's start + its duration — the run's true end, never padded. */
   endIso: string;
   matchCount: number;
   matches: ScheduleBlockMatch[];
@@ -98,13 +99,15 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
       a.scheduledAt! < b.scheduledAt! ? -1 : a.scheduledAt! > b.scheduledAt! ? 1 : 0,
     );
     const first = sorted[0]!;
+    const last = sorted[sorted.length - 1]!;
     const startMs = new Date(first.scheduledAt!).getTime();
-    const lastMs = new Date(sorted[sorted.length - 1]!.scheduledAt!).getTime();
+    const lastMs = new Date(last.scheduledAt!).getTime();
     const intervalMs = medianGapMs(sorted.map((m) => new Date(m.scheduledAt!).getTime())) ?? 0;
-    // Actual span includes the last match's slot (+ one interval); single-match
-    // blocks fall back to a nominal 5 min, then everything rounds up to 30.
-    const actualMin = (lastMs - startMs) / 60_000 + (intervalMs > 0 ? intervalMs / 60_000 : 5);
-    const endMs = startMs + roundUpToHalfHourMin(actualMin) * 60_000;
+    // End at the LAST fight's real finish — its own duration, falling back to the
+    // run's median gap (then a nominal 5 min for a single-match block). No padding,
+    // so back-to-back rounds touch instead of overlapping.
+    const lastDurationMin = last.durationMinutes ?? (intervalMs > 0 ? intervalMs / 60_000 : 5);
+    const endMs = lastMs + lastDurationMin * 60_000;
 
     const label =
       kind === 'pool'

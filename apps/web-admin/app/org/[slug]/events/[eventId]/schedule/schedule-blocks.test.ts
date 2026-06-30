@@ -39,7 +39,7 @@ function qfMatch(id: string, startIso: string, liceId: string, n: number): Block
 }
 
 describe('buildScheduleBlocks', () => {
-  it('groups a pool’s matches on a lice into one block, sorted, with rounded end', () => {
+  it('groups a pool’s matches on a lice into one block, sorted', () => {
     const blocks = buildScheduleBlocks([
       poolMatch('b', '2027-06-21T09:03:00.000Z', 'lice-1', 2),
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
@@ -61,8 +61,8 @@ describe('buildScheduleBlocks', () => {
     });
   });
 
-  it('rounds a ~1h45 pool up to a 2h block', () => {
-    // 22 matches every 5 min from 09:00 → last at 10:45 (105 min span).
+  it('ends at the last fight, never padded to a round boundary', () => {
+    // 22 matches every 5 min from 09:00 → last starts 10:45; +one 5-min slot.
     const matches = Array.from({ length: 22 }, (_, i) =>
       poolMatch(
         `m${i}`,
@@ -73,7 +73,21 @@ describe('buildScheduleBlocks', () => {
     );
     const blk = buildScheduleBlocks(matches)[0]!;
     expect(blk.startIso).toBe('2027-06-21T09:00:00.000Z');
-    expect(blk.endIso).toBe('2027-06-21T11:00:00.000Z'); // rounded up to 2h
+    expect(blk.endIso).toBe('2027-06-21T10:50:00.000Z'); // 10:45 + median 5-min gap
+  });
+
+  it('ends a block at the last fight’s own durationMinutes when present', () => {
+    const blk = buildScheduleBlocks([
+      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 8 }),
+      poolMatch('b', '2027-06-21T09:08:00.000Z', 'lice-1', 2, { durationMinutes: 8 }),
+    ])[0]!;
+    expect(blk.startIso).toBe('2027-06-21T09:00:00.000Z');
+    expect(blk.endIso).toBe('2027-06-21T09:16:00.000Z'); // 09:08 + 8 min
+  });
+
+  it('falls back to a 5-min span for a single-match block', () => {
+    const blk = buildScheduleBlocks([poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1)])[0]!;
+    expect(blk.endIso).toBe('2027-06-21T09:05:00.000Z');
   });
 
   it('labels bracket rounds from the round code (single lice)', () => {

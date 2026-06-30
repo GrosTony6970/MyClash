@@ -656,6 +656,11 @@ export function BlockGridView({
           const endSlot = timeResize?.key === block.key ? timeResize.previewEndSlot : baseEndSlot;
           const effStartSlot =
             startResize?.key === block.key ? startResize.previewStartSlot : startSlot;
+          // Tight blocks can be only a slot or two tall — drop label lines that
+          // wouldn't fit rather than clipping them. Budget in pixels so it tracks zoom.
+          const blockHeightPx = Math.max(1, endSlot - effStartSlot) * slotHeightPx;
+          const showSubLine = blockHeightPx >= 28;
+          const showTournamentLine = blockHeightPx >= 44;
           const color = tournamentColorByName.get(block.tournamentName ?? '') ?? null;
           const hasConflict = block.matches.some((m) => conflictMatchIds.has(m.id));
           const hasOverlap = overlapBlockKeys.has(block.key);
@@ -706,17 +711,19 @@ export function BlockGridView({
                 aria-hidden="true"
                 className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(color)}`}
               />
-              {block.tournamentName ? (
+              {block.tournamentName && showTournamentLine ? (
                 <span className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide opacity-70">
                   {anyRunning ? <span className="text-success">●</span> : null}
                   <span className="truncate">{block.tournamentName}</span>
                 </span>
               ) : null}
               <span className="truncate text-sm font-bold leading-tight">{block.label}</span>
-              <span className="truncate text-xs font-medium opacity-80">
-                {block.matchCount} fights · {formatSlotTime(startSlot)}–
-                {formatSlotTime(baseEndSlot)}
-              </span>
+              {showSubLine ? (
+                <span className="truncate text-xs font-medium opacity-80">
+                  {block.matchCount} fights · {formatSlotTime(startSlot)}–
+                  {formatSlotTime(baseEndSlot)}
+                </span>
+              ) : null}
               <div className="absolute right-0.5 top-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100">
                 <button
                   type="button"

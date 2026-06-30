@@ -14,7 +14,6 @@
 import { t } from '@myclash/i18n';
 import { assignmentChipClasses } from './assignment-chip-classes';
 import { formatUnassignedReason } from './format-unassigned-reason';
-import { blockWindowEndIso } from './block-window-end';
 
 export interface PoolCardRoleSlot {
   slotIndex: number;
@@ -88,8 +87,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
           {pool.scheduledStart && (
             <p className="text-xs text-muted">
               {formatHHMM(pool.scheduledStart)}
-              {pool.scheduledEnd &&
-                `–${formatHHMM(blockWindowEndIso(pool.scheduledStart, pool.scheduledEnd))}`}
+              {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd)}`}
             </p>
           )}
           {showLice && liceName && (
