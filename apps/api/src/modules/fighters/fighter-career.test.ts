@@ -217,4 +217,80 @@ describe('buildFighterCareer', () => {
       totalRanked: null,
     });
   });
+
+  it('computes recent form (most recent first) and the current streak', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-1',
+          tournamentId: 't-1',
+          tournamentName: 'Open',
+          tournamentSlug: 'open',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'e-1',
+          eventName: 'Event',
+          eventSlug: 'event',
+          eventStatus: 'completed',
+          eventStartDate: '2026-01-01',
+          eventEndDate: '2026-01-02',
+        },
+      ],
+      matches: [
+        // Oldest: a loss.
+        {
+          id: 'm1',
+          tournamentId: 't-1',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'opp',
+          winnerRegistrationId: 'opp',
+          redScore: 2,
+          blueScore: 5,
+          scheduledAt: '2026-01-01T09:00:00Z',
+          matchNumberLabel: null,
+          opponentName: null,
+        },
+        // Then two wins (newest last).
+        {
+          id: 'm2',
+          tournamentId: 't-1',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'opp',
+          winnerRegistrationId: 'reg-1',
+          redScore: 5,
+          blueScore: 3,
+          scheduledAt: '2026-01-01T10:00:00Z',
+          matchNumberLabel: null,
+          opponentName: null,
+        },
+        {
+          id: 'm3',
+          tournamentId: 't-1',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'opp',
+          winnerRegistrationId: 'reg-1',
+          redScore: 5,
+          blueScore: 1,
+          scheduledAt: '2026-01-01T11:00:00Z',
+          matchNumberLabel: null,
+          opponentName: null,
+        },
+      ],
+      exchanges: [],
+      leagueRankings: [],
+    });
+
+    expect(career.recentForm.map((form) => form.outcome)).toEqual(['win', 'win', 'loss']);
+    expect(career.recentForm[0]).toMatchObject({
+      matchId: 'm3',
+      outcome: 'win',
+      ourScore: 5,
+      opponentScore: 1,
+    });
+    expect(career.currentStreak).toEqual({ kind: 'win', count: 2 });
+  });
 });

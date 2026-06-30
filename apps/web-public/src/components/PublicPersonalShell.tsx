@@ -12,6 +12,7 @@ import { useUnreadBroadcasts } from './me/useUnreadBroadcasts';
 const navItems = [
   { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', badge: 'D' },
   { href: '/me/profile', labelKey: 'publicApp.personalShell.nav.profile', badge: 'P' },
+  { href: '/me/follows', labelKey: 'publicApp.personalShell.nav.follows', badge: 'F' },
   { href: '/me/notifications', labelKey: 'publicApp.personalShell.nav.notifications', badge: 'N' },
   { href: '/me/settings', labelKey: 'publicApp.personalShell.nav.settings', badge: 'St' },
   { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },

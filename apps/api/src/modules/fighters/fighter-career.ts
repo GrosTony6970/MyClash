@@ -187,7 +187,55 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
       completedEvents.set(registration.eventId, registration);
   }
 
+  // Recent form / streak — the fighter's outcome (+ score) per completed match.
+  const formMatches = input.matches
+    .filter((match) => match.status === 'completed')
+    .flatMap((match) => {
+      const onRed = completedRegistrationIds.has(match.redRegistrationId ?? '');
+      const onBlue = completedRegistrationIds.has(match.blueRegistrationId ?? '');
+      const registrationId = onRed
+        ? match.redRegistrationId
+        : onBlue
+          ? match.blueRegistrationId
+          : null;
+      if (!registrationId) return [];
+      const outcome: 'win' | 'loss' | 'draw' =
+        match.winnerRegistrationId === registrationId
+          ? 'win'
+          : match.winnerRegistrationId
+            ? 'loss'
+            : 'draw';
+      return [
+        {
+          matchId: match.id,
+          date: match.scheduledAt,
+          outcome,
+          ourScore: onRed ? match.redScore : match.blueScore,
+          opponentScore: onRed ? match.blueScore : match.redScore,
+        },
+      ];
+    })
+    // Most recent first; matches without a scheduled time sort last.
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+
+  const recentForm = formMatches.slice(0, 10);
+
+  // Current streak = consecutive same-outcome run from the most recent match.
+  // A draw breaks the streak (kind 'none').
+  let currentStreak: { kind: 'win' | 'loss' | 'none'; count: number } = { kind: 'none', count: 0 };
+  const mostRecent = formMatches[0];
+  if (mostRecent && mostRecent.outcome !== 'draw') {
+    let count = 0;
+    for (const formMatch of formMatches) {
+      if (formMatch.outcome === mostRecent.outcome) count += 1;
+      else break;
+    }
+    currentStreak = { kind: mostRecent.outcome, count };
+  }
+
   return {
+    recentForm,
+    currentStreak,
     fighterId: input.fighterId,
     eventParticipation: [...completedEvents.values()].map((registration) => ({
       eventId: registration.eventId,

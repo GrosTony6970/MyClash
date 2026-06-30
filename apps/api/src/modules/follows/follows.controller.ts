@@ -60,6 +60,13 @@ export class FollowsController {
     return this.follows.listFollows(eventId, identity);
   }
 
+  @Get('me/follows')
+  @ApiOperation({ summary: "List all of the current session's follows across events" })
+  async listAll(@Req() req: FastifyRequest) {
+    const identity = await this.resolveIdentity(req);
+    return this.follows.listAllFollows(identity);
+  }
+
   @Post('events/:eventId/follows')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Follow a person (idempotent)' })

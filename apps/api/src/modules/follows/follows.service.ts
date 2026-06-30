@@ -36,6 +36,14 @@ export interface FollowIdentity {
   userId?: string;
 }
 
+/** A follow plus the event it belongs to — for the cross-event "people I
+ *  follow" list (the per-event endpoints stay event-scoped). */
+export interface FollowRowCrossEvent extends FollowRow {
+  eventId: string;
+  eventName: string | null;
+  eventSlug: string | null;
+}
+
 @Injectable()
 export class FollowsService {
   constructor(
@@ -70,6 +78,49 @@ export class FollowsService {
 
     const rows = data as Array<Record<string, unknown>>;
     return Promise.all(rows.map((r) => this.mapRow(r, eventId)));
+  }
+
+  /**
+   * All of the session's follows across every event, with the event attached so
+   * the personal-space "people I follow" page can group them. Same row query as
+   * listFollows minus the event_id filter (+ an events embed). Note: mapRow
+   * resolves each person's next match individually (N+1) — fine for the small
+   * follow counts seen in practice; batch if it grows.
+   */
+  async listAllFollows(identity: FollowIdentity): Promise<FollowRowCrossEvent[]> {
+    let q = this.supabase.service.from('follows').select(
+      `
+        id, followed_person_id, event_id, created_at, notify_match_start, notify_workshop_start,
+        persons ( given_name, family_name, clubs ( name ) ),
+        events ( name, slug )
+      `,
+    );
+
+    if (identity.userId) {
+      q = q.eq('follower_user_id', identity.userId) as typeof q;
+    } else if (identity.guestSessionId) {
+      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
+    } else {
+      return [];
+    }
+
+    const { data } = await q.order('created_at', { ascending: false });
+    if (!data) return [];
+
+    const rows = data as Array<Record<string, unknown>>;
+    return Promise.all(
+      rows.map(async (r) => {
+        const eventId = r['event_id'] as string;
+        const base = await this.mapRow(r, eventId);
+        const event = r['events'] as { name: string; slug: string } | null;
+        return {
+          ...base,
+          eventId,
+          eventName: event?.name ?? null,
+          eventSlug: event?.slug ?? null,
+        } satisfies FollowRowCrossEvent;
+      }),
+    );
   }
 
   // ── Follow (idempotent) ───────────────────────────────────────────────────────

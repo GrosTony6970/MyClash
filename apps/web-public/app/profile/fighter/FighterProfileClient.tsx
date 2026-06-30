@@ -71,15 +71,26 @@ interface DashboardResponse {
     tournamentPlacements: FighterPlacement[];
     upcoming: unknown[];
     leagueRankings: Array<{ leagueName: string; rank: number; totalPoints: number }>;
+    recentForm: Array<{
+      matchId: string;
+      date: string | null;
+      outcome: 'win' | 'loss' | 'draw';
+      ourScore: number;
+      opponentScore: number;
+    }>;
+    currentStreak: { kind: 'win' | 'loss' | 'none'; count: number };
     stats: {
       overall: WeaponStat;
       byWeapon: Array<WeaponStat & { weapon: string }>;
+      byYear: Array<WeaponStat & { year: string }>;
     };
   };
   // Per-weapon HEMA Ratings, surfaced by getMyDashboard when a hema_ratings_id
   // is linked. `ratings[].weapon` may not exactly match the tournament-derived
   // byWeapon keys — matched case-insensitively at render, hidden on no match.
   hemaRatings?: {
+    /** Outbound link to the fighter's hemaratings.com profile. */
+    detailsUrl?: string;
     ratings: Array<{ weapon: string; rank: number | null; weightedRating: number }>;
   } | null;
   refereeStats?: RefereeStats;
@@ -844,6 +855,14 @@ function placeHeadline(place: number | null, t: TFn): string {
   return place != null ? `#${place}` : '—';
 }
 
+/** Tokenized chip styling for a recent-form result (win/loss/draw). */
+function formChipClass(outcome: 'win' | 'loss' | 'draw'): string {
+  const base = 'inline-flex h-6 w-6 items-center justify-center rounded text-xs font-bold';
+  if (outcome === 'win') return `${base} bg-success/15 text-success`;
+  if (outcome === 'loss') return `${base} bg-danger/15 text-danger`;
+  return `${base} bg-foreground/10 text-muted`;
+}
+
 /** Career statistics card with a Global / per-weapon tab bar. The combat tiles
  *  shift with the selected tab; the lower block holds tab-independent career
  *  totals. HEMA rank/rating only appear on a weapon tab with a matching rating. */
@@ -861,6 +880,17 @@ function FighterStatsCard({
   const fought = career.stats.byWeapon.filter((weapon) => weapon.matches > 0);
   // Only show tournaments we could actually rank (a decided bracket or pool).
   const placements = career.tournamentPlacements.filter((placement) => placement.place != null);
+  const medals = {
+    gold: placements.filter((placement) => placement.place === 1).length,
+    silver: placements.filter((placement) => placement.place === 2).length,
+    bronze: placements.filter((placement) => placement.place === 3).length,
+  };
+  const medalCount = medals.gold + medals.silver + medals.bronze;
+  const timeline = (career.stats.byYear ?? [])
+    .filter((year) => year.year !== 'unknown' && year.matches > 0)
+    .sort((a, b) => b.year.localeCompare(a.year));
+  const streak = career.currentStreak;
+  const showInsights = medalCount > 0 || career.recentForm.length > 0 || timeline.length > 0;
   const [statTab, setStatTab] = useState<string>('global');
 
   const active =
@@ -891,9 +921,21 @@ function FighterStatsCard({
 
   return (
     <Card className={className}>
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
-        {t('publicApp.fighterProfile.stats')}
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-accent">
+          {t('publicApp.fighterProfile.stats')}
+        </h2>
+        {dashboard.hemaRatings?.detailsUrl && (
+          <a
+            href={dashboard.hemaRatings.detailsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold text-accent hover:underline"
+          >
+            {t('publicApp.fighterProfile.hemaProfileLink')} ↗
+          </a>
+        )}
+      </div>
 
       {tabs.length > 1 && (
         <div
@@ -1022,6 +1064,89 @@ function FighterStatsCard({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {showInsights && (
+        <div className="mt-4 border-t border-border pt-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
+            {t('publicApp.fighterProfile.insightsTitle')}
+          </h3>
+
+          {medalCount > 0 && (
+            <div className="mb-2 flex flex-wrap gap-3 text-sm font-semibold text-foreground">
+              {medals.gold > 0 && (
+                <span>
+                  <span aria-hidden>🥇</span> {medals.gold}
+                </span>
+              )}
+              {medals.silver > 0 && (
+                <span>
+                  <span aria-hidden>🥈</span> {medals.silver}
+                </span>
+              )}
+              {medals.bronze > 0 && (
+                <span>
+                  <span aria-hidden>🥉</span> {medals.bronze}
+                </span>
+              )}
+            </div>
+          )}
+
+          {streak.kind !== 'none' && streak.count > 1 && (
+            <p className="mb-2 text-xs font-semibold text-muted">
+              {t(
+                streak.kind === 'win'
+                  ? 'publicApp.fighterProfile.streakWin'
+                  : 'publicApp.fighterProfile.streakLoss',
+                { count: streak.count },
+              )}
+            </p>
+          )}
+
+          {career.recentForm.length > 0 && (
+            <div className="mb-3">
+              <p className="mb-1 text-xs font-semibold text-muted">
+                {t('publicApp.fighterProfile.recentForm')}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {career.recentForm.map((formMatch) => (
+                  <span
+                    key={formMatch.matchId}
+                    className={formChipClass(formMatch.outcome)}
+                    title={`${formMatch.ourScore}-${formMatch.opponentScore}`}
+                  >
+                    {formMatch.outcome === 'win'
+                      ? t('publicApp.fighterProfile.formWinShort')
+                      : formMatch.outcome === 'loss'
+                        ? t('publicApp.fighterProfile.formLossShort')
+                        : t('publicApp.fighterProfile.formDrawShort')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {timeline.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-semibold text-muted">
+                {t('publicApp.fighterProfile.timeline')}
+              </p>
+              <ul className="space-y-1">
+                {timeline.map((year) => (
+                  <li key={year.year} className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground">{year.year}</span>
+                    <span className="text-muted">
+                      {t('publicApp.fighterProfile.timelineRecord', {
+                        wins: year.wins,
+                        losses: year.losses,
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </Card>
