@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { getApiUrl } from '@/lib/api-url';
+import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface SecurityStatus {
@@ -44,7 +45,7 @@ export default function SecurityPage() {
   if (statusError) {
     return (
       <main className="px-4 py-6 sm:px-6 lg:px-8">
-        <p className="mx-auto max-w-2xl rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <p className="mx-auto max-w-2xl rounded-md border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
           {t('publicApp.security.loadError')}
         </p>
       </main>
@@ -55,14 +56,19 @@ export default function SecurityPage() {
     <main className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <header>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#0f172a]">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('publicApp.security.title')}
           </h1>
-          <p className="mt-2 text-sm text-slate-600">{t('publicApp.security.subtitle')}</p>
+          <p className="mt-2 text-sm text-muted">{t('publicApp.security.subtitle')}</p>
         </header>
 
         {status && (
           <>
+            <EmailChangeSection
+              apiUrl={apiUrl}
+              email={status.email}
+              hasPassword={status.hasPassword}
+            />
             <ChangePasswordSection apiUrl={apiUrl} status={status} t={t} />
             <DeleteAccountSection apiUrl={apiUrl} status={status} t={t} />
           </>
@@ -87,6 +93,8 @@ function ChangePasswordSection({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const validation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -120,16 +128,39 @@ function ChangePasswordSection({
     }
   }
 
+  // Forgot-password escape hatch for accounts that already have a password:
+  // emails a Supabase recovery link via /reset-password. The endpoint always
+  // returns a generic message (anti-enumeration), so any non-throw is treated
+  // as "sent"; only a network failure surfaces an error.
+  async function requestReset(): Promise<void> {
+    if (!status.email) return;
+    setResetBusy(true);
+    setError(null);
+    try {
+      await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: status.email }),
+      });
+      setResetSent(true);
+    } catch {
+      setError(t('publicApp.security.errors.network'));
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-[#0f172a]">
+    <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {t('publicApp.security.changePasswordTitle')}
       </h2>
 
       {!status.hasPassword ? (
         // Google-only accounts sign in through Google — no password to set.
-        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          <p className="font-semibold text-slate-700">{t('publicApp.security.googleOnlyTitle')}</p>
+        <div className="mt-4 rounded-md border border-border bg-background p-4 text-sm text-muted">
+          <p className="font-semibold text-foreground">{t('publicApp.security.googleOnlyTitle')}</p>
           <p className="mt-1">{t('publicApp.security.googleOnlyBody')}</p>
         </div>
       ) : (
@@ -154,7 +185,7 @@ function ChangePasswordSection({
           />
           <PasswordChecklist failing={validation.failing} t={t} />
           {newPassword && confirm && newPassword !== confirm && (
-            <p className="text-xs text-red-600">{t('publicApp.login.errors.passwordMismatch')}</p>
+            <p className="text-xs text-danger">{t('publicApp.login.errors.passwordMismatch')}</p>
           )}
           <Button
             type="button"
@@ -165,12 +196,26 @@ function ChangePasswordSection({
           >
             {busy ? t('common.loading') : t('publicApp.security.changePasswordAction')}
           </Button>
+          {resetSent ? (
+            <p className="text-sm text-muted">
+              {t('publicApp.security.forgotPasswordSent', { email: status.email ?? '' })}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void requestReset()}
+              disabled={resetBusy}
+              className="block text-sm font-semibold text-accent hover:underline disabled:opacity-50"
+            >
+              {t('publicApp.security.forgotPasswordLink')}
+            </button>
+          )}
         </div>
       )}
 
       {message && (
         <p
-          className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+          className="mt-3 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
           role="status"
         >
           {message}
@@ -178,7 +223,7 @@ function ChangePasswordSection({
       )}
       {error && (
         <p
-          className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
           role="alert"
         >
           {error}
@@ -244,32 +289,31 @@ function DeleteAccountSection({
   }
 
   return (
-    <section className="rounded-lg border border-red-200 bg-white p-5 shadow-sm">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-red-800">
+    <section className="rounded-lg border border-danger/40 bg-surface p-5 shadow-sm">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-danger">
         {t('publicApp.security.deleteTitle')}
       </h2>
-      <p className="mt-2 text-sm text-slate-600">{t('publicApp.security.deleteSubtitle')}</p>
+      <p className="mt-2 text-sm text-muted">{t('publicApp.security.deleteSubtitle')}</p>
 
       {!open ? (
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          className="mt-3 border border-red-300 text-red-700 hover:bg-red-50"
           onClick={() => setOpen(true)}
+          className="mt-3 rounded-md border border-danger/40 px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10"
         >
           {t('publicApp.security.deleteAction')}
-        </Button>
+        </button>
       ) : (
         <div
-          className="mt-3 rounded-md border border-red-300 bg-red-50 p-4"
+          className="mt-3 rounded-md border border-danger/40 bg-danger/10 p-4"
           role="alertdialog"
           aria-modal="true"
           aria-label={t('publicApp.security.deleteModalTitle')}
         >
-          <p className="text-sm font-bold text-red-800">
+          <p className="text-sm font-bold text-danger">
             {t('publicApp.security.deleteModalTitle')}
           </p>
-          <p className="mt-2 text-sm text-red-700">{t('publicApp.security.deleteModalBody')}</p>
+          <p className="mt-2 text-sm text-danger">{t('publicApp.security.deleteModalBody')}</p>
           <div className="mt-3 space-y-3">
             {status.hasPassword && (
               <PasswordField
@@ -280,7 +324,7 @@ function DeleteAccountSection({
               />
             )}
             <label className="block">
-              <span className="text-sm font-semibold text-slate-700">
+              <span className="text-sm font-semibold text-foreground">
                 {t('publicApp.security.deleteConfirmationLabel')}
               </span>
               <input
@@ -288,19 +332,20 @@ function DeleteAccountSection({
                 value={confirmation}
                 onChange={(e) => setConfirmation(e.target.value)}
                 placeholder="DELETE"
-                className="mt-1 w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm uppercase outline-none focus:border-red-500"
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm uppercase text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                 autoComplete="off"
               />
             </label>
             <div className="flex gap-2">
-              <button
+              <Button
                 type="button"
-                onClick={() => void submit()}
+                variant="danger"
+                loading={busy}
                 disabled={!canSubmit || busy}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void submit()}
               >
-                {busy ? t('common.loading') : t('publicApp.security.deleteConfirmAction')}
-              </button>
+                {t('publicApp.security.deleteConfirmAction')}
+              </Button>
               <button
                 type="button"
                 onClick={() => {
@@ -310,7 +355,7 @@ function DeleteAccountSection({
                   setError(null);
                 }}
                 disabled={busy}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-background disabled:opacity-50"
               >
                 {t('actions.cancel')}
               </button>
@@ -318,7 +363,7 @@ function DeleteAccountSection({
           </div>
           {error && (
             <p
-              className="mt-3 rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700"
+              className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
               role="alert"
             >
               {error}
@@ -343,13 +388,13 @@ function PasswordField({
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
       <input
         type="password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#1d4ed8] focus:ring-1 focus:ring-[#1d4ed8]"
+        className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent"
       />
     </label>
   );
@@ -368,7 +413,7 @@ function PasswordChecklist({ failing, t }: { failing: string[]; t: (key: string)
       {rules.map(({ rule, key }) => {
         const failed = failing.includes(rule);
         return (
-          <li key={rule} className={failed ? 'text-slate-500' : 'text-emerald-600'}>
+          <li key={rule} className={failed ? 'text-muted' : 'text-success'}>
             <span aria-hidden>{failed ? '○' : '✓'}</span> {t(key)}
           </li>
         );
