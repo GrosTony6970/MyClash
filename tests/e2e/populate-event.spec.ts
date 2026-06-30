@@ -7,7 +7,7 @@ import { runContext } from './_context';
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
  * inspectable, published event "Fosse aux Lions 2027" (22–23 May 2027):
  *   - imports the roster (if the event is empty)
- *   - a tournament venue (Centre Sportif et de Loisirs) with 4 pistes, and the
+ *   - a tournament venue (Centre Sportif et de Loisirs) with 4 lices, and the
  *     day-1 organisational blocks (Registration & Gear Check, Referee meeting)
  *   - 2 tournaments (Longsword Open, Sidesword Open): 32 fighters, 4 pools,
  *     deductive-afterblow scoring, pools scheduled in parallel across the 4
@@ -189,7 +189,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // names stay clean (no per-run token) and uniqueness is met by REUSING an
   // existing venue / area by name rather than recreating it (which would 409).
   // Event lices have no unique constraint and are recreated for each fresh event,
-  // so pointing this run's pistes at a reused venue is safe.
+  // so pointing this run's lices at a reused venue is safe.
   const findOrCreateVenue = async (data: {
     name: string;
     address: string;
@@ -219,7 +219,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     return aRes.ok() ? ((await aRes.json()) as { id: string }) : null;
   };
 
-  // ── Tournament venue (Centre Sportif et de Loisirs) with 4 pistes ────────────
+  // ── Tournament venue (Centre Sportif et de Loisirs) with 4 lices ─────────────
   // The 4 event lices are created AT this venue, so every match's venue derives
   // via matches.lice_id → lices.venue_id. Each tournament's phases are then
   // pinned to it below via PUT /tournaments/:id/phase-venues.
@@ -236,7 +236,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const liceIds: string[] = [];
   for (let i = 1; i <= 4; i++) {
     const r = await post(`events/${eventId}/lices`, {
-      data: { name: `Piste ${i}`, venueId: tournamentVenueId },
+      data: { name: `Lice ${i}`, venueId: tournamentVenueId },
     });
     if (r.ok()) liceIds.push(((await r.json()) as { id: string }).id);
   }
