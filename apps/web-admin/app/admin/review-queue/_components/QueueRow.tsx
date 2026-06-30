@@ -87,8 +87,10 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
 
       {/* Requester */}
       <td className="py-3 pr-4 whitespace-nowrap text-sm text-foreground-secondary">
-        <p className="font-medium text-foreground-secondary">{item.requesterName}</p>
-        {item.requesterEmail && (
+        <p className="font-medium text-foreground-secondary">
+          {item.requesterName ?? item.requesterEmail ?? t('admin.common.unknownUser')}
+        </p>
+        {item.requesterName && item.requesterEmail && (
           <p className="text-xs font-mono text-muted">{item.requesterEmail}</p>
         )}
       </td>
@@ -140,7 +142,8 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
             {item.reviewedAt && item.reviewedByUserId ? (
               <p>
                 {t('admin.reviewQueue.reviewedByOn', {
-                  name: item.reviewedByName ?? item.reviewedByUserId,
+                  name:
+                    item.reviewedByName ?? item.reviewedByEmail ?? t('admin.common.unknownUser'),
                   date: new Date(item.reviewedAt).toLocaleDateString('fr-FR'),
                 })}
               </p>

@@ -14,6 +14,7 @@ import { LeagueMembershipRequestsService } from '../leagues/league-membership-re
 import { LeaguesService } from '../leagues/leagues.service';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
+import { UserDirectoryService } from '../user-directory/user-directory.service';
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export interface ReviewQueueItem {
   targetLabel: string;
   targetHref: string | null;
   requesterUserId: string;
-  requesterName: string;
+  requesterName: string | null;
   requesterEmail: string | null;
   organizationId: string | null;
   organizationName: string | null;
@@ -41,11 +42,6 @@ export interface ReviewQueueItem {
   reviewedByEmail: string | null;
   reviewedAt: string | null;
   createdAt: string;
-}
-
-interface ResolvedUser {
-  name: string;
-  email: string | null;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -61,6 +57,7 @@ export class ReviewQueueService {
     private readonly rulesetsService: AdminRulesetsService,
     private readonly leaguesService: LeaguesService,
     private readonly membershipRequestsService: LeagueMembershipRequestsService,
+    private readonly userDirectory: UserDirectoryService,
   ) {}
 
   // ── listAll ──────────────────────────────────────────────────────────────────
@@ -294,7 +291,7 @@ export class ReviewQueueService {
     };
 
     const [userMap, orgMap, eventMap, tournMap] = await Promise.all([
-      this.resolveUsers(userIds),
+      this.userDirectory.resolveUsers(userIds),
       this.resolveOrgNames(orgIds),
       targetIds.event.length
         ? this.resolveEventNames(targetIds.event)
@@ -324,7 +321,7 @@ export class ReviewQueueService {
         targetHref:
           targetType === 'event' ? `/admin/events/${targetId}` : `/admin/tournaments/${targetId}`,
         requesterUserId: reqId,
-        requesterName: reqUser?.name ?? reqId,
+        requesterName: reqUser?.name ?? null,
         requesterEmail: reqUser?.email ?? null,
         organizationId: orgId,
         organizationName: orgId ? (orgMap.get(orgId) ?? null) : null,
@@ -358,7 +355,7 @@ export class ReviewQueueService {
           .filter((id): id is string => Boolean(id)),
       ]),
     ];
-    const userMap = await this.resolveUsers(userIds);
+    const userMap = await this.userDirectory.resolveUsers(userIds);
 
     return rows.map((r) => {
       const reqId = r['requested_by_user_id'] as string;
@@ -372,7 +369,7 @@ export class ReviewQueueService {
         targetLabel: `match ${r['match_id'] as string} exchange ${r['exchange_id'] as string}`,
         targetHref: null,
         requesterUserId: reqId,
-        requesterName: reqUser?.name ?? reqId,
+        requesterName: reqUser?.name ?? null,
         requesterEmail: reqUser?.email ?? null,
         organizationId: null,
         organizationName: null,
@@ -410,7 +407,7 @@ export class ReviewQueueService {
     const clubIds = [...new Set(rows.map((r) => r['proposed_club_id'] as string).filter(Boolean))];
 
     const [userMap, orgMap, clubMap] = await Promise.all([
-      this.resolveUsers(userIds),
+      this.userDirectory.resolveUsers(userIds),
       this.resolveOrgNames(orgIds),
       this.resolveClubNames(clubIds),
     ]);
@@ -429,7 +426,7 @@ export class ReviewQueueService {
         targetLabel: clubMap.get(clubId) ?? clubId,
         targetHref: clubId ? `/admin/clubs/${clubId}` : null,
         requesterUserId: reqId,
-        requesterName: reqUser?.name ?? reqId,
+        requesterName: reqUser?.name ?? null,
         requesterEmail: reqUser?.email ?? null,
         organizationId: orgId,
         organizationName: orgId ? (orgMap.get(orgId) ?? null) : null,
@@ -465,7 +462,7 @@ export class ReviewQueueService {
           .filter((id): id is string => Boolean(id)),
       ]),
     ];
-    const userMap = await this.resolveUsers(userIds);
+    const userMap = await this.userDirectory.resolveUsers(userIds);
 
     return rows.map((r) => {
       const submitterId = r['submitted_by_user_id'] as string | null;
@@ -479,7 +476,7 @@ export class ReviewQueueService {
         targetLabel: `${r['display_name'] as string} v${r['version'] as string}`,
         targetHref: null,
         requesterUserId: submitterId ?? '',
-        requesterName: reqUser?.name ?? submitterId ?? 'unknown',
+        requesterName: reqUser?.name ?? null,
         requesterEmail: reqUser?.email ?? null,
         organizationId: null,
         organizationName: null,
@@ -524,7 +521,7 @@ export class ReviewQueueService {
           .filter((id): id is string => Boolean(id)),
       ]),
     ];
-    const userMap = await this.resolveUsers(userIds);
+    const userMap = await this.userDirectory.resolveUsers(userIds);
 
     return rows.map((r) => {
       const league = (r['leagues'] ?? {}) as Record<string, unknown>;
@@ -564,7 +561,7 @@ export class ReviewQueueService {
           : `${tournamentName} → ${leagueName}`,
         targetHref: leagueId ? `/admin/leagues/${leagueId}/edit` : null,
         requesterUserId: reqId,
-        requesterName: reqUser?.name ?? reqId ?? 'unknown',
+        requesterName: reqUser?.name ?? null,
         requesterEmail: reqUser?.email ?? null,
         organizationId: orgId,
         organizationName: orgName,
@@ -602,7 +599,7 @@ export class ReviewQueueService {
           .filter((id): id is string => Boolean(id)),
       ]),
     ];
-    const userMap = await this.resolveUsers(userIds);
+    const userMap = await this.userDirectory.resolveUsers(userIds);
 
     return rows.map((r) => {
       const league = (r['leagues'] ?? {}) as Record<string, unknown>;
@@ -637,7 +634,7 @@ export class ReviewQueueService {
         targetLabel: orgName ? `${orgName} → ${leagueName}` : `Organization → ${leagueName}`,
         targetHref: leagueId ? `/admin/leagues/${leagueId}/edit` : null,
         requesterUserId: reqId,
-        requesterName: reqUser?.name ?? reqId ?? 'unknown',
+        requesterName: reqUser?.name ?? null,
         requesterEmail: reqUser?.email ?? null,
         organizationId: orgId,
         organizationName: orgName,
@@ -791,47 +788,6 @@ export class ReviewQueueService {
   }
 
   // ── Private: batch resolution helpers ────────────────────────────────────────
-
-  /**
-   * Batch-resolve user_ids to display name + email. Looks up name in
-   * global_persons (canonical) and email in event-scoped persons (the only
-   * non-auth.users source we have). One row per user_id; first match wins.
-   */
-  private async resolveUsers(userIds: string[]): Promise<Map<string, ResolvedUser>> {
-    const map = new Map<string, ResolvedUser>();
-    if (userIds.length === 0) return map;
-
-    const [gpResult, personsResult] = await Promise.all([
-      this.supabase.service
-        .from('global_persons')
-        .select('claimed_by_user_id, given_name, family_name')
-        .in('claimed_by_user_id', userIds),
-      this.supabase.service
-        .from('persons')
-        .select('claimed_by_user_id, email')
-        .in('claimed_by_user_id', userIds),
-    ]);
-
-    const emailByUser = new Map<string, string>();
-    for (const row of (personsResult.data ?? []) as Array<Record<string, unknown>>) {
-      const uid = row['claimed_by_user_id'] as string | null;
-      const email = row['email'] as string | null;
-      if (uid && email && !emailByUser.has(uid)) emailByUser.set(uid, email);
-    }
-
-    for (const row of (gpResult.data ?? []) as Array<Record<string, unknown>>) {
-      const uid = row['claimed_by_user_id'] as string;
-      if (!map.has(uid)) {
-        const name = `${row['given_name'] as string} ${row['family_name'] as string}`.trim();
-        map.set(uid, { name, email: emailByUser.get(uid) ?? null });
-      }
-    }
-    // Users with an email but no global_persons row: still expose the email.
-    for (const [uid, email] of emailByUser) {
-      if (!map.has(uid)) map.set(uid, { name: uid, email });
-    }
-    return map;
-  }
 
   private async resolveOrgNames(orgIds: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();

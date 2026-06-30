@@ -33,7 +33,12 @@ describe('AdminAuditLogService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AdminAuditLogService(mockSupabase as never);
+    service = new AdminAuditLogService(
+      mockSupabase as never,
+      {
+        resolveUsers: vi.fn().mockResolvedValue(new Map()),
+      } as never,
+    );
   });
 
   it('applies filters, clamps page size, returns pagination metadata, and enriches entityLabel', async () => {
@@ -98,6 +103,8 @@ describe('AdminAuditLogService', () => {
         {
           id: 'log-1',
           actor_user_id: 'actor-1',
+          actorName: null,
+          actorEmail: null,
           action: 'fighter.merge',
           entity_type: 'fighter',
           entity_id: 'fighter-1',

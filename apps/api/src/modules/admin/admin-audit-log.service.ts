@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { UserDirectoryService } from '../user-directory/user-directory.service';
 import type { ListAuditLogQueryDto } from './dto/admin-audit-log.dto';
 
 const AUDIT_LOG_COLUMNS =
@@ -13,6 +14,9 @@ const EXPORT_LIMIT = 5000;
 export interface AuditLogRow {
   id: string;
   actor_user_id: string | null;
+  /** Resolved actor display name / email so the operator never reads a raw UUID. */
+  actorName: string | null;
+  actorEmail: string | null;
   action: string;
   entity_type: string;
   entity_id: string;
@@ -121,7 +125,10 @@ function toCsv(rows: Array<Omit<AuditLogRow, 'id'>>): string {
 
 @Injectable()
 export class AdminAuditLogService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly userDirectory: UserDirectoryService,
+  ) {}
 
   async list(query: ListAuditLogQueryDto): Promise<AuditLogListResponse> {
     assertDate(query.from, 'from');
@@ -141,12 +148,23 @@ export class AdminAuditLogService {
       .range(from, to);
 
     if (error) throw new BadRequestException(error.message);
-    const rawRows = (data as Array<Omit<AuditLogRow, 'entityLabel'>> | null) ?? [];
-    const labels = await this.resolveEntityLabels(rawRows);
-    const items: AuditLogRow[] = rawRows.map((row) => ({
-      ...row,
-      entityLabel: row.entity_id ? (labels.get(row.entity_id) ?? null) : null,
-    }));
+    const rawRows =
+      (data as Array<Omit<AuditLogRow, 'entityLabel' | 'actorName' | 'actorEmail'>> | null) ?? [];
+    const [labels, actorMap] = await Promise.all([
+      this.resolveEntityLabels(rawRows),
+      this.userDirectory.resolveUsers(
+        rawRows.map((row) => row.actor_user_id).filter((id): id is string => Boolean(id)),
+      ),
+    ]);
+    const items: AuditLogRow[] = rawRows.map((row) => {
+      const actor = row.actor_user_id ? actorMap.get(row.actor_user_id) : null;
+      return {
+        ...row,
+        actorName: actor?.name ?? null,
+        actorEmail: actor?.email ?? null,
+        entityLabel: row.entity_id ? (labels.get(row.entity_id) ?? null) : null,
+      };
+    });
     const total = count ?? 0;
     return {
       items,

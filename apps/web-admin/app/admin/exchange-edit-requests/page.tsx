@@ -12,11 +12,15 @@ interface ExchangeEditRequest {
   match_id: string;
   exchange_id: string;
   requested_by_user_id: string;
+  requesterName: string | null;
+  requesterEmail: string | null;
   request_type: 'void_exchange' | 'revert_void_exchange';
   reason: string;
   status: Exclude<RequestStatus, 'all'>;
   requested_payload: unknown;
   reviewed_by_user_id: string | null;
+  reviewedByName: string | null;
+  reviewedByEmail: string | null;
   reviewed_at: string | null;
   rejection_reason: string | null;
   created_at: string;
@@ -206,8 +210,15 @@ export default function ExchangeEditRequestsPage() {
                       {request.status}
                     </span>
                   </td>
-                  <td className="py-3 pr-4 font-mono text-xs text-muted">
-                    {request.requested_by_user_id}
+                  <td className="py-3 pr-4 text-xs text-foreground-secondary">
+                    <p className="font-medium">
+                      {request.requesterName ??
+                        request.requesterEmail ??
+                        t('admin.common.unknownUser')}
+                    </p>
+                    {request.requesterName && request.requesterEmail && (
+                      <p className="font-mono text-muted">{request.requesterEmail}</p>
+                    )}
                   </td>
                   <td className="py-3 pr-4 font-mono text-xs text-muted">
                     <p>{request.event_id}</p>
@@ -243,7 +254,11 @@ export default function ExchangeEditRequestsPage() {
                             ? new Date(request.reviewed_at).toLocaleString('fr-FR')
                             : '-'}
                         </p>
-                        <p className="font-mono">{request.reviewed_by_user_id ?? '-'}</p>
+                        <p>
+                          {request.reviewedByName ??
+                            request.reviewedByEmail ??
+                            (request.reviewed_by_user_id ? t('admin.common.unknownUser') : '-')}
+                        </p>
                         {request.rejection_reason && (
                           <p className="mt-1">{request.rejection_reason}</p>
                         )}

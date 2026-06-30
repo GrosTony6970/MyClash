@@ -11,7 +11,7 @@ export interface ReviewQueueItem {
   targetLabel: string;
   targetHref: string | null;
   requesterUserId: string;
-  requesterName: string;
+  requesterName: string | null;
   requesterEmail: string | null;
   organizationId: string | null;
   organizationName: string | null;

@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { MailService } from '../mail/mail.service';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
+import { UserDirectoryService } from '../user-directory/user-directory.service';
 import type {
   CreateOrganizationDto,
   ListOrgsQueryDto,
@@ -54,6 +55,9 @@ export interface OrgDetail extends OrgListItem {
   recent_audit_log: Array<{
     id: string;
     actor_user_id: string;
+    /** Resolved actor display name / email so the operator never reads a raw UUID. */
+    actorName: string | null;
+    actorEmail: string | null;
     action: string;
     entity_type: string;
     entity_id: string;
@@ -109,6 +113,7 @@ export class AdminOrganizationsService {
 
   constructor(
     private readonly supabase: SupabaseService,
+    private readonly userDirectory: UserDirectoryService,
     private readonly mail?: MailService,
     private readonly config?: ConfigService,
   ) {}
@@ -318,7 +323,16 @@ export class AdminOrganizationsService {
           .eq('entity_id', id)
           .order('created_at', { ascending: false })
           .limit(20);
-        auditLog = (logs ?? []) as OrgDetail['recent_audit_log'];
+        const rawLogs = (logs ?? []) as Array<
+          Omit<OrgDetail['recent_audit_log'][number], 'actorName' | 'actorEmail'>
+        >;
+        const actorMap = await this.userDirectory.resolveUsers(
+          rawLogs.map((l) => l.actor_user_id).filter((x): x is string => Boolean(x)),
+        );
+        auditLog = rawLogs.map((l) => {
+          const actor = l.actor_user_id ? actorMap.get(l.actor_user_id) : null;
+          return { ...l, actorName: actor?.name ?? null, actorEmail: actor?.email ?? null };
+        });
       } catch {
         // audit_log table not yet created
       }

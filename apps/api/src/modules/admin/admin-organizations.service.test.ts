@@ -136,6 +136,7 @@ describe('AdminOrganizationsService', () => {
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
     service = new AdminOrganizationsService(
       mockSupabase as never,
+      { resolveUsers: vi.fn().mockResolvedValue(new Map()) } as never,
       mockMail as never,
       mockConfig as never,
     );

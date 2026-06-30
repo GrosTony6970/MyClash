@@ -144,6 +144,12 @@ function makeMockMembershipRequestsService() {
   };
 }
 
+function makeMockUserDirectory() {
+  return {
+    resolveUsers: vi.fn().mockResolvedValue(new Map()),
+  };
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ReviewQueueService', () => {
@@ -175,6 +181,7 @@ describe('ReviewQueueService', () => {
       mockRulesetsService as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     const result = await service.listAll(null, null);
@@ -213,6 +220,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     const result = await service.listAll('deletion', null);
@@ -269,6 +277,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     const result = await service.listAll('league_tournament_request', null);
@@ -294,6 +303,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       leagues as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     await service.approve('league_tournament_request', 'link-1', 'actor-1');
@@ -317,6 +327,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       membership as never,
+      makeMockUserDirectory() as never,
     );
 
     await service.approve('league_membership_request', 'req-1', 'actor-1');
@@ -335,6 +346,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     await expect(service.approve('deletion', 'req-1', 'actor-1', {})).rejects.toThrow(
@@ -390,6 +402,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     await service.approve('deletion', 'req-1', 'actor-user', { typedConfirmation: 'DELETE' });
@@ -441,6 +454,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     const reason = 'This request does not meet the requirements for deletion.';
@@ -494,6 +508,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     const total = await service.countPending();
@@ -543,6 +558,7 @@ describe('ReviewQueueService', () => {
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
     );
 
     const total = await service.countPending();

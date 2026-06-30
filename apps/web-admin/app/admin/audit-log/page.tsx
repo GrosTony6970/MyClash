@@ -6,6 +6,9 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
 interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;
+  /** Backend-resolved actor display name / email. Null when unresolved. */
+  actorName?: string | null;
+  actorEmail?: string | null;
   action: string;
   entity_type: string;
   entity_id: string;
@@ -286,8 +289,17 @@ export default function AdminAuditLogPage() {
                   <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
                     {new Date(entry.created_at).toLocaleString('fr-FR')}
                   </td>
-                  <td className="py-2 pr-4 font-mono text-xs text-muted">
-                    {entry.actor_user_id ?? '-'}
+                  <td className="py-2 pr-4 text-xs text-foreground-secondary">
+                    {entry.actor_user_id ? (
+                      <p className="font-medium">
+                        {entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser')}
+                      </p>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                    {entry.actorName && entry.actorEmail && (
+                      <p className="font-mono text-muted">{entry.actorEmail}</p>
+                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <span className="rounded bg-background px-2 py-1 font-mono text-xs">

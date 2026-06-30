@@ -17,6 +17,8 @@ interface Member {
 interface AuditEntry {
   id: string;
   actor_user_id: string;
+  actorName: string | null;
+  actorEmail: string | null;
   action: string;
   entity_type: string;
   entity_id: string;
@@ -476,7 +478,6 @@ export default function AdminOrgDetailPage({ params }: Props) {
             <thead>
               <tr className="border-b border-border text-left text-muted">
                 <th className="py-2 pr-4">{t('admin.organizations.detail.user')}</th>
-                <th className="py-2 pr-4">{t('admin.organizations.detail.userId')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.role')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.joined')}</th>
                 <th className="py-2">{t('admin.organizations.detail.actions')}</th>
@@ -490,9 +491,6 @@ export default function AdminOrgDetailPage({ params }: Props) {
                     {member.email && member.email !== member.username ? (
                       <div className="text-xs text-muted">{member.email}</div>
                     ) : null}
-                  </td>
-                  <td className="py-2 pr-4 font-mono text-xs text-foreground-secondary">
-                    {member.user_id}
                   </td>
                   <td className="py-2 pr-4">
                     {member.role === 'owner' ? (
@@ -556,7 +554,9 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   {entry.action}
                 </span>
                 <span className="font-mono text-xs text-muted">
-                  {t('admin.organizations.detail.auditBy', { userId: entry.actor_user_id })}
+                  {t('admin.organizations.detail.auditBy', {
+                    actor: entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser'),
+                  })}
                 </span>
               </div>
             ))}

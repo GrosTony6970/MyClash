@@ -37,6 +37,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
+import { UserDirectoryModule } from './modules/user-directory/user-directory.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
@@ -88,6 +89,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
 
     // ── Infrastructure ───────────────────────────────────────────────────
     SupabaseModule,
+    UserDirectoryModule,
     MailModule,
 
     // ── Feature modules ──────────────────────────────────────────────────
