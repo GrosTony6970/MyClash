@@ -13,6 +13,7 @@ const navItems = [
   { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', badge: 'D' },
   { href: '/me/profile', labelKey: 'publicApp.personalShell.nav.profile', badge: 'P' },
   { href: '/me/notifications', labelKey: 'publicApp.personalShell.nav.notifications', badge: 'N' },
+  { href: '/me/settings', labelKey: 'publicApp.personalShell.nav.settings', badge: 'St' },
   { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
   { href: '/me/events', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
 ] as const;

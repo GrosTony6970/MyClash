@@ -194,7 +194,13 @@ export function ScheduleView({
           isNext={item.key === nextKey}
           nextLabel={t('publicApp.me.schedule.next')}
           side={m.isRed ? 'red' : 'blue'}
-          href={eventSlug ? `/e/${eventSlug}/match/${m.id}` : undefined}
+          href={
+            eventSlug
+              ? `/e/${eventSlug}/match/${m.id}?return=${encodeURIComponent(
+                  `/me/events/${eventSlug}/schedule`,
+                )}`
+              : undefined
+          }
         />
       );
     }

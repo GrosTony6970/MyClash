@@ -82,9 +82,12 @@ const ITEMS: Array<{
   },
   {
     key: 'more',
-    href: '/me/notifications',
+    href: '/me/settings',
     icon: DotsIcon,
-    match: (p) => p.startsWith('/me/notifications') || p.startsWith('/me/security'),
+    match: (p) =>
+      p.startsWith('/me/settings') ||
+      p.startsWith('/me/notifications') ||
+      p.startsWith('/me/security'),
   },
 ];
 
