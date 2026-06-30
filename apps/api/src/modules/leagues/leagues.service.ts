@@ -210,6 +210,38 @@ export class LeaguesService {
   }
 
   /**
+   * Org-scoped variant of listManageable: leagues a single organization manages
+   * (holds an admin/owner role on via league_organization_roles). Backs the
+   * organizer workspace "Leagues → Manage" tab. The caller must be an admin/owner
+   * of the organization; each returned league carries the org's role on it.
+   */
+  async listManageableByOrg(organizationId: string, userId: string) {
+    await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    const { data: roleRows, error: roleErr } = await this.supabase.service
+      .from('league_organization_roles')
+      .select('league_id, role')
+      .eq('organization_id', organizationId)
+      .in('role', ['admin', 'owner']);
+    if (roleErr) throw new BadRequestException(roleErr.message);
+    const roleByLeague = new Map<string, string>();
+    for (const row of (roleRows ?? []) as Row[]) {
+      roleByLeague.set(String(row['league_id']), String(row['role']));
+    }
+    if (roleByLeague.size === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .select('*')
+      .in('id', [...roleByLeague.keys()])
+      .order('season_year', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    const enriched = await this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+    return enriched.map((league) => ({
+      ...league,
+      org_role: roleByLeague.get(String(league['id'])) ?? null,
+    }));
+  }
+
+  /**
    * Project four per-league counts onto each row so the Ranking tab
    * can render its summary table in a single round-trip:
    *   - group_count       → league_groups rows for this league

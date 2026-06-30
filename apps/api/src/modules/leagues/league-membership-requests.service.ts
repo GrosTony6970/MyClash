@@ -292,6 +292,28 @@ export class LeagueMembershipRequestsService {
       .maybeSingle();
     if (userRole) return;
 
+    // Org-based path: the user is admin/owner of an organization that holds an
+    // admin/owner role on this league. Mirrors LeaguesService.assertCanManageLeague
+    // — without this, an org owner who manages the league via league_organization_roles
+    // (rather than a direct league_user_roles row) cannot review requests.
+    const { data: memberships } = await this.supabase.service
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', userId);
+    const adminOrgIds = (memberships ?? [])
+      .filter((row) => ['admin', 'owner'].includes(String((row as { role?: unknown }).role)))
+      .map((row) => String((row as { organization_id?: unknown }).organization_id));
+    if (adminOrgIds.length > 0) {
+      const { data: orgRole } = await this.supabase.service
+        .from('league_organization_roles')
+        .select('id')
+        .eq('league_id', leagueId)
+        .in('organization_id', adminOrgIds)
+        .in('role', ['admin', 'owner'])
+        .maybeSingle();
+      if (orgRole) return;
+    }
+
     throw new ForbiddenException('Only super-admins or league admins can review this request.');
   }
 

@@ -24,6 +24,10 @@ const orgNavItems = [
   // switching. pickActiveHref() uses startsWith() so the link stays
   // highlighted whether the operator is on /scoring or /penalty.
   { href: 'rulesets', labelKey: 'organizer.shell.nav.rulesets', badge: 'R' },
+  // Org-level league management (approve requests, groups, ruleset, roles) for
+  // leagues this org administers. `exact: false` so per-league sub-routes
+  // (`/org/{slug}/leagues/{leagueId}`) keep the entry highlighted.
+  { href: 'leagues', labelKey: 'organizer.shell.nav.leagues', badge: 'L' },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
   // Compensation is unified under each event (Compensation plan + Referee
   // compensation tabs); no standalone org-settings entry.

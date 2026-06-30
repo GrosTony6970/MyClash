@@ -17,7 +17,11 @@ describe('ExchangeEditRequestsAdminService', () => {
     const matches = {
       approveFrozenExchangeEdit: vi.fn().mockResolvedValue({ id: 'exchange-1', voided: true }),
     };
-    const service = new ExchangeEditRequestsAdminService(frozenResults as never, matches as never);
+    const service = new ExchangeEditRequestsAdminService(
+      frozenResults as never,
+      matches as never,
+      { resolveUsers: vi.fn() } as never,
+    );
 
     const result = await service.approve('request-1', 'super-1');
 
@@ -43,7 +47,11 @@ describe('ExchangeEditRequestsAdminService', () => {
     const matches = {
       approveFrozenExchangeEdit: vi.fn(),
     };
-    const service = new ExchangeEditRequestsAdminService(frozenResults as never, matches as never);
+    const service = new ExchangeEditRequestsAdminService(
+      frozenResults as never,
+      matches as never,
+      { resolveUsers: vi.fn() } as never,
+    );
 
     const result = await service.reject('request-1', 'super-1', 'Not enough evidence');
 

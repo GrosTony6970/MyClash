@@ -20,6 +20,7 @@ function buildSupabase(state: {
   roleUpsertError?: { message: string } | null;
   platformRole?: Result;
   leagueUserRole?: Result;
+  orgMembers?: Result;
 }) {
   const inserted: unknown[] = [];
   const updates: unknown[] = [];
@@ -39,6 +40,7 @@ function buildSupabase(state: {
     league_organization_roles: () => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue(state.existingRole ?? { data: null, error: null }),
       upsert: vi.fn((payload: unknown) => {
         roleUpserts.push(payload);
@@ -91,6 +93,10 @@ function buildSupabase(state: {
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue(state.leagueUserRole ?? { data: null, error: null }),
+    }),
+    organization_members: () => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue(state.orgMembers ?? { data: [], error: null }),
     }),
   };
 
@@ -255,6 +261,61 @@ describe('LeagueMembershipRequestsService.review', () => {
         reviewed_by_user_id: 'super-admin-1',
         review_note: 'welcome',
       }),
+    );
+  });
+
+  it('allows an org owner via the org-role path (not super-admin, no direct league role)', async () => {
+    const { service, updates } = buildSupabase({
+      systemById: {
+        data: {
+          id: 'req-1',
+          league_id: 'league-1',
+          organization_id: 'org-9',
+          status: 'requested',
+          requested_role: 'member',
+        },
+        error: null,
+      },
+      platformRole: { data: null, error: null }, // not a super-admin
+      leagueUserRole: { data: null, error: null }, // no direct league_user_roles row
+      orgMembers: { data: [{ organization_id: 'org-1', role: 'owner' }], error: null },
+      existingRole: { data: { id: 'role-1' }, error: null }, // org-1 holds a role on league-1
+    });
+    const svc = new LeagueMembershipRequestsService(
+      service as never,
+      makeOrgsService(true) as never,
+    );
+
+    await svc.review('req-1', { status: 'approved' }, 'org-owner-1');
+
+    expect(updates[0]).toEqual(
+      expect.objectContaining({ status: 'approved', reviewed_by_user_id: 'org-owner-1' }),
+    );
+  });
+
+  it('rejects a user with no platform, league, or org role', async () => {
+    const { service } = buildSupabase({
+      systemById: {
+        data: {
+          id: 'req-1',
+          league_id: 'league-1',
+          organization_id: 'org-9',
+          status: 'requested',
+          requested_role: 'member',
+        },
+        error: null,
+      },
+      platformRole: { data: null, error: null },
+      leagueUserRole: { data: null, error: null },
+      orgMembers: { data: [], error: null },
+    });
+    const svc = new LeagueMembershipRequestsService(
+      service as never,
+      makeOrgsService(true) as never,
+    );
+
+    await expect(svc.review('req-1', { status: 'approved' }, 'nobody-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
     );
   });
 

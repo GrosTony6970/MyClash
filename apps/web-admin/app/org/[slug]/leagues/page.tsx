@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useToast } from '@myclash/ui';
+import { SegmentedTabs, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -22,6 +23,15 @@ interface LeagueRow {
   status: string;
   public_visibility: boolean;
 }
+
+interface ManagedLeagueRow extends LeagueRow {
+  org_role?: string | null;
+  tournament_count?: number;
+  group_count?: number;
+  fighter_count?: number;
+}
+
+type LeaguesTab = 'manage' | 'discover';
 
 interface MembershipRequestRow {
   id: string;
@@ -43,6 +53,8 @@ export default function OrgLeaguesPage() {
   const toast = useToast();
 
   const [org, setOrg] = useState<OrgRow | null>(null);
+  const [tab, setTab] = useState<LeaguesTab>('manage');
+  const [managed, setManaged] = useState<ManagedLeagueRow[]>([]);
   const [leagues, setLeagues] = useState<LeagueRow[]>([]);
   const [requests, setRequests] = useState<MembershipRequestRow[]>([]);
   const [memberOfLeagueIds, setMemberOfLeagueIds] = useState<Set<string>>(new Set());
@@ -67,6 +79,12 @@ export default function OrgLeaguesPage() {
         slug: String(orgData['slug'] ?? orgSlug),
       };
       setOrg(orgRow);
+
+      // Leagues this org manages (admin/owner role). Powers the Manage tab.
+      const managedRes = await fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/leagues`, {
+        credentials: 'include',
+      });
+      setManaged(managedRes.ok ? ((await managedRes.json()) as ManagedLeagueRow[]) : []);
 
       // Public leagues list.
       const leaguesRes = await fetch(`${apiUrl}/api/v1/leagues`, { credentials: 'include' });
@@ -192,101 +210,163 @@ export default function OrgLeaguesPage() {
         </div>
       )}
 
-      {/* Existing requests */}
-      {pendingRequests.length > 0 && (
-        <section className="mb-6 rounded-lg border border-border bg-surface p-5 shadow-sm">
+      <SegmentedTabs
+        tabs={[
+          { value: 'manage' as const, label: t('organizer.leagues.manage.tabManage') },
+          { value: 'discover' as const, label: t('organizer.leagues.tabDiscover') },
+        ]}
+        value={tab}
+        onChange={setTab}
+        aria-label={t('organizer.leagues.eyebrow')}
+        className="mb-6 max-w-md"
+      />
+
+      {tab === 'manage' && (
+        <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-            {t('organizer.leagues.pendingHeading')}
+            {t('organizer.leagues.manage.listHeading')}
           </h2>
-          <ul className="space-y-2">
-            {pendingRequests.map((r) => (
-              <li
-                key={r.id}
-                className="flex items-center justify-between rounded border border-border bg-background px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground">{r.leagues?.name ?? r.league_id}</p>
-                  <p className="text-xs text-muted">
-                    {t('organizer.leagues.requestedAt', {
-                      date: new Date(r.requested_at).toLocaleDateString(),
-                    })}
-                    {r.message && <> · "{r.message}"</>}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void withdraw(r.id)}
-                  disabled={busyLeagueId === r.id}
-                  className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background disabled:opacity-50"
+          {loading && <p className="text-sm text-muted">{t('organizer.leagues.loadingState')}</p>}
+          {!loading && managed.length === 0 && (
+            <p className="text-sm text-muted">{t('organizer.leagues.manage.listEmpty')}</p>
+          )}
+          <ul className="divide-y divide-border">
+            {managed.map((league) => (
+              <li key={league.id}>
+                <Link
+                  href={`/org/${orgSlug}/leagues/${league.id}`}
+                  className="flex items-center justify-between gap-3 py-3 text-sm hover:bg-background"
                 >
-                  {t('organizer.leagues.withdrawButton')}
-                </button>
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      {league.name}
+                      <span className="ml-2 font-mono text-xs text-muted">
+                        {league.season_year}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {t('organizer.leagues.manage.listCounts', {
+                        tournaments: league.tournament_count ?? 0,
+                        groups: league.group_count ?? 0,
+                      })}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold text-accent">
+                    {t('organizer.leagues.manage.manageLink')}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      {/* All leagues */}
-      <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          {t('organizer.leagues.availableHeading')}
-        </h2>
-        {loading && <p className="text-sm text-muted">{t('organizer.leagues.loadingState')}</p>}
-        {!loading && leagues.length === 0 && (
-          <p className="text-sm text-muted">{t('organizer.leagues.emptyState')}</p>
-        )}
-        <ul className="divide-y divide-border">
-          {leagues.map((league) => {
-            const alreadyMember = memberOfLeagueIds.has(league.id);
-            const pending = pendingByLeagueId.get(league.id);
-            return (
-              <li key={league.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">
-                    {league.name}
-                    <span className="ml-2 text-xs font-mono text-muted">{league.season_year}</span>
-                  </p>
-                  {league.description && (
-                    <p className="mt-0.5 text-xs text-muted">{league.description}</p>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {alreadyMember ? (
-                    <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-                      {t('organizer.leagues.memberBadge')}
-                    </span>
-                  ) : pending ? (
-                    <span className="rounded-full bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
-                      {t('organizer.leagues.pendingBadge')}
-                    </span>
-                  ) : (
-                    <>
-                      <input
-                        type="text"
-                        value={messageDraft[league.id] ?? ''}
-                        onChange={(e) =>
-                          setMessageDraft((prev) => ({ ...prev, [league.id]: e.target.value }))
-                        }
-                        placeholder={t('organizer.leagues.messagePlaceholder')}
-                        className="w-44 rounded border border-border px-2 py-1 text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void submitJoin(league.id)}
-                        disabled={busyLeagueId === league.id}
-                        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
-                      >
-                        {t('organizer.leagues.requestToJoinButton')}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      {tab === 'discover' && (
+        <>
+          {/* Existing requests */}
+          {pendingRequests.length > 0 && (
+            <section className="mb-6 rounded-lg border border-border bg-surface p-5 shadow-sm">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+                {t('organizer.leagues.pendingHeading')}
+              </h2>
+              <ul className="space-y-2">
+                {pendingRequests.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center justify-between rounded border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">
+                        {r.leagues?.name ?? r.league_id}
+                      </p>
+                      <p className="text-xs text-muted">
+                        {t('organizer.leagues.requestedAt', {
+                          date: new Date(r.requested_at).toLocaleDateString(),
+                        })}
+                        {r.message && <> · "{r.message}"</>}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void withdraw(r.id)}
+                      disabled={busyLeagueId === r.id}
+                      className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background disabled:opacity-50"
+                    >
+                      {t('organizer.leagues.withdrawButton')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* All leagues */}
+          <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+              {t('organizer.leagues.availableHeading')}
+            </h2>
+            {loading && <p className="text-sm text-muted">{t('organizer.leagues.loadingState')}</p>}
+            {!loading && leagues.length === 0 && (
+              <p className="text-sm text-muted">{t('organizer.leagues.emptyState')}</p>
+            )}
+            <ul className="divide-y divide-border">
+              {leagues.map((league) => {
+                const alreadyMember = memberOfLeagueIds.has(league.id);
+                const pending = pendingByLeagueId.get(league.id);
+                return (
+                  <li
+                    key={league.id}
+                    className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">
+                        {league.name}
+                        <span className="ml-2 text-xs font-mono text-muted">
+                          {league.season_year}
+                        </span>
+                      </p>
+                      {league.description && (
+                        <p className="mt-0.5 text-xs text-muted">{league.description}</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {alreadyMember ? (
+                        <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+                          {t('organizer.leagues.memberBadge')}
+                        </span>
+                      ) : pending ? (
+                        <span className="rounded-full bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
+                          {t('organizer.leagues.pendingBadge')}
+                        </span>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            value={messageDraft[league.id] ?? ''}
+                            onChange={(e) =>
+                              setMessageDraft((prev) => ({ ...prev, [league.id]: e.target.value }))
+                            }
+                            placeholder={t('organizer.leagues.messagePlaceholder')}
+                            className="w-44 rounded border border-border px-2 py-1 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void submitJoin(league.id)}
+                            disabled={busyLeagueId === league.id}
+                            className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
+                          >
+                            {t('organizer.leagues.requestToJoinButton')}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </>
+      )}
     </main>
   );
 }
