@@ -9,6 +9,11 @@
 #
 # --full     Complete reset: volumes + data/ + logs/ + runtime files.
 #            backups/ and .env are NEVER touched.
+#
+# destroy.sh <service...>   Selective: stop & remove only the named containers
+#            (docker compose rm -sf). Volumes, images, data/, logs/, and every other
+#            container are preserved. Pair with `redeploy.sh <service>` to recreate.
+#            Cannot be combined with --wipe-db / --full (those are whole-stack ops).
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,6 +24,7 @@ cd "$ROOT_DIR"
 WIPE_DB=0
 FULL=0
 FORCE=0
+SERVICES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --wipe-db) WIPE_DB=1; shift ;;
@@ -26,18 +32,47 @@ while [[ $# -gt 0 ]]; do
     --force)   FORCE=1; shift ;;
     -h|--help)
       echo "Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--force]"
+      echo "       infra/scripts/destroy.sh <service...> [--force]"
       echo
-      echo "  (no flags)   Remove containers + locally-built images. ALL data preserved."
+      echo "  (no args)    Remove containers + locally-built images. ALL data preserved."
       echo "  --wipe-db    Also remove Docker volumes (postgres, redis, storage data)."
       echo "               data/ folder and logs/ are kept."
       echo "  --full       Complete reset: volumes + data/ + logs/ destroyed."
       echo "               backups/ and .env are NEVER touched."
+      echo "  <service...> Selective: stop & remove only the named containers."
+      echo "               Volumes, images, data/, logs/, and other containers preserved."
+      echo "               Cannot be combined with --wipe-db / --full."
       echo "  --force      Skip confirmation prompt"
       exit 0
       ;;
-    *) err "Unknown option: $1"; exit 1 ;;
+    -*) err "Unknown option: $1"; exit 1 ;;
+    *)  SERVICES+=("$1"); shift ;;
   esac
 done
+
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+
+# ── Selective mode: remove only the named containers ─────────────
+if [[ "${#SERVICES[@]}" -gt 0 ]]; then
+  if [[ "$WIPE_DB" -eq 1 || "$FULL" -eq 1 ]]; then
+    err "Service names cannot be combined with --wipe-db / --full (whole-stack ops)."
+    exit 1
+  fi
+
+  hdr "Removing containers: ${SERVICES[*]}"
+  warn "Stops & removes only these containers: ${SERVICES[*]}"
+  warn "Preserved:  Docker volumes  images  data/  logs/  backups/  .env  (all other containers)"
+
+  if [[ "$FORCE" -ne 1 ]]; then
+    confirm "Are you sure?" || { warn "Aborted."; exit 0; }
+  fi
+
+  "${COMPOSE[@]}" rm -sf "${SERVICES[@]}"
+  echo
+  ok "Removed containers: ${SERVICES[*]}"
+  warn "Recreate with: infra/scripts/redeploy.sh ${SERVICES[*]}"
+  exit 0
+fi
 
 # --full implies --wipe-db
 if [[ "$FULL" -eq 1 ]]; then
@@ -66,8 +101,6 @@ if [[ "$FULL" -eq 1 ]]; then
   warn "⚠  This will permanently delete data/ and logs/. This cannot be undone."
   confirm "Confirm full reset?" || { warn "Aborted."; exit 0; }
 fi
-
-COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 if [[ "$WIPE_DB" -eq 1 ]]; then
   "${COMPOSE[@]}" down --rmi local --remove-orphans -v

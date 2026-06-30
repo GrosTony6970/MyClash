@@ -31,6 +31,25 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+Usage: infra/scripts/backup.sh
+
+Nightly backup: dump Postgres + archive the Supabase Storage volume, optionally GPG-
+encrypt, then upload both to Scaleway S3. Runs from cron (0 3 * * *); takes no arguments.
+
+Required .env vars:
+  POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+  BACKUP_SCW_ACCESS_KEY, BACKUP_SCW_SECRET_KEY, BACKUP_SCW_BUCKET,
+  BACKUP_SCW_REGION, BACKUP_SCW_ENDPOINT
+Optional .env vars:
+  BACKUP_GPG_RECIPIENT   — if set, encrypt files before upload.
+EOF
+    exit 0
+    ;;
+esac
+
 # ── Timestamp & log prefix ───────────────────────────────────────
 TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
 LOG_PREFIX="[backup][${TIMESTAMP}]"

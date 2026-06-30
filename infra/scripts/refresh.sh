@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # infra/scripts/refresh.sh — restart a specific service (or all) and wait for health
 #
+# Restart only — this does NOT rebuild images. To pick up a code change, use
+# redeploy.sh (rebuild + recreate). For a full deploy, use deploy.sh.
+#
 # Usage:
 #   infra/scripts/refresh.sh             # restart all app services
 #   infra/scripts/refresh.sh api         # restart just one service
@@ -11,6 +14,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
+
+usage() {
+  cat <<'EOF'
+Usage: infra/scripts/refresh.sh [service...]
+
+Restart running containers and wait for health. Does NOT rebuild images —
+use redeploy.sh to pick up a code change.
+
+  (no service)  Restart all app services: api web-public web-scoring web-admin worker
+  service...    Restart only the named services.
+  -h, --help    Show this help.
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+  esac
+done
 
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 

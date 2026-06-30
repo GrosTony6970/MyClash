@@ -19,6 +19,32 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      cat <<'EOF'
+Usage:
+  infra/scripts/restore.sh                          # interactive: list local backups
+  infra/scripts/restore.sh <db-backup-file>         # restore DB + matching storage if present
+  infra/scripts/restore.sh --from-s3 <timestamp>    # pull from Scaleway S3 then restore
+  infra/scripts/restore.sh <db-backup-file> --yes --db-only
+
+Restore Postgres and/or Supabase Storage from a backup. Stops app services, drops &
+recreates the database, restores from the dump, optionally restores the storage volume,
+then restarts the stack.
+
+Options:
+  --yes              Auto-confirm (non-interactive). Also via MYCLASH_RESTORE_CONFIRM=1.
+  --db-only          Restore the database only; skip storage.
+  --include-storage  Include storage (default).
+  --from-s3 <ts>     Download backups for <timestamp> from Scaleway S3 first.
+  -h, --help         Show this help.
+EOF
+      exit 0
+      ;;
+  esac
+done
+
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 set -a; source ./.env; set +a
 : "${POSTGRES_USER:=postgres}"

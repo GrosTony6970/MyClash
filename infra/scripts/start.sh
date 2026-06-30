@@ -7,6 +7,15 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+case "${1:-}" in
+  -h|--help)
+    echo "Usage: infra/scripts/start.sh"
+    echo
+    echo "Start the stack (docker compose up -d) without rebuilding or redeploying."
+    exit 0
+    ;;
+esac
+
 hdr "Validating configuration"
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 ok ".env found"

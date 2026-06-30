@@ -48,6 +48,8 @@ Usage: infra/scripts/deploy.sh [options]
   --skip-backup        Skip pre-deploy DB backup (DEV ONLY — never use in production).
   --skip-migrations    Skip migration step (DEV ONLY).
   -h, --help           Show this help.
+
+For a fast single-service rebuild without a full deploy, see redeploy.sh.
 EOF
       exit 0
       ;;

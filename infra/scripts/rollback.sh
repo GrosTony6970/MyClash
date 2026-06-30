@@ -20,6 +20,20 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+Usage: infra/scripts/rollback.sh
+
+Revert the last deploy. Reads .last-deploy.json to find the previous commit and
+pre-deploy backup, then: stop app services, restore Postgres from that backup,
+git reset --hard to the previous commit, rebuild, restart, and smoke-test.
+Confirms before any destructive action. Takes no arguments.
+EOF
+    exit 0
+    ;;
+esac
+
 LOCK_FILE="$ROOT_DIR/.deploy.lock"
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
