@@ -184,6 +184,10 @@ const importDecisionSchema = z
     clubLabel: z.string().optional(),
     clubAbbreviation: z.string().optional(),
     clubCity: z.string().optional(),
+    genderCategory: z.string().optional(),
+    // Pipe-separated weapons, first = favorite, optional level:
+    // "Longsword:intermediate|Rapier". Set only on freshly created profiles.
+    weapons: z.string().optional(),
     isFighter: z.boolean(),
     isReferee: z.boolean(),
     isWorkshopParticipant: z.boolean(),

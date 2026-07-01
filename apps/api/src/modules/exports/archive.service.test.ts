@@ -350,4 +350,149 @@ describe('ArchiveService', () => {
     expect(inserted.events?.[0]?.slug).toMatch(/^fal-restored-/);
     expect(inserted.tournaments?.[0]?.event_id).toBe(inserted.events?.[0]?.id);
   });
+
+  const scopedRows = () => ({
+    events: [
+      { id: 'event-1', organization_id: 'org-1', slug: 'fal', name: 'FAL', status: 'completed' },
+    ],
+    tournaments: [{ id: 't-1', event_id: 'event-1', slug: 'ls', name: 'LS' }],
+    persons: [
+      { id: 'p-1', event_id: 'event-1', given_name: 'A', family_name: 'B', email: 'a@b.c' },
+    ],
+    registrations: [{ id: 'r-1', tournament_id: 't-1', person_id: 'p-1' }],
+    phases: [{ id: 'ph-1', tournament_id: 't-1', type: 'pool' }],
+    matches: [
+      {
+        id: 'm-1',
+        phase_id: 'ph-1',
+        tournament_id: 't-1',
+        status: 'completed',
+        red_registration_id: 'r-1',
+      },
+    ],
+    referee_skills: [{ id: 'skill-custom', event_id: 'event-1', name: 'Custom', is_system: false }],
+    event_referees: [{ id: 'er-1', event_id: 'event-1', person_id: 'gp-1' }],
+    event_referee_tournaments: [{ event_id: 'event-1', person_id: 'gp-1', tournament_id: 't-1' }],
+    event_hidden_skills: [{ event_id: 'event-1', skill_id: 'skill-custom' }],
+    referee_assignments: [
+      { id: 'ra-1', event_id: 'event-1', person_id: 'gp-1', match_id: 'm-1', role: 'skill-custom' },
+    ],
+    event_programme_blocks: [
+      {
+        id: 'pb-1',
+        event_id: 'event-1',
+        competition_id: 't-1',
+        block_type: 'competition',
+        label: 'Pools',
+        start_time: '09:00',
+        end_time: '10:00',
+      },
+    ],
+    workshop_breaks: [
+      { id: 'wb-1', event_id: 'event-1', day_index: 0, start_time: '12:00', end_time: '13:00' },
+    ],
+    event_venues: [{ id: 'ev-1', event_id: 'event-1', venue_id: 'venue-1' }],
+    tournament_phase_venues: [
+      { id: 'tpv-1', tournament_id: 't-1', phase_kind: 'pool', venue_id: 'venue-1' },
+    ],
+    event_instructors: [{ event_id: 'event-1', person_id: 'gp-2' }],
+    match_penalties: [
+      {
+        id: 'mp-1',
+        client_uuid: 'cu-1',
+        match_id: 'm-1',
+        tournament_id: 't-1',
+        registration_id: 'r-1',
+        ruleset_id: 'rs-1',
+        ruleset_entry_id: 're-1',
+        sequence: 1,
+        card: 'yellow',
+        occurred_at: '2026-01-01T00:00:00Z',
+      },
+    ],
+    match_forfeits: [
+      {
+        id: 'mf-1',
+        match_id: 'm-1',
+        tournament_id: 't-1',
+        forfeiting_registration_id: 'r-1',
+        winner_registration_id: 'r-1',
+        reason: 'injury',
+        score_policy: 'keep_current',
+      },
+    ],
+    referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
+  });
+
+  it('captures the newly-wired scoped tables in an event archive', async () => {
+    const { service } = makeService(scopedRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+
+    expect(archive.data.refereeSkills).toHaveLength(1);
+    expect(archive.data.eventReferees).toHaveLength(1);
+    expect(archive.data.eventRefereeTournaments).toHaveLength(1);
+    expect(archive.data.eventHiddenSkills).toHaveLength(1);
+    expect(archive.data.eventInstructors).toHaveLength(1);
+    expect(archive.data.eventProgrammeBlocks).toHaveLength(1);
+    expect(archive.data.workshopBreaks).toHaveLength(1);
+    expect(archive.data.eventVenues).toHaveLength(1);
+    expect(archive.data.tournamentPhaseVenues).toHaveLength(1);
+    expect(archive.data.matchPenalties).toHaveLength(1);
+    expect(archive.data.matchForfeits).toHaveLength(1);
+    expect(archive.data.refereeCompensationEventSettings).toHaveLength(1);
+  });
+
+  it('restores scoped tables into a same-org copy with remapped ids', async () => {
+    const { service, inserted } = makeService({
+      ...scopedRows(),
+      // second event row so the restore target lookup / slug check has data
+    });
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const newEventId = inserted.events?.[0]?.id as string;
+    expect(newEventId).not.toBe('event-1');
+
+    // scoped children carried and re-parented to the new event/tournament
+    expect(inserted.event_programme_blocks?.[0]?.event_id).toBe(newEventId);
+    expect(inserted.workshop_breaks?.[0]?.event_id).toBe(newEventId);
+    expect(inserted.event_referees?.[0]?.event_id).toBe(newEventId);
+    // global-person references pass through unchanged (not copied)
+    expect(inserted.event_referees?.[0]?.person_id).toBe('gp-1');
+
+    // client_uuid is regenerated to keep the offline idempotency key unique
+    expect(inserted.match_penalties?.[0]?.client_uuid).not.toBe('cu-1');
+    // same-org: org-level references (ruleset, venue) are preserved
+    expect(inserted.match_penalties?.[0]?.ruleset_id).toBe('rs-1');
+    expect(inserted.event_venues?.[0]?.venue_id).toBe('venue-1');
+    expect(inserted.referee_compensation_event_settings?.[0]?.plan_id).toBe('plan-1');
+
+    // custom referee skill id is regenerated, and every reference to it follows
+    const newSkillId = inserted.referee_skills?.[0]?.id as string;
+    expect(newSkillId).not.toBe('skill-custom');
+    expect(inserted.referee_assignments?.[0]?.role).toBe(newSkillId);
+    expect(inserted.event_hidden_skills?.[0]?.skill_id).toBe(newSkillId);
+  });
+
+  it('drops org-level references when restoring into a different org', async () => {
+    const { service, inserted } = makeService(scopedRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-2',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    // event_venues + compensation settings reference the source org's rows → dropped
+    expect(inserted.event_venues).toBeUndefined();
+    expect(inserted.referee_compensation_event_settings).toBeUndefined();
+    // nullable org-level FKs are cleared rather than dropped
+    expect(inserted.tournament_phase_venues?.[0]?.venue_id).toBeNull();
+    expect(inserted.match_penalties?.[0]?.ruleset_id).toBeNull();
+    expect(inserted.match_penalties?.[0]?.ruleset_entry_id).toBeNull();
+  });
 });

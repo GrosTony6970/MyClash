@@ -40,6 +40,15 @@ type DbClient = {
   ) => Promise<{ data: unknown; error: unknown }>;
 };
 
+// crossOrg = the restored copy lands in a different organization than the
+// source. Org-level references (venues, penalty rulesets, compensation plans)
+// aren't copied, so rows/columns that depend on them are dropped or nulled.
+type RestoreTargets = {
+  targetEventId?: string;
+  targetTournamentId?: string;
+  crossOrg?: boolean;
+};
+
 const EMPTY_TABLES: ArchiveTables = {
   events: [],
   themes: [],
@@ -62,6 +71,24 @@ const EMPTY_TABLES: ArchiveTables = {
   workshopInstructors: [],
   workshopSessions: [],
   workshopEnrollments: [],
+  workshopBreaks: [],
+  eventProgrammeBlocks: [],
+  refereeSkills: [],
+  eventReferees: [],
+  eventRefereeTournaments: [],
+  eventRefereeDays: [],
+  eventHiddenSkills: [],
+  eventInstructors: [],
+  eventSlotConfigDefault: [],
+  eventSlotConfigDefaultSkills: [],
+  tournamentSlotConfig: [],
+  tournamentSlotAllowedSkills: [],
+  tournamentPhaseVenues: [],
+  eventVenues: [],
+  refereeCompensationEventSettings: [],
+  matchPenalties: [],
+  matchForfeits: [],
+  tournamentPenaltyReviews: [],
 };
 
 const TABLE_TO_ARCHIVE_KEY = {
@@ -86,17 +113,114 @@ const TABLE_TO_ARCHIVE_KEY = {
   workshop_instructors: 'workshopInstructors',
   workshop_sessions: 'workshopSessions',
   workshop_enrollments: 'workshopEnrollments',
+  workshop_breaks: 'workshopBreaks',
+  event_programme_blocks: 'eventProgrammeBlocks',
+  referee_skills: 'refereeSkills',
+  event_referees: 'eventReferees',
+  event_referee_tournaments: 'eventRefereeTournaments',
+  event_referee_days: 'eventRefereeDays',
+  event_hidden_skills: 'eventHiddenSkills',
+  event_instructors: 'eventInstructors',
+  event_slot_config_default: 'eventSlotConfigDefault',
+  event_slot_config_default_skills: 'eventSlotConfigDefaultSkills',
+  tournament_slot_config: 'tournamentSlotConfig',
+  tournament_slot_allowed_skills: 'tournamentSlotAllowedSkills',
+  tournament_phase_venues: 'tournamentPhaseVenues',
+  event_venues: 'eventVenues',
+  referee_compensation_event_settings: 'refereeCompensationEventSettings',
+  match_penalties: 'matchPenalties',
+  match_forfeits: 'matchForfeits',
+  tournament_penalty_reviews: 'tournamentPenaltyReviews',
 } as const satisfies Record<string, keyof ArchiveTables>;
 
+/**
+ * Tables that carry an `event_id`/`tournament_id` (directly, or as a scoped
+ * child) but are DELIBERATELY not part of an organizer archive. The
+ * migration-scanning guard test asserts every scoped table is either in
+ * TABLE_TO_ARCHIVE_KEY above or listed here, so a newly added scoped table
+ * fails CI until someone consciously buckets it. Reasons, per group:
+ *  - org-level catalogues shared across events (copied by reference, resolve
+ *    on same-org restore): venues + rulesets + compensation plans, etc.
+ *  - league data is cross-event and recomputed, not part of one event.
+ *  - operational / derived / credential / notification / AI rows that must
+ *    not clone into a restored copy.
+ */
+const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
+  // org-level catalogues (referenced by id; exist independently of the event)
+  'venues',
+  'venue_areas',
+  'venue_lices',
+  'penalty_rulesets',
+  'penalty_ruleset_entries',
+  'custom_rulesets',
+  'custom_ruleset_versions',
+  'league_scoring_systems',
+  'league_scoring_system_versions',
+  'referee_compensation_plans',
+  'referee_compensation_role_rates',
+  'referee_compensation_tiers',
+  // league data (cross-event; recomputed from results)
+  'leagues',
+  'league_organization_roles',
+  'league_user_roles',
+  'league_groups',
+  'league_tournament_links',
+  'league_tournament_results',
+  'league_rankings',
+  'league_membership_requests',
+  // operational / derived / credential / notification / AI
+  'event_staff_accounts',
+  'event_staff_lice_assignments',
+  'event_broadcast_notifications',
+  'event_broadcast_recipients',
+  'tournament_query_settings',
+  'tournament_query_history',
+  'referee_compensation_payments',
+  'exchange_edit_requests',
+  'deletion_requests',
+  'organizer_ai_assistant_drafts',
+  'organizer_chat_conversations',
+  'organizer_chat_messages',
+  'ai_usage_log',
+  'ai_data_quality_findings',
+  'ai_data_quality_scans',
+  'organization_ai_settings',
+  'follows', // user social graph, not event data
+  'club_review_requests', // club-verification workflow, not event data
+]);
+
+const ARCHIVE_COLLECTED_TABLES = new Set<string>(Object.keys(TABLE_TO_ARCHIVE_KEY));
+
+export { ARCHIVE_EXCLUDED_TABLES, ARCHIVE_COLLECTED_TABLES };
+
+// Parents before children — FK-dependency order. New scoped tables are
+// interleaved so their referenced rows are always inserted first. Notably:
+// referee_skills before anything that stores a skill id (event_hidden_skills,
+// the slot-config skill joins, referee_assignments.role); event_referees before
+// its per-tournament/day allowlists; slot configs before their skill joins;
+// tournaments/workshops before event_programme_blocks (competition_id/workshop_id).
 const INSERT_ORDER: Array<keyof typeof TABLE_TO_ARCHIVE_KEY> = [
   'events',
   'themes',
   'lices',
   'persons',
   'person_privacy',
+  'referee_skills',
   'referee_qualifications',
+  'event_referees',
+  'event_hidden_skills',
+  'event_instructors',
   'pool_assignment_settings',
+  'event_slot_config_default',
+  'event_slot_config_default_skills',
+  'referee_compensation_event_settings',
+  'event_venues',
   'tournaments',
+  'tournament_phase_venues',
+  'tournament_slot_config',
+  'tournament_slot_allowed_skills',
+  'event_referee_tournaments',
+  'event_referee_days',
   'registrations',
   'phases',
   'pools',
@@ -106,10 +230,15 @@ const INSERT_ORDER: Array<keyof typeof TABLE_TO_ARCHIVE_KEY> = [
   'referee_assignments',
   'match_events',
   'exchanges',
+  'match_penalties',
+  'match_forfeits',
+  'tournament_penalty_reviews',
   'workshops',
   'workshop_instructors',
   'workshop_sessions',
   'workshop_enrollments',
+  'workshop_breaks',
+  'event_programme_blocks',
 ];
 const RESTORE_CONFIRMATION = 'RESTORE MYCLASH ARCHIVE';
 
@@ -278,7 +407,9 @@ export class ArchiveService {
       }),
     ];
 
-    await this.insertMappedTables(data, maps, { targetEventId: restoredEventId });
+    const crossOrg =
+      (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
+    await this.insertMappedTables(data, maps, { targetEventId: restoredEventId, crossOrg });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
     await this.refreshDerivedData();
 
@@ -339,9 +470,14 @@ export class ArchiveService {
       }),
     ];
 
+    const sourceOrgId = archive.data.events?.[0]?.['organization_id'] as string | undefined;
+    const crossOrg =
+      sourceOrgId !== undefined &&
+      sourceOrgId !== (targetEvent['organization_id'] as string | undefined);
     await this.insertMappedTables(data, maps, {
       targetEventId: options.targetEventId,
       targetTournamentId: restoredTournamentId,
+      crossOrg,
     });
     await this.auditRestore(
       userId,
@@ -359,16 +495,23 @@ export class ArchiveService {
     };
   }
 
-  private async insertMappedTables(
-    data: ArchiveTables,
-    maps: IdMaps,
-    targets: { targetEventId?: string; targetTournamentId?: string },
-  ) {
+  private async insertMappedTables(data: ArchiveTables, maps: IdMaps, targets: RestoreTargets) {
     for (const table of INSERT_ORDER) {
       const key = TABLE_TO_ARCHIVE_KEY[table];
       const rows = data[key];
       if (rows.length === 0) continue;
-      const mapped = rows.map((row) => this.remapRow(table, row, maps, targets)).filter(Boolean);
+      // Pre-seed the table's id map so intra-table self-references (e.g.
+      // match_forfeits.parent_forfeit_id) resolve regardless of row order.
+      for (const row of rows) {
+        const rowId = row['id'];
+        if (typeof rowId === 'string') {
+          const map = idMapForTable(table, maps);
+          if (!map.has(rowId)) map.set(rowId, randomUUID());
+        }
+      }
+      const mapped = rows
+        .map((row) => this.remapRow(table, row, maps, targets))
+        .filter((row): row is ArchiveRow => row !== null);
       if (mapped.length === 0) continue;
       await this.insertRows(table, mapped);
     }
@@ -378,15 +521,16 @@ export class ArchiveService {
     table: keyof typeof TABLE_TO_ARCHIVE_KEY,
     row: ArchiveRow,
     maps: IdMaps,
-    targets: { targetEventId?: string; targetTournamentId?: string },
-  ): ArchiveRow {
+    targets: RestoreTargets,
+  ): ArchiveRow | null {
     const next = { ...row };
     const id = next['id'];
     if (typeof id === 'string') {
-      const map = mapForTable(table, maps);
-      if (map && !map.has(id)) map.set(id, randomUUID());
-      if (map) next['id'] = map.get(id);
+      const map = idMapForTable(table, maps);
+      if (!map.has(id)) map.set(id, randomUUID());
+      next['id'] = map.get(id);
     }
+    const crossOrg = targets.crossOrg === true;
 
     this.mapFk(next, 'event_id', maps.events, targets.targetEventId);
     this.mapFk(next, 'lice_id', maps.lices);
@@ -394,10 +538,13 @@ export class ArchiveService {
     this.mapFk(next, 'fighter_id', maps.fighters);
     this.mapFk(next, 'global_person_id', maps.fighters);
     this.mapFk(next, 'tournament_id', maps.tournaments, targets.targetTournamentId);
+    this.mapFk(next, 'competition_id', maps.tournaments);
     this.mapFk(next, 'registration_id', maps.registrations);
     this.mapFk(next, 'red_registration_id', maps.registrations);
     this.mapFk(next, 'blue_registration_id', maps.registrations);
     this.mapFk(next, 'winner_registration_id', maps.registrations);
+    this.mapFk(next, 'forfeiting_registration_id', maps.registrations);
+    this.mapFk(next, 'replacement_registration_id', maps.registrations);
     this.mapFk(next, 'registration_a_id', maps.registrations);
     this.mapFk(next, 'registration_b_id', maps.registrations);
     this.mapFk(next, 'phase_id', maps.phases);
@@ -407,12 +554,70 @@ export class ArchiveService {
     this.mapFk(next, 'workshop_id', maps.workshops);
     this.mapFk(next, 'workshop_session_id', maps.workshopSessions);
 
-    if (table === 'persons') {
-      next['claim_status'] = 'unclaimed';
-      next['claimed_by_user_id'] = null;
+    switch (table) {
+      case 'persons':
+        next['claim_status'] = 'unclaimed';
+        next['claimed_by_user_id'] = null;
+        break;
+      case 'exchanges':
+        next['client_uuid'] = randomUUID();
+        break;
+      case 'match_penalties':
+        next['client_uuid'] = randomUUID();
+        // ruleset_id / ruleset_entry_id point at org-level penalty rulesets that
+        // aren't copied — they resolve on same-org restore, not across orgs.
+        if (crossOrg) {
+          next['ruleset_id'] = null;
+          next['ruleset_entry_id'] = null;
+        }
+        break;
+      case 'match_forfeits':
+        this.mapFk(next, 'parent_forfeit_id', maps.matchForfeits);
+        break;
+      case 'event_hidden_skills':
+        next['skill_id'] = this.remapSkillId(next['skill_id'], maps);
+        break;
+      case 'referee_assignments':
+        // role stores a referee_skills.id: system ids pass through, custom remap.
+        next['role'] = this.remapSkillId(next['role'], maps);
+        break;
+      case 'tournament_slot_allowed_skills':
+        this.mapFk(next, 'slot_config_id', maps.tournamentSlotConfig);
+        next['skill_id'] = this.remapSkillId(next['skill_id'], maps);
+        break;
+      case 'event_slot_config_default_skills':
+        this.mapFk(next, 'slot_config_id', maps.eventSlotConfig);
+        next['skill_id'] = this.remapSkillId(next['skill_id'], maps);
+        break;
+      case 'lices':
+        if (crossOrg) next['venue_id'] = null;
+        break;
+      case 'workshop_sessions':
+        if (crossOrg) {
+          next['venue_id'] = null;
+          next['area_id'] = null;
+        }
+        break;
+      case 'event_venues':
+        // venue belongs to the source org; a cross-org copy has no matching venue
+        if (crossOrg) return null;
+        break;
+      case 'tournament_phase_venues':
+        if (crossOrg) next['venue_id'] = null;
+        break;
+      case 'referee_compensation_event_settings':
+        // plan_id (NOT NULL) references an org-level plan not copied across orgs
+        if (crossOrg) return null;
+        break;
+      default:
+        break;
     }
-    if (table === 'exchanges') next['client_uuid'] = randomUUID();
     return this.cleanRow(next);
+  }
+
+  private remapSkillId(value: unknown, maps: IdMaps): unknown {
+    if (typeof value !== 'string') return value;
+    return maps.refereeSkills.get(value) ?? value;
   }
 
   private mapFk(row: ArchiveRow, column: string, map: Map<string, string>, fallback?: string) {
@@ -464,6 +669,42 @@ export class ArchiveService {
       'workshop_session_id',
       ids(tables.workshopSessions),
     );
+    // Referee roster, custom skills, granular availability, per-event skill
+    // visibility, and the event instructor roster (all event-scoped).
+    tables.refereeSkills = await this.listRows('referee_skills', 'event_id', eventId);
+    tables.eventReferees = await this.listRows('event_referees', 'event_id', eventId);
+    tables.eventRefereeTournaments = await this.listRows(
+      'event_referee_tournaments',
+      'event_id',
+      eventId,
+    );
+    tables.eventRefereeDays = await this.listRows('event_referee_days', 'event_id', eventId);
+    tables.eventHiddenSkills = await this.listRows('event_hidden_skills', 'event_id', eventId);
+    tables.eventInstructors = await this.listRows('event_instructors', 'event_id', eventId);
+    // Event-level staffing slot defaults + their allowed-skill joins.
+    tables.eventSlotConfigDefault = await this.listRows(
+      'event_slot_config_default',
+      'event_id',
+      eventId,
+    );
+    tables.eventSlotConfigDefaultSkills = await this.listRowsByIds(
+      'event_slot_config_default_skills',
+      'slot_config_id',
+      ids(tables.eventSlotConfigDefault),
+    );
+    // Schedule programme, workshop breaks, venue links, compensation choice.
+    tables.eventProgrammeBlocks = await this.listRows(
+      'event_programme_blocks',
+      'event_id',
+      eventId,
+    );
+    tables.workshopBreaks = await this.listRows('workshop_breaks', 'event_id', eventId);
+    tables.eventVenues = await this.listRows('event_venues', 'event_id', eventId);
+    tables.refereeCompensationEventSettings = await this.listRows(
+      'referee_compensation_event_settings',
+      'event_id',
+      eventId,
+    );
     return tables;
   }
 
@@ -508,6 +749,23 @@ export class ArchiveService {
     tables.pools = await this.listRowsByIds('pools', 'phase_id', ids(tables.phases));
     tables.poolMembers = await this.listRowsByIds('pool_members', 'pool_id', ids(tables.pools));
     tables.bracketSlots = await this.listRowsByIds('bracket_slots', 'phase_id', ids(tables.phases));
+    // Tournament-level staffing slot config + per-phase venue intent (structure,
+    // always captured regardless of include level).
+    tables.tournamentSlotConfig = await this.listRowsByIds(
+      'tournament_slot_config',
+      'tournament_id',
+      tournamentIds,
+    );
+    tables.tournamentSlotAllowedSkills = await this.listRowsByIds(
+      'tournament_slot_allowed_skills',
+      'slot_config_id',
+      ids(tables.tournamentSlotConfig),
+    );
+    tables.tournamentPhaseVenues = await this.listRowsByIds(
+      'tournament_phase_venues',
+      'tournament_id',
+      tournamentIds,
+    );
     if (include === 'scoring') {
       const phaseIds = ids(tables.phases);
       tables.matches = await this.listRowsByIds('matches', 'phase_id', phaseIds);
@@ -517,6 +775,22 @@ export class ArchiveService {
         ids(tables.matches),
       );
       tables.exchanges = await this.listRowsByIds('exchanges', 'match_id', ids(tables.matches));
+      // Penalty cards, forfeits, and second-black-card reviews are scoring data.
+      tables.matchPenalties = await this.listRowsByIds(
+        'match_penalties',
+        'match_id',
+        ids(tables.matches),
+      );
+      tables.matchForfeits = await this.listRowsByIds(
+        'match_forfeits',
+        'match_id',
+        ids(tables.matches),
+      );
+      tables.tournamentPenaltyReviews = await this.listRowsByIds(
+        'tournament_penalty_reviews',
+        'tournament_id',
+        tournamentIds,
+      );
     }
   }
 
@@ -943,6 +1217,14 @@ interface IdMaps {
   matches: Map<string, string>;
   workshops: Map<string, string>;
   workshopSessions: Map<string, string>;
+  // Named maps for ids referenced by OTHER tables' FK columns.
+  refereeSkills: Map<string, string>;
+  matchForfeits: Map<string, string>;
+  tournamentSlotConfig: Map<string, string>;
+  eventSlotConfig: Map<string, string>;
+  // Fallback per-table id maps for tables whose id is not referenced elsewhere
+  // but must still be regenerated to avoid PK collisions on a same-DB restore.
+  generic: Map<string, Map<string, string>>;
 }
 
 function createIdMaps(): IdMaps {
@@ -960,14 +1242,22 @@ function createIdMaps(): IdMaps {
     matches: new Map(),
     workshops: new Map(),
     workshopSessions: new Map(),
+    refereeSkills: new Map(),
+    matchForfeits: new Map(),
+    tournamentSlotConfig: new Map(),
+    eventSlotConfig: new Map(),
+    generic: new Map(),
   };
 }
 
-function mapForTable(
+// Returns the id map for a table's own primary key. Named maps are used when
+// another table's FK points at this id; everything else falls back to a lazily
+// created per-table map so EVERY id-bearing row gets a fresh id on restore.
+function idMapForTable(
   table: keyof typeof TABLE_TO_ARCHIVE_KEY,
   maps: IdMaps,
-): Map<string, string> | null {
-  const byTable: Partial<Record<keyof typeof TABLE_TO_ARCHIVE_KEY, Map<string, string>>> = {
+): Map<string, string> {
+  const named: Partial<Record<keyof typeof TABLE_TO_ARCHIVE_KEY, Map<string, string>>> = {
     events: maps.events,
     themes: maps.themes,
     lices: maps.lices,
@@ -980,8 +1270,19 @@ function mapForTable(
     matches: maps.matches,
     workshops: maps.workshops,
     workshop_sessions: maps.workshopSessions,
+    referee_skills: maps.refereeSkills,
+    match_forfeits: maps.matchForfeits,
+    tournament_slot_config: maps.tournamentSlotConfig,
+    event_slot_config_default: maps.eventSlotConfig,
   };
-  return byTable[table] ?? null;
+  const namedMap = named[table];
+  if (namedMap) return namedMap;
+  let generic = maps.generic.get(table);
+  if (!generic) {
+    generic = new Map();
+    maps.generic.set(table, generic);
+  }
+  return generic;
 }
 
 function normalizeArchiveTables(

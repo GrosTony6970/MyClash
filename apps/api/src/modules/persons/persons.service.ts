@@ -16,6 +16,7 @@ import type {
   PreviewRow,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
 import { CsvImportService } from './csv-import.service';
 import type { CsvRow } from './csv-import.service';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
@@ -535,6 +536,9 @@ export class PersonsService {
           email: emailKey ?? null,
           club_id: clubId,
           hema_ratings_id: row.hema_ratings_id ?? null,
+          date_of_birth: row.date_of_birth ?? null,
+          gender_category: row.gender_category ?? null,
+          notes: row.notes ?? null,
           claim_status: 'unclaimed',
           created_by_user_id: createdByUserId,
         })
@@ -1000,6 +1004,8 @@ export class PersonsService {
         club_id: clubId,
         email,
         hema_ratings_id: row.hema_ratings_id ?? null,
+        date_of_birth: row.date_of_birth ?? null,
+        gender_category: row.gender_category ?? null,
         is_fighter: true,
         claimed_by_user_id: null,
       })
@@ -1033,10 +1039,28 @@ export class PersonsService {
     }
 
     if (gp) {
+      const globalPersonId = (gp as { id: string }).id;
       await this.supabase.service
         .from('persons')
-        .update({ global_person_id: (gp as { id: string }).id })
+        .update({ global_person_id: globalPersonId })
         .eq('id', personId);
+      // Set weapons on the freshly created global profile only. Linking to an
+      // existing profile leaves its curated weapons untouched.
+      if (row.weapons) {
+        try {
+          await replaceFighterWeaponsFromCell(
+            this.supabase.service as never,
+            globalPersonId,
+            row.weapons,
+          );
+        } catch (weaponsError) {
+          this.logger.warn(
+            `import: weapons set failed for global person ${globalPersonId}: ${
+              weaponsError instanceof Error ? weaponsError.message : String(weaponsError)
+            }`,
+          );
+        }
+      }
     }
   }
 

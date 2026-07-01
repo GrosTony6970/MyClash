@@ -626,4 +626,81 @@ describe('RegistrationsService', () => {
       expect(REGISTRATION_STATUS_TRANSITIONS['done']).toEqual([]);
     });
   });
+
+  // ── CSV import: seed / status / waitlist_position coverage ──────────────────
+
+  describe('importCsv — seed / status / waitlist columns', () => {
+    // Self-contained mock (mockImplementation, not the ordered once-queue) so
+    // the person lookup + registration insert per row resolve deterministically.
+    function setupImportMock() {
+      const inserted: Record<string, unknown>[] = [];
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'persons') {
+          const chain: Record<string, unknown> = {};
+          chain['select'] = () => chain;
+          chain['eq'] = () => chain;
+          chain['maybeSingle'] = () => Promise.resolve({ data: { id: 'person-1' }, error: null });
+          return chain;
+        }
+        // registrations
+        const chain: Record<string, unknown> = {};
+        chain['insert'] = (payload: Record<string, unknown>) => {
+          inserted.push(payload);
+          return Promise.resolve({ error: null });
+        };
+        chain['select'] = () => chain;
+        chain['eq'] = () => chain;
+        chain['order'] = () => chain;
+        chain['limit'] = () => chain;
+        chain['maybeSingle'] = () => Promise.resolve({ data: null, error: null });
+        return chain;
+      });
+      return { inserted };
+    }
+
+    it('imports seed + status + waitlist_position', async () => {
+      const { inserted } = setupImportMock();
+      const csv = 'email,bib_number,seed,status,waitlist_position\na@b.c,10,3,waitlist,2';
+      const report = await service.importCsv('t-1', Buffer.from(csv));
+      expect(report.created).toBe(1);
+      expect(inserted[0]).toMatchObject({
+        bib_number: 10,
+        seed: 3,
+        status: 'waitlist',
+        waitlist_position: 2,
+      });
+    });
+
+    it('forces waitlist_position to null for non-waitlist statuses', async () => {
+      const { inserted } = setupImportMock();
+      const csv = 'email,bib_number,status,waitlist_position\na@b.c,10,registered,5';
+      const report = await service.importCsv('t-1', Buffer.from(csv));
+      expect(report.created).toBe(1);
+      expect(inserted[0]).toMatchObject({ status: 'registered', waitlist_position: null });
+    });
+
+    it('rejects an invalid status', async () => {
+      setupImportMock();
+      const csv = 'email,bib_number,status\na@b.c,10,vip';
+      const report = await service.importCsv('t-1', Buffer.from(csv));
+      expect(report.created).toBe(0);
+      expect(report.errors[0]).toContain('invalid status');
+    });
+
+    it('requires waitlist_position when status is waitlist', async () => {
+      setupImportMock();
+      const csv = 'email,bib_number,status\na@b.c,10,waitlist';
+      const report = await service.importCsv('t-1', Buffer.from(csv));
+      expect(report.created).toBe(0);
+      expect(report.errors[0]).toContain('requires waitlist_position');
+    });
+
+    it('rejects a non-numeric seed', async () => {
+      setupImportMock();
+      const csv = 'email,bib_number,seed\na@b.c,10,abc';
+      const report = await service.importCsv('t-1', Buffer.from(csv));
+      expect(report.created).toBe(0);
+      expect(report.errors[0]).toContain('invalid seed');
+    });
+  });
 });

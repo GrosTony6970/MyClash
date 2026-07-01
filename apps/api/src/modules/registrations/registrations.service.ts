@@ -12,6 +12,15 @@ import {
   type CreateRegistrationDto,
 } from './dto/registrations.dto';
 
+// Mirrors the DB CHECK from migration 0078 (registrations status set).
+const ALLOWED_IMPORT_STATUSES: readonly string[] = [
+  'registered',
+  'checked_in',
+  'withdrawn',
+  'disqualified',
+  'waitlist',
+];
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -292,11 +301,55 @@ export class RegistrationsService {
         ? parseInt(normalized['bib_number'], 10)
         : await this.nextBibNumber(tournamentId);
 
+      // Optional status — defaults to 'registered'; must be one of the allowed
+      // values (matches the DB CHECK from migration 0078).
+      const rawStatus = (normalized['status'] ?? '').trim().toLowerCase();
+      let status = 'registered';
+      if (rawStatus) {
+        if (!ALLOWED_IMPORT_STATUSES.includes(rawStatus)) {
+          report.errors.push(`Row ${rowNum}: invalid status "${rawStatus}"`);
+          continue;
+        }
+        status = rawStatus;
+      }
+
+      // Optional seed.
+      let seed: number | null = null;
+      const seedRaw = (normalized['seed'] ?? '').trim();
+      if (seedRaw) {
+        const parsed = Number.parseInt(seedRaw, 10);
+        if (Number.isNaN(parsed)) {
+          report.errors.push(`Row ${rowNum}: invalid seed "${seedRaw}"`);
+          continue;
+        }
+        seed = parsed;
+      }
+
+      // Optional waitlist_position. The DB CHECK requires it (>= 1) exactly when
+      // status='waitlist' and forbids it otherwise — enforce the same here.
+      let waitlistPosition: number | null = null;
+      const waitlistRaw = (normalized['waitlist_position'] ?? '').trim();
+      if (waitlistRaw) {
+        const parsed = Number.parseInt(waitlistRaw, 10);
+        if (Number.isNaN(parsed) || parsed < 1) {
+          report.errors.push(`Row ${rowNum}: invalid waitlist_position "${waitlistRaw}"`);
+          continue;
+        }
+        waitlistPosition = parsed;
+      }
+      if (status === 'waitlist' && waitlistPosition === null) {
+        report.errors.push(`Row ${rowNum}: status "waitlist" requires waitlist_position (>= 1)`);
+        continue;
+      }
+      if (status !== 'waitlist') waitlistPosition = null;
+
       const { error } = await this.supabase.service.from('registrations').insert({
         tournament_id: tournamentId,
         person_id: personId,
         bib_number: bibNumber,
-        status: 'registered',
+        seed,
+        status,
+        waitlist_position: waitlistPosition,
       });
 
       if (error) {

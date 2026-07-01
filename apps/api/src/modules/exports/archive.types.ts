@@ -40,6 +40,24 @@ export interface ArchiveTables {
   workshopInstructors: ArchiveRow[];
   workshopSessions: ArchiveRow[];
   workshopEnrollments: ArchiveRow[];
+  workshopBreaks: ArchiveRow[];
+  eventProgrammeBlocks: ArchiveRow[];
+  refereeSkills: ArchiveRow[];
+  eventReferees: ArchiveRow[];
+  eventRefereeTournaments: ArchiveRow[];
+  eventRefereeDays: ArchiveRow[];
+  eventHiddenSkills: ArchiveRow[];
+  eventInstructors: ArchiveRow[];
+  eventSlotConfigDefault: ArchiveRow[];
+  eventSlotConfigDefaultSkills: ArchiveRow[];
+  tournamentSlotConfig: ArchiveRow[];
+  tournamentSlotAllowedSkills: ArchiveRow[];
+  tournamentPhaseVenues: ArchiveRow[];
+  eventVenues: ArchiveRow[];
+  refereeCompensationEventSettings: ArchiveRow[];
+  matchPenalties: ArchiveRow[];
+  matchForfeits: ArchiveRow[];
+  tournamentPenaltyReviews: ArchiveRow[];
 }
 
 export interface TournamentArchiveReports {

@@ -10,6 +10,7 @@ import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
+import { replaceFighterWeaponsFromCell } from './weapon-import.util';
 // Value imports (NOT `import type`) — these are DI-injected, so the runtime
 // needs the class metadata preserved.
 import { PhasesService } from '../phases/phases.service';
@@ -1411,6 +1412,8 @@ export class FightersService {
         clubLabel: string | null;
         clubAbbreviation: string | null;
         clubCity: string | null;
+        genderCategory: string | null;
+        weapons: string | null;
         isFighter: boolean;
         isReferee: boolean;
         isWorkshopParticipant: boolean;
@@ -1474,6 +1477,8 @@ export class FightersService {
           clubLabel: null,
           clubAbbreviation: null,
           clubCity: null,
+          genderCategory: null,
+          weapons: null,
           isFighter: false,
           isReferee: false,
           isWorkshopParticipant: false,
@@ -1502,6 +1507,8 @@ export class FightersService {
           clubLabel: row.club ?? null,
           clubAbbreviation: row.club_abv ?? null,
           clubCity: row.club_city ?? null,
+          genderCategory: row.gender_category ?? null,
+          weapons: row.weapons ?? null,
           isFighter: parseBoolCell(row.is_fighter),
           isReferee: parseBoolCell(row.is_referee),
           isWorkshopParticipant: parseBoolCell(row.is_workshop_participant),
@@ -1583,12 +1590,14 @@ export class FightersService {
         hema_ratings_id: decision.hemaRatingsId?.trim() || null,
         email: emailRaw,
         date_of_birth: dobRaw,
+        gender_category: decision.genderCategory?.trim() || null,
         is_fighter: decision.isFighter ? 'true' : 'false',
         is_referee: decision.isReferee ? 'true' : 'false',
         is_workshop_participant: decision.isWorkshopParticipant ? 'true' : 'false',
       };
 
       try {
+        let globalPersonId: string | null = null;
         if (decision.action === 'overwrite') {
           if (!decision.targetGlobalPersonId) {
             failed.push({
@@ -1605,18 +1614,31 @@ export class FightersService {
             failed.push({ index: decision.index, reason: error.message });
             continue;
           }
+          globalPersonId = decision.targetGlobalPersonId;
           updated++;
         } else {
           const baseSlug = slugify(displayName);
           const slug = `${baseSlug}-${Date.now().toString(36)}`;
-          const { error } = await this.supabase.service
+          const { data, error } = await this.supabase.service
             .from('global_persons')
-            .insert({ slug, ...payload });
+            .insert({ slug, ...payload })
+            .select('id')
+            .single();
           if (error) {
             failed.push({ index: decision.index, reason: error.message });
             continue;
           }
+          globalPersonId = data ? String((data as Row)['id']) : null;
           created++;
+        }
+        // Weapons live on global_persons via fighter_weapons; a blank cell is a
+        // no-op, so it never clears a profile's existing weapons.
+        if (globalPersonId && decision.weapons) {
+          await replaceFighterWeaponsFromCell(
+            this.supabase.service as never,
+            globalPersonId,
+            decision.weapons,
+          );
         }
       } catch (err) {
         failed.push({

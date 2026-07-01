@@ -31,6 +31,8 @@ interface PreviewRow {
     clubLabel: string | null;
     clubAbbreviation: string | null;
     clubCity: string | null;
+    genderCategory: string | null;
+    weapons: string | null;
     isFighter: boolean;
     isReferee: boolean;
     isWorkshopParticipant: boolean;
@@ -127,6 +129,8 @@ export default function GlobalPersonsImportPage() {
           clubLabel: row.fields.clubLabel ?? undefined,
           clubAbbreviation: row.fields.clubAbbreviation ?? undefined,
           clubCity: row.fields.clubCity ?? undefined,
+          genderCategory: row.fields.genderCategory ?? undefined,
+          weapons: row.fields.weapons ?? undefined,
           isFighter: row.fields.isFighter,
           isReferee: row.fields.isReferee,
           isWorkshopParticipant: row.fields.isWorkshopParticipant,

@@ -62,6 +62,21 @@ Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open,competitor`;
       expect(result.invalid).toHaveLength(0);
     });
 
+    it('parses gender_category, notes, and weapons columns', () => {
+      const csv = `given_name,family_name,gender_category,notes,weapons
+Jean,Dupont,M,Left-handed,Longsword:intermediate|Rapier
+Marie,Lefevre,,,`;
+      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      expect(result.invalid).toHaveLength(0);
+      expect(result.rows[0]?.gender_category).toBe('M');
+      expect(result.rows[0]?.notes).toBe('Left-handed');
+      expect(result.rows[0]?.weapons).toBe('Longsword:intermediate|Rapier');
+      // blank optional cells stay undefined (not empty strings)
+      expect(result.rows[1]?.gender_category).toBeUndefined();
+      expect(result.rows[1]?.notes).toBeUndefined();
+      expect(result.rows[1]?.weapons).toBeUndefined();
+    });
+
     it('accepts rows with missing email', () => {
       const csv = `given_name,family_name,email
 Jean,Dupont,

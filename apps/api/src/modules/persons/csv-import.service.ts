@@ -13,6 +13,12 @@ export interface CsvRow {
   club_abv?: string;
   club_city?: string;
   hema_ratings_id?: string;
+  /** Free-text gender/category label (persons.gender_category, global_persons.gender_category). */
+  gender_category?: string;
+  /** Organizer notes (event persons.notes only). */
+  notes?: string;
+  /** Pipe-separated weapons, first = favorite, optional level: "Longsword:intermediate|Rapier". */
+  weapons?: string;
   event_codes?: string;
   roles?: string;
   is_fighter?: string;
@@ -188,6 +194,9 @@ export class CsvImportService {
         club_abv: (normalized['club_abv'] ?? '').trim() || undefined,
         club_city: (normalized['club_city'] ?? '').trim() || undefined,
         hema_ratings_id: (normalized['hema_ratings_id'] ?? '').trim() || undefined,
+        gender_category: (normalized['gender_category'] ?? '').trim() || undefined,
+        notes: (normalized['notes'] ?? '').trim() || undefined,
+        weapons: (normalized['weapons'] ?? '').trim() || undefined,
         event_codes: (normalized['event_codes'] ?? '').trim() || undefined,
         roles: (normalized['roles'] ?? '').trim() || undefined,
         is_fighter: (normalized['is_fighter'] ?? '').trim() || undefined,

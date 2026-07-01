@@ -23,7 +23,21 @@ interface FighterRow {
   fullName: string; // "Firstname Lastname"
   clubName: string;
   nationality: string; // 2-letter country code
+  gender: string; // HEMA Ratings token: 'M', 'F', or '' (mixed/unknown)
   hemaRatingsId: string; // numeric string or empty
+}
+
+/**
+ * Map a free-text persons.gender_category to the HEMA Ratings gender token.
+ * HEMA Ratings expects 'M' or 'F'; mixed/open/unknown categories export blank.
+ * Recognizes English + French spellings (male/homme/masculin, female/femme…).
+ */
+function hemaGender(genderCategory: string | null | undefined): string {
+  const value = (genderCategory ?? '').trim().toLowerCase();
+  if (!value) return '';
+  if (/^(m|male|man|men|homme|masculin|h)\b/.test(value) || value === 'm') return 'M';
+  if (/^(f|female|woman|women|w|femme|feminin|féminin)\b/.test(value) || value === 'f') return 'F';
+  return '';
 }
 
 interface MatchResultRow {
@@ -47,7 +61,7 @@ export class ExportsService {
       .from('persons')
       .select(
         `
-        given_name, family_name, hema_ratings_id,
+        given_name, family_name, hema_ratings_id, gender_category,
         clubs ( name, country_code )
       `,
       )
@@ -62,6 +76,7 @@ export class ExportsService {
         fullName: `${row['given_name'] as string} ${row['family_name'] as string}`,
         clubName: club?.name ?? '',
         nationality: club?.country_code ?? '',
+        gender: hemaGender(row['gender_category'] as string | null | undefined),
         hemaRatingsId: (row['hema_ratings_id'] as string | null) ?? '',
       };
     });
@@ -280,7 +295,7 @@ export class ExportsService {
           this.csvEscape(r.fullName),
           this.csvEscape(r.clubName),
           r.nationality,
-          '', // Gender — kept for backward compatibility, always empty
+          r.gender, // 'M' / 'F' / '' — mapped from persons.gender_category
           r.hemaRatingsId,
         ].join(','),
       )
