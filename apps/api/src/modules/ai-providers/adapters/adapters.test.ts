@@ -24,9 +24,19 @@ vi.mock('@mistralai/mistralai', () => ({
   })),
 }));
 
+// ── Google (Gemini) mock ───────────────────────────────────────────────────
+const mockGenerateContent = vi.fn();
+const mockGoogleList = vi.fn();
+vi.mock('@google/genai', () => ({
+  GoogleGenAI: vi.fn().mockImplementation(() => ({
+    models: { generateContent: mockGenerateContent, list: mockGoogleList },
+  })),
+}));
+
 import { AnthropicAdapter } from './anthropic.adapter';
 import { OpenAIAdapter } from './openai.adapter';
 import { MistralAdapter } from './mistral.adapter';
+import { GoogleAdapter } from './google.adapter';
 import type { GenerationRequest } from './provider-adapter.interface';
 
 const baseRequest: GenerationRequest = {
@@ -94,7 +104,19 @@ describe('AnthropicAdapter', () => {
     expect(arg['model']).toBe('claude-opus-4-8');
   });
 
-  it('includes temperature for models that support it (Sonnet 4.6)', async () => {
+  it('omits temperature for Sonnet 5 (rejects sampling params)', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+      stop_reason: 'end_turn',
+    });
+    await adapter.generate('key-123', { ...baseRequest, model: 'claude-sonnet-5' });
+    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(arg).not.toHaveProperty('temperature');
+    expect(arg['model']).toBe('claude-sonnet-5');
+  });
+
+  it('includes temperature for models that support it (Haiku 4.5)', async () => {
     mockCreate.mockResolvedValue({
       content: [{ type: 'text', text: 'ok' }],
       usage: { input_tokens: 1, output_tokens: 1 },
@@ -102,7 +124,7 @@ describe('AnthropicAdapter', () => {
     });
     await adapter.generate('key-123', {
       ...baseRequest,
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5',
       temperature: 0.3,
     });
     const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
@@ -121,7 +143,7 @@ describe('AnthropicAdapter', () => {
     });
     const result = await adapter.generate('key-123', {
       system: 'sys',
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       maxTokens: 100,
       temperature: 0.5,
       tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
@@ -204,7 +226,7 @@ describe('OpenAIAdapter', () => {
     });
     const result = await adapter.generate('key-oai', {
       system: 'sys',
-      model: 'gpt-4o',
+      model: 'gpt-5.5',
       maxTokens: 100,
       temperature: 0.5,
       tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
@@ -291,7 +313,7 @@ describe('MistralAdapter', () => {
     });
     const result = await adapter.generate('key-mist', {
       system: 'sys',
-      model: 'mistral-large-latest',
+      model: 'mistral-medium-3.5',
       maxTokens: 100,
       temperature: 0.5,
       tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
@@ -311,5 +333,104 @@ describe('MistralAdapter', () => {
     expect(arg.messages).toHaveLength(4);
     expect(arg.messages[0]?.['role']).toBe('system');
     expect(arg.messages[3]).toMatchObject({ role: 'tool', toolCallId: 'tc_0' });
+  });
+});
+
+// ── GoogleAdapter ──────────────────────────────────────────────────────────
+describe('GoogleAdapter', () => {
+  let adapter: GoogleAdapter;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    adapter = new GoogleAdapter();
+  });
+
+  it('returns text and token counts from a text response', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: 'Gemini reply',
+      functionCalls: undefined,
+      usageMetadata: { promptTokenCount: 8, candidatesTokenCount: 4 },
+      candidates: [{ finishReason: 'STOP' }],
+    });
+    const result = await adapter.generate('key-goog', {
+      ...baseRequest,
+      model: 'gemini-3.5-flash',
+    });
+    expect(result.text).toBe('Gemini reply');
+    expect(result.inputTokens).toBe(8);
+    expect(result.outputTokens).toBe(4);
+    expect(result.stopReason).toBe('end_turn');
+    expect(result.costEur).toBeGreaterThan(0);
+    // system prompt is mapped to config.systemInstruction; temperature included.
+    const arg = (mockGenerateContent.mock.calls[0] as unknown[])[0] as {
+      config: Record<string, unknown>;
+    };
+    expect(arg.config['systemInstruction']).toBe('You are helpful.');
+    expect(arg.config['temperature']).toBe(0.5);
+  });
+
+  it('extracts functionCalls as toolCall with tool_use stopReason', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: '',
+      functionCalls: [{ name: 'search', args: { q: 'hello' } }],
+      usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 6 },
+      candidates: [{ finishReason: 'STOP' }],
+    });
+    const result = await adapter.generate('key-goog', {
+      ...baseRequest,
+      model: 'gemini-3.5-flash',
+      tools: [{ name: 'search', description: 'Search', parameters: {} }],
+      toolChoice: 'required',
+    });
+    expect(result.toolCall).toEqual({ name: 'search', arguments: { q: 'hello' } });
+    expect(result.stopReason).toBe('tool_use');
+  });
+
+  it('maps a multi-turn transcript to Gemini contents and returns all tool calls', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: 'working',
+      functionCalls: [
+        { name: 'list_pools', args: { tournamentId: 't1' } },
+        { name: 'list_referees', args: {} },
+      ],
+      usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 12 },
+      candidates: [{ finishReason: 'STOP' }],
+    });
+    const result = await adapter.generate('key-goog', {
+      system: 'sys',
+      model: 'gemini-3.5-flash',
+      maxTokens: 100,
+      temperature: 0.5,
+      tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
+      messages: [
+        { role: 'user', content: 'set up pools' },
+        { role: 'assistant', toolCalls: [{ id: 'tc_0', name: 'list_tournaments', arguments: {} }] },
+        { role: 'tool', toolResults: [{ toolCallId: 'tc_0', content: '[]' }] },
+      ],
+    });
+    expect(result.toolCalls).toHaveLength(2);
+    expect(result.toolCalls?.[0]).toEqual({
+      id: 'call_0',
+      name: 'list_pools',
+      arguments: { tournamentId: 't1' },
+    });
+    // user + assistant(model) + tool-result(user) = 3 contents; system is separate.
+    const arg = (mockGenerateContent.mock.calls[0] as unknown[])[0] as {
+      contents: Array<{ role: string; parts: unknown[] }>;
+      config: Record<string, unknown>;
+    };
+    expect(arg.contents).toHaveLength(3);
+    expect(arg.contents[0]?.role).toBe('user');
+    expect(arg.contents[1]?.role).toBe('model');
+    expect(arg.contents[2]?.role).toBe('user');
+    expect(arg.config['systemInstruction']).toBe('sys');
+  });
+
+  it('lists models and strips the models/ prefix', async () => {
+    mockGoogleList.mockResolvedValue([
+      { name: 'models/gemini-3.5-flash' },
+      { name: 'models/gemini-3.1-pro-preview' },
+    ]);
+    const ids = await adapter.listModels('key-goog');
+    expect(ids).toEqual(['gemini-3.5-flash', 'gemini-3.1-pro-preview']);
   });
 });

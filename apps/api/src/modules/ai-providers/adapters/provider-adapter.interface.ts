@@ -1,4 +1,4 @@
-export type AIProvider = 'anthropic' | 'openai' | 'mistral';
+export type AIProvider = 'anthropic' | 'openai' | 'mistral' | 'google';
 
 export interface ToolDefinition {
   name: string;
@@ -62,6 +62,8 @@ export interface GenerationResult {
   /** Resolved model + provider that served the request (set by AIProvidersService). */
   model?: string;
   provider?: AIProvider;
+  /** Id of the stored key that served the request, for per-key usage metering. */
+  keyId?: string;
   inputTokens: number;
   outputTokens: number;
   costEur: number;
@@ -69,4 +71,9 @@ export interface GenerationResult {
 
 export interface ProviderAdapter {
   generate(apiKey: string, request: GenerationRequest): Promise<GenerationResult>;
+  /**
+   * List the model ids the provider currently serves for this key. Powers the
+   * super-admin model-sync drift report (registry vs. live). Read-only.
+   */
+  listModels(apiKey: string): Promise<string[]>;
 }

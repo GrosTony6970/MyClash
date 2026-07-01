@@ -8,6 +8,7 @@ import { HemaRatingsAdminController } from './hema-ratings-admin.controller';
 import { AIDataQualityController } from './ai-data-quality.controller';
 import { AIDataQualityService } from './ai-data-quality.service';
 import { AdminAuditLogService } from './admin-audit-log.service';
+import { AdminPlatformLogService } from './admin-platform-log.service';
 import { BackupsAdminController } from './backups.controller';
 import { AdminBackupsService } from './backups.service';
 import { AdminDashboardStatsService } from './admin-dashboard-stats.service';
@@ -28,7 +29,10 @@ import { FeatureFlagsAdminController } from './feature-flags.controller';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { LeagueScoringSystemsController } from './league-scoring-systems/league-scoring-systems.controller';
 import { LeagueScoringSystemsService } from './league-scoring-systems/league-scoring-systems.service';
+import { ModelSyncService } from './model-sync.service';
 import { OrganizationsAdminController } from './organizations.controller';
+import { PlatformLogAdminController } from './platform-log.controller';
+import { PlatformAIKeysController } from './platform-ai-keys.controller';
 import { PlatformAISettingsController } from './platform-ai-settings.controller';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 import { PlatformAIUsageController } from './platform-ai-usage.controller';
@@ -50,10 +54,12 @@ import { UsersAdminController } from './users.controller';
     FeatureFlagsAdminController,
     PublicFeatureFlagsController,
     AuditLogAdminController,
+    PlatformLogAdminController,
     ExchangeEditRequestsAdminController,
     SystemVersionsAdminController,
     BackupsAdminController,
     PlatformAISettingsController,
+    PlatformAIKeysController,
     PlatformAIUsageController,
     AIDataQualityController,
     AdminDashboardStatsController,
@@ -70,6 +76,7 @@ import { UsersAdminController } from './users.controller';
     AdminDashboardStatsService,
     AdminFeatureFlagsService,
     AdminAuditLogService,
+    AdminPlatformLogService,
     ExchangeEditRequestsAdminService,
     { provide: AdminSystemVersionsService, useFactory: () => new AdminSystemVersionsService() },
     {
@@ -83,6 +90,7 @@ import { UsersAdminController } from './users.controller';
     },
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
+    ModelSyncService,
     AIDataQualityService,
     LeagueScoringSystemsService,
     SuperAdminGuard,

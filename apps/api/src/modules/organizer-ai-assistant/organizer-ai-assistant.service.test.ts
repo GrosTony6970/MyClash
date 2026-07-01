@@ -94,6 +94,9 @@ describe('OrganizerAIAssistantService', () => {
       if (table === 'organization_ai_settings') {
         return chain({ data: { provider: 'openai' }, error: null });
       }
+      if (table === 'organization_ai_keys') {
+        return chain({ data: { id: 'k1' }, error: null });
+      }
       if (table === 'organizer_ai_assistant_drafts') {
         const c = chain({
           data: {
@@ -132,6 +135,9 @@ describe('OrganizerAIAssistantService', () => {
       }
       if (table === 'organization_ai_settings') {
         return chain({ data: { provider: 'openai' }, error: null });
+      }
+      if (table === 'organization_ai_keys') {
+        return chain({ data: { id: 'k1' }, error: null });
       }
       if (table === 'organizer_ai_assistant_drafts') {
         const c = chain({

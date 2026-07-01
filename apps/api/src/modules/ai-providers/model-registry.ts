@@ -40,9 +40,10 @@ export const MODEL_REGISTRY: Record<AIProvider, ModelInfo[]> = {
       pricing: { input: eur(5), output: eur(25) },
     },
     {
-      id: 'claude-sonnet-4-6',
-      label: 'Claude Sonnet 4.6',
-      supportsTemperature: true,
+      id: 'claude-sonnet-5',
+      label: 'Claude Sonnet 5',
+      // Sonnet 5, like Opus 4.7/4.8, 400s on non-default sampling params — omit.
+      supportsTemperature: false,
       pricing: { input: eur(3), output: eur(15) },
     },
     {
@@ -54,46 +55,78 @@ export const MODEL_REGISTRY: Record<AIProvider, ModelInfo[]> = {
   ],
   openai: [
     {
-      id: 'gpt-4o',
-      label: 'GPT-4o',
+      id: 'gpt-5.5',
+      label: 'GPT-5.5',
       isDefault: true,
       recommendedForToolUse: true,
+      // 5.5 re-enabled `temperature` (unlike the GPT-5 reasoning family).
       supportsTemperature: true,
-      pricing: { input: eur(2.5), output: eur(10) },
+      pricing: { input: eur(5), output: eur(30) },
     },
     {
-      id: 'gpt-4o-mini',
-      label: 'GPT-4o mini',
-      supportsTemperature: true,
-      pricing: { input: eur(0.15), output: eur(0.6) },
+      id: 'gpt-5.6-sol',
+      label: 'GPT-5.6 Sol',
+      // 5.6 family: omit `temperature` unless confirmed accepted (omitting is
+      // always safe; sending it to a model that rejects it is a 400).
+      supportsTemperature: false,
+      pricing: { input: eur(5), output: eur(30) },
     },
     {
-      id: 'gpt-4-turbo',
-      label: 'GPT-4 Turbo',
-      supportsTemperature: true,
-      pricing: { input: eur(10), output: eur(30) },
+      id: 'gpt-5.6-terra',
+      label: 'GPT-5.6 Terra',
+      supportsTemperature: false,
+      pricing: { input: eur(2.5), output: eur(15) },
+    },
+    {
+      id: 'gpt-5.6-luna',
+      label: 'GPT-5.6 Luna',
+      supportsTemperature: false,
+      pricing: { input: eur(1), output: eur(6) },
     },
   ],
   mistral: [
     {
-      id: 'mistral-large-latest',
-      label: 'Mistral Large',
+      id: 'mistral-medium-3.5',
+      label: 'Mistral Medium 3.5',
       isDefault: true,
       recommendedForToolUse: true,
       supportsTemperature: true,
-      pricing: { input: eur(2), output: eur(6) },
+      pricing: { input: eur(1.5), output: eur(7.5) },
     },
     {
-      id: 'mistral-small-latest',
-      label: 'Mistral Small',
+      id: 'mistral-small-4',
+      label: 'Mistral Small 4',
       supportsTemperature: true,
-      pricing: { input: eur(0.1), output: eur(0.3) },
+      pricing: { input: eur(0.15), output: eur(0.6) },
     },
     {
       id: 'open-mistral-7b',
       label: 'Open Mistral 7B',
       supportsTemperature: true,
       pricing: { input: eur(0.025), output: eur(0.025) },
+    },
+  ],
+  google: [
+    {
+      id: 'gemini-3.5-flash',
+      label: 'Gemini 3.5 Flash',
+      isDefault: true,
+      recommendedForToolUse: true,
+      supportsTemperature: true,
+      pricing: { input: eur(1.5), output: eur(9) },
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      label: 'Gemini 3.1 Pro',
+      supportsTemperature: true,
+      // Base (≤200K context) tier; the registry stores flat pricing.
+      pricing: { input: eur(2), output: eur(12) },
+    },
+    {
+      id: 'gemini-3.1-flash-lite',
+      label: 'Gemini 3.1 Flash-Lite',
+      supportsTemperature: true,
+      pricing: { input: eur(0.25), output: eur(1.5) },
     },
   ],
 };
@@ -108,6 +141,19 @@ export function getModels(provider: AIProvider): ModelInfo[] {
 export function getDefaultModel(provider: AIProvider): ModelInfo {
   const models = getModels(provider);
   const found = models.find((m) => m.isDefault) ?? models[0];
+  if (!found) throw new Error(`No models registered for provider "${provider}"`);
+  return found;
+}
+
+/**
+ * The lowest input-priced model for a provider. Used for cheap bulk work (e.g.
+ * the data-quality ranking scan) so it never hardcodes a provider-specific id.
+ */
+export function getCheapestModel(provider: AIProvider): ModelInfo {
+  const found = getModels(provider).reduce<ModelInfo | undefined>(
+    (min, m) => (!min || m.pricing.input < min.pricing.input ? m : min),
+    undefined,
+  );
   if (!found) throw new Error(`No models registered for provider "${provider}"`);
   return found;
 }
@@ -165,5 +211,6 @@ export function getAllModelOptions(): Record<AIProvider, ModelOption[]> {
     anthropic: getModelOptions('anthropic'),
     openai: getModelOptions('openai'),
     mistral: getModelOptions('mistral'),
+    google: getModelOptions('google'),
   };
 }

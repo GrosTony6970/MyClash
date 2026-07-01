@@ -4,14 +4,14 @@ import { AIDataQualityService, detectPlaceholderName } from './ai-data-quality.s
 
 const fromMock = vi.fn();
 const generateMock = vi.fn();
-const getProviderConfigMock = vi.fn();
+const getActiveKeyInfoMock = vi.fn();
 
 const mockSupabase = {
   service: { from: fromMock },
 };
 
 const mockPlatformAI = {
-  getProviderConfig: getProviderConfigMock,
+  getActiveKeyInfo: getActiveKeyInfoMock,
   generate: generateMock,
 };
 
@@ -40,11 +40,7 @@ describe('AIDataQualityService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isEnabledMock.mockResolvedValue(false);
-    getProviderConfigMock.mockResolvedValue({
-      provider: 'openai',
-      hasKey: true,
-      updatedAt: '2026-05-11T00:00:00Z',
-    });
+    getActiveKeyInfoMock.mockResolvedValue({ id: 'p1', provider: 'openai' });
     generateMock.mockResolvedValue({
       text: JSON.stringify({
         confidence: 0.94,
@@ -59,7 +55,7 @@ describe('AIDataQualityService', () => {
   });
 
   it('rejects scans when the shared super-admin AI key is missing', async () => {
-    getProviderConfigMock.mockResolvedValue(null);
+    getActiveKeyInfoMock.mockResolvedValue(null);
     const service = new AIDataQualityService(
       mockSupabase as never,
       mockPlatformAI as never,

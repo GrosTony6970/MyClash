@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { AnthropicAdapter } from './adapters/anthropic.adapter';
+import { GoogleAdapter } from './adapters/google.adapter';
 import { MistralAdapter } from './adapters/mistral.adapter';
 import { OpenAIAdapter } from './adapters/openai.adapter';
 import type {
@@ -9,267 +9,247 @@ import type {
   GenerationResult,
   ProviderAdapter,
 } from './adapters/provider-adapter.interface';
-import { isValidModelForProvider, resolveModel } from './model-registry';
+import { loadAiKeySecret } from './ai-key-crypto';
+import {
+  AiKeyStore,
+  type AiKeyListItem,
+  type AiKeyScopeConfig,
+  type CreateKeyInput,
+  type ResolvedActiveKey,
+  type UpdateKeyInput,
+} from './ai-key-store';
+import { resolveModel } from './model-registry';
+import { BudgetExceededException } from '../ai-usage/budget-exceeded.exception';
 import { SupabaseService } from '../supabase/supabase.service';
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12;
-const TAG_LENGTH = 16;
+const ORG_SCOPE: AiKeyScopeConfig = {
+  keyTable: 'organization_ai_keys',
+  ownerColumn: 'organization_id',
+  usageTable: 'ai_usage_log',
+  usageKeyColumn: 'organization_ai_key_id',
+  usageTimeColumn: 'called_at',
+  setActiveFn: 'set_active_org_ai_key',
+};
+
+const FIGHTER_SCOPE: AiKeyScopeConfig = {
+  keyTable: 'fighter_ai_keys',
+  ownerColumn: 'global_person_id',
+  usageTable: 'fighter_ai_usage_log',
+  usageKeyColumn: 'fighter_ai_key_id',
+  usageTimeColumn: 'created_at',
+  setActiveFn: 'set_active_fighter_ai_key',
+};
+
+/** Org AI config (global ceiling + kill-switch flags). Keys live in organization_ai_keys. */
+export type OrgAIConfig = {
+  hasKey: boolean;
+  monthlyBudgetEur: number | null;
+  aiFeaturesDisabled: boolean;
+  organizerChatDisabled: boolean;
+  updatedAt: string | null;
+};
 
 @Injectable()
 export class AIProvidersService implements OnModuleInit {
   private secretKey!: Buffer;
   private adapters!: Record<AIProvider, ProviderAdapter>;
+  private orgKeys!: AiKeyStore;
+  private fighterKeys!: AiKeyStore;
 
   constructor(private readonly supabase: SupabaseService) {}
 
   onModuleInit() {
-    const secret = process.env['AI_KEY_SECRET'];
-    if (!secret) throw new Error('AI_KEY_SECRET env var is required');
-    this.secretKey = Buffer.from(secret, 'hex');
-    if (this.secretKey.length !== 32) {
-      throw new Error('AI_KEY_SECRET must be a 64-character hex string (32 bytes)');
-    }
+    this.secretKey = loadAiKeySecret();
     this.adapters = {
       anthropic: new AnthropicAdapter(),
       openai: new OpenAIAdapter(),
       mistral: new MistralAdapter(),
+      google: new GoogleAdapter(),
     };
+    this.orgKeys = new AiKeyStore(this.supabase, this.secretKey, ORG_SCOPE);
+    this.fighterKeys = new AiKeyStore(this.supabase, this.secretKey, FIGHTER_SCOPE);
   }
 
-  async saveKey(
-    orgId: string,
-    provider: AIProvider,
-    rawKey: string,
-    model?: string | null,
-  ): Promise<void> {
-    if (model != null && !isValidModelForProvider(provider, model)) {
-      throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
-    }
-    const { ciphertext, iv: ivBase64 } = this.encrypt(rawKey);
+  // ── Organization keys (multi-key CRUD) ─────────────────────────────────────
 
-    const { error } = await this.supabase.service
-      .from('organization_ai_settings')
-      .upsert({
-        organization_id: orgId,
-        provider,
-        api_key_enc: ciphertext,
-        api_key_iv: ivBase64,
-        model: model ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
-
-    if (error) throw new Error(error.message);
+  listKeys(orgId: string): Promise<AiKeyListItem[]> {
+    return this.orgKeys.list(orgId);
   }
 
-  async deleteKey(orgId: string): Promise<void> {
-    await this.supabase.service
-      .from('organization_ai_settings')
-      .delete()
-      .eq('organization_id', orgId);
+  createKey(orgId: string, input: CreateKeyInput, actorUserId?: string): Promise<AiKeyListItem> {
+    return this.orgKeys.create(orgId, input, actorUserId);
   }
 
-  async getProviderConfig(orgId: string): Promise<{
-    provider: AIProvider;
-    hasKey: true;
-    model: string | null;
-    monthlyBudgetEur: number | null;
-    aiFeaturesDisabled: boolean;
-    organizerChatDisabled: boolean;
-    updatedAt: string;
-  } | null> {
+  updateKey(orgId: string, id: string, input: UpdateKeyInput): Promise<AiKeyListItem> {
+    return this.orgKeys.update(orgId, id, input);
+  }
+
+  deleteKey(orgId: string, id: string): Promise<void> {
+    return this.orgKeys.delete(orgId, id);
+  }
+
+  activateKey(orgId: string, id: string): Promise<void> {
+    return this.orgKeys.activate(orgId, id);
+  }
+
+  hasActiveKey(orgId: string): Promise<boolean> {
+    return this.orgKeys.hasActiveKey(orgId);
+  }
+
+  // ── Organization config (budget ceiling + flags) ───────────────────────────
+
+  async getProviderConfig(orgId: string): Promise<OrgAIConfig | null> {
     const { data } = await this.supabase.service
       .from('organization_ai_settings')
-      .select(
-        'provider, model, monthly_budget_eur, ai_features_disabled, organizer_chat_disabled, updated_at',
-      )
+      .select('monthly_budget_eur, ai_features_disabled, organizer_chat_disabled, updated_at')
       .eq('organization_id', orgId)
       .maybeSingle();
-
-    if (!data) return null;
+    const hasKey = await this.orgKeys.hasActiveKey(orgId);
+    if (!data && !hasKey) return null;
     const row = data as {
-      provider: AIProvider;
-      model: string | null;
-      monthly_budget_eur: number | string | null;
+      monthly_budget_eur?: number | string | null;
       ai_features_disabled?: boolean | null;
       organizer_chat_disabled?: boolean | null;
-      updated_at: string;
-    };
+      updated_at?: string | null;
+    } | null;
     return {
-      provider: row.provider,
-      hasKey: true,
-      model: row.model ?? null,
-      monthlyBudgetEur: toNumberOrNull(row.monthly_budget_eur),
-      aiFeaturesDisabled: Boolean(row.ai_features_disabled),
-      organizerChatDisabled: Boolean(row.organizer_chat_disabled),
-      updatedAt: row.updated_at,
+      hasKey,
+      monthlyBudgetEur: toNumberOrNull(row?.monthly_budget_eur),
+      aiFeaturesDisabled: Boolean(row?.ai_features_disabled),
+      organizerChatDisabled: Boolean(row?.organizer_chat_disabled),
+      updatedAt: row?.updated_at ?? null,
     };
   }
 
-  /** Update just the org's monthly AI budget (NULL = unlimited). Requires an existing key row. */
+  /** Update the org monthly AI ceiling (NULL = unlimited). Upserts the config row. */
   async updateBudget(orgId: string, monthlyBudgetEur: number | null): Promise<void> {
-    const { error } = await this.supabase.service
-      .from('organization_ai_settings')
-      .update({ monthly_budget_eur: monthlyBudgetEur })
-      .eq('organization_id', orgId);
+    const { error } = await this.supabase.service.from('organization_ai_settings').upsert(
+      {
+        organization_id: orgId,
+        monthly_budget_eur: monthlyBudgetEur,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'organization_id' },
+    );
     if (error) throw new Error(error.message);
   }
 
   /**
    * Per-org AI availability overrides. An org can disable AI or just the chatbot
    * for itself; it can never re-enable what the platform kill-switch turned off
-   * (that's enforced at the call sites). Requires an existing settings row.
+   * (enforced at the call sites). Upserts the config row.
    */
   async updateFlags(
     orgId: string,
     flags: { aiFeaturesDisabled?: boolean; organizerChatDisabled?: boolean },
   ): Promise<void> {
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = {
+      organization_id: orgId,
+      updated_at: new Date().toISOString(),
+    };
     if (flags.aiFeaturesDisabled !== undefined)
       updates['ai_features_disabled'] = flags.aiFeaturesDisabled;
     if (flags.organizerChatDisabled !== undefined)
       updates['organizer_chat_disabled'] = flags.organizerChatDisabled;
     const { error } = await this.supabase.service
       .from('organization_ai_settings')
-      .update(updates)
-      .eq('organization_id', orgId);
+      .upsert(updates, { onConflict: 'organization_id' });
     if (error) throw new Error(error.message);
   }
+
+  // ── Organization generate (active key + per-key budget) ────────────────────
 
   async generate(orgId: string, request: GenerationRequest): Promise<GenerationResult> {
-    const { data } = await this.supabase.service
-      .from('organization_ai_settings')
-      .select('provider, api_key_enc, api_key_iv, model')
-      .eq('organization_id', orgId)
-      .maybeSingle();
-
-    if (!data) throw new NotFoundException('No AI provider configured for this organization');
-
-    const row = data as {
-      provider: AIProvider;
-      api_key_enc: string;
-      api_key_iv: string;
-      model: string | null;
-    };
-    const rawKey = this.decrypt(row.api_key_enc, row.api_key_iv);
-    const adapter = this.adapters[row.provider];
-    // Resolve the model centrally: a concrete id in the request wins; otherwise
-    // fall back to the org's stored model, then the provider's registry default.
-    // This fixes callers that pass the `'default'` sentinel (organizer-ai-assistant,
-    // tournament-query) — the SDK never sees an invalid model name.
-    const requested = request.model && request.model !== 'default' ? request.model : row.model;
-    const resolved = resolveModel(row.provider, requested);
-    const result = await adapter.generate(rawKey, { ...request, model: resolved.id });
-    // Surface the resolved model + provider so callers (AIUsageService) can log
-    // them to ai_usage_log for the consumption dashboard.
-    return { ...result, model: resolved.id, provider: row.provider };
+    const active = await this.orgKeys.resolveActiveKey(orgId);
+    if (!active) throw new NotFoundException('No AI provider configured for this organization');
+    await this.assertKeyBudget(this.orgKeys, active, 'organization-key');
+    return this.runAdapter(active, request);
   }
 
-  // ── Per-fighter BYOK (fighter_ai_settings) ────────────────────────────────
-  // A fighter brings their own provider key for personal AI insights. Same
-  // encryption + adapter dispatch as the org path, keyed by global_person_id.
+  // ── Per-fighter BYOK (fighter_ai_keys) ─────────────────────────────────────
 
-  async saveFighterKey(
+  listFighterKeys(globalPersonId: string): Promise<AiKeyListItem[]> {
+    return this.fighterKeys.list(globalPersonId);
+  }
+
+  createFighterKey(globalPersonId: string, input: CreateKeyInput): Promise<AiKeyListItem> {
+    return this.fighterKeys.create(globalPersonId, input);
+  }
+
+  updateFighterKey(
     globalPersonId: string,
-    provider: AIProvider,
-    rawKey: string,
-    model?: string | null,
-  ): Promise<void> {
-    if (model != null && !isValidModelForProvider(provider, model)) {
-      throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
-    }
-    const { ciphertext, iv } = this.encrypt(rawKey);
-    const { error } = await this.supabase.service
-      .from('fighter_ai_settings')
-      .upsert({
-        global_person_id: globalPersonId,
-        provider,
-        api_key_enc: ciphertext,
-        api_key_iv: iv,
-        model: model ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .select('global_person_id')
-      .single();
-    if (error) throw new Error(error.message);
+    id: string,
+    input: UpdateKeyInput,
+  ): Promise<AiKeyListItem> {
+    return this.fighterKeys.update(globalPersonId, id, input);
   }
 
-  async deleteFighterKey(globalPersonId: string): Promise<void> {
-    await this.supabase.service
-      .from('fighter_ai_settings')
-      .delete()
-      .eq('global_person_id', globalPersonId);
+  deleteFighterKey(globalPersonId: string, id: string): Promise<void> {
+    return this.fighterKeys.delete(globalPersonId, id);
   }
 
-  async getFighterConfig(
-    globalPersonId: string,
-  ): Promise<{
-    provider: AIProvider;
-    hasKey: true;
-    model: string | null;
-    updatedAt: string;
-  } | null> {
-    const { data } = await this.supabase.service
-      .from('fighter_ai_settings')
-      .select('provider, model, updated_at')
-      .eq('global_person_id', globalPersonId)
-      .maybeSingle();
-    if (!data) return null;
-    const row = data as { provider: AIProvider; model: string | null; updated_at: string };
-    return {
-      provider: row.provider,
-      hasKey: true,
-      model: row.model ?? null,
-      updatedAt: row.updated_at,
-    };
+  activateFighterKey(globalPersonId: string, id: string): Promise<void> {
+    return this.fighterKeys.activate(globalPersonId, id);
   }
 
-  /** Generate using the fighter's own key. Throws if they haven't configured one. */
+  hasActiveFighterKey(globalPersonId: string): Promise<boolean> {
+    return this.fighterKeys.hasActiveKey(globalPersonId);
+  }
+
+  /**
+   * Generate using the fighter's active key, enforcing its per-key budget and
+   * metering the call to fighter_ai_usage_log (fighters have no org/event
+   * budget — their key, their cost — but usage is still tracked per key).
+   */
   async generateForFighter(
     globalPersonId: string,
     request: GenerationRequest,
+    feature = 'fighter_insight',
   ): Promise<GenerationResult> {
-    const { data } = await this.supabase.service
-      .from('fighter_ai_settings')
-      .select('provider, api_key_enc, api_key_iv, model')
-      .eq('global_person_id', globalPersonId)
-      .maybeSingle();
-    if (!data) throw new NotFoundException('No AI provider configured for this fighter');
-    const row = data as {
-      provider: AIProvider;
-      api_key_enc: string;
-      api_key_iv: string;
-      model: string | null;
-    };
-    const rawKey = this.decrypt(row.api_key_enc, row.api_key_iv);
-    const adapter = this.adapters[row.provider];
-    const requested = request.model && request.model !== 'default' ? request.model : row.model;
-    const resolved = resolveModel(row.provider, requested);
-    const result = await adapter.generate(rawKey, { ...request, model: resolved.id });
-    return { ...result, model: resolved.id, provider: row.provider };
+    const active = await this.fighterKeys.resolveActiveKey(globalPersonId);
+    if (!active) throw new NotFoundException('No AI provider configured for this fighter');
+    await this.assertKeyBudget(this.fighterKeys, active, 'fighter-key');
+    const result = await this.runAdapter(active, request);
+    await this.supabase.service.from('fighter_ai_usage_log').insert({
+      fighter_ai_key_id: active.id,
+      global_person_id: globalPersonId,
+      feature,
+      provider: result.provider ?? active.provider,
+      model: result.model ?? null,
+      input_tokens: result.inputTokens,
+      output_tokens: result.outputTokens,
+      cost_eur: result.costEur,
+      created_at: new Date().toISOString(),
+    });
+    return result;
   }
 
-  private encrypt(rawKey: string): { ciphertext: string; iv: string } {
-    const iv = randomBytes(IV_LENGTH);
-    const cipher = createCipheriv(ALGORITHM, this.secretKey, iv);
-    const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    return {
-      ciphertext: Buffer.concat([encrypted, tag]).toString('base64'),
-      iv: iv.toString('base64'),
-    };
+  // ── Shared internals ───────────────────────────────────────────────────────
+
+  private async assertKeyBudget(
+    store: AiKeyStore,
+    active: ResolvedActiveKey,
+    scope: 'organization-key' | 'fighter-key',
+  ): Promise<void> {
+    if (active.monthlyBudgetEur === null) return;
+    const spent = await store.keyMonthlySpend(active.id);
+    if (spent >= active.monthlyBudgetEur) {
+      throw new BudgetExceededException(scope, active.monthlyBudgetEur, spent);
+    }
   }
 
-  private decrypt(ciphertext: string, ivBase64: string): string {
-    const buf = Buffer.from(ciphertext, 'base64');
-    const iv = Buffer.from(ivBase64, 'base64');
-    const encrypted = buf.subarray(0, buf.length - TAG_LENGTH);
-    const tag = buf.subarray(buf.length - TAG_LENGTH);
-    const decipher = createDecipheriv(ALGORITHM, this.secretKey, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+  private async runAdapter(
+    active: ResolvedActiveKey,
+    request: GenerationRequest,
+  ): Promise<GenerationResult> {
+    const adapter = this.adapters[active.provider];
+    // Resolve the model centrally: a concrete id in the request wins; otherwise
+    // fall back to the key's stored model, then the provider's registry default.
+    const requested = request.model && request.model !== 'default' ? request.model : active.model;
+    const resolved = resolveModel(active.provider, requested);
+    const result = await adapter.generate(active.apiKey, { ...request, model: resolved.id });
+    // Surface the resolved model + provider + key id so callers can meter usage.
+    return { ...result, model: resolved.id, provider: active.provider, keyId: active.id };
   }
 }
 

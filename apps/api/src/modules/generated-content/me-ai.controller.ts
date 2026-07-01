@@ -4,16 +4,19 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
-  Put,
   Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AIProvidersService } from '../ai-providers/ai-providers.service';
-import { SaveAISettingsDto } from '../ai-providers/dto/ai-settings.dto';
+import { CreateAiKeyDto, UpdateAiKeyDto } from '../ai-providers/dto/ai-key.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GeneratedContentService } from './generated-content.service';
 
@@ -49,29 +52,50 @@ export class MeAIController {
     private readonly supabase: SupabaseService,
   ) {}
 
-  // ── BYOK key ──────────────────────────────────────────────────────────────
+  // ── BYOK keys (multi-key) ───────────────────────────────────────────────────
 
-  @Get('ai-settings')
-  @ApiOperation({ summary: "Get the fighter's own AI key config" })
-  async getKey(@Req() req: FastifyRequest) {
+  @Get('ai-keys')
+  @ApiOperation({ summary: "List the fighter's own AI keys (masked, with spend)" })
+  async listKeys(@Req() req: FastifyRequest) {
     const gpid = await this.resolveGlobalPersonId(req);
-    return gpid ? this.providers.getFighterConfig(gpid) : null;
+    return gpid ? this.providers.listFighterKeys(gpid) : [];
   }
 
-  @Put('ai-settings')
-  @ApiOperation({ summary: "Save the fighter's own AI provider key" })
-  async saveKey(@Body() dto: SaveAISettingsDto, @Req() req: FastifyRequest) {
+  @Post('ai-keys')
+  @ApiOperation({ summary: "Add one of the fighter's own AI keys" })
+  async createKey(@Body() dto: CreateAiKeyDto, @Req() req: FastifyRequest) {
     const gpid = await this.requireGlobalPersonId(req);
-    await this.providers.saveFighterKey(gpid, dto.provider, dto.apiKey, dto.model ?? null);
-    return this.providers.getFighterConfig(gpid);
+    return this.providers.createFighterKey(gpid, dto);
   }
 
-  @Delete('ai-settings')
-  @ApiOperation({ summary: "Remove the fighter's AI key" })
-  async deleteKey(@Req() req: FastifyRequest) {
-    const gpid = await this.resolveGlobalPersonId(req);
-    if (gpid) await this.providers.deleteFighterKey(gpid);
-    return { deleted: true };
+  @Patch('ai-keys/:id')
+  @ApiOperation({ summary: "Update one of the fighter's AI keys (key optional)" })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async updateKey(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAiKeyDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const gpid = await this.requireGlobalPersonId(req);
+    return this.providers.updateFighterKey(gpid, id, dto);
+  }
+
+  @Delete('ai-keys/:id')
+  @HttpCode(204)
+  @ApiOperation({ summary: "Remove one of the fighter's AI keys" })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteKey(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const gpid = await this.requireGlobalPersonId(req);
+    await this.providers.deleteFighterKey(gpid, id);
+  }
+
+  @Post('ai-keys/:id/activate')
+  @ApiOperation({ summary: "Make this key the fighter's active AI key" })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async activateKey(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const gpid = await this.requireGlobalPersonId(req);
+    await this.providers.activateFighterKey(gpid, id);
+    return this.providers.listFighterKeys(gpid);
   }
 
   // ── Insight (resolves the caller's identity → fighter_insight entity) ──────

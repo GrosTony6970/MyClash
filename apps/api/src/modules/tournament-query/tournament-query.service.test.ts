@@ -37,6 +37,7 @@ function makeSupabase() {
         if (table === 'tournament_query_settings') return { data: null, error: null };
         if (table === 'organization_ai_settings')
           return { data: { provider: 'openai' }, error: null };
+        if (table === 'organization_ai_keys') return { data: { id: 'k1' }, error: null };
         return { data: null, error: null };
       }),
       single: vi.fn(async () => {
@@ -175,7 +176,7 @@ describe('TournamentQueryService', () => {
     supabase = makeSupabase();
     supabase.service.from.mockImplementation((table: string) => {
       const chain = makeSupabase().service.from(table);
-      if (table === 'organization_ai_settings') {
+      if (table === 'organization_ai_keys') {
         chain.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
       }
       return chain;

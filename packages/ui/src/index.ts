@@ -117,6 +117,17 @@ export type { DrawerProps } from './components/Drawer';
 export { PromptDialog, usePrompt } from './components/PromptDialog';
 export type { PromptDialogProps, PromptOptions } from './components/PromptDialog';
 
+export { AiKeysManager } from './components/AiKeysManager';
+export type { AiKeysManagerProps } from './components/AiKeysManager';
+export { AiKeyFormDialog } from './components/AiKeyFormDialog';
+export type {
+  AiKeyFormDialogProps,
+  AiKeyFormValues,
+  AiKeyFormInitial,
+  AiKeyModelOption,
+  AiKeyProvider,
+} from './components/AiKeyFormDialog';
+
 export { ToastProvider, useToast } from './components/Toast';
 export type { ToastVariant } from './components/Toast';
 

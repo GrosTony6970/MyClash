@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type {
+  AIProvider,
   GenerationRequest,
   GenerationResult,
 } from '../ai-providers/adapters/provider-adapter.interface';
+import { getCheapestModel } from '../ai-providers/model-registry';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import type { DataQualityFindingStatus } from './dto/data-quality.dto';
@@ -130,8 +132,8 @@ export class AIDataQualityService {
     if (await this.flags.isEnabled('disable_ai_features')) {
       throw new ServiceUnavailableException('AI features are temporarily disabled');
     }
-    const providerConfig = await this.platformAI.getProviderConfig();
-    if (!providerConfig) {
+    const activeKey = await this.platformAI.getActiveKeyInfo();
+    if (!activeKey) {
       throw new BadRequestException('Super admin AI key is not configured');
     }
 
@@ -142,8 +144,8 @@ export class AIDataQualityService {
       const findings = [];
 
       for (const candidate of candidates) {
-        const { ranking, usage } = await this.rankCandidate(candidate);
-        await this.logUsage(actorUserId, providerConfig.provider, usage);
+        const { ranking, usage, keyId } = await this.rankCandidate(candidate, activeKey.provider);
+        await this.logUsage(actorUserId, activeKey.provider, usage, keyId ?? activeKey.id);
         findings.push(this.toFindingRow(scan.id, candidate, ranking));
       }
 
@@ -310,7 +312,7 @@ export class AIDataQualityService {
     const { data, error } = await this.supabase.service
       .from('referee_qualifications')
       .select(
-        'id, person_id, global_person_id, global_persons(given_name, family_name, display_name)',
+        'id, person_id, global_person_id, global_persons!referee_qualifications_person_id_fkey(given_name, family_name, display_name)',
       );
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as RefereeQualificationRow[];
@@ -717,9 +719,13 @@ export class AIDataQualityService {
     };
   }
 
-  private async rankCandidate(candidate: Candidate): Promise<{
+  private async rankCandidate(
+    candidate: Candidate,
+    provider: AIProvider,
+  ): Promise<{
     ranking: AIRanking;
     usage: Pick<GenerationResult, 'inputTokens' | 'outputTokens' | 'costEur'>;
+    keyId?: string;
   }> {
     const request: GenerationRequest = {
       system:
@@ -731,7 +737,9 @@ export class AIDataQualityService {
         entityIds: candidate.entityIds,
         evidence: candidate.evidence,
       }),
-      model: 'gpt-4o-mini',
+      // Bulk ranking → use the provider's cheapest model rather than a hardcoded
+      // (provider-specific) id, so it stays correct across providers and models.
+      model: getCheapestModel(provider).id,
       maxTokens: 500,
       temperature: 0.1,
     };
@@ -744,6 +752,7 @@ export class AIDataQualityService {
         outputTokens: result.outputTokens,
         costEur: result.costEur,
       },
+      keyId: result.keyId,
     };
   }
 
@@ -773,11 +782,13 @@ export class AIDataQualityService {
     actorUserId: string,
     provider: string,
     usage: Pick<GenerationResult, 'inputTokens' | 'outputTokens' | 'costEur'>,
+    keyId?: string,
   ): Promise<void> {
     await this.supabase.service.from('platform_ai_usage_log').insert({
       actor_user_id: actorUserId,
       feature: 'super_admin_data_quality',
       provider,
+      platform_ai_key_id: keyId ?? null,
       input_tokens: usage.inputTokens,
       output_tokens: usage.outputTokens,
       cost_eur: usage.costEur,

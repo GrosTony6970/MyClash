@@ -1,156 +1,70 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import { useConfirm } from '@myclash/ui';
-import { useEffect, useState } from 'react';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { AiKeysManager } from '@myclash/ui';
+import { useCallback, useEffect, useState } from 'react';
 import { AiUsageView, type UsageRollup } from '../../../src/components/ai/AiUsageView';
 import { AiBudgetView } from '../../../src/components/ai/AiBudgetView';
 
-type AIProvider = 'anthropic' | 'openai' | 'mistral';
-type Tab = 'keys' | 'usage' | 'budget';
+type AIProvider = 'anthropic' | 'openai' | 'mistral' | 'google';
 
-interface ModelOption {
-  id: string;
-  label: string;
-  isDefault: boolean;
-  recommendedForToolUse: boolean;
-  supportsTemperature: boolean;
-}
-
-interface PlatformAISettings {
+interface ModelSyncReport {
   provider: AIProvider;
-  hasKey: true;
-  model: string | null;
-  monthlyBudgetEur: number | null;
-  updatedAt: string;
+  registered: string[];
+  live: string[];
+  newAtProvider: string[];
+  missingAtProvider: string[];
 }
 
-const TABS: { id: Tab; key: string }[] = [
-  { id: 'keys', key: 'admin.aiSettings.tabKeys' },
-  { id: 'usage', key: 'admin.aiSettings.tabUsage' },
-  { id: 'budget', key: 'admin.aiSettings.tabBudget' },
-];
-
-function defaultModelId(options: ModelOption[]): string {
-  return options.find((m) => m.isDefault)?.id ?? options[0]?.id ?? '';
+interface PlatformAIConfig {
+  monthlyBudgetEur: number | null;
+  updatedAt: string | null;
 }
 
 export default function AdminAISettingsPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const [settings, setSettings] = useState<PlatformAISettings | null>(null);
-  const [provider, setProvider] = useState<AIProvider>('openai');
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState<string>('');
-  const [models, setModels] = useState<Record<AIProvider, ModelOption[]>>({
-    anthropic: [],
-    openai: [],
-    mistral: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('keys');
+  const [config, setConfig] = useState<PlatformAIConfig | null>(null);
   const [rollup, setRollup] = useState<UsageRollup | null>(null);
-  const { confirm, confirmDialog } = useConfirm();
-  const { locale } = useI18n();
+  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncReport, setSyncReport] = useState<ModelSyncReport | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const refreshRollup = useCallback(async () => {
+    const res = await fetch(`${apiUrl}/api/v1/admin/ai-usage/summary`, { credentials: 'include' });
+    if (res.ok) setRollup((await res.json()) as UsageRollup);
+  }, [apiUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
-
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/ai/models`, { credentials: 'include', signal: controller.signal })
-        .then((res) => (res.ok ? (res.json() as Promise<Record<AIProvider, ModelOption[]>>) : null))
-        .catch(() => null),
-      fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }).then(async (res) => {
-        if (res.status === 404 || res.status === 204) return null;
+    fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
         if (res.status === 401 || res.status === 403) {
           throw new Error(t('admin.aiSettings.accessDenied'));
         }
         if (!res.ok) throw new Error(t('admin.aiSettings.loadError'));
-        return (await res.json()) as PlatformAISettings | null;
-      }),
-      fetch(`${apiUrl}/api/v1/admin/ai-usage/summary`, {
-        credentials: 'include',
-        signal: controller.signal,
-      })
-        .then((res) => (res.ok ? (res.json() as Promise<UsageRollup>) : null))
-        .catch(() => null),
-    ])
-      .then(([modelData, data, usage]) => {
-        if (modelData) setModels(modelData);
-        setSettings(data);
-        const nextProvider = data?.provider ?? 'openai';
-        setProvider(nextProvider);
-        setModel(data?.model ?? defaultModelId(modelData?.[nextProvider] ?? []));
-        if (usage) setRollup(usage);
+        setConfig((await res.json()) as PlatformAIConfig);
         setError(null);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           setError(err instanceof Error ? err.message : t('admin.aiSettings.loadError'));
         }
+      });
+    fetch(`${apiUrl}/api/v1/admin/ai-usage/summary`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<UsageRollup>) : null))
+      .then((usage) => {
+        if (usage) setRollup(usage);
       })
-      .finally(() => setLoading(false));
-
+      .catch(() => {});
     return () => controller.abort();
   }, [apiUrl]);
-
-  async function refreshRollup() {
-    const res = await fetch(`${apiUrl}/api/v1/admin/ai-usage/summary`, { credentials: 'include' });
-    if (res.ok) setRollup((await res.json()) as UsageRollup);
-  }
-
-  function handleProviderChange(next: AIProvider) {
-    setProvider(next);
-    const providerModels = models[next] ?? [];
-    setModel((prev) =>
-      providerModels.some((m) => m.id === prev) ? prev : defaultModelId(providerModels),
-    );
-  }
-
-  async function saveSettings() {
-    setSaving(true);
-    setMessage(null);
-    setError(null);
-    const res = await fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ provider, apiKey, model: model || null }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      setError(t('admin.aiSettings.saveError'));
-      return;
-    }
-    setApiKey('');
-    setSettings((await res.json()) as PlatformAISettings);
-    setMessage(t('admin.aiSettings.saveSuccess'));
-  }
-
-  async function removeSettings() {
-    if (!(await confirm({ title: t('admin.aiSettings.removeConfirm'), danger: true }))) return;
-    setSaving(true);
-    setMessage(null);
-    setError(null);
-    const res = await fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    setSaving(false);
-    if (!res.ok && res.status !== 204) {
-      setError(t('admin.aiSettings.removeError'));
-      return;
-    }
-    setSettings(null);
-    setApiKey('');
-    setMessage(t('admin.aiSettings.removeSuccess'));
-  }
 
   async function saveBudget(value: number | null) {
     const res = await fetch(`${apiUrl}/api/v1/admin/ai-settings/budget`, {
@@ -160,11 +74,30 @@ export default function AdminAISettingsPage() {
       body: JSON.stringify({ monthlyBudgetEur: value }),
     });
     if (!res.ok) throw new Error(t('admin.aiSettings.budgetError'));
-    setSettings((await res.json()) as PlatformAISettings);
+    setConfig((await res.json()) as PlatformAIConfig);
     await refreshRollup();
   }
 
-  const providerModels = models[provider] ?? [];
+  async function runModelSync() {
+    setSyncing(true);
+    setSyncError(null);
+    setSyncReport(null);
+    try {
+      // No body → diff the active platform key's provider against its live models.
+      const res = await fetch(`${apiUrl}/api/v1/admin/ai-settings/model-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(t('admin.aiSettings.modelSync.error'));
+      setSyncReport((await res.json()) as ModelSyncReport);
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : t('admin.aiSettings.modelSync.error'));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <main className="p-8 max-w-3xl">
@@ -175,156 +108,92 @@ export default function AdminAISettingsPage() {
         <p className="text-muted text-sm mt-1">{t('admin.aiSettings.description')}</p>
       </div>
 
-      <div className="mb-6 flex gap-1 border-b border-border">
-        {TABS.map((tabDef) => (
-          <button
-            key={tabDef.id}
-            type="button"
-            onClick={() => setTab(tabDef.id)}
-            className={[
-              '-mb-px border-b-2 px-4 py-2 text-sm font-medium',
-              tab === tabDef.id
-                ? 'border-accent text-foreground'
-                : 'border-transparent text-muted hover:text-foreground-secondary',
-            ].join(' ')}
-          >
-            {t(tabDef.key)}
-          </button>
-        ))}
-      </div>
-
       {error && (
         <div className="bg-danger/10 border border-danger/30 text-danger rounded-md px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
-      {message && (
-        <div className="bg-success/10 border border-success/30 text-success rounded-md px-4 py-3 mb-4 text-sm">
-          {message}
-        </div>
-      )}
 
-      {tab === 'keys' && (
+      <div className="space-y-6">
+        <AiKeysManager
+          apiBase={`${apiUrl}/api/v1/admin/ai-keys`}
+          modelsUrl={`${apiUrl}/api/v1/ai/models`}
+          t={t}
+          ns="admin.aiSettings"
+          onChanged={() => void refreshRollup()}
+        />
+
         <section className="border border-border rounded-lg p-5">
-          <div className="mb-5 rounded-md border border-border bg-background px-4 py-3 text-sm text-foreground-secondary">
-            {loading
-              ? t('common.loading')
-              : settings
-                ? t('admin.aiSettings.currentKey', {
-                    provider: settings.provider,
-                    date: new Date(settings.updatedAt).toLocaleString(locale),
-                  })
-                : t('admin.aiSettings.noKey')}
-          </div>
-
-          <label
-            htmlFor="platform-ai-provider"
-            className="block text-sm font-medium text-foreground-secondary mb-2"
-          >
-            {t('admin.aiSettings.provider')}
-          </label>
-          <select
-            id="platform-ai-provider"
-            aria-label={t('admin.aiSettings.provider')}
-            value={provider}
-            onChange={(event) => handleProviderChange(event.target.value as AIProvider)}
-            className="mb-4 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-          >
-            <option value="openai">{t('admin.aiSettings.providers.openai')}</option>
-            <option value="anthropic">{t('admin.aiSettings.providers.anthropic')}</option>
-            <option value="mistral">{t('admin.aiSettings.providers.mistral')}</option>
-          </select>
-
-          <label
-            htmlFor="platform-ai-model"
-            className="block text-sm font-medium text-foreground-secondary mb-2"
-          >
-            {t('admin.aiSettings.model')}
-          </label>
-          <select
-            id="platform-ai-model"
-            aria-label={t('admin.aiSettings.model')}
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-            disabled={providerModels.length === 0}
-            className="mb-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
-          >
-            {providerModels.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.recommendedForToolUse
-                  ? `${m.label} — ${t('admin.aiSettings.modelRecommended')}`
-                  : m.label}
-              </option>
-            ))}
-          </select>
-          <p className="mb-4 text-xs text-muted">{t('admin.aiSettings.modelHint')}</p>
-
-          <label
-            htmlFor="platform-ai-key"
-            className="block text-sm font-medium text-foreground-secondary mb-2"
-          >
-            {t('admin.aiSettings.apiKey')}
-          </label>
-          <input
-            id="platform-ai-key"
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder={t('admin.aiSettings.apiKeyPlaceholder')}
-            className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          <h2 className="mb-4 font-display text-lg font-semibold text-foreground">
+            {t('admin.aiSettings.budgetTitle')}
+          </h2>
+          <AiBudgetView
+            budgetEur={config?.monthlyBudgetEur ?? null}
+            spentEur={rollup?.total.costEur ?? 0}
+            onSave={saveBudget}
+            t={t}
           />
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                void saveSettings();
-              }}
-              disabled={saving || apiKey.trim().length < 10}
-              className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-            >
-              {saving ? t('admin.aiSettings.saving') : t('admin.aiSettings.save')}
-            </button>
-            {settings && (
-              <button
-                type="button"
-                onClick={() => {
-                  void removeSettings();
-                }}
-                disabled={saving}
-                className="border border-border hover:bg-background disabled:opacity-50 py-2 px-4 rounded-md text-sm"
-              >
-                {t('admin.aiSettings.remove')}
-              </button>
-            )}
-          </div>
         </section>
-      )}
 
-      {tab === 'usage' && (
         <section className="border border-border rounded-lg p-5">
           <h2 className="mb-4 font-display text-lg font-semibold text-foreground">
             {t('admin.aiSettings.usageTitle')}
           </h2>
           <AiUsageView rollup={rollup} t={t} />
         </section>
-      )}
 
-      {tab === 'budget' && (
         <section className="border border-border rounded-lg p-5">
-          <h2 className="mb-4 font-display text-lg font-semibold text-foreground">
-            {t('admin.aiSettings.budgetTitle')}
-          </h2>
-          <AiBudgetView
-            budgetEur={settings?.monthlyBudgetEur ?? null}
-            spentEur={rollup?.total.costEur ?? 0}
-            onSave={saveBudget}
-            t={t}
-            disabled={!settings}
-          />
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('admin.aiSettings.modelSync.title')}
+          </h3>
+          <p className="mt-1 mb-3 text-xs text-muted">{t('admin.aiSettings.modelSync.hint')}</p>
+          <button
+            type="button"
+            onClick={() => {
+              void runModelSync();
+            }}
+            disabled={syncing}
+            className="border border-border hover:bg-background disabled:opacity-50 py-2 px-4 rounded-md text-sm"
+          >
+            {syncing
+              ? t('admin.aiSettings.modelSync.checking')
+              : t('admin.aiSettings.modelSync.check')}
+          </button>
+          {syncError && <p className="mt-3 text-sm text-danger">{syncError}</p>}
+          {syncReport && (
+            <div className="mt-4 space-y-3 text-sm">
+              {syncReport.missingAtProvider.length > 0 && (
+                <div>
+                  <p className="font-medium text-danger">
+                    {t('admin.aiSettings.modelSync.retiredHeading')}
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-foreground-secondary">
+                    {syncReport.missingAtProvider.map((id) => (
+                      <li key={id}>{id}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {syncReport.newAtProvider.length > 0 && (
+                <div>
+                  <p className="font-medium text-foreground">
+                    {t('admin.aiSettings.modelSync.newHeading')}
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-foreground-secondary">
+                    {syncReport.newAtProvider.map((id) => (
+                      <li key={id}>{id}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {syncReport.missingAtProvider.length === 0 &&
+                syncReport.newAtProvider.length === 0 && (
+                  <p className="text-success">{t('admin.aiSettings.modelSync.upToDate')}</p>
+                )}
+            </div>
+          )}
         </section>
-      )}
-      {confirmDialog}
+      </div>
     </main>
   );
 }

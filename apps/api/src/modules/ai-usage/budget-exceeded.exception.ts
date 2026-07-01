@@ -6,7 +6,11 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  * status so clients can treat all budget/cap stops uniformly.
  */
 export class BudgetExceededException extends HttpException {
-  constructor(scope: 'organization' | 'platform', budgetEur: number, spentEur: number) {
+  constructor(
+    scope: 'organization' | 'platform' | 'organization-key' | 'platform-key' | 'fighter-key',
+    budgetEur: number,
+    spentEur: number,
+  ) {
     super(
       {
         statusCode: HttpStatus.PAYMENT_REQUIRED,

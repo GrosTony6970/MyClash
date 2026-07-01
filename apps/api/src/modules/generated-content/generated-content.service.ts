@@ -79,7 +79,11 @@ export class GeneratedContentService {
     if (await this.flags.isEnabled('disable_ai_features')) {
       throw new ServiceUnavailableException('AI features are temporarily disabled');
     }
-    const result = await this.providers.generateForFighter(entityId, request);
+    const result = await this.providers.generateForFighter(
+      entityId,
+      request,
+      `generated_content:${contentType}`,
+    );
     return this.upsert(def, entityId, locale, result.text, {
       model: result.model ?? null,
       provider: result.provider ?? null,

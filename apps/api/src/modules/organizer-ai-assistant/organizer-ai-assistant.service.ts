@@ -494,9 +494,10 @@ export class OrganizerAIAssistantService {
 
   private async assertOrganizerAIKey(orgId: string) {
     const { data, error } = await this.supabase.service
-      .from('organization_ai_settings')
-      .select('provider')
+      .from('organization_ai_keys')
+      .select('id')
       .eq('organization_id', orgId)
+      .eq('is_active', true)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('No AI provider configured for this organization');

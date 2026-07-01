@@ -79,7 +79,8 @@ export class AIUsageService {
     // 3. Generate
     const result = await this.providers.generate(orgId, request);
 
-    // 4. Log usage (model + provider power the consumption dashboard breakdown)
+    // 4. Log usage (model + provider power the consumption dashboard breakdown;
+    // organization_ai_key_id attributes spend to the specific key that served it)
     await this.supabase.service.from('ai_usage_log').insert({
       event_id: eventId,
       organization_id: orgId,
@@ -89,6 +90,7 @@ export class AIUsageService {
       cost_eur: result.costEur,
       model: result.model ?? null,
       provider: result.provider ?? null,
+      organization_ai_key_id: result.keyId ?? null,
     });
 
     return result;

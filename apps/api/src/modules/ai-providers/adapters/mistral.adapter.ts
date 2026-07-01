@@ -138,4 +138,13 @@ export class MistralAdapter implements ProviderAdapter {
       costEur,
     };
   }
+
+  async listModels(apiKey: string): Promise<string[]> {
+    const { Mistral } = await import('@mistralai/mistralai');
+    const client = new Mistral({ apiKey });
+    const res = await client.models.list();
+    return (res?.data ?? [])
+      .map((m) => (m as { id?: string }).id)
+      .filter((id): id is string => Boolean(id));
+  }
 }

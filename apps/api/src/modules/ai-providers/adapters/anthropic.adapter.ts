@@ -104,4 +104,11 @@ export class AnthropicAdapter implements ProviderAdapter {
       costEur,
     };
   }
+
+  async listModels(apiKey: string): Promise<string[]> {
+    const client = new Anthropic({ apiKey });
+    const ids: string[] = [];
+    for await (const m of client.models.list()) ids.push(m.id);
+    return ids;
+  }
 }

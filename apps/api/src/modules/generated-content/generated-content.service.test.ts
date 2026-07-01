@@ -150,6 +150,7 @@ describe('GeneratedContentService', () => {
     expect(mockGenerateForFighter).toHaveBeenCalledWith(
       'gp1',
       expect.objectContaining({ system: 'sys' }),
+      'generated_content:fighter_insight',
     );
     expect(mockGenerateWithCap).not.toHaveBeenCalled(); // no org budget path
     expect(out.content).toBe('You are just getting started!');

@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 const savePlatformAISettingsSchema = z
   .object({
-    provider: z.enum(['anthropic', 'openai', 'mistral']),
+    provider: z.enum(['anthropic', 'openai', 'mistral', 'google']),
     apiKey: z.string().min(10),
     // Selected model id (from the model registry). Nullable-optional so the FE
     // can send `null` to clear back to the provider default. Validity against

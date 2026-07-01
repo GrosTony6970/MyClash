@@ -5,8 +5,8 @@ import {
   OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { AnthropicAdapter } from '../ai-providers/adapters/anthropic.adapter';
+import { GoogleAdapter } from '../ai-providers/adapters/google.adapter';
 import { MistralAdapter } from '../ai-providers/adapters/mistral.adapter';
 import { OpenAIAdapter } from '../ai-providers/adapters/openai.adapter';
 import type {
@@ -15,27 +15,41 @@ import type {
   GenerationResult,
   ProviderAdapter,
 } from '../ai-providers/adapters/provider-adapter.interface';
-import { isValidModelForProvider, resolveModel } from '../ai-providers/model-registry';
+import { loadAiKeySecret } from '../ai-providers/ai-key-crypto';
+import {
+  AiKeyStore,
+  type AiKeyListItem,
+  type AiKeyScopeConfig,
+  type CreateKeyInput,
+  type UpdateKeyInput,
+} from '../ai-providers/ai-key-store';
+import { resolveModel } from '../ai-providers/model-registry';
+import { BudgetExceededException } from '../ai-usage/budget-exceeded.exception';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12;
-const TAG_LENGTH = 16;
 const SETTING_KEY = 'super_admin';
 
-export type PlatformAIProviderConfig = {
-  provider: AIProvider;
-  hasKey: true;
-  model: string | null;
+const PLATFORM_SCOPE: AiKeyScopeConfig = {
+  keyTable: 'platform_ai_keys',
+  ownerColumn: null,
+  usageTable: 'platform_ai_usage_log',
+  usageKeyColumn: 'platform_ai_key_id',
+  usageTimeColumn: 'created_at',
+  setActiveFn: 'set_active_platform_ai_key',
+};
+
+/** Platform-wide global ceiling config (keys live in `platform_ai_keys`). */
+export type PlatformAIConfig = {
   monthlyBudgetEur: number | null;
-  updatedAt: string;
+  updatedAt: string | null;
 };
 
 @Injectable()
 export class PlatformAISettingsService implements OnModuleInit {
   private secretKey!: Buffer;
   private adapters!: Record<AIProvider, ProviderAdapter>;
+  private keys!: AiKeyStore;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -43,139 +57,141 @@ export class PlatformAISettingsService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    const secret = process.env['AI_KEY_SECRET'];
-    if (!secret) throw new Error('AI_KEY_SECRET env var is required');
-    this.secretKey = Buffer.from(secret, 'hex');
-    if (this.secretKey.length !== 32) {
-      throw new Error('AI_KEY_SECRET must be a 64-character hex string (32 bytes)');
-    }
+    this.secretKey = loadAiKeySecret();
     this.adapters = {
       anthropic: new AnthropicAdapter(),
       openai: new OpenAIAdapter(),
       mistral: new MistralAdapter(),
+      google: new GoogleAdapter(),
+    };
+    this.keys = new AiKeyStore(this.supabase, this.secretKey, PLATFORM_SCOPE);
+  }
+
+  // ── Keys (multi-key CRUD) ──────────────────────────────────────────────────
+
+  listKeys(): Promise<AiKeyListItem[]> {
+    return this.keys.list(null);
+  }
+
+  createKey(input: CreateKeyInput, actorUserId: string): Promise<AiKeyListItem> {
+    return this.keys.create(null, input, actorUserId);
+  }
+
+  updateKey(id: string, input: UpdateKeyInput): Promise<AiKeyListItem> {
+    return this.keys.update(null, id, input);
+  }
+
+  deleteKey(id: string): Promise<void> {
+    return this.keys.delete(null, id);
+  }
+
+  activateKey(id: string): Promise<void> {
+    return this.keys.activate(null, id);
+  }
+
+  /** Active key's id + provider (no decrypt) — for callers that pick a model. */
+  async getActiveKeyInfo(): Promise<{ id: string; provider: AIProvider } | null> {
+    const { data } = await this.supabase.service
+      .from('platform_ai_keys')
+      .select('id, provider')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as { id: string; provider: AIProvider };
+    return { id: row.id, provider: row.provider };
+  }
+
+  // ── Global monthly ceiling (config-only row) ───────────────────────────────
+
+  async getConfig(): Promise<PlatformAIConfig> {
+    const { data } = await this.supabase.service
+      .from('platform_ai_settings')
+      .select('monthly_budget_eur, updated_at')
+      .eq('setting_key', SETTING_KEY)
+      .maybeSingle();
+    const row = data as { monthly_budget_eur: number | string | null; updated_at: string } | null;
+    return {
+      monthlyBudgetEur: numOrNull(row?.monthly_budget_eur),
+      updatedAt: row?.updated_at ?? null,
     };
   }
 
-  async saveKey(
-    provider: AIProvider,
-    rawKey: string,
-    actorUserId: string,
-    model?: string | null,
-  ): Promise<PlatformAIProviderConfig> {
-    if (model != null && !isValidModelForProvider(provider, model)) {
-      throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
-    }
-    const iv = randomBytes(IV_LENGTH);
-    const cipher = createCipheriv(ALGORITHM, this.secretKey, iv);
-    const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    const now = new Date().toISOString();
-
-    const { data, error } = await this.supabase.service
-      .from('platform_ai_settings')
-      .upsert(
-        {
-          setting_key: SETTING_KEY,
-          provider,
-          api_key_enc: Buffer.concat([encrypted, tag]).toString('base64'),
-          api_key_iv: iv.toString('base64'),
-          model: model ?? null,
-          updated_at: now,
-          updated_by_user_id: actorUserId,
-        },
-        { onConflict: 'setting_key' },
-      )
-      .select('provider, model, monthly_budget_eur, updated_at, updated_by_user_id')
-      .single();
-
-    if (error) throw new Error(error.message);
-    const row = data as PlatformAISettingsRow;
-    return this.toConfig(row);
-  }
-
-  /** Update just the platform monthly AI budget (NULL = unlimited). */
+  /** Update the platform monthly AI ceiling (NULL = unlimited). Upserts the row. */
   async updateBudget(monthlyBudgetEur: number | null): Promise<void> {
-    const { error } = await this.supabase.service
-      .from('platform_ai_settings')
-      .update({ monthly_budget_eur: monthlyBudgetEur })
-      .eq('setting_key', SETTING_KEY);
+    const { error } = await this.supabase.service.from('platform_ai_settings').upsert(
+      {
+        setting_key: SETTING_KEY,
+        monthly_budget_eur: monthlyBudgetEur,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'setting_key' },
+    );
     if (error) throw new Error(error.message);
   }
 
-  async deleteKey(): Promise<void> {
-    await this.supabase.service
-      .from('platform_ai_settings')
-      .delete()
-      .eq('setting_key', SETTING_KEY);
+  // ── Model-sync support (registry ↔ live drift) ─────────────────────────────
+
+  /**
+   * Resolve a provider + live model list for the model-sync drift report:
+   * `apiKeyOverride` probes an ad-hoc key; `keyId` probes a specific stored key;
+   * otherwise the active platform key is used. Read-only.
+   */
+  async listLiveModels(opts: {
+    keyId?: string | null;
+    providerOverride?: AIProvider | null;
+    apiKeyOverride?: string | null;
+  }): Promise<{ provider: AIProvider; live: string[] }> {
+    let provider: AIProvider;
+    let apiKey: string;
+    if (opts.apiKeyOverride) {
+      if (!opts.providerOverride) {
+        throw new BadRequestException('provider is required when an apiKey is supplied');
+      }
+      provider = opts.providerOverride;
+      apiKey = opts.apiKeyOverride;
+    } else {
+      const resolved = opts.keyId
+        ? await this.keys.resolveKeyById(null, opts.keyId)
+        : await this.keys.resolveActiveKey(null);
+      if (!resolved) throw new NotFoundException('No super admin AI provider configured');
+      provider = resolved.provider;
+      apiKey = resolved.apiKey;
+    }
+    const live = await this.adapters[provider].listModels(apiKey);
+    return { provider, live };
   }
 
-  async getProviderConfig(): Promise<PlatformAIProviderConfig | null> {
-    const { data } = await this.supabase.service
-      .from('platform_ai_settings')
-      .select('provider, model, monthly_budget_eur, updated_at, updated_by_user_id')
-      .eq('setting_key', SETTING_KEY)
-      .maybeSingle();
-
-    if (!data) return null;
-    return this.toConfig(data as PlatformAISettingsRow);
-  }
+  // ── Generate (uses the active platform key) ────────────────────────────────
 
   async generate(request: GenerationRequest): Promise<GenerationResult> {
     if (await this.flags.isEnabled('disable_ai_features')) {
       throw new ServiceUnavailableException('AI features are temporarily disabled');
     }
-    const { data } = await this.supabase.service
-      .from('platform_ai_settings')
-      .select('provider, api_key_enc, api_key_iv, model')
-      .eq('setting_key', SETTING_KEY)
-      .maybeSingle();
+    const active = await this.keys.resolveActiveKey(null);
+    if (!active) throw new NotFoundException('No super admin AI provider configured');
 
-    if (!data) throw new NotFoundException('No super admin AI provider configured');
-    const row = data as PlatformAISecretRow;
-    const adapter = this.adapters[row.provider];
-    const requested = request.model && request.model !== 'default' ? request.model : row.model;
-    const resolved = resolveModel(row.provider, requested);
-    return adapter.generate(this.decrypt(row.api_key_enc, row.api_key_iv), {
-      ...request,
-      model: resolved.id,
-    });
-  }
+    // Per-key monthly budget (calendar-month UTC). Pre-call gate (may overshoot
+    // by one call, like the other budget gates).
+    if (active.monthlyBudgetEur !== null) {
+      const spent = await this.keys.keyMonthlySpend(active.id);
+      if (spent >= active.monthlyBudgetEur) {
+        throw new BudgetExceededException('platform-key', active.monthlyBudgetEur, spent);
+      }
+    }
 
-  private decrypt(ciphertext: string, ivBase64: string): string {
-    const buf = Buffer.from(ciphertext, 'base64');
-    const iv = Buffer.from(ivBase64, 'base64');
-    const encrypted = buf.subarray(0, buf.length - TAG_LENGTH);
-    const tag = buf.subarray(buf.length - TAG_LENGTH);
-    const decipher = createDecipheriv(ALGORITHM, this.secretKey, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
-  }
-
-  private toConfig(row: PlatformAISettingsRow): PlatformAIProviderConfig {
-    return {
-      provider: row.provider,
-      hasKey: true,
-      model: row.model ?? null,
-      monthlyBudgetEur:
-        typeof row.monthly_budget_eur === 'string'
-          ? parseFloat(row.monthly_budget_eur) || null
-          : (row.monthly_budget_eur ?? null),
-      updatedAt: row.updated_at,
-    };
+    const adapter = this.adapters[active.provider];
+    const requested = request.model && request.model !== 'default' ? request.model : active.model;
+    const resolved = resolveModel(active.provider, requested);
+    const result = await adapter.generate(active.apiKey, { ...request, model: resolved.id });
+    return { ...result, model: resolved.id, provider: active.provider, keyId: active.id };
   }
 }
 
-type PlatformAISettingsRow = {
-  provider: AIProvider;
-  model: string | null;
-  monthly_budget_eur: number | string | null;
-  updated_at: string;
-  updated_by_user_id?: string | null;
-};
-
-type PlatformAISecretRow = {
-  provider: AIProvider;
-  api_key_enc: string;
-  api_key_iv: string;
-  model: string | null;
-};
+function numOrNull(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}

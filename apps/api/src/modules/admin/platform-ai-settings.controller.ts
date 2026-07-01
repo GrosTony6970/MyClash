@@ -1,57 +1,46 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Patch,
-  Put,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { FastifyRequest } from 'fastify';
 import { UpdateBudgetDto } from '../ai-providers/dto/update-budget.dto';
-import { SavePlatformAISettingsDto } from './dto/platform-ai-settings.dto';
+import { ModelSyncDto } from './dto/model-sync.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { ModelSyncService } from './model-sync.service';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 
-type ActorRequest = FastifyRequest & { actorUserId?: string };
-
-function getActorId(req: FastifyRequest): string {
-  return (req as ActorRequest).actorUserId ?? 'unknown';
-}
-
+/**
+ * Platform-wide AI *config* (global monthly ceiling) + model-sync. The keys
+ * themselves are managed by PlatformAIKeysController (`/admin/ai-keys`).
+ */
 @ApiTags('super-admin')
 @ApiBearerAuth()
 @UseGuards(SuperAdminGuard)
 @Controller('admin/ai-settings')
 export class PlatformAISettingsController {
-  constructor(private readonly settings: PlatformAISettingsService) {}
+  constructor(
+    private readonly settings: PlatformAISettingsService,
+    private readonly modelSync: ModelSyncService,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get shared super-admin AI settings' })
+  @ApiOperation({ summary: 'Get the platform AI config (global monthly ceiling)' })
   getSettings() {
-    return this.settings.getProviderConfig();
-  }
-
-  @Put()
-  @ApiOperation({ summary: 'Save shared super-admin AI settings' })
-  saveSettings(@Body() dto: SavePlatformAISettingsDto, @Req() req: FastifyRequest) {
-    return this.settings.saveKey(dto.provider, dto.apiKey, getActorId(req), dto.model);
+    return this.settings.getConfig();
   }
 
   @Patch('budget')
-  @ApiOperation({ summary: 'Set the platform monthly AI budget' })
+  @ApiOperation({ summary: 'Set the platform monthly AI ceiling' })
   async setBudget(@Body() dto: UpdateBudgetDto) {
     await this.settings.updateBudget(dto.monthlyBudgetEur);
-    return this.settings.getProviderConfig();
+    return this.settings.getConfig();
   }
 
-  @Delete()
-  @HttpCode(204)
-  @ApiOperation({ summary: 'Delete shared super-admin AI settings' })
-  async deleteSettings() {
-    await this.settings.deleteKey();
+  @Post('model-sync')
+  @ApiOperation({
+    summary: "Diff the model registry against a provider's live models (ad-hoc / active key)",
+  })
+  runModelSync(@Body() dto: ModelSyncDto) {
+    return this.modelSync.diff({
+      providerOverride: dto.provider ?? null,
+      apiKeyOverride: dto.apiKey ?? null,
+    });
   }
 }
