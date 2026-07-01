@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- org AI settings, i18n tracked in backlog */
 'use client';
 
 import Link from 'next/link';
@@ -24,6 +23,8 @@ interface AIConfig {
   hasKey: true;
   model: string | null;
   monthlyBudgetEur: number | null;
+  aiFeaturesDisabled: boolean;
+  organizerChatDisabled: boolean;
   updatedAt: string;
 }
 
@@ -47,7 +48,7 @@ export default function OrgAISettingsPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [config, setConfig] = useState<AIConfig | null>(null);
@@ -172,6 +173,20 @@ export default function OrgAISettingsPage() {
     }
   }
 
+  async function saveFlags(patch: {
+    aiFeaturesDisabled?: boolean;
+    organizerChatDisabled?: boolean;
+  }) {
+    if (!orgId) return;
+    const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/ai-settings/flags`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (res.ok) setConfig((await res.json()) as AIConfig | null);
+  }
+
   async function saveBudget(value: number | null) {
     if (!orgId) throw new Error(t('admin.aiSettings.budgetError'));
     const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/ai-settings/budget`, {
@@ -192,7 +207,7 @@ export default function OrgAISettingsPage() {
       <main className="p-8 max-w-2xl">
         <div className="flex items-center gap-2 text-muted text-sm">
           <span className="w-4 h-4 border-2 border-muted border-t-transparent rounded-full animate-spin" />
-          Loading…
+          {t('common.loading')}
         </div>
       </main>
     );
@@ -205,13 +220,13 @@ export default function OrgAISettingsPage() {
           {slug}
         </Link>
         <span>/</span>
-        <span className="text-foreground font-medium">AI</span>
+        <span className="text-foreground font-medium">{t('admin.aiSettings.org.breadcrumb')}</span>
       </div>
 
-      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1 mt-4">AI Settings</h1>
-      <p className="text-muted text-sm mb-6">
-        Connect an AI provider, track consumption and set a monthly budget for your organisation.
-      </p>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1 mt-4">
+        {t('admin.aiSettings.title')}
+      </h1>
+      <p className="text-muted text-sm mb-6">{t('admin.aiSettings.org.description')}</p>
 
       <div className="mb-6 flex gap-1 border-b border-border">
         {TABS.map((tabDef) => (
@@ -241,19 +256,21 @@ export default function OrgAISettingsPage() {
         <>
           {!config && (
             <div className="bg-warning/10 border border-warning/30 text-warning rounded-lg px-4 py-3 mb-6 text-sm">
-              AI features are disabled for your organisation until an API key is configured.
+              {t('admin.aiSettings.org.keyDisabled')}
             </div>
           )}
 
           {config && (
             <div className="bg-success/10 border border-success/30 text-success rounded-lg px-4 py-3 mb-2 text-sm flex items-center justify-between">
               <span>
-                <strong>{PROVIDERS.find((p) => p.id === config.provider)?.label}</strong> key saved
-                — updated{' '}
-                {new Date(config.updatedAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
+                {t('admin.aiSettings.org.keySavedUpdated', {
+                  provider:
+                    PROVIDERS.find((p) => p.id === config.provider)?.label ?? config.provider,
+                  date: new Date(config.updatedAt).toLocaleDateString(locale, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  }),
                 })}
               </span>
               <button
@@ -261,7 +278,7 @@ export default function OrgAISettingsPage() {
                 disabled={removing}
                 className="text-danger hover:text-danger-hover font-medium text-sm ml-4 disabled:opacity-50"
               >
-                {removing ? 'Removing…' : 'Remove key'}
+                {removing ? t('admin.aiSettings.org.removing') : t('admin.aiSettings.remove')}
               </button>
             </div>
           )}
@@ -273,7 +290,9 @@ export default function OrgAISettingsPage() {
             className="bg-surface border border-border rounded-xl p-6 space-y-5"
           >
             <div>
-              <p className="text-sm font-medium text-foreground-secondary mb-3">Provider</p>
+              <p className="text-sm font-medium text-foreground-secondary mb-3">
+                {t('admin.aiSettings.provider')}
+              </p>
               <div className="space-y-2">
                 {PROVIDERS.map((p) => {
                   const hint = (models[p.id] ?? [])
@@ -284,7 +303,9 @@ export default function OrgAISettingsPage() {
                     <label
                       key={p.id}
                       htmlFor={`ai-provider-${p.id}`}
-                      aria-label={`Select ${p.label} as AI provider`}
+                      aria-label={t('admin.aiSettings.org.selectProviderAria', {
+                        provider: p.label,
+                      })}
                       className={[
                         'flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors',
                         selectedProvider === p.id
@@ -326,7 +347,9 @@ export default function OrgAISettingsPage() {
               >
                 {providerModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.label}
+                    {m.recommendedForToolUse
+                      ? `${m.label} — ${t('admin.aiSettings.modelRecommended')}`
+                      : m.label}
                   </option>
                 ))}
               </select>
@@ -337,15 +360,19 @@ export default function OrgAISettingsPage() {
 
             <label className="block" htmlFor="apiKey">
               <span className="block text-sm font-medium text-foreground-secondary mb-1">
-                API Key
+                {t('admin.aiSettings.apiKey')}
               </span>
               <input
                 id="apiKey"
                 type="password"
-                aria-label="API key"
+                aria-label={t('admin.aiSettings.apiKey')}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder={config ? '••••••••  (leave blank to keep current key)' : 'sk-ant-…'}
+                placeholder={
+                  config
+                    ? t('admin.aiSettings.org.apiKeyKeepPlaceholder')
+                    : t('admin.aiSettings.apiKeyPlaceholder')
+                }
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
               />
             </label>
@@ -357,9 +384,37 @@ export default function OrgAISettingsPage() {
               disabled={saving || !apiKey.trim()}
               className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving…' : 'Save API key'}
+              {saving ? t('admin.aiSettings.org.saving') : t('admin.aiSettings.org.saveApiKey')}
             </button>
           </form>
+
+          {config && (
+            <div className="mt-6 space-y-3 rounded-xl border border-border bg-surface p-6">
+              <p className="text-sm font-medium text-foreground-secondary">
+                {t('admin.aiSettings.org.availability')}
+              </p>
+              <label className="flex items-center gap-3 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="accent-accent"
+                  checked={!config.aiFeaturesDisabled}
+                  onChange={(e) => void saveFlags({ aiFeaturesDisabled: !e.target.checked })}
+                />
+                {t('admin.aiSettings.org.enableAi')}
+              </label>
+              <label className="flex items-center gap-3 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="accent-accent"
+                  checked={!config.organizerChatDisabled}
+                  disabled={config.aiFeaturesDisabled}
+                  onChange={(e) => void saveFlags({ organizerChatDisabled: !e.target.checked })}
+                />
+                {t('admin.aiSettings.org.enableChat')}
+              </label>
+              <p className="text-xs text-muted">{t('admin.aiSettings.org.availabilityHint')}</p>
+            </div>
+          )}
         </>
       )}
 

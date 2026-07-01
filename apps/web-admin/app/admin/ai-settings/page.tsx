@@ -3,6 +3,7 @@
 import { t } from '@myclash/i18n';
 import { useConfirm } from '@myclash/ui';
 import { useEffect, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 import { AiUsageView, type UsageRollup } from '../../../src/components/ai/AiUsageView';
 import { AiBudgetView } from '../../../src/components/ai/AiBudgetView';
 
@@ -53,6 +54,7 @@ export default function AdminAISettingsPage() {
   const [tab, setTab] = useState<Tab>('keys');
   const [rollup, setRollup] = useState<UsageRollup | null>(null);
   const { confirm, confirmDialog } = useConfirm();
+  const { locale } = useI18n();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -210,7 +212,7 @@ export default function AdminAISettingsPage() {
               : settings
                 ? t('admin.aiSettings.currentKey', {
                     provider: settings.provider,
-                    date: new Date(settings.updatedAt).toLocaleString('fr-FR'),
+                    date: new Date(settings.updatedAt).toLocaleString(locale),
                   })
                 : t('admin.aiSettings.noKey')}
           </div>
@@ -249,7 +251,9 @@ export default function AdminAISettingsPage() {
           >
             {providerModels.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.label}
+                {m.recommendedForToolUse
+                  ? `${m.label} — ${t('admin.aiSettings.modelRecommended')}`
+                  : m.label}
               </option>
             ))}
           </select>

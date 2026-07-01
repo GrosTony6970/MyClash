@@ -16,11 +16,25 @@ import { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer
 import { SupabaseService } from '../supabase/supabase.service';
 import { ORGANIZER_CHAT_TOOLS, isWriteTool } from './organizer-chat.tools';
 import { OrganizerChatToolsService } from './organizer-chat.tools.service';
+import { trimTranscript } from './organizer-chat.transcript';
 
 const FEATURE = 'organizer_chat';
 const MAX_TURNS = 6;
 const MAX_TOKENS = 1500;
 const TEMPERATURE = 0.3;
+
+/**
+ * Turn-level progress events for the streaming chat endpoint. The loop is not
+ * token-streamed (each turn calls the provider normally); instead we surface
+ * what the assistant is doing between turns so the UI isn't a silent wait and
+ * the SSE connection stays alive during a long multi-turn run.
+ */
+export type ChatStreamEvent =
+  | { type: 'status'; phase: 'thinking' }
+  | { type: 'tool'; name: string }
+  | { type: 'proposal'; draftId: string }
+  | { type: 'assistant'; content: string }
+  | { type: 'notice'; content: string };
 
 interface EventRow {
   id: string;
@@ -109,11 +123,46 @@ export class OrganizerChatService {
     return this.view(conversation, messages);
   }
 
-  async sendMessage(eventId: string, conversationId: string, userId: string, content: string) {
+  async renameConversation(eventId: string, conversationId: string, userId: string, title: string) {
+    await this.assertOrgAccess(eventId, userId);
+    await this.loadConversation(eventId, conversationId);
+    const { data, error } = await this.supabase.service
+      .from('organizer_chat_conversations')
+      .update({ title: title.trim(), updated_at: new Date().toISOString() })
+      .eq('id', conversationId)
+      .eq('event_id', eventId)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Failed to rename chat');
+    const messages = await this.loadMessages(conversationId);
+    return this.view(data as ConversationRow, messages);
+  }
+
+  async deleteConversation(eventId: string, conversationId: string, userId: string) {
+    await this.assertOrgAccess(eventId, userId);
+    await this.loadConversation(eventId, conversationId);
+    // Messages cascade-delete (0116 FK); linked drafts keep their audit trail
+    // with conversation_id nulled (ON DELETE SET NULL).
+    const { error } = await this.supabase.service
+      .from('organizer_chat_conversations')
+      .delete()
+      .eq('id', conversationId)
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return { deleted: true, id: conversationId };
+  }
+
+  async sendMessage(
+    eventId: string,
+    conversationId: string,
+    userId: string,
+    content: string,
+    onEvent?: (e: ChatStreamEvent) => void,
+  ) {
     const event = await this.assertOrgAccess(eventId, userId);
-    await this.assertChatEnabled();
+    await this.assertChatEnabled(event.organization_id);
     await this.assertAIConfigured(event.organization_id);
-    const conversation = await this.loadConversation(eventId, conversationId);
+    await this.loadConversation(eventId, conversationId); // 404s if it doesn't exist
 
     const history = await this.loadMessages(conversationId);
     const transcript: ChatMessage[] = history.map((m) => this.toChatMessage(m));
@@ -124,11 +173,12 @@ export class OrganizerChatService {
 
     let proposedDraftId: string | null = null;
     for (let turn = 0; turn < MAX_TURNS && !proposedDraftId; turn++) {
+      onEvent?.({ type: 'status', phase: 'thinking' });
       let result;
       try {
         result = await this.aiUsage.generateWithCap(event.organization_id, eventId, FEATURE, {
           system: this.systemPrompt(),
-          messages: transcript,
+          messages: trimTranscript(transcript),
           model: 'default',
           maxTokens: MAX_TOKENS,
           temperature: TEMPERATURE,
@@ -144,6 +194,7 @@ export class OrganizerChatService {
               ? 'The AI spend cap for this event has been reached.'
               : 'The assistant could not complete this request right now.';
         await this.insertMessage(conversationId, { role: 'assistant', content: note });
+        onEvent?.({ type: 'notice', content: note });
         break;
       }
 
@@ -154,6 +205,7 @@ export class OrganizerChatService {
           content: result.text,
           costEur: result.costEur,
         });
+        onEvent?.({ type: 'assistant', content: result.text });
         break;
       }
 
@@ -171,11 +223,13 @@ export class OrganizerChatService {
           }
           const draft = await this.proposeWrite(eventId, userId, conversationId, call, result.text);
           draftIdThisTurn = draft.id as string;
+          onEvent?.({ type: 'proposal', draftId: draft.id as string });
           toolResults.push({
             toolCallId: call.id,
             content: `Proposed to the organizer for confirmation (draft ${draft.id}). Await their decision before proposing anything else.`,
           });
         } else {
+          onEvent?.({ type: 'tool', name: call.name });
           const out = await this.tools.executeRead(eventId, call.name, call.arguments);
           toolResults.push({ toolCallId: call.id, content: JSON.stringify(out) });
         }
@@ -286,9 +340,22 @@ export class OrganizerChatService {
     return event;
   }
 
-  private async assertChatEnabled(): Promise<void> {
+  private async assertChatEnabled(orgId: string): Promise<void> {
     if (await this.flags.isEnabled('disable_organizer_chat')) {
       throw new ServiceUnavailableException('The organizer chatbot is currently disabled');
+    }
+    // Per-org override: an org can turn the chatbot off for itself even when the
+    // platform flag is on (org can only further restrict, never bypass a global
+    // kill-switch). generateWithCap already enforces the org-level AI disable.
+    const { data } = await this.supabase.service
+      .from('organization_ai_settings')
+      .select('organizer_chat_disabled')
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if ((data as { organizer_chat_disabled?: boolean } | null)?.organizer_chat_disabled) {
+      throw new ServiceUnavailableException(
+        'The organizer chatbot is disabled for this organization',
+      );
     }
   }
 

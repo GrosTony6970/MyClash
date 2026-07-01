@@ -250,9 +250,36 @@ export class OrganizerAIAssistantService {
     const validation = this.validateActions(draft.draft_type, draft.proposed_actions_json);
     if (!validation.ok) throw new BadRequestException(validation.errors.join('; '));
 
+    // NOTE: applyAction dispatches to separate services (createTournament,
+    // generatePools, …) that each write via stateless PostgREST calls, so a
+    // single DB transaction can't span them. Instead of leaving a mid-loop
+    // failure silently 'ready' (a retry would re-apply the already-applied
+    // actions and duplicate them), we mark the draft 'failed' with how far it
+    // got — an explicit, non-retryable state the organizer can inspect.
+    const total = draft.proposed_actions_json.length;
     const appliedResults = [];
-    for (const action of draft.proposed_actions_json) {
-      appliedResults.push(await this.applyAction(eventId, actorUserId, action));
+    try {
+      for (const action of draft.proposed_actions_json) {
+        appliedResults.push(await this.applyAction(eventId, actorUserId, action));
+      }
+    } catch (err) {
+      const applied = appliedResults.length;
+      const message = err instanceof Error ? err.message : 'unknown error';
+      await this.supabase.service
+        .from('organizer_ai_assistant_drafts')
+        .update({
+          status: 'failed',
+          error: `Partially applied ${applied}/${total} action(s) before failing: ${message}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', draftId);
+      await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_apply_failed', draftId, {
+        draftType: draft.draft_type,
+        appliedCount: applied,
+        totalActions: total,
+        error: message,
+      });
+      throw err;
     }
 
     await this.supabase.service

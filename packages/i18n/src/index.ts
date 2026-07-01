@@ -433,6 +433,7 @@ export const en = {
     },
     fighterProfile: {
       notFoundTitle: 'Fighter not found',
+      insightTitle: 'AI performance insight',
       notFoundDescription: 'No fighter with slug "{slug}".',
       hemaRatings: 'HEMA Ratings',
       synced: 'Synced {date}',
@@ -566,9 +567,39 @@ export const en = {
         dobFormat: 'Date of birth must match the placeholder format.',
       },
     },
+    meInsight: {
+      title: 'AI performance insight',
+      subtitle: 'A short, personalized summary of your results, written by AI from your record.',
+      published: 'On your public profile',
+      draft: 'Private draft',
+      needsKey: 'Add your AI provider key to generate insights.',
+      configureKey: 'Configure your key',
+      generate: 'Generate insight',
+      regenerate: 'Regenerate',
+      publish: 'Show on my public profile',
+      unpublish: 'Make private',
+      error: 'Could not complete the request.',
+    },
     meSettings: {
       title: 'Settings',
       subtitle: 'Manage how MyClash notifies you, what others can see, and your account.',
+      ai: {
+        title: 'Personal AI insights',
+        subtitle:
+          'Add your own AI provider key to generate a personalized performance insight. The key is encrypted and used only for your insights.',
+        currentKey: 'A {provider} key is configured.',
+        provider: 'Provider',
+        model: 'Model',
+        recommended: 'recommended',
+        apiKey: 'API key',
+        apiKeyPlaceholder: 'Paste your provider API key',
+        apiKeyKeep: '••••••••  (leave blank to keep current key)',
+        save: 'Save key',
+        saving: 'Saving…',
+        remove: 'Remove key',
+        removing: 'Removing…',
+        error: 'Could not save the key.',
+      },
       sectionNotifications: 'Notifications',
       sectionPrivacy: 'Privacy',
       sectionAccount: 'Account',
@@ -816,6 +847,7 @@ export const en = {
         pools: 'Pools',
       },
       backToEventHome: 'Back to event home',
+      recapTitle: 'Recap',
       poolMatchesSearch: 'Search matches (fighter, round, club…)',
       poolMatchesNoResults: 'No matches found.',
       participants: {
@@ -2677,6 +2709,7 @@ export const en = {
       apiKeyPlaceholder: 'Paste provider API key',
       model: 'Model',
       modelHint: 'Model used for AI features. Defaults to the recommended model for the provider.',
+      modelRecommended: 'recommended for tools',
       tabKeys: 'Keys',
       tabUsage: 'Usage',
       tabBudget: 'Budget',
@@ -2688,6 +2721,10 @@ export const en = {
       byModel: 'By model',
       byProvider: 'By provider',
       byOrg: 'By organization',
+      byEvent: 'By event',
+      byDay: 'Cost per day',
+      usageTruncated:
+        'Showing the most recent 100,000 calls — older activity is not included in these totals.',
       colName: 'Name',
       colCost: 'Cost',
       colCalls: 'Calls',
@@ -2706,6 +2743,24 @@ export const en = {
       saving: 'Saving...',
       save: 'Save key',
       remove: 'Remove key',
+      org: {
+        breadcrumb: 'AI',
+        description:
+          'Connect an AI provider, track consumption and set a monthly budget for your organisation.',
+        keyDisabled:
+          'AI features are disabled for your organisation until an API key is configured.',
+        keySavedUpdated: '{provider} key saved — updated {date}',
+        removing: 'Removing…',
+        selectProviderAria: 'Select {provider} as AI provider',
+        apiKeyKeepPlaceholder: '••••••••  (leave blank to keep current key)',
+        saveApiKey: 'Save API key',
+        saving: 'Saving…',
+        availability: 'Availability',
+        enableAi: 'Enable AI features for this organization',
+        enableChat: 'Enable the organizer chatbot',
+        availabilityHint:
+          'Turn AI off for your organization without removing the key. A platform-wide disable always takes precedence.',
+      },
       providers: {
         openai: 'OpenAI',
         anthropic: 'Anthropic',
@@ -3505,6 +3560,20 @@ export const en = {
         'This will permanently delete the {location} backup copy dated {timestamp}. Other locations are not affected.',
       continueDelete: 'Delete backup',
       restoreConfirmation: 'Restore confirmation phrase',
+      restoreComplete: 'Restore complete. Verify services are healthy before reopening the site.',
+      restoreScopeTitle: 'This restore will:',
+      restoreScopeDb:
+        'Drop and recreate the database, replacing all current data with the {timestamp} backup.',
+      restoreScopeStorage:
+        'Replace all uploaded files (logos, event assets) with the storage volume from this backup.',
+      restoreScopeServices:
+        'Stop the app and Supabase services during the restore, then restart them afterwards.',
+      pollError: 'Lost contact with the running operation — still retrying automatically.',
+      retry: 'Refresh now',
+      uploadTooLarge: 'That file is too large (maximum {max}).',
+      uploadInvalidType: 'Unsupported file. Choose a .gz or .gpg backup artifact.',
+      retentionLowWarning:
+        'Very low retention: a single bad backup could leave you with no good copy to restore.',
       encrypted: 'encrypted',
       locationsMap: {
         local: 'local server',
@@ -3901,6 +3970,9 @@ export const en = {
       editTitle: 'Edit event properties',
       slugReadOnly: 'Public slug stays /e/{slug}.',
       publicLanding: 'Public landing content',
+      aiDraft: 'Draft with AI',
+      aiDrafting: 'Drafting…',
+      aiDraftError: 'Could not draft the description.',
       venuesSection: 'Venues',
       venuesHelp:
         'Pick the venue(s) this event spreads on. Tournament venues seed their lices into the event; a venue can’t be removed while it has scheduled matches or workshop sessions.',
@@ -4010,6 +4082,7 @@ export const en = {
         displayPreviewTitle: 'Sample',
         advanced: 'Advanced',
         locks: 'Auto-lock',
+        recap: 'Recap',
         lockHelp: {
           intro:
             'Locks completed pools or brackets after a delay so referees cannot keep editing them. This is a tournament-level setting, separate from the ruleset.',
@@ -4358,6 +4431,21 @@ export const en = {
         chat: 'Chatbot',
       },
     },
+    recap: {
+      title: 'AI recap',
+      subtitle:
+        'Generate a short recap of this tournament from its results, then publish it to the public page.',
+      language: 'Language',
+      generate: 'Generate recap',
+      regenerate: 'Regenerate',
+      publish: 'Publish',
+      unpublish: 'Unpublish',
+      published: 'Published',
+      draft: 'Draft',
+      empty: 'No recap yet. Generate one from the final results.',
+      generatedOn: 'Generated {date}',
+      error: 'Could not complete the request.',
+    },
     chat: {
       navLabel: 'Chatbot',
       title: 'Organizer chatbot',
@@ -4376,6 +4464,15 @@ export const en = {
       you: 'You',
       assistant: 'Assistant',
       errorSend: 'Could not complete the request.',
+      ranTool: 'Checked {name}',
+      preparingProposal: 'Preparing a proposal…',
+      rename: 'Rename',
+      renameConversation: 'Rename conversation',
+      delete: 'Delete',
+      deleteConversation: 'Delete conversation',
+      deleteConfirm: 'Delete this conversation and its messages?',
+      renameSave: 'Save',
+      renameCancel: 'Cancel',
       proposal: {
         title: 'Proposed action',
         confirm: 'Confirm & apply',
@@ -5801,6 +5898,7 @@ export const fr = {
     },
     fighterProfile: {
       notFoundTitle: 'Combattant introuvable',
+      insightTitle: 'Bilan de performance IA',
       notFoundDescription: 'Aucun combattant avec le slug "{slug}".',
       hemaRatings: 'HEMA Ratings',
       synced: 'Synchronise le {date}',
@@ -5935,10 +6033,41 @@ export const fr = {
         dobFormat: 'La date de naissance doit respecter le format affiche.',
       },
     },
+    meInsight: {
+      title: 'Bilan de performance IA',
+      subtitle:
+        'Un court resume personnalise de vos resultats, redige par l IA a partir de votre parcours.',
+      published: 'Sur votre profil public',
+      draft: 'Brouillon prive',
+      needsKey: 'Ajoutez votre cle de fournisseur IA pour generer des bilans.',
+      configureKey: 'Configurer votre cle',
+      generate: 'Generer le bilan',
+      regenerate: 'Regenerer',
+      publish: 'Afficher sur mon profil public',
+      unpublish: 'Rendre prive',
+      error: 'Impossible de traiter la demande.',
+    },
     meSettings: {
       title: 'Parametres',
       subtitle:
         'Gerez la facon dont MyClash vous notifie, ce que les autres voient et votre compte.',
+      ai: {
+        title: 'Bilans IA personnels',
+        subtitle:
+          'Ajoutez votre propre cle de fournisseur IA pour generer un bilan de performance personnalise. La cle est chiffree et utilisee uniquement pour vos bilans.',
+        currentKey: 'Une cle {provider} est configuree.',
+        provider: 'Fournisseur',
+        model: 'Modele',
+        recommended: 'recommande',
+        apiKey: 'Cle API',
+        apiKeyPlaceholder: 'Collez la cle API de votre fournisseur',
+        apiKeyKeep: '••••••••  (laisser vide pour conserver la cle actuelle)',
+        save: 'Enregistrer la cle',
+        saving: 'Enregistrement…',
+        remove: 'Supprimer la cle',
+        removing: 'Suppression…',
+        error: 'Impossible d enregistrer la cle.',
+      },
       sectionNotifications: 'Notifications',
       sectionPrivacy: 'Confidentialite',
       sectionAccount: 'Compte',
@@ -6194,6 +6323,7 @@ export const fr = {
         pools: 'Poules',
       },
       backToEventHome: "Retour à l'accueil de l'événement",
+      recapTitle: 'Recap',
       poolMatchesSearch: 'Rechercher un match (tireur, manche, club…)',
       poolMatchesNoResults: 'Aucun match trouvé.',
       participants: {
@@ -8081,6 +8211,7 @@ export const fr = {
       model: 'Modele',
       modelHint:
         'Modele utilise pour les fonctionnalites IA. Par defaut, le modele recommande du fournisseur.',
+      modelRecommended: 'recommande pour les outils',
       tabKeys: 'Cles',
       tabUsage: 'Utilisation',
       tabBudget: 'Budget',
@@ -8092,6 +8223,10 @@ export const fr = {
       byModel: 'Par modele',
       byProvider: 'Par fournisseur',
       byOrg: 'Par organisation',
+      byEvent: 'Par evenement',
+      byDay: 'Cout par jour',
+      usageTruncated:
+        'Affichage des 100 000 appels les plus recents — l activite plus ancienne n est pas incluse dans ces totaux.',
       colName: 'Nom',
       colCost: 'Cout',
       colCalls: 'Appels',
@@ -8110,6 +8245,24 @@ export const fr = {
       saving: 'Sauvegarde...',
       save: 'Sauvegarder la cle',
       remove: 'Supprimer la cle',
+      org: {
+        breadcrumb: 'IA',
+        description:
+          'Connectez un fournisseur IA, suivez la consommation et definissez un budget mensuel pour votre organisation.',
+        keyDisabled:
+          "Les fonctionnalites IA sont desactivees pour votre organisation tant qu'aucune cle API n'est configuree.",
+        keySavedUpdated: '{provider} cle enregistree — mise a jour {date}',
+        removing: 'Suppression…',
+        selectProviderAria: 'Selectionner {provider} comme fournisseur IA',
+        apiKeyKeepPlaceholder: '••••••••  (laisser vide pour conserver la cle actuelle)',
+        saveApiKey: 'Enregistrer la cle API',
+        saving: 'Enregistrement…',
+        availability: 'Disponibilite',
+        enableAi: 'Activer les fonctionnalites IA pour cette organisation',
+        enableChat: 'Activer le chatbot organisateur',
+        availabilityHint:
+          'Desactivez l IA pour votre organisation sans supprimer la cle. Une desactivation au niveau de la plateforme prime toujours.',
+      },
       providers: {
         openai: 'OpenAI',
         anthropic: 'Anthropic',
@@ -8918,6 +9071,21 @@ export const fr = {
         'Cela supprimera definitivement la copie {location} datee du {timestamp}. Les autres emplacements ne sont pas affectes.',
       continueDelete: 'Supprimer la sauvegarde',
       restoreConfirmation: 'Phrase de confirmation de restauration',
+      restoreComplete:
+        'Restauration terminee. Verifiez que les services sont sains avant de rouvrir le site.',
+      restoreScopeTitle: 'Cette restauration va :',
+      restoreScopeDb:
+        'Supprimer et recreer la base de donnees, en remplacant toutes les donnees actuelles par la sauvegarde {timestamp}.',
+      restoreScopeStorage:
+        'Remplacer tous les fichiers envoyes (logos, medias) par le volume de stockage de cette sauvegarde.',
+      restoreScopeServices:
+        "Arreter l'app et les services Supabase pendant la restauration, puis les redemarrer ensuite.",
+      pollError: "Contact perdu avec l'operation en cours — nouvelle tentative automatique.",
+      retry: 'Actualiser maintenant',
+      uploadTooLarge: 'Ce fichier est trop volumineux (maximum {max}).',
+      uploadInvalidType: 'Fichier non pris en charge. Choisissez un artefact .gz ou .gpg.',
+      retentionLowWarning:
+        'Retention tres faible : une seule sauvegarde corrompue pourrait vous laisser sans copie valide.',
       encrypted: 'chiffrÃ©',
       locationsMap: {
         local: 'serveur local',
@@ -9318,6 +9486,9 @@ export const fr = {
       editTitle: "Modifier les proprietes de l'evenement",
       slugReadOnly: 'Le slug public reste /e/{slug}.',
       publicLanding: 'Contenu de la page publique',
+      aiDraft: 'Rediger avec l IA',
+      aiDrafting: 'Redaction…',
+      aiDraftError: 'Impossible de rediger la description.',
       venuesSection: 'Lieux',
       venuesHelp:
         'Choisissez le ou les lieux de cet evenement. Les lieux de tournoi y injectent leurs pistes ; un lieu ne peut pas etre retire tant qu’il a des assauts programmes ou des sessions de stage.',
@@ -9428,6 +9599,7 @@ export const fr = {
         displayPreviewTitle: 'Apercu',
         advanced: 'Avance',
         locks: 'Verrouillage auto',
+        recap: 'Recap',
         lockHelp: {
           intro:
             'Verrouille les poules ou tableaux termines apres un delai pour empecher les arbitres de continuer a les modifier. Reglage au niveau du tournoi, distinct du bareme.',
@@ -9784,6 +9956,21 @@ export const fr = {
         theme: 'Identite visuelle',
       },
     },
+    recap: {
+      title: 'Recap IA',
+      subtitle:
+        'Generez un court recap de ce tournoi a partir des resultats, puis publiez-le sur la page publique.',
+      language: 'Langue',
+      generate: 'Generer le recap',
+      regenerate: 'Regenerer',
+      publish: 'Publier',
+      unpublish: 'Depublier',
+      published: 'Publie',
+      draft: 'Brouillon',
+      empty: 'Aucun recap pour le moment. Generez-en un a partir des resultats finaux.',
+      generatedOn: 'Genere le {date}',
+      error: 'Impossible de traiter la demande.',
+    },
     chat: {
       navLabel: 'Chatbot',
       title: 'Chatbot organisateur',
@@ -9802,6 +9989,15 @@ export const fr = {
       you: 'Vous',
       assistant: 'Assistant',
       errorSend: 'Impossible de traiter la demande.',
+      ranTool: 'Consultation de {name}',
+      preparingProposal: 'Preparation d une proposition…',
+      rename: 'Renommer',
+      renameConversation: 'Renommer la conversation',
+      delete: 'Supprimer',
+      deleteConversation: 'Supprimer la conversation',
+      deleteConfirm: 'Supprimer cette conversation et ses messages ?',
+      renameSave: 'Enregistrer',
+      renameCancel: 'Annuler',
       proposal: {
         title: 'Action proposee',
         confirm: 'Confirmer et appliquer',

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { AccountSection } from './AccountSection';
+import { AISettingsSection } from './AISettingsSection';
 import { NotificationPreferences } from './NotificationPreferences';
 import { PrivacySettings } from './PrivacySettings';
 
@@ -46,6 +47,7 @@ export default function SettingsClient() {
 
         <NotificationPreferences apiUrl={apiUrl} />
         <PrivacySettings apiUrl={apiUrl} />
+        <AISettingsSection apiUrl={apiUrl} />
         <AccountSection apiUrl={apiUrl} />
 
         <button

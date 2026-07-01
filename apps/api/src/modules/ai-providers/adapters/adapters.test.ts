@@ -185,6 +185,51 @@ describe('OpenAIAdapter', () => {
     });
     expect(result.toolCall).toEqual({ name: 'lookup', arguments: { id: '42' } });
   });
+
+  it('maps a multi-turn transcript and returns all tool calls + stopReason', async () => {
+    mockOpenAICreate.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: 'working',
+            tool_calls: [
+              { id: 'tc_1', function: { name: 'list_pools', arguments: '{"tournamentId":"t1"}' } },
+              { id: 'tc_2', function: { name: 'list_referees', arguments: '{}' } },
+            ],
+          },
+          finish_reason: 'tool_calls',
+        },
+      ],
+      usage: { prompt_tokens: 30, completion_tokens: 12 },
+    });
+    const result = await adapter.generate('key-oai', {
+      system: 'sys',
+      model: 'gpt-4o',
+      maxTokens: 100,
+      temperature: 0.5,
+      tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
+      messages: [
+        { role: 'user', content: 'set up pools' },
+        { role: 'assistant', toolCalls: [{ id: 'tc_0', name: 'list_tournaments', arguments: {} }] },
+        { role: 'tool', toolResults: [{ toolCallId: 'tc_0', content: '[]' }] },
+      ],
+    });
+    expect(result.toolCalls).toHaveLength(2);
+    expect(result.toolCalls?.[0]).toEqual({
+      id: 'tc_1',
+      name: 'list_pools',
+      arguments: { tournamentId: 't1' },
+    });
+    expect(result.stopReason).toBe('tool_use');
+    // system + user + assistant(tool_calls) + tool(result) = 4
+    const arg = (mockOpenAICreate.mock.calls[0] as unknown[])[0] as {
+      messages: Array<Record<string, unknown>>;
+    };
+    expect(arg.messages).toHaveLength(4);
+    expect(arg.messages[0]?.['role']).toBe('system');
+    expect((arg.messages[2] as { tool_calls?: unknown[] }).tool_calls).toHaveLength(1);
+    expect(arg.messages[3]).toMatchObject({ role: 'tool', tool_call_id: 'tc_0' });
+  });
 });
 
 // ── MistralAdapter ─────────────────────────────────────────────────────────
@@ -226,5 +271,45 @@ describe('MistralAdapter', () => {
       toolChoice: 'auto',
     });
     expect(result.toolCall).toEqual({ name: 'rank', arguments: { n: 3 } });
+  });
+
+  it('maps a multi-turn transcript and returns all tool calls + stopReason', async () => {
+    mockMistralComplete.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: 'working',
+            toolCalls: [
+              { id: 'tc_1', function: { name: 'list_pools', arguments: '{"tournamentId":"t1"}' } },
+              { id: 'tc_2', function: { name: 'list_referees', arguments: '{}' } },
+            ],
+          },
+          finishReason: 'tool_calls',
+        },
+      ],
+      usage: { promptTokens: 30, completionTokens: 12 },
+    });
+    const result = await adapter.generate('key-mist', {
+      system: 'sys',
+      model: 'mistral-large-latest',
+      maxTokens: 100,
+      temperature: 0.5,
+      tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
+      messages: [
+        { role: 'user', content: 'set up pools' },
+        { role: 'assistant', toolCalls: [{ id: 'tc_0', name: 'list_tournaments', arguments: {} }] },
+        { role: 'tool', toolResults: [{ toolCallId: 'tc_0', content: '[]' }] },
+      ],
+    });
+    expect(result.toolCalls).toHaveLength(2);
+    expect(result.toolCalls?.[1]).toEqual({ id: 'tc_2', name: 'list_referees', arguments: {} });
+    expect(result.stopReason).toBe('tool_use');
+    // system + user + assistant(toolCalls) + tool(result) = 4
+    const arg = (mockMistralComplete.mock.calls[0] as unknown[])[0] as {
+      messages: Array<Record<string, unknown>>;
+    };
+    expect(arg.messages).toHaveLength(4);
+    expect(arg.messages[0]?.['role']).toBe('system');
+    expect(arg.messages[3]).toMatchObject({ role: 'tool', toolCallId: 'tc_0' });
   });
 });

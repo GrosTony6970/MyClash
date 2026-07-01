@@ -30,6 +30,13 @@ export class AIUsageService {
       throw new ServiceUnavailableException('AI features are temporarily disabled');
     }
 
+    // 0b. Per-org AI kill-switch (org can turn AI off for itself; a global
+    // disable already threw above and always wins — orgs can't re-enable).
+    const orgSettings = await this.orgAiSettings(orgId);
+    if (orgSettings.aiDisabled) {
+      throw new ServiceUnavailableException('AI features are disabled for this organization');
+    }
+
     // 1. Monthly budgets (calendar-month UTC), checked platform → org → event.
     // Pre-call gates (may overshoot by one call, like the per-event cap).
     const monthStart = currentMonthStartIso();
@@ -40,11 +47,10 @@ export class AIUsageService {
         throw new BudgetExceededException('platform', platformBudget, spent);
       }
     }
-    const orgBudget = await this.orgMonthlyBudget(orgId);
-    if (orgBudget !== null) {
+    if (orgSettings.budget !== null) {
       const spent = await this.monthlySpend(monthStart, orgId);
-      if (spent >= orgBudget) {
-        throw new BudgetExceededException('organization', orgBudget, spent);
+      if (spent >= orgSettings.budget) {
+        throw new BudgetExceededException('organization', orgSettings.budget, spent);
       }
     }
 
@@ -97,13 +103,20 @@ export class AIUsageService {
     return numOrNull((data as { monthly_budget_eur: unknown } | null)?.monthly_budget_eur);
   }
 
-  private async orgMonthlyBudget(orgId: string): Promise<number | null> {
+  /** One read for both the org monthly budget and the per-org AI kill-switch. */
+  private async orgAiSettings(
+    orgId: string,
+  ): Promise<{ budget: number | null; aiDisabled: boolean }> {
     const { data } = await this.supabase.service
       .from('organization_ai_settings')
-      .select('monthly_budget_eur')
+      .select('monthly_budget_eur, ai_features_disabled')
       .eq('organization_id', orgId)
       .maybeSingle();
-    return numOrNull((data as { monthly_budget_eur: unknown } | null)?.monthly_budget_eur);
+    const row = data as { monthly_budget_eur?: unknown; ai_features_disabled?: boolean } | null;
+    return {
+      budget: numOrNull(row?.monthly_budget_eur),
+      aiDisabled: Boolean(row?.ai_features_disabled),
+    };
   }
 
   private async monthlySpend(monthStartIso: string, orgId: string | null): Promise<number> {
@@ -147,40 +160,75 @@ export class AIUsageService {
 
   /** Consumption rollup for one org (dashboard Usage tab). */
   async getOrgUsageRollup(orgId: string, fromIso?: string, toIso?: string) {
-    const rows = await this.fetchUsageRows({ orgId, fromIso, toIso });
-    return {
-      ...aggregate(rows),
-      byEvent: groupCost(rows, (r) => r.event_id ?? 'unknown'),
-    };
+    const { rows, truncated } = await this.fetchUsageRows({ orgId, fromIso, toIso });
+    const byEvent = await this.attachNames(
+      groupCost(rows, (r) => r.event_id ?? 'unknown'),
+      'events',
+    );
+    return { ...aggregate(rows), byEvent, truncated };
   }
 
   /** Global consumption rollup + per-org breakdown (super-admin dashboard). */
   async getPlatformUsageRollup(fromIso?: string, toIso?: string) {
-    const rows = await this.fetchUsageRows({ fromIso, toIso });
-    return {
-      ...aggregate(rows),
-      byOrg: groupCost(rows, (r) => r.organization_id ?? 'unknown'),
-    };
+    const { rows, truncated } = await this.fetchUsageRows({ fromIso, toIso });
+    const byOrg = await this.attachNames(
+      groupCost(rows, (r) => r.organization_id ?? 'unknown'),
+      'organizations',
+    );
+    return { ...aggregate(rows), byOrg, truncated };
   }
 
+  /**
+   * Resolve id-keyed buckets to human-readable names (no raw UUIDs in the UI).
+   * Buckets stay keyed by id (stable grouping); a display `label` is attached.
+   */
+  private async attachNames(
+    buckets: Bucket[],
+    table: 'events' | 'organizations',
+  ): Promise<Bucket[]> {
+    const ids = buckets.map((b) => b.key).filter((k) => k && k !== 'unknown');
+    if (ids.length === 0) return buckets;
+    const { data } = await this.supabase.service.from(table).select('id, name').in('id', ids);
+    const names = new Map<string, string>();
+    for (const row of (data ?? []) as { id: string; name: string }[]) {
+      names.set(row.id, row.name);
+    }
+    return buckets.map((b) => ({ ...b, label: names.get(b.key) ?? b.label }));
+  }
+
+  /**
+   * Page through ai_usage_log so rollup totals stay correct for high-volume
+   * orgs — the old single `.limit(5000)` silently dropped rows (wrong totals
+   * with no signal). Bounded by a safety ceiling; if hit, `truncated` is set so
+   * the dashboard can say "showing first N" instead of lying.
+   */
   private async fetchUsageRows(opts: {
     orgId?: string;
     fromIso?: string;
     toIso?: string;
-  }): Promise<UsageRow[]> {
-    let q = this.supabase.service
-      .from('ai_usage_log')
-      .select(
-        'organization_id, event_id, feature, model, provider, input_tokens, output_tokens, cost_eur, called_at',
-      )
-      .order('called_at', { ascending: false })
-      .limit(5000);
-    if (opts.orgId) q = q.eq('organization_id', opts.orgId);
-    if (opts.fromIso) q = q.gte('called_at', opts.fromIso);
-    if (opts.toIso) q = q.lte('called_at', opts.toIso);
-    const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
-    return (data ?? []) as UsageRow[];
+  }): Promise<{ rows: UsageRow[]; truncated: boolean }> {
+    const PAGE = 1000;
+    const MAX_ROWS = 100_000;
+    const rows: UsageRow[] = [];
+    for (let offset = 0; offset < MAX_ROWS; offset += PAGE) {
+      let q = this.supabase.service
+        .from('ai_usage_log')
+        .select(
+          'organization_id, event_id, feature, model, provider, input_tokens, output_tokens, cost_eur, called_at',
+        )
+        .order('called_at', { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (opts.orgId) q = q.eq('organization_id', opts.orgId);
+      if (opts.fromIso) q = q.gte('called_at', opts.fromIso);
+      if (opts.toIso) q = q.lte('called_at', opts.toIso);
+      const { data, error } = await q;
+      if (error) throw new BadRequestException(error.message);
+      const batch = (data ?? []) as UsageRow[];
+      rows.push(...batch);
+      if (batch.length < PAGE) return { rows, truncated: false };
+    }
+    // Reached the ceiling with full pages — more rows may exist beyond it.
+    return { rows, truncated: true };
   }
 }
 
@@ -198,6 +246,8 @@ interface UsageRow {
 
 export interface Bucket {
   key: string;
+  /** Human-readable name for id-keyed buckets (event/org); UI renders label ?? key. */
+  label?: string;
   costEur: number;
   inputTokens: number;
   outputTokens: number;

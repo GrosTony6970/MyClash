@@ -46,12 +46,7 @@ export class AIProvidersService implements OnModuleInit {
     if (model != null && !isValidModelForProvider(provider, model)) {
       throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
     }
-    const iv = randomBytes(IV_LENGTH);
-    const cipher = createCipheriv(ALGORITHM, this.secretKey, iv);
-    const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    const ciphertext = Buffer.concat([encrypted, tag]).toString('base64');
-    const ivBase64 = iv.toString('base64');
+    const { ciphertext, iv: ivBase64 } = this.encrypt(rawKey);
 
     const { error } = await this.supabase.service
       .from('organization_ai_settings')
@@ -81,11 +76,15 @@ export class AIProvidersService implements OnModuleInit {
     hasKey: true;
     model: string | null;
     monthlyBudgetEur: number | null;
+    aiFeaturesDisabled: boolean;
+    organizerChatDisabled: boolean;
     updatedAt: string;
   } | null> {
     const { data } = await this.supabase.service
       .from('organization_ai_settings')
-      .select('provider, model, monthly_budget_eur, updated_at')
+      .select(
+        'provider, model, monthly_budget_eur, ai_features_disabled, organizer_chat_disabled, updated_at',
+      )
       .eq('organization_id', orgId)
       .maybeSingle();
 
@@ -94,6 +93,8 @@ export class AIProvidersService implements OnModuleInit {
       provider: AIProvider;
       model: string | null;
       monthly_budget_eur: number | string | null;
+      ai_features_disabled?: boolean | null;
+      organizer_chat_disabled?: boolean | null;
       updated_at: string;
     };
     return {
@@ -101,6 +102,8 @@ export class AIProvidersService implements OnModuleInit {
       hasKey: true,
       model: row.model ?? null,
       monthlyBudgetEur: toNumberOrNull(row.monthly_budget_eur),
+      aiFeaturesDisabled: Boolean(row.ai_features_disabled),
+      organizerChatDisabled: Boolean(row.organizer_chat_disabled),
       updatedAt: row.updated_at,
     };
   }
@@ -110,6 +113,27 @@ export class AIProvidersService implements OnModuleInit {
     const { error } = await this.supabase.service
       .from('organization_ai_settings')
       .update({ monthly_budget_eur: monthlyBudgetEur })
+      .eq('organization_id', orgId);
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Per-org AI availability overrides. An org can disable AI or just the chatbot
+   * for itself; it can never re-enable what the platform kill-switch turned off
+   * (that's enforced at the call sites). Requires an existing settings row.
+   */
+  async updateFlags(
+    orgId: string,
+    flags: { aiFeaturesDisabled?: boolean; organizerChatDisabled?: boolean },
+  ): Promise<void> {
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (flags.aiFeaturesDisabled !== undefined)
+      updates['ai_features_disabled'] = flags.aiFeaturesDisabled;
+    if (flags.organizerChatDisabled !== undefined)
+      updates['organizer_chat_disabled'] = flags.organizerChatDisabled;
+    const { error } = await this.supabase.service
+      .from('organization_ai_settings')
+      .update(updates)
       .eq('organization_id', orgId);
     if (error) throw new Error(error.message);
   }
@@ -141,6 +165,101 @@ export class AIProvidersService implements OnModuleInit {
     // Surface the resolved model + provider so callers (AIUsageService) can log
     // them to ai_usage_log for the consumption dashboard.
     return { ...result, model: resolved.id, provider: row.provider };
+  }
+
+  // ── Per-fighter BYOK (fighter_ai_settings) ────────────────────────────────
+  // A fighter brings their own provider key for personal AI insights. Same
+  // encryption + adapter dispatch as the org path, keyed by global_person_id.
+
+  async saveFighterKey(
+    globalPersonId: string,
+    provider: AIProvider,
+    rawKey: string,
+    model?: string | null,
+  ): Promise<void> {
+    if (model != null && !isValidModelForProvider(provider, model)) {
+      throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
+    }
+    const { ciphertext, iv } = this.encrypt(rawKey);
+    const { error } = await this.supabase.service
+      .from('fighter_ai_settings')
+      .upsert({
+        global_person_id: globalPersonId,
+        provider,
+        api_key_enc: ciphertext,
+        api_key_iv: iv,
+        model: model ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .select('global_person_id')
+      .single();
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteFighterKey(globalPersonId: string): Promise<void> {
+    await this.supabase.service
+      .from('fighter_ai_settings')
+      .delete()
+      .eq('global_person_id', globalPersonId);
+  }
+
+  async getFighterConfig(
+    globalPersonId: string,
+  ): Promise<{
+    provider: AIProvider;
+    hasKey: true;
+    model: string | null;
+    updatedAt: string;
+  } | null> {
+    const { data } = await this.supabase.service
+      .from('fighter_ai_settings')
+      .select('provider, model, updated_at')
+      .eq('global_person_id', globalPersonId)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as { provider: AIProvider; model: string | null; updated_at: string };
+    return {
+      provider: row.provider,
+      hasKey: true,
+      model: row.model ?? null,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /** Generate using the fighter's own key. Throws if they haven't configured one. */
+  async generateForFighter(
+    globalPersonId: string,
+    request: GenerationRequest,
+  ): Promise<GenerationResult> {
+    const { data } = await this.supabase.service
+      .from('fighter_ai_settings')
+      .select('provider, api_key_enc, api_key_iv, model')
+      .eq('global_person_id', globalPersonId)
+      .maybeSingle();
+    if (!data) throw new NotFoundException('No AI provider configured for this fighter');
+    const row = data as {
+      provider: AIProvider;
+      api_key_enc: string;
+      api_key_iv: string;
+      model: string | null;
+    };
+    const rawKey = this.decrypt(row.api_key_enc, row.api_key_iv);
+    const adapter = this.adapters[row.provider];
+    const requested = request.model && request.model !== 'default' ? request.model : row.model;
+    const resolved = resolveModel(row.provider, requested);
+    const result = await adapter.generate(rawKey, { ...request, model: resolved.id });
+    return { ...result, model: resolved.id, provider: row.provider };
+  }
+
+  private encrypt(rawKey: string): { ciphertext: string; iv: string } {
+    const iv = randomBytes(IV_LENGTH);
+    const cipher = createCipheriv(ALGORITHM, this.secretKey, iv);
+    const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return {
+      ciphertext: Buffer.concat([encrypted, tag]).toString('base64'),
+      iv: iv.toString('base64'),
+    };
   }
 
   private decrypt(ciphertext: string, ivBase64: string): string {

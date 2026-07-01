@@ -98,6 +98,8 @@ describe('AIProvidersService', () => {
       hasKey: true,
       model: 'gpt-4o',
       monthlyBudgetEur: null,
+      aiFeaturesDisabled: false,
+      organizerChatDisabled: false,
       updatedAt: '2026-01-01T00:00:00Z',
     });
   });

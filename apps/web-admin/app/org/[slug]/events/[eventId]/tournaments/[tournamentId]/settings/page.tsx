@@ -10,9 +10,10 @@ import { MatchFormatTab } from './_components/MatchFormatTab';
 import { DisplayTab } from './_components/DisplayTab';
 import { AdvancedTab } from './_components/AdvancedTab';
 import { LocksTab } from './_components/LocksTab';
+import { RecapTab } from './_components/RecapTab';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 
-type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks';
+type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks' | 'recap';
 
 const TABS: Array<{ key: TabKey; labelKey: string }> = [
   { key: 'basics', labelKey: 'organizer.tournaments.settings.basics' },
@@ -21,6 +22,7 @@ const TABS: Array<{ key: TabKey; labelKey: string }> = [
   { key: 'display', labelKey: 'organizer.tournaments.settings.display' },
   { key: 'advanced', labelKey: 'organizer.tournaments.settings.advanced' },
   { key: 'locks', labelKey: 'organizer.tournaments.settings.locks' },
+  { key: 'recap', labelKey: 'organizer.tournaments.settings.recap' },
 ];
 
 function readHashTab(): TabKey {
@@ -94,6 +96,7 @@ export default function TournamentSettingsPage() {
           {active === 'display' && <DisplayTab tournamentId={params.tournamentId} />}
           {active === 'advanced' && <AdvancedTab tournamentId={params.tournamentId} />}
           {active === 'locks' && <LocksTab tournamentId={params.tournamentId} />}
+          {active === 'recap' && <RecapTab tournamentId={params.tournamentId} />}
         </section>
       </div>
     </main>

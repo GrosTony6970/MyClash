@@ -170,6 +170,9 @@ export default async function TournamentPage({ params }: Props) {
     apiUrl,
   );
 
+  // Published AI recap (organizer-reviewed). Null when none is published.
+  const recap = await fetchPublishedRecap(tournament.id, apiUrl);
+
   // A draft tournament isn't public yet, so it exposes nothing structural —
   // only the Participants list (the Pool/Standings tabs already hide because
   // the API returns empty pools for non-public statuses).
@@ -248,6 +251,15 @@ export default async function TournamentPage({ params }: Props) {
           </p>
         </div>
       </div>
+
+      {recap && (
+        <section className="mb-6 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-2 font-display text-lg font-semibold text-slate-800">
+            {t('publicApp.tournament.recapTitle')}
+          </h2>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{recap}</p>
+        </section>
+      )}
 
       <TournamentTabs
         defaultTab={defaultTab}
@@ -364,6 +376,24 @@ export default async function TournamentPage({ params }: Props) {
       />
     </main>
   );
+}
+
+/**
+ * Published AI recap for the public page. SSR text renders in the default
+ * locale (EN), and the public read falls back to EN anyway, so request EN.
+ */
+async function fetchPublishedRecap(tournamentId: string, apiUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/v1/public/generated-content/tournament_recap/${tournamentId}?locale=en`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: string } | null;
+    return data?.content ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchTournamentParticipants(

@@ -1,18 +1,26 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { buildCorsOrigins } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateConversationDto, SendMessageDto } from './dto/organizer-chat.dto';
-import { OrganizerChatService } from './organizer-chat.service';
+import {
+  CreateConversationDto,
+  RenameConversationDto,
+  SendMessageDto,
+} from './dto/organizer-chat.dto';
+import { OrganizerChatService, type ChatStreamEvent } from './organizer-chat.service';
 
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -71,6 +79,29 @@ export class OrganizerChatController {
     return this.chat.getConversation(eventId, conversationId, userId);
   }
 
+  @Patch('conversations/:conversationId')
+  @ApiOperation({ summary: 'Rename a conversation' })
+  async renameConversation(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+    @Body() dto: RenameConversationDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.chat.renameConversation(eventId, conversationId, userId, dto.title);
+  }
+
+  @Delete('conversations/:conversationId')
+  @ApiOperation({ summary: 'Delete a conversation and its messages' })
+  async deleteConversation(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.chat.deleteConversation(eventId, conversationId, userId);
+  }
+
   @Post('conversations/:conversationId/messages')
   @ApiOperation({ summary: 'Send a message and run the assistant turn' })
   async sendMessage(
@@ -81,6 +112,61 @@ export class OrganizerChatController {
   ) {
     const userId = await getClaimedUserId(req, this.supabase);
     return this.chat.sendMessage(eventId, conversationId, userId, dto.content);
+  }
+
+  @Post('conversations/:conversationId/messages/stream')
+  @ApiOperation({ summary: 'Send a message and stream assistant progress (SSE)' })
+  async sendMessageStream(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('conversationId', ParseUUIDPipe) conversationId: string,
+    @Body() dto: SendMessageDto,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ) {
+    // Auth BEFORE hijack, so a 401 flows through the normal exception path.
+    const userId = await getClaimedUserId(req, this.supabase);
+
+    const raw = reply.raw;
+    raw.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    raw.setHeader('Cache-Control', 'no-cache, no-transform');
+    raw.setHeader('Connection', 'keep-alive');
+    raw.setHeader('X-Accel-Buffering', 'no'); // don't let a proxy buffer the stream
+    const origin = req.headers.origin;
+    if (origin && buildCorsOrigins(process.env['DOMAIN'] ?? 'myclash.localhost').includes(origin)) {
+      // hijack() bypasses Fastify's CORS hook, so mirror the headers here.
+      raw.setHeader('Access-Control-Allow-Origin', origin);
+      raw.setHeader('Access-Control-Allow-Credentials', 'true');
+      raw.setHeader('Vary', 'Origin');
+    }
+    reply.hijack();
+    raw.flushHeaders?.();
+
+    const send = (event: unknown) => {
+      if (!raw.writableEnded) raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+    // Keepalive so a long single turn doesn't trip a proxy idle timeout.
+    const heartbeat = setInterval(() => {
+      if (!raw.writableEnded) raw.write(': ping\n\n');
+    }, 15000);
+
+    try {
+      const conversation = await this.chat.sendMessage(
+        eventId,
+        conversationId,
+        userId,
+        dto.content,
+        (e: ChatStreamEvent) => send(e),
+      );
+      send({ type: 'done', conversation });
+    } catch (e) {
+      send({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'The request could not be completed.',
+      });
+    } finally {
+      clearInterval(heartbeat);
+      if (!raw.writableEnded) raw.end();
+    }
   }
 
   @Post('conversations/:conversationId/proposals/:draftId/confirm')

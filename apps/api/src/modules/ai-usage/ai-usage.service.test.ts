@@ -148,6 +148,22 @@ describe('AIUsageService.generateWithCap', () => {
     );
     expect(mockProviderGenerate).not.toHaveBeenCalled();
   });
+
+  it('throws ServiceUnavailableException when the org disabled AI for itself', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'organization_ai_settings')
+        return makeChain({
+          data: { ai_features_disabled: true, monthly_budget_eur: null },
+          error: null,
+        });
+      return makeChain({ data: null, error: null });
+    });
+
+    await expect(service.generateWithCap('org-1', 'event-1', 'nlq', baseRequest)).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    expect(mockProviderGenerate).not.toHaveBeenCalled();
+  });
 });
 
 describe('AIUsageService.getUsageSummary', () => {
@@ -182,5 +198,64 @@ describe('AIUsageService.getUsageSummary', () => {
     expect(summary.cap).toBeCloseTo(10);
     expect(summary.remainingEur).toBeCloseTo(6.5);
     expect(summary.callCount).toBe(7);
+  });
+});
+
+describe('AIUsageService.getOrgUsageRollup', () => {
+  // Thenable ai_usage_log builder that pages by the .range(offset,...) call, so
+  // we can verify pagination aggregates across pages (not the old 5000 cap).
+  function makeService(allRows: unknown[], nameRows: unknown[] = []) {
+    const from = vi.fn((table: string) => {
+      if (table === 'ai_usage_log') {
+        let offset = 0;
+        const b: Record<string, unknown> = {
+          select: () => b,
+          order: () => b,
+          eq: () => b,
+          gte: () => b,
+          lte: () => b,
+          range: (f: number) => {
+            offset = f;
+            return b;
+          },
+          then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
+            Promise.resolve({ data: allRows.slice(offset, offset + 1000), error: null }).then(
+              res,
+              rej,
+            ),
+        };
+        return b;
+      }
+      // events / organizations name lookup
+      return { select: () => ({ in: () => Promise.resolve({ data: nameRows, error: null }) }) };
+    });
+    return new AIUsageService(
+      mockAIProviders as never,
+      { service: { from } } as never,
+      mockFlags as never,
+    );
+  }
+
+  it('aggregates across multiple pages and resolves event names', async () => {
+    const rows = Array.from({ length: 1500 }, () => ({
+      organization_id: 'org-1',
+      event_id: 'e1',
+      feature: 'nlq',
+      model: 'claude-opus-4-8',
+      provider: 'anthropic',
+      input_tokens: 1,
+      output_tokens: 1,
+      cost_eur: 0.01,
+      called_at: '2026-07-01T00:00:00Z',
+    }));
+    const service = makeService(rows, [{ id: 'e1', name: 'Summer Open' }]);
+
+    const rollup = await service.getOrgUsageRollup('org-1');
+
+    expect(rollup.total.calls).toBe(1500); // both pages counted (would be capped before)
+    expect(rollup.total.costEur).toBeCloseTo(15);
+    expect(rollup.truncated).toBe(false);
+    expect(rollup.byEvent).toHaveLength(1);
+    expect(rollup.byEvent[0]?.label).toBe('Summer Open'); // no raw UUID
   });
 });

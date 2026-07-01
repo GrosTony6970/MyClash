@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import type { FastifyRequest } from 'fastify';
 import { AIProvidersService } from '../ai-providers/ai-providers.service';
 import { UpdateBudgetDto } from '../ai-providers/dto/update-budget.dto';
+import { UpdateAIFlagsDto } from '../ai-providers/dto/update-ai-flags.dto';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AIUsageService } from './ai-usage.service';
@@ -59,6 +60,21 @@ export class AIDashboardController {
     const userId = await getUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.providers.updateBudget(orgId, dto.monthlyBudgetEur);
+    return this.providers.getProviderConfig(orgId);
+  }
+
+  /** PATCH /api/v1/organizations/:orgId/ai-settings/flags */
+  @Patch(':orgId/ai-settings/flags')
+  @ApiOperation({ summary: 'Set per-org AI availability overrides' })
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  async setFlags(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() dto: UpdateAIFlagsDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
+    await this.providers.updateFlags(orgId, dto);
     return this.providers.getProviderConfig(orgId);
   }
 }

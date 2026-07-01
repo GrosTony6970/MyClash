@@ -15,3 +15,10 @@ const sendMessageSchema = z
   })
   .strict();
 export class SendMessageDto extends createZodDto(sendMessageSchema) {}
+
+const renameConversationSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+  })
+  .strict();
+export class RenameConversationDto extends createZodDto(renameConversationSchema) {}

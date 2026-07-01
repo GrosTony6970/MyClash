@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from
 import { getDateFormat } from '@myclash/types';
 import { Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { InsightCard } from './InsightCard';
 
 interface ClubLink {
   role?: string;
@@ -484,6 +485,9 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <div className="lg:col-span-2">
+        <InsightCard apiUrl={apiUrl} />
+      </div>
       <Card className="order-2 lg:order-none">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field

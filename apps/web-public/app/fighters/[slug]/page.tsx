@@ -238,6 +238,24 @@ async function fetchCareer(slug: string, apiUrl: string): Promise<FighterCareer 
   }
 }
 
+/** Published AI insight for this fighter (null unless they published one). */
+async function fetchPublishedInsight(
+  globalPersonId: string,
+  apiUrl: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/v1/public/generated-content/fighter_insight/${globalPersonId}?locale=en`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: string } | null;
+    return data?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchRefereeStats(slug: string, apiUrl: string): Promise<RefereeStats | null> {
   try {
     const res = await fetch(`${apiUrl}/api/v1/fighters/${slug}/referee-stats`, {
@@ -304,6 +322,7 @@ export default async function FighterPage({ params }: Props) {
   const secondaryClubs = fighter.clubs.filter((club) => club.role === 'secondary');
   const previousClubs = fighter.clubs.filter((club) => club.role === 'previous');
   const overallStats = career?.stats.overall;
+  const insight = fighter.id ? await fetchPublishedInsight(fighter.id, apiUrl) : null;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
@@ -342,6 +361,15 @@ export default async function FighterPage({ params }: Props) {
       </div>
 
       {fighter.bio && <p className="mb-6 text-sm leading-relaxed text-gray-300">{fighter.bio}</p>}
+
+      {insight && (
+        <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+            {t('publicApp.fighterProfile.insightTitle')}
+          </h2>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-300">{insight}</p>
+        </section>
+      )}
 
       {(fighter.weapons.length > 0 || fighter.clubs.length > 0) && (
         <section className="mb-6 grid gap-3 sm:grid-cols-2">

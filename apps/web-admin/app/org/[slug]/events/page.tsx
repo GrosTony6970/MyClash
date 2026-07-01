@@ -135,6 +135,8 @@ export default function OrgEventsListPage() {
   // sessions.
   const [logoPendingFile, setLogoPendingFile] = useState<File | null>(null);
   const [logoRemove, setLogoRemove] = useState(false);
+  const [draftingDesc, setDraftingDesc] = useState(false);
+  const [draftDescError, setDraftDescError] = useState<string | null>(null);
   const editLogoInput = useRef<HTMLInputElement | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<OrgEvent | null>(null);
   // Event targeted by the "Request deletion" modal (archive + submit request).
@@ -275,6 +277,25 @@ export default function OrgEventsListPage() {
     setEventVenueIds([]);
     setError(null);
     setNotice(null);
+  }
+
+  async function generateDescription() {
+    if (!editing) return;
+    setDraftingDesc(true);
+    setDraftDescError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/generated-content/organizer_content/${editing.id}/generate?locale=${locale}`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) throw new Error(t('organizer.events.aiDraftError'));
+      const data = (await res.json()) as { content: string };
+      setForm((f) => (f ? { ...f, publicLandingMd: data.content } : f));
+    } catch (e) {
+      setDraftDescError(e instanceof Error ? e.message : t('organizer.events.aiDraftError'));
+    } finally {
+      setDraftingDesc(false);
+    }
   }
 
   function closeEdit() {
@@ -997,6 +1018,19 @@ export default function OrgEventsListPage() {
                   onChange={(event) => setForm({ ...form, publicLandingMd: event.target.value })}
                   className="rounded-md border border-border px-3 py-2 text-sm"
                 />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void generateDescription()}
+                    disabled={draftingDesc}
+                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:bg-background disabled:opacity-50"
+                  >
+                    {draftingDesc
+                      ? t('organizer.events.aiDrafting')
+                      : t('organizer.events.aiDraft')}
+                  </button>
+                  {draftDescError && <span className="text-xs text-danger">{draftDescError}</span>}
+                </div>
               </label>
               {orgVenues.length > 0 && (
                 <div className="grid gap-1 text-sm font-semibold text-foreground-secondary sm:col-span-2">

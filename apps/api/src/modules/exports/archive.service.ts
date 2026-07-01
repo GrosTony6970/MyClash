@@ -185,6 +185,8 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'ai_data_quality_findings',
   'ai_data_quality_scans',
   'organization_ai_settings',
+  'ai_generated_content', // regenerable AI output, not source data
+
   'follows', // user social graph, not event data
   'club_review_requests', // club-verification workflow, not event data
 ]);
