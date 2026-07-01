@@ -94,6 +94,12 @@ See `AGENTS.md` for the full agent contract and `docs/BUILD_ORDER.md` for the ta
 
 ---
 
+## Code review tooling
+
+The repository is analyzed by [code-review-graph](https://github.com/tirth8205/code-review-graph), which maintains a local knowledge graph of the codebase (files, symbols, and their relationships) at `.code-review-graph/graph.db`. It runs transparently and is gitignored — there is nothing to install or configure to contribute; it's an optional navigation aid for reviewers and AI agents working in the repo.
+
+---
+
 ## Commit messages
 
 Reference the BUILD_ORDER task ID in every commit:
