@@ -2,18 +2,15 @@ import OpenAI from 'openai';
 import type { ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions/completions';
 import { Injectable } from '@nestjs/common';
 import type {
+  ChatMessage,
   GenerationRequest,
   GenerationResult,
+  GenerationStopReason,
   ProviderAdapter,
+  ToolCall,
   ToolDefinition,
 } from './provider-adapter.interface';
-
-const PRICING: Record<string, { input: number; output: number }> = {
-  'gpt-4o': { input: (2.5 / 1_000_000) * 0.92, output: (10 / 1_000_000) * 0.92 },
-  'gpt-4o-mini': { input: (0.15 / 1_000_000) * 0.92, output: (0.6 / 1_000_000) * 0.92 },
-  'gpt-4-turbo': { input: (10 / 1_000_000) * 0.92, output: (30 / 1_000_000) * 0.92 },
-};
-const DEFAULT_PRICING = { input: (2.5 / 1_000_000) * 0.92, output: (10 / 1_000_000) * 0.92 };
+import { findModel, getDefaultModel } from '../model-registry';
 
 function mapTools(tools: ToolDefinition[]): OpenAI.ChatCompletionTool[] {
   return tools.map((t) => ({
@@ -26,18 +23,59 @@ function mapTools(tools: ToolDefinition[]): OpenAI.ChatCompletionTool[] {
   }));
 }
 
+function mapMessages(system: string, messages: ChatMessage[]): OpenAI.ChatCompletionMessageParam[] {
+  const out: OpenAI.ChatCompletionMessageParam[] = [{ role: 'system', content: system }];
+  for (const m of messages) {
+    if (m.role === 'tool') {
+      for (const r of m.toolResults ?? []) {
+        out.push({ role: 'tool', tool_call_id: r.toolCallId, content: r.content });
+      }
+    } else if (m.role === 'assistant') {
+      if (m.toolCalls?.length) {
+        out.push({
+          role: 'assistant',
+          content: m.content ?? null,
+          tool_calls: m.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+          })),
+        });
+      } else {
+        out.push({ role: 'assistant', content: m.content ?? '' });
+      }
+    } else {
+      out.push({ role: 'user', content: m.content ?? '' });
+    }
+  }
+  return out;
+}
+
+function mapStopReason(r: string | null | undefined): GenerationStopReason {
+  if (r === 'stop') return 'end_turn';
+  if (r === 'tool_calls' || r === 'function_call') return 'tool_use';
+  if (r === 'length') return 'max_tokens';
+  if (r === 'content_filter') return 'refusal';
+  return 'other';
+}
+
 @Injectable()
 export class OpenAIAdapter implements ProviderAdapter {
   async generate(apiKey: string, request: GenerationRequest): Promise<GenerationResult> {
     const client = new OpenAI({ apiKey });
+    const model = findModel('openai', request.model);
+    const supportsTemperature = model?.supportsTemperature ?? true;
+    const messages: OpenAI.ChatCompletionMessageParam[] = request.messages
+      ? mapMessages(request.system, request.messages)
+      : [
+          { role: 'system', content: request.system },
+          { role: 'user', content: request.user ?? '' },
+        ];
     const response = await client.chat.completions.create({
       model: request.model,
       max_tokens: request.maxTokens,
-      temperature: request.temperature,
-      messages: [
-        { role: 'system', content: request.system },
-        { role: 'user', content: request.user },
-      ],
+      ...(supportsTemperature ? { temperature: request.temperature } : {}),
+      messages,
       ...(request.tools?.length
         ? {
             tools: mapTools(request.tools),
@@ -49,28 +87,36 @@ export class OpenAIAdapter implements ProviderAdapter {
     const choice = response.choices[0];
     const text = choice?.message?.content ?? '';
 
-    const rawToolCallEntry = choice?.message?.tool_calls?.[0];
-    const rawToolCall =
-      rawToolCallEntry && 'function' in rawToolCallEntry
-        ? (rawToolCallEntry as ChatCompletionMessageFunctionToolCall)
-        : undefined;
-    let toolCall: { name: string; arguments: Record<string, unknown> } | undefined;
-    if (rawToolCall && 'function' in rawToolCall) {
-      try {
-        toolCall = {
-          name: rawToolCall.function.name,
-          arguments: JSON.parse(rawToolCall.function.arguments) as Record<string, unknown>,
-        };
-      } catch {
-        toolCall = { name: rawToolCall.function.name, arguments: {} };
+    const toolCalls: ToolCall[] = [];
+    for (const entry of choice?.message?.tool_calls ?? []) {
+      if ('function' in entry) {
+        const fn = (entry as ChatCompletionMessageFunctionToolCall).function;
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(fn.arguments) as Record<string, unknown>;
+        } catch {
+          args = {};
+        }
+        toolCalls.push({ id: entry.id, name: fn.name, arguments: args });
       }
     }
+    const toolCall = toolCalls[0]
+      ? { name: toolCalls[0].name, arguments: toolCalls[0].arguments }
+      : undefined;
 
     const inputTokens = response.usage?.prompt_tokens ?? 0;
     const outputTokens = response.usage?.completion_tokens ?? 0;
-    const pricing = PRICING[request.model] ?? DEFAULT_PRICING;
+    const pricing = (model ?? getDefaultModel('openai')).pricing;
     const costEur = inputTokens * pricing.input + outputTokens * pricing.output;
 
-    return { text, toolCall, inputTokens, outputTokens, costEur };
+    return {
+      text,
+      toolCall,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
+      stopReason: mapStopReason(choice?.finish_reason),
+      inputTokens,
+      outputTokens,
+      costEur,
+    };
   }
 }

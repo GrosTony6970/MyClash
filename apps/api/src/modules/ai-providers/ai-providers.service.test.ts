@@ -85,15 +85,21 @@ describe('AIProvidersService', () => {
     expect(result).toBeNull();
   });
 
-  it('getProviderConfig returns { provider, hasKey } when row exists', async () => {
+  it('getProviderConfig returns { provider, hasKey, model } when row exists', async () => {
     fromMock.mockReturnValue(
       makeChain({
-        data: { provider: 'openai', updated_at: '2026-01-01T00:00:00Z' },
+        data: { provider: 'openai', model: 'gpt-4o', updated_at: '2026-01-01T00:00:00Z' },
         error: null,
       }),
     );
     const result = await service.getProviderConfig('org-1');
-    expect(result).toEqual({ provider: 'openai', hasKey: true, updatedAt: '2026-01-01T00:00:00Z' });
+    expect(result).toEqual({
+      provider: 'openai',
+      hasKey: true,
+      model: 'gpt-4o',
+      monthlyBudgetEur: null,
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
   });
 
   it('deleteKey deletes the row', async () => {
@@ -138,5 +144,77 @@ describe('AIProvidersService', () => {
     expect(result.text).toBe('ok');
     // Verify generate was called with the original decrypted key
     expect(mockGenerate).toHaveBeenCalledWith(originalKey, expect.objectContaining({ user: 'u' }));
+  });
+
+  it('generate resolves the "default" sentinel to the stored model', async () => {
+    const originalKey = 'sk-key';
+    let savedRow: Record<string, unknown> = {};
+    const saveChain = makeChain({ data: { id: 'row-1' }, error: null });
+    saveChain.upsert.mockImplementation((row: unknown) => {
+      savedRow = row as Record<string, unknown>;
+      return saveChain;
+    });
+    fromMock.mockReturnValue(saveChain);
+    await service.saveKey('org-1', 'anthropic', originalKey, 'claude-sonnet-4-6');
+
+    const generateChain = makeChain({
+      data: {
+        provider: 'anthropic',
+        api_key_enc: savedRow['api_key_enc'],
+        api_key_iv: savedRow['api_key_iv'],
+        model: 'claude-sonnet-4-6',
+      },
+      error: null,
+    });
+    fromMock.mockReturnValue(generateChain);
+    mockGenerate.mockResolvedValue({ text: 'ok', inputTokens: 1, outputTokens: 1, costEur: 0 });
+
+    await service.generate('org-1', {
+      system: 's',
+      user: 'u',
+      model: 'default',
+      maxTokens: 10,
+      temperature: 0,
+    });
+    expect(mockGenerate).toHaveBeenCalledWith(
+      originalKey,
+      expect.objectContaining({ model: 'claude-sonnet-4-6' }),
+    );
+  });
+
+  it('generate falls back to the provider default when no model is stored', async () => {
+    const originalKey = 'sk-key2';
+    let savedRow: Record<string, unknown> = {};
+    const saveChain = makeChain({ data: { id: 'row-1' }, error: null });
+    saveChain.upsert.mockImplementation((row: unknown) => {
+      savedRow = row as Record<string, unknown>;
+      return saveChain;
+    });
+    fromMock.mockReturnValue(saveChain);
+    await service.saveKey('org-1', 'anthropic', originalKey);
+
+    const generateChain = makeChain({
+      data: {
+        provider: 'anthropic',
+        api_key_enc: savedRow['api_key_enc'],
+        api_key_iv: savedRow['api_key_iv'],
+        model: null,
+      },
+      error: null,
+    });
+    fromMock.mockReturnValue(generateChain);
+    mockGenerate.mockResolvedValue({ text: 'ok', inputTokens: 1, outputTokens: 1, costEur: 0 });
+
+    await service.generate('org-1', {
+      system: 's',
+      user: 'u',
+      model: 'default',
+      maxTokens: 10,
+      temperature: 0,
+    });
+    expect(mockGenerate).toHaveBeenCalledWith(
+      originalKey,
+      expect.objectContaining({ model: 'claude-opus-4-8' }),
+    );
   });
 });

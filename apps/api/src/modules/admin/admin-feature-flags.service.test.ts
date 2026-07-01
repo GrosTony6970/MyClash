@@ -26,9 +26,10 @@ describe('AdminFeatureFlagsService', () => {
 
     const flags = await service.listFlagsWithRegistry();
 
-    // Registry has 9 entries (admin_lockdown + 8 added across features,
-    // including disable_public_signups from the global-profile slice).
-    expect(flags).toHaveLength(9);
+    // Registry has 10 entries (admin_lockdown + 9 added across features,
+    // including disable_public_signups from the global-profile slice and
+    // disable_organizer_chat from the organizer chatbot).
+    expect(flags).toHaveLength(10);
     const keys = flags.map((f) => f.key);
     expect(keys).toEqual(
       expect.arrayContaining([
@@ -38,6 +39,7 @@ describe('AdminFeatureFlagsService', () => {
         'disable_public_signups',
         'maintenance_banner',
         'disable_ai_features',
+        'disable_organizer_chat',
         'disable_hema_sync',
         'disable_email',
         'disable_realtime',

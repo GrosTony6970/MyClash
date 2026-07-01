@@ -58,6 +58,8 @@ describe('PlatformAISettingsService', () => {
     await expect(service.getProviderConfig()).resolves.toEqual({
       provider: 'mistral',
       hasKey: true,
+      model: null,
+      monthlyBudgetEur: null,
       updatedAt: '2026-05-11T00:00:00Z',
     });
   });

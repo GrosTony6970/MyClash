@@ -75,6 +75,13 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagDefinition[] = [
     group: 'delivery',
   },
   {
+    key: 'disable_organizer_chat',
+    labelKey: 'admin.featureFlags.disableOrganizerChat.title',
+    descriptionKey: 'admin.featureFlags.disableOrganizerChat.description',
+    default: false,
+    group: 'delivery',
+  },
+  {
     key: 'disable_hema_sync',
     labelKey: 'admin.featureFlags.disableHemaSync.title',
     descriptionKey: 'admin.featureFlags.disableHemaSync.description',
@@ -106,6 +113,7 @@ export type KnownFeatureFlagKey =
   | 'disable_public_signups'
   | 'maintenance_banner'
   | 'disable_ai_features'
+  | 'disable_organizer_chat'
   | 'disable_hema_sync'
   | 'disable_email'
   | 'disable_realtime';

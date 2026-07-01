@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -14,6 +15,7 @@ import type {
   GenerationResult,
   ProviderAdapter,
 } from '../ai-providers/adapters/provider-adapter.interface';
+import { isValidModelForProvider, resolveModel } from '../ai-providers/model-registry';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 
@@ -25,6 +27,8 @@ const SETTING_KEY = 'super_admin';
 export type PlatformAIProviderConfig = {
   provider: AIProvider;
   hasKey: true;
+  model: string | null;
+  monthlyBudgetEur: number | null;
   updatedAt: string;
 };
 
@@ -56,7 +60,11 @@ export class PlatformAISettingsService implements OnModuleInit {
     provider: AIProvider,
     rawKey: string,
     actorUserId: string,
+    model?: string | null,
   ): Promise<PlatformAIProviderConfig> {
+    if (model != null && !isValidModelForProvider(provider, model)) {
+      throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
+    }
     const iv = randomBytes(IV_LENGTH);
     const cipher = createCipheriv(ALGORITHM, this.secretKey, iv);
     const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
@@ -71,17 +79,27 @@ export class PlatformAISettingsService implements OnModuleInit {
           provider,
           api_key_enc: Buffer.concat([encrypted, tag]).toString('base64'),
           api_key_iv: iv.toString('base64'),
+          model: model ?? null,
           updated_at: now,
           updated_by_user_id: actorUserId,
         },
         { onConflict: 'setting_key' },
       )
-      .select('provider, updated_at, updated_by_user_id')
+      .select('provider, model, monthly_budget_eur, updated_at, updated_by_user_id')
       .single();
 
     if (error) throw new Error(error.message);
     const row = data as PlatformAISettingsRow;
     return this.toConfig(row);
+  }
+
+  /** Update just the platform monthly AI budget (NULL = unlimited). */
+  async updateBudget(monthlyBudgetEur: number | null): Promise<void> {
+    const { error } = await this.supabase.service
+      .from('platform_ai_settings')
+      .update({ monthly_budget_eur: monthlyBudgetEur })
+      .eq('setting_key', SETTING_KEY);
+    if (error) throw new Error(error.message);
   }
 
   async deleteKey(): Promise<void> {
@@ -94,7 +112,7 @@ export class PlatformAISettingsService implements OnModuleInit {
   async getProviderConfig(): Promise<PlatformAIProviderConfig | null> {
     const { data } = await this.supabase.service
       .from('platform_ai_settings')
-      .select('provider, updated_at, updated_by_user_id')
+      .select('provider, model, monthly_budget_eur, updated_at, updated_by_user_id')
       .eq('setting_key', SETTING_KEY)
       .maybeSingle();
 
@@ -108,14 +126,19 @@ export class PlatformAISettingsService implements OnModuleInit {
     }
     const { data } = await this.supabase.service
       .from('platform_ai_settings')
-      .select('provider, api_key_enc, api_key_iv')
+      .select('provider, api_key_enc, api_key_iv, model')
       .eq('setting_key', SETTING_KEY)
       .maybeSingle();
 
     if (!data) throw new NotFoundException('No super admin AI provider configured');
     const row = data as PlatformAISecretRow;
     const adapter = this.adapters[row.provider];
-    return adapter.generate(this.decrypt(row.api_key_enc, row.api_key_iv), request);
+    const requested = request.model && request.model !== 'default' ? request.model : row.model;
+    const resolved = resolveModel(row.provider, requested);
+    return adapter.generate(this.decrypt(row.api_key_enc, row.api_key_iv), {
+      ...request,
+      model: resolved.id,
+    });
   }
 
   private decrypt(ciphertext: string, ivBase64: string): string {
@@ -132,6 +155,11 @@ export class PlatformAISettingsService implements OnModuleInit {
     return {
       provider: row.provider,
       hasKey: true,
+      model: row.model ?? null,
+      monthlyBudgetEur:
+        typeof row.monthly_budget_eur === 'string'
+          ? parseFloat(row.monthly_budget_eur) || null
+          : (row.monthly_budget_eur ?? null),
       updatedAt: row.updated_at,
     };
   }
@@ -139,6 +167,8 @@ export class PlatformAISettingsService implements OnModuleInit {
 
 type PlatformAISettingsRow = {
   provider: AIProvider;
+  model: string | null;
+  monthly_budget_eur: number | string | null;
   updated_at: string;
   updated_by_user_id?: string | null;
 };
@@ -147,4 +177,5 @@ type PlatformAISecretRow = {
   provider: AIProvider;
   api_key_enc: string;
   api_key_iv: string;
+  model: string | null;
 };

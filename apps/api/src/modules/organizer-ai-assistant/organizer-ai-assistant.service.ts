@@ -30,10 +30,21 @@ interface DraftRow {
   validation_state: Record<string, unknown>;
   status: DraftStatus;
   error?: string | null;
+  conversation_id?: string | null;
+  source?: string | null;
   created_at?: string;
   updated_at?: string;
   events?: { organization_id?: string | null } | null;
 }
+
+/** Maps a chatbot write-tool name to the single-kind draft_type it produces. */
+const ACTION_KIND_TO_DRAFT_TYPE: Record<string, OrganizerAIDraftType> = {
+  create_tournament: 'tournament_config',
+  generate_pools: 'pool_plan',
+  generate_bracket: 'bracket_plan',
+  schedule_match: 'schedule_grid',
+  assign_referee: 'referee_assignments',
+};
 
 interface ParsedAIDraft {
   summary: string;
@@ -101,6 +112,70 @@ export class OrganizerAIAssistantService {
       draftType: dto.draftType,
       status,
       tournamentId: dto.tournamentId ?? null,
+    });
+
+    return this.mapDraft(data as DraftRow);
+  }
+
+  /**
+   * Create a pending draft from a single, already-structured write action.
+   * Used by the organizer chatbot: one write tool call → one draft, reusing the
+   * same validation + confirm/apply lifecycle as the form flow. The draft is
+   * `ready` when it validates and `failed` otherwise; the caller surfaces it as
+   * a proposal card and confirms via `applyDraft`.
+   */
+  async createDraftFromAction(
+    eventId: string,
+    actorUserId: string,
+    action: Record<string, unknown>,
+    opts: { conversationId?: string; summary?: string; tournamentId?: string | null } = {},
+  ) {
+    const event = await this.getEvent(eventId);
+    await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
+
+    const kind = String(action['kind']);
+    const draftType = ACTION_KIND_TO_DRAFT_TYPE[kind];
+    if (!draftType) throw new BadRequestException(`Unsupported chat action: ${kind}`);
+
+    const validation = this.validateActions(draftType, [action]);
+    const status: DraftStatus = validation.ok ? 'ready' : 'failed';
+    const tournamentId =
+      opts.tournamentId ??
+      (typeof action['tournamentId'] === 'string' ? (action['tournamentId'] as string) : null);
+
+    const row = {
+      event_id: eventId,
+      tournament_id: tournamentId,
+      actor_user_id: actorUserId,
+      draft_type: draftType,
+      prompt: opts.summary ?? `Chatbot proposed: ${kind}`,
+      summary: opts.summary ?? null,
+      proposed_actions_json: [action],
+      validation_state: {
+        ok: validation.ok,
+        warnings: validation.warnings,
+        errors: validation.errors,
+      },
+      status,
+      error: status === 'failed' ? validation.errors.join('; ') : null,
+      ai_usage_feature: 'organizer_chat',
+      source: 'chat',
+      conversation_id: opts.conversationId ?? null,
+    };
+
+    const { data, error } = await this.supabase.service
+      .from('organizer_ai_assistant_drafts')
+      .insert(row)
+      .select('*')
+      .single();
+    if (error || !data)
+      throw new BadRequestException(error?.message ?? 'Failed to save chat draft');
+
+    await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_created', data['id'], {
+      draftType,
+      status,
+      source: 'chat',
+      conversationId: opts.conversationId ?? null,
     });
 
     return this.mapDraft(data as DraftRow);
@@ -193,6 +268,8 @@ export class OrganizerAIAssistantService {
     await this.audit(actorUserId, eventId, 'event.ai_assistant_draft_applied', draftId, {
       draftType: draft.draft_type,
       actionCount: draft.proposed_actions_json.length,
+      source: draft.source ?? 'form',
+      conversationId: draft.conversation_id ?? null,
     });
 
     return { id: draftId, status: 'applied', appliedResults };

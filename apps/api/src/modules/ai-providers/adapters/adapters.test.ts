@@ -81,6 +81,68 @@ describe('AnthropicAdapter', () => {
     });
     expect(result.toolCall).toEqual({ name: 'search', arguments: { q: 'hello' } });
   });
+
+  it('omits temperature for models that reject it (Opus 4.8)', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+      stop_reason: 'end_turn',
+    });
+    await adapter.generate('key-123', { ...baseRequest, model: 'claude-opus-4-8' });
+    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(arg).not.toHaveProperty('temperature');
+    expect(arg['model']).toBe('claude-opus-4-8');
+  });
+
+  it('includes temperature for models that support it (Sonnet 4.6)', async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+      stop_reason: 'end_turn',
+    });
+    await adapter.generate('key-123', {
+      ...baseRequest,
+      model: 'claude-sonnet-4-6',
+      temperature: 0.3,
+    });
+    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(arg['temperature']).toBe(0.3);
+  });
+
+  it('maps a multi-turn transcript and returns all tool calls + stopReason', async () => {
+    mockCreate.mockResolvedValue({
+      content: [
+        { type: 'text', text: 'working' },
+        { type: 'tool_use', id: 'tu_1', name: 'list_pools', input: { tournamentId: 't1' } },
+        { type: 'tool_use', id: 'tu_2', name: 'list_referees', input: {} },
+      ],
+      usage: { input_tokens: 30, output_tokens: 12 },
+      stop_reason: 'tool_use',
+    });
+    const result = await adapter.generate('key-123', {
+      system: 'sys',
+      model: 'claude-sonnet-4-6',
+      maxTokens: 100,
+      temperature: 0.5,
+      tools: [{ name: 'list_pools', description: 'x', parameters: {} }],
+      messages: [
+        { role: 'user', content: 'set up pools' },
+        { role: 'assistant', toolCalls: [{ id: 'tu_0', name: 'list_tournaments', arguments: {} }] },
+        { role: 'tool', toolResults: [{ toolCallId: 'tu_0', content: '[]' }] },
+      ],
+    });
+    expect(result.toolCalls).toHaveLength(2);
+    expect(result.toolCalls?.[0]).toEqual({
+      id: 'tu_1',
+      name: 'list_pools',
+      arguments: { tournamentId: 't1' },
+    });
+    expect(result.toolCall).toEqual({ name: 'list_pools', arguments: { tournamentId: 't1' } });
+    expect(result.stopReason).toBe('tool_use');
+    // The stored transcript was mapped (3 turns), not the single-turn user path.
+    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as { messages: unknown[] };
+    expect(arg.messages).toHaveLength(3);
+  });
 });
 
 // ── OpenAIAdapter ──────────────────────────────────────────────────────────

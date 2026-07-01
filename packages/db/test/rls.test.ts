@@ -362,6 +362,16 @@ const RECENT_INTERNAL_TABLE_POLICIES: InternalTablePolicy[] = [
     serviceRoleOnlyWrite: true,
     authenticatedWritePolicy: false,
   },
+  {
+    tableName: 'organizer_chat_conversations',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'organizer_chat_messages',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
 ];
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

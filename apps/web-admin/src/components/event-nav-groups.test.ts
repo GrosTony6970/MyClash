@@ -50,7 +50,7 @@ describe('event nav taxonomy', () => {
     ...EVENT_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href)),
   ];
 
-  it('covers exactly the 17 expected routes', () => {
+  it('covers exactly the 18 expected routes', () => {
     const expected = [
       '',
       'persons',
@@ -69,6 +69,7 @@ describe('event nav taxonomy', () => {
       'theme',
       'archive',
       'ai-assistant',
+      'chat',
     ];
     expect([...flatHrefs].sort()).toEqual([...expected].sort());
   });

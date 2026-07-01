@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AIUsageModule } from '../ai-usage/ai-usage.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { MatchesModule } from '../matches/matches.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
@@ -30,6 +31,7 @@ import { LeagueScoringSystemsService } from './league-scoring-systems/league-sco
 import { OrganizationsAdminController } from './organizations.controller';
 import { PlatformAISettingsController } from './platform-ai-settings.controller';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
+import { PlatformAIUsageController } from './platform-ai-usage.controller';
 import { PublicFeatureFlagsController } from './public-feature-flags.controller';
 import { RulesetsAdminController } from './rulesets.controller';
 import { AdminSystemActionsService } from './system-actions.service';
@@ -38,7 +40,7 @@ import { SystemVersionsAdminController } from './system-versions.controller';
 import { UsersAdminController } from './users.controller';
 
 @Module({
-  imports: [HemaRatingsModule, MatchesModule, OrganizationsModule],
+  imports: [HemaRatingsModule, MatchesModule, OrganizationsModule, AIUsageModule],
   controllers: [
     OrganizationsAdminController,
     UsersAdminController,
@@ -52,6 +54,7 @@ import { UsersAdminController } from './users.controller';
     SystemVersionsAdminController,
     BackupsAdminController,
     PlatformAISettingsController,
+    PlatformAIUsageController,
     AIDataQualityController,
     AdminDashboardStatsController,
     HemaRatingsAdminController,

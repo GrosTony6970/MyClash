@@ -40,6 +40,7 @@ import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { UserDirectoryModule } from './modules/user-directory/user-directory.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
+import { OrganizerChatModule } from './modules/organizer-chat/organizer-chat.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
@@ -116,6 +117,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
     AIProvidersModule,
     AIUsageModule,
     OrganizerAIAssistantModule,
+    OrganizerChatModule,
     TournamentQueryModule,
     FollowsModule,
     DirectoryGroupsModule,

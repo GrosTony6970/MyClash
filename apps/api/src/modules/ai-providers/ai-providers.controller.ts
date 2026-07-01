@@ -61,7 +61,7 @@ export class AIProvidersController {
   ) {
     const userId = await getUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
-    await this.service.saveKey(orgId, dto.provider, dto.apiKey);
+    await this.service.saveKey(orgId, dto.provider, dto.apiKey, dto.model);
     return this.service.getProviderConfig(orgId);
   }
 

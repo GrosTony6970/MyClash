@@ -399,7 +399,7 @@ export default function AdminLeaguesPage() {
                       aria-label={t('admin.adminLeagues.colStatus')}
                       value={league.status}
                       disabled={busyId === league.id}
-                      onChange={(e) => changeStatus(league, e.target.value)}
+                      onChange={(e) => void changeStatus(league, e.target.value)}
                       className={[
                         'cursor-pointer rounded-full border border-border px-2 py-0.5 text-xs font-semibold',
                         league.status === 'published'

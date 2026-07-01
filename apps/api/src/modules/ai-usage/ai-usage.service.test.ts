@@ -1,9 +1,14 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AIUsageService } from './ai-usage.service';
+import { BudgetExceededException } from './budget-exceeded.exception';
 import { SpendCapExceededException } from './spend-cap.exception';
 
 const mockProviderGenerate = vi.fn();
 const mockAIProviders = { generate: mockProviderGenerate };
+
+const mockIsEnabled = vi.fn();
+const mockFlags = { isEnabled: mockIsEnabled };
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -12,12 +17,20 @@ function makeChain(result: unknown) {
   const chain = {
     select: vi.fn(),
     eq: vi.fn(),
+    gte: vi.fn(),
+    lte: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
     insert: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.gte.mockReturnValue(chain);
+  chain.lte.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
   return chain;
 }
@@ -30,7 +43,12 @@ describe('AIUsageService.generateWithCap', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AIUsageService(mockAIProviders as never, mockSupabase as never);
+    mockIsEnabled.mockResolvedValue(false);
+    service = new AIUsageService(
+      mockAIProviders as never,
+      mockSupabase as never,
+      mockFlags as never,
+    );
   });
 
   it('passes when no cap is set (NULL)', async () => {
@@ -99,6 +117,37 @@ describe('AIUsageService.generateWithCap', () => {
       }),
     );
   });
+
+  it('throws ServiceUnavailableException when disable_ai_features is on', async () => {
+    mockIsEnabled.mockResolvedValue(true);
+    fromMock.mockImplementation(() => makeChain({ data: null, error: null }));
+
+    await expect(service.generateWithCap('org-1', 'event-1', 'nlq', baseRequest)).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    expect(mockProviderGenerate).not.toHaveBeenCalled();
+  });
+
+  it('throws BudgetExceededException when the org monthly budget is reached', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'platform_ai_settings')
+        return makeChain({ data: { monthly_budget_eur: null }, error: null });
+      if (table === 'organization_ai_settings')
+        return makeChain({ data: { monthly_budget_eur: 5.0 }, error: null });
+      if (table === 'ai_usage_log') {
+        const chain = makeChain(null);
+        chain.single.mockResolvedValue({ data: { sum: '5.00' }, error: null });
+        return chain;
+      }
+      if (table === 'events') return makeChain({ data: { ai_spend_cap_eur: null }, error: null });
+      return makeChain({ data: null, error: null });
+    });
+
+    await expect(service.generateWithCap('org-1', 'event-1', 'nlq', baseRequest)).rejects.toThrow(
+      BudgetExceededException,
+    );
+    expect(mockProviderGenerate).not.toHaveBeenCalled();
+  });
 });
 
 describe('AIUsageService.getUsageSummary', () => {
@@ -106,7 +155,12 @@ describe('AIUsageService.getUsageSummary', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AIUsageService(mockAIProviders as never, mockSupabase as never);
+    mockIsEnabled.mockResolvedValue(false);
+    service = new AIUsageService(
+      mockAIProviders as never,
+      mockSupabase as never,
+      mockFlags as never,
+    );
   });
 
   it('returns totalSpendEur, cap, remainingEur, callCount', async () => {

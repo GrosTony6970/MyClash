@@ -70,6 +70,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
       { href: 'theme', labelKey: 'organizer.eventHub.sections.theme', badge: 'T' },
       { href: 'archive', labelKey: 'organizer.archive.navLabel', badge: 'A' },
       { href: 'ai-assistant', labelKey: 'organizer.eventHub.sections.aiAssistant', badge: 'AI' },
+      { href: 'chat', labelKey: 'organizer.eventHub.sections.chat', badge: 'CH' },
     ],
   },
 ];

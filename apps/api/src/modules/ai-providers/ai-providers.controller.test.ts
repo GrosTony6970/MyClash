@@ -56,7 +56,7 @@ describe('AIProvidersController authorization', () => {
     await expect(
       controller.saveSettings(
         'org-1',
-        { provider: 'openai', apiKey: 'sk-test-key' },
+        { provider: 'openai', apiKey: 'sk-test-key', model: 'gpt-4o' },
         makeRequest('token') as never,
       ),
     ).resolves.toEqual({
@@ -71,7 +71,7 @@ describe('AIProvidersController authorization', () => {
     expect(orgs.assertOrgRole).toHaveBeenCalledTimes(2);
     expect(orgs.assertOrgRole).toHaveBeenNthCalledWith(1, 'org-1', 'admin-1', 'admin');
     expect(orgs.assertOrgRole).toHaveBeenNthCalledWith(2, 'org-1', 'admin-1', 'admin');
-    expect(service.saveKey).toHaveBeenCalledWith('org-1', 'openai', 'sk-test-key');
+    expect(service.saveKey).toHaveBeenCalledWith('org-1', 'openai', 'sk-test-key', 'gpt-4o');
     expect(service.deleteKey).toHaveBeenCalledWith('org-1');
   });
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { AnthropicAdapter } from './adapters/anthropic.adapter';
 import { MistralAdapter } from './adapters/mistral.adapter';
@@ -9,6 +9,7 @@ import type {
   GenerationResult,
   ProviderAdapter,
 } from './adapters/provider-adapter.interface';
+import { isValidModelForProvider, resolveModel } from './model-registry';
 import { SupabaseService } from '../supabase/supabase.service';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -36,7 +37,15 @@ export class AIProvidersService implements OnModuleInit {
     };
   }
 
-  async saveKey(orgId: string, provider: AIProvider, rawKey: string): Promise<void> {
+  async saveKey(
+    orgId: string,
+    provider: AIProvider,
+    rawKey: string,
+    model?: string | null,
+  ): Promise<void> {
+    if (model != null && !isValidModelForProvider(provider, model)) {
+      throw new BadRequestException(`Unknown model "${model}" for provider "${provider}"`);
+    }
     const iv = randomBytes(IV_LENGTH);
     const cipher = createCipheriv(ALGORITHM, this.secretKey, iv);
     const encrypted = Buffer.concat([cipher.update(rawKey, 'utf8'), cipher.final()]);
@@ -51,6 +60,7 @@ export class AIProvidersService implements OnModuleInit {
         provider,
         api_key_enc: ciphertext,
         api_key_iv: ivBase64,
+        model: model ?? null,
         updated_at: new Date().toISOString(),
       })
       .select('id')
@@ -66,33 +76,71 @@ export class AIProvidersService implements OnModuleInit {
       .eq('organization_id', orgId);
   }
 
-  async getProviderConfig(
-    orgId: string,
-  ): Promise<{ provider: AIProvider; hasKey: true; updatedAt: string } | null> {
+  async getProviderConfig(orgId: string): Promise<{
+    provider: AIProvider;
+    hasKey: true;
+    model: string | null;
+    monthlyBudgetEur: number | null;
+    updatedAt: string;
+  } | null> {
     const { data } = await this.supabase.service
       .from('organization_ai_settings')
-      .select('provider, updated_at')
+      .select('provider, model, monthly_budget_eur, updated_at')
       .eq('organization_id', orgId)
       .maybeSingle();
 
     if (!data) return null;
-    const row = data as { provider: AIProvider; updated_at: string };
-    return { provider: row.provider, hasKey: true, updatedAt: row.updated_at };
+    const row = data as {
+      provider: AIProvider;
+      model: string | null;
+      monthly_budget_eur: number | string | null;
+      updated_at: string;
+    };
+    return {
+      provider: row.provider,
+      hasKey: true,
+      model: row.model ?? null,
+      monthlyBudgetEur: toNumberOrNull(row.monthly_budget_eur),
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /** Update just the org's monthly AI budget (NULL = unlimited). Requires an existing key row. */
+  async updateBudget(orgId: string, monthlyBudgetEur: number | null): Promise<void> {
+    const { error } = await this.supabase.service
+      .from('organization_ai_settings')
+      .update({ monthly_budget_eur: monthlyBudgetEur })
+      .eq('organization_id', orgId);
+    if (error) throw new Error(error.message);
   }
 
   async generate(orgId: string, request: GenerationRequest): Promise<GenerationResult> {
     const { data } = await this.supabase.service
       .from('organization_ai_settings')
-      .select('provider, api_key_enc, api_key_iv')
+      .select('provider, api_key_enc, api_key_iv, model')
       .eq('organization_id', orgId)
       .maybeSingle();
 
     if (!data) throw new NotFoundException('No AI provider configured for this organization');
 
-    const row = data as { provider: AIProvider; api_key_enc: string; api_key_iv: string };
+    const row = data as {
+      provider: AIProvider;
+      api_key_enc: string;
+      api_key_iv: string;
+      model: string | null;
+    };
     const rawKey = this.decrypt(row.api_key_enc, row.api_key_iv);
     const adapter = this.adapters[row.provider];
-    return adapter.generate(rawKey, request);
+    // Resolve the model centrally: a concrete id in the request wins; otherwise
+    // fall back to the org's stored model, then the provider's registry default.
+    // This fixes callers that pass the `'default'` sentinel (organizer-ai-assistant,
+    // tournament-query) — the SDK never sees an invalid model name.
+    const requested = request.model && request.model !== 'default' ? request.model : row.model;
+    const resolved = resolveModel(row.provider, requested);
+    const result = await adapter.generate(rawKey, { ...request, model: resolved.id });
+    // Surface the resolved model + provider so callers (AIUsageService) can log
+    // them to ai_usage_log for the consumption dashboard.
+    return { ...result, model: resolved.id, provider: row.provider };
   }
 
   private decrypt(ciphertext: string, ivBase64: string): string {
@@ -104,4 +152,14 @@ export class AIProvidersService implements OnModuleInit {
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
   }
+}
+
+/** NUMERIC columns can arrive as string or number from PostgREST. */
+function toNumberOrNull(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
