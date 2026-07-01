@@ -330,6 +330,47 @@ export async function enforceLocalRetention(rootDir, retentionCount) {
   return { deletedSets: toDelete.length, deletedFiles };
 }
 
+/**
+ * Derive the `lastBackup` status block from the run history and the newest
+ * artifact set. Kept pure (no I/O) so it can be unit-tested.
+ *
+ * The whole block comes from a SINGLE history record — timestamp, status and
+ * error are always from the same run, so we never pair one run's status with a
+ * different run's artifact. Restore safety-net backups are recorded as
+ * `kind:'restore'` and are intentionally excluded (they're a restore
+ * side-effect, not a real backup run). Falls back to the newest artifact with
+ * `status:'unknown'` only until the first run has been recorded.
+ */
+export function deriveLastBackup(history, newestBackup) {
+  const lastBackupRun =
+    [...(history ?? [])].reverse().find((entry) => entry && entry.kind === 'backup') ?? null;
+
+  if (lastBackupRun) {
+    return {
+      timestamp:
+        lastBackupRun.finishedAt ?? lastBackupRun.startedAt ?? newestBackup?.timestamp ?? '',
+      status: lastBackupRun.status ?? 'unknown',
+      finishedAt: lastBackupRun.finishedAt ?? null,
+      error: lastBackupRun.error ?? null,
+      localAvailable: newestBackup?.local?.available ?? false,
+      cloudAvailable: newestBackup?.cloud?.available ?? false,
+    };
+  }
+
+  if (newestBackup) {
+    return {
+      timestamp: newestBackup.timestamp,
+      status: 'unknown',
+      finishedAt: null,
+      error: null,
+      localAvailable: newestBackup.local?.available ?? false,
+      cloudAvailable: newestBackup.cloud?.available ?? false,
+    };
+  }
+
+  return null;
+}
+
 function backupSchedulePath(rootDir) {
   return path.join(rootDir, 'data', 'backup-schedule.json');
 }

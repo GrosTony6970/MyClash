@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import {
   BACKUP_TIMESTAMP_PATTERN,
   backupSetsFromArtifacts,
   buildBackupSet,
+  deriveLastBackup,
   enforceLocalRetention,
   expectedBackupArtifactFilenames,
   listLocalBackupArtifacts,
@@ -24,6 +25,10 @@ const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
 const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
 const ROOT_DIR = process.env.MYCLASH_ROOT_DIR ?? '/srv/myclash';
 const MAX_BODY_BYTES = Number(process.env.OPS_RUNNER_MAX_BODY_BYTES ?? 1024 * 1024 * 1024);
+// Keep the outcome of the last N backup/restore runs so the dashboard can
+// report whether the most recent backup actually succeeded (the artifact
+// list alone can't tell success from a stale older set).
+const BACKUP_HISTORY_LIMIT = 50;
 const operations = new Map();
 let backupSchedule = await readBackupSchedule(ROOT_DIR);
 let lastScheduledRunKey = null;
@@ -147,18 +152,12 @@ scheduleTimer.unref?.();
 
 async function statusResponse() {
   const backups = (await backupsResponse()).backups;
+  const history = await readBackupHistory();
   const runningOperation = [...operations.values()].find((op) => op.status === 'running') ?? null;
   return {
     generatedAt: new Date().toISOString(),
     cloudConfigured: s3Configured(),
-    lastBackup: backups[0]
-      ? {
-          timestamp: backups[0].timestamp,
-          status: 'unknown',
-          localAvailable: backups[0].local.available,
-          cloudAvailable: backups[0].cloud.available,
-        }
-      : null,
+    lastBackup: deriveLastBackup(history, backups[0] ?? null),
     runningOperation,
   };
 }
@@ -177,6 +176,47 @@ function scheduleResponse() {
     ...backupSchedule,
     nextRunAt: nextBackupRun(backupSchedule),
   };
+}
+
+function backupHistoryPath() {
+  return path.join(ROOT_DIR, 'data', 'backup-history.json');
+}
+
+async function readBackupHistory() {
+  try {
+    const text = await readFile(backupHistoryPath(), 'utf8');
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Record the outcome of a finished operation to a small bounded ring on
+ * disk, written atomically (temp + rename) so a concurrent /status read
+ * never sees a torn file.
+ */
+async function appendBackupHistory(operation) {
+  const record = {
+    id: operation.id,
+    kind: operation.kind,
+    status: operation.status,
+    startedAt: operation.startedAt,
+    finishedAt: operation.finishedAt ?? new Date().toISOString(),
+    scheduled: Boolean(operation.scheduled),
+    backupId: operation.backupId ?? null,
+    source: operation.source ?? null,
+    error: operation.error ?? null,
+  };
+  const history = await readBackupHistory();
+  history.push(record);
+  const trimmed = history.slice(-BACKUP_HISTORY_LIMIT);
+  const filePath = backupHistoryPath();
+  await mkdir(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.tmp`;
+  await writeFile(tmpPath, `${JSON.stringify(trimmed, null, 2)}\n`, 'utf8');
+  await rename(tmpPath, filePath);
 }
 
 async function maybeRunScheduledBackup(now = new Date()) {
@@ -222,6 +262,7 @@ function startOperation(kind, createCommand, body = {}) {
     startedAt: new Date().toISOString(),
     source: body.location,
     backupId: body.backupId,
+    scheduled: Boolean(body.scheduled),
     logTail: [],
   };
   operations.set(operation.id, operation);
@@ -259,6 +300,7 @@ async function runLocked(operation, createCommand) {
     operation.error = sanitizeError(error);
   } finally {
     operation.finishedAt = new Date().toISOString();
+    await appendBackupHistory(operation).catch(() => undefined);
     await lock.close().catch(() => undefined);
     await rm(lockPath, { force: true }).catch(() => undefined);
   }
@@ -414,11 +456,19 @@ async function stageUpload(body) {
   const uploadId = `upload-${parsed.timestamp}-${randomUUID().slice(0, 8)}`;
   const uploadDir = path.join(ROOT_DIR, 'backups', 'uploads', uploadId);
   await mkdir(uploadDir, { recursive: true });
-  await writeFile(
-    path.join(uploadDir, filename),
-    Buffer.from(String(body.contentBase64), 'base64'),
-  );
-  const fileStat = await stat(path.join(uploadDir, filename));
+  const uploadPath = path.join(uploadDir, filename);
+  await writeFile(uploadPath, Buffer.from(String(body.contentBase64), 'base64'));
+  // Reject corrupt/truncated uploads up front so a bad artifact can never be
+  // selected for restore. Encrypted .gpg blobs can't be introspected without
+  // the private key, so integrity there is only verified at restore time.
+  if (!parsed.encrypted) {
+    const gz = await spawnCapture('gzip', ['-t', uploadPath]);
+    if (gz.code !== 0) {
+      await rm(uploadDir, { recursive: true, force: true }).catch(() => undefined);
+      throw new Error('Uploaded backup failed integrity check (corrupt or truncated gzip).');
+    }
+  }
+  const fileStat = await stat(uploadPath);
   const artifact = {
     ...parsed,
     uploadId,

@@ -52,6 +52,12 @@ set -a; source ./.env; set +a
 
 COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
+# Supabase Storage objects live in this named Docker volume (see
+# docker-compose.prod.yml), NOT in a host directory. Backup/restore
+# operate on the volume via a throwaway helper container.
+STORAGE_VOLUME="${BACKUP_STORAGE_VOLUME:-myclash-storage-data}"
+STORAGE_HELPER_IMAGE="${BACKUP_STORAGE_HELPER_IMAGE:-alpine:3}"
+
 # ── S3 helper ────────────────────────────────────────────────────
 s3_configured() {
   [[ -n "${BACKUP_SCW_ACCESS_KEY:-}" && \
@@ -175,8 +181,9 @@ hdr "Restore plan"
 info "DB backup:      $BACKUP_FILE"
 [[ -n "$STORAGE_FILE" ]] && info "Storage backup: $STORAGE_FILE" || warn "No storage backup found — DB only"
 info "Target DB:      $POSTGRES_DB on db container"
-warn "This will DROP the existing $POSTGRES_DB database and recreate it."
-[[ -n "$STORAGE_FILE" ]] && warn "This will REPLACE data/storage with the backup archive."
+warn "This will DROP the existing $POSTGRES_DB database and recreate it from the dump."
+warn "App + Supabase services will be stopped during the restore and restarted afterwards."
+[[ -n "$STORAGE_FILE" ]] && warn "This will REPLACE the '$STORAGE_VOLUME' storage volume with the backup archive."
 echo
 if [[ "$AUTO_YES" -eq 1 ]]; then
   warn "Proceeding non-interactively because --yes or MYCLASH_RESTORE_CONFIRM=1 was provided."
@@ -184,14 +191,19 @@ else
   confirm "Proceed?" || { warn "Aborted."; exit 0; }
 fi
 
-# ── Stop app services ────────────────────────────────────────────
-hdr "Stopping app services"
-"${COMPOSE[@]}" stop api web-public web-scoring web-admin worker 2>/dev/null || true
-ok "App services stopped"
-
-# ── Decrypt DB if needed ─────────────────────────────────────────
+# ── Decrypt + integrity-check archives BEFORE disrupting services ─
+# All non-destructive work happens first: if an archive is missing or
+# corrupt we abort here, while the stack is still fully up. Decrypted
+# plaintext temp files are removed on exit (incl. failures) by the trap.
 RESTORE_DB_FILE="$BACKUP_FILE"
 TEMP_DECRYPTED_DB=""
+TEMP_DECRYPTED_STORAGE=""
+cleanup_temp() {
+  [[ -n "${TEMP_DECRYPTED_DB:-}" ]] && rm -f "$TEMP_DECRYPTED_DB"
+  [[ -n "${TEMP_DECRYPTED_STORAGE:-}" ]] && rm -f "$TEMP_DECRYPTED_STORAGE"
+}
+trap cleanup_temp EXIT
+
 if [[ "$BACKUP_FILE" == *.gpg ]]; then
   hdr "Decrypting DB backup"
   TEMP_DECRYPTED_DB="${BACKUP_FILE%.gpg}.tmp"
@@ -200,43 +212,108 @@ if [[ "$BACKUP_FILE" == *.gpg ]]; then
   ok "Decrypted DB backup"
 fi
 
-# ── Restore Postgres ─────────────────────────────────────────────
-hdr "Restoring Postgres"
-"${COMPOSE[@]}" exec -T db psql -U "$POSTGRES_USER" -d postgres \
-  -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};" 2>/dev/null
-"${COMPOSE[@]}" exec -T db psql -U "$POSTGRES_USER" -d postgres \
-  -c "CREATE DATABASE ${POSTGRES_DB};" 2>/dev/null
-ok "Database recreated"
+hdr "Verifying DB backup integrity"
+gunzip -t "$RESTORE_DB_FILE"
+ok "DB backup gzip integrity OK"
 
-gunzip -c "$RESTORE_DB_FILE" \
-  | "${COMPOSE[@]}" exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null
-ok "Postgres restored from $BACKUP_FILE"
-
-[[ -n "$TEMP_DECRYPTED_DB" ]] && rm -f "$TEMP_DECRYPTED_DB"
-
-# ── Restore Storage volume ───────────────────────────────────────
+DO_STORAGE=0
+RESTORE_STORAGE_FILE=""
 if [[ "$INCLUDE_STORAGE" -eq 1 && -n "$STORAGE_FILE" && -f "$STORAGE_FILE" ]]; then
-  hdr "Restoring Storage volume"
-
+  DO_STORAGE=1
   RESTORE_STORAGE_FILE="$STORAGE_FILE"
-  TEMP_DECRYPTED_STORAGE=""
   if [[ "$STORAGE_FILE" == *.gpg ]]; then
+    hdr "Decrypting storage backup"
     TEMP_DECRYPTED_STORAGE="${STORAGE_FILE%.gpg}.tmp"
     gpg --decrypt --output "$TEMP_DECRYPTED_STORAGE" "$STORAGE_FILE"
     RESTORE_STORAGE_FILE="$TEMP_DECRYPTED_STORAGE"
     ok "Decrypted storage backup"
   fi
+  hdr "Verifying storage backup integrity"
+  gunzip -t "$RESTORE_STORAGE_FILE"
+  ok "Storage backup gzip integrity OK"
+fi
 
-  # Stop storage service during restore
-  "${COMPOSE[@]}" stop supabase-storage 2>/dev/null || true
+# ── Stop every service holding a DB connection ───────────────────
+# DROP DATABASE fails while ANY session is connected. The Supabase
+# sidecars (auth/rest/realtime/storage) keep persistent pools to
+# ${POSTGRES_DB}, so they must be stopped too — not just the app tier.
+# `docker compose stop` overrides restart:unless-stopped; the final
+# `up -d` brings everything back.
+hdr "Stopping services connected to the database"
+"${COMPOSE[@]}" stop \
+  api web-public web-scoring web-admin worker \
+  supabase-auth supabase-rest supabase-realtime supabase-storage
+ok "Services stopped"
 
-  # Replace data/storage
-  rm -rf "$ROOT_DIR/data/storage"
-  mkdir -p "$ROOT_DIR/data"
-  tar xzf "$RESTORE_STORAGE_FILE" -C "$ROOT_DIR/data"
-  ok "Storage volume restored from $STORAGE_FILE"
+# ── Restore Postgres ─────────────────────────────────────────────
+hdr "Restoring Postgres"
+# WITH (FORCE) terminates any straggler backend (PG13+) — belt-and-
+# suspenders now that the connected services are stopped above.
+"${COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+  -c "DROP DATABASE IF EXISTS \"${POSTGRES_DB}\" WITH (FORCE);"
+"${COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+  -c "CREATE DATABASE \"${POSTGRES_DB}\";"
+ok "Database recreated"
 
-  [[ -n "$TEMP_DECRYPTED_STORAGE" ]] && rm -f "$TEMP_DECRYPTED_STORAGE"
+# Replay in a single transaction with ON_ERROR_STOP so a truncated or
+# corrupt dump rolls the fresh database back to empty instead of
+# leaving a half-restored, incoherent database reported as "success".
+gunzip -c "$RESTORE_DB_FILE" \
+  | "${COMPOSE[@]}" exec -T db \
+      psql -v ON_ERROR_STOP=1 --single-transaction -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+ok "Postgres restored from $BACKUP_FILE"
+
+# ── Validate schema coherence before declaring success ───────────
+hdr "Validating restored database"
+validate_query() {
+  "${COMPOSE[@]}" exec -T db \
+    psql -v ON_ERROR_STOP=1 -tAX -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1" \
+    | tr -d '[:space:]'
+}
+for schema in public auth storage; do
+  if [[ "$(validate_query "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${schema}';")" != "1" ]]; then
+    err "Restore validation FAILED: schema '${schema}' missing — restored database is not coherent"
+    exit 1
+  fi
+done
+PUBLIC_TABLES=$(validate_query "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';")
+AUTH_USERS=$(validate_query "SELECT count(*) FROM auth.users;")
+if [[ "${PUBLIC_TABLES:-0}" -lt 10 ]]; then
+  err "Restore validation FAILED: only ${PUBLIC_TABLES:-0} public tables present — restore looks incomplete"
+  exit 1
+fi
+ok "Restore validation passed (public tables=${PUBLIC_TABLES}, auth.users=${AUTH_USERS})"
+
+# ── Restore storage volume ───────────────────────────────────────
+# Storage objects live in the named volume ${STORAGE_VOLUME}. Clear it
+# and extract the (already integrity-checked) archive into it via a
+# throwaway root helper so file ownership round-trips.
+if [[ "$DO_STORAGE" -eq 1 ]]; then
+  hdr "Restoring storage volume ($STORAGE_VOLUME)"
+  if ! docker volume inspect "$STORAGE_VOLUME" &>/dev/null; then
+    err "Storage volume '$STORAGE_VOLUME' does not exist — cannot restore storage"
+    "${COMPOSE[@]}" up -d || true
+    exit 1
+  fi
+  # gunzip can receive SIGPIPE here: busybox `tar xf -` stops reading at the
+  # archive's end-of-file marker without draining gzip's trailing record
+  # padding, closing the pipe while gunzip still has bytes queued. The archive
+  # was already integrity-checked (gunzip -t) above, so judge success by the
+  # EXTRACTOR's exit status (PIPESTATUS[1]) — not gunzip's — otherwise a fully
+  # successful restore would be misreported as failed.
+  set +o pipefail
+  gunzip -c "$RESTORE_STORAGE_FILE" \
+    | docker run --rm -i -v "$STORAGE_VOLUME:/vol" "$STORAGE_HELPER_IMAGE" \
+        sh -ec 'find /vol -mindepth 1 -delete; tar xf - -C /vol'
+  storage_rc=${PIPESTATUS[1]}
+  set -o pipefail
+  if [[ "$storage_rc" -eq 0 ]]; then
+    ok "Storage volume restored from $STORAGE_FILE"
+  else
+    err "Storage restore FAILED — the database restored OK; restarting the stack so the site recovers with restored data, but storage is stale. Re-run the restore to retry storage."
+    "${COMPOSE[@]}" up -d || true
+    exit 1
+  fi
 fi
 
 # ── Restart stack ────────────────────────────────────────────────

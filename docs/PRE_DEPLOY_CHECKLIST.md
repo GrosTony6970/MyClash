@@ -151,15 +151,15 @@ Can be done in parallel.
 - MyClash runs self-hosted Supabase Auth, so app callback allow-list entries live in Docker Compose / `.env`, not in a hosted Supabase dashboard.
 - See O-008 in `docs/OWNER_TASKS.md` for setup steps.
 
-### ☐ 12. Off-site backup target (Backblaze B2 recommended)
+### ☐ 12. Off-site backup target (Scaleway Object Storage)
 
 - **Cost**: ~€2/month at v1 scale.
 - **Steps**:
-  1. Sign up at backblaze.com.
-  2. Create a private bucket named `myclash-backups`.
-  3. Generate an Application Key with write access to the bucket only.
-- **You'll need**: Bucket name + key for `.env` (`BACKUP_S3_BUCKET=myclash-backups`).
-- **Tooling**: Install `rclone` on the VPS (the agent will do this in T-055 VPS bootstrap).
+  1. Create a Scaleway account and an Object Storage bucket named `myclash-backups` (region `fr-par`).
+  2. Generate API credentials (access key + secret key) scoped to that bucket.
+- **You'll need** in `.env`: `BACKUP_SCW_ACCESS_KEY`, `BACKUP_SCW_SECRET_KEY`, `BACKUP_SCW_BUCKET=myclash-backups`, `BACKUP_SCW_REGION=fr-par`, `BACKUP_SCW_ENDPOINT=https://s3.fr-par.scw.cloud`.
+- **Tooling**: `awscli` ships inside the ops-runner container — no host install needed.
+- **Optional encryption**: set `BACKUP_GPG_RECIPIENT` to a GPG public-key id to encrypt artifacts before upload. Backups **fail closed** when a recipient is set but encryption can't run (plaintext is never uploaded), so escrow the matching private key off-box — without it, encrypted backups are unrecoverable.
 
 ### ☐ 13. (Optional) Sentry account for error tracking
 
@@ -284,8 +284,13 @@ This is the most important pre-launch step. Without testing restore, your backup
 bash infra/scripts/backup.sh
 ls -lh /srv/myclash/backups/nightly/
 
-# Optional but recommended: stand up a throwaway VM, copy the backup, run restore.sh against it
+# Prove the restore path itself against a disposable postgres (non-destructive):
+bash infra/scripts/test-restore-roundtrip.sh
 ```
+
+Then run the full drill (throwaway VM, real archive, storage volume, service
+orchestration) from **`docs/DISASTER_RECOVERY.md`** and record it as your first
+verified restore.
 
 ---
 

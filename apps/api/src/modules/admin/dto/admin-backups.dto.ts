@@ -50,6 +50,10 @@ export interface BackupStatusDto {
   lastBackup: {
     timestamp: string;
     status: 'success' | 'failed' | 'unknown';
+    /** Wall-clock finish of the most recent backup run, when known. */
+    finishedAt?: string | null;
+    /** Error message from the most recent backup run, when it failed. */
+    error?: string | null;
     localAvailable: boolean;
     cloudAvailable: boolean;
   } | null;

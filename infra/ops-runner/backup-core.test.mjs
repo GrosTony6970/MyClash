@@ -5,12 +5,63 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   DEFAULT_BACKUP_SCHEDULE,
+  deriveLastBackup,
   enforceLocalRetention,
   expectedBackupArtifactFilenames,
   nextBackupRun,
   normalizeBackupSchedule,
   shouldRunScheduledBackup,
 } from './backup-core.mjs';
+
+const artifactSet = (ts, { local = true, cloud = false } = {}) => ({
+  timestamp: ts,
+  local: { available: local },
+  cloud: { available: cloud },
+});
+
+test('deriveLastBackup reports the last backup run as a coherent unit (status matches its own run)', () => {
+  // A good backup at T1 left an artifact; a later run at T2 FAILED before
+  // producing any artifact, so the newest artifact is still T1. The status
+  // must reflect the T2 failure with T2's own timestamp/error — never T1's
+  // artifact paired with T2's status.
+  const history = [
+    { kind: 'backup', status: 'success', finishedAt: '2026-05-01T03:00:00.000Z' },
+    { kind: 'backup', status: 'failed', finishedAt: '2026-05-02T03:00:00.000Z', error: 'db down' },
+  ];
+  const result = deriveLastBackup(history, artifactSet('20260501T030000Z'));
+  assert.equal(result.status, 'failed');
+  assert.equal(result.timestamp, '2026-05-02T03:00:00.000Z');
+  assert.equal(result.error, 'db down');
+  assert.equal(result.localAvailable, true);
+});
+
+test('deriveLastBackup ignores restore safety-net backups (kind:restore)', () => {
+  // After a restore, the safety-net produced the newest artifact (T2) but was
+  // recorded as kind:restore. lastBackup must show the last real BACKUP run
+  // (T1) with its own status, not T2's artifact paired with T1's status.
+  const history = [
+    { kind: 'backup', status: 'success', finishedAt: '2026-05-01T03:00:00.000Z' },
+    { kind: 'restore', status: 'success', finishedAt: '2026-05-02T09:00:00.000Z' },
+  ];
+  const result = deriveLastBackup(history, artifactSet('20260502T090000Z'));
+  assert.equal(result.status, 'success');
+  assert.equal(result.timestamp, '2026-05-01T03:00:00.000Z');
+});
+
+test('deriveLastBackup falls back to the newest artifact as unknown before any run', () => {
+  assert.deepEqual(deriveLastBackup([], artifactSet('20260501T030000Z', { cloud: true })), {
+    timestamp: '20260501T030000Z',
+    status: 'unknown',
+    finishedAt: null,
+    error: null,
+    localAvailable: true,
+    cloudAvailable: true,
+  });
+});
+
+test('deriveLastBackup returns null with no history and no artifacts', () => {
+  assert.equal(deriveLastBackup([], null), null);
+});
 
 test('expectedBackupArtifactFilenames returns local and encrypted DB/storage candidates', () => {
   assert.deepEqual(expectedBackupArtifactFilenames('20260505T030000Z'), [

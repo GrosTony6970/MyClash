@@ -19,8 +19,8 @@ Phase 4 production-readiness review, last updated 2026-05-12.
 Current rollback contract: **PITR/restore, not down migrations**.
 
 - Production deploys take a pre-deploy `pg_dump`.
-- `infra/scripts/backup.sh` creates nightly DB dumps and storage archives, keeps local retention via `BACKUP_RETENTION_DAYS`, and uploads to Scaleway S3 when `BACKUP_SCW_*` variables are configured.
-- `infra/scripts/restore.sh` restores DB and optionally storage from local or S3 backups.
+- `infra/scripts/backup.sh` creates nightly DB dumps (integrity-checked) and archives the Supabase storage volume, and uploads to Scaleway S3 when `BACKUP_SCW_*` variables are configured. Retention is count-based, enforced by the ops-runner after each run and configurable from `/admin/backups` (`BACKUP_RETENTION_DAYS` is deprecated/unused).
+- `infra/scripts/restore.sh` restores DB and optionally the storage volume from local or S3 backups. It stops every DB-connected service, force-drops and recreates the database, replays the dump in a single transaction with `ON_ERROR_STOP` (so a corrupt/partial dump rolls back instead of half-restoring), then validates schema coherence (`auth`/`storage`/`public` schemas + `auth.users`) before declaring success. See `docs/DISASTER_RECOVERY.md`.
 - PITR must be enabled or otherwise documented before final production sign-off. If the self-hosted VPS stack does not provide PITR, the accepted v1 fallback is frequent dumps plus off-site copy, documented as a residual risk.
 
 Restore drill evidence to collect on staging/VPS:

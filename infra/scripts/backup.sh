@@ -87,6 +87,12 @@ mkdir -p "$ROOT_DIR/logs"
 
 COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
+# Supabase Storage objects live in this named Docker volume (see
+# docker-compose.prod.yml), NOT a host directory. We archive the
+# volume's contents via a throwaway helper container.
+STORAGE_VOLUME="${BACKUP_STORAGE_VOLUME:-myclash-storage-data}"
+STORAGE_HELPER_IMAGE="${BACKUP_STORAGE_HELPER_IMAGE:-alpine:3}"
+
 # Track files to upload
 UPLOAD_FILES=()
 BACKUP_OK=1
@@ -97,12 +103,20 @@ hdr "Postgres dump"
 PG_FILE="$BACKUP_DIR/db-${TIMESTAMP}.sql.gz"
 
 if "${COMPOSE[@]}" ps --status running db 2>/dev/null | grep -q db; then
+  # pg_dump takes a consistent MVCC snapshot by default; its stderr is
+  # kept (not silenced) so failures surface in the ops-runner log tail.
   if "${COMPOSE[@]}" exec -T db \
-       pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" 2>/dev/null \
+       pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
        | gzip > "$PG_FILE"; then
-    PG_SIZE=$(du -h "$PG_FILE" | cut -f1)
-    log_ok "Postgres dump: $PG_FILE ($PG_SIZE)"
-    UPLOAD_FILES+=("$PG_FILE")
+    if gzip -t "$PG_FILE"; then
+      PG_SIZE=$(du -h "$PG_FILE" | cut -f1)
+      log_ok "Postgres dump: $PG_FILE ($PG_SIZE)"
+      UPLOAD_FILES+=("$PG_FILE")
+    else
+      log_err "Postgres dump failed gzip integrity check (truncated?) — discarding"
+      rm -f "$PG_FILE"
+      BACKUP_OK=0
+    fi
   else
     log_err "pg_dump failed"
     BACKUP_OK=0
@@ -117,34 +131,56 @@ hdr "Storage volume archive"
 
 STORAGE_FILE="$BACKUP_DIR/storage-${TIMESTAMP}.tar.gz"
 
-if [[ -d "$ROOT_DIR/data/storage" ]]; then
-  if tar czf "$STORAGE_FILE" -C "$ROOT_DIR/data" storage 2>/dev/null; then
-    STORAGE_SIZE=$(du -h "$STORAGE_FILE" | cut -f1)
-    log_ok "Storage archive: $STORAGE_FILE ($STORAGE_SIZE)"
-    UPLOAD_FILES+=("$STORAGE_FILE")
+if docker volume inspect "$STORAGE_VOLUME" &>/dev/null; then
+  # Archive the CONTENTS of the named storage volume via a throwaway
+  # helper container (tar in the container, gzip on the host). Restore
+  # extracts the same stream back into the volume.
+  if docker run --rm -v "$STORAGE_VOLUME:/vol:ro" "$STORAGE_HELPER_IMAGE" \
+       tar cf - -C /vol . \
+       | gzip > "$STORAGE_FILE"; then
+    if gzip -t "$STORAGE_FILE"; then
+      STORAGE_SIZE=$(du -h "$STORAGE_FILE" | cut -f1)
+      log_ok "Storage archive: $STORAGE_FILE ($STORAGE_SIZE)"
+      UPLOAD_FILES+=("$STORAGE_FILE")
+    else
+      log_err "Storage archive failed gzip integrity check (truncated?) — discarding"
+      rm -f "$STORAGE_FILE"
+      BACKUP_OK=0
+    fi
   else
-    log_err "Storage tar failed"
+    log_err "Storage archive failed"
     BACKUP_OK=0
   fi
 else
-  log_warn "data/storage not found — skipping storage backup"
+  log_warn "Storage volume '$STORAGE_VOLUME' not found — skipping storage backup"
 fi
 
 # ── 3. Optional GPG encryption ───────────────────────────────────
-if [[ -n "${BACKUP_GPG_RECIPIENT:-}" ]] && command -v gpg &>/dev/null; then
+# Fail-closed: if a recipient is configured, encryption MUST succeed.
+# We never fall back to shipping an unencrypted dump off-site, and we
+# delete the plaintext so it can't leak from disk either.
+if [[ -n "${BACKUP_GPG_RECIPIENT:-}" ]]; then
   hdr "GPG encryption"
-  ENCRYPTED_FILES=()
-  for f in "${UPLOAD_FILES[@]}"; do
-    if gpg --yes --batch --encrypt --recipient "$BACKUP_GPG_RECIPIENT" "$f" 2>/dev/null; then
-      rm -f "$f"
-      ENCRYPTED_FILES+=("${f}.gpg")
-      log_ok "Encrypted: ${f}.gpg"
-    else
-      log_warn "GPG encryption failed for $f — keeping unencrypted"
-      ENCRYPTED_FILES+=("$f")
-    fi
-  done
-  UPLOAD_FILES=("${ENCRYPTED_FILES[@]}")
+  if ! command -v gpg &>/dev/null; then
+    log_err "BACKUP_GPG_RECIPIENT is set but gpg is not installed — refusing to keep/upload unencrypted backups"
+    for f in "${UPLOAD_FILES[@]}"; do rm -f "$f"; done
+    UPLOAD_FILES=()
+    BACKUP_OK=0
+  else
+    ENCRYPTED_FILES=()
+    for f in "${UPLOAD_FILES[@]}"; do
+      if gpg --yes --batch --encrypt --recipient "$BACKUP_GPG_RECIPIENT" "$f"; then
+        rm -f "$f"
+        ENCRYPTED_FILES+=("${f}.gpg")
+        log_ok "Encrypted: ${f}.gpg"
+      else
+        log_err "GPG encryption failed for $f — refusing to keep it unencrypted"
+        rm -f "$f"
+        BACKUP_OK=0
+      fi
+    done
+    UPLOAD_FILES=("${ENCRYPTED_FILES[@]}")
+  fi
 fi
 
 # ── 4. Upload to Scaleway S3 ─────────────────────────────────────
@@ -166,7 +202,7 @@ if [[ "$S3_CONFIGURED" -eq 1 ]]; then
       REMOTE_KEY="$S3_PREFIX/$(basename "$f")"
       if aws s3 cp "$f" "$REMOTE_KEY" \
            --endpoint-url "$BACKUP_SCW_ENDPOINT" \
-           --no-progress 2>/dev/null; then
+           --no-progress; then
         log_ok "Uploaded: $(basename "$f") → $REMOTE_KEY"
       else
         log_err "Upload failed: $f"

@@ -21,6 +21,14 @@ const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 const DELETE_ALL_TOKEN = 'DELETE ALL MYCLASH BACKUPS';
 
+// Mirror of the API default (BACKUP_UPLOAD_MAX_BYTES). Client-side guard so an
+// oversize file is rejected before a slow full-size upload the server rejects.
+const UPLOAD_MAX_BYTES = 1024 * 1024 * 1024;
+
+// Warn below this many local backup sets — too few and one bad backup can
+// leave no good copy to restore from.
+const LOW_RETENTION_THRESHOLD = 3;
+
 interface BackupArtifact {
   kind: 'db' | 'storage';
   filename: string;
@@ -56,6 +64,8 @@ interface BackupStatus {
   lastBackup: {
     timestamp: string;
     status: 'success' | 'failed' | 'unknown';
+    finishedAt?: string | null;
+    error?: string | null;
     localAvailable: boolean;
     cloudAvailable: boolean;
   } | null;
@@ -125,6 +135,11 @@ export default function AdminBackupsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pollFailed, setPollFailed] = useState(false);
+  // Outcome of the just-finished operation. Kept separate from `error`/
+  // `operation` because load() resets those async — so a failed restore would
+  // otherwise lose its only error surface once the refresh lands.
+  const [finishedOp, setFinishedOp] = useState<BackupOperation | null>(null);
 
   const load = useCallback(() => {
     const controller = new AbortController();
@@ -173,6 +188,7 @@ export default function AdminBackupsPage() {
 
   useEffect(() => {
     if (!operation || !['queued', 'running'].includes(operation.status)) return;
+    setPollFailed(false);
     const timer = window.setInterval(() => {
       fetch(`${apiUrl}/api/v1/admin/backups/operations/${operation.id}`, {
         credentials: 'include',
@@ -180,10 +196,18 @@ export default function AdminBackupsPage() {
         .then(async (res) => {
           if (!res.ok) throw new Error(t('admin.backups.operationLoadError'));
           const next = (await res.json()) as BackupOperation;
+          setPollFailed(false);
           setOperation(next);
-          if (next.status === 'success' || next.status === 'failed') load();
+          if (next.status === 'success' || next.status === 'failed') {
+            // Persist the outcome in state that load() won't clobber, so a
+            // failed restore keeps its error banner after the refresh lands.
+            setFinishedOp(next);
+            load();
+          }
         })
-        .catch(() => undefined);
+        // Surface the outage instead of silently freezing on a stale
+        // "running" — the interval keeps auto-retrying underneath.
+        .catch(() => setPollFailed(true));
     }, 2500);
     return () => window.clearInterval(timer);
   }, [apiUrl, load, operation, t]);
@@ -192,6 +216,7 @@ export default function AdminBackupsPage() {
     setBusy(true);
     setNotice(null);
     setError(null);
+    setFinishedOp(null);
     fetch(`${apiUrl}/api/v1/admin/backups/run`, {
       method: 'POST',
       credentials: 'include',
@@ -213,6 +238,16 @@ export default function AdminBackupsPage() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
       setError(t('admin.backups.uploadMissing'));
+      return;
+    }
+    // Mirror the server's required filename shape so a wrong-named file is
+    // rejected here with a precise message instead of after a full-size upload.
+    if (!/^(db-\d{8}T\d{6}Z\.sql\.gz|storage-\d{8}T\d{6}Z\.tar\.gz)(\.gpg)?$/.test(file.name)) {
+      setError(t('admin.backups.uploadInvalidType'));
+      return;
+    }
+    if (file.size > UPLOAD_MAX_BYTES) {
+      setError(t('admin.backups.uploadTooLarge', { max: formatBytes(UPLOAD_MAX_BYTES) }));
       return;
     }
     const formData = new FormData();
@@ -243,6 +278,7 @@ export default function AdminBackupsPage() {
     setBusy(true);
     setError(null);
     setNotice(null);
+    setFinishedOp(null);
     setPendingRestore(null);
     fetch(`${apiUrl}/api/v1/admin/backups/restore`, {
       method: 'POST',
@@ -369,6 +405,20 @@ export default function AdminBackupsPage() {
 
       {error && <Alert tone="error">{error}</Alert>}
       {notice && <Alert tone="success">{notice}</Alert>}
+      {finishedOp?.status === 'failed' && (
+        <Alert tone="error">
+          {`${
+            finishedOp.kind === 'restore'
+              ? t('admin.backups.operationRestore')
+              : t('admin.backups.operationBackup')
+          }: ${t('admin.backups.operationStatuses.failed')}${
+            finishedOp.error ? ` — ${finishedOp.error}` : ''
+          }`}
+        </Alert>
+      )}
+      {finishedOp?.status === 'success' && finishedOp.kind === 'restore' && (
+        <Alert tone="success">{t('admin.backups.restoreComplete')}</Alert>
+      )}
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         <StatusCard label={t('admin.backups.lastBackup')} value={statusLabel(status, t)} />
@@ -388,6 +438,14 @@ export default function AdminBackupsPage() {
           }
         />
       </section>
+
+      {status?.lastBackup?.status === 'failed' && (
+        <Alert tone="error">
+          {`${t('admin.backups.lastBackup')}: ${t('admin.backups.statuses.failed')}${
+            status.lastBackup.error ? ` — ${status.lastBackup.error}` : ''
+          }`}
+        </Alert>
+      )}
 
       <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-border p-4">
         <div className="flex flex-col gap-1">
@@ -535,6 +593,11 @@ export default function AdminBackupsPage() {
             <span className="text-xs font-normal text-muted">
               {t('admin.backups.retentionLocalHint')}
             </span>
+            {scheduleForm.retentionCountLocal < LOW_RETENTION_THRESHOLD && (
+              <span className="text-xs font-normal text-danger">
+                {t('admin.backups.retentionLowWarning')}
+              </span>
+            )}
           </label>
 
           {status?.cloudConfigured && (
@@ -604,6 +667,18 @@ export default function AdminBackupsPage() {
               ? t('admin.backups.operationBackup')
               : t('admin.backups.operationRestore')}
           </p>
+          {pollFailed && ['queued', 'running'].includes(operation.status) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-sm text-danger">{t('admin.backups.pollError')}</p>
+              <button
+                type="button"
+                onClick={() => load()}
+                className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-background"
+              >
+                {t('admin.backups.retry')}
+              </button>
+            </div>
+          )}
           {operation.error && <p className="mt-2 text-sm text-danger">{operation.error}</p>}
           {operation.logTail.length > 0 && (
             <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-strong p-3 text-xs text-strong-foreground">
@@ -727,6 +802,14 @@ export default function AdminBackupsPage() {
             location: t(`admin.backups.locationsMap.${pendingRestore.location}`),
             timestamp: formatTimestamp(pendingRestore.backup.timestamp),
           })}
+          bulletsTitle={t('admin.backups.restoreScopeTitle')}
+          bullets={[
+            t('admin.backups.restoreScopeDb', {
+              timestamp: formatTimestamp(pendingRestore.backup.timestamp),
+            }),
+            t('admin.backups.restoreScopeStorage'),
+            t('admin.backups.restoreScopeServices'),
+          ]}
           dangerLabel={t('admin.backups.continueRestore')}
           cancelLabel={t('actions.cancel')}
           busy={busy}
@@ -1058,6 +1141,8 @@ function formatBytes(value: number): string {
 function ConfirmDialog({
   title,
   body,
+  bulletsTitle,
+  bullets,
   dangerLabel,
   cancelLabel,
   busy,
@@ -1066,6 +1151,8 @@ function ConfirmDialog({
 }: {
   title: string;
   body: string;
+  bulletsTitle?: string;
+  bullets?: string[];
   dangerLabel: string;
   cancelLabel: string;
   busy: boolean;
@@ -1087,6 +1174,16 @@ function ConfirmDialog({
           {title}
         </h2>
         <p className="mt-3 text-sm leading-6 text-foreground-secondary">{body}</p>
+        {bullets && bullets.length > 0 && (
+          <div className="mt-3 rounded-md border border-danger/30 bg-danger/10 p-3">
+            {bulletsTitle && <p className="text-sm font-semibold text-danger">{bulletsTitle}</p>}
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground-secondary">
+              {bullets.map((bullet) => (
+                <li key={bullet}>{bullet}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
