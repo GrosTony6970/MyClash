@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
 import { formatInZone, zonedDay } from '@myclash/time';
@@ -146,9 +146,31 @@ export function WorkshopCard({
     .sort((a, b) => (a.startsAt! < b.startsAt! ? -1 : 1));
   const firstSession = datedSessions[0] ?? null;
   const moreCount = datedSessions.length - 1;
-  const location = firstSession
-    ? (firstSession.locationLabel ?? firstSession.area?.name ?? firstSession.venue?.name ?? null)
-    : null;
+  // An explicit locationLabel wins; otherwise show venue and area together
+  // ("Salle Principale — Area 1"), degrading gracefully when a part is missing.
+  const location = (() => {
+    if (!firstSession) return null;
+    if (firstSession.locationLabel) return firstSession.locationLabel;
+    const parts = [firstSession.venue?.name, firstSession.area?.name].filter(Boolean);
+    return parts.length ? parts.join(' — ') : null;
+  })();
+
+  // Personal-space cards (no href) let the reader expand a clamped description;
+  // public cards link to the detail page instead, so keep them clamped.
+  const expandable = !href;
+  const descRef = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    if (!expandable || expanded) return;
+    const el = descRef.current;
+    if (!el) return;
+    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expandable, expanded, description]);
 
   const surface = highlighted ? 'border-success/40 bg-success/5' : 'border-stone-200 bg-white';
 
@@ -166,7 +188,25 @@ export function WorkshopCard({
           {instructorNames.length > 0 && (
             <p className="mt-0.5 text-sm text-slate-500">{instructorNames.join(', ')}</p>
           )}
-          {description && <p className="mt-2 line-clamp-2 text-sm text-slate-600">{description}</p>}
+          {description && (
+            <>
+              <p
+                ref={expandable ? descRef : undefined}
+                className={`mt-2 text-sm text-slate-600 ${expandable && expanded ? '' : 'line-clamp-2'}`}
+              >
+                {description}
+              </p>
+              {expandable && overflowing && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                  className="mt-1 text-xs font-medium text-red-600 hover:text-red-700"
+                >
+                  {expanded ? t('publicApp.workshops.showLess') : t('publicApp.workshops.showMore')}
+                </button>
+              )}
+            </>
+          )}
           <div className="mt-3 flex flex-wrap gap-1.5">
             {w.category && (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
