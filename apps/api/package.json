@@ -18,7 +18,7 @@
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^10.0.0",
     "@google/genai": "^2.10.0",
-    "@mistralai/mistralai": "^2.2.1",
+    "@mistralai/mistralai": "^2.4.0",
     "@myclash/feature-flags": "workspace:^",
     "@myclash/rulesets": "workspace:^",
     "@myclash/time": "workspace:^",
