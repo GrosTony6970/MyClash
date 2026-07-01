@@ -46,7 +46,7 @@ These can be done in parallel; finish all before moving to Phase 2.
 - **Image**: Ubuntu 24.04 LTS.
 - **Region**: closest to you (Gravelines / Strasbourg / Roubaix).
 - **Cost**: ~€15–20/month.
-- **Why this size**: Postgres + Redis + 5 Node services + Traefik + Supabase services. 4 GB RAM works for v1 launch but leaves no headroom; 8 GB is the comfort margin you want when an event runs.
+- **Why this size**: Postgres + Redis + ~7 Node services (api + worker + ops-runner + 4 web apps) + Traefik + Supabase services. 4 GB RAM works for v1 launch but leaves no headroom; 8 GB is the comfort margin you want when an event runs.
 
 ### ☐ 5. Initial VPS hardening
 
@@ -331,7 +331,7 @@ Always have an analog fallback. See O-209 in OWNER_TASKS.md.
 - Copy a real backup over.
 - Run `infra/scripts/restore.sh <backup>`.
 - Confirm a known fighter / known event appears correctly.
-- Document any friction in `docs/RUNBOOK.md`.
+- Document any friction in `docs/DISASTER_RECOVERY.md`.
 
 ---
 

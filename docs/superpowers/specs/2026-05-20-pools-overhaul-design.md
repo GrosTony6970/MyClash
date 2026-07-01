@@ -1,5 +1,7 @@
 # Pools page overhaul: Configure / Matches / Standings
 
+> **Status (2026-07-01 doc review):** Shipped — Configure/Matches/Standings tabs, the color-token util, and their tests exist in the tree; the util landed in `@myclash/ui` with 15 tokens rather than the local 8-token path this spec sketched. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+
 **Status**: design
 
 **Audience**: organizers running tournaments via the web-admin during pool play.
@@ -98,7 +100,7 @@ Stacked sections, one per pool. Each section header shows `Pool A (8 fighters ·
 
 **Tournament-color binding**
 
-Read `scoring_config.display.sideColors.{red, blue}` from the tournament. Map color tokens → Tailwind classes via a new util `apps/web-admin/.../matches-tab/color-token.ts` exporting `accentClassFor(token: ColorToken): string`. 8 supported tokens: red, blue, green, yellow, purple, orange, black, white. Unknown tokens fall back to red/blue literals.
+Read `scoring_config.display.sideColors.{red, blue}` from the tournament. Map color tokens → Tailwind classes via the shared util [`packages/ui/src/utils/color-token.ts`](packages/ui/src/utils/color-token.ts) (imported from `@myclash/ui`) exporting `accentClassFor(token: ColorToken): string`. 15 supported tokens: red, blue, green, yellow, purple, orange, black, white, amber, violet, teal, gold, silver, bronze, slate. Unknown/null tokens fall back to red.
 
 **Row click**
 
@@ -293,7 +295,7 @@ No backend changes. `matches` table is already published to Supabase realtime (t
 
 ### Frontend vitest
 
-- Unit test on `accentClassFor(token)` — given each of 8 supported color tokens, returns the right Tailwind class. Plus fallback for unknown tokens.
+- Unit test on `accentClassFor(token)` — given each of the 15 supported color tokens, returns the right Tailwind class. Plus fallback for unknown/null tokens.
 - No render tests for the three tabs (form + table glue covered by manual smoke).
 
 ### Manual smoke

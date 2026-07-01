@@ -1,5 +1,7 @@
 # AI Infrastructure Layer Implementation Plan
 
+> **Status (2026-07-01 doc review):** Superseded — this plan shipped verbatim (mig `0029_ai_infrastructure.sql`, plus the `ai-providers` and `ai-usage` modules) and was then extended past its original two-module, adapter-owned-pricing shape. All task boxes below are done despite the unchecked `- [ ]` markers. Follow-on work NOT in this plan: `ai-providers/model-registry.ts` (`MODEL_REGISTRY` is now the single source of truth for models + pricing — adapters no longer own the per-provider `PRICING` maps shown below) and `ai-models.controller.ts` (`GET /ai/models`); `ai-usage/ai-dashboard.controller.ts` and a second `budget-exceeded.exception.ts` alongside `spend-cap.exception.ts`; sibling modules `organizer-ai-assistant/` (streaming chatbot) and `generated-content/` (incl. `me-ai.controller.ts`); migrations 0115–0120. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the shared AI infrastructure layer (encrypted BYOK key storage, provider abstraction for Anthropic/OpenAI/Mistral, per-event spend caps) that all future AI features depend on.

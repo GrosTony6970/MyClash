@@ -19,8 +19,8 @@ pnpm infra:edge -- --domain myclash.fr
 ## Container Inventory
 
 Production compose defines the expected v1 services: Traefik, Postgres, Redis,
-Supabase Auth, Supabase Realtime, Supabase Storage, API, ops-runner, worker,
-web-public, web-marketing, web-scoring, and web-admin.
+Supabase Auth, Supabase Realtime, Supabase Storage, Supabase REST (PostgREST),
+API, ops-runner, worker, web-public, web-marketing, web-scoring, and web-admin.
 
 Repo-verified controls:
 
@@ -43,7 +43,8 @@ Repo-verified controls:
 - Let's Encrypt TLS resolver `letsencrypt` uses TLS challenge and ACME storage
   at `/data/acme.json`.
 - `infra/scripts/deploy.sh` creates the ACME file and enforces mode `600`.
-- Public routers use the `myclash-security-headers@docker` middleware.
+- Public routers use the `myclash-security-headers@file` middleware, defined in
+  the Traefik file provider (`infra/config/traefik/middlewares.yml`).
 - HSTS is enabled with `max-age=31536000; includeSubDomains`.
 - HSTS preload is intentionally disabled for v1.
 - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and

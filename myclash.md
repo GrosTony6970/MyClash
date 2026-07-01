@@ -33,12 +33,18 @@ It is designed around three convictions:
 - **Referee assignment**: manage referee qualifications (3 roles, per-role rating 1–5), auto-assign with constraint solver, see missing-role report, manually override.
 - AI setup assistant creates reviewed drafts for tournament configuration, pool plans, brackets, exact match-grid scheduling, and referee assignments using the organizer's BYOK key.
 - Natural-language tournament query lets organizers ask French or English questions such as "Quelles pistes sont en retard ?" or "Top 5 fighters by win rate"; AI selects a typed read-only tool and deterministic backend code renders the answer.
+- **Organizer chatbot**: a conversational, tool-using assistant that streams its progress over SSE — distinct from the one-shot setup-draft assistant and the read-only query panel.
+- **AI model registry**: per-organization provider and model selection across Anthropic, OpenAI, and Mistral adapters.
+- **AI consumption dashboard**: per-organization usage summary with budget caps, spend-cap enforcement, and AI feature flags.
+- **Generated content**: AI-drafted, publishable tournament recaps, organizer content, and fighter performance insights (generate → publish/unpublish).
 - Generate single-elimination brackets from pool standings, including arbitrary-size fields with play-in matches for low seeds, then publish or unpublish pool/bracket visibility independently when ready.
 - Record fighter forfeits from scoring/admin with ruleset-configurable behavior for injury, voluntary withdrawal, black cards, and conduct violations, including pool auto-forfeits and bracket walkovers/replacements.
 - Schedule matches and workshops on a unified day grid.
 - Manage workshops: instructors (optional fighter link), descriptions, sessions, capacity, waitlists.
+- **Leagues / Classement**: org owners run multi-tournament leagues that aggregate standings across linked events/tournaments, with per-league organization and user roles, tournament/event linking and membership requests, on-demand recompute, and a public final report (CSV + printable HTML) export — managed in web-admin `/org/[slug]/leagues` and surfaced for competitors under `/me/leagues`.
 - Send event-wide notifications to everyone, fighters, referees, fighters and referees, or selected people with Info, Warning, and Alert severity; pool/bracket publish flows can prefill an editable "ready" broadcast.
 - Publish results, rich statistics, and export to CSV/JSON/PDF/HEMA Ratings format.
+- **Archive & restore**: export a lossless, round-trippable JSON archive of a whole event or tournament, then restore it (with a restore-preview step) as a distinct backup/migration path, alongside the flat CSV/JSON/PDF/HEMA-Ratings exports.
 
 ### For scorekeepers
 
@@ -56,6 +62,7 @@ It is designed around three convictions:
 - **My Schedule**: unified view of fights, refereeing, workshops with conflict markers.
 - Push notifications for upcoming matches, workshops, schedule changes.
 - Claimed fighters can change their login/contact email after confirming a link sent to the new address.
+- **Self-service AI insight**: save a personal BYOK AI key, then generate and publish/unpublish your own performance insight.
 
 ### For referees
 
@@ -72,8 +79,8 @@ It is designed around three convictions:
 ### For spectators / accompanists
 
 - **Search any participant** in the event — fighters, referees, workshop leads.
-- **Follow people** to build a personal watchlist (a coach watches their three students; a parent follows their kid).
-- **Watchlist view** shows next-match / live-now / just-finished state for everyone you follow, all in one screen.
+- **People Hub**: a persistent, cross-event personal directory. Follow people by their global identity (not just within one event) and organize them into named, reorderable groups — e.g. a coach's students — surfaced under `/me/follows`.
+- **Watchlist / group view** shows next-match / live-now / just-finished state for everyone you follow, per group, all in one screen.
 - Live Lice view: current and upcoming matches.
 - **Push notifications** when someone you follow is about to fight (claimed accounts only — verifies email ownership).
 - Live exchange feed during matches.
@@ -161,6 +168,12 @@ It is designed around three convictions:
 | **Organizer AI assistant**     | Organization-BYOK draft-and-review assistant for tournament setup, pools, brackets, scheduling, and referee assignments.         |
 | **Tournament query assistant** | Organization-BYOK natural-language read-only query surface for tournament stats, lices, pools, brackets, schedule, and referees. |
 | **AI data-quality assistant**  | Super-admin review queue for duplicate people, referees, clubs, and identity gaps using separate platform BYOK.                  |
+| **Organizer chatbot**          | Conversational, tool-using organizer assistant that streams progress over SSE.                                                   |
+| **AI model registry**          | Per-org provider + model selection across Anthropic, OpenAI, and Mistral adapters.                                               |
+| **AI consumption dashboard**   | Per-org AI usage summary with budget caps, spend-cap enforcement, and feature flags.                                             |
+| **Generated content**          | AI-drafted, publishable tournament recaps, organizer content, and fighter insights.                                              |
+| **League engine**              | Multi-tournament league standings with per-league roles, recompute, and report export.                                           |
+| **People Hub**                 | Cross-event directory: follow by global identity, group people with live match status.                                           |
 
 ---
 

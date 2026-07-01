@@ -150,7 +150,7 @@ Platform-level admin (you). Functions:
 - Donation / support section (HelloAsso link).
 - Login CTA → `app.myclash.fr`.
 
-App: `apps/web-marketing/index.html`. Served by Caddy/nginx or directly by Traefik file server. No Next.js runtime.
+App: `apps/web-marketing/index.html`. Served by Caddy (`FROM caddy:2-alpine`, generated Caddyfile) or directly by Traefik file server. No Next.js runtime.
 
 ---
 
@@ -160,15 +160,15 @@ App: `apps/web-marketing/index.html`. Served by Caddy/nginx or directly by Traef
 
 | Layer                         | Choice                                                          | Rationale                                                                                                    |
 | ----------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Frontend (all PWAs)           | **Next.js 15** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end                      |
-| Backend                       | **NestJS 10** + TypeScript                                      | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference |
-| Database                      | **PostgreSQL 16** (via Supabase)                                | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                        |
+| Frontend (all PWAs)           | **Next.js 16** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end                      |
+| Backend                       | **NestJS 11** + TypeScript                                      | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference |
+| Database                      | **PostgreSQL 17** (via Supabase)                                | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                        |
 | ORM                           | **Drizzle ORM**                                                 | TS-first, lightweight, raw-SQL escape hatch for ranking queries                                              |
 | Realtime                      | **Supabase Realtime** (Phoenix Channels)                        | Postgres-native broadcast on row changes; zero glue code for the read-side                                   |
 | Auth                          | **Supabase Auth** (email magic link + Google OAuth)             | Self-hostable, JWT-based, integrates with Postgres RLS                                                       |
 | Object Storage                | **Supabase Storage** (S3-compatible)                            | Fighter photos, event logos, podium photos                                                                   |
 | Background jobs               | **BullMQ** (Redis-backed)                                       | Stats recomputation, HEMA Ratings sync, exports                                                              |
-| Cache + pub/sub               | **Redis 7**                                                     | BullMQ + L2 cache for ranking queries                                                                        |
+| Cache + pub/sub               | **Redis 8**                                                     | BullMQ + L2 cache for ranking queries                                                                        |
 | Reverse proxy                 | **Traefik v3**                                                  | Automatic Let's Encrypt, label-based config, native Docker integration                                       |
 | Container                     | **Docker + Docker Compose**                                     | User requirement                                                                                             |
 | Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                 |
@@ -234,7 +234,7 @@ Three distinct mechanisms, each addressing a different concern:
 | `web-public`        | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`).                                  |
 | `web-scoring`       | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                      |
 | `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                           |
-| `web-marketing`     | Static HTML on nginx — `myclash.fr` apex landing page.                                                       |
+| `web-marketing`     | Static HTML on Caddy — `myclash.fr` apex landing page.                                                       |
 | `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                            |
 | `worker`            | NestJS in worker mode (`--worker`) — BullMQ consumer (stats, exports, Ratings sync, notifications).          |
 | `db`                | Postgres 17 from the Supabase image (`supabase/postgres:17.6.1.121`), with the Supabase init scripts.        |
@@ -299,7 +299,7 @@ Ruleset
    └── computeFn (server code reference, see §7)
 ```
 
-### 5.2 Key tables (sketch — full DDL in `packages/db/schema.ts`)
+### 5.2 Key tables (sketch — full DDL in `packages/db/src/schema/`)
 
 ```sql
 -- Identity & multi-tenancy
@@ -631,6 +631,13 @@ event_broadcast_recipients (
 )
 ```
 
+This sketch is **non-exhaustive** — it predates several shipped feature waves. Other significant table families in `packages/db/src/schema/` (and their migrations) include:
+
+- **Leagues / Classement** — `leagues`, `league_organization_roles`, `league_user_roles`, plus league–tournament links, membership requests, groups and scoring systems (migrations `0015_leagues.sql`, `0069_league_membership_requests.sql`, and later). Cross-event standings aggregated from linked tournaments.
+- **Directory groups (People Hub)** — `directory_groups`, `directory_group_members` (migration `0114_directory_groups.sql`). User-curated groups of global persons for the `/me` people hub.
+- **AI subsystem** — organization-level AI provider settings, usage/budget tracking, organizer chatbot, and generated content: `generated_content` (migration `0119_generated_content.sql`) plus `fighter_ai_settings` (migration `0120_fighter_ai_settings.sql`) for fighter self-service AI, alongside the AI provider/usage tables (migrations `0115`–`0118`).
+- **Referee compensation** — see §13 (migration `0027_referee_compensation.sql`).
+
 ### 5.3 Exchange semantics
 
 The `exchanges` table is the single source of truth. The match score is **always derived** from non-voided exchanges; never stored independently. This guarantees the score is consistent with the visible exchange list and statistics computations.
@@ -789,8 +796,9 @@ export interface Ruleset {
 ### 7.2 Built-in rulesets shipped at v1.0
 
 - **TF_v1** — the canonical ruleset spec'd in §6.
-- **TF_v1_no_afterblow** — variant without afterblow concept (pure first-hit).
 - **Generic_PointsCap** — first-to-N points, no algorithm score (for clubs that just want simple pool play).
+
+(These two are the only rulesets registered today; see `packages/rulesets/src/index.ts`. Data-driven `FormulaRuleset` variants are also supported via the registry.)
 
 Additional rulesets are added by:
 
@@ -840,10 +848,9 @@ This dual-runtime design is critical for the offline scoring tablet.
 
 - **Hot path (live)**: realtime updates push deltas; UI maintains incremental aggregates.
 - **Cold path (post-match)**: BullMQ job `recompute-event-stats` runs after each match completes. Materializes:
-  - `mv_fighter_exchange_stats` (per-fighter, per-event)
-  - `mv_event_stats_summary` (event-level aggregates)
-  - `mv_event_stats_summary` (event-level)
-- Public stats page reads materialized views directly (fast).
+  - `mv_fighter_exchange_stats` (per-fighter exchange aggregates; the only materialized view — see `packages/db/migrations/0010_stats_views.sql`, refreshed in `0110`).
+- Event- and tournament-level aggregates are served from plain `vw_tournament_query_*` views (fighters, pools, matches, exchange summary, referees), not a materialized event summary.
+- Public stats page reads these views directly (fast).
 
 ### 8.3 Export formats
 
@@ -1638,9 +1645,11 @@ Each event can customize:
 
 - Event public site: `/e/{event-slug}`
 - Tournament page: `/e/{event-slug}/t/{tournament-slug}`
-- Match page: `/e/{event-slug}/m/{match-id}`
-- Lice live view: `/e/{event-slug}/l/{lice-name}`
-- Fighter profile (in event context): `/e/{event-slug}/f/{fighter-slug}`
+- Match page: `/e/{event-slug}/match/{match-id}`
+- Lice live view: `/e/{event-slug}/lice/{lice-name}`
+- Fighter profile (in event context): `/e/{event-slug}/fighters/{fighter-slug}`
+
+(See §15.1 for the authoritative route tree.)
 
 Global (cross-event):
 
@@ -1705,12 +1714,19 @@ GET    /api/v1/events/:id/people/:personId/schedule      [public]
 GET    /api/v1/events/:id/people/:personId/results       [public]
 
 # Following (anonymous gets localStorage; guest|claimed gets server-stored)
-GET    /api/v1/events/:id/follows                        [guest|claimed]
-POST   /api/v1/events/:id/follows                        [guest|claimed]
-                                               # body: { person_id }
-DELETE /api/v1/follows/:followId                              [guest|claimed]
-PATCH  /api/v1/follows/:followId                              [guest|claimed]
-                                               # body: { notify_match_start, ... }
+GET    /api/v1/events/:eventId/follows                       [guest|claimed]
+POST   /api/v1/events/:eventId/follows                       [guest|claimed]
+                                               # body: { personId }
+DELETE /api/v1/events/:eventId/follows/:personId             [guest|claimed]
+PATCH  /api/v1/events/:eventId/follows/:personId             [guest|claimed]
+                                               # body: { notifyMatchStart, notifyWorkshopStart }
+
+# Cross-event follows (People Hub — follow a global person everywhere)
+GET    /api/v1/me/follows                                    [guest|claimed]
+POST   /api/v1/me/follows/by-global-person                   [guest|claimed]
+                                               # body: { globalPersonId }
+                                               # follows the person across all their events
+DELETE /api/v1/me/follows/by-global-person/:globalPersonId   [guest|claimed]
 
 # Privacy preferences (Person can only edit their own; requires claimed)
 GET    /api/v1/persons/me/privacy                             [claimed, owns person]
@@ -1877,6 +1893,44 @@ GET    /api/v1/events/:id/export?format=csv|json|hema-ratings|pdf
 GET    /api/v1/hema-ratings/search?q=...
 GET    /api/v1/hema-ratings/:hr-id
 
+# Directory groups (People Hub — user-curated groups of global persons)
+GET    /api/v1/me/groups                                [claimed]
+POST   /api/v1/me/groups                                [claimed]
+PATCH  /api/v1/me/groups/:groupId                       [claimed]
+DELETE /api/v1/me/groups/:groupId                       [claimed]
+POST   /api/v1/me/groups/:groupId/members               [claimed]   # add a global person
+DELETE /api/v1/me/groups/:groupId/members/:globalPersonId  [claimed]
+
+# Leagues / Classement (cross-event standings)
+GET    /api/v1/leagues                                  [public, filtered]
+GET    /api/v1/leagues/attachable                       [organizer+]
+GET    /api/v1/leagues/:slug                            [public]
+GET    /api/v1/leagues/:leagueId/standings              [public]
+GET    /api/v1/leagues/:leagueId/final-report.csv       [public]
+GET    /api/v1/leagues/:leagueId/final-report.print.html [public]
+GET    /api/v1/organizations/:orgId/leagues             [org member+]
+GET    /api/v1/admin/leagues                            [super_admin]
+POST   /api/v1/admin/leagues                            [super_admin]
+PATCH  /api/v1/admin/leagues/:leagueId                  [league manager+]
+DELETE /api/v1/admin/leagues/:leagueId                  [super_admin]
+POST   /api/v1/admin/leagues/:leagueId/tournaments/:tournamentId/link  [league manager+]
+GET    /api/v1/admin/leagues/:leagueId/requests         [league manager+]
+POST   /api/v1/admin/leagues/:leagueId/organization-roles [league manager+]
+POST   /api/v1/admin/leagues/:leagueId/user-roles       [league manager+]
+POST   /api/v1/admin/leagues/:leagueId/recompute        [league manager+]
+       # + league-group, logo, membership-request, and link-management routes
+       # (see leagues.controller.ts / league-membership-requests.controller.ts)
+
+# AI (model registry, provider settings, usage & budget)
+GET    /api/v1/ai/models                                [organizer+]   # provider model registry
+GET    /api/v1/organizations/:orgId/ai-settings         [org member+]
+PUT    /api/v1/organizations/:orgId/ai-settings         [owner|super_admin]
+DELETE /api/v1/organizations/:orgId/ai-settings         [owner|super_admin]
+GET    /api/v1/organizations/:orgId/ai-usage/summary    [org member+]  # consumption dashboard
+PATCH  /api/v1/organizations/:orgId/ai-settings/budget  [owner|super_admin]
+PATCH  /api/v1/organizations/:orgId/ai-settings/flags   [owner|super_admin]
+GET    /api/v1/events/:eventId/ai-usage                 [organizer+]
+
 # WebSocket
 WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 ```
@@ -1930,6 +1984,23 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 /e/[eventSlug]/profile/privacy                          # Privacy preferences (claimed only)
 /e/[eventSlug]/profile/email                            # Login / roster email change (claimed only)
 /e/[eventSlug]/notifications                            # Notification preferences + history
+
+# Personal space (/me/*) — claimed-user hub, cross-event
+/me                                                    # Personal dashboard / people hub
+/me/profile                                            # Global profile
+/me/security                                           # Password / auth
+/me/settings                                           # Preferences (locale, etc.)
+/me/notifications                                      # Notification preferences + history
+/me/fighter                                            # Fighter self-service (incl. AI settings)
+/me/referee                                            # Referee profile
+/me/follows                                            # Followed people across events
+/me/leagues                                            # Leagues I compete in
+/me/leagues/[slug]                                     # League detail / standings
+/me/events                                             # My events
+/me/events/[eventSlug]                                 # Personal event overlay
+/me/events/[eventSlug]/{overview,schedule,workshops}
+/me/events/[eventSlug]/t/[tournamentSlug]              # Personal tournament view
+/me/claim-confirm                                      # Magic-link claim confirmation
 ```
 
 ### 15.2 `web-scoring`
@@ -1954,6 +2025,8 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 /org/[orgSlug]                           # Org dashboard
 /org/[orgSlug]/settings                  # Org name, members, billing later
 /org/[orgSlug]/members                   # Invite/remove team members
+/org/[orgSlug]/leagues                   # Org-owner leagues (Manage | Discover)
+/org/[orgSlug]/leagues/[leagueId]        # League management for this org
 /org/[orgSlug]/events
 /org/[orgSlug]/events/new
 /org/[orgSlug]/events/[eventId]/...
@@ -1983,6 +2056,7 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
    /tournaments/[tournamentId]/pool-populator   # Pool populator UI (constraint sliders + manual override)
    /scorekeepers
    /schedule                             # Unified day grid (matches across all tournaments + workshops)
+   /leagues                              # Attach this event's tournaments to leagues
    /publish
 
 # Super Admin
@@ -1992,6 +2066,10 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 /admin/users
 /admin/fighters                          # Merge, moderation
 /admin/rulesets
+/admin/leagues                           # Leagues list
+/admin/leagues/new
+/admin/leagues/[id]/{edit,ranking,requests}
+/admin/leagues/scoring-systems           # League scoring-system registry (+ /new, /[id]/edit)
 /admin/feature-flags
 /admin/audit-log
 ```
@@ -2006,23 +2084,21 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 
 Custom `@myclash/i18n` package (`packages/i18n/`) — not `next-intl` or `i18next`. Rationale: shared across all apps (Next.js + NestJS) without a React dependency in the core translation layer.
 
-- `packages/i18n/src/en.ts` — English strings (source of truth)
-- `packages/i18n/src/fr.ts` — French strings (`fr = en` alias pattern; all keys must exist)
-- `packages/i18n/src/index.ts` — `t(key, locale)` helper + `DeepString<T>` type
-- `packages/i18n/src/I18nProvider.tsx` — React context provider used in Next.js apps
+- `packages/i18n/src/index.ts` — the whole translation layer. `en` and `fr` are inline `export const en = {...}` / `export const fr = {...}` literal objects (fr is a **full French translation**, not an `fr = en` alias); this file also exports `defaultLocale`, the `DeepString<T>` type, and the `t` / `createTranslator` / `getMessages` helpers. There are no separate `en.ts` / `fr.ts` files.
+- `apps/{web-public,web-admin,web-scoring}/src/i18n/I18nProvider.tsx` — the React context provider is **per-app** (one copy in each Next.js app), not in the package.
 
 ### ESLint enforcement
 
-Custom `no-literal-string` rule in `eslint-rules/no-literal-string.js` — fails the build on any hardcoded user-facing string not routed through `t()`. A `// i18n-ignore` escape hatch exists for technical strings (error codes, test IDs).
+Custom `no-literal-string` rule in `eslint-rules/no-literal-string.mjs` — fails the build on any hardcoded user-facing string not routed through `t()`. A `// i18n-ignore` escape hatch exists for technical strings (error codes, test IDs).
 
 ### Locale routing
 
-Each Next.js app wraps its root layout with `<I18nProvider locale={defaultLocale}>`. Locale is currently hardcoded to `fr` for the French-first audience; multi-locale URL routing is deferred to v2.
+Each Next.js app wraps its root layout with `<I18nProvider>` (no explicit `locale` prop) and renders `<html lang={defaultLocale}>`. `defaultLocale` is `'en'` — EN is the source/default locale; the client `useI18n()` hook is locale-aware. Multi-locale URL routing is deferred to v2.
 
 ### Adding a string
 
-1. Add the key to `packages/i18n/src/en.ts`
-2. Add the French translation to `packages/i18n/src/fr.ts`
+1. Add the key to the `en` object in `packages/i18n/src/index.ts`
+2. Add the French translation to the matching path in the `fr` object (same file); every key must exist in both — CI lint (`packages/i18n/src/t-key-references.test.ts`) fails on misses
 3. Use `t('key')` in the component via `useI18n()` hook
 
 ---
@@ -2047,7 +2123,7 @@ The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/do
 | `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                       |
 | `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                         |
 | `web-scoring`       | `myclash-web-scoring`       | Built from `apps/web-scoring/Dockerfile`   | Next.js 16 on internal port 3000. Routed at `scoring.${DOMAIN}`.                                     |
-| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on nginx, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).            |
+| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on Caddy, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).            |
 | `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4. |
 
 Traefik routes by Host header. Key mappings:
@@ -2146,7 +2222,8 @@ myclash/
 │   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry
 │   ├── types/                  # Shared TS types (Match, Exchange, etc.)
 │   ├── api-client/             # Generated OpenAPI client
-│   └── i18n/                   # Shared translation strings (EN + FR)
+│   ├── i18n/                   # Shared translation strings (EN + FR)
+│   └── time/                   # @myclash/time — shared time/date helpers
 ├── infra/
 │   ├── docker-compose.prod.yml     # prod compose (used by infra/scripts/*)
 │   ├── docker-compose.dev.yml      # local dev stack (Traefik + Kong + Supabase + apps)
@@ -2168,9 +2245,10 @@ myclash/
 │       └── vps-bootstrap.sh        # idempotent VPS provisioning
 ├── scripts/                        # cross-platform scripts (Node) for the dev machine
 │   ├── deploy.ts                   # `pnpm deploy:prod` — SSH wrapper for infra/scripts/deploy.sh
-│   ├── rollback.ts                 # `pnpm rollback:prod` — wrapper
-│   ├── seed.ts                     # seed dev data
-│   └── import-fal2026.ts           # FAL 2026 golden-test fixture import
+│   ├── gen-api-client.ts           # regenerate the @myclash/api-client from OpenAPI
+│   ├── gen-ffamhe-penalty-seed.ts  # generate the FFAMHE penalty seed data
+│   ├── seed-min.ts                 # seed a minimal dev dataset
+│   └── *.mjs                       # cross-cutting check/lint scripts
 ├── memory/                         # AI agent persistent memory
 │   ├── MEMORY.md                   # thematic index (agent-maintained)
 │   ├── PROMPT_LOG.md               # append-only user-instruction log
@@ -2180,10 +2258,12 @@ myclash/
 │   ├── ARCHITECTURE.md             # this file
 │   ├── BUILD_ORDER.md              # sequenced AI-coder tasks
 │   ├── OWNER_TASKS.md              # owner-side operational tasks
-│   ├── RULESETS.md
-│   ├── DEPLOYMENT.md
-│   ├── RUNBOOK.md
-│   └── CONTRIBUTING.md
+│   ├── HIERARCHY.md                # canonical domain vocabulary
+│   ├── GOLDEN_PATHS.md             # end-to-end happy-path walkthroughs
+│   ├── DISASTER_RECOVERY.md        # backup/restore recovery runbook
+│   ├── PRE_DEPLOY_CHECKLIST.md     # pre-first-deploy checklist
+│   ├── SECURITY_POSTURE.md         # security posture notes
+│   └── *_REVIEW.md                 # periodic review reports
 ├── .github/workflows/
 ├── .env.deploy.example             # template for the dev-machine deploy SSH config
 ├── AGENTS.md                       # AI coder instructions (root, intentional)
@@ -2255,7 +2335,7 @@ You are an AI coding assistant working on **MyClash**. Read `docs/ARCHITECTURE.m
 ### Hard rules
 
 1. **Never bypass the ruleset engine.** Scores are always derived from exchanges via `@myclash/rulesets`. Do not store computed scores as the source of truth.
-2. **The TF_v1 implementation must reproduce the FAL 2026 reference data byte-for-byte.** A failing snapshot test against `scripts/import-fal2026.ts` data is a red flag — fix the engine, do not adjust the snapshot.
+2. **The TF_v1 implementation must reproduce the FAL 2026 reference data byte-for-byte.** A failing golden/snapshot test against the FAL 2026 reference fixtures (`packages/rulesets` tests) is a red flag — fix the engine, do not adjust the snapshot.
 3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline functionality. E2E offline tests must pass.
 4. **RLS first, application checks second.** Every new table needs an RLS policy. Never disable RLS in production code paths.
 5. **No `eval`, no `Function()`, no dynamic code execution** for user-supplied formulas. Ruleset configs are validated against Zod schemas and dispatched to whitelisted functions.
@@ -2264,7 +2344,7 @@ You are an AI coding assistant working on **MyClash**. Read `docs/ARCHITECTURE.m
 
 ### Workflow
 
-1. Pick a task from the milestone in `docs/ROADMAP.md`.
+1. Pick a task from the milestone in `docs/BUILD_ORDER.md` (high-level phases are in §19 of this file).
 2. Open a feature branch: `feat/<scope>-<short-name>`.
 3. Write tests first when feasible (especially in `packages/rulesets`).
 4. Implement.
@@ -2274,7 +2354,7 @@ You are an AI coding assistant working on **MyClash**. Read `docs/ARCHITECTURE.m
 ### When you don't know
 
 - If the architecture doc is silent on a decision, ask. Do not guess and write 500 lines that need to be unwound.
-- For UI ambiguity, refer to the prototype (`docs/prototype.html`) — the design system is canonical.
+- For UI ambiguity, refer to the prototype (`docs/prototype/`) — the design system is canonical.
 
 ---
 

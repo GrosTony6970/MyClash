@@ -1,10 +1,14 @@
 # Tournament Configuration Wizard + Settings Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-07-01 doc review):** Superseded — the wizard, tabbed Settings page, `/rulesets` endpoint, and `/scoring-config`→`/settings` redirect all shipped (2026-06) and were then evolved past this plan (Settings now has 7 tabs, persistence switched to pluck-not-spread + default backfill). Kept for historical reference; do not re-execute. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+>
+> **For agentic workers (historical):** This plan is already SHIPPED and superseded — do NOT re-execute it. The unchecked `- [ ]` boxes below are point-in-time and were left as-authored; they do not mean work is outstanding.
 
 **Goal:** Surface every backend-supported tournament configuration field through a 4-step create wizard and a tabbed Settings edit page, with a permanent redirect from the legacy `/scoring-config` URL.
 
 **Architecture:** Backend changes are limited to extending existing tournament DTOs with new nested fields, adding deep-merge semantics to the PATCH path so per-step wizard PATCHes don't wipe each other, and a small new `GET /api/v1/rulesets` catalog endpoint. Frontend changes are: (1) rename `/scoring-config` to `/settings`, restructured as a 4-tab left-rail page; (2) replace the create page with a 4-step wizard that persists each step via existing POST/PATCH; (3) add Settings + Resume-setup affordances on the tournaments list row. No DB migrations — every new field lives inside existing JSONB columns.
+
+> **Superseded (2026-07-01):** As shipped, the Settings page has **7** left-rail tabs — `basics`, `match-format`, `venues`, `display`, `advanced`, `locks`, `recap` — not the 4 planned here. And the per-step persistence contract evolved past whole-blob deep-merge: the wizard now plucks individual fields per step and backfills defaults on partial PATCH (commits 40ee6424, 5784d05c). `deepMergeJson` still exists and is used inside `events.service.ts` for the JSONB config merges, but it is no longer the sole PATCH contract described below.
 
 **Tech Stack:** NestJS + class-validator (backend), Next.js 16 App Router + React 19 + `@myclash/ui` (frontend), Supabase (DB), `@myclash/rulesets` (ruleset catalog), `@myclash/i18n` (EN + FR).
 
@@ -881,6 +885,8 @@ git commit -m "feat(web-admin): permanent redirect /scoring-config -> /settings"
 ---
 
 ## Task 9: Settings page shell — left-rail tab layout
+
+> **Superseded (2026-07-01):** The shipped page has 7 tabs (`basics`, `match-format`, `venues`, `display`, `advanced`, `locks`, `recap`), not the 4 shown below. The `TabKey`/`TABS` snippet in this task is the original 4-tab draft.
 
 Replace the renamed `settings/page.tsx` body with a left-rail tab layout. Each tab is its own component (extracted in tasks 10-13). The URL hash drives which tab is active (`#basics`, `#match-format`, `#display`, `#advanced`).
 

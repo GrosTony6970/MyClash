@@ -1,12 +1,14 @@
 # Inline "Create new club" on add-participant — Implementation Plan
 
+> **Status (2026-07-01 doc review):** Shipped — the feature works as designed, but Task 2's DTO was implemented with nestjs-zod (`createPersonSchema` + two `.refine()` rules), not the class-validator `@ValidatorConstraint` prescribed below. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let an organizer create an unknown club inline while adding a participant — one form submission creates both rows. Mirrors the existing CSV-import auto-create-unverified-club pattern.
 
 **Architecture:** Single round-trip. `CreatePersonDto` gains an optional `newClubName` field (mutually exclusive with `clubId`). `PersonsService.createPerson` branches at the top: when `newClubName` is set and `clubId` isn't, resolves-or-creates the club via a new CSV-agnostic helper extracted from the existing `resolveOrCreateClub`, then proceeds. Frontend club combobox appends a synthetic `+ Create new club "X" (unverified)` row when no case-insensitive match exists.
 
-**Tech Stack:** NestJS + Fastify + class-validator (api), Next.js 16 + React + Tailwind (web-admin), Vitest (both sides), Supabase service-role for DB writes.
+**Tech Stack:** NestJS + Fastify + nestjs-zod (api; the DTO shipped as a Zod schema, not the class-validator approach described in Task 2), Next.js 16 + React + Tailwind (web-admin), Vitest (both sides), Supabase service-role for DB writes.
 
 **Spec:** [`docs/superpowers/specs/2026-05-28-inline-club-create-on-add-participant-design.md`](../specs/2026-05-28-inline-club-create-on-add-participant-design.md)
 
@@ -358,6 +360,8 @@ service-layer change only."
 ---
 
 ## Task 2: DTO `newClubName` field + xor invariant
+
+> **Shipped differently (2026-07-01):** The class-validator plan below was NOT followed. `persons.dto.ts` is a nestjs-zod DTO, so the field + invariants shipped as Zod instead: `newClubName: z.string().max(200).nullable().optional()` on `createPersonSchema`, plus two `.refine()` rules — `!(d.clubId && d.newClubName != null)` (mutual exclusion) and `d.newClubName == null || d.newClubName.trim().length > 0` (non-empty trim). There is no `@ValidatorConstraint` in the file. The steps below are kept as the original plan of record.
 
 **Files:**
 

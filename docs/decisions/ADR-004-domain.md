@@ -26,7 +26,7 @@ Subdomain structure:
 
 ## Consequences
 
-- **Easy:** All subdomains share a single Let's Encrypt wildcard cert via Traefik; adding new surfaces is a Traefik label change.
+- **Easy:** Each subdomain gets its own Let's Encrypt cert (TLS-ALPN-01 challenge) via Traefik; adding a new surface is a Traefik label change.
 - **Hard:** `.fr` TLD requires a EU/French registrant — satisfied by the project owner's location.
 - **Committed to:** The subdomain map above is the canonical routing contract. Changes require updating Traefik config, `.env`, and this ADR.
 

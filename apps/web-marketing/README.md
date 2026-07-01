@@ -27,7 +27,7 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 
 **Static HTML/CSS only.** No build tooling, no JS framework. Authored by hand, served by Caddy in production.
 
-The production `Dockerfile` is two lines: `FROM caddy:2-alpine` + `COPY public/ /usr/share/caddy/`. No build step at runtime.
+The production `Dockerfile` is based on `caddy:2-alpine`: it `COPY`s `public/` into the web root (`/usr/share/caddy/`), writes a minimal `Caddyfile` (`file_server` + `encode gzip` + a `try_files {path} /index.html` SPA fallback), exposes port 80, and defines a `wget` healthcheck. No build step at runtime.
 
 Why static? The marketing site is small (a handful of pages), changes infrequently, has no auth, no API calls, no React state. Static HTML is faster, simpler, easier to debug, and has no dependency churn. If MyClash ever needs MDX content collections, i18n, or sitemap generation, switching to Astro is a half-day migration.
 

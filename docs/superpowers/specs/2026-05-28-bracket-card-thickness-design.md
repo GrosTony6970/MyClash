@@ -1,5 +1,7 @@
 # Bracket MatchCard — wider cards + lift pills out of overflow-hidden
 
+> **Status (2026-07-01 doc review):** Shipped — cards were widened and pills reparented as designed, but the min-width floor was subsequently raised from the spec's 220px to 256px. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+
 **Date:** 2026-05-28
 **Status:** Approved
 **Scope:** Shared `MatchCard` + `BracketView` UI components used by the admin bracket page.
@@ -58,8 +60,8 @@ Two file edits.
 // before
 'group relative flex h-[52px] w-full min-w-[180px] max-w-[320px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow';
 
-// after
-'group relative flex h-[52px] w-full min-w-[220px] max-w-[360px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow';
+// after (as shipped: floor later raised from 220px to 256px)
+'group relative flex h-[52px] w-full min-w-[256px] max-w-[360px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow';
 ```
 
 **Reparent the pills.** Today both pills are children of the card div
@@ -114,8 +116,8 @@ still need to clip to the rounded card corners.
 // before
 'relative z-10 flex min-w-[180px] max-w-[320px] flex-1 flex-col';
 
-// after
-'relative z-10 flex min-w-[220px] max-w-[360px] flex-1 flex-col';
+// after (as shipped: floor later raised from 220px to 256px)
+'relative z-10 flex min-w-[256px] max-w-[360px] flex-1 flex-col';
 ```
 
 Keeps the round column and the card width in sync so cards can
@@ -123,9 +125,10 @@ actually reach their new `max-w-[360px]`.
 
 ## Behavior after change
 
-- Narrowest case (cards at 220px floor) with both pills present:
+- Narrowest case (cards at the 256px floor as shipped — the design
+  originally specified 220px) with both pills present:
   `Pending` (~60px) + `LSW-QF-M1` (~85px) + inset padding (~16px) =
-  ~161px used. Remaining ~59px of clear space between the chips.
+  ~161px used. Remaining ~95px of clear space between the chips.
 - Widest case (cards at 360px ceiling): same chips, more whitespace.
 - Connectors recompute from each card's `registerRef` callback —
   DOM-driven, not class-driven, so they adapt automatically.
@@ -142,8 +145,9 @@ Verification is manual:
 
 - Round-1 card with the "Pending" pill: chip fully visible at the
   card's bottom-right, no truncation.
-- Same card on a narrow viewport (≤1024px): card is at least 220px
-  wide; both chips render.
+- Same card on a narrow viewport (≤1024px): card is at least 256px
+  wide (as shipped; 220px was the original design target); both chips
+  render.
 - Completed match: "Final" pill renders; winner highlight + score
   chip unchanged.
 - Bronze match (single-elim): bronze dashed border unchanged; pills

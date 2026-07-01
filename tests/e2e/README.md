@@ -65,6 +65,8 @@ recorded-results guard) — keep it for inspection or recreate the env.
 | Create tournament (wizard step 1) | `create-tournament.spec.ts`   | active                                   |
 | Create event (wizard)             | `create-event.spec.ts`        | step 1 active; full flow `test.fixme`    |
 | Schedule / programme              | `schedule.spec.ts`            | load smoke active; generate `test.fixme` |
+| Referee auto-assign board         | `referee-board.spec.ts`       | active                                   |
+| Offline scoring sync (PWA)        | `offline-sync.spec.ts`        | active                                   |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,

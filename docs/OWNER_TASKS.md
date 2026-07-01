@@ -90,7 +90,7 @@ Everything else can wait until the relevant dev phase approaches.
   - Container names prefixed `myclash-*`.
   - Healthchecks via `node -e` HTTP probe (no curl/wget needed in image).
   - Log paths under `./logs/<service>/`, data under `./data/<service>/`.
-  - Traefik 3.6.x, label-based routing, per-service `compress` middleware shared.
+  - Traefik 3.7.x, label-based routing, per-service `compress` middleware shared.
 - **Nothing remaining for T-055.** Agent has all reference patterns it needs.
 
 ### O-006 · Email / SMTP provider

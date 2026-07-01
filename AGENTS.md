@@ -42,7 +42,7 @@ BMad (planning/PRD/architecture toolkit, v6.9.0) is **not installed in this repo
 ## Hard rules
 
 1. **Never bypass the ruleset engine.** Scores are always derived from exchanges via `@myclash/rulesets`. Do not store computed scores as the source of truth.
-2. **The TF_v1 implementation must reproduce the FAL 2026 reference data byte-for-byte.** A failing snapshot test against `scripts/import-fal2026.ts` data is a red flag — fix the engine, do not adjust the snapshot.
+2. **The TF_v1 implementation must reproduce the FAL 2026 reference data byte-for-byte.** A failing golden test (`packages/rulesets/test/tf_v1.fal2026.test.ts`, driven by the fixture `packages/rulesets/test/fixtures/fal2026.json`) is a red flag — fix the engine, do not adjust the snapshot.
 3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline functionality. E2E offline tests must pass.
 4. **RLS first, application checks second.** Every new table needs an RLS policy. Never disable RLS in production code paths.
 5. **No `eval`, no `Function()`, no dynamic code execution** for user-supplied formulas. Ruleset configs are validated against Zod schemas and dispatched to whitelisted functions.

@@ -1,5 +1,7 @@
 # League Management — Design Spec
 
+> **Status (2026-07-01 doc review):** Shipped — capabilities landed, but the admin UI is now split across multiple routes (`new/`, `[id]/edit/`, `[id]/requests/`, `scoring-systems/`) rather than the single `page.tsx` this spec describes. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+
 _2026-05-17_
 
 ## Context
@@ -10,7 +12,7 @@ The `/admin/leagues` page lets super-admins create leagues and review tournament
 
 ## Scope
 
-Six capabilities added to the existing single-page admin UI at `apps/web-admin/app/admin/leagues/page.tsx`:
+Six capabilities added to the admin league UI under `apps/web-admin/app/admin/leagues/`. (As shipped, this UI is split across route files — `page.tsx` (list), `new/page.tsx` (create + slug auto-gen), `[id]/edit/page.tsx` (edit + scoring), `[id]/requests/page.tsx`, and `scoring-systems/**` — plus a shared `league-utils.ts`; the per-section "single `page.tsx`" notes below predate that split.)
 
 1. Slug auto-generation from the league name
 2. Inline league editing (name, description, status, visibility)
@@ -48,7 +50,7 @@ Name onChange → if not detached, set `slug = toSlug(name)`.
 Slug onChange → set `slugDetached = true`, update slug.  
 Post-create reset → clear name, slug, and reset `slugDetached = false`.
 
-**Files:** `apps/web-admin/app/admin/leagues/page.tsx` only.
+**Files:** `apps/web-admin/app/admin/leagues/new/page.tsx` (create form) with `toSlug`/`slugDetached` logic in the shared `apps/web-admin/app/admin/leagues/league-utils.ts`.
 
 ---
 
@@ -65,7 +67,7 @@ Each league card gets an **Edit** toggle. When open, it shows:
 
 **Save** calls `PATCH /api/v1/admin/leagues/:leagueId` with `UpdateLeagueDto`. On success the card refreshes from the response; the edit panel collapses. Cancel discards local state.
 
-**Files:** `apps/web-admin/app/admin/leagues/page.tsx` only.
+**Files:** `apps/web-admin/app/admin/leagues/[id]/edit/page.tsx`.
 
 ---
 
@@ -126,7 +128,7 @@ Shown as a subsection inside the league edit panel (same toggle as §2).
 
 No new backend code. `UpdateLeagueDto.scoringConfig` already accepts `LeagueScoringConfig`.
 
-**Files:** `apps/web-admin/app/admin/leagues/page.tsx` only.
+**Files:** `apps/web-admin/app/admin/leagues/[id]/edit/page.tsx` (and `new/page.tsx` for the create form).
 
 ---
 
@@ -196,7 +198,7 @@ async removeEventLinks(
 
 - `apps/api/src/modules/leagues/leagues.service.ts`
 - `apps/api/src/modules/leagues/leagues.controller.ts`
-- `apps/web-admin/app/admin/leagues/page.tsx`
+- `apps/web-admin/app/admin/leagues/[id]/edit/page.tsx`
 
 ---
 
@@ -263,17 +265,17 @@ async addEventLinks(...)       // calls leagues.addEventTournamentLinks
 
 - `apps/api/src/modules/leagues/leagues.service.ts`
 - `apps/api/src/modules/leagues/leagues.controller.ts`
-- `apps/web-admin/app/admin/leagues/page.tsx`
+- `apps/web-admin/app/admin/leagues/[id]/edit/page.tsx`
 
 ---
 
 ## Files Modified
 
-| File                                                 | Changes                                                                                                                                                        |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/web-admin/app/admin/leagues/page.tsx`          | All UI: slug auto-gen, edit panel, delete, scoring editor, remove links, fuzzy add                                                                             |
-| `apps/api/src/modules/leagues/leagues.service.ts`    | Add `delete`, `removeEventTournamentLinks`, `addTournamentLink`, `addEventTournamentLinks`                                                                     |
-| `apps/api/src/modules/leagues/leagues.controller.ts` | Add `DELETE /leagues/:id`, `DELETE /leagues/:id/events/:eid/tournament-links`, `POST /leagues/:id/tournaments/:tid/link`, `POST /leagues/:id/events/:eid/link` |
+| File                                                 | Changes                                                                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web-admin/app/admin/leagues/` (route tree)     | All UI, split across `page.tsx` (list + delete), `new/page.tsx` (create + slug auto-gen), `[id]/edit/page.tsx` (edit, scoring editor, remove links, fuzzy add), plus shared `league-utils.ts` |
+| `apps/api/src/modules/leagues/leagues.service.ts`    | Add `delete`, `removeEventTournamentLinks`, `addTournamentLink`, `addEventTournamentLinks`                                                                                                    |
+| `apps/api/src/modules/leagues/leagues.controller.ts` | Add `DELETE /leagues/:id`, `DELETE /leagues/:id/events/:eid/tournament-links`, `POST /leagues/:id/tournaments/:tid/link`, `POST /leagues/:id/events/:eid/link`                                |
 
 No database migrations needed. No new packages needed.
 

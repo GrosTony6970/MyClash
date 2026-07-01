@@ -46,7 +46,7 @@ Organization → Event → Tournament → Phase → Match → Exchange
 - `scripts/` — cross-platform Node scripts that run **on the developer's Windows machine** (e.g. `deploy.ts` SSH wrapper).
 - `apps/` — three Next.js apps + NestJS api (and worker).
 - `apps/web-marketing/` — static Caddy marketing site. Production Docker copies only `apps/web-marketing/public/`, so `public/index.html` is the canonical served homepage; keep root `index.html` only as the editable/source mirror unless the Dockerfile changes.
-- `packages/` — shared workspaces (rulesets, db, ui, types, design-tokens, i18n, api-client).
+- `packages/` — shared workspaces (rulesets, db, ui, types, design-tokens, i18n, api-client, feature-flags, time).
 - Root: `README.md`, `AGENTS.md`, `myclash.md`, `LICENSE`, `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `.env.deploy.example`, `.gitattributes`.
 
 Three files are intentionally at root: `README.md` (GitHub convention), `AGENTS.md` (so AI coders find it), `myclash.md` (product reference). Everything else is grouped by purpose.
@@ -69,7 +69,7 @@ The owner runs MyFAL on an OVH VPS using a proven pattern. MyClash deploy script
 
 **Compose conventions:**
 
-- Traefik 3.6.x, label-based routing, cert resolver named `letsencrypt`.
+- Traefik 3.7.x (prod/staging pin `v3.7.1`; dev is `v3.6.6`), label-based routing, cert resolver named `letsencrypt`.
 - ACME storage at `/data/acme.json` (production) or `/data/acme-staging.json` (`--dev-certs` overlay).
 - TLS challenge via port 443 (`tlschallenge=true`).
 - Container names: `myclash-<service>` (prefix from `COMPOSE_PROJECT_NAME=myclash`).
@@ -155,7 +155,7 @@ Follows are event-scoped (not global). The "watchlist view" at `/e/<eventSlug>/f
 
 - **Monorepo**: pnpm + Turborepo.
 - **Package manager**: pnpm 10.27.0 is the pinned toolchain for local, CI, and Docker builds; use `corepack pnpm ...` on Windows if an older global `pnpm` shim is still on PATH.
-- **Stack**: Next.js 15 (3 apps) + NestJS + Postgres (via Supabase) + Redis + Drizzle ORM + Supabase Realtime + Auth + Storage.
+- **Stack**: Next.js 16 (3 apps) + NestJS + Postgres (via Supabase) + Redis + Drizzle ORM + Supabase Realtime + Auth + Storage.
 - **Three frontends** (separate Next.js apps in monorepo):
   - `apps/web-public` — public/spectator/competitor PWA (mobile-first)
   - `apps/web-scoring` — scorekeeper PWA (tablet-first, **offline-first**)

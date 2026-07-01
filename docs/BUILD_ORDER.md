@@ -51,7 +51,7 @@
 ### T-003 · Scaffold the three frontend apps
 
 - **Dep**: T-001
-- **Goal**: Three Next.js 15 apps (App Router, TS strict) at `apps/web-public`, `apps/web-scoring`, `apps/web-admin`. Each renders a placeholder home page.
+- **Goal**: Three Next.js apps (App Router, TS strict) at `apps/web-public`, `apps/web-scoring`, `apps/web-admin`. Each renders a placeholder home page. _(Bootstrapped on Next 15; the shipped apps were later upgraded to Next.js 16.2.6 / React 19.)_
 - **Files**: `apps/web-public/**`, `apps/web-scoring/**`, `apps/web-admin/**`.
 - **AC**:
   - `pnpm --filter web-public dev` serves `http://localhost:3001`.
@@ -62,7 +62,7 @@
 ### T-004 · Scaffold the NestJS API
 
 - **Dep**: T-001
-- **Goal**: NestJS 10 app at `apps/api` with health check endpoint.
+- **Goal**: NestJS app at `apps/api` with health check endpoint. _(Bootstrapped on NestJS 10; the shipped API was later upgraded to NestJS 11 / Fastify 5.)_
 - **Files**: `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, `apps/api/src/health/*`.
 - **AC**:
   - `pnpm --filter api dev` starts on port 4000.
@@ -477,7 +477,7 @@
 
 - **Dep**: T-104, T-104f
 - **Goal**: Modules `organizations` and `events` with CRUD.
-- **Files**: `apps/api/src/modules/organizations/**`, `apps/api/src/modules/tournaments/**`.
+- **Files**: `apps/api/src/modules/organizations/**`, `apps/api/src/modules/events/**` (tournament/event CRUD ships under the `events` module — there is no separate `tournaments` module).
 - **AC**:
   - `POST /organizations` creates with `status='pending_approval'`.
   - `POST /organizations/:id/approve` requires super_admin.
@@ -1291,6 +1291,18 @@
 
 ## Phase P12.5 - Organizer AI
 
+### T-1212 - AI model registry, org/platform settings & consumption dashboard — SHIPPED
+
+- **Dep**: T-105, T-1301
+- **Goal**: Shared AI foundation the rest of P12.5/P13 builds on: an AI model registry (multi-provider, BYOK), per-organization `organization_ai_settings` and super-admin `platform_ai_settings`, usage/budget accounting, and an organizer-facing consumption + spend-cap dashboard.
+- **Files**: `apps/api/src/modules/ai-providers/**`, `apps/api/src/modules/ai-usage/**`, `packages/db/migrations/0029_ai_infrastructure.sql`, `packages/db/migrations/0115_ai_settings_model.sql`, `packages/db/migrations/0117_ai_usage_dashboard.sql`, `packages/db/migrations/0118_org_ai_flags.sql`.
+- **AC**:
+  - `organization_ai_settings`, `platform_ai_settings`, and `ai_usage_log` exist; BYOK keys are stored server-side and never returned raw.
+  - Model registry (`ai-providers/model-registry.ts` + provider adapters) resolves a requested provider/model to a concrete adapter; `GET` model listing endpoint exposes available models.
+  - Every AI call is metered into `ai_usage_log` (tokens + cost); org spend caps and super-admin budgets are enforced (`spend-cap.exception`, `budget-exceeded.exception`).
+  - Consumption dashboard (`ai-usage/ai-dashboard.controller.ts`) reports per-org/per-event usage and remaining budget.
+  - Organizer AI settings edited under web-admin `/org/[slug]/settings`; super-admin AI settings under `/admin/ai-settings`.
+
 ### T-1213 - Organizer AI tournament setup assistant
 
 - **Dep**: T-1212, T-704, T-706, T-908
@@ -1369,6 +1381,46 @@
   - Manual scans create deterministic candidates first, then use AI only to rank/explain minimized evidence.
   - Findings persist with stable fingerprints and can be marked open, dismissed, or resolved.
   - V1 never auto-merges or auto-edits records; findings link to existing admin review tools.
+
+---
+
+## Phase P13.5 — June 2026 Feature Waves (shipped)
+
+> These subsystems were built after the original P0–P13 plan was written and are recorded here for completeness. All are shipped.
+
+### T-1306 · People Hub / directory groups — SHIPPED
+
+- **Dep**: T-610, T-611
+- **Goal**: A personal-space People Hub with directory search, follow-from-hub, and user-owned directory groups (private lists of people).
+- **Files**: `apps/api/src/modules/directory-groups/**`, `apps/api/src/modules/user-directory/**`, `apps/web-public/app/me/groups/**`, `apps/web-public/app/me/follows/**`, `packages/db/migrations/0114_directory_groups.sql`.
+- **AC**:
+  - `directory_groups` and `directory_group_members` tables exist; groups are scoped to the owning user.
+  - Directory-groups endpoints: create/rename/delete a group, add/remove members, list groups with member counts (`member-stats.service.ts`).
+  - Follow-from-hub reuses the `follows` module; `/me/follows/by-global-person` resolves follows to global persons.
+  - Person names are resolved via the user-directory resolver (never raw IDs).
+  - Web-public `/me/groups` (People Hub with search + groups tabs) and `/me/follows`.
+
+### T-1307 · Org-owner Leagues / Classement — SHIPPED
+
+- **Dep**: T-105, T-605, T-1301
+- **Goal**: League/ranking (Classement) management: org owners create leagues, link tournaments, and publish cross-event rankings; users request league membership.
+- **Files**: `apps/api/src/modules/leagues/**`, `packages/db/migrations/0015_leagues.sql`, `packages/db/migrations/0069_league_membership_requests.sql`, `apps/web-admin/app/org/[slug]/leagues/**`, `apps/web-admin/app/admin/leagues/**`, `apps/web-public/app/me/leagues/**`.
+- **AC**:
+  - Tables `leagues`, `league_organization_roles`, `league_user_roles`, `league_tournament_links`, `league_tournament_results`, `league_rankings` exist.
+  - Leagues + league-membership-requests controllers cover CRUD, tournament linking, ranking computation (`league-scoring.service.ts`), and membership request review.
+  - Access is league-aware and org-aware (`assertCanManageLeague` / `assertCanReview`).
+  - Web-admin `/org/[slug]/leagues` (tabbed Manage | Discover, reusing `/admin/leagues/*`); web-public `/me/leagues`.
+
+### T-1308 · Streaming organizer chatbot + generated-content & fighter self-service AI — SHIPPED
+
+- **Dep**: T-1212
+- **Goal**: SSE-streaming organizer chatbot over deterministic tools, a generated-content subsystem (AI-authored public content), and fighter self-service AI settings.
+- **Files**: `apps/api/src/modules/organizer-chat/**`, `apps/api/src/modules/generated-content/**` (incl. `me-ai.controller.ts`), `packages/db/migrations/0116_organizer_chat.sql`, `packages/db/migrations/0119_generated_content.sql`, `packages/db/migrations/0120_fighter_ai_settings.sql`, `apps/web-admin/app/admin/ai-settings/**`, `apps/web-public/app/me/fighter/**`.
+- **AC**:
+  - Organizer chatbot: `POST /events/:eventId/chat` streams responses via SSE; the LLM may only call whitelisted read-only tools (`organizer-chat.tools.ts`); conversations/messages persist in `organizer_chat_conversations` / `organizer_chat_messages`.
+  - Generated-content: `ai_generated_content` table; controllers at `generated-content` (organizer) and `public/generated-content` (public read); content-type registry drives what can be generated.
+  - Fighter self-service AI: `fighter_ai_settings` table; `me-ai` controller under `/me`; fighter opt-in surfaced at web-public `/me/fighter`.
+  - All AI calls route through the T-1212 model registry, metering, and org/platform spend caps.
 
 ---
 
@@ -1523,11 +1575,19 @@ P12: T-009 → T-1201 → T-1202, T-1203
      T-610,T-1201 → T-613
      T-1201,T-703,T-901 → T-1204
 
+P12.5: T-105,T-1301 → T-1212
+       T-1212,T-704,T-706,T-908 → T-1213
+       T-1212,T-1213,T-704,T-908 → T-1214
+
 P13: T-009 → T-1301
      T-104 → T-1302
      T-101 → T-1303
      T-705 → T-1304
      T-1212 + T-1301 + T-1302 → T-1305
+
+P13.5: T-610,T-611 → T-1306
+       T-105,T-605,T-1301 → T-1307
+       T-1212 → T-1308
 
 P14: (depends on all UI) → T-1401 → T-1402, T-1403, T-1404
 

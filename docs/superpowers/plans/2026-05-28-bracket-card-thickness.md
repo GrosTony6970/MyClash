@@ -1,5 +1,7 @@
 # Bracket MatchCard — wider cards + lift pills out of overflow-hidden — Implementation Plan
 
+> **Status (2026-07-01 doc review):** Shipped, then superseded — the pill-reparenting landed and card width kept growing past this plan's target (now `min-w-[256px] max-w-[360px]`, not the `min-w-[220px] max-w-[360px]` prescribed here). Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+>
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stop the "Pending" status pill and the round-code chip from being clipped on the admin bracket view, and give cards ~40px more breathing room.

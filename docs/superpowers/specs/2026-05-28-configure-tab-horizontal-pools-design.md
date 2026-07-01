@@ -1,5 +1,7 @@
 # Configure tab — fixed-width pool cards that wrap
 
+> **Status (2026-07-01 doc review):** Superseded — the `flex flex-wrap` + `w-72` wrapping layout below was not what shipped; the Configure tab renders pools as a single-column vertical stack of full-width cards (`flex flex-col gap-4` + `w-full`). Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+
 **Date:** 2026-05-28
 **Status:** Approved
 **Scope:** Configure tab on the pool-management page only.
@@ -147,11 +149,12 @@ No other files. No new components. No new helpers.
 
 ## References
 
-- The Matches tab uses a different responsive grid
-  (`grid-cols-1 md:grid-cols-2`) at
-  `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx:204`
-  — intentionally capped at 2 because match tables are wider. Don't
-  align it with the new Configure tab layout.
+- The Matches tab lives in a separate component
+  (`apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx`)
+  and is out of scope for this change. (As of the 2026-07-01 review it
+  no longer uses the `grid-cols-1 md:grid-cols-2` responsive grid this
+  spec originally referenced.) Don't align it with the Configure tab
+  layout.
 - Pool-card content (`pool.name`, fighter rows, HEMA rating badges,
   drag handlers) is preserved verbatim; only the wrapping flex
   container's class list changes.

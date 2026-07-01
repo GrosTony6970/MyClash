@@ -1,12 +1,16 @@
 # Pools Page Overhaul Implementation Plan
 
+> **Status (2026-07-01 doc review):** Shipped — the tab-shell pools page, 5 referee constraints, per-pool matches editing, and ruleset-driven standings all shipped to `main`. Two deltas vs. this plan: the delivered page ships a 4th **Referees** tab, and the `accentClassFor` color-token util moved into `@myclash/ui` rather than living in `_tabs/`. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+
+<!-- -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Convert `/pools` into a 3-tab page (Configure / Matches / Standings), expose 5 hidden referee-constraint pool-generation options with hover-help tooltips, ship the first per-pool matches view with inline lice + referee editing and tournament-driven side colors, and ship a greenfield ruleset-driven standings view with Overall + By-pool modes and live updates.
+**Goal:** Convert `/pools` into a tabbed page (planned as 3 tabs — Configure / Matches / Standings; a 4th **Referees** tab was added during delivery), expose 5 hidden referee-constraint pool-generation options with hover-help tooltips, ship the first per-pool matches view with inline lice + referee editing and tournament-driven side colors, and ship a greenfield ruleset-driven standings view with Overall + By-pool modes and live updates.
 
-**Architecture:** Frontend keeps the existing `/pools` URL but renders a 3-tab shell with URL-hash routing (`#configure`/`#matches`/`#standings`); progressive enablement based on pool + match state. Backend changes are additive: `GeneratePoolsDto` extension for 5 referee constraints (columns already exist in `pool_assignment_settings`), one new `referee_id` column on `matches`, a new general `UpdateMatchDto`, a new `PoolStandingsService` + `GET /tournaments/:id/pool-standings` endpoint that reads ruleset-declared `standingsColumns` + `rankingChain`, and `Ruleset` interface extensions exposing those declarations from each ruleset module. Realtime listens on the `matches` table for the pool phase via Supabase's existing channel pattern.
+**Architecture:** Frontend keeps the existing `/pools` URL but renders a tab shell with URL-hash routing (`#configure`/`#matches`/`#standings`; the shipped shell also adds `#referees`); progressive enablement based on pool + match state. Backend changes are additive: `GeneratePoolsDto` extension for 5 referee constraints (columns already exist in `pool_assignment_settings`), one new `referee_id` column on `matches`, a new general `UpdateMatchDto`, a new `PoolStandingsService` + `GET /tournaments/:id/pool-standings` endpoint that reads ruleset-declared `standingsColumns` + `rankingChain`, and `Ruleset` interface extensions exposing those declarations from each ruleset module. Realtime listens on the `matches` table for the pool phase via Supabase's existing channel pattern.
 
-**Tech Stack:** NestJS + class-validator + Drizzle (backend), Next.js 16 App Router + React 19 + `@myclash/ui` (frontend), Supabase Postgres + Realtime, `@myclash/rulesets`, `@myclash/i18n` (EN + FR).
+**Tech Stack:** NestJS + Zod (via `nestjs-zod` / `createZodDto`; the shipped `GeneratePoolsDto` uses Zod, not the class-validator decorators shown in Task 1 below) + Drizzle (backend), Next.js 16 App Router + React 19 + `@myclash/ui` (frontend), Supabase Postgres + Realtime, `@myclash/rulesets`, `@myclash/i18n` (EN + FR).
 
 **Spec:** [docs/superpowers/specs/2026-05-20-pools-overhaul-design.md](docs/superpowers/specs/2026-05-20-pools-overhaul-design.md)
 
@@ -44,8 +48,8 @@
 - `packages/ui/src/components/HelpTooltip.test.tsx` — render test.
 - `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx`
 - `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx`
-- `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/color-token.ts` — `accentClassFor()` util.
-- `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/color-token.test.ts`
+- `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/color-token.test.ts` — tests the shipped util.
+  - **Shipped:** the `accentClassFor()` util was not created under `_tabs/`; it lives in `@myclash/ui` at `packages/ui/src/utils/color-token.ts` (re-exported from `packages/ui/src/index.ts`), and `color-token.test.ts` imports `accentClassFor`/`ColorToken` from `@myclash/ui`. Tournament side-color parsing lives in `_tabs/parse-side-colors.ts`.
 
 ---
 
@@ -54,6 +58,8 @@
 ## Task 1: Extend `GeneratePoolsDto` with 5 referee constraints
 
 The 5 referee constraint columns already exist in `pool_assignment_settings` and `pool_generator.ts` already consumes them. This task surfaces them in the DTO so the frontend can write them through `POST /tournaments/:id/generate-pools`.
+
+> **Shipped note (2026-07-01):** `GeneratePoolsDto` is Zod-based (`nestjs-zod` / `createZodDto`), not class-validator. The 5 fields shipped as Zod schema entries (e.g. `enforceRefereeNoBackToBack: z.boolean().optional()`, `refereeRestMinSlots: z.number().int().min(0).max(10).optional()`) inside a `.strict()` object — see `apps/api/src/modules/phases/dto/phases.dto.ts`. The class-validator decorator snippet below is the original plan draft; the delivered code uses the Zod equivalents.
 
 **Files:**
 
@@ -1010,9 +1016,10 @@ git commit -m "feat(ui): HelpTooltip component for inline form help text"
 
 Maps the tournament's `scoring_config.display.sideColors.{red,blue}` color tokens to Tailwind class names for the Matches tab column accents.
 
+> **Shipped note (2026-07-01):** the `accentClassFor()` util was ultimately placed in `@myclash/ui` (`packages/ui/src/utils/color-token.ts`, exported from `packages/ui/src/index.ts`) rather than under `_tabs/color-token.ts`. The delivered `_tabs/color-token.test.ts` imports `accentClassFor`/`ColorToken` from `@myclash/ui`, and `_tabs/parse-side-colors.ts` holds the side-color parsing. The `./color-token` import shown in the steps below (and in Task 12's MatchesTab) is superseded by `@myclash/ui`.
+
 **Files:**
 
-- Create: `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/color-token.ts`
 - Create: `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/color-token.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -1119,7 +1126,9 @@ git commit -m "feat(web-admin): accentClassFor color-token util + tests"
 
 ## Task 9: Pools page tab shell
 
-Replace the current single-page layout with a 3-tab shell. Move the existing Configure content into the first tab (with full-width layout + sticky right sidebar). Matches + Standings are stub tabs that the next phase fills in.
+Replace the current single-page layout with a tab shell. Move the existing Configure content into the first tab (with full-width layout + sticky right sidebar). Matches + Standings are stub tabs that the next phase fills in.
+
+> **Shipped note (2026-07-01):** the delivered shell is a 4-tab layout — a `referees` tab (`#referees`, rendering `_tabs/RefereesTab.tsx`) was added on top of the three below. The shipped `TabKey` union is `'configure' | 'matches' | 'standings' | 'referees'`.
 
 **Files:**
 

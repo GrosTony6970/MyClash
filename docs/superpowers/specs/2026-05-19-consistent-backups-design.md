@@ -1,5 +1,7 @@
 # Consistent Backups - Design Spec
 
+> **Status (2026-07-01 doc review):** Superseded — the backup-quiesce lock, `BACKUP_IN_PROGRESS` API rejection, and consistency `manifest.json` described below were never implemented; shipped backups use `pg_dump`'s default MVCC snapshot plus a plain storage-volume tar with no write pause, guarded only by ops-runner's single-operation `.ops.lock` mutex, and the sole write-block is the manual `read_only_mode` feature flag (`read-only.interceptor.ts`), unrelated to backups. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+
 ## Summary
 
 MyClash backups should be consistent across Postgres and Supabase Storage by briefly placing the platform in a backup-quiesced state. The target operator-visible write pause is 2-5 minutes. During that window, reads can continue where safe, but all mutations, uploads, worker jobs, and scoring sync writes must be blocked or drained before `pg_dump` and the storage archive run.

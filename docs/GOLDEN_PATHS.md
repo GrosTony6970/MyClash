@@ -58,21 +58,21 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 ## GP-4 — Super-admin: Approve an organiser
 
 **Actor:** Super-admin
-**Entry point:** `app.myclash.fr/admin`
+**Entry point:** `admin.myclash.fr/admin` (the admin console is a distinct host — `web-admin`, not `app.myclash.fr`)
 
 1. Sign in via magic-link
-2. Navigate to `/admin/organizations`
+2. Navigate to `admin.myclash.fr/admin/organizations`
 3. Find a pending organisation awaiting approval
 4. Inspect the org detail page
 5. Approve the organisation
-6. **Expected result:** Organisation status changes to `approved`; organiser receives confirmation email (or in-app notification if email not configured)
+6. **Expected result:** Organisation status changes to `active`; organiser receives confirmation email (or in-app notification if email not configured)
 
 ---
 
 ## GP-5 — Super-admin: Toggle a feature flag
 
 **Actor:** Super-admin
-**Entry point:** `app.myclash.fr/admin/feature-flags`
+**Entry point:** `admin.myclash.fr/admin/feature-flags`
 
 1. Sign in
 2. Toggle a non-critical feature flag off → on

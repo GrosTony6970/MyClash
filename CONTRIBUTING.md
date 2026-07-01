@@ -6,16 +6,21 @@ MyClash follows a strict build-order workflow driven by an AI coding agent. This
 
 ## Required status checks
 
-Every pull request targeting `main` must pass all of the following GitHub Actions jobs before merging:
+Every pull request targeting `main` runs the following GitHub Actions jobs, all of which must pass before merging:
 
-| Check                     | Workflow                         | What it does                                     |
-| ------------------------- | -------------------------------- | ------------------------------------------------ |
-| **Install dependencies**  | `CI / Install dependencies`      | `pnpm install --frozen-lockfile`                 |
-| **Build shared packages** | `CI / Build shared packages`     | `pnpm turbo run build` for all `packages/*`      |
-| **Typecheck**             | `CI / Typecheck`                 | `pnpm turbo run typecheck` across all workspaces |
-| **Lint**                  | `CI / Lint`                      | `pnpm turbo run lint` + `pnpm format:check`      |
-| **Test**                  | `CI / Test`                      | `pnpm turbo run test` (Vitest)                   |
-| **CodeQL**                | `CodeQL Security Scan / Analyze` | Static security analysis                         |
+| Check                     | Workflow                                                 | What it does                                                                                                                                                                                                                              |
+| ------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                                          |
+| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 7 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `design-tokens`, `i18n`, `api-client`                                                                                                |
+| **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                                          |
+| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` + `pnpm format:check`, plus the security (`security:routes`, `security:client-secrets`), code-quality (`quality:*`), `db:review`/`db:perf:fixture`, `infra:review`, `observability:review`, and `perf:review` gates |
+| **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest)                                                                                                                                                                                                            |
+| **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                                           |
+| **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                                            |
+| **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                                        |
+| **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                                      |
+| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-scoring production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                                         |
+| **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                                                  |
 
 To configure these as required checks in GitHub:
 
@@ -29,7 +34,7 @@ To configure these as required checks in GitHub:
 ## Development setup
 
 ```bash
-# Prerequisites: Node 20+, pnpm 9+, Docker Desktop
+# Prerequisites: Node 26+, pnpm 10.27+, Docker Desktop
 
 # 1. Clone
 git clone https://github.com/GrosTony6970/MyClash.git
