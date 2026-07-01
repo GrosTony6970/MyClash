@@ -51,6 +51,30 @@ export interface FollowAllSummary {
   followedCount: number;
   alreadyFollowingCount: number;
   skippedPrivacyCount: number;
+  /** Whether the persistent directory follow now exists (claimed users only). */
+  following: boolean;
+}
+
+/** A persistent, event-independent follow (the "Following" tab source of truth). */
+export interface DirectoryFollow {
+  globalPersonId: string;
+  followedAt: string;
+}
+
+/** The event-scoped follow that backs a global person's notification toggles. */
+export interface EventFollowState {
+  eventId: string;
+  personId: string;
+  notifyMatchStart: boolean;
+  notifyWorkshopStart: boolean;
+  /** The backing event is non-terminal and not a test event. */
+  active: boolean;
+}
+
+/** Normalize a PostgREST embed that may arrive as an object or a 1-element array. */
+function one(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) return (value[0] as Record<string, unknown>) ?? null;
+  return (value as Record<string, unknown>) ?? null;
 }
 
 /** Per-global-person follow state for the "People" hub cards. */
@@ -306,8 +330,22 @@ export class FollowsService {
       followedCount: 0,
       alreadyFollowingCount: 0,
       skippedPrivacyCount: 0,
+      following: false,
     };
     if (!identity.userId && !identity.guestSessionId) return summary; // anonymous: nothing to write
+
+    // Persist the follow at the GLOBAL-person level (claimed users only) so the
+    // person shows in the "Following" tab even with zero upcoming events. The
+    // per-event fan-out below only wires notifications for events they're in.
+    if (identity.userId) {
+      await this.supabase.service
+        .from('directory_follows')
+        .upsert(
+          { follower_user_id: identity.userId, followed_global_person_id: globalPersonId },
+          { onConflict: 'follower_user_id,followed_global_person_id', ignoreDuplicates: true },
+        );
+      summary.following = true;
+    }
 
     for (const t of targets) {
       const existing = await this.findExisting(t.eventId, t.personId, identity);
@@ -327,13 +365,102 @@ export class FollowsService {
   }
 
   /** Unfollow a global person across ALL their events (toggles the hub button
-   *  fully off, including any follow left over from a now-finished event). */
+   *  fully off, including any follow left over from a now-finished event) and
+   *  removes the persistent directory follow. */
   async unfollowAllEvents(globalPersonId: string, identity: FollowIdentity): Promise<void> {
     if (!identity.userId && !identity.guestSessionId) return;
+
+    if (identity.userId) {
+      await this.supabase.service
+        .from('directory_follows')
+        .delete()
+        .eq('follower_user_id', identity.userId)
+        .eq('followed_global_person_id', globalPersonId);
+    }
+
     const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: false });
     for (const t of targets) {
       await this.unfollow(t.eventId, t.personId, identity);
     }
+  }
+
+  // ── Directory follows (persistent, event-independent) ─────────────────────────
+
+  /** The user's persistent directory follows (global-person level), newest first. */
+  async listDirectoryFollows(userId: string): Promise<DirectoryFollow[]> {
+    const { data } = await this.supabase.service
+      .from('directory_follows')
+      .select('followed_global_person_id, created_at')
+      .eq('follower_user_id', userId)
+      .order('created_at', { ascending: false });
+    return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      globalPersonId: r['followed_global_person_id'] as string,
+      followedAt: r['created_at'] as string,
+    }));
+  }
+
+  /** Which of the given global persons the user follows at the directory level. */
+  async filterFollowedGlobalPersons(
+    userId: string,
+    globalPersonIds: string[],
+  ): Promise<Set<string>> {
+    const ids = [...new Set(globalPersonIds.filter(Boolean))];
+    if (ids.length === 0) return new Set();
+    const { data } = await this.supabase.service
+      .from('directory_follows')
+      .select('followed_global_person_id')
+      .eq('follower_user_id', userId)
+      .in('followed_global_person_id', ids);
+    return new Set(
+      ((data ?? []) as Array<Record<string, unknown>>).map(
+        (r) => r['followed_global_person_id'] as string,
+      ),
+    );
+  }
+
+  /**
+   * For each global person, the event-scoped follow row that backs their
+   * notification toggles (prefers an active/upcoming event over a finished
+   * one). Lets the "Following" tab render match/workshop toggles that PATCH the
+   * right `/events/:eventId/follows/:personId`. One query total.
+   */
+  async getEventFollowStateForGlobalPersons(
+    userId: string,
+    globalPersonIds: string[],
+  ): Promise<Map<string, EventFollowState>> {
+    const ids = [...new Set(globalPersonIds.filter(Boolean))];
+    const map = new Map<string, EventFollowState>();
+    if (ids.length === 0) return map;
+
+    const { data } = await this.supabase.service
+      .from('follows')
+      .select(
+        `event_id, followed_person_id, notify_match_start, notify_workshop_start,
+         persons ( global_person_id, events ( status, is_test_event ) )`,
+      )
+      .eq('follower_user_id', userId);
+
+    for (const r of (data ?? []) as Array<Record<string, unknown>>) {
+      const person = one(r['persons']);
+      const gp = person?.['global_person_id'] as string | undefined;
+      if (!person || !gp || !ids.includes(gp)) continue;
+      const ev = one(person['events']);
+      const active =
+        !!ev &&
+        ev['is_test_event'] !== true &&
+        !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
+      const state: EventFollowState = {
+        eventId: r['event_id'] as string,
+        personId: r['followed_person_id'] as string,
+        notifyMatchStart: Boolean(r['notify_match_start']),
+        notifyWorkshopStart: Boolean(r['notify_workshop_start']),
+        active,
+      };
+      const existing = map.get(gp);
+      // Prefer an active event-follow; otherwise keep the first seen.
+      if (!existing || (active && !existing.active)) map.set(gp, state);
+    }
+    return map;
   }
 
   /**

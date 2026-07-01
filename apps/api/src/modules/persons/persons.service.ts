@@ -16,25 +16,11 @@ import type {
   PreviewRow,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
 import { CsvImportService } from './csv-import.service';
 import type { CsvRow } from './csv-import.service';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
-
-/**
- * Slug seed for newly-created global_persons rows. Mirrors the helper
- * in fighters.service.ts — kept inline here rather than shared because
- * it's eight cheap lines and the two callers don't otherwise overlap.
- */
-function slugifyName(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50);
-}
 
 @Injectable()
 export class PersonsService {
@@ -44,6 +30,7 @@ export class PersonsService {
     private readonly supabase: SupabaseService,
     private readonly csv: CsvImportService,
     private readonly config: ConfigService,
+    private readonly globalPersonResolver: GlobalPersonResolverService,
   ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
@@ -157,15 +144,17 @@ export class PersonsService {
     // ratings, cross-event aggregation) never have to handle a null.
     const globalPersonId =
       dto.globalPersonId ??
-      (await this.resolveOrCreateGlobalPerson({
-        givenName: dto.givenName,
-        familyName: dto.familyName,
-        clubId: resolvedClubId,
-        hemaRatingsId: dto.hemaRatingsId ?? null,
-        dateOfBirth: dto.dateOfBirth ?? null,
-        email,
-        genderCategory: dto.genderCategory ?? null,
-      }));
+      (
+        await this.globalPersonResolver.resolveOrCreateGlobalPerson({
+          givenName: dto.givenName,
+          familyName: dto.familyName,
+          clubId: resolvedClubId,
+          hemaRatingsId: dto.hemaRatingsId ?? null,
+          dateOfBirth: dto.dateOfBirth ?? null,
+          email,
+          genderCategory: dto.genderCategory ?? null,
+        })
+      ).id;
 
     // If the caller didn't supply a club, inherit it from the linked
     // global profile. Keeps persons.club_id and global_persons.club_id
@@ -202,137 +191,6 @@ export class PersonsService {
 
     if (error) throw new BadRequestException(error.message);
     return this.mapPerson(data as Record<string, unknown>);
-  }
-
-  /**
-   * Resolve a participant to an existing global_persons row, or create
-   * a new one. Two confidence tiers — anything below them produces a
-   * fresh row rather than risking a false merge:
-   *
-   *   Tier 1: exact match on `hema_ratings_id` (when provided).
-   *   Tier 2: exact match on name + club_id + date_of_birth (when all
-   *           three provided).
-   *
-   * Either tier returning multiple hits falls through (treated as
-   * "no confident match"). The conservatism is intentional: a wrong
-   * auto-merge fragments cross-event identity in subtle ways that take
-   * an admin merge tool to undo, while a missed merge is a one-click
-   * fix from the global-profiles admin.
-   */
-  private async resolveOrCreateGlobalPerson(input: {
-    givenName: string;
-    familyName: string;
-    clubId: string | null;
-    hemaRatingsId: string | null;
-    dateOfBirth: string | null;
-    email: string | null;
-    genderCategory: string | null;
-  }): Promise<string> {
-    const givenName = input.givenName.trim();
-    const familyName = input.familyName.trim();
-    const hemaRatingsId = input.hemaRatingsId?.trim() || null;
-    const dateOfBirth = input.dateOfBirth?.trim() || null;
-    const email = input.email?.trim().toLowerCase() || null;
-
-    // Tier 1 — HEMA Ratings ID.
-    if (hemaRatingsId) {
-      const { data: hits } = await this.supabase.service
-        .from('global_persons')
-        .select('id, email, date_of_birth')
-        .eq('hema_ratings_id', hemaRatingsId)
-        .limit(2);
-      const rows = (hits ?? []) as Array<{
-        id: string;
-        email: string | null;
-        date_of_birth: string | null;
-      }>;
-      if (rows.length === 1) {
-        await this.backfillGlobalPersonIdentity(rows[0]!, { email, dateOfBirth });
-        return rows[0]!.id;
-      }
-    }
-
-    // Tier 2 — name + club + DOB. Each part must be present; partial
-    // criteria are the easiest way to generate false-merges.
-    if (input.clubId && dateOfBirth) {
-      const { data: hits } = await this.supabase.service
-        .from('global_persons')
-        .select('id, email, date_of_birth')
-        .ilike('given_name', givenName)
-        .ilike('family_name', familyName)
-        .eq('club_id', input.clubId)
-        .eq('date_of_birth', dateOfBirth)
-        .limit(2);
-      const rows = (hits ?? []) as Array<{
-        id: string;
-        email: string | null;
-        date_of_birth: string | null;
-      }>;
-      if (rows.length === 1) {
-        await this.backfillGlobalPersonIdentity(rows[0]!, { email, dateOfBirth });
-        return rows[0]!.id;
-      }
-    }
-
-    // No confident match — mint a fresh global identity.
-    const displayName = `${givenName} ${familyName}`.trim();
-    const slug = `${slugifyName(`${givenName}-${familyName}`)}-${Date.now().toString(36)}`;
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .insert({
-        slug,
-        display_name: displayName,
-        given_name: givenName,
-        family_name: familyName,
-        club_id: input.clubId,
-        hema_ratings_id: hemaRatingsId,
-        date_of_birth: dateOfBirth,
-        email,
-        gender_category: input.genderCategory ?? null,
-        is_fighter: true,
-      })
-      .select('id')
-      .single();
-    if (error) {
-      // Likely a unique-email collision (partial unique index on
-      // LOWER(email) for unmerged rows). Surface a row-level error
-      // so the CSV importer can flag it cleanly.
-      if (/duplicate key|unique/i.test(error.message)) {
-        throw new BadRequestException(
-          `Email ${this.csv.maskEmail(email ?? '')} is already linked to another global profile`,
-        );
-      }
-      throw new BadRequestException(error.message);
-    }
-    return (data as { id: string }).id;
-  }
-
-  /**
-   * After a Tier-1 or Tier-2 match, fill in email / date_of_birth on
-   * the existing global_persons row when the column is currently NULL
-   * and the CSV supplied a value. Never overwrites — a value already
-   * on the row stays; conflicts surface as no-ops (organizers can use
-   * the global-persons admin if they need to overwrite).
-   *
-   * Errors are swallowed (logged): the participant insert should
-   * still succeed even if a backfill stumbles.
-   */
-  private async backfillGlobalPersonIdentity(
-    row: { id: string; email: string | null; date_of_birth: string | null },
-    incoming: { email: string | null; dateOfBirth: string | null },
-  ): Promise<void> {
-    const updates: Record<string, unknown> = {};
-    if (incoming.email && !row.email) updates['email'] = incoming.email;
-    if (incoming.dateOfBirth && !row.date_of_birth) updates['date_of_birth'] = incoming.dateOfBirth;
-    if (Object.keys(updates).length === 0) return;
-
-    const { error } = await this.supabase.service
-      .from('global_persons')
-      .update(updates)
-      .eq('id', row.id);
-    if (error) {
-      this.logger.warn(`global_persons backfill failed for ${row.id}: ${error.message}`);
-    }
   }
 
   // ── Update ──────────────────────────────────────────────────────────────────
@@ -960,106 +818,51 @@ export class PersonsService {
       return;
     }
 
-    // create_new: auto-create a global_persons record (same as registration flow).
-    const email = row.email?.trim().toLowerCase() || null;
-
-    // If a global profile already owns this email (e.g. a prior import of the
-    // same roster), link to it instead of minting a duplicate — and so the
-    // fighter can auto-claim on first login via the email match.
-    if (email) {
-      const { data: existingByEmail } = await this.supabase.service
-        .from('global_persons')
-        .select('id')
-        .ilike('email', email)
-        .is('merged_into_id', null)
-        .limit(1)
-        .maybeSingle();
-      if (existingByEmail) {
-        await this.supabase.service
-          .from('persons')
-          .update({ global_person_id: (existingByEmail as { id: string }).id })
-          .eq('id', personId);
-        return;
-      }
-    }
-
-    const displayName = `${row.given_name} ${row.family_name}`;
-    const slug =
-      `${row.given_name.toLowerCase()}-${row.family_name.toLowerCase()}-${Date.now().toString(36)}`
-        .normalize('NFD')
-        .replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 80);
-
-    // Persist the email on the global profile (not just the event person) so the
-    // login email-autolink can claim it without a manual request.
-    const { data: gp, error: gpError } = await this.supabase.service
-      .from('global_persons')
-      .insert({
-        slug,
-        display_name: displayName,
-        given_name: row.given_name,
-        family_name: row.family_name,
-        club_id: clubId,
-        email,
-        hema_ratings_id: row.hema_ratings_id ?? null,
-        date_of_birth: row.date_of_birth ?? null,
-        gender_category: row.gender_category ?? null,
-        is_fighter: true,
-        claimed_by_user_id: null,
-      })
-      .select('id')
-      .single();
-
-    if (gpError) {
-      // A concurrent/duplicate row may have taken the email (unique on
-      // LOWER(email) for unmerged rows) — link to it rather than leaving the
-      // participant globally unlinked.
-      if (email && /duplicate key|unique/i.test(gpError.message)) {
-        const { data: collided } = await this.supabase.service
-          .from('global_persons')
-          .select('id')
-          .ilike('email', email)
-          .is('merged_into_id', null)
-          .limit(1)
-          .maybeSingle();
-        if (collided) {
-          await this.supabase.service
-            .from('persons')
-            .update({ global_person_id: (collided as { id: string }).id })
-            .eq('id', personId);
-        }
-        return;
-      }
+    // create_new: resolve to an existing global identity or mint a fresh one,
+    // via the shared resolver (Tier hema/name+club+DOB/name+club/email). This
+    // is what stops a roster imported per-event without email/DOB from minting
+    // a duplicate global_persons row per event.
+    let resolved: { id: string; created: boolean };
+    try {
+      resolved = await this.globalPersonResolver.resolveOrCreateGlobalPerson({
+        givenName: row.given_name,
+        familyName: row.family_name,
+        clubId,
+        hemaRatingsId: row.hema_ratings_id ?? null,
+        dateOfBirth: row.date_of_birth ?? null,
+        email: row.email ?? null,
+        genderCategory: row.gender_category ?? null,
+      });
+    } catch (resolveError) {
+      // One un-resolvable row must not abort the whole import.
       this.logger.warn(
-        `import: global person create failed for person ${personId}: ${gpError.message}`,
+        `import: global person resolve failed for person ${personId}: ${
+          resolveError instanceof Error ? resolveError.message : String(resolveError)
+        }`,
       );
       return;
     }
 
-    if (gp) {
-      const globalPersonId = (gp as { id: string }).id;
-      await this.supabase.service
-        .from('persons')
-        .update({ global_person_id: globalPersonId })
-        .eq('id', personId);
-      // Set weapons on the freshly created global profile only. Linking to an
-      // existing profile leaves its curated weapons untouched.
-      if (row.weapons) {
-        try {
-          await replaceFighterWeaponsFromCell(
-            this.supabase.service as never,
-            globalPersonId,
-            row.weapons,
-          );
-        } catch (weaponsError) {
-          this.logger.warn(
-            `import: weapons set failed for global person ${globalPersonId}: ${
-              weaponsError instanceof Error ? weaponsError.message : String(weaponsError)
-            }`,
-          );
-        }
+    await this.supabase.service
+      .from('persons')
+      .update({ global_person_id: resolved.id })
+      .eq('id', personId);
+
+    // Set weapons on a freshly minted profile only. Linking to an existing
+    // profile leaves its curated weapons untouched.
+    if (resolved.created && row.weapons) {
+      try {
+        await replaceFighterWeaponsFromCell(
+          this.supabase.service as never,
+          resolved.id,
+          row.weapons,
+        );
+      } catch (weaponsError) {
+        this.logger.warn(
+          `import: weapons set failed for global person ${resolved.id}: ${
+            weaponsError instanceof Error ? weaponsError.message : String(weaponsError)
+          }`,
+        );
       }
     }
   }

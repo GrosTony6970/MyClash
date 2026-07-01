@@ -8,6 +8,10 @@ import { REGISTRATION_STATUS_TRANSITIONS } from './dto/registrations.dto';
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
 
+// These tests all register a person that already has a global_person_id, so the
+// resolver short-circuits and is never invoked; a stub is enough.
+const mockResolver = { resolveOrCreateGlobalPerson: vi.fn() };
+
 function makeChain(result: unknown) {
   const chain = {
     select: vi.fn() as ReturnType<typeof vi.fn>,
@@ -77,7 +81,7 @@ describe('RegistrationsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new RegistrationsService(mockSupabase as never);
+    service = new RegistrationsService(mockSupabase as never, mockResolver as never);
   });
 
   // ── Status transitions ────────────────────────────────────────────────────

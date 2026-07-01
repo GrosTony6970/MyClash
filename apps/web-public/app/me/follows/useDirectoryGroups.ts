@@ -41,6 +41,8 @@ export interface FollowAllSummary {
   followedCount: number;
   alreadyFollowingCount: number;
   skippedPrivacyCount: number;
+  /** Whether the persistent global follow now exists (drives the toggle state). */
+  following: boolean;
 }
 
 type Status = 'loading' | 'ready' | 'error' | 'unauthorized';
@@ -226,7 +228,11 @@ export function useDirectoryGroups(apiUrl: string) {
       });
       if (!res.ok) throw new Error('follow');
       const summary = (await res.json()) as FollowAllSummary;
-      const followingEventCount = summary.followedCount + summary.alreadyFollowingCount;
+      // The follow is now persistent, so reflect it on the group member card even
+      // when the person has no upcoming event (event count would be 0).
+      const followingEventCount = summary.following
+        ? Math.max(1, summary.followedCount + summary.alreadyFollowingCount)
+        : 0;
       patchMemberFollowState(globalPersonId, summary.upcomingEventCount, followingEventCount);
       return summary;
     } catch {

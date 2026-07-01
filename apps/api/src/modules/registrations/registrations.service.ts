@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../supabase/supabase.service';
+import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
 import { detectCsvDelimiter } from '../persons/csv-import.service';
 import {
   REGISTRATION_STATUS_TRANSITIONS,
@@ -21,19 +22,12 @@ const ALLOWED_IMPORT_STATUSES: readonly string[] = [
   'waitlist',
 ];
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50);
-}
-
 @Injectable()
 export class RegistrationsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly globalPersonResolver: GlobalPersonResolverService,
+  ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
 
@@ -607,7 +601,9 @@ export class RegistrationsService {
 
     const { data: person, error } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, club_id, global_person_id')
+      .select(
+        'id, given_name, family_name, club_id, date_of_birth, email, hema_ratings_id, global_person_id',
+      )
       .eq('id', dto.personId)
       .maybeSingle();
 
@@ -619,6 +615,9 @@ export class RegistrationsService {
       given_name: string;
       family_name: string;
       club_id: string | null;
+      date_of_birth: string | null;
+      email: string | null;
+      hema_ratings_id: string | null;
       global_person_id: string | null;
     };
 
@@ -632,29 +631,19 @@ export class RegistrationsService {
       return p.global_person_id;
     }
 
-    const displayName = `${p.given_name} ${p.family_name}`;
-    const baseSlug = slugify(displayName);
-    const slug = `${baseSlug}-${Date.now().toString(36)}`;
-
-    const { data: fighter, error: fighterError } = await this.supabase.service
-      .from('global_persons')
-      .insert({
-        slug,
-        display_name: displayName,
-        given_name: p.given_name,
-        family_name: p.family_name,
-        club_id: p.club_id,
-        hema_ratings_id: dto.hemaRatingsId ?? null,
-        is_fighter: true,
-      })
-      .select('id')
-      .single();
-
-    if (fighterError || !fighter) {
-      throw new BadRequestException(`Failed to create Fighter: ${fighterError?.message}`);
-    }
-
-    const fighterId = (fighter as { id: string }).id;
+    // Reuse an existing global identity when one matches (HEMA id, name+club+DOB,
+    // or a unique name+club) — only mint when there's no confident match. This
+    // is what stops a person registered across events from accumulating a
+    // duplicate global_persons row per event.
+    const { id: fighterId } = await this.globalPersonResolver.resolveOrCreateGlobalPerson({
+      givenName: p.given_name,
+      familyName: p.family_name,
+      clubId: p.club_id,
+      hemaRatingsId: dto.hemaRatingsId ?? p.hema_ratings_id ?? null,
+      dateOfBirth: p.date_of_birth ?? null,
+      email: p.email ?? null,
+      genderCategory: null,
+    });
 
     await this.supabase.service
       .from('persons')

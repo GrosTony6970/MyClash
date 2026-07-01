@@ -44,6 +44,7 @@ import { OrganizerChatModule } from './modules/organizer-chat/organizer-chat.mod
 import { GeneratedContentModule } from './modules/generated-content/generated-content.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
+import { PeopleContextModule } from './modules/people-context/people-context.module';
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
@@ -135,6 +136,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
     RealtimeModule,
     RulesetsModule,
     PoolStandingsModule,
+    PeopleContextModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override

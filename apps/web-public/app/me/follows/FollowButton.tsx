@@ -5,69 +5,56 @@ import { useI18n } from '@/i18n/I18nProvider';
 import type { FollowAllSummary } from './useDirectoryGroups';
 
 /**
- * Hub-level follow toggle. A follow is event-scoped, so this follows/unfollows a
- * global person across ALL their current/upcoming events in one tap.
- *
- * `upcomingEventCount` may be -1 ("unknown") for search results — the public
- * search endpoint carries no per-user state, so the button starts neutral and
- * settles after the first action returns the real counts.
+ * Hub-level follow toggle. A follow is now persistent at the global-person
+ * level (it no longer requires an upcoming event), so the button is driven by a
+ * simple boolean and is always actionable.
  */
 export function FollowButton({
-  upcomingEventCount,
-  followingEventCount,
+  following: initialFollowing,
   onFollow,
   onUnfollow,
 }: {
-  upcomingEventCount: number;
-  followingEventCount: number;
+  following: boolean;
   onFollow: () => Promise<FollowAllSummary | null>;
   onUnfollow: () => Promise<boolean>;
 }) {
   const { t } = useI18n();
-  const [upcoming, setUpcoming] = useState(upcomingEventCount);
-  const [following, setFollowing] = useState(followingEventCount);
+  // Local override wins once the user toggles; until then we follow the prop, so
+  // context arriving after mount (Search fetches it post-render) is reflected
+  // without a state-sync effect.
+  const [override, setOverride] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const known = upcoming >= 0;
-  const noEvents = known && upcoming === 0;
-  const isFollowing = following > 0;
+  const following = override ?? initialFollowing;
 
   async function handleClick() {
-    if (busy || noEvents) return;
+    if (busy) return;
     setBusy(true);
-    if (isFollowing) {
+    if (following) {
       const ok = await onUnfollow();
-      if (ok) setFollowing(0);
+      if (ok) setOverride(false);
     } else {
       const summary = await onFollow();
-      if (summary) {
-        setUpcoming(summary.upcomingEventCount);
-        setFollowing(summary.followedCount + summary.alreadyFollowingCount);
-      }
+      if (summary) setOverride(true);
     }
     setBusy(false);
   }
 
   const label = busy
     ? '…'
-    : noEvents
-      ? t('publicApp.me.people.noUpcomingEvents')
-      : isFollowing
-        ? t('publicApp.me.people.followingCount', { count: following })
-        : t('publicApp.me.people.follow');
+    : following
+      ? t('publicApp.me.people.following')
+      : t('publicApp.me.people.follow');
 
-  const tone = isFollowing
+  const tone = following
     ? 'border-accent/60 bg-accent/10 text-accent'
-    : noEvents
-      ? 'border-border text-muted opacity-60'
-      : 'border-border text-foreground hover:border-accent/60 hover:bg-accent/10';
+    : 'border-border text-foreground hover:border-accent/60 hover:bg-accent/10';
 
   return (
     <button
       type="button"
       onClick={() => void handleClick()}
-      disabled={busy || noEvents}
-      aria-pressed={isFollowing}
+      disabled={busy}
+      aria-pressed={following}
       className={`flex-shrink-0 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-default ${tone}`}
     >
       {label}

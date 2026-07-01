@@ -1,46 +1,36 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { EmptyState, Switch } from '@myclash/ui';
+import { Avatar, EmptyState, Switch } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
-
-interface Follow {
-  id: string;
-  personId: string;
-  personName: string;
-  personClub: string | null;
-  notifyMatchStart: boolean;
-  notifyWorkshopStart: boolean;
-  nextEvent: { type: string; label: string; scheduledAt: string | null } | null;
-  eventId: string;
-  eventName: string | null;
-  eventSlug: string | null;
-}
+import { PersonContextDetails } from './PersonContextDetails';
+import type { PersonFollowing } from './personContext';
 
 type Status = 'loading' | 'ready' | 'error';
 
 /**
- * Cross-event "people you follow" list. Reads the aggregated
- * `GET /api/v1/me/follows`, groups by event, and drives notify-toggles +
- * unfollow through the EXISTING event-scoped follow endpoints. Resolves the API
- * URL on the client (avoids leaking the internal host to the browser).
+ * The "Following" tab — a persistent, flat list of everyone the user follows
+ * (via `GET /api/v1/me/following`, backed by directory_follows). A followed
+ * fighter shows here even with no upcoming event, enriched with their live
+ * tournament context. Match/workshop notify toggles appear only when an active
+ * event-follow backs them, and drive the existing per-event follow endpoints.
  */
 export default function FollowsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useI18n();
   const apiUrl = useMemo(() => getApiUrl(), []);
-  const [follows, setFollows] = useState<Follow[]>([]);
+  const [follows, setFollows] = useState<PersonFollowing[]>([]);
   const [status, setStatus] = useState<Status>('loading');
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/me/follows`, {
+    fetch(`${apiUrl}/api/v1/me/following`, {
       credentials: 'include',
       signal: controller.signal,
     })
       .then(async (res) => {
         if (!res.ok) throw new Error('load');
-        setFollows((await res.json()) as Follow[]);
+        setFollows((await res.json()) as PersonFollowing[]);
         setStatus('ready');
       })
       .catch((err: unknown) => {
@@ -51,54 +41,43 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
   }, [apiUrl]);
 
   async function toggleNotify(
-    follow: Follow,
+    follow: PersonFollowing,
     key: 'notifyMatchStart' | 'notifyWorkshopStart',
     value: boolean,
   ) {
-    setFollows((prev) => prev.map((f) => (f.id === follow.id ? { ...f, [key]: value } : f)));
+    const ev = follow.eventFollow;
+    if (!ev) return;
+    const patch = (f: PersonFollowing, v: boolean): PersonFollowing =>
+      f.globalPersonId === follow.globalPersonId && f.eventFollow
+        ? { ...f, eventFollow: { ...f.eventFollow, [key]: v } }
+        : f;
+    setFollows((prev) => prev.map((f) => patch(f, value)));
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${follow.eventId}/follows/${follow.personId}`,
-        {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [key]: value }),
-        },
-      );
+      const res = await fetch(`${apiUrl}/api/v1/events/${ev.eventId}/follows/${ev.personId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      });
       if (!res.ok) throw new Error('patch');
     } catch {
-      setFollows((prev) => prev.map((f) => (f.id === follow.id ? { ...f, [key]: !value } : f)));
+      setFollows((prev) => prev.map((f) => patch(f, !value)));
     }
   }
 
-  async function unfollow(follow: Follow) {
+  async function unfollow(follow: PersonFollowing) {
     const previous = follows;
-    setFollows((prev) => prev.filter((f) => f.id !== follow.id));
+    setFollows((prev) => prev.filter((f) => f.globalPersonId !== follow.globalPersonId));
     try {
       const res = await fetch(
-        `${apiUrl}/api/v1/events/${follow.eventId}/follows/${follow.personId}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-        },
+        `${apiUrl}/api/v1/me/follows/by-global-person/${follow.globalPersonId}`,
+        { method: 'DELETE', credentials: 'include' },
       );
       if (!res.ok) throw new Error('delete');
     } catch {
       setFollows(previous);
     }
   }
-
-  // Group by event, preserving the created_at-desc order the API returns.
-  const grouped = useMemo(() => {
-    const map = new Map<string, { eventName: string | null; follows: Follow[] }>();
-    for (const follow of follows) {
-      const group = map.get(follow.eventId) ?? { eventName: follow.eventName, follows: [] };
-      group.follows.push(follow);
-      map.set(follow.eventId, group);
-    }
-    return [...map.entries()];
-  }, [follows]);
 
   const body = (
     <>
@@ -116,46 +95,43 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
         />
       )}
 
-      {grouped.map(([eventId, group]) => (
-        <section key={eventId} className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            {group.eventName ?? t('common.unknown')}
-          </h2>
-          {group.follows.map((follow) => (
-            <article
-              key={follow.id}
-              className="rounded-lg border border-border bg-surface p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
+      {status === 'ready' &&
+        follows.map((follow) => (
+          <article
+            key={follow.globalPersonId}
+            className="rounded-lg border border-border bg-surface p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar name={follow.displayName} src={follow.photoUrl ?? undefined} size="md" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">
-                    {follow.personName}
+                    {follow.displayName}
                   </p>
-                  {follow.personClub && (
-                    <p className="truncate text-xs text-muted">{follow.personClub}</p>
-                  )}
-                  {follow.nextEvent && (
-                    <p className="mt-1 truncate text-xs text-accent">
-                      {t('publicApp.me.follows.next', { label: follow.nextEvent.label })}
-                    </p>
+                  {follow.clubName && (
+                    <p className="truncate text-xs text-muted">{follow.clubName}</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void unfollow(follow)}
-                  className="flex-shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:border-danger/60 hover:bg-danger/10"
-                >
-                  {t('publicApp.me.follows.unfollow')}
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => void unfollow(follow)}
+                className="flex-shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:border-danger/60 hover:bg-danger/10"
+              >
+                {t('publicApp.me.follows.unfollow')}
+              </button>
+            </div>
 
+            <PersonContextDetails ctx={follow} />
+
+            {follow.eventFollow?.active && (
               <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
                 <label className="flex items-center justify-between gap-3">
                   <span className="text-xs font-medium text-muted">
                     {t('publicApp.me.follows.notifyMatch')}
                   </span>
                   <Switch
-                    checked={follow.notifyMatchStart}
+                    checked={follow.eventFollow.notifyMatchStart}
                     onChange={(v) => void toggleNotify(follow, 'notifyMatchStart', v)}
                     ariaLabel={t('publicApp.me.follows.notifyMatch')}
                   />
@@ -165,22 +141,21 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
                     {t('publicApp.me.follows.notifyWorkshop')}
                   </span>
                   <Switch
-                    checked={follow.notifyWorkshopStart}
+                    checked={follow.eventFollow.notifyWorkshopStart}
                     onChange={(v) => void toggleNotify(follow, 'notifyWorkshopStart', v)}
                     ariaLabel={t('publicApp.me.follows.notifyWorkshop')}
                   />
                 </label>
               </div>
-            </article>
-          ))}
-        </section>
-      ))}
+            )}
+          </article>
+        ))}
     </>
   );
 
   // Embedded inside the People hub (the hub supplies the page chrome + header).
   if (embedded) {
-    return <div className="flex flex-col gap-6">{body}</div>;
+    return <div className="flex flex-col gap-3">{body}</div>;
   }
 
   return (

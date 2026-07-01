@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Avatar, EmptyState } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { FollowButton } from './FollowButton';
+import { PersonContextDetails } from './PersonContextDetails';
+import { fetchPeopleContext, type PersonContext } from './personContext';
 import type { SearchPerson, useDirectoryGroups } from './useDirectoryGroups';
 
 type GroupsApi = ReturnType<typeof useDirectoryGroups>;
@@ -35,6 +37,7 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
   const [results, setResults] = useState<SearchPerson[]>([]);
   const [status, setStatus] = useState<Status>('idle');
   const [openFor, setOpenFor] = useState<string | null>(null);
+  const [contextById, setContextById] = useState<Map<string, PersonContext>>(new Map());
 
   useEffect(() => {
     const term = q.trim();
@@ -72,6 +75,22 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
     };
   }, [q, apiUrl]);
 
+  // Enrich the visible results with live tournament context (best-effort). All
+  // state writes happen in the async callback (not synchronously in the effect
+  // body); a guard drops stale responses if results change mid-flight.
+  useEffect(() => {
+    const ids = results.map((r) => r.id);
+    const controller = new AbortController();
+    let active = true;
+    void fetchPeopleContext(apiUrl, ids, controller.signal).then((map) => {
+      if (active) setContextById(map);
+    });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [results, apiUrl]);
+
   return (
     <section className="flex flex-col gap-3">
       <label className="block">
@@ -108,6 +127,7 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
             .map((g) => g.id),
         );
         const pickerOpen = openFor === person.id;
+        const ctx = contextById.get(person.id);
         return (
           <article
             key={person.id}
@@ -127,8 +147,7 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <FollowButton
-                  upcomingEventCount={-1}
-                  followingEventCount={0}
+                  following={ctx?.isFollowing ?? false}
                   onFollow={() => groupsApi.followPerson(person.id)}
                   onUnfollow={() => groupsApi.unfollowPerson(person.id)}
                 />
@@ -142,6 +161,8 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
                 </button>
               </div>
             </div>
+
+            <PersonContextDetails ctx={ctx} />
 
             {pickerOpen && (
               <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3">

@@ -78,8 +78,8 @@ function GroupSection({ group, groupsApi }: { group: DirectoryGroup; groupsApi: 
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
+    <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-background px-4 py-3">
         {renaming ? (
           <form
             onSubmit={(e) => {
@@ -115,8 +115,10 @@ function GroupSection({ group, groupsApi }: { group: DirectoryGroup; groupsApi: 
         ) : (
           <>
             <div className="flex min-w-0 items-baseline gap-2">
-              <h2 className="truncate text-sm font-semibold text-foreground">{group.name}</h2>
-              <span className="flex-shrink-0 text-xs text-muted">
+              <h2 className="truncate font-display text-lg font-bold text-foreground">
+                {group.name}
+              </h2>
+              <span className="flex-shrink-0 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-semibold text-muted">
                 {t('publicApp.me.groups.memberCount', { count: group.members.length })}
               </span>
             </div>
@@ -162,21 +164,23 @@ function GroupSection({ group, groupsApi }: { group: DirectoryGroup; groupsApi: 
         )}
       </div>
 
-      {group.members.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted">
-          {t('publicApp.me.groups.emptyGroup')}
-        </p>
-      ) : (
-        group.members.map((member) => (
-          <MemberCard
-            key={member.globalPersonId}
-            member={member}
-            onFollow={() => groupsApi.followPerson(member.globalPersonId)}
-            onUnfollow={() => groupsApi.unfollowPerson(member.globalPersonId)}
-            onRemove={() => void groupsApi.removeMember(group.id, member.globalPersonId)}
-          />
-        ))
-      )}
+      <div className="flex flex-col gap-3 p-4">
+        {group.members.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted">
+            {t('publicApp.me.groups.emptyGroup')}
+          </p>
+        ) : (
+          group.members.map((member) => (
+            <MemberCard
+              key={member.globalPersonId}
+              member={member}
+              onFollow={() => groupsApi.followPerson(member.globalPersonId)}
+              onUnfollow={() => groupsApi.unfollowPerson(member.globalPersonId)}
+              onRemove={() => void groupsApi.removeMember(group.id, member.globalPersonId)}
+            />
+          ))
+        )}
+      </div>
     </section>
   );
 }

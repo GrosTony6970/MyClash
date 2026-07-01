@@ -11,9 +11,10 @@ import { PublicScheduleController } from './public-schedule.controller';
 import { PublicScheduleService } from './public-schedule.service';
 import { AuthModule } from '../auth/auth.module';
 import { RegistrationsModule } from '../registrations/registrations.module';
+import { IdentityModule } from '../identity/identity.module';
 
 @Module({
-  imports: [AuthModule, RegistrationsModule],
+  imports: [AuthModule, RegistrationsModule, IdentityModule],
   controllers: [
     PersonsController,
     LookupController,
