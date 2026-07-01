@@ -8,6 +8,7 @@ import {
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { buildRoundCode } from '../matches/round-code.helper';
+import { bracketRoundLabel } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
@@ -478,7 +479,7 @@ export class StaffService {
         //     0081 simplified the schema so the global_persons club
         //     fallback is no longer needed — persons.club_id is
         //     populated eagerly at insert/link time.
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),phases(config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -857,6 +858,10 @@ export class StaffService {
       family_name?: string | null;
       club_id?: string | null;
       clubs?: ClubsEmbed;
+      // The fighter photo lives on the global identity, not the local
+      // persons row — reached via persons.global_person_id. Null when the
+      // local person isn't linked to a global_persons record yet.
+      global_persons?: { photo_url?: string | null } | null;
     };
     const red = match['red'] as { persons?: PersonEmbed } | null;
     const blue = match['blue'] as { persons?: PersonEmbed } | null;
@@ -906,6 +911,12 @@ export class StaffService {
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
     const matchNumberLabel = (match['match_number_label'] as string | null | undefined) ?? null;
+
+    // Human-readable bracket round (R16 / QF / SF / F) for the TV display's
+    // "tournament · pool-or-bracket · lice" line. Null for pool matches
+    // (they show poolName instead) and when the round can't be labelled.
+    const bracketLabel =
+      bracketRound !== null ? bracketRoundLabel(bracketRound, bracketSize) || null : null;
 
     const roundCode = buildRoundCode({
       weapon,
@@ -959,6 +970,8 @@ export class StaffService {
       rulesetVersion: match['ruleset_version'],
       redFighterName: this.formatPersonName(red?.persons),
       blueFighterName: this.formatPersonName(blue?.persons),
+      redFighterPhotoUrl: red?.persons?.global_persons?.photo_url ?? null,
+      blueFighterPhotoUrl: blue?.persons?.global_persons?.photo_url ?? null,
       lice: lices,
       event: lices?.events ?? null,
       tournament: phases?.tournaments ?? null,
@@ -971,6 +984,7 @@ export class StaffService {
       blueRoundWins: (match['blue_round_wins'] as number | null) ?? 0,
       awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
       poolName,
+      bracketLabel,
       fightIndex: extras.fightIndex,
       totalFightsInPool: extras.totalFightsInPool,
       redClub,

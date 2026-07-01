@@ -7,10 +7,16 @@
  */
 
 export interface ParticipantLike {
-  personId: string;
+  /** Event-scoped persons.id for the profile link; null when the person has
+   *  no event persons row (non-competing staff resolved from global_persons). */
+  personId: string | null;
+  /** Stable identity key (global_persons.id, or persons.id as fallback). */
+  globalPersonId: string;
   displayName: string;
   clubName: string | null;
   clubAbbrev: string | null;
+  isReferee: boolean;
+  isInstructor: boolean;
   tournaments: Array<{
     id: string;
     slug: string;

@@ -34,6 +34,7 @@ export interface PublicWorkshop {
   category: string | null;
   level: string | null;
   color: string | null;
+  coverImageUrl: string | null;
   durationMinutes: number | null;
   instructors: Array<{ displayName: string }>;
   sessions: Array<{ startsAt: string | null; endsAt: string | null }>;

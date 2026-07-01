@@ -16,6 +16,11 @@ export interface DisplayMatch {
   blueScore: number;
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** Fighter photos for the scoreboard avatar — resolved server-side from
+   *  the global identity (global_persons.photo_url). Null when the fighter
+   *  has no photo or isn't linked to a global person. */
+  redFighterPhotoUrl?: string | null;
+  blueFighterPhotoUrl?: string | null;
   rulesetCode: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -40,6 +45,9 @@ export interface DisplayMatch {
   awaitingRoundAdvance?: boolean;
   sideOrder?: 'red_left' | 'blue_left';
   poolName?: string | null;
+  /** Human-readable bracket round (R16 / QF / SF / F). Null for pool matches
+   *  (which carry poolName instead). Drives the TV header context line. */
+  bracketLabel?: string | null;
   fightIndex?: number | null;
   totalFightsInPool?: number | null;
   redClub?: { name: string; logoUrl: string | null } | null;

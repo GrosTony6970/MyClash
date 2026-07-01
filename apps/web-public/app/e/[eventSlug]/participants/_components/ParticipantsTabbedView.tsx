@@ -26,7 +26,7 @@ interface WaitlistTab {
   tournamentName: string;
   /** Rows for this tournament's waitlist, sorted by position ASC. */
   entries: Array<{
-    personId: string;
+    globalPersonId: string;
     displayName: string;
     clubName: string | null;
     clubAbbrev: string | null;
@@ -41,9 +41,11 @@ interface Props {
 
 export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
   const { t: tr } = useI18n();
-  // Active participants: anyone with at least one 'active' registration.
-  const mainList = participants.filter((p) =>
-    p.tournaments.some((t) => t.registrationState === 'active'),
+  // Main list: anyone with at least one 'active' registration, plus event
+  // staff (referees/instructors) even when they don't compete.
+  const mainList = participants.filter(
+    (p) =>
+      p.tournaments.some((t) => t.registrationState === 'active') || p.isReferee || p.isInstructor,
   );
 
   // Per-tournament waitlist tabs: collect waitlist entries per
@@ -64,7 +66,7 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
         byTournament.set(t.id, tab);
       }
       tab.entries.push({
-        personId: person.personId,
+        globalPersonId: person.globalPersonId,
         displayName: person.displayName,
         clubName: person.clubName,
         clubAbbrev: person.clubAbbrev,
@@ -165,7 +167,7 @@ function WaitlistView({ tab }: { tab: WaitlistTab }) {
       <ol className="space-y-1">
         {tab.entries.map((entry) => (
           <li
-            key={entry.personId}
+            key={entry.globalPersonId}
             className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-2"
           >
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-sm font-bold tabular-nums text-amber-800">

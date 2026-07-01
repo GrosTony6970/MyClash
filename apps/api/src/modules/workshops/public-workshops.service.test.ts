@@ -134,6 +134,28 @@ describe('WorkshopsService — PostgREST embed shape', () => {
   });
 });
 
+describe('WorkshopsService — logo mapping', () => {
+  it('maps cover_image_url → coverImageUrl on the public DTO', async () => {
+    const fake = buildSupabase([
+      { ...workshopRow([]), cover_image_url: 'https://cdn.test/workshops/w-1/logo.png' },
+    ]);
+    const svc = makeSvc(fake);
+
+    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+
+    expect(workshop?.coverImageUrl).toBe('https://cdn.test/workshops/w-1/logo.png');
+  });
+
+  it('defaults coverImageUrl to null when the column is absent', async () => {
+    const fake = buildSupabase([workshopRow([])]);
+    const svc = makeSvc(fake);
+
+    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+
+    expect(workshop?.coverImageUrl).toBeNull();
+  });
+});
+
 describe('WorkshopsService — instructor privacy', () => {
   it('drops an instructor who hid their workshops, keeping co-instructors', async () => {
     const fake = buildSupabase([

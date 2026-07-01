@@ -116,6 +116,51 @@ export class LeaguesController {
     return this.leagues.listManageableByOrg(orgId, userId);
   }
 
+  @Get('organizations/:orgId/league-memberships')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  @ApiOperation({
+    summary:
+      'List every league this organization belongs to at any role (member/admin/owner). Org admin/owner only.',
+  })
+  async listOrganizationMemberships(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listOrganizationMemberships(orgId, userId);
+  }
+
+  @Get('organizations/:orgId/tournaments')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  @ApiOperation({
+    summary: "List every tournament across this organization's events. Org editor+ only.",
+  })
+  async listOrganizationTournaments(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listOrganizationTournaments(orgId, userId);
+  }
+
+  @Get('organizations/:orgId/league-attachments')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  @ApiOperation({
+    summary:
+      "List this organization's tournament→league attachments across all its events (any non-removed status). Org editor+ only.",
+  })
+  async listOrganizationLeagueAttachments(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Req() req: FastifyRequest,
+    @Query('leagueId') leagueId?: string,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listOrganizationLeagueAttachments(orgId, userId, leagueId);
+  }
+
   @Get('admin/leagues/:leagueId/standings')
   @ApiBearerAuth()
   @ApiOperation({

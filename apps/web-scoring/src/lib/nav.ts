@@ -57,7 +57,42 @@ export function scoreboardPopupFeatures(width = 1280, height = 720): string {
   return `popup=yes,width=${width},height=${height},resizable=yes,scrollbars=no`;
 }
 
+const SCOREBOARD_WINDOW_NAME = 'myclash-scoreboard';
+
+// Handle to the external-display popup this tab opened, so a later match
+// switch can retarget it instead of spawning a second window. Module-scoped
+// so it survives client-side route changes between /matches/[id] pages.
+let scoreboardPopup: Window | null = null;
+
 /** Open the external-display scoreboard as a sized popup window. */
 export function openScoreboardPopup(url: string): void {
-  window.open(url, 'myclash-scoreboard', scoreboardPopupFeatures());
+  scoreboardPopup = window.open(url, SCOREBOARD_WINDOW_NAME, scoreboardPopupFeatures());
+}
+
+/**
+ * Retarget an already-open scoreboard popup to a new match's display URL.
+ * No-op when the operator never opened the popup (or closed it) — we never
+ * auto-spawn a window, which would fight popup blockers and surprise the
+ * operator. Re-`window.open`-ing the same named same-origin window navigates
+ * the existing popup rather than opening a new one, so the projection follows
+ * whatever match the pad is showing.
+ */
+export function retargetScoreboardPopupIfOpen(url: string): void {
+  if (!scoreboardPopup || scoreboardPopup.closed) return;
+  scoreboardPopup = window.open(url, SCOREBOARD_WINDOW_NAME, scoreboardPopupFeatures());
+}
+
+/**
+ * Swap the match-id segment of an external-display URL (`/display/{id}` — see
+ * build-scoring-href.ts) for the currently-viewed match, so the ↗ button and
+ * the retarget both point at what the pad is showing. Returns null when there
+ * is no external-display base; leaves a URL without a `/display/{id}` segment
+ * untouched.
+ */
+export function displayUrlForMatch(
+  externalDisplayUrl: string | null | undefined,
+  matchId: string,
+): string | null {
+  if (!externalDisplayUrl) return null;
+  return externalDisplayUrl.replace(/\/display\/[^/?#]+/, `/display/${matchId}`);
 }

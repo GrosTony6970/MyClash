@@ -371,8 +371,13 @@ export class EventsController {
   @Get('events/:eventSlug/participants')
   @ApiOperation({ summary: 'List participants for an event (public)' })
   @ApiParam({ name: 'eventSlug', type: 'string' })
-  async listParticipants(@Param('eventSlug') eventSlug: string) {
-    return this.events.listPublicParticipants(eventSlug);
+  async listParticipants(
+    @Param('eventSlug') eventSlug: string,
+    @Query('includeStaff') includeStaff?: string,
+  ) {
+    return this.events.listPublicParticipants(eventSlug, {
+      includeStaff: includeStaff === 'true',
+    });
   }
 
   /** POST /api/v1/events/:eventId/tournaments */

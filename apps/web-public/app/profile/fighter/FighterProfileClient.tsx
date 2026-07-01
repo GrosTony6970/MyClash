@@ -1,11 +1,26 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react';
 import { getDateFormat } from '@myclash/types';
-import { Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
+import { Avatar, Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { AvatarCropper } from './AvatarCropper';
 import { InsightCard } from './InsightCard';
+
+// Profile-photo upload limits. Mirrors the server cap (15 MB) and the
+// PNG/JPEG/WebP allowlist enforced by FightersService.uploadMyPhoto.
+const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
+const ALLOWED_PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 interface ClubLink {
   role?: string;
@@ -214,6 +229,11 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Profile-photo upload: a picked file opens the cropper (cropImageSrc holds
+  // its object URL); a successful crop uploads and updates the header preview.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   // Roster registrations matching the logged-in user's email but not yet
   // claimed — surfaced as a confirm-to-claim step instead of dead-ending when
   // no Fighter profile is linked yet.
@@ -378,6 +398,75 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     });
   };
 
+  // Picked a file → validate, then open the cropper. Reset the input value so
+  // re-picking the same file fires onChange again.
+  const onPickFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setMessage(null);
+    setError(null);
+    if (file.size > PHOTO_MAX_BYTES) {
+      setError(t('publicApp.fighterProfile.photoTooLarge'));
+      return;
+    }
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setError(t('publicApp.fighterProfile.photoWrongType'));
+      return;
+    }
+    setCropImageSrc(URL.createObjectURL(file));
+  };
+
+  const closeCropper = () => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+  };
+
+  // Cropper produced a square blob → upload it and reflect the new URL locally
+  // (header avatar + the dashboard profile) so it appears without a reload.
+  const onCropSave = (blob: Blob) => {
+    setPhotoBusy(true);
+    setError(null);
+    const body = new FormData();
+    body.append('file', blob, 'avatar.jpg');
+    fetch(`${apiUrl}/api/v1/fighters/me/photo`, {
+      method: 'POST',
+      credentials: 'include',
+      body,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('photo');
+        const { url } = (await response.json()) as { url: string };
+        setForm((current) => ({ ...current, photoUrl: url }));
+        setDashboard((current) =>
+          current ? { ...current, profile: { ...current.profile, photo_url: url } } : current,
+        );
+        setMessage(t('publicApp.fighterProfile.saveSuccess'));
+        closeCropper();
+      })
+      .catch(() => setError(t('publicApp.fighterProfile.photoError')))
+      .finally(() => setPhotoBusy(false));
+  };
+
+  const onRemovePhoto = () => {
+    setPhotoBusy(true);
+    setMessage(null);
+    setError(null);
+    fetch(`${apiUrl}/api/v1/fighters/me/photo`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('photo');
+        setForm((current) => ({ ...current, photoUrl: '' }));
+        setDashboard((current) =>
+          current ? { ...current, profile: { ...current.profile, photo_url: null } } : current,
+        );
+      })
+      .catch(() => setError(t('publicApp.fighterProfile.photoError')))
+      .finally(() => setPhotoBusy(false));
+  };
+
   const save = () => {
     if (!dashboard) return;
     // Convert the locale-formatted DOB back to ISO before PATCH.
@@ -407,7 +496,6 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         countryCode: form.nationality || undefined,
         dateOfBirth: dateOfBirthIso,
         bio: form.bio || undefined,
-        photoUrl: form.photoUrl || undefined,
         mainClub: form.mainClub ? toClubInput(form.mainClub) : undefined,
         secondaryClubs: form.secondaryClubs.map(toClubInput),
         previousClubs: form.previousClubs.map(toClubInput),
@@ -489,6 +577,48 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         <InsightCard apiUrl={apiUrl} />
       </div>
       <Card className="order-2 lg:order-none">
+        <div className="mb-5 flex items-center gap-4">
+          <Avatar
+            size="xl"
+            name={form.displayName || form.givenName || '?'}
+            src={form.photoUrl || undefined}
+          />
+          <div className="min-w-0">
+            <p className="truncate font-display text-lg font-semibold text-foreground">
+              {form.displayName || form.givenName || form.familyName}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={onPickFile}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={photoBusy}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {form.photoUrl
+                  ? t('publicApp.fighterProfile.photoChange')
+                  : t('publicApp.fighterProfile.photoUpload')}
+              </Button>
+              {form.photoUrl && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={photoBusy}
+                  disabled={photoBusy}
+                  onClick={onRemovePhoto}
+                >
+                  {t('publicApp.fighterProfile.photoRemove')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label={t('publicApp.fighterProfile.displayName')}
@@ -521,11 +651,6 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
                 ? t('publicApp.fighterProfile.errors.dobFormat')
                 : undefined
             }
-          />
-          <Field
-            label={t('publicApp.fighterProfile.photoUrl')}
-            value={form.photoUrl}
-            onChange={(value) => updateField('photoUrl', value)}
           />
         </div>
 
@@ -613,6 +738,16 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
 
       {dashboard && (
         <FighterStatsCard dashboard={dashboard} t={t} className="order-1 lg:order-none" />
+      )}
+
+      {cropImageSrc && (
+        <AvatarCropper
+          imageSrc={cropImageSrc}
+          busy={photoBusy}
+          onCancel={closeCropper}
+          onSave={onCropSave}
+          t={t}
+        />
       )}
     </div>
   );

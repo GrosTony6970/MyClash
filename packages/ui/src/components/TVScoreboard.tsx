@@ -198,6 +198,7 @@ export function TVScoreboard({
     <FighterColumn
       key="red"
       name={redName}
+      photoUrl={match.redFighterPhotoUrl ?? null}
       club={match.redClub ?? null}
       score={match.redScore}
       registrationId={match.redRegistrationId ?? null}
@@ -209,6 +210,7 @@ export function TVScoreboard({
     <FighterColumn
       key="blue"
       name={blueName}
+      photoUrl={match.blueFighterPhotoUrl ?? null}
       club={match.blueClub ?? null}
       score={match.blueScore}
       registrationId={match.blueRegistrationId ?? null}
@@ -275,6 +277,13 @@ function TVHeader({
   const eventName = match.event?.name ?? null;
   const liceName = match.lice?.name ?? null;
   const next = match.nextMatch ?? null;
+  // Tournament · Pool-or-bracket · Lice — mirrors the scoring pad header
+  // (MatchHeader) so the operator and the TV read the same context. Bracket
+  // matches have no pool, so the bracket round (R16/QF/SF/F) takes that slot.
+  const phaseLabel = match.poolName ?? match.bracketLabel ?? null;
+  const contextLine = [match.tournament?.name ?? null, phaseLabel, liceName]
+    .filter((p): p is string => !!p && p.trim().length > 0)
+    .join(' · ');
   // The header strip + NEXT tile are light surfaces — clamp the side
   // colours so a white-configured side stays legible (no white-on-white).
   const redOnLight = legibleOn(redBorder, 'light');
@@ -309,6 +318,7 @@ function TVHeader({
               {match.awaitingRoundAdvance ? ' · ⏸' : ''}
             </span>
           )}
+          {contextLine && <p className="text-sm font-semibold text-slate-500">{contextLine}</p>}
           <p className="text-2xl font-bold">
             <span style={{ color: leftColor }}>{leftName}</span>{' '}
             <span className="text-slate-500">vs</span>{' '}
@@ -337,6 +347,7 @@ function TVHeader({
 
 function FighterColumn({
   name,
+  photoUrl,
   club,
   score,
   registrationId,
@@ -344,6 +355,7 @@ function FighterColumn({
   tintHex,
 }: {
   name: string;
+  photoUrl: string | null;
   club: { name: string; logoUrl: string | null } | null;
   score: number;
   registrationId: string | null;
@@ -351,14 +363,15 @@ function FighterColumn({
   tintHex: string;
 }) {
   const myPenalties = penalties.filter((p) => !p.voided && p.registration_id === registrationId);
+  const tint = legibleOn(tintHex, 'dark');
   return (
     <div className="flex flex-col items-center justify-start gap-6 pt-6">
-      <p
-        className="text-[24rem] font-black leading-none tabular-nums"
-        style={{ color: legibleOn(tintHex, 'dark') }}
-      >
+      <p className="text-[24rem] font-black leading-none tabular-nums" style={{ color: tint }}>
         {score}
       </p>
+      {/* Fighter photo above the name; side-tinted initials when there's no
+          photo so red vs blue stay distinguishable on the projector. */}
+      <FighterAvatar name={name} photoUrl={photoUrl} tint={tint} />
       <p className="text-center text-5xl font-bold leading-tight">{name}</p>
       {club && (
         <div className="flex items-center justify-center gap-3 text-2xl text-gray-300">
@@ -393,6 +406,50 @@ function FighterColumn({
       </div>
     </div>
   );
+}
+
+// Fighter photo for the scoreboard column. Falls back to side-tinted
+// initials (not the red-only packages/ui Avatar, which would mislabel the
+// blue fighter) so both sides stay legible on a projector.
+function FighterAvatar({
+  name,
+  photoUrl,
+  tint,
+}: {
+  name: string;
+  photoUrl: string | null;
+  tint: string;
+}) {
+  if (photoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={photoUrl}
+        alt=""
+        width={128}
+        height={128}
+        className="h-32 w-32 rounded-full border-4 object-cover"
+        style={{ borderColor: tint }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex h-32 w-32 items-center justify-center rounded-full border-4 bg-white/5 text-5xl font-black"
+      style={{ borderColor: tint, color: tint }}
+    >
+      {initials(name)}
+    </div>
+  );
+}
+
+function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
 }
 
 // ── Centre column ─────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FightersService, parseBoolCell } from './fighters.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -367,6 +367,105 @@ describe('FightersService', () => {
       const result = await service.getBySlug('public-fighter');
       expect(result).not.toHaveProperty('date_of_birth');
       expect(result).not.toHaveProperty('dateOfBirth');
+    });
+  });
+
+  describe('profile photo', () => {
+    const storagePart = () => {
+      const bucketApi = {
+        upload: vi.fn().mockResolvedValue({ error: null }),
+        getPublicUrl: vi
+          .fn()
+          .mockReturnValue({ data: { publicUrl: 'https://cdn.example/photo.jpg' } }),
+      };
+      const storage = {
+        getBucket: vi.fn().mockResolvedValue({ data: { name: 'fighter-photos' }, error: null }),
+        createBucket: vi.fn().mockResolvedValue({ error: null }),
+        from: vi.fn().mockReturnValue(bucketApi),
+      };
+      (mockSupabase.service as unknown as { storage: unknown }).storage = storage;
+      return { storage, bucketApi };
+    };
+
+    const png = () => ({
+      buffer: Buffer.from('image-bytes'),
+      filename: 'me.png',
+      mimetype: 'image/png',
+    });
+
+    it('uploads the photo and writes a same-origin photo_url on the claimed global person', async () => {
+      const { bucketApi } = storagePart();
+      const idChain = makeChain({ data: { id: 'gp-1' }, error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.eq.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValueOnce(idChain).mockReturnValueOnce(updateChain);
+
+      const result = await service.uploadMyPhoto('user-1', png());
+
+      // Same-origin relative path (not Supabase's absolute getPublicUrl) so the
+      // photo also loads on the cross-origin admin external-display popup. The
+      // path carries the person id + a timestamped filename.
+      const photoUrlPattern =
+        /^\/storage\/v1\/object\/public\/fighter-photos\/fighters\/gp-1\/photo-\d+\.png$/u;
+      expect(result.url).toMatch(photoUrlPattern);
+      expect(bucketApi.upload).toHaveBeenCalledOnce();
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ photo_url: expect.stringMatching(photoUrlPattern) }),
+      );
+    });
+
+    it('throws NotFoundException when no global person is linked', async () => {
+      storagePart();
+      fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+      await expect(service.uploadMyPhoto('user-1', png())).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects an empty upload', async () => {
+      storagePart();
+      fromMock.mockReturnValue(makeChain({ data: { id: 'gp-1' }, error: null }));
+      await expect(
+        service.uploadMyPhoto('user-1', {
+          buffer: Buffer.alloc(0),
+          filename: 'x.png',
+          mimetype: 'image/png',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a non-image mime type', async () => {
+      storagePart();
+      fromMock.mockReturnValue(makeChain({ data: { id: 'gp-1' }, error: null }));
+      await expect(
+        service.uploadMyPhoto('user-1', {
+          buffer: Buffer.from('x'),
+          filename: 'x.gif',
+          mimetype: 'image/gif',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects an upload above the 15 MB cap', async () => {
+      storagePart();
+      fromMock.mockReturnValue(makeChain({ data: { id: 'gp-1' }, error: null }));
+      await expect(
+        service.uploadMyPhoto('user-1', {
+          buffer: Buffer.alloc(15 * 1024 * 1024 + 1),
+          filename: 'huge.png',
+          mimetype: 'image/png',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('clears photo_url on remove', async () => {
+      const idChain = makeChain({ data: { id: 'gp-1' }, error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.eq.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValueOnce(idChain).mockReturnValueOnce(updateChain);
+
+      const result = await service.removeMyPhoto('user-1');
+
+      expect(result).toEqual({ url: null });
+      expect(updateChain.update).toHaveBeenCalledWith(expect.objectContaining({ photo_url: null }));
     });
   });
 });

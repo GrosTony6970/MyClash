@@ -451,12 +451,29 @@ export class AuthService {
 
     const admin = await this.getAdminLandingContext(user.id);
 
+    // Global profile photo (avatar in the personal-space sidebar). Best-effort:
+    // the user may not have a linked global_persons row yet. Kept last so it
+    // doesn't shift the ordered query mocks in getMe tests.
+    let photoUrl: string | undefined;
+    try {
+      const { data: globalPerson } = await this.supabase.service
+        .from('global_persons')
+        .select('photo_url')
+        .eq('claimed_by_user_id', user.id)
+        .maybeSingle();
+      const url = (globalPerson as { photo_url?: string | null } | null)?.photo_url;
+      if (url) photoUrl = url;
+    } catch {
+      // ignore — sidebar simply falls back to initials
+    }
+
     return {
       type: 'claimed',
       user: {
         id: user.id,
         email: user.email ?? '',
         display_name: user.user_metadata?.['display_name'] as string | undefined,
+        photo_url: photoUrl,
       },
       person,
       admin,

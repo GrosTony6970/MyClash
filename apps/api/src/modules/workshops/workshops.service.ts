@@ -23,6 +23,20 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
+// Workshop logos live in their own bucket (not the shared 10 MB
+// `event-assets`) so the 15 MB cap is actually honored — a shared
+// bucket's fileSizeLimit would reject the larger uploads.
+const WORKSHOP_LOGO_BUCKET = 'workshop-assets';
+const WORKSHOP_LOGO_MAX_BYTES = 15 * 1024 * 1024;
+const ALLOWED_WORKSHOP_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+/** Multipart file payload for the workshop logo upload endpoint. */
+export interface WorkshopLogoUpload {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}
+
 export interface CreateWorkshopDto {
   slug: string;
   title: string;
@@ -64,6 +78,12 @@ export interface UpdateWorkshopDto {
    * (subsequent sessions will not pre-fill a venue).
    */
   venueId?: string | null;
+  /**
+   * Workshop logo URL. Set via the dedicated upload endpoint; the
+   * update path only carries it so the operator can clear it — send
+   * `null` to remove the logo.
+   */
+  coverImageUrl?: string | null;
 }
 
 export interface CreateSessionDto {
@@ -122,6 +142,8 @@ export interface WorkshopView {
   sortOrder: number;
   /** Optional identity color (ColorToken string), like tournaments.color. */
   color: string | null;
+  /** Workshop logo (square PNG) public URL, or null when unset. */
+  coverImageUrl: string | null;
   venueId: string | null;
   venue: NamedRef | null;
   /** Event IANA timezone — set on public reads so the FE renders in event time. */
@@ -163,6 +185,7 @@ interface RawWorkshop {
   status: string | null;
   sort_order: number | null;
   color: string | null;
+  cover_image_url: string | null;
   venue_id: string | null;
   venues: NamedRef | null;
   // PostgREST embeds a to-one relationship as a single object. Migration 0098's
@@ -183,7 +206,7 @@ const PUBLIC_WORKSHOP_STATUSES = ['published', 'running', 'completed'];
 
 const WORKSHOP_SELECT = `
   id, slug, title, short_description, description_md, category, level, language,
-  capacity, duration_minutes, status, sort_order, color, venue_id,
+  capacity, duration_minutes, status, sort_order, color, cover_image_url, venue_id,
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
   workshop_instructors ( global_person_id, display_name )
@@ -383,6 +406,7 @@ export class WorkshopsService {
     if (dto.durationMinutes !== undefined) updates['duration_minutes'] = dto.durationMinutes;
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.color !== undefined) updates['color'] = dto.color;
+    if (dto.coverImageUrl !== undefined) updates['cover_image_url'] = dto.coverImageUrl;
     if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
 
     const { data, error } = await this.supabase.service
@@ -394,6 +418,74 @@ export class WorkshopsService {
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  // ── Upload workshop logo ────────────────────────────────────────────────────────
+
+  /**
+   * Upload a per-workshop logo. Mirrors `EventsService.uploadLogo`: the
+   * FE bakes a square PNG (via the shared LogoCropperModal) before
+   * POSTing, we validate size + MIME, store it under a dedicated
+   * `workshop-assets` bucket, and write the public URL back to
+   * `workshops.cover_image_url`. Auth reuses the same `workshop_lead+`
+   * gate as the rest of the write path.
+   */
+  async uploadLogo(
+    workshopId: string,
+    userId: string,
+    file: WorkshopLogoUpload,
+  ): Promise<{ url: string }> {
+    const eventId = await this.resolveWorkshopEvent(workshopId);
+    await this.assertCanManageEvent(eventId, userId);
+
+    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
+    if (file.buffer.length > WORKSHOP_LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo upload exceeds the 15 MB size limit.');
+    }
+    if (!ALLOWED_WORKSHOP_LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureWorkshopLogoBucket();
+    const extension =
+      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `workshops/${workshopId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(WORKSHOP_LOGO_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const { data } = this.supabase.service.storage.from(WORKSHOP_LOGO_BUCKET).getPublicUrl(path);
+    const url = data.publicUrl;
+
+    const { error: updateError } = await this.supabase.service
+      .from('workshops')
+      .update({ cover_image_url: url, updated_at: new Date().toISOString() })
+      .eq('id', workshopId);
+    if (updateError) throw new BadRequestException(updateError.message);
+
+    return { url };
+  }
+
+  private async ensureWorkshopLogoBucket(): Promise<void> {
+    const storage = this.supabase.service.storage;
+    const { data, error } = await storage.getBucket(WORKSHOP_LOGO_BUCKET);
+    if (data && !error) return;
+    const created = await storage.createBucket(WORKSHOP_LOGO_BUCKET, {
+      public: true,
+      fileSizeLimit: WORKSHOP_LOGO_MAX_BYTES,
+      allowedMimeTypes: Array.from(ALLOWED_WORKSHOP_LOGO_MIME_TYPES),
+    });
+    if (created.error && !/already exists/iu.test(created.error.message)) {
+      throw new BadRequestException(created.error.message);
+    }
   }
 
   // ── Add instructor ────────────────────────────────────────────────────────────
@@ -664,6 +756,7 @@ export class WorkshopsService {
       status: row.status ?? 'draft',
       sortOrder: row.sort_order ?? 0,
       color: row.color ?? null,
+      coverImageUrl: row.cover_image_url ?? null,
       venueId: row.venue_id,
       venue: row.venues ?? null,
       eventTimezone: null,

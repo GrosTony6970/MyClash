@@ -1373,13 +1373,18 @@ export class EventsService {
    *
    * Excludes withdrawn / disqualified registrations.
    */
-  async listPublicParticipants(slugOrId: string): Promise<
+  async listPublicParticipants(
+    slugOrId: string,
+    opts?: { includeStaff?: boolean },
+  ): Promise<
     Array<{
-      personId: string;
+      personId: string | null;
+      globalPersonId: string;
       displayName: string;
       clubName: string | null;
       clubAbbrev: string | null;
       isReferee: boolean;
+      isInstructor: boolean;
       tournaments: Array<{
         id: string;
         slug: string;
@@ -1393,6 +1398,10 @@ export class EventsService {
   > {
     const event = await this.getEventBySlug(slugOrId);
     const eventId = (event as { id: string }).id;
+    // Staff (referees/instructors) who don't compete are only appended when the
+    // caller opts in — the roster is otherwise registration-only so the event
+    // home counts and per-tournament lists stay untouched.
+    const includeStaff = opts?.includeStaff ?? false;
 
     const { data: tournamentRows, error: tournErr } = await this.supabase.service
       .from('tournaments')
@@ -1406,40 +1415,58 @@ export class EventsService {
       color: string | null;
       weapon: string | null;
     }>;
-    if (tournaments.length === 0) return [];
+    if (tournaments.length === 0 && !includeStaff) return [];
     const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
 
-    const { data: regRows, error: regErr } = await this.supabase.service
-      .from('registrations')
-      .select('tournament_id, person_id, status, waitlist_position')
-      .in(
-        'tournament_id',
-        tournaments.map((t) => t.id),
-      )
-      .in('status', ['registered', 'checked_in', 'waitlist']);
-    if (regErr) throw new BadRequestException(regErr.message);
-    const registrations = (regRows ?? []) as Array<{
+    let registrations: Array<{
       tournament_id: string;
       person_id: string;
       status: string;
       waitlist_position: number | null;
-    }>;
-    if (registrations.length === 0) return [];
+    }> = [];
+    if (tournaments.length > 0) {
+      const { data: regRows, error: regErr } = await this.supabase.service
+        .from('registrations')
+        .select('tournament_id, person_id, status, waitlist_position')
+        .in(
+          'tournament_id',
+          tournaments.map((t) => t.id),
+        )
+        .in('status', ['registered', 'checked_in', 'waitlist']);
+      if (regErr) throw new BadRequestException(regErr.message);
+      registrations = (regRows ?? []) as Array<{
+        tournament_id: string;
+        person_id: string;
+        status: string;
+        waitlist_position: number | null;
+      }>;
+    }
+    if (registrations.length === 0 && !includeStaff) return [];
 
     const personIds = Array.from(new Set(registrations.map((r) => r.person_id)));
-    const { data: personRows, error: personErr } = await this.supabase.service
-      .from('persons')
-      .select('id, given_name, family_name, club_id, hema_ratings_id, global_person_id')
-      .in('id', personIds);
-    if (personErr) throw new BadRequestException(personErr.message);
-    const persons = (personRows ?? []) as Array<{
+    let persons: Array<{
       id: string;
       given_name: string;
       family_name: string;
       club_id: string | null;
       hema_ratings_id: string | null;
       global_person_id: string | null;
-    }>;
+    }> = [];
+    if (personIds.length > 0) {
+      const { data: personRows, error: personErr } = await this.supabase.service
+        .from('persons')
+        .select('id, given_name, family_name, club_id, hema_ratings_id, global_person_id')
+        .in('id', personIds);
+      if (personErr) throw new BadRequestException(personErr.message);
+      persons = (personRows ?? []) as Array<{
+        id: string;
+        given_name: string;
+        family_name: string;
+        club_id: string | null;
+        hema_ratings_id: string | null;
+        global_person_id: string | null;
+      }>;
+    }
     const personById = new Map(persons.map((p) => [p.id, p]));
 
     const clubIds = Array.from(
@@ -1471,6 +1498,18 @@ export class EventsService {
         .eq('event_id', eventId);
       for (const r of (refRows ?? []) as Array<{ person_id: string | null }>) {
         if (r.person_id) refereeGlobalIds.add(r.person_id);
+      }
+    }
+
+    // Instructor roster for the event (global-person-keyed), mirrors event_referees.
+    const instructorGlobalIds = new Set<string>();
+    {
+      const { data: instRows } = await this.supabase.service
+        .from('event_instructors')
+        .select('person_id')
+        .eq('event_id', eventId);
+      for (const i of (instRows ?? []) as Array<{ person_id: string | null }>) {
+        if (i.person_id) instructorGlobalIds.add(i.person_id);
       }
     }
 
@@ -1516,11 +1555,13 @@ export class EventsService {
     const byPerson = new Map<
       string,
       {
-        personId: string;
+        personId: string | null;
+        globalPersonId: string;
         displayName: string;
         clubName: string | null;
         clubAbbrev: string | null;
         isReferee: boolean;
+        isInstructor: boolean;
         tournaments: Array<{
           id: string;
           slug: string;
@@ -1542,11 +1583,15 @@ export class EventsService {
         const club = person.club_id ? (clubById.get(person.club_id) ?? null) : null;
         row = {
           personId: person.id,
+          globalPersonId: person.global_person_id ?? person.id,
           displayName: `${person.given_name} ${person.family_name}`.trim() || person.id,
           clubName: club?.name ?? null,
           clubAbbrev: club?.abbreviation ?? null,
           isReferee: person.global_person_id
             ? refereeGlobalIds.has(person.global_person_id)
+            : false,
+          isInstructor: person.global_person_id
+            ? instructorGlobalIds.has(person.global_person_id)
             : false,
           tournaments: [],
         };
@@ -1561,6 +1606,111 @@ export class EventsService {
         waitlistPosition: reg.waitlist_position,
         hemaRating: ratingFor(person, tournament.weapon),
       });
+    }
+
+    // Append referees/instructors who aren't registered in any tournament.
+    // Their canonical identity is global_persons.id; resolve display via an
+    // event persons row (gives a profile link) when one exists, else fall back
+    // to global_persons (personId stays null → the roster renders them unlinked).
+    if (includeStaff) {
+      const covered = new Set<string>();
+      for (const row of byPerson.values()) covered.add(row.globalPersonId);
+      const missing = Array.from(
+        new Set<string>([...refereeGlobalIds, ...instructorGlobalIds]),
+      ).filter((id) => !covered.has(id));
+
+      if (missing.length > 0) {
+        const staffRows: Array<{
+          personId: string | null;
+          globalPersonId: string;
+          displayName: string;
+          clubId: string | null;
+        }> = [];
+        const extraClubIds = new Set<string>();
+        const resolvedGlobalIds = new Set<string>();
+
+        // Pass 1 — event-scoped persons rows linked by global_person_id.
+        const { data: staffPersonRows } = await this.supabase.service
+          .from('persons')
+          .select('id, given_name, family_name, club_id, global_person_id')
+          .eq('event_id', eventId)
+          .in('global_person_id', missing);
+        for (const sp of (staffPersonRows ?? []) as Array<{
+          id: string;
+          given_name: string;
+          family_name: string;
+          club_id: string | null;
+          global_person_id: string | null;
+        }>) {
+          if (!sp.global_person_id || resolvedGlobalIds.has(sp.global_person_id)) continue;
+          resolvedGlobalIds.add(sp.global_person_id);
+          if (sp.club_id) extraClubIds.add(sp.club_id);
+          staffRows.push({
+            personId: sp.id,
+            globalPersonId: sp.global_person_id,
+            displayName: `${sp.given_name} ${sp.family_name}`.trim() || sp.global_person_id,
+            clubId: sp.club_id,
+          });
+        }
+
+        // Pass 2 — global_persons fallback for staff with no event persons row.
+        const stillMissing = missing.filter((id) => !resolvedGlobalIds.has(id));
+        if (stillMissing.length > 0) {
+          const { data: gpRows } = await this.supabase.service
+            .from('global_persons')
+            .select('id, given_name, family_name, display_name, club_id')
+            .in('id', stillMissing);
+          for (const gp of (gpRows ?? []) as Array<{
+            id: string;
+            given_name: string | null;
+            family_name: string | null;
+            display_name: string | null;
+            club_id: string | null;
+          }>) {
+            if (gp.club_id) extraClubIds.add(gp.club_id);
+            const name =
+              `${gp.given_name ?? ''} ${gp.family_name ?? ''}`.trim() ||
+              (gp.display_name ?? '').trim() ||
+              gp.id;
+            staffRows.push({
+              personId: null,
+              globalPersonId: gp.id,
+              displayName: name,
+              clubId: gp.club_id,
+            });
+          }
+        }
+
+        // Resolve any club labels not already cached.
+        const newClubIds = Array.from(extraClubIds).filter((id) => !clubById.has(id));
+        if (newClubIds.length > 0) {
+          const { data: clubRows } = await this.supabase.service
+            .from('clubs')
+            .select('id, name, abbreviation')
+            .in('id', newClubIds);
+          for (const c of (clubRows ?? []) as Array<{
+            id: string;
+            name: string;
+            abbreviation: string | null;
+          }>) {
+            clubById.set(c.id, { name: c.name, abbreviation: c.abbreviation });
+          }
+        }
+
+        for (const sr of staffRows) {
+          const club = sr.clubId ? (clubById.get(sr.clubId) ?? null) : null;
+          byPerson.set(sr.globalPersonId, {
+            personId: sr.personId,
+            globalPersonId: sr.globalPersonId,
+            displayName: sr.displayName,
+            clubName: club?.name ?? null,
+            clubAbbrev: club?.abbreviation ?? null,
+            isReferee: refereeGlobalIds.has(sr.globalPersonId),
+            isInstructor: instructorGlobalIds.has(sr.globalPersonId),
+            tournaments: [],
+          });
+        }
+      }
     }
 
     return Array.from(byPerson.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));

@@ -916,3 +916,193 @@ describe('LeaguesService.addTournamentLink', () => {
     });
   });
 });
+
+describe('LeaguesService.listOrganizationMemberships', () => {
+  function buildService(opts: {
+    roles: unknown;
+    leagues?: unknown;
+    assertOrgRole?: ReturnType<typeof vi.fn>;
+  }) {
+    const rolesChain = makeAwaitableChain({ data: opts.roles, error: null });
+    const leaguesChain = makeAwaitableChain({ data: opts.leagues ?? [], error: null });
+    const supabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'league_organization_roles') return rolesChain;
+          if (table === 'leagues') return leaguesChain;
+          // league_groups / league_tournament_links / league_rankings enrichment
+          return makeAwaitableChain({ data: [], error: null });
+        }),
+      },
+    };
+    const assertOrgRole = opts.assertOrgRole ?? vi.fn().mockResolvedValue(undefined);
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+    return { service, rolesChain, leaguesChain, assertOrgRole, supabase };
+  }
+
+  it('returns every league the org belongs to at any role — member rows included — with role + joined_at, and applies NO role filter', async () => {
+    const { service, rolesChain, assertOrgRole } = buildService({
+      roles: [
+        { league_id: 'L1', role: 'member', created_at: '2026-01-01T00:00:00Z' },
+        { league_id: 'L2', role: 'admin', created_at: '2026-02-02T00:00:00Z' },
+      ],
+      leagues: [
+        { id: 'L1', name: 'Alpha', season_year: 2026 },
+        { id: 'L2', name: 'Beta', season_year: 2025 },
+      ],
+    });
+
+    const result = (await service.listOrganizationMemberships('org-1', 'user-1')) as Array<
+      Record<string, unknown>
+    >;
+
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    // The whole point of the fix: the org-roles query must NOT narrow by role,
+    // so a member-role league is included (previously invisible in the hub).
+    expect(rolesChain.in).not.toHaveBeenCalled();
+    const byId = new Map(result.map((r) => [r['id'], r]));
+    expect(byId.get('L1')).toMatchObject({ org_role: 'member', joined_at: '2026-01-01T00:00:00Z' });
+    expect(byId.get('L2')).toMatchObject({ org_role: 'admin', joined_at: '2026-02-02T00:00:00Z' });
+    expect(result).toHaveLength(2);
+  });
+
+  it('returns [] without querying the leagues table when the org has no memberships', async () => {
+    const { service, supabase } = buildService({ roles: [] });
+    const result = await service.listOrganizationMemberships('org-1', 'user-1');
+    expect(result).toEqual([]);
+    expect(supabase.service.from).not.toHaveBeenCalledWith('leagues');
+  });
+
+  it('propagates ForbiddenException from the org-admin gate before touching the database', async () => {
+    const assertOrgRole = vi.fn().mockRejectedValue(new ForbiddenException('nope'));
+    const { service, supabase } = buildService({ roles: [], assertOrgRole });
+    await expect(service.listOrganizationMemberships('org-1', 'user-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(supabase.service.from).not.toHaveBeenCalled();
+  });
+});
+
+describe('LeaguesService.listManageableByOrg role filter (regression guard)', () => {
+  it('narrows the org-roles query to admin/owner so members never leak into the Manage tab', async () => {
+    const rolesChain = makeAwaitableChain({
+      data: [{ league_id: 'L2', role: 'admin' }],
+      error: null,
+    });
+    const leaguesChain = makeAwaitableChain({
+      data: [{ id: 'L2', name: 'Beta', season_year: 2025 }],
+      error: null,
+    });
+    const supabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'league_organization_roles') return rolesChain;
+          if (table === 'leagues') return leaguesChain;
+          return makeAwaitableChain({ data: [], error: null });
+        }),
+      },
+    };
+    const service = new LeaguesService(
+      supabase as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+    );
+
+    await service.listManageableByOrg('org-1', 'user-1');
+
+    expect(rolesChain.in).toHaveBeenCalledWith('role', ['admin', 'owner']);
+  });
+});
+
+describe('LeaguesService.listOrganizationTournaments', () => {
+  it('flattens the org tournaments with their event, gated on editor and filtered by org', async () => {
+    const rows = [
+      {
+        id: 't1',
+        name: 'Longsword Open',
+        weapon: 'longsword',
+        event_id: 'e1',
+        events: { id: 'e1', name: 'Spring Cup', organization_id: 'org-1' },
+      },
+      {
+        id: 't2',
+        name: 'Rapier',
+        weapon: null,
+        event_id: 'e2',
+        events: { id: 'e2', name: 'Autumn Clash', organization_id: 'org-1' },
+      },
+    ];
+    const chainObj = makeAwaitableChain({ data: rows, error: null });
+    const supabase = { service: { from: vi.fn(() => chainObj) } };
+    const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+
+    const result = await service.listOrganizationTournaments('org-1', 'user-1');
+
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
+    expect(chainObj.eq).toHaveBeenCalledWith('events.organization_id', 'org-1');
+    expect(result).toEqual([
+      {
+        id: 't1',
+        name: 'Longsword Open',
+        weapon: 'longsword',
+        event_id: 'e1',
+        event_name: 'Spring Cup',
+      },
+      { id: 't2', name: 'Rapier', weapon: null, event_id: 'e2', event_name: 'Autumn Clash' },
+    ]);
+  });
+
+  it('throws ForbiddenException when the caller is not an editor of the org', async () => {
+    const chainObj = makeAwaitableChain({ data: [], error: null });
+    const supabase = { service: { from: vi.fn(() => chainObj) } };
+    const assertOrgRole = vi.fn().mockRejectedValue(new ForbiddenException('nope'));
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+
+    await expect(service.listOrganizationTournaments('org-1', 'user-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});
+
+describe('LeaguesService.listOrganizationLeagueAttachments', () => {
+  it("returns the org's non-removed attachments, gated on editor and filtered by org", async () => {
+    const links = [
+      {
+        id: 'link-1',
+        status: 'approved',
+        league_id: 'L1',
+        tournaments: {
+          id: 't1',
+          event_id: 'e1',
+          events: { id: 'e1', name: 'Spring', organization_id: 'org-1' },
+        },
+      },
+    ];
+    const chainObj = makeAwaitableChain({ data: links, error: null });
+    const supabase = { service: { from: vi.fn(() => chainObj) } };
+    const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+
+    const result = await service.listOrganizationLeagueAttachments('org-1', 'user-1');
+
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
+    expect(chainObj.eq).toHaveBeenCalledWith('tournaments.events.organization_id', 'org-1');
+    expect(chainObj.neq).toHaveBeenCalledWith('status', 'removed');
+    expect(result).toEqual(links);
+  });
+
+  it('narrows to a single league when leagueId is provided', async () => {
+    const chainObj = makeAwaitableChain({ data: [], error: null });
+    const supabase = { service: { from: vi.fn(() => chainObj) } };
+    const service = new LeaguesService(
+      supabase as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+    );
+
+    await service.listOrganizationLeagueAttachments('org-1', 'user-1', 'L1');
+
+    expect(chainObj.eq).toHaveBeenCalledWith('league_id', 'L1');
+  });
+});

@@ -39,27 +39,37 @@ export function WorkshopCard({
           className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
         />
       )}
-      <div className="min-w-0">
-        <p className="font-display text-base font-semibold text-slate-900">{w.title}</p>
-        {instructorNames.length > 0 && (
-          <p className="mt-0.5 truncate text-sm text-slate-500">{instructorNames.join(', ')}</p>
+      <div className="flex min-w-0 items-start gap-2.5">
+        {w.coverImageUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={w.coverImageUrl}
+            alt=""
+            className="h-10 w-10 flex-shrink-0 rounded-md object-cover"
+          />
         )}
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {w.category && (
-            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
-              {w.category}
-            </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-base font-semibold text-slate-900">{w.title}</p>
+          {instructorNames.length > 0 && (
+            <p className="mt-0.5 truncate text-sm text-slate-500">{instructorNames.join(', ')}</p>
           )}
-          {w.level && (
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-              {w.level}
-            </span>
-          )}
-          {w.durationMinutes != null && (
-            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
-              {t('publicApp.fighterProfile.minutes', { count: w.durationMinutes })}
-            </span>
-          )}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {w.category && (
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
+                {w.category}
+              </span>
+            )}
+            {w.level && (
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                {w.level}
+              </span>
+            )}
+            {w.durationMinutes != null && (
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
+                {t('publicApp.fighterProfile.minutes', { count: w.durationMinutes })}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between text-xs">

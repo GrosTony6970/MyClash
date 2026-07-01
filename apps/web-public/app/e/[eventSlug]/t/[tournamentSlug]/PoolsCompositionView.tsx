@@ -72,6 +72,13 @@ interface Props {
    * referee footer rows (accent name + "YOU" chip). Undefined → no highlight.
    */
   refereeRowKeys?: string[];
+  /**
+   * Use the wider multi-column grid (up to 4 pools across on xl screens).
+   * Opted into by the in-app `/me` tournament view, whose container widens to
+   * `max-w-6xl` on desktop. The public `/e` page leaves this off and keeps the
+   * original 1/2-column layout.
+   */
+  wide?: boolean;
 }
 
 function refereeRoleLabel(role: string | null): string {
@@ -121,10 +128,15 @@ export function PoolsCompositionView({
   highlightRegistrationId,
   ringPoolIds,
   refereeRowKeys,
+  wide = false,
 }: Props) {
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
   const ringIds = new Set(ringPoolIds ?? []);
   const refRowKeys = new Set(refereeRowKeys ?? []);
+  // Two static class strings (kept whole so Tailwind's purge retains both).
+  const gridClass = wide
+    ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4'
+    : 'grid grid-cols-1 gap-4 lg:grid-cols-2';
 
   if (pools.length === 0) {
     return (
@@ -149,7 +161,7 @@ export function PoolsCompositionView({
             <span aria-hidden="true" className="h-px flex-1 bg-stone-200" />
           </header>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className={gridClass}>
             {section.pools.map((pool) => {
               const isMyPool = ringIds.has(pool.id);
               return (
@@ -238,7 +250,7 @@ export function PoolsCompositionView({
                                 )}
                               </span>
                               {(m.clubAbbreviation ?? m.clubName) && (
-                                <span className="truncate text-xs text-slate-500">
+                                <span className="min-w-0 shrink-[9999] truncate text-xs text-slate-500">
                                   {m.clubAbbreviation ?? m.clubName}
                                 </span>
                               )}

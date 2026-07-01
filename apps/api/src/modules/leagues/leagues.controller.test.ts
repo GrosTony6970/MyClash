@@ -50,6 +50,26 @@ describe('LeaguesController auth', () => {
     );
   });
 
+  it('lists org league-memberships, resolving the caller from the admin cookie', async () => {
+    const listOrganizationMemberships = vi.fn().mockResolvedValue([{ id: 'league-1' }]);
+    const getAuthUser = vi.fn().mockResolvedValue({ id: 'user-3' });
+    const controller = new LeaguesController(
+      { listOrganizationMemberships } as never,
+      { getAuthUser, anon: { auth: { getUser: vi.fn() } } } as never,
+    );
+
+    await controller.listOrganizationMemberships('33333333-3333-4333-8333-333333333333', {
+      cookies: { 'sb-access-token': 'cookie-token' },
+      headers: {},
+    } as never);
+
+    expect(getAuthUser).toHaveBeenCalledWith('cookie-token');
+    expect(listOrganizationMemberships).toHaveBeenCalledWith(
+      '33333333-3333-4333-8333-333333333333',
+      'user-3',
+    );
+  });
+
   it('rejects invalid tokens instead of passing anonymous to league mutations', async () => {
     const create = vi.fn();
     const controller = new LeaguesController(

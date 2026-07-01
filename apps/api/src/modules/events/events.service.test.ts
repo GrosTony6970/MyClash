@@ -1108,7 +1108,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: clubs, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
       const result = await service.listPublicParticipants('fal-2027');
 
@@ -1143,7 +1144,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(regChain)
         .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
       const result = await service.listPublicParticipants('fal-2027');
 
@@ -1168,7 +1170,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
       const result = await service.listPublicParticipants('fal-2027');
 
@@ -1187,10 +1190,90 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
       const result = await service.listPublicParticipants('fal-2027');
       expect(result[0]?.tournaments[0]?.registrationState).toBe('active');
+    });
+
+    it('with includeStaff appends non-competing referees/instructors', async () => {
+      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
+      // Alice competes AND referees (global g1). Bob (g2) referees but does not
+      // compete yet has an event persons row (p2). Carol (g3) instructs with no
+      // persons row → resolved from global_persons, personId stays null.
+      const persons = [
+        { id: 'p1', given_name: 'Alice', family_name: 'A', club_id: null, global_person_id: 'g1' },
+      ];
+
+      fromMock
+        .mockReturnValueOnce(eventSlugChain())
+        .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
+        .mockReturnValueOnce(
+          makeAwaitableChain({ data: [{ person_id: 'g1' }, { person_id: 'g2' }], error: null }),
+        ) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [{ person_id: 'g3' }], error: null })) // event_instructors
+        .mockReturnValueOnce(
+          makeAwaitableChain({
+            data: [
+              {
+                id: 'p2',
+                given_name: 'Bob',
+                family_name: 'B',
+                club_id: 'c1',
+                global_person_id: 'g2',
+              },
+            ],
+            error: null,
+          }),
+        ) // staff persons (pass 1)
+        .mockReturnValueOnce(
+          makeAwaitableChain({
+            data: [
+              {
+                id: 'g3',
+                given_name: 'Carol',
+                family_name: 'C',
+                display_name: 'Carol C',
+                club_id: null,
+              },
+            ],
+            error: null,
+          }),
+        ) // global_persons fallback (pass 2)
+        .mockReturnValueOnce(
+          makeAwaitableChain({
+            data: [{ id: 'c1', name: 'Paris HEMA', abbreviation: 'PAR' }],
+            error: null,
+          }),
+        ); // staff clubs
+
+      const result = await service.listPublicParticipants('fal-2027', { includeStaff: true });
+
+      const alice = result.find((r) => r.globalPersonId === 'g1');
+      expect(alice?.isReferee).toBe(true);
+      expect(alice?.tournaments).toHaveLength(1);
+
+      const bob = result.find((r) => r.globalPersonId === 'g2');
+      expect(bob).toBeDefined();
+      expect(bob?.personId).toBe('p2');
+      expect(bob?.displayName).toBe('Bob B');
+      expect(bob?.clubName).toBe('Paris HEMA');
+      expect(bob?.clubAbbrev).toBe('PAR');
+      expect(bob?.isReferee).toBe(true);
+      expect(bob?.isInstructor).toBe(false);
+      expect(bob?.tournaments).toEqual([]);
+
+      const carol = result.find((r) => r.globalPersonId === 'g3');
+      expect(carol).toBeDefined();
+      expect(carol?.personId).toBeNull();
+      expect(carol?.displayName).toBe('Carol C');
+      expect(carol?.isInstructor).toBe(true);
+      expect(carol?.isReferee).toBe(false);
+      expect(carol?.tournaments).toEqual([]);
     });
   });
 
@@ -1857,7 +1940,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(tournamentsChain)
         .mockReturnValueOnce(regsChain)
         .mockReturnValueOnce(personsChain)
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
       const result = await service.listPublicParticipants('fal-2027');
 

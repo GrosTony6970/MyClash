@@ -32,6 +32,7 @@ import {
 } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
+import { WorkshopLogoField } from './WorkshopLogoField';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
@@ -66,6 +67,8 @@ interface Workshop {
   status: string;
   /** Optional identity color (ColorToken string), like tournaments. */
   color: string | null;
+  /** Workshop logo (square) public URL, or null. */
+  coverImageUrl: string | null;
   // Workshop-level default venue. Sessions inherit this when the
   // operator schedules — they can still override via the session
   // Venue picker.
@@ -186,6 +189,48 @@ export default function WorkshopsAdminPage() {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Workshop logo staging. The workshop may not exist yet (create path),
+  // so we hold the baked PNG blob and POST it to /workshops/:id/logo
+  // after the create/patch resolves the id — mirroring the deferred
+  // session + instructor writes below. `logoRemoved` clears an existing
+  // logo on save; `existingLogoUrl` is the currently-saved logo (edit).
+  const [logoBlob, setLogoBlob] = useState<Blob | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
+
+  const WORKSHOP_LOGO_MAX_BYTES = 15 * 1024 * 1024;
+
+  function resetLogoState() {
+    setLogoBlob(null);
+    setLogoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setExistingLogoUrl(null);
+    setLogoRemoved(false);
+  }
+
+  function stageLogo(blob: Blob, previewUrl: string) {
+    setLogoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return previewUrl;
+    });
+    setLogoBlob(blob);
+    setLogoRemoved(false);
+  }
+
+  function clearLogo() {
+    setLogoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setLogoBlob(null);
+    // Only mark a server-side removal when there was a saved logo.
+    setLogoRemoved(Boolean(existingLogoUrl));
+    setExistingLogoUrl(null);
+  }
+
   // Reactive timing: Start+End → Duration; Start+Duration → End. Only
   // fills the field the operator is NOT currently editing.
   function onTimingChange(field: 'start' | 'end' | 'durationMinutes', value: string) {
@@ -214,12 +259,15 @@ export default function WorkshopsAdminPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormError(null);
+    resetLogoState();
     setShowCreate(true);
   }
 
   function openEdit(w: Workshop) {
     const s = w.sessions[0] ?? null;
     setEditingId(w.id);
+    resetLogoState();
+    setExistingLogoUrl(w.coverImageUrl ?? null);
     setForm({
       title: w.title,
       slug: w.slug,
@@ -259,6 +307,7 @@ export default function WorkshopsAdminPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormError(null);
+    resetLogoState();
   }
 
   // Roster modal
@@ -332,6 +381,24 @@ export default function WorkshopsAdminPage() {
     });
   }
 
+  // POST the staged (cropped) logo blob after the workshop id exists.
+  // Throws on failure so the caller surfaces the error and keeps the
+  // modal open for a retry (the workshop itself is already saved).
+  async function uploadStagedLogo(workshopId: string) {
+    if (!logoBlob) return;
+    const fd = new FormData();
+    fd.append('file', new File([logoBlob], 'logo.png', { type: 'image/png' }));
+    const res = await fetch(`${apiUrl}/api/v1/workshops/${workshopId}/logo`, {
+      method: 'POST',
+      credentials: 'include',
+      body: fd,
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      throw new Error(body.message ?? t('admin.common.saveFailed'));
+    }
+  }
+
   async function handleSubmit() {
     if (!form.title.trim() || !form.slug.trim()) {
       setFormError(t('admin.common.titleAndSlugRequired'));
@@ -356,6 +423,9 @@ export default function WorkshopsAdminPage() {
             status: form.status,
             color: form.color || null,
             venueId: form.venueId || null,
+            // Clear a saved logo when the operator removed it. Setting a
+            // new logo goes through the dedicated upload endpoint below.
+            ...(logoRemoved ? { coverImageUrl: null } : {}),
             // Only touch the description when one was typed, so editing
             // other fields never silently wipes an existing description.
             ...(form.description.trim() ? { descriptionMd: form.description.trim() } : {}),
@@ -414,6 +484,8 @@ export default function WorkshopsAdminPage() {
           });
         }
 
+        await uploadStagedLogo(editingId);
+
         closeModal();
         setRefreshKey((k) => k + 1);
         return;
@@ -466,6 +538,8 @@ export default function WorkshopsAdminPage() {
           body: JSON.stringify({ globalPersonId }),
         });
       }
+
+      await uploadStagedLogo(created.id);
 
       closeModal();
       setRefreshKey((k) => k + 1);
@@ -1120,6 +1194,14 @@ export default function WorkshopsAdminPage() {
                   </p>
                 )}
               </div>
+              <WorkshopLogoField
+                existingUrl={existingLogoUrl}
+                previewUrl={logoPreview}
+                maxBytes={WORKSHOP_LOGO_MAX_BYTES}
+                disabled={formSaving}
+                onStage={stageLogo}
+                onClear={clearLogo}
+              />
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
                   Color

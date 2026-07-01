@@ -70,6 +70,21 @@ function slugify(name: string): string {
     .slice(0, 50);
 }
 
+// Fighter profile photos live in their own bucket (not the events
+// `event-assets` bucket) so their 15 MB cap isn't blocked by that
+// bucket's 10 MB `fileSizeLimit`. The client cropper re-encodes to a
+// small square JPEG, so real uploads are tiny; the cap guards the raw
+// source file that slips through client-side validation.
+const FIGHTER_PHOTO_BUCKET = 'fighter-photos';
+const FIGHTER_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
+const ALLOWED_FIGHTER_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+export interface FighterPhotoUpload {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}
+
 type Row = Record<string, unknown>;
 
 const DEFAULT_WEAPONS = [
@@ -368,6 +383,93 @@ export class FightersService {
     if (dto.weapons !== undefined) await this.replaceFighterWeapons(dto.fighterId, dto.weapons);
 
     return this.getMyProfile(userId);
+  }
+
+  // ── Profile photo ────────────────────────────────────────────────────────────
+
+  /** Resolve the claimed user's global_persons id (throws if none linked). */
+  private async resolveMyGlobalPersonId(userId: string): Promise<string> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', userId)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('No claimed Fighter profile linked to this account');
+    return String((data as Row)['id']);
+  }
+
+  /**
+   * Upload the claimed user's profile photo. Mirrors
+   * OrganizationsService.uploadLogo (Fastify buffer → Supabase Storage →
+   * same-origin path → save on the row), but writes to the dedicated
+   * `fighter-photos` bucket at a 15 MB cap and stores the path on
+   * `global_persons.photo_url`. We store a same-origin RELATIVE path (not
+   * Supabase's absolute getPublicUrl) so the photo loads on every surface
+   * that renders it — including the admin external-display popup, which is on
+   * a different origin than the app the getPublicUrl would point at.
+   */
+  async uploadMyPhoto(userId: string, file: FighterPhotoUpload): Promise<{ url: string }> {
+    const id = await this.resolveMyGlobalPersonId(userId);
+
+    if (!file.buffer.length) throw new BadRequestException('No photo file uploaded.');
+    if (file.buffer.length > FIGHTER_PHOTO_MAX_BYTES) {
+      throw new BadRequestException('Photo upload exceeds the 15 MB size limit.');
+    }
+    if (!ALLOWED_FIGHTER_PHOTO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Photo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensurePhotoBucket();
+    const extension =
+      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const path = `fighters/${id}/photo-${Date.now()}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(FIGHTER_PHOTO_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (error) throw new BadRequestException(error.message);
+
+    // Same-origin relative path — the IMG resolves to whichever admin/app
+    // origin loaded the bundle, sidestepping the cross-origin app.${DOMAIN}
+    // roundtrip Supabase's getPublicUrl would produce. Traefik routes
+    // /storage/v1/* to supabase-storage on both origins. Mirrors
+    // OrganizationsService.uploadLogo.
+    const url = `/storage/v1/object/public/${FIGHTER_PHOTO_BUCKET}/${path}`;
+
+    const { error: updateError } = await this.supabase.service
+      .from('global_persons')
+      .update({ photo_url: url, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (updateError) throw new BadRequestException(updateError.message);
+
+    return { url };
+  }
+
+  /** Clear the claimed user's profile photo (avatar falls back to initials). */
+  async removeMyPhoto(userId: string): Promise<{ url: null }> {
+    const id = await this.resolveMyGlobalPersonId(userId);
+    const { error } = await this.supabase.service
+      .from('global_persons')
+      .update({ photo_url: null, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new BadRequestException(error.message);
+    return { url: null };
+  }
+
+  private async ensurePhotoBucket(): Promise<void> {
+    const storage = this.supabase.service.storage;
+    const { data, error } = await storage.getBucket(FIGHTER_PHOTO_BUCKET);
+    if (data && !error) return;
+    const created = await storage.createBucket(FIGHTER_PHOTO_BUCKET, {
+      public: true,
+      fileSizeLimit: FIGHTER_PHOTO_MAX_BYTES,
+      allowedMimeTypes: Array.from(ALLOWED_FIGHTER_PHOTO_MIME_TYPES),
+    });
+    if (created.error && !/already exists/iu.test(created.error.message)) {
+      throw new BadRequestException(created.error.message);
+    }
   }
 
   async getMyDashboard(userId: string) {

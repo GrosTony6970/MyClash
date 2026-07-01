@@ -128,6 +128,8 @@ describe('StaffService.getPublicMatchDisplay', () => {
             family_name: 'Garnier',
             club_id: 'club-lyon',
             clubs: { name: 'Lyon AMHE', logo_url: 'https://cdn.example/lyon.png' },
+            // Photo lives on the linked global identity, not the local person.
+            global_persons: { photo_url: 'https://cdn.example/anthony.jpg' },
           },
         },
         blue: {
@@ -141,6 +143,8 @@ describe('StaffService.getPublicMatchDisplay', () => {
             // fallback needed (matches 0081's view simplification).
             club_id: 'club-lyon',
             clubs: { name: 'Lyon AMHE', logo_url: null },
+            // No linked global identity → no photo → initials fallback on the TV.
+            global_persons: null,
           },
         },
         phases: {
@@ -177,6 +181,11 @@ describe('StaffService.getPublicMatchDisplay', () => {
         name: 'Lyon AMHE',
         logoUrl: null,
       });
+      // Fighter photos resolve from the linked global identity; null when unlinked.
+      expect(payload['redFighterPhotoUrl']).toBe('https://cdn.example/anthony.jpg');
+      expect(payload['blueFighterPhotoUrl']).toBeNull();
+      // Pool matches carry poolName, not a bracket label.
+      expect(payload['bracketLabel']).toBeNull();
     });
 
     it('returns null pool fields for bracket matches (no pool_id)', async () => {
@@ -236,6 +245,11 @@ describe('StaffService.getPublicMatchDisplay', () => {
       expect(payload['totalFightsInPool']).toBeNull();
       expect(payload['redClub']).toBeNull();
       expect(payload['blueClub']).toBeNull();
+      // Bracket round 4 with no known bracket size → labelled 'B4' for the
+      // TV context line (poolName is null here, so the label takes its slot).
+      expect(payload['bracketLabel']).toBe('B4');
+      expect(payload['redFighterPhotoUrl']).toBeNull();
+      expect(payload['blueFighterPhotoUrl']).toBeNull();
     });
   });
 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isExternalHref, safeReturnHref, scoringRoutePrefix, scoreboardPopupFeatures } from './nav';
+import {
+  displayUrlForMatch,
+  isExternalHref,
+  safeReturnHref,
+  scoringRoutePrefix,
+  scoreboardPopupFeatures,
+} from './nav';
 
 describe('safeReturnHref', () => {
   const origin = 'https://admin.myclash.fr';
@@ -66,6 +72,30 @@ describe('scoreboardPopupFeatures', () => {
   it('honours explicit width/height', () => {
     expect(scoreboardPopupFeatures(800, 600)).toBe(
       'popup=yes,width=800,height=600,resizable=yes,scrollbars=no',
+    );
+  });
+});
+
+describe('displayUrlForMatch', () => {
+  it('swaps the match id in a /display/{id} base for the current match', () => {
+    expect(displayUrlForMatch('/display/match-1', 'match-2')).toBe('/display/match-2');
+  });
+
+  it('preserves any query/hash after the id segment', () => {
+    expect(displayUrlForMatch('/display/match-1?foo=bar#x', 'match-2')).toBe(
+      '/display/match-2?foo=bar#x',
+    );
+  });
+
+  it('returns null when there is no external-display base', () => {
+    expect(displayUrlForMatch(null, 'match-2')).toBeNull();
+    expect(displayUrlForMatch(undefined, 'match-2')).toBeNull();
+    expect(displayUrlForMatch('', 'match-2')).toBeNull();
+  });
+
+  it('leaves a URL without a /display/{id} segment untouched', () => {
+    expect(displayUrlForMatch('/scoring/matches/match-1', 'match-2')).toBe(
+      '/scoring/matches/match-1',
     );
   });
 });

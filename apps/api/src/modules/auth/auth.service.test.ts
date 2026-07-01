@@ -265,6 +265,30 @@ describe('AuthService', () => {
       expect(result.admin).toEqual({ isSuperAdmin: false, organizations: [] });
     });
 
+    it('includes the claimed user global profile photo when linked', async () => {
+      mockAuthUser({
+        id: 'user-123',
+        email: 'fighter@example.com',
+        user_metadata: { display_name: 'Fighter One' },
+      });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // persons
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // super_admin check
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null })) // orgs list
+        .mockReturnValueOnce(
+          makeQueryChain({ data: { photo_url: 'https://cdn.example/avatar.jpg' }, error: null }),
+        ); // global_persons photo (last)
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer valid-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.type).toBe('claimed');
+      expect(result.user?.photo_url).toBe('https://cdn.example/avatar.jpg');
+    });
+
     it('returns super-admin landing context for platform admins', async () => {
       mockAuthUser({
         id: 'admin-123',

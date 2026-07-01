@@ -9,6 +9,8 @@ export class MeResponseDto {
     id: string;
     email: string;
     display_name?: string;
+    /** The claimed user's global profile photo, when a global_persons row is linked. */
+    photo_url?: string;
   };
 
   @ApiProperty({ required: false })

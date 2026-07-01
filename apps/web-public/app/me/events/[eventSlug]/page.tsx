@@ -51,6 +51,9 @@ function CompetitionLinks({
     'inline-flex items-center rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-foreground hover:border-accent hover:text-accent';
   return (
     <div className="mt-3 flex flex-wrap gap-2">
+      <Link href={`${base}#pools`} className={chip}>
+        {t('publicApp.me.hub.poolList')}
+      </Link>
       <Link href={`${base}#poolmatches`} className={chip}>
         {t('publicApp.me.hub.poolMatches')}
       </Link>

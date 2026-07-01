@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { SegmentedTabs, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { LeagueAttachmentsSection } from './_components/LeagueAttachmentsSection';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
 
 interface OrgRow {
   id: string;
@@ -26,12 +28,17 @@ interface LeagueRow {
 
 interface ManagedLeagueRow extends LeagueRow {
   org_role?: string | null;
+  joined_at?: string | null;
   tournament_count?: number;
   group_count?: number;
   fighter_count?: number;
 }
 
-type LeaguesTab = 'manage' | 'discover';
+type LeaguesTab = 'membership' | 'manage' | 'discover';
+
+function isTabKey(value: string | null): value is LeaguesTab {
+  return value === 'membership' || value === 'manage' || value === 'discover';
+}
 
 interface MembershipRequestRow {
   id: string;
@@ -46,6 +53,13 @@ interface MembershipRequestRow {
   leagues?: { id: string; name: string | null; slug: string | null } | null;
 }
 
+/** Tailwind classes for the role pill; admin/owner share the accent tone. */
+function roleBadgeClass(role: string | null | undefined): string {
+  return role === 'admin' || role === 'owner'
+    ? 'bg-accent/10 text-accent'
+    : 'bg-success/10 text-success';
+}
+
 export default function OrgLeaguesPage() {
   const { t } = useI18n();
   const params = useParams<{ slug: string }>();
@@ -53,7 +67,8 @@ export default function OrgLeaguesPage() {
   const toast = useToast();
 
   const [org, setOrg] = useState<OrgRow | null>(null);
-  const [tab, setTab] = useState<LeaguesTab>('manage');
+  const [tab, setTab] = useState<LeaguesTab>('membership');
+  const [memberships, setMemberships] = useState<ManagedLeagueRow[]>([]);
   const [managed, setManaged] = useState<ManagedLeagueRow[]>([]);
   const [leagues, setLeagues] = useState<LeagueRow[]>([]);
   const [requests, setRequests] = useState<MembershipRequestRow[]>([]);
@@ -80,6 +95,17 @@ export default function OrgLeaguesPage() {
       };
       setOrg(orgRow);
 
+      // Every league this org belongs to, at any role. Canonical source of
+      // truth for both the Membership tab and the Discover button state — it
+      // includes member-role leagues and super-admin direct adds that have no
+      // request row (the reported gap).
+      const memRes = await fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/league-memberships`, {
+        credentials: 'include',
+      });
+      const memData = memRes.ok ? ((await memRes.json()) as ManagedLeagueRow[]) : [];
+      setMemberships(memData);
+      setMemberOfLeagueIds(new Set(memData.map((l) => l.id)));
+
       // Leagues this org manages (admin/owner role). Powers the Manage tab.
       const managedRes = await fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/leagues`, {
         credentials: 'include',
@@ -91,28 +117,13 @@ export default function OrgLeaguesPage() {
       const leaguesData = leaguesRes.ok ? ((await leaguesRes.json()) as LeagueRow[]) : [];
       setLeagues(leaguesData);
 
-      // This org's existing membership requests.
+      // This org's existing membership requests (drives the pending badge +
+      // the Discover "Pending requests" section and withdraw).
       const reqRes = await fetch(`${apiUrl}/api/v1/orgs/${orgRow.id}/league-requests`, {
         credentials: 'include',
       });
-      if (reqRes.ok) {
-        const data = (await reqRes.json()) as MembershipRequestRow[];
-        setRequests(data);
-      }
+      setRequests(reqRes.ok ? ((await reqRes.json()) as MembershipRequestRow[]) : []);
 
-      // Which leagues this org is already a member of — we read the
-      // admin org-roles endpoint per league. For the public-facing flow
-      // we infer membership from approved request rows; a freshly-added
-      // org without a request row will still see the join button, and
-      // the backend rejects the duplicate.
-      const approvedLeagueIds = new Set<string>();
-      if (reqRes.ok) {
-        const data = (await reqRes.json().catch(() => [])) as MembershipRequestRow[];
-        for (const r of data) {
-          if (r.status === 'approved') approvedLeagueIds.add(r.league_id);
-        }
-      }
-      setMemberOfLeagueIds(approvedLeagueIds);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('organizer.leagues.leaguesLoadError'));
@@ -126,6 +137,24 @@ export default function OrgLeaguesPage() {
     void loadAll();
   }, [loadAll]);
 
+  // Deep-link `?tab=` support without next/navigation's useSearchParams — that
+  // hook makes the React Compiler bail out of the component, which in turn
+  // breaks the manual memoization on loadAll. Reading/writing the query via the
+  // window APIs keeps the compiler happy. Read once on mount; the Stage-2
+  // redirect from the retired event-scoped page lands here with ?tab=membership.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('tab');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time deep-link read on mount
+    if (isTabKey(q)) setTab(q);
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('tab') === tab) return;
+    url.searchParams.set('tab', tab);
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+  }, [tab]);
+
   const pendingRequests = useMemo(
     () => requests.filter((r) => r.status === 'requested'),
     [requests],
@@ -135,6 +164,11 @@ export default function OrgLeaguesPage() {
     for (const r of pendingRequests) map.set(r.league_id, r);
     return map;
   }, [pendingRequests]);
+  const roleByLeagueId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of memberships) if (m.org_role) map.set(m.id, m.org_role);
+    return map;
+  }, [memberships]);
 
   async function submitJoin(leagueId: string) {
     if (!org) return;
@@ -212,14 +246,93 @@ export default function OrgLeaguesPage() {
 
       <SegmentedTabs
         tabs={[
+          { value: 'membership' as const, label: t('organizer.leagues.tabMembership') },
           { value: 'manage' as const, label: t('organizer.leagues.manage.tabManage') },
           { value: 'discover' as const, label: t('organizer.leagues.tabDiscover') },
         ]}
         value={tab}
         onChange={setTab}
         aria-label={t('organizer.leagues.eyebrow')}
-        className="mb-6 max-w-md"
+        className="mb-6 max-w-xl"
       />
+
+      {tab === 'membership' && (
+        <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+            {t('organizer.leagues.membership.heading')}
+          </h2>
+          {loading && <p className="text-sm text-muted">{t('organizer.leagues.loadingState')}</p>}
+          {!loading && memberships.length === 0 && (
+            <p className="text-sm text-muted">{t('organizer.leagues.membership.empty')}</p>
+          )}
+          <ul className="divide-y divide-border">
+            {memberships.map((league) => {
+              const role = league.org_role ?? 'member';
+              const canManage = role === 'admin' || role === 'owner';
+              const roleKey = canManage ? role : 'member';
+              const canViewPublic = league.public_visibility;
+              return (
+                <li key={league.id} className="py-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">
+                        {league.name}
+                        <span className="ml-2 font-mono text-xs text-muted">
+                          {league.season_year}
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {t('organizer.leagues.manage.listCounts', {
+                          tournaments: league.tournament_count ?? 0,
+                          groups: league.group_count ?? 0,
+                        })}
+                        {league.joined_at && (
+                          <>
+                            {' · '}
+                            {t('organizer.leagues.joinedAt', {
+                              date: new Date(league.joined_at).toLocaleDateString(),
+                            })}
+                          </>
+                        )}
+                      </p>
+                      {!canManage && !canViewPublic && (
+                        <p className="mt-1 text-xs text-muted">
+                          {t('organizer.leagues.memberOnlyNote')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${roleBadgeClass(role)}`}
+                      >
+                        {t(`organizer.leagues.roleBadge.${roleKey}`)}
+                      </span>
+                      {canManage ? (
+                        <Link
+                          href={`/org/${orgSlug}/leagues/${league.id}`}
+                          className="rounded-md border border-border px-3 py-1 text-xs font-semibold text-accent hover:bg-background"
+                        >
+                          {t('organizer.leagues.manage.manageLink')}
+                        </Link>
+                      ) : canViewPublic ? (
+                        <a
+                          href={`${publicAppUrl}/leagues/${league.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:bg-background"
+                        >
+                          {t('organizer.leagues.viewPublicLeague')}
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                  {org && <LeagueAttachmentsSection orgId={org.id} leagueId={league.id} />}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {tab === 'manage' && (
         <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
@@ -283,7 +396,7 @@ export default function OrgLeaguesPage() {
                         {t('organizer.leagues.requestedAt', {
                           date: new Date(r.requested_at).toLocaleDateString(),
                         })}
-                        {r.message && <> · "{r.message}"</>}
+                        {r.message && <> · &ldquo;{r.message}&rdquo;</>}
                       </p>
                     </div>
                     <button
@@ -312,6 +425,8 @@ export default function OrgLeaguesPage() {
             <ul className="divide-y divide-border">
               {leagues.map((league) => {
                 const alreadyMember = memberOfLeagueIds.has(league.id);
+                const role = roleByLeagueId.get(league.id);
+                const isManageRole = role === 'admin' || role === 'owner';
                 const pending = pendingByLeagueId.get(league.id);
                 return (
                   <li
@@ -331,8 +446,12 @@ export default function OrgLeaguesPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {alreadyMember ? (
-                        <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-                          {t('organizer.leagues.memberBadge')}
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${roleBadgeClass(role)}`}
+                        >
+                          {isManageRole && role
+                            ? t(`organizer.leagues.roleBadge.${role}`)
+                            : t('organizer.leagues.memberBadge')}
                         </span>
                       ) : pending ? (
                         <span className="rounded-full bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">

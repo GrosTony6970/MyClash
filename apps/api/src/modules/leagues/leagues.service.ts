@@ -242,6 +242,43 @@ export class LeaguesService {
   }
 
   /**
+   * Every league this organization belongs to, at ANY role (member/admin/owner),
+   * sourced from league_organization_roles with NO role filter. Backs the
+   * organizer workspace "Leagues → Membership" tab so a member-role org — or one
+   * added directly by a super-admin with no request row — can still see the
+   * leagues it belongs to (the reported gap). The caller must be an admin/owner
+   * of the organization; each returned league carries the org's role + join date.
+   */
+  async listOrganizationMemberships(organizationId: string, userId: string) {
+    await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    const { data: roleRows, error: roleErr } = await this.supabase.service
+      .from('league_organization_roles')
+      .select('league_id, role, created_at')
+      .eq('organization_id', organizationId);
+    if (roleErr) throw new BadRequestException(roleErr.message);
+    const roleByLeague = new Map<string, string>();
+    const joinedAtByLeague = new Map<string, string>();
+    for (const row of (roleRows ?? []) as Row[]) {
+      const leagueId = String(row['league_id']);
+      roleByLeague.set(leagueId, String(row['role']));
+      if (row['created_at'] != null) joinedAtByLeague.set(leagueId, String(row['created_at']));
+    }
+    if (roleByLeague.size === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .select('*')
+      .in('id', [...roleByLeague.keys()])
+      .order('season_year', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    const enriched = await this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+    return enriched.map((league) => ({
+      ...league,
+      org_role: roleByLeague.get(String(league['id'])) ?? null,
+      joined_at: joinedAtByLeague.get(String(league['id'])) ?? null,
+    }));
+  }
+
+  /**
    * Project four per-league counts onto each row so the Ranking tab
    * can render its summary table in a single round-trip:
    *   - group_count       → league_groups rows for this league
@@ -963,6 +1000,61 @@ export class LeaguesService {
       })
       .eq('id', linkId);
     if (updateErr) throw new BadRequestException(updateErr.message);
+  }
+
+  /**
+   * Every tournament belonging to any of this organization's events, flattened
+   * across events. Powers the org-hub "Attach a tournament" picker, which — now
+   * that tournament attachment is merged into the org Leagues hub — has no single
+   * event context to scope to. Auth: editor+ on the org (mirrors the event-side
+   * assertCanManageEvent editor bar). Each row carries its event so the picker
+   * can group tournaments by event.
+   */
+  async listOrganizationTournaments(organizationId: string, userId: string) {
+    await this.orgs.assertOrgRole(organizationId, userId, 'editor');
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, name, weapon, event_id, events!inner(id, name, organization_id)')
+      .eq('events.organization_id', organizationId)
+      .order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Row[]).map((row) => {
+      const event = (row['events'] as Row | null) ?? null;
+      return {
+        id: row['id'],
+        name: row['name'],
+        weapon: row['weapon'] ?? null,
+        event_id: row['event_id'],
+        event_name: event ? event['name'] : null,
+      };
+    });
+  }
+
+  /**
+   * Org-scoped variant of listEventLeagueAttachments: every non-removed
+   * tournament-attach link whose tournament belongs to one of this org's events,
+   * across all events. Powers the org-hub nested "Tournaments attached to this
+   * league" section. Pass `leagueId` to lazily fetch a single league's slice on
+   * expand. Each row carries tournaments.event_id so the UI can call the
+   * event-scoped self-detach route. Auth: editor+ on the org.
+   */
+  async listOrganizationLeagueAttachments(
+    organizationId: string,
+    userId: string,
+    leagueId?: string,
+  ) {
+    await this.orgs.assertOrgRole(organizationId, userId, 'editor');
+    let query = this.supabase.service
+      .from('league_tournament_links')
+      .select(
+        '*, leagues(id, name, slug, season_year, scoring_system, scoring_config), league_groups(id, name), tournaments!inner(id, name, weapon, event_id, events!inner(id, name, organization_id))',
+      )
+      .eq('tournaments.events.organization_id', organizationId)
+      .neq('status', 'removed');
+    if (leagueId) query = query.eq('league_id', leagueId);
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
   }
 
   /**

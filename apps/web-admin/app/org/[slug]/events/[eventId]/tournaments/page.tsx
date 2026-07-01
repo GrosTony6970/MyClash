@@ -10,6 +10,7 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
+import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
 
 interface Tournament {
   id: string;
@@ -461,6 +462,12 @@ export default function EventTournamentsPage() {
           </div>
         )}
       </section>
+
+      {!isReadOnly && !loading && tournaments.length > 0 && (
+        <div className="mt-6">
+          <AttachToLeaguePanel eventId={eventId} />
+        </div>
+      )}
 
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">

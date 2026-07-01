@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { Avatar } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
@@ -37,6 +38,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
     null,
   );
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const notificationsUnread = useUnreadBroadcasts(apiUrl);
 
@@ -55,7 +57,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
 
         const data = (await response.json()) as {
           type?: string;
-          user?: { email?: string; display_name?: string };
+          user?: { email?: string; display_name?: string; photo_url?: string };
           person?: { given_name?: string; family_name?: string };
         };
         if (data.type !== 'claimed') {
@@ -68,6 +70,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
           .join(' ')
           .trim();
         setDisplayName(data.user?.display_name || personName || data.user?.email || null);
+        setPhotoUrl(data.user?.photo_url ?? null);
         setReady(true);
       })
       .catch((error: unknown) => {
@@ -231,10 +234,13 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
             </div>
           </Link>
           {displayName && (
-            <p className="mt-2 pl-1 text-[0.7rem] text-muted">
-              {t('publicApp.personalShell.loggedAs')}{' '}
-              <span className="font-semibold text-foreground">{displayName}</span>
-            </p>
+            <div className="mt-2 flex items-center gap-2 pl-1">
+              <p className="min-w-0 text-[0.7rem] text-muted">
+                {t('publicApp.personalShell.loggedAs')}{' '}
+                <span className="font-semibold text-foreground">{displayName}</span>
+              </p>
+              <Avatar size="sm" name={displayName} src={photoUrl ?? undefined} />
+            </div>
           )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>

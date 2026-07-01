@@ -15,8 +15,11 @@ export type LogoErrorKey = 'organizer.events.logoTooLarge' | 'organizer.events.l
 
 export type LogoValidationResult = { ok: true } | { ok: false; errorKey: LogoErrorKey };
 
-export function validateLogoFile(file: File): LogoValidationResult {
-  if (file.size > MAX_LOGO_BYTES) {
+export function validateLogoFile(
+  file: File,
+  maxBytes: number = MAX_LOGO_BYTES,
+): LogoValidationResult {
+  if (file.size > maxBytes) {
     return { ok: false, errorKey: 'organizer.events.logoTooLarge' };
   }
   if (!(ALLOWED_LOGO_TYPES as readonly string[]).includes(file.type)) {

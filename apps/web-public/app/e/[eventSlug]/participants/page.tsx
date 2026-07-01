@@ -53,7 +53,7 @@ async function fetchParticipants(eventSlug: string): Promise<ParticipantLike[]> 
   const apiUrl = getApiUrl();
   try {
     const res = await fetch(
-      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants`,
+      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants?includeStaff=true`,
       { cache: 'no-store' },
     );
     if (!res.ok) return [];

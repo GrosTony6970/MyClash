@@ -22,7 +22,14 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
@@ -75,6 +82,9 @@ const updateWorkshopSchema = z
     durationMinutes: z.number().int().min(1).nullish(),
     status: z.enum(WORKSHOP_STATUSES).nullish(),
     color: z.string().nullish(),
+    // Logo is set via POST /workshops/:id/logo; the update path only
+    // carries it so the operator can clear it (send null).
+    coverImageUrl: z.string().nullish(),
     venueId: z.uuid().nullish(),
   })
   .strict();
@@ -186,6 +196,32 @@ export class WorkshopsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.workshops.updateWorkshop(id, dto, userId);
+  }
+
+  /** POST /api/v1/workshops/:id/logo — square logo (workshop_lead+). */
+  @Post('workshops/:id/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload workshop logo (workshop_lead+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.workshops.uploadLogo(id, userId, {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    });
   }
 
   // ── Instructors ───────────────────────────────────────────────────────────────

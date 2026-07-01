@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -29,7 +30,7 @@ import {
 } from '../../common/throttling/throttle-profiles';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
-import { FightersService } from './fighters.service';
+import { FightersService, type FighterPhotoUpload } from './fighters.service';
 import { FighterMergeService } from './merge.service';
 import {
   CreateFighterDto,
@@ -95,6 +96,42 @@ export class FightersController {
   async updateMyProfile(@Body() dto: UpdateMyFighterProfileDto, @Req() req: FastifyRequest) {
     const userId = await getClaimedUserId(req, this.supabase);
     return this.fighters.updateMyProfile(userId, dto);
+  }
+
+  /** POST /api/v1/fighters/me/photo — upload the claimed user's profile photo. */
+  @Post('me/photo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload the claimed user Fighter profile photo' })
+  async uploadMyPhoto(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    const file: FighterPhotoUpload = {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    };
+    return this.fighters.uploadMyPhoto(userId, file);
+  }
+
+  /** DELETE /api/v1/fighters/me/photo — clear the claimed user's profile photo. */
+  @Delete('me/photo')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove the claimed user Fighter profile photo' })
+  async removeMyPhoto(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.fighters.removeMyPhoto(userId);
   }
 
   /** GET /api/v1/fighters/me/dashboard */

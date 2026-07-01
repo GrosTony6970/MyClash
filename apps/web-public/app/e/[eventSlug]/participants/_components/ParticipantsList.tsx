@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { SkillBadge } from '@myclash/ui';
 import { filterParticipants, type ParticipantLike } from './filter-participants';
 import { tournamentPillClasses } from './tournament-pill-classes';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
@@ -45,19 +46,39 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
           <ul className="flex flex-col gap-2 md:hidden">
             {visible.map((p) => (
               <li
-                key={p.personId}
+                key={p.globalPersonId}
                 className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
               >
-                <Link
-                  href={`/e/${eventSlug}/people/${p.personId}`}
-                  className="text-base font-semibold text-slate-900 hover:text-red-700"
-                >
-                  {p.displayName}
-                </Link>
+                {p.personId ? (
+                  <Link
+                    href={`/e/${eventSlug}/people/${p.personId}`}
+                    className="text-base font-semibold text-slate-900 hover:text-red-700"
+                  >
+                    {p.displayName}
+                  </Link>
+                ) : (
+                  <span className="text-base font-semibold text-slate-900">{p.displayName}</span>
+                )}
                 {(p.clubName || p.clubAbbrev) && (
                   <p className="mt-1 text-xs text-slate-500">
                     {p.clubAbbrev ? `${p.clubAbbrev} · ${p.clubName ?? ''}` : p.clubName}
                   </p>
+                )}
+                {(p.isReferee || p.isInstructor) && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {p.isReferee && (
+                      <SkillBadge
+                        color="violet"
+                        label={tr('publicApp.participants.refereeColumn')}
+                      />
+                    )}
+                    {p.isInstructor && (
+                      <SkillBadge
+                        color="amber"
+                        label={tr('publicApp.participants.instructorColumn')}
+                      />
+                    )}
+                  </div>
                 )}
                 {p.tournaments.length > 0 && (
                   <ul className="mt-2 flex flex-wrap gap-1">
@@ -99,18 +120,28 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                   <th scope="col" className="py-2 pr-4">
                     {tr('publicApp.home.colTournaments')}
                   </th>
+                  <th scope="col" className="py-2 pr-4">
+                    {tr('publicApp.participants.refereeColumn')}
+                  </th>
+                  <th scope="col" className="py-2 pr-4">
+                    {tr('publicApp.participants.instructorColumn')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {visible.map((p) => (
-                  <tr key={p.personId} className="border-b border-stone-100">
+                  <tr key={p.globalPersonId} className="border-b border-stone-100">
                     <th scope="row" className="py-3 pr-4 text-left">
-                      <Link
-                        href={`/e/${eventSlug}/people/${p.personId}`}
-                        className="font-semibold text-slate-900 hover:text-red-700"
-                      >
-                        {p.displayName}
-                      </Link>
+                      {p.personId ? (
+                        <Link
+                          href={`/e/${eventSlug}/people/${p.personId}`}
+                          className="font-semibold text-slate-900 hover:text-red-700"
+                        >
+                          {p.displayName}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-slate-900">{p.displayName}</span>
+                      )}
                     </th>
                     <td className="py-3 pr-4 text-slate-600">
                       {p.clubAbbrev && (
@@ -144,6 +175,22 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                             </li>
                           ))}
                         </ul>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {p.isReferee && (
+                        <SkillBadge
+                          color="violet"
+                          label={tr('publicApp.participants.refereeColumn')}
+                        />
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {p.isInstructor && (
+                        <SkillBadge
+                          color="amber"
+                          label={tr('publicApp.participants.instructorColumn')}
+                        />
                       )}
                     </td>
                   </tr>

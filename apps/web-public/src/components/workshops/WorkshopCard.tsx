@@ -18,6 +18,7 @@ export interface WorkshopListItem {
   level: string | null;
   language: string | null;
   color: string | null;
+  coverImageUrl: string | null;
   capacity: number | null;
   durationMinutes: number | null;
   sessions: Array<{
@@ -183,6 +184,14 @@ export function WorkshopCard({
         />
       )}
       <div className="flex items-start justify-between gap-3">
+        {w.coverImageUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={w.coverImageUrl}
+            alt=""
+            className="h-11 w-11 flex-shrink-0 rounded-md object-cover"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-lg font-semibold text-slate-900">{w.title}</h3>
           {instructorNames.length > 0 && (

@@ -111,7 +111,7 @@ export default function PersonalTournamentPage() {
     : (fallbackOrder.find((k) => visibleByKey[k]) ?? 'pools');
 
   return (
-    <main id="main-content" className="mx-auto min-h-screen max-w-2xl">
+    <main id="main-content" className="mx-auto min-h-screen max-w-2xl lg:max-w-6xl">
       <div className="sticky top-16 z-10 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur">
         <Link
           href={`/me/events/${eventSlug}`}
@@ -154,6 +154,7 @@ export default function PersonalTournamentPage() {
                     highlightRegistrationId={highlightRegistrationId}
                     ringPoolIds={self.ringPoolIds}
                     refereeRowKeys={self.refereeRowKeys}
+                    wide
                   />
                 </>
               ),

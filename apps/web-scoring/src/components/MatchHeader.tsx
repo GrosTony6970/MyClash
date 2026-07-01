@@ -15,12 +15,18 @@
  * with the admin app.
  */
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { sideStyle } from '@myclash/ui';
 import { useAdjacentMatches } from '@myclash/ui';
-import { isExternalHref, openScoreboardPopup } from '../lib/nav';
+import {
+  displayUrlForMatch,
+  isExternalHref,
+  openScoreboardPopup,
+  retargetScoreboardPopupIfOpen,
+} from '../lib/nav';
 
 interface MatchHeaderProps {
   matchId: string;
@@ -78,6 +84,15 @@ export function MatchHeader({
   const contextLine = [tournamentName, poolName, liceName]
     .filter((p): p is string => !!p && p.trim().length > 0)
     .join(' · ');
+
+  // The projection URL for the match currently on the pad (the passed
+  // externalDisplayUrl is pinned to whichever match the admin proxied in, so
+  // re-derive it per match). If the operator has an external-display popup
+  // open, retarget it whenever we land on a new match so the projector follows.
+  const displayUrl = displayUrlForMatch(externalDisplayUrl, matchId);
+  useEffect(() => {
+    if (displayUrl) retargetScoreboardPopupIfOpen(displayUrl);
+  }, [displayUrl]);
 
   const resolvedBackHref = backHref ?? (liceId ? `/lices/${liceId}` : '/lices');
   // An absolute `?return=` target is a different app behind the same origin
@@ -168,10 +183,10 @@ export function MatchHeader({
 
         {/* Right: external display + next-match tile */}
         <div className="flex flex-col items-end gap-2">
-          {externalDisplayUrl && (
+          {displayUrl && (
             <button
               type="button"
-              onClick={() => openScoreboardPopup(externalDisplayUrl)}
+              onClick={() => openScoreboardPopup(displayUrl)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
             >
               ↗ {t('scoring.lice.externalDisplay')}
