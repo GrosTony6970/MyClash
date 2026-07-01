@@ -462,14 +462,20 @@ hdr "Starting stack"
 # observed parking on the last frame even after every container is healthy
 # (likely a TTY/SSH interaction with the depends_on wait state machine). We
 # don't actually rely on `up -d`'s exit code for readiness — the healthcheck
-# poll below is the source of truth. So: a 124 (timeout) falls through with
-# a warning; any other non-zero is still a real failure and aborts.
+# poll below is the source of truth. So: an interrupted `up -d` (124 timeout,
+# 137 SIGKILL/OOM, 143 SIGTERM) falls through with a warning; any other non-zero
+# is still a real failure and aborts.
+#
+# Capture the exit code with `|| rc=$?` — NOT `if ! cmd; then rc=$?`. Inside a
+# negated `if`, `$?` holds the *inverted* status (always 0 when the branch runs),
+# so the old form silently reported every failure as "exit 0".
 UP_TIMEOUT=120
-if ! timeout --kill-after=10 "$UP_TIMEOUT" \
-     docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d; then
-  rc=$?
-  if [[ "$rc" -eq 124 ]]; then
-    warn "docker compose up -d did not exit within ${UP_TIMEOUT}s — verifying container state via healthcheck poll"
+rc=0
+timeout --kill-after=10 "$UP_TIMEOUT" \
+  docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d || rc=$?
+if [[ "$rc" -ne 0 ]]; then
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
+    warn "docker compose up -d exited abnormally (code $rc: timeout/killed) — verifying container state via healthcheck poll"
   else
     err "docker compose up -d failed (exit $rc)"
     print_service_health_diagnostics supabase-rest supabase-storage api

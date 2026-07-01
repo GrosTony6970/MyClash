@@ -173,14 +173,20 @@ hdr "Recreating: ${SERVICES[*]}"
 #               bounce api; recreating api would bounce db/redis).
 # --force-recreate  guarantee the container picks up the freshly built image.
 # Bound `up -d` with a hard timeout: compose's progress renderer can park on the last
-# frame over SSH even when containers are healthy. 124 (timeout) falls through to the
-# health poll below; any other non-zero is a real failure.
+# frame over SSH even when containers are healthy. An interrupted `up -d` (124 timeout,
+# 137 SIGKILL/OOM, 143 SIGTERM) falls through to the health poll below, which is the real
+# source of truth; any other non-zero is a real failure.
+#
+# Capture the exit code with `|| rc=$?` — NOT `if ! cmd; then rc=$?`. Inside a negated
+# `if`, `$?` holds the *inverted* status (always 0 when the branch runs), so the old
+# form silently reported every failure as "exit 0".
 UP_TIMEOUT=120
-if ! timeout --kill-after=10 "$UP_TIMEOUT" \
-     "${COMPOSE[@]}" up -d --no-deps --force-recreate "${SERVICES[@]}"; then
-  rc=$?
-  if [[ "$rc" -eq 124 ]]; then
-    warn "docker compose up -d did not exit within ${UP_TIMEOUT}s — verifying via healthcheck poll"
+rc=0
+timeout --kill-after=10 "$UP_TIMEOUT" \
+  "${COMPOSE[@]}" up -d --no-deps --force-recreate "${SERVICES[@]}" || rc=$?
+if [[ "$rc" -ne 0 ]]; then
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
+    warn "docker compose up -d exited abnormally (code $rc: timeout/killed) — verifying via healthcheck poll"
   else
     err "docker compose up -d failed (exit $rc)"
     exit 1
