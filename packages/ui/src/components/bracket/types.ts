@@ -5,6 +5,16 @@ import type { ColorToken } from '../../utils/color-token';
  * and the top-level BracketView.
  */
 
+/** A referee assigned to a bracket match (scope_type='match'). Mirrors the
+ *  public pool-footer shape so both surfaces render referees identically. */
+export interface BracketReferee {
+  role: string | null;
+  displayName: string;
+  status: string;
+  /** Colour token of the role's referee_skill (e.g. 'red', 'slate'). */
+  skillColor: string;
+}
+
 export interface BracketSlotData {
   id: string;
   round: number;
@@ -42,6 +52,10 @@ export interface BracketSlotData {
    *  so consumers that don't project them fall back gracefully. */
   source_a_ref?: string | null;
   source_b_ref?: string | null;
+  /** Referees assigned to this slot's match. Rendered under the card when the
+   *  bracket's `showReferees` flag is on. Optional so admin/legacy fetches that
+   *  don't project them type-check and render unchanged. */
+  referees?: BracketReferee[];
 }
 
 export interface BracketConfig {

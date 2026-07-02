@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
+import { SkillBadge } from '../SkillBadge';
 import type { BracketSlotData, ColorToken } from './types';
 import { BracketHighlightContext } from './highlight-context';
 
@@ -27,6 +28,15 @@ export interface MatchCardProps {
    * the card doesn't know about weapons, pools, or bracket sizes.
    */
   roundCode?: string;
+}
+
+// Referee status dot — mirrors the public Pool List footer palette so pool +
+// bracket referees read identically ('assigned' is neutral like other non-
+// confirmed/pending states).
+function refStatusDot(status: string): string {
+  if (status === 'confirmed') return 'bg-emerald-500';
+  if (status === 'pending') return 'bg-amber-500';
+  return 'bg-slate-400';
 }
 
 function statusPill(status: string): { label: string; cls: string } {
@@ -66,7 +76,9 @@ export function MatchCard({
   const redWins = isCompleted && winsThisRow('red', slot);
   const blueWins = isCompleted && winsThisRow('blue', slot);
 
-  const { highlightRegistrationId, youLabel } = React.useContext(BracketHighlightContext);
+  const { highlightRegistrationId, youLabel, showReferees, refereeSelfKeys, refereeRoleLabel } =
+    React.useContext(BracketHighlightContext);
+  const referees = slot.referees ?? [];
   const redIsYou = !!highlightRegistrationId && slot.redRegistrationId === highlightRegistrationId;
   const blueIsYou =
     !!highlightRegistrationId && slot.blueRegistrationId === highlightRegistrationId;
@@ -187,6 +199,47 @@ export function MatchCard({
           {pill.label}
         </span>
       </div>
+
+      {/* Referee band — hangs below the pill row when the bracket's fold/unfold
+          toggle is on. Rendered in the wrapper (not the connector-measured card
+          box), so the SVG connector endpoints are unaffected; BracketView widens
+          the vertical pitch to make room. Mirrors the public Pool List footer. */}
+      {showReferees && referees.length > 0 && (
+        <ul className="flex flex-col gap-0.5 px-1">
+          {referees.map((r, idx) => {
+            const isMe = refereeSelfKeys?.has(`${slot.id}::${r.role ?? ''}`) ?? false;
+            return (
+              <li
+                key={`${slot.id}-ref-${idx}`}
+                className="flex items-center justify-between gap-2 text-[11px]"
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${refStatusDot(r.status)}`}
+                  />
+                  <span
+                    className={['truncate', isMe ? 'font-bold text-accent' : 'text-slate-600'].join(
+                      ' ',
+                    )}
+                  >
+                    {r.displayName}
+                  </span>
+                  {isMe && youLabel && (
+                    <span className="shrink-0 rounded bg-accent px-1 py-px text-[8px] font-bold uppercase leading-none text-accent-foreground">
+                      {youLabel}
+                    </span>
+                  )}
+                </span>
+                <SkillBadge
+                  color={r.skillColor}
+                  label={refereeRoleLabel ? refereeRoleLabel(r.role) : (r.role ?? 'Referee')}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {onOverride && (
         <button

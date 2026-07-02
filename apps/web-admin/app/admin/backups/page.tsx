@@ -141,6 +141,19 @@ export default function AdminBackupsPage() {
   // otherwise lose its only error surface once the refresh lands.
   const [finishedOp, setFinishedOp] = useState<BackupOperation | null>(null);
 
+  // Reset the "polling failed" banner whenever we begin tracking a NEW
+  // operation. Each poll swaps `operation` for a fresh object of the same id,
+  // so compare ids (not references). Done during render per React's
+  // derived-state guidance — a synchronous setState inside the polling effect
+  // trips react-hooks/set-state-in-effect (cascading renders).
+  const activeOpId =
+    operation && ['queued', 'running'].includes(operation.status) ? operation.id : null;
+  const [polledOpId, setPolledOpId] = useState<string | null>(activeOpId);
+  if (activeOpId !== polledOpId) {
+    setPolledOpId(activeOpId);
+    setPollFailed(false);
+  }
+
   const load = useCallback(() => {
     const controller = new AbortController();
     Promise.all([
@@ -188,7 +201,6 @@ export default function AdminBackupsPage() {
 
   useEffect(() => {
     if (!operation || !['queued', 'running'].includes(operation.status)) return;
-    setPollFailed(false);
     const timer = window.setInterval(() => {
       fetch(`${apiUrl}/api/v1/admin/backups/operations/${operation.id}`, {
         credentials: 'include',

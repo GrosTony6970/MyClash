@@ -84,6 +84,9 @@ export interface MyEventRefereeOf {
   /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
   matchKind: string | null;
   roundOfCount: number | null;
+  /** Bracket slot id for match-scoped assignments (null otherwise) — used to
+   *  self-highlight the viewer's own bracket match. */
+  bracketSlotId: string | null;
   startsAt: string | null;
   endsAt: string | null;
 }

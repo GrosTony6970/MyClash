@@ -46,10 +46,21 @@ export interface BracketViewProps {
   highlightRegistrationId?: string | null;
   /** i18n'd "YOU" chip label (lib is i18n-free). */
   youLabel?: string;
+  /** Render each card's assigned referees below the pill row. Off by default →
+   *  admin + public brackets are unchanged until a consumer opts in. */
+  showReferees?: boolean;
+  /** `${slotId}::${role ?? ''}` keys flagging the viewer's own referee rows. */
+  refereeSelfKeys?: ReadonlySet<string>;
+  /** Humanises a referee_skills.id role into a label (app-provided). */
+  refereeRoleLabel?: (role: string | null) => string;
 }
 
 const ROUND_GAP_CLASS = 'gap-16';
 const SLOT_VERTICAL_PITCH_PX = 90;
+// Extra vertical room per referee row + a small band padding, added to the
+// pitch when referees are shown so the band never overlaps the next card.
+const REF_ROW_PX = 20;
+const REF_BAND_PAD_PX = 8;
 // The MatchCard renders at roughly this height (header + two
 // fighter rows + footer). Used to offset cards from their
 // computed vertical center so they read as centred — not as
@@ -71,8 +82,22 @@ export function BracketView({
   bracketSize = null,
   highlightRegistrationId,
   youLabel,
+  showReferees = false,
+  refereeSelfKeys,
+  refereeRoleLabel,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
+
+  // Fold-aware vertical pitch. Cards are positioned absolutely at a fixed pitch;
+  // an expanded referee band (rendered below each card) would overlap the card
+  // beneath it, so widen the pitch by the tallest card's referee-band height.
+  // Folded (the public/admin default) ⇒ pitch stays SLOT_VERTICAL_PITCH_PX ⇒
+  // zero geometry change.
+  const maxRefRows = showReferees
+    ? slots.reduce((n, s) => Math.max(n, s.referees?.length ?? 0), 0)
+    : 0;
+  const pitchPx =
+    SLOT_VERTICAL_PITCH_PX + (maxRefRows > 0 ? REF_BAND_PAD_PX + maxRefRows * REF_ROW_PX : 0);
 
   // Memoised per-slot round-code resolver. `slot.position` is already
   // 1-indexed by the generator (see packages/rulesets/.../single-elim.ts
@@ -104,6 +129,7 @@ export function BracketView({
       redColor={redColor}
       blueColor={blueColor}
       roundCodeFor={roundCodeFor}
+      pitchPx={pitchPx}
     />
   ) : (
     <SingleElimLayout
@@ -117,13 +143,16 @@ export function BracketView({
       bronzeMatch={bronzeMatch ?? null}
       roundLabels={roundLabels}
       roundCodeFor={roundCodeFor}
+      pitchPx={pitchPx}
     />
   );
 
-  // Provide the viewer's highlight to every MatchCard via context (empty by
-  // default → public + admin brackets unchanged).
+  // Provide the viewer's highlight + referee config to every MatchCard via
+  // context (empty by default → public + admin brackets unchanged).
   return (
-    <BracketHighlightContext.Provider value={{ highlightRegistrationId, youLabel }}>
+    <BracketHighlightContext.Provider
+      value={{ highlightRegistrationId, youLabel, showReferees, refereeSelfKeys, refereeRoleLabel }}
+    >
       {layout}
     </BracketHighlightContext.Provider>
   );
@@ -142,6 +171,7 @@ interface SingleElimLayoutProps {
   bronzeMatch: BracketSlotData | null;
   roundLabels?: Record<number, string>;
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
+  pitchPx: number;
 }
 
 function SingleElimLayout({
@@ -155,6 +185,7 @@ function SingleElimLayout({
   bronzeMatch,
   roundLabels,
   roundCodeFor,
+  pitchPx,
 }: SingleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -223,8 +254,8 @@ function SingleElimLayout({
   // every slot's pixel center; cards then render with absolute
   // positioning rather than flex.
   const { positions, columnHeight } = React.useMemo(
-    () => computeSlotPositions(byRound, roundNumbers, edges, SLOT_VERTICAL_PITCH_PX),
-    [byRound, roundNumbers, edges],
+    () => computeSlotPositions(byRound, roundNumbers, edges, pitchPx),
+    [byRound, roundNumbers, edges, pitchPx],
   );
 
   return (
@@ -338,6 +369,7 @@ interface DoubleElimLayoutProps {
   redColor: ColorToken;
   blueColor: ColorToken;
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
+  pitchPx: number;
 }
 
 function DoubleElimLayout({
@@ -349,6 +381,7 @@ function DoubleElimLayout({
   redColor,
   blueColor,
   roundCodeFor,
+  pitchPx,
 }: DoubleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -394,6 +427,7 @@ function DoubleElimLayout({
             />
           )}
           accent="text-amber-600"
+          pitchPx={pitchPx}
         />
         {lbSlots.length > 0 && (
           <Lane
@@ -412,6 +446,7 @@ function DoubleElimLayout({
               />
             )}
             accent="text-blue-600"
+            pitchPx={pitchPx}
           />
         )}
         {gfSlots.length > 0 && (
@@ -432,6 +467,7 @@ function DoubleElimLayout({
             )}
             accent="text-violet-600"
             roundLabelFn={(round) => (round === gfRound ? 'Grand Final' : 'Reset')}
+            pitchPx={pitchPx}
           />
         )}
       </div>
@@ -445,12 +481,14 @@ function Lane({
   renderCard,
   accent,
   roundLabelFn,
+  pitchPx,
 }: {
   title: string;
   slots: BracketSlotData[];
   renderCard: (slot: BracketSlotData) => React.ReactNode;
   accent: string;
   roundLabelFn?: (round: number, idx: number, total: number) => string;
+  pitchPx: number;
 }) {
   const byRound = new Map<number, BracketSlotData[]>();
   for (const s of slots) {
@@ -465,12 +503,7 @@ function Lane({
   // per lane. Edges are computed inline because the parent
   // DoubleElimLayout already passes per-lane slot subsets in.
   const edges = computeBracketEdges(slots, rounds);
-  const { positions, columnHeight } = computeSlotPositions(
-    byRound,
-    rounds,
-    edges,
-    SLOT_VERTICAL_PITCH_PX,
-  );
+  const { positions, columnHeight } = computeSlotPositions(byRound, rounds, edges, pitchPx);
 
   return (
     <section>

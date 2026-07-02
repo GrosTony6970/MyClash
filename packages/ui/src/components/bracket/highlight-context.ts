@@ -7,6 +7,15 @@ export interface BracketHighlight {
   highlightRegistrationId?: string | null;
   /** i18n'd "YOU" label (the lib stays i18n-free; the app passes it in). */
   youLabel?: string;
+  /** When true, each card renders its assigned referees below the pill row. A
+   *  single flag for the whole bracket (driven by the fold/unfold toggle). */
+  showReferees?: boolean;
+  /** `${slotId}::${role ?? ''}` keys flagging the viewer's own referee rows
+   *  (accent name + "YOU" chip). Undefined → no referee self-highlight. */
+  refereeSelfKeys?: ReadonlySet<string>;
+  /** Humanises a referee_skills.id role into a label. App-provided (the lib is
+   *  i18n-free); falls back to the raw role when omitted. */
+  refereeRoleLabel?: (role: string | null) => string;
 }
 
 /**

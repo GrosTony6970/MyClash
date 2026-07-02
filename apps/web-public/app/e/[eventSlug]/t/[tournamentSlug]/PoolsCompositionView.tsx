@@ -16,6 +16,7 @@
 import { SkillBadge, tintTextClassFor } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { groupPoolsByStart } from './pool-sections';
+import { refereeRoleLabel } from './referee-display';
 
 export interface PoolMember {
   registrationId: string;
@@ -79,20 +80,6 @@ interface Props {
    * original 1/2-column layout.
    */
   wide?: boolean;
-}
-
-function refereeRoleLabel(role: string | null): string {
-  if (!role) return 'Referee';
-  // The role column stores referee_skills.id strings like
-  // 'arbitre_declarant' / 'arbitre_assesseur' / 'arbitre_table'. We
-  // surface a humanised label but don't translate — the FR-named
-  // skill ids are deliberately language-neutral on the public view.
-  const map: Record<string, string> = {
-    arbitre_declarant: 'Déclarant',
-    arbitre_assesseur: 'Assesseur',
-    arbitre_table: 'Table',
-  };
-  return map[role] ?? role;
 }
 
 function statusDot(status: string): string {

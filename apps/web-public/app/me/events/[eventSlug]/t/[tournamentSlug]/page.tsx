@@ -82,6 +82,14 @@ export default function PersonalTournamentPage() {
     pools,
     highlightRegistrationId,
   });
+  // Bracket referee self-highlight: the viewer's own match-scoped assignments in
+  // this tournament, keyed `${bracketSlotId}::${role}` to match each MatchCard's
+  // referee rows. `bracketSlotId` is null for pool/lice scopes → filtered out.
+  const refereeSelfKeys = new Set(
+    (myEvent?.refereeOf ?? [])
+      .filter((r) => r.tournamentName === tournament.name && r.bracketSlotId)
+      .map((r) => `${r.bracketSlotId}::${r.role ?? ''}`),
+  );
   const podium = derivePodium(bracketSlots);
   const podiumDecided = !!(podium?.gold && podium.silver);
   const tournamentColor = tournament.color ?? null;
@@ -207,6 +215,8 @@ export default function PersonalTournamentPage() {
                     podium={podium}
                     podiumDecided={podiumDecided}
                     highlightRegistrationId={highlightRegistrationId}
+                    personalView
+                    refereeSelfKeys={refereeSelfKeys}
                   />
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">

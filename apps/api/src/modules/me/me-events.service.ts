@@ -80,6 +80,9 @@ export interface MyEventRefereeOf {
   matchKind: string | null;
   /** fighter count for matchKind === 'round_of' (e.g. 16) */
   roundOfCount: number | null;
+  /** Bracket slot id for match-scoped assignments (null for pool/lice/swiss).
+   *  Personal-space self-highlight key: matches BracketSlot.id on the bracket. */
+  bracketSlotId: string | null;
   startsAt: string | null;
   endsAt: string | null;
 }
@@ -247,6 +250,7 @@ export class MeEventsService {
         venueName: a.venueName,
         matchKind: a.matchKind,
         roundOfCount: a.roundOfCount,
+        bracketSlotId: a.bracketSlotId,
         startsAt: a.startsAt,
         endsAt: a.endsAt,
       });
@@ -407,6 +411,7 @@ export class MeEventsService {
       venueName: string | null;
       matchKind: string | null;
       roundOfCount: number | null;
+      bracketSlotId: string | null;
       startsAt: string | null;
       endsAt: string | null;
     }>
@@ -552,6 +557,7 @@ export class MeEventsService {
       venueName: a.venueName,
       matchKind: a.matchKind,
       roundOfCount: a.roundOfCount,
+      bracketSlotId: a.bracketSlotId,
       startsAt: a.startsAt,
       endsAt: a.endsAt,
     }));

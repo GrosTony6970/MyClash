@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 
@@ -703,6 +703,56 @@ describe('EventsService', () => {
         created_by_user_id: 'user-7',
       }),
     );
+  });
+
+  it('updateEvent writes a new slug after an org-scoped uniqueness probe (excluding self)', async () => {
+    // 1) getEventById → current draft event
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+      error: null,
+    });
+    // 2) slug-uniqueness probe — no OTHER event in the org owns it
+    const slugProbe = makeChain({ data: null, error: null });
+    // 3) update(...).eq(...).select(...).single() → returns the updated row
+    const updateChain = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi
+        .fn()
+        .mockResolvedValue({ data: { id: 'event-1', slug: 'fosse-aux-lions-2027' }, error: null }),
+    };
+    fromMock
+      .mockReturnValueOnce(eventChain)
+      .mockReturnValueOnce(slugProbe)
+      .mockReturnValueOnce(updateChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await service.updateEvent('event-1', { slug: 'fosse-aux-lions-2027' }, 'user-7');
+
+    // Probe is scoped to the org + requested slug and excludes the event itself.
+    expect(slugProbe.eq).toHaveBeenCalledWith('organization_id', 'org-1');
+    expect(slugProbe.eq).toHaveBeenCalledWith('slug', 'fosse-aux-lions-2027');
+    expect(slugProbe.neq).toHaveBeenCalledWith('id', 'event-1');
+    // Slug is written on the update.
+    expect(updateChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'fosse-aux-lions-2027' }),
+    );
+  });
+
+  it('updateEvent rejects a slug already used by another event in the org', async () => {
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+      error: null,
+    });
+    // Probe finds a DIFFERENT event already holding the slug → conflict.
+    const slugProbe = makeChain({ data: { id: 'event-2' }, error: null });
+    fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(slugProbe);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(
+      service.updateEvent('event-1', { slug: 'fosse-aux-lions-2027' }, 'user-7'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('listOrgEvents enriches rows with distinct participant_count per event', async () => {
@@ -1660,6 +1710,157 @@ describe('EventsService', () => {
       }
       // Sanity: person_id is the canonical key post-0063.
       expect(String(selectCalls[0]![0])).toMatch(/\bperson_id\b/);
+    });
+
+    it('attaches match-scoped referees to bracket slots (and [] when none)', async () => {
+      const eventChain = makeChain({ data: { id: 'event-1', slug: 'fal-2027' }, error: null });
+      const tournamentChain = makeChain({
+        data: {
+          id: 'tournament-1',
+          name: 'Longsword Open',
+          weapon: 'longsword',
+          ruleset_code: 'TF_v1',
+          status: 'published',
+          logo_url: null,
+          color: null,
+        },
+        error: null,
+      });
+      // Bracket phase only (no pool phase) — exercises the getPublishedBracket path.
+      const phasesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'phase-br-1',
+            type: 'single_elim',
+            visibility_status: 'published',
+            config_json: { bracketSize: 4, rounds: 2 },
+          },
+        ],
+        error: null,
+      });
+      const participantCountChain = makeAwaitableChain({ count: 0, error: null });
+      const waitlistCountChain = makeAwaitableChain({ count: 0, error: null });
+      const completedMatchCountChain = makeAwaitableChain({ count: 0, error: null });
+      // slot-1 → match-1 (has a referee); slot-2 → match-2 (no referee); slot-3 → no match.
+      const bracketSlotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'slot-1',
+            round: 2,
+            position: 1,
+            registration_a_id: 'reg-a',
+            registration_b_id: 'reg-b',
+          },
+          { id: 'slot-2', round: 1, position: 1, registration_a_id: null, registration_b_id: null },
+          { id: 'slot-3', round: 1, position: 2, registration_a_id: null, registration_b_id: null },
+        ],
+        error: null,
+      });
+      const bracketMatchesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'match-1',
+            bracket_slot_id: 'slot-1',
+            status: 'completed',
+            red_score: 5,
+            blue_score: 3,
+            match_number_label: 'F1',
+          },
+          {
+            id: 'match-2',
+            bracket_slot_id: 'slot-2',
+            status: 'scheduled',
+            red_score: null,
+            blue_score: null,
+            match_number_label: 'M1',
+          },
+        ],
+        error: null,
+      });
+      const bracketRegsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'reg-a',
+            persons: {
+              given_name: 'Alice',
+              family_name: 'A',
+              clubs: { name: 'Club A', abbreviation: 'CA' },
+            },
+          },
+          {
+            id: 'reg-b',
+            persons: {
+              given_name: 'Bob',
+              family_name: 'B',
+              clubs: { name: 'Club B', abbreviation: 'CB' },
+            },
+          },
+        ],
+        error: null,
+      });
+      // Only match-1 has an assignment.
+      const refereeAssignmentsChain = makeAwaitableChain({
+        data: [
+          {
+            match_id: 'match-1',
+            role: 'arbitre_declarant',
+            status: 'confirmed',
+            person_id: 'person-1',
+          },
+        ],
+        error: null,
+      });
+      const globalPersonsChain = makeAwaitableChain({
+        data: [{ id: 'person-1', given_name: 'Rita', family_name: 'Ref' }],
+        error: null,
+      });
+      const refereeSkillsChain = makeAwaitableChain({
+        data: [{ id: 'arbitre_declarant', color: 'red' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phasesChain)
+        .mockReturnValueOnce(participantCountChain)
+        .mockReturnValueOnce(waitlistCountChain)
+        .mockReturnValueOnce(completedMatchCountChain)
+        .mockReturnValueOnce(bracketSlotsChain)
+        .mockReturnValueOnce(bracketMatchesChain)
+        .mockReturnValueOnce(bracketRegsChain)
+        .mockReturnValueOnce(refereeAssignmentsChain)
+        .mockReturnValueOnce(globalPersonsChain)
+        .mockReturnValueOnce(refereeSkillsChain);
+
+      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+
+      const slots = result.bracketSlots as Array<{ id: string; referees: unknown[] }>;
+      const s1 = slots.find((s) => s.id === 'slot-1');
+      const s2 = slots.find((s) => s.id === 'slot-2');
+      const s3 = slots.find((s) => s.id === 'slot-3');
+      expect(s1?.referees).toEqual([
+        {
+          role: 'arbitre_declarant',
+          displayName: 'Rita Ref',
+          status: 'confirmed',
+          skillColor: 'red',
+        },
+      ]);
+      // Match with no assignment → empty; slot with no match → empty.
+      expect(s2?.referees).toEqual([]);
+      expect(s3?.referees).toEqual([]);
+      expect(result.bracketSize).toBe(4);
+      expect(result.bracketRounds).toBe(2);
+
+      // The match-scoped referee query must filter scope_type='match', request
+      // person_id, and (post-0063) never request the dropped user_id column.
+      const selectCalls = refereeAssignmentsChain.select.mock.calls;
+      expect(selectCalls.length).toBeGreaterThan(0);
+      expect(String(selectCalls[0]![0])).toMatch(/\bmatch_id\b/);
+      expect(String(selectCalls[0]![0])).toMatch(/\bperson_id\b/);
+      expect(String(selectCalls[0]![0])).not.toMatch(/\buser_id\b/);
+      expect(refereeAssignmentsChain.eq).toHaveBeenCalledWith('scope_type', 'match');
     });
   });
 

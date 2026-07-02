@@ -36,6 +36,17 @@ function Eyebrow({ children }: { children: ReactNode }) {
   );
 }
 
+/** Prominent heading for the top-level sections (Competing / Refereeing /
+ *  Workshops). Matches the event-title style in EventHubChrome so the sections
+ *  read as real headings rather than faint eyebrows. */
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="mb-2.5 mt-6 font-display text-lg font-bold text-foreground first:mt-0">
+      {children}
+    </h2>
+  );
+}
+
 /** Quick-link chips that open the IN-APP tournament view (not the public page),
  *  deep-linked to the relevant tab. */
 function CompetitionLinks({
@@ -89,6 +100,27 @@ function matchKindLabel(t: TFn, kind: string | null, roundOfCount: number | null
       return t('publicApp.me.hub.kindSwiss');
     default:
       return null;
+  }
+}
+
+/** Referee match-kind → the tournament tab the referee entry should deep-link to.
+ *  Pool phases open the Pool List; bracket phases open the Bracket (where the
+ *  referee's own match is highlighted); Swiss opens Standings. Unknown/null
+ *  keeps the prior no-hash behaviour (status-based default tab). */
+function matchKindHash(kind: string | null): '' | '#pools' | '#standings' | '#bracket' {
+  switch (kind) {
+    case 'pool':
+      return '#pools';
+    case 'swiss':
+      return '#standings';
+    case 'play_in':
+    case 'final':
+    case 'semi_final':
+    case 'quarter_final':
+    case 'round_of':
+      return '#bracket';
+    default:
+      return '';
   }
 }
 
@@ -146,7 +178,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
     <div>
       {competing.length > 0 && (
         <>
-          <Eyebrow>{t('publicApp.me.hub.competing')}</Eyebrow>
+          <SectionTitle>{t('publicApp.me.hub.competing')}</SectionTitle>
           {competing.map((tr) => {
             const meta = competingMeta(tr);
             return (
@@ -173,7 +205,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
 
       {refereeing.length > 0 && (
         <>
-          <Eyebrow>{t('publicApp.me.hub.refereeing')}</Eyebrow>
+          <SectionTitle>{t('publicApp.me.hub.refereeing')}</SectionTitle>
           {refereeing.map((r, i) => {
             const kind = matchKindLabel(t, r.matchKind, r.roundOfCount);
             // Pool phase: `poolName` already reads "Pool N", so the localized
@@ -214,7 +246,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
             return r.tournament ? (
               <Link
                 key={i}
-                href={`/me/events/${slug}/t/${r.tournament.slug}`}
+                href={`/me/events/${slug}/t/${r.tournament.slug}${matchKindHash(r.matchKind)}`}
                 className={`${cardClass} hover:border-accent`}
               >
                 {inner}
@@ -230,7 +262,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
 
       {workshops.length > 0 && (
         <>
-          <Eyebrow>{t('publicApp.me.hub.tabWorkshops')}</Eyebrow>
+          <SectionTitle>{t('publicApp.me.hub.tabWorkshops')}</SectionTitle>
           {workshops.map((w) => {
             const meta = [daySlotLabel(w.sessionStart, w.sessionEnd, tz, tag, t), w.location]
               .filter(Boolean)

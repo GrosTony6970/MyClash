@@ -938,6 +938,8 @@ export const en = {
         summaryPlayIn: '{count} play-in matches',
         summaryByes: '{count} byes',
         summarySeeded: 'top {count} seeded',
+        showReferees: 'Show referees',
+        hideReferees: 'Hide referees',
       },
       poolMatchesEmpty: 'Pool matches will be published once the organizer generates the schedule.',
       poolMatchesCount: '{count} matches',
@@ -6615,6 +6617,8 @@ export const fr = {
         summaryPlayIn: '{count} combats de qualification',
         summaryByes: '{count} exempts',
         summarySeeded: '{count} premiers têtes de série',
+        showReferees: 'Afficher les arbitres',
+        hideReferees: 'Masquer les arbitres',
       },
       poolMatchesEmpty:
         "Les combats de poule seront publiés une fois le programme généré par l'organisateur.",

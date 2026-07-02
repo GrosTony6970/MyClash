@@ -396,6 +396,22 @@ export class EventsService {
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
+    if (dto.slug !== undefined) {
+      // Slug is org-scoped UNIQUE(organization_id, slug). Mirror createEvent's
+      // conflict guard, but exclude self so re-patching the same slug is a no-op
+      // rather than a false conflict.
+      const orgId = (event as { organization_id: string }).organization_id;
+      const { data: slugClash } = await this.supabase.service
+        .from('events')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('slug', dto.slug)
+        .neq('id', eventId)
+        .maybeSingle();
+      if (slugClash)
+        throw new ConflictException(`Event slug "${dto.slug}" already exists in this organization`);
+      updates['slug'] = dto.slug;
+    }
     if (dto.city !== undefined) updates['city'] = dto.city;
     if (dto.country !== undefined) updates['country'] = dto.country;
     if (dto.startDate !== undefined) updates['start_date'] = dto.startDate;
@@ -959,7 +975,7 @@ export class EventsService {
         : [];
     const bracket =
       bracketPhase && typeof bracketPhase['id'] === 'string'
-        ? await this.getPublishedBracket(bracketPhase)
+        ? await this.getPublishedBracket(bracketPhase, eventId)
         : { bracketSlots: [], bracketSize: 0, bracketRounds: 0 };
 
     tournamentHeader['poolCount'] = pools.length;
@@ -1998,14 +2014,36 @@ export class EventsService {
     }>;
     if (rows.length === 0) return byPool;
 
-    // Resolve display names via global_persons (given+family). Post-0063
-    // `referee_assignments.person_id` is NOT NULL, so every row resolves
-    // through this single lookup — no Supabase-user-id fallback.
+    const { nameById, colorById } = await this.resolveRefereeChipMaps(rows);
+
+    for (const r of rows) {
+      if (!r.pool_id) continue;
+      const displayName = r.person_id ? (nameById.get(r.person_id) ?? '—') : '—';
+      const skillColor = r.role ? (colorById.get(r.role) ?? 'slate') : 'slate';
+      const list = byPool.get(r.pool_id) ?? [];
+      list.push({ role: r.role, displayName, status: r.status, skillColor });
+      byPool.set(r.pool_id, list);
+    }
+    return byPool;
+  }
+
+  /**
+   * Shared referee-chip resolution for the public pool + bracket footers:
+   * display names via global_persons (given+family) and skill colours via
+   * referee_skills.color. Post-0063 `referee_assignments.person_id` is NOT
+   * NULL, so every row resolves through the single global_persons lookup —
+   * no Supabase-user-id fallback. `role` carries the referee_skills.id string
+   * (e.g. 'arbitre_assesseur') → the colour token used to tint the chip.
+   */
+  private async resolveRefereeChipMaps(
+    rows: Array<{ role: string | null; person_id: string | null }>,
+  ): Promise<{ nameById: Map<string, string>; colorById: Map<string, string> }> {
+    const nameById = new Map<string, string>();
+    const colorById = new Map<string, string>();
+
     const personIds = Array.from(
       new Set(rows.map((r) => r.person_id).filter((id): id is string => !!id)),
     );
-
-    const personNameById = new Map<string, string>();
     if (personIds.length > 0) {
       const { data: personRows } = await this.supabase.service
         .from('global_persons')
@@ -2017,38 +2055,76 @@ export class EventsService {
         family_name: string | null;
       }>) {
         const name = `${(p.given_name ?? '').trim()} ${(p.family_name ?? '').trim()}`.trim();
-        if (name) personNameById.set(p.id, name);
+        if (name) nameById.set(p.id, name);
       }
     }
 
-    // Resolve skill colors. `referee_assignments.role` carries the
-    // `referee_skills.id` string (e.g. 'arbitre_assesseur'); the
-    // skill table holds the colour token used to tint the chip on
-    // the public Pool List footer.
     const skillIds = Array.from(new Set(rows.map((r) => r.role).filter((r): r is string => !!r)));
-    const skillColorById = new Map<string, string>();
     if (skillIds.length > 0) {
       const { data: skillRows } = await this.supabase.service
         .from('referee_skills')
         .select('id, color')
         .in('id', skillIds);
       for (const s of (skillRows ?? []) as Array<{ id: string; color: string | null }>) {
-        if (s.color) skillColorById.set(s.id, s.color);
+        if (s.color) colorById.set(s.id, s.color);
       }
     }
 
-    for (const r of rows) {
-      if (!r.pool_id) continue;
-      const displayName = r.person_id ? (personNameById.get(r.person_id) ?? '—') : '—';
-      const skillColor = r.role ? (skillColorById.get(r.role) ?? 'slate') : 'slate';
-      const list = byPool.get(r.pool_id) ?? [];
-      list.push({ role: r.role, displayName, status: r.status, skillColor });
-      byPool.set(r.pool_id, list);
-    }
-    return byPool;
+    return { nameById, colorById };
   }
 
-  private async getPublishedBracket(phase: Record<string, unknown>) {
+  /**
+   * For each bracket match, return the confirmed + pending referee slots
+   * (scope_type='match') projected for public consumption — the mirror of
+   * getPublishedRefereesByPool, keyed by match_id. Never exposes admin-only
+   * signals (auto_assigned / conflicts_jsonb / candidate suggestions).
+   */
+  private async getPublishedRefereesByMatch(
+    eventId: string,
+    matchIds: string[],
+  ): Promise<
+    Map<
+      string,
+      Array<{ role: string | null; displayName: string; status: string; skillColor: string }>
+    >
+  > {
+    const byMatch = new Map<
+      string,
+      Array<{ role: string | null; displayName: string; status: string; skillColor: string }>
+    >();
+    if (matchIds.length === 0) return byMatch;
+
+    const { data: assignments, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('match_id, role, status, person_id')
+      .eq('event_id', eventId)
+      .eq('scope_type', 'match')
+      .in('match_id', matchIds)
+      .in('status', ['assigned', 'confirmed', 'pending']);
+    if (error) throw new BadRequestException(error.message);
+
+    const rows = (assignments ?? []) as Array<{
+      match_id: string | null;
+      role: string | null;
+      status: string;
+      person_id: string | null;
+    }>;
+    if (rows.length === 0) return byMatch;
+
+    const { nameById, colorById } = await this.resolveRefereeChipMaps(rows);
+
+    for (const r of rows) {
+      if (!r.match_id) continue;
+      const displayName = r.person_id ? (nameById.get(r.person_id) ?? '—') : '—';
+      const skillColor = r.role ? (colorById.get(r.role) ?? 'slate') : 'slate';
+      const list = byMatch.get(r.match_id) ?? [];
+      list.push({ role: r.role, displayName, status: r.status, skillColor });
+      byMatch.set(r.match_id, list);
+    }
+    return byMatch;
+  }
+
+  private async getPublishedBracket(phase: Record<string, unknown>, eventId: string) {
     const phaseId = phase['id'] as string;
     const { data, error } = await this.supabase.service
       .from('bracket_slots')
@@ -2136,6 +2212,10 @@ export class EventsService {
       }
     }
 
+    // Referees per bracket match (scope_type='match'), mirroring the pool footer.
+    const matchIds = Array.from(new Set(Array.from(matchBySlot.values()).map((m) => m.id)));
+    const refereesByMatch = await this.getPublishedRefereesByMatch(eventId, matchIds);
+
     const enrichedSlots = rawSlots.map((s) => {
       const match = matchBySlot.get(s.id) ?? null;
       const red = s.registration_a_id ? (regById.get(s.registration_a_id) ?? null) : null;
@@ -2154,6 +2234,7 @@ export class EventsService {
         matchId: match?.id ?? null,
         redRegistrationId: s.registration_a_id,
         blueRegistrationId: s.registration_b_id,
+        referees: match?.id ? (refereesByMatch.get(match.id) ?? []) : [],
       };
     });
 

@@ -25,6 +25,12 @@ export class CreateEventDto extends createZodDto(createEventSchema) {}
 const updateEventSchema = z
   .object({
     name: z.string().min(2).max(200).optional(),
+    slug: z
+      .string()
+      .min(2)
+      .max(100)
+      .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, digits, and hyphens')
+      .optional(),
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),

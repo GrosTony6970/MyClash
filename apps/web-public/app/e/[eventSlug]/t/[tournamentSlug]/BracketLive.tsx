@@ -22,6 +22,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { refereeRoleLabel } from './referee-display';
 import type { BracketSlot } from './page';
 
 interface Props {
@@ -45,6 +46,12 @@ interface Props {
   podiumDecided?: boolean;
   /** Personal space: mark the viewer's own slots with a "YOU" chip. */
   highlightRegistrationId?: string | null;
+  /** Personal space (`/me`): default the referee band to OPEN. The public `/e`
+   *  page omits it → band defaults folded. */
+  personalView?: boolean;
+  /** Personal space: `${slotId}::${role ?? ''}` keys flagging the viewer's own
+   *  referee rows (accent name + "YOU" chip). */
+  refereeSelfKeys?: ReadonlySet<string>;
 }
 
 interface TournamentDataLike {
@@ -73,10 +80,13 @@ export function BracketLive({
   podium,
   podiumDecided,
   highlightRegistrationId,
+  personalView = false,
+  refereeSelfKeys,
 }: Props) {
   const { t } = useI18n();
   const router = useRouter();
   const [slots, setSlots] = useState<BracketSlot[]>(initialSlots);
+  const [showReferees, setShowReferees] = useState(personalView);
   const [, startTransition] = useTransition();
 
   async function refresh() {
@@ -202,7 +212,10 @@ export function BracketLive({
     matchId: s.matchId,
     redRegistrationId: (s as { redRegistrationId?: string | null }).redRegistrationId ?? null,
     blueRegistrationId: (s as { blueRegistrationId?: string | null }).blueRegistrationId ?? null,
+    referees: s.referees ?? [],
   }));
+
+  const hasReferees = adminShapeSlots.some((s) => (s.referees?.length ?? 0) > 0);
 
   // Extract the bronze final so BracketView renders it separately
   // below the gold final — without this split, both finals collapse
@@ -219,6 +232,20 @@ export function BracketLive({
       {podium && podiumDecided && (
         <div className="mb-6 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
+        </div>
+      )}
+      {hasReferees && (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowReferees((v) => !v)}
+            aria-pressed={showReferees}
+            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-stone-400 hover:text-slate-900"
+          >
+            {showReferees
+              ? t('publicApp.tournament.bracket.hideReferees')
+              : t('publicApp.tournament.bracket.showReferees')}
+          </button>
         </div>
       )}
       {/* No outer overflow-x-auto here — BracketView has its own
@@ -240,6 +267,9 @@ export function BracketLive({
         onMatchClick={onMatchClick}
         highlightRegistrationId={highlightRegistrationId}
         youLabel={t('publicApp.me.hub.youChip')}
+        showReferees={showReferees}
+        refereeSelfKeys={refereeSelfKeys}
+        refereeRoleLabel={refereeRoleLabel}
       />
       <p className="mt-4 text-xs text-slate-500">
         {t('publicApp.tournament.bracket.summarySize', { count: bracketSize })}

@@ -183,6 +183,26 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     ),
   );
 
+  // Give the event a human slug (web-public serves it at /e/<slug>); otherwise the
+  // throwaway `e2e--<token>` slug from global-setup is what shows in the URL. Slugs are
+  // org-scoped UNIQUE and demo events persist (scored → undeletable), so fall back to a
+  // token-suffixed slug when the clean one is already taken by a prior run. Its own
+  // best-effort step: an API predating slug-in-update rejects it (400) and this logs ✗
+  // without touching the rename above.
+  let eventSlugSet: string | null = null;
+  await step('event slug → fosse-aux-lions-2027', async () => {
+    const base = 'fosse-aux-lions-2027';
+    let slug = base;
+    let res = await patch(`events/${eventId}`, { data: { slug } });
+    if (res.status() === 409) {
+      slug = `${base}-${tok}`;
+      res = await patch(`events/${eventId}`, { data: { slug } });
+    }
+    await reqOk(res);
+    eventSlugSet = slug;
+    return slug;
+  });
+
   // ── Venue find-or-create ─────────────────────────────────────────────────────
   // Venues are org-scoped and UNIQUE(organization_id, name); they persist across
   // runs (and can't be deleted once their lices have scored matches). So the demo
@@ -1150,7 +1170,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       `        referees:    ${baseURL}/org/${orgSlug}/events/${eventId}/referees#assignments\n` +
       `        tournaments: ${baseURL}/org/${orgSlug}/events/${eventId}/tournaments  (open one → Pools for scores/standings, Bracket for qualifiers)\n` +
       `        schedule:    ${baseURL}/org/${orgSlug}/events/${eventId}/schedule\n` +
-      `        workshops:   ${baseURL}/org/${orgSlug}/events/${eventId}/workshops`,
+      `        workshops:   ${baseURL}/org/${orgSlug}/events/${eventId}/workshops\n` +
+      `        public slug: ${eventSlugSet ?? '(unchanged)'}`,
   );
 
   expect(allPoolIds.length).toBeGreaterThan(0);
