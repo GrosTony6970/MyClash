@@ -67,6 +67,7 @@ export interface EventFollowState {
   personId: string;
   notifyMatchStart: boolean;
   notifyWorkshopStart: boolean;
+  notifyRefereeStart: boolean;
   /** The backing event is non-terminal and not a test event. */
   active: boolean;
 }
@@ -226,13 +227,19 @@ export class FollowsService {
     eventId: string,
     personId: string,
     identity: FollowIdentity,
-    patch: { notifyMatchStart?: boolean; notifyWorkshopStart?: boolean },
+    patch: {
+      notifyMatchStart?: boolean;
+      notifyWorkshopStart?: boolean;
+      notifyRefereeStart?: boolean;
+    },
   ): Promise<FollowRow> {
     const updates: Record<string, unknown> = {};
     if (patch.notifyMatchStart !== undefined)
       updates['notify_match_start'] = patch.notifyMatchStart;
     if (patch.notifyWorkshopStart !== undefined)
       updates['notify_workshop_start'] = patch.notifyWorkshopStart;
+    if (patch.notifyRefereeStart !== undefined)
+      updates['notify_referee_start'] = patch.notifyRefereeStart;
 
     let q = this.supabase.service
       .from('follows')
@@ -435,7 +442,7 @@ export class FollowsService {
     const { data } = await this.supabase.service
       .from('follows')
       .select(
-        `event_id, followed_person_id, notify_match_start, notify_workshop_start,
+        `event_id, followed_person_id, notify_match_start, notify_workshop_start, notify_referee_start,
          persons ( global_person_id, events ( status, is_test_event ) )`,
       )
       .eq('follower_user_id', userId);
@@ -454,6 +461,7 @@ export class FollowsService {
         personId: r['followed_person_id'] as string,
         notifyMatchStart: Boolean(r['notify_match_start']),
         notifyWorkshopStart: Boolean(r['notify_workshop_start']),
+        notifyRefereeStart: Boolean(r['notify_referee_start']),
         active,
       };
       const existing = map.get(gp);

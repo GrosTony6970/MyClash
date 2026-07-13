@@ -8,6 +8,7 @@ import { formatInZone } from '@myclash/time';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
+import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import type { MyEvent, MyEventTournament } from '@/components/me/types';
 
 type TFn = ReturnType<typeof useI18n>['t'];
@@ -79,49 +80,6 @@ function CompetitionLinks({
       </Link>
     </div>
   );
-}
-
-/** Normalised referee match-kind token → localized label. */
-function matchKindLabel(t: TFn, kind: string | null, roundOfCount: number | null): string | null {
-  switch (kind) {
-    case 'pool':
-      return t('publicApp.me.hub.kindPool');
-    case 'play_in':
-      return t('publicApp.me.hub.kindPlayIn');
-    case 'final':
-      return t('publicApp.me.hub.kindFinal');
-    case 'semi_final':
-      return t('publicApp.me.hub.kindSemiFinal');
-    case 'quarter_final':
-      return t('publicApp.me.hub.kindQuarterFinal');
-    case 'round_of':
-      return roundOfCount ? t('publicApp.me.hub.kindRoundOf', { count: roundOfCount }) : null;
-    case 'swiss':
-      return t('publicApp.me.hub.kindSwiss');
-    default:
-      return null;
-  }
-}
-
-/** Referee match-kind → the tournament tab the referee entry should deep-link to.
- *  Pool phases open the Pool List; bracket phases open the Bracket (where the
- *  referee's own match is highlighted); Swiss opens Standings. Unknown/null
- *  keeps the prior no-hash behaviour (status-based default tab). */
-function matchKindHash(kind: string | null): '' | '#pools' | '#standings' | '#bracket' {
-  switch (kind) {
-    case 'pool':
-      return '#pools';
-    case 'swiss':
-      return '#standings';
-    case 'play_in':
-    case 'final':
-    case 'semi_final':
-    case 'quarter_final':
-    case 'round_of':
-      return '#bracket';
-    default:
-      return '';
-  }
 }
 
 /** "Sat 22 May · 10:30–13:45" (event tz), or the TBD label when unscheduled. */

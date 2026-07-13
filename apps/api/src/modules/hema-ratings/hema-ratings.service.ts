@@ -70,6 +70,12 @@ export interface HemaRatingsProfileResponse extends HemaRatingsProfile {
   syncedAt: string;
 }
 
+export interface RatingHistorySeries {
+  weapon: string;
+  category: string;
+  points: Array<{ date: string; rating: number; rank: number | null }>;
+}
+
 // ── Admin surface types ─────────────────────────────────────────────────────
 
 export interface TrackedFighterRow {
@@ -523,6 +529,44 @@ export class HemaRatingsService {
       syncedAt: snapshot.syncedAt,
       ratings: profile.ratings,
     };
+  }
+
+  /**
+   * Per-weapon rating time-series for the ranking-history chart, read from the
+   * normalized hema_rating_history table (populated by the sync worker). Grouped
+   * into one series per weapon+category, points sorted oldest → newest.
+   */
+  async getRatingHistory(hemaRatingsId: string): Promise<RatingHistorySeries[]> {
+    const { data, error } = await this.supabase.service
+      .from('hema_rating_history')
+      .select('weapon, category, weighted_rating, rank, captured_at')
+      .eq('hema_ratings_id', hemaRatingsId)
+      .order('captured_at', { ascending: true });
+    if (error || !data) return [];
+
+    const byKey = new Map<string, RatingHistorySeries>();
+    for (const row of data as Array<{
+      weapon: string;
+      category: string | null;
+      weighted_rating: number | string;
+      rank: number | null;
+      captured_at: string;
+    }>) {
+      const category = row.category ?? '';
+      const key = `${row.weapon}|${category}`;
+      let series = byKey.get(key);
+      if (!series) {
+        series = { weapon: row.weapon, category, points: [] };
+        byKey.set(key, series);
+      }
+      series.points.push({
+        date: String(row.captured_at).slice(0, 10),
+        rating: Number(row.weighted_rating),
+        rank: row.rank ?? null,
+      });
+    }
+    // Most-active weapons first (longest series).
+    return [...byKey.values()].sort((a, b) => b.points.length - a.points.length);
   }
 
   async resolveWeightedRatings(

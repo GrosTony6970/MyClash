@@ -1,7 +1,15 @@
 /**
  * Fighters and clubs — global cross-event identity.
  */
-import { type AnyPgColumn, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  type AnyPgColumn,
+  jsonb,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 // ── Clubs ─────────────────────────────────────────────────────────────────────
 export const clubs = pgTable('clubs', {
@@ -30,6 +38,12 @@ export const fighters = pgTable('global_persons', {
   hemaRatingsId: text('hema_ratings_id'),
   photoUrl: text('photo_url'),
   bio: text('bio'),
+  alias: text('alias'), // nickname shown in italic grey below the name
+  websiteUrl: text('website_url'),
+  instagramUrl: text('instagram_url'),
+  youtubeUrl: text('youtube_url'),
+  practicingSinceYear: smallint('practicing_since_year'), // year HEMA practice began
+  publicVisibility: jsonb('public_visibility').notNull().default({}), // per-field { key: boolean }
   dateOfBirth: text('date_of_birth'), // stored as ISO date string
   genderCategory: text('gender_category'),
   claimedByUserId: uuid('claimed_by_user_id'),

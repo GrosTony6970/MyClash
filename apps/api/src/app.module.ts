@@ -18,6 +18,7 @@ import { RefereesModule } from './modules/referees/referees.module';
 import { DeletionRequestsModule } from './modules/deletion-requests/deletion-requests.module';
 import { ReviewQueueModule } from './modules/admin/review-queue.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { EventStatsModule } from './modules/event-stats/event-stats.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { WorkersModule } from './workers/workers.module';
@@ -131,6 +132,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
     ReviewQueueModule,
     StaffModule,
     StatsModule,
+    EventStatsModule,
     ExportsModule,
     WorkersModule,
     RealtimeModule,

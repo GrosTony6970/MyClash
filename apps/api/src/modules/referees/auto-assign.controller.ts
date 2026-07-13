@@ -15,6 +15,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -27,6 +28,7 @@ export class AutoAssignController {
     private readonly supabase: SupabaseService,
     private readonly assignmentBoard: AssignmentBoardService,
     private readonly notifications: NotificationSchedulerService,
+    private readonly followNotifications: FollowNotificationSchedulerService,
     private readonly notificationEvents: NotificationEventsService,
   ) {}
 
@@ -67,6 +69,7 @@ export class AutoAssignController {
     await Promise.all(
       assignmentIds.flatMap((assignmentId) => [
         this.notifications.scheduleRefereeAssignmentStarting(assignmentId),
+        this.followNotifications.scheduleRefereeStarting(assignmentId),
         this.notificationEvents.assignmentChanged(assignmentId),
       ]),
     );

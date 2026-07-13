@@ -62,6 +62,7 @@ const makeSvc = (service: unknown, hidden: Set<string> = new Set()) =>
     { workshopCancelled: vi.fn() } as never,
     { assertOrgRole: vi.fn() } as never,
     { hiddenWorkshopGlobalPersonIds: vi.fn().mockResolvedValue(hidden) } as never,
+    { scheduleWorkshopStarting: vi.fn() } as never,
   );
 
 const workshopRow = (instructors: Array<{ global_person_id: string; display_name: string }>) => ({

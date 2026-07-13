@@ -35,6 +35,9 @@ export type { DividerProps } from './components/Divider';
 export { Avatar } from './components/Avatar';
 export type { AvatarProps } from './components/Avatar';
 
+export { RatingHistoryChart } from './components/RatingHistoryChart';
+export type { RatingHistoryChartProps, RatingHistoryPoint } from './components/RatingHistoryChart';
+
 export { EmptyState } from './components/EmptyState';
 export type { EmptyStateProps } from './components/EmptyState';
 

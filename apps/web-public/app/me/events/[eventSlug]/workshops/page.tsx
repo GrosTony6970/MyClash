@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
@@ -66,6 +66,23 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
     () => new Set((schedule?.workshops ?? []).map((w) => w.workshopId)),
     [schedule],
   );
+
+  // Deep-link from a schedule workshop card (`…/workshops#workshop-<slug>`):
+  // once the list has loaded, scroll that workshop's card into view. Once only.
+  const didScrollRef = useRef(false);
+  useEffect(() => {
+    if (didScrollRef.current || workshops === null) return;
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (!hash.startsWith('#workshop-')) {
+      didScrollRef.current = true;
+      return;
+    }
+    const el = document.getElementById(hash.slice(1));
+    if (el) {
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      didScrollRef.current = true;
+    }
+  }, [workshops]);
 
   // The user's fights + referee slots as timed windows, for conflict checks.
   const commitments = useMemo<TimedItem[]>(() => {
@@ -150,24 +167,25 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
                   : null;
               const full = session.capacity != null && remaining === 0 && !enrolled;
               return (
-                <WorkshopCard
-                  key={w.id}
-                  workshop={w}
-                  timezone={tz}
-                  highlighted={enrolled}
-                  showLocation
-                  footer={
-                    <WorkshopRegisterControls
-                      enrolled={enrolled}
-                      full={full}
-                      conflict={enrolled ? null : conflictFor(session)}
-                      busy={busy === session.id}
-                      labels={labels}
-                      onRegister={() => void act(session.id, 'POST')}
-                      onCancel={() => void act(session.id, 'DELETE')}
-                    />
-                  }
-                />
+                <div key={w.id} id={`workshop-${w.slug}`} className="scroll-mt-24">
+                  <WorkshopCard
+                    workshop={w}
+                    timezone={tz}
+                    highlighted={enrolled}
+                    showLocation
+                    footer={
+                      <WorkshopRegisterControls
+                        enrolled={enrolled}
+                        full={full}
+                        conflict={enrolled ? null : conflictFor(session)}
+                        busy={busy === session.id}
+                        labels={labels}
+                        onRegister={() => void act(session.id, 'POST')}
+                        onCancel={() => void act(session.id, 'DELETE')}
+                      />
+                    }
+                  />
+                </div>
               );
             })}
           </div>

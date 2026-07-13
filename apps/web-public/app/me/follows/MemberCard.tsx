@@ -2,63 +2,65 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Avatar } from '@myclash/ui';
+import { Avatar, formatCountryName } from '@myclash/ui';
+import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
+import { flagEmoji } from '@/lib/flag';
 import { useI18n } from '@/i18n/I18nProvider';
+import { Chevron } from './Chevron';
 import { FollowButton } from './FollowButton';
+import { useMemberDetails } from './useMemberDetails';
+import { usePersistedOpen } from './usePersistedOpen';
 import type { FollowAllSummary, MemberCard as MemberCardData } from './useDirectoryGroups';
 
-function DashboardStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2">
-      <p className="text-[11px] uppercase tracking-widest text-muted">{label}</p>
-      <p className="mt-1 text-base font-black tabular-nums text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-    >
-      <path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function MemberCard({
+  apiUrl,
   member,
   onFollow,
   onUnfollow,
   onRemove,
 }: {
+  apiUrl: string;
   member: MemberCardData;
   onFollow: () => Promise<FollowAllSummary | null>;
   onUnfollow: () => Promise<boolean>;
   onRemove: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = usePersistedOpen(
+    `myclash:member-open:${member.globalPersonId}`,
+    false,
+  );
+  // Warm the fetch on hover/focus so expanding is instant (no load flash).
+  const [warm, setWarm] = useState(false);
+  const { details, error, reload } = useMemberDetails(apiUrl, member.slug, expanded || warm);
 
   const subtitle = [member.clubName, member.favoriteWeapon].filter(Boolean).join(' · ');
-  const winRate = member.winRate === null ? '—' : `${member.winRate}%`;
+  const flag = flagEmoji(member.countryCode);
+  const countryName = member.countryCode ? formatCountryName(member.countryCode, locale) : null;
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <div className="flex items-center gap-3">
+      <div
+        className="flex items-center gap-3"
+        onMouseEnter={() => setWarm(true)}
+        onFocus={() => setWarm(true)}
+      >
         <Link
           href={`/fighters/${member.slug}`}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Avatar name={member.displayName} src={member.photoUrl ?? undefined} size="md" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">{member.displayName}</p>
+            <p className="truncate text-sm font-semibold text-foreground">
+              {flag && (
+                <span aria-hidden className="mr-1.5">
+                  {flag}
+                </span>
+              )}
+              {member.displayName}
+              {countryName && <span className="sr-only"> · {countryName}</span>}
+            </p>
             {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
           </div>
         </Link>
@@ -77,18 +79,31 @@ export function MemberCard({
 
       {expanded && (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <DashboardStat label={t('publicApp.fighterProfile.matches')} value={member.matches} />
-            <DashboardStat label={t('publicApp.fighterProfile.totalWins')} value={member.wins} />
-            <DashboardStat
-              label={t('publicApp.fighterProfile.totalLosses')}
-              value={member.losses}
-            />
-            <DashboardStat label={t('publicApp.fighterProfile.winRate')} value={winRate} />
-            <DashboardStat
-              label={t('publicApp.fighterProfile.eventsAttended')}
-              value={member.eventsAttended}
-            />
+          <div className="mt-3">
+            {details ? (
+              <FighterStatsPanel
+                fighter={details.fighter}
+                career={details.career}
+                refereeStats={details.refereeStats}
+              />
+            ) : error ? (
+              <button
+                type="button"
+                onClick={reload}
+                className="text-sm text-danger underline-offset-2 hover:underline"
+              >
+                {t('common.error')}
+              </button>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-hidden>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-14 animate-pulse rounded-lg border border-border bg-background"
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">

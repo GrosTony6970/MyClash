@@ -19,7 +19,10 @@ export type ImmediateNotificationKind =
   | 'exchange_edit_rejected'
   | 'organizer_broadcast';
 
-export type FollowNotificationKind = 'follow_match_starting';
+export type FollowNotificationKind =
+  | 'follow_match_starting'
+  | 'follow_referee_starting'
+  | 'follow_workshop_starting';
 
 export type NotificationKind =
   | ScheduledNotificationKind

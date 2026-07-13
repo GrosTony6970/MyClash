@@ -17,6 +17,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -220,6 +221,7 @@ export class WorkshopsService {
     private readonly notificationEvents: NotificationEventsService,
     private readonly orgs: OrganizationsService,
     private readonly privacy: PrivacyService,
+    private readonly followNotifications: FollowNotificationSchedulerService,
   ) {}
 
   // ── List workshops for event ──────────────────────────────────────────────────
@@ -645,7 +647,9 @@ export class WorkshopsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    await this.notifications.scheduleWorkshopSessionStarting((data as { id: string }).id);
+    const createdSessionId = (data as { id: string }).id;
+    await this.notifications.scheduleWorkshopSessionStarting(createdSessionId);
+    await this.followNotifications.scheduleWorkshopStarting(createdSessionId);
     return data;
   }
 
@@ -671,6 +675,7 @@ export class WorkshopsService {
 
     if (error) throw new BadRequestException(error.message);
     await this.notifications.scheduleWorkshopSessionStarting(sessionId);
+    await this.followNotifications.scheduleWorkshopStarting(sessionId);
     if (dto.status === 'cancelled') {
       await this.notificationEvents.workshopCancelled(sessionId);
     }

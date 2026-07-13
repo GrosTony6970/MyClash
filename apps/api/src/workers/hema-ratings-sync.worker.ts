@@ -124,6 +124,12 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
 
       await this.storeSnapshot(enriched);
       this.logger.log(`Snapshot stored (${enriched.length} fighters)`);
+
+      // Append today's rating points for the ranking-history chart, and seed the
+      // series from accumulated snapshots on first run. Non-fatal: a failure here
+      // must not fail the sync itself.
+      await this.captureRatingHistory(linkedProfiles);
+      await this.backfillHistoryIfEmpty();
     } catch (error) {
       // Log + rethrow so BullMQ surfaces the failure to the retry pipeline
       // (attempts + exponential back-off configured on the queue). Without
@@ -296,6 +302,87 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
 
     if (error) {
       throw new Error(`Failed to store HEMA Ratings snapshot: ${error.message}`);
+    }
+  }
+
+  // ── Rating history (chart time-series) ───────────────────────────────────────
+
+  /** Append today's rating point per linked fighter × weapon × category. */
+  private async captureRatingHistory(profiles: Map<string, HemaRatingsProfile>): Promise<void> {
+    const capturedAt = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const rows: Record<string, unknown>[] = [];
+    for (const [id, profile] of profiles) {
+      for (const rating of profile.ratings ?? []) {
+        if (rating.weightedRating == null || !rating.weapon) continue;
+        rows.push({
+          hema_ratings_id: id,
+          weapon: rating.weapon,
+          category: rating.category ?? '',
+          weighted_rating: rating.weightedRating,
+          rank: rating.rank ?? null,
+          captured_at: capturedAt,
+        });
+      }
+    }
+    await this.upsertHistoryRows(rows);
+  }
+
+  /**
+   * Seed the history table from accumulated daily snapshots the first time it's
+   * empty, so the chart has real backdated points immediately after deploy.
+   */
+  private async backfillHistoryIfEmpty(): Promise<void> {
+    const { count, error: countError } = await this.supabase.service
+      .from('hema_rating_history')
+      .select('id', { count: 'exact', head: true });
+    if (countError || (count ?? 0) > 0) return;
+
+    const { data, error } = await this.supabase.service
+      .from('hema_ratings_snapshots')
+      .select('synced_at, fighters')
+      .order('synced_at', { ascending: true });
+    if (error || !data) return;
+
+    const rows: Record<string, unknown>[] = [];
+    for (const snapshot of data as Array<{ synced_at: string; fighters: unknown }>) {
+      const capturedAt = String(snapshot.synced_at).slice(0, 10);
+      const fighters = Array.isArray(snapshot.fighters)
+        ? (snapshot.fighters as Array<{ id?: unknown; ratings?: HemaRatingsProfile['ratings'] }>)
+        : [];
+      for (const fighter of fighters) {
+        const id = fighter.id == null ? '' : String(fighter.id);
+        if (!id) continue;
+        for (const rating of fighter.ratings ?? []) {
+          if (rating.weightedRating == null || !rating.weapon) continue;
+          rows.push({
+            hema_ratings_id: id,
+            weapon: rating.weapon,
+            category: rating.category ?? '',
+            weighted_rating: rating.weightedRating,
+            rank: rating.rank ?? null,
+            captured_at: capturedAt,
+          });
+        }
+      }
+    }
+    await this.upsertHistoryRows(rows);
+    this.logger.log(`Backfilled ${rows.length} HEMA rating-history points from snapshots`);
+  }
+
+  /** Chunked idempotent upsert on the (id, weapon, category, captured_at) key. */
+  private async upsertHistoryRows(rows: Record<string, unknown>[]): Promise<void> {
+    if (rows.length === 0) return;
+    const CHUNK = 1000;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await this.supabase.service
+        .from('hema_rating_history')
+        .upsert(rows.slice(i, i + CHUNK), {
+          onConflict: 'hema_ratings_id,weapon,category,captured_at',
+        });
+      if (error) {
+        this.logger.warn(`Failed to write HEMA rating history: ${error.message}`);
+        return;
+      }
     }
   }
 }

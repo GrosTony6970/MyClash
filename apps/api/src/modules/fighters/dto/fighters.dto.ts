@@ -28,6 +28,18 @@ const updateFighterSchema = z
     photoUrl: z.string().optional(),
     bio: z.string().max(2000).optional(),
     dateOfBirth: z.string().optional(),
+    // Public-profile identity fields. `.nullable().optional()` so the FE can send
+    // `null` to clear (see project_zod_null_to_clear); a plain `.optional()` would
+    // reject the null. Links are stored as free text (not `.url()`-validated) so a
+    // half-typed value isn't rejected mid-edit; the service coerces '' → null.
+    alias: z.string().max(100).nullable().optional(),
+    websiteUrl: z.string().max(300).nullable().optional(),
+    instagramUrl: z.string().max(300).nullable().optional(),
+    youtubeUrl: z.string().max(300).nullable().optional(),
+    practicingSinceYear: z.number().int().min(1900).max(2100).nullable().optional(),
+    // Per-field public visibility map ({ fieldKey: boolean }). Unknown keys are
+    // dropped server-side; only whitelisted fields are persisted.
+    publicVisibility: z.record(z.string(), z.boolean()).optional(),
   })
   .strict();
 export class UpdateFighterDto extends createZodDto(updateFighterSchema) {}
@@ -48,9 +60,25 @@ const fighterWeaponInputSchema = z
     // `.nullable()` so the FE can send `null` to clear a previously set level
     // (a plain `.optional()` would reject it — see project_zod_null_to_clear).
     level: z.enum(['just_for_fun', 'beginner', 'intermediate', 'advanced']).nullable().optional(),
+    // Free-text style/tradition per weapon (e.g. "KDF", "Italian longsword"); UI
+    // offers suggestions via a datalist but any value is allowed.
+    style: z.string().max(100).nullable().optional(),
   })
   .strict();
 export class FighterWeaponInputDto extends createZodDto(fighterWeaponInputSchema) {}
+
+// A manually imported podium from a tournament not run in the app. `weapon` is
+// the controlled catalog name the FE picks; stored as free text alongside the
+// tournament-derived weapon strings.
+const fighterMedalInputSchema = z
+  .object({
+    competition: z.string().min(1).max(200),
+    year: z.number().int().min(1900).max(2100),
+    rank: z.number().int().min(1).max(3),
+    weapon: z.string().min(1).max(100),
+  })
+  .strict();
+export class FighterMedalInputDto extends createZodDto(fighterMedalInputSchema) {}
 
 // Extends UpdateFighterDto's fields plus the global-profile editing payload.
 // The nested club/weapon arrays were only shape-checked as arrays under
@@ -63,6 +91,7 @@ const updateMyFighterProfileSchema = updateFighterSchema
     secondaryClubs: z.array(fighterClubInputSchema).optional(),
     previousClubs: z.array(fighterClubInputSchema).optional(),
     weapons: z.array(fighterWeaponInputSchema).optional(),
+    medals: z.array(fighterMedalInputSchema).optional(),
   })
   .strict();
 export class UpdateMyFighterProfileDto extends createZodDto(updateMyFighterProfileSchema) {}

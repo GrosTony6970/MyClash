@@ -24,13 +24,18 @@ function initials(name: string): string {
 
 export const Avatar = ({ name, src, size = 'md', className = '' }: AvatarProps) => {
   const sz = sizeMap[size];
+  // Fall back to initials if the image fails to load (e.g. a storage path that
+  // 404s), instead of showing a broken-image icon. Reset when `src` changes.
+  const [errored, setErrored] = React.useState(false);
+  React.useEffect(() => setErrored(false), [src]);
 
-  if (src) {
+  if (src && !errored) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={name}
+        onError={() => setErrored(true)}
         className={['rounded-full object-cover', sz, className].join(' ')}
       />
     );

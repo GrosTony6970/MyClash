@@ -103,6 +103,8 @@ export interface RefereeHistoryEntry {
 export interface RefereeStats {
   totalMatches: number;
   averageRefereeTimeMs: number;
+  /** Distinct events the referee has officiated at (counted from assignments). */
+  eventsWorked: number;
   roles: Record<RefereeRole, number>;
   cards: Record<RefereeCard, number>;
   bestBuddies: Array<{ userId: string; displayName: string | null; matchesTogether: number }>;
@@ -134,6 +136,10 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
     durations.length === 0
       ? 0
       : Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length);
+
+  const eventsWorked = new Set(
+    mine.map((assignment) => assignment.eventId).filter((id): id is string => Boolean(id)),
+  ).size;
 
   const cards = { yellow: 0, red: 0, black: 0 };
   const cardsByMatch = new Map<string, { yellow: number; red: number; black: number }>();
@@ -175,6 +181,7 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
   return {
     totalMatches: matchIds.size,
     averageRefereeTimeMs,
+    eventsWorked,
     roles,
     cards,
     bestBuddies,

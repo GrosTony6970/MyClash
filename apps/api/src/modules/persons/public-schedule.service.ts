@@ -16,6 +16,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
+import { computeMatchKind, fetchBracketRounds } from './match-kind.util';
 
 export interface ScheduleMatch {
   id: string;
@@ -38,13 +39,25 @@ export interface RefereeSlot {
   scheduledAt: string | null;
   role: string;
   poolName: string | null;
+  poolId: string | null;
   tournamentName: string | null;
+  tournamentSlug: string | null;
+  liceName: string | null;
+  /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
+  matchKind: string | null;
+  /** fighter count for matchKind === 'round_of' (e.g. 16) */
+  roundOfCount: number | null;
+  /** Bracket slot id for bracket matches (null for pool/swiss). */
+  bracketSlotId: string | null;
   skillName: string | null;
   skillColor: string | null;
 }
 
 export interface WorkshopEnrollment {
+  /** workshop_sessions.id (the enrolled session), NOT the parent workshop id. */
   workshopId: string;
+  /** Parent workshop slug — deep-links to the workshop in the Workshops tab. */
+  workshopSlug: string | null;
   workshopName: string;
   sessionStart: string | null;
   sessionEnd: string | null;
@@ -201,9 +214,10 @@ export class PublicScheduleService {
         `
         role,
         matches (
-          id, match_number_label, scheduled_at,
-          pools ( name ),
-          phases ( visibility_status, tournaments ( name ) )
+          id, match_number_label, scheduled_at, bracket_slot_id,
+          pools ( id, name ),
+          lices ( name ),
+          phases ( visibility_status, type, config_json, tournaments ( name, slug ) )
         )
       `,
       )
@@ -212,12 +226,18 @@ export class PublicScheduleService {
 
     if (!data) return [];
 
-    const slots: RefereeSlot[] = (data as Array<Record<string, unknown>>).flatMap((a) => {
+    // Carry phaseType/bracketSize alongside each slot for the match-kind derivation
+    // below; they're stripped from the returned RefereeSlot.
+    type RawSlot = RefereeSlot & { phaseType: string | null; bracketSize: number | null };
+    const raw: RawSlot[] = (data as Array<Record<string, unknown>>).flatMap((a) => {
       const match = a['matches'] as Record<string, unknown> | null;
-      const pool = match?.['pools'] as { name: string } | null;
+      const pool = match?.['pools'] as { id?: string; name?: string } | null;
+      const lice = match?.['lices'] as { name?: string } | null;
       const phase = match?.['phases'] as {
         visibility_status?: string | null;
-        tournaments: { name: string } | null;
+        type?: string | null;
+        config_json?: { bracketSize?: number } | null;
+        tournaments: { name?: string; slug?: string } | null;
       } | null;
       if (phase?.visibility_status !== 'published') return [];
 
@@ -227,14 +247,32 @@ export class PublicScheduleService {
         scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
         role: a['role'] as string,
         poolName: pool?.name ?? null,
+        poolId: pool?.id ?? null,
         tournamentName: phase?.tournaments?.name ?? null,
+        tournamentSlug: phase?.tournaments?.slug ?? null,
+        liceName: lice?.name ?? null,
+        matchKind: null,
+        roundOfCount: null,
+        bracketSlotId: (match?.['bracket_slot_id'] as string | null) ?? null,
         skillName: null,
         skillColor: null,
+        phaseType: (phase?.type as string | null) ?? null,
+        bracketSize: phase?.config_json?.bracketSize ?? null,
       };
     });
 
+    // Match kind (pool / bracket round) — bracket round lives on bracket_slots.
+    const slotIds = [...new Set(raw.map((s) => s.bracketSlotId).filter((x): x is string => !!x))];
+    const roundBySlot = await fetchBracketRounds(this.supabase.service, slotIds);
+    for (const s of raw) {
+      const round = s.bracketSlotId ? (roundBySlot.get(s.bracketSlotId) ?? null) : null;
+      const { kind, roundOfCount } = computeMatchKind(s.phaseType, round, s.bracketSize);
+      s.matchKind = kind;
+      s.roundOfCount = roundOfCount;
+    }
+
     // Enrich with the referee skill name + colour (role holds referee_skills.id).
-    const roleIds = [...new Set(slots.map((s) => s.role).filter((x): x is string => !!x))];
+    const roleIds = [...new Set(raw.map((s) => s.role).filter((x): x is string => !!x))];
     if (roleIds.length > 0) {
       const { data: skills } = await this.supabase.service
         .from('referee_skills')
@@ -247,7 +285,7 @@ export class PublicScheduleService {
           color: String(s['color'] ?? ''),
         });
       }
-      for (const slot of slots) {
+      for (const slot of raw) {
         const sk = byId.get(slot.role);
         if (sk) {
           slot.skillName = sk.name;
@@ -255,7 +293,25 @@ export class PublicScheduleService {
         }
       }
     }
-    return slots;
+
+    return raw.map(
+      (s): RefereeSlot => ({
+        matchId: s.matchId,
+        matchNumberLabel: s.matchNumberLabel,
+        scheduledAt: s.scheduledAt,
+        role: s.role,
+        poolName: s.poolName,
+        poolId: s.poolId,
+        tournamentName: s.tournamentName,
+        tournamentSlug: s.tournamentSlug,
+        liceName: s.liceName,
+        matchKind: s.matchKind,
+        roundOfCount: s.roundOfCount,
+        bracketSlotId: s.bracketSlotId,
+        skillName: s.skillName,
+        skillColor: s.skillColor,
+      }),
+    );
   }
 
   private async fetchWorkshops(_eventId: string, personId: string): Promise<WorkshopEnrollment[]> {
@@ -267,7 +323,7 @@ export class PublicScheduleService {
         `
         workshop_sessions (
           id, starts_at, ends_at, location_label,
-          workshops ( title )
+          workshops ( title, slug )
         )
       `,
       )
@@ -284,10 +340,12 @@ export class PublicScheduleService {
       const workshopRaw = session?.['workshops'];
       const workshop = (Array.isArray(workshopRaw) ? workshopRaw[0] : workshopRaw) as {
         title?: string;
+        slug?: string;
       } | null;
 
       return {
         workshopId: (session?.['id'] as string) ?? '',
+        workshopSlug: workshop?.slug ?? null,
         workshopName: workshop?.title ?? '',
         sessionStart: (session?.['starts_at'] as string | null) ?? null,
         sessionEnd: (session?.['ends_at'] as string | null) ?? null,

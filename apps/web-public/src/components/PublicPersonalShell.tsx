@@ -82,6 +82,18 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [apiUrl]);
 
+  // The /me fetch above only runs on mount, so a photo changed on the co-mounted
+  // profile editor wouldn't show here until a full reload. FighterProfileClient
+  // dispatches a `myclash:profile-photo` window event on upload/remove; mirror it.
+  useEffect(() => {
+    const onPhoto = (event: Event) => {
+      const detail = (event as CustomEvent<{ url?: string | null }>).detail;
+      setPhotoUrl(detail?.url ?? null);
+    };
+    window.addEventListener('myclash:profile-photo', onPhoto);
+    return () => window.removeEventListener('myclash:profile-photo', onPhoto);
+  }, []);
+
   // Who's signed in (for the sidebar footer) + whether it's a Google-only
   // account. Best-effort; the footer just hides if it can't load.
   useEffect(() => {
@@ -239,7 +251,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
                 {t('publicApp.personalShell.loggedAs')}{' '}
                 <span className="font-semibold text-foreground">{displayName}</span>
               </p>
-              <Avatar size="sm" name={displayName} src={photoUrl ?? undefined} />
+              <Avatar size="md" name={displayName} src={photoUrl ?? undefined} />
             </div>
           )}
         </div>
@@ -308,6 +320,15 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
                 {t('publicApp.personalShell.close')}
               </button>
             </div>
+            {displayName && (
+              <div className="mb-4 flex items-center gap-2 pl-1">
+                <p className="min-w-0 text-[0.7rem] text-muted">
+                  {t('publicApp.personalShell.loggedAs')}{' '}
+                  <span className="font-semibold text-foreground">{displayName}</span>
+                </p>
+                <Avatar size="md" name={displayName} src={photoUrl ?? undefined} />
+              </div>
+            )}
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
             <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
           </div>

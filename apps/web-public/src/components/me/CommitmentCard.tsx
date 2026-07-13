@@ -25,11 +25,13 @@ export interface CommitmentCardProps {
   href?: string;
 }
 
+// Accent stripe by kind: referee = orange (warning), workshop = green (success),
+// fighter = red/blue by corner (encodes which corner the fighter is in).
 const stripeFor = (kind: 'fight' | 'referee' | 'workshop', side?: 'red' | 'blue') =>
   kind === 'referee'
-    ? 'bg-amber-500'
+    ? 'bg-warning'
     : kind === 'workshop'
-      ? 'bg-violet-600'
+      ? 'bg-success'
       : side === 'blue'
         ? 'bg-blue-700'
         : 'bg-red-700';

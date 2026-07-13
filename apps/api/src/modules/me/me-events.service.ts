@@ -18,33 +18,11 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { bracketRoundLabel } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
+import { computeMatchKind, fetchBracketRounds } from '../persons/match-kind.util';
 
 type Row = Record<string, unknown>;
-
-/** Normalised referee match-kind token + (for round_of) the fighter count. */
-function computeMatchKind(
-  phaseType: string | null,
-  bracketRound: number | null,
-  bracketSize: number | null,
-): { kind: string | null; roundOfCount: number | null } {
-  if (phaseType === 'pool') return { kind: 'pool', roundOfCount: null };
-  if (phaseType === 'swiss') return { kind: 'swiss', roundOfCount: null };
-  if (phaseType === 'single_elim' || phaseType === 'double_elim') {
-    if (bracketRound === 0) return { kind: 'play_in', roundOfCount: null };
-    if (bracketRound != null && bracketRound > 0) {
-      const code = bracketRoundLabel(bracketRound, bracketSize);
-      if (code === 'F') return { kind: 'final', roundOfCount: null };
-      if (code === 'SF') return { kind: 'semi_final', roundOfCount: null };
-      if (code === 'QF') return { kind: 'quarter_final', roundOfCount: null };
-      const m = /^R(\d+)$/.exec(code);
-      return { kind: 'round_of', roundOfCount: m ? Number(m[1]) : null };
-    }
-  }
-  return { kind: null, roundOfCount: null };
-}
 
 export interface MyEventInfo {
   id: string;
@@ -475,16 +453,7 @@ export class MeEventsService {
     const slotIds = [
       ...new Set(assignments.map((a) => a.bracketSlotId).filter((x): x is string => !!x)),
     ];
-    const roundBySlot = new Map<string, number | null>();
-    if (slotIds.length > 0) {
-      const { data: slots } = await this.supabase.service
-        .from('bracket_slots')
-        .select('id, round')
-        .in('id', slotIds);
-      for (const s of Array.isArray(slots) ? (slots as Row[]) : []) {
-        roundBySlot.set(String(s['id']), (s['round'] as number | null) ?? null);
-      }
-    }
+    const roundBySlot = await fetchBracketRounds(this.supabase.service, slotIds);
     for (const a of assignments) {
       const round = a.bracketSlotId ? (roundBySlot.get(a.bracketSlotId) ?? null) : null;
       const { kind, roundOfCount } = computeMatchKind(a.phaseType, round, a.bracketSize);

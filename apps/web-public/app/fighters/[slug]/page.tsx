@@ -8,6 +8,10 @@ import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
+import { RatingHistorySection } from './_components/RatingHistorySection';
+import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
+import { ShareProfile } from '@/components/fighter/ShareProfile';
+import type { FighterMedal, FighterPlacement } from '@/lib/weapon-stats';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -26,6 +30,8 @@ interface FighterClubLink {
 
 interface FighterWeaponLink {
   favorite?: boolean;
+  level?: string | null;
+  style?: string | null;
   weapon_catalog?: {
     id?: string;
     slug?: string | null;
@@ -45,10 +51,16 @@ interface Fighter {
   weapons: FighterWeaponLink[];
   photoUrl: string | null;
   bio: string | null;
+  alias: string | null;
+  websiteUrl: string | null;
+  instagramUrl: string | null;
+  youtubeUrl: string | null;
+  practicingSinceYear: number | null;
   hemaRatingsId: string | null;
   hemaRatingsScore: number | null;
   hemaRatings: HemaRatingsProfile | null;
   hemaRatingsPending: boolean;
+  medals: FighterMedal[];
   recentMatches: RecentMatch[];
 }
 
@@ -99,15 +111,6 @@ interface CareerEvent {
   endDate: string | null;
 }
 
-interface TournamentPlacement {
-  tournamentId: string;
-  tournamentName: string;
-  eventName: string;
-  weapon: string | null;
-  category: string | null;
-  rank: number | null;
-}
-
 interface LeagueRanking {
   leagueName: string;
   rank: number;
@@ -118,7 +121,7 @@ interface LeagueRanking {
 interface FighterCareer {
   eventParticipation: CareerEvent[];
   upcoming: CareerRegistration[];
-  tournamentPlacements: TournamentPlacement[];
+  tournamentPlacements: FighterPlacement[];
   leagueRankings: LeagueRanking[];
   stats: {
     overall: CareerStats;
@@ -130,6 +133,7 @@ interface FighterCareer {
 interface RefereeStats {
   totalMatches: number;
   averageRefereeTimeMs: number;
+  eventsWorked: number;
   roles: {
     arbitre_declarant: number;
     arbitre_assesseur: number;
@@ -154,6 +158,10 @@ type RawFighter = Omit<Partial<Fighter>, 'clubs' | 'weapons'> & {
   club_name?: string | null;
   club_slug?: string | null;
   photo_url?: string | null;
+  website_url?: string | null;
+  instagram_url?: string | null;
+  youtube_url?: string | null;
+  practicing_since_year?: number | null;
   hema_ratings_id?: string | null;
   hemaRatings?: HemaRatingsProfile | null;
   hemaRatingsPending?: boolean;
@@ -215,10 +223,16 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | nul
       weapons: raw.weapons ?? [],
       photoUrl: raw.photoUrl ?? raw.photo_url ?? null,
       bio: raw.bio ?? null,
+      alias: raw.alias ?? null,
+      websiteUrl: raw.websiteUrl ?? raw.website_url ?? null,
+      instagramUrl: raw.instagramUrl ?? raw.instagram_url ?? null,
+      youtubeUrl: raw.youtubeUrl ?? raw.youtube_url ?? null,
+      practicingSinceYear: raw.practicingSinceYear ?? raw.practicing_since_year ?? null,
       hemaRatingsId: raw.hemaRatingsId ?? raw.hema_ratings_id ?? null,
       hemaRatingsScore: raw.hemaRatingsScore ?? null,
       hemaRatings: raw.hemaRatings ?? null,
       hemaRatingsPending: raw.hemaRatingsPending ?? false,
+      medals: raw.medals ?? [],
       recentMatches: raw.recentMatches ?? [],
     };
   } catch {
@@ -273,17 +287,6 @@ function formatDate(date: string | null): string {
   return new Date(date).toLocaleDateString('en-GB');
 }
 
-function statValue(value: number | null): string {
-  if (value === null) return t('publicApp.fighterProfile.unknownRatio');
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
-
-function formatDuration(ms: number): string {
-  if (ms <= 0) return t('common.none');
-  const minutes = Math.round(ms / 60000);
-  return t('publicApp.fighterProfile.minutes', { count: minutes });
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   return { title: slug };
@@ -321,7 +324,6 @@ export default async function FighterPage({ params }: Props) {
   const mainClubs = fighter.clubs.filter((club) => club.role === 'main');
   const secondaryClubs = fighter.clubs.filter((club) => club.role === 'secondary');
   const previousClubs = fighter.clubs.filter((club) => club.role === 'previous');
-  const overallStats = career?.stats.overall;
   const insight = fighter.id ? await fetchPublishedInsight(fighter.id, apiUrl) : null;
 
   return (
@@ -344,20 +346,80 @@ export default async function FighterPage({ params }: Props) {
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
             {fighter.displayName}
           </h1>
+          {fighter.alias && <p className="text-sm italic text-gray-400">{fighter.alias}</p>}
           {fighter.clubName && (
             <Link
               href={`/clubs/${fighter.clubSlug ?? ''}`}
-              className="text-sm text-gray-400 transition-colors hover:text-white"
+              className="block text-sm text-gray-400 transition-colors hover:text-white"
             >
               {fighter.clubName}
             </Link>
+          )}
+          {fighter.practicingSinceYear && (
+            <p className="mt-1 text-xs text-gray-400">
+              {t('publicApp.fighterProfile.practicingSinceLabel', {
+                year: fighter.practicingSinceYear,
+              })}
+            </p>
           )}
           {fighter.hemaRatingsScore !== null && (
             <p className="mt-1 text-xs text-amber-400">
               {t('publicApp.fighterProfile.hemaRatings')}: {fighter.hemaRatingsScore.toFixed(1)}
             </p>
           )}
+          {(fighter.websiteUrl ||
+            fighter.instagramUrl ||
+            fighter.youtubeUrl ||
+            fighter.hemaRatings?.detailsUrl) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              {fighter.websiteUrl && (
+                <a
+                  href={fighter.websiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-400 transition-colors hover:text-white"
+                >
+                  {t('publicApp.fighterProfile.website')}
+                </a>
+              )}
+              {fighter.instagramUrl && (
+                <a
+                  href={fighter.instagramUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-400 transition-colors hover:text-white"
+                >
+                  {t('publicApp.fighterProfile.instagram')}
+                </a>
+              )}
+              {fighter.youtubeUrl && (
+                <a
+                  href={fighter.youtubeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-400 transition-colors hover:text-white"
+                >
+                  {t('publicApp.fighterProfile.youtube')}
+                </a>
+              )}
+              {fighter.hemaRatings?.detailsUrl && (
+                <a
+                  href={fighter.hemaRatings.detailsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-400 transition-colors hover:text-white"
+                >
+                  {t('publicApp.fighterProfile.hemaRatings')}
+                </a>
+              )}
+            </div>
+          )}
         </div>
+        {fighter.slug && (
+          <div className="hidden shrink-0 sm:block">
+            <ShareProfile slug={fighter.slug} />
+          </div>
+        )}
       </div>
 
       {fighter.bio && <p className="mb-6 text-sm leading-relaxed text-gray-300">{fighter.bio}</p>}
@@ -371,184 +433,43 @@ export default async function FighterPage({ params }: Props) {
         </section>
       )}
 
-      {(fighter.weapons.length > 0 || fighter.clubs.length > 0) && (
-        <section className="mb-6 grid gap-3 sm:grid-cols-2">
-          {fighter.weapons.length > 0 && (
-            <ProfilePanel title={t('publicApp.fighterProfile.weapons')}>
-              <div className="flex flex-wrap gap-2">
-                {fighter.weapons.map((weapon) => (
-                  <span
-                    key={weapon.weapon_catalog?.id ?? weapon.weapon_catalog?.slug}
-                    className="rounded-full border border-gray-700 bg-gray-900 px-2.5 py-1 text-xs text-gray-200"
-                  >
-                    {weapon.weapon_catalog?.name ?? t('common.unknown')}
-                  </span>
-                ))}
-              </div>
-            </ProfilePanel>
-          )}
-          {fighter.clubs.length > 0 && (
-            <ProfilePanel title={t('publicApp.fighterProfile.clubs')}>
-              <ClubLine label={t('publicApp.fighterProfile.mainClub')} clubs={mainClubs} />
-              <ClubLine
-                label={t('publicApp.fighterProfile.secondaryClubs')}
-                clubs={secondaryClubs}
-              />
-              <ClubLine label={t('publicApp.fighterProfile.previousClubs')} clubs={previousClubs} />
-            </ProfilePanel>
-          )}
+      {fighter.clubs.length > 0 && (
+        <section className="mb-6">
+          <ProfilePanel title={t('publicApp.fighterProfile.clubs')}>
+            <ClubLine label={t('publicApp.fighterProfile.mainClub')} clubs={mainClubs} />
+            <ClubLine label={t('publicApp.fighterProfile.secondaryClubs')} clubs={secondaryClubs} />
+            <ClubLine label={t('publicApp.fighterProfile.previousClubs')} clubs={previousClubs} />
+          </ProfilePanel>
         </section>
       )}
 
-      {overallStats && (
-        <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
-            {t('publicApp.fighterProfile.stats')}
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label={t('publicApp.fighterProfile.totalWins')} value={overallStats.wins} />
-            <StatCard
-              label={t('publicApp.fighterProfile.totalLosses')}
-              value={overallStats.losses}
-            />
-            <StatCard
-              label={t('publicApp.fighterProfile.winLossRatio')}
-              value={statValue(overallStats.winLossRatio)}
-            />
-            <StatCard
-              label={t('publicApp.fighterProfile.doubleHitPercentage')}
-              value={`${overallStats.doubleHitPercentage.toFixed(2)}%`}
-            />
-          </div>
-        </section>
-      )}
+      <section className="mb-6">
+        <FighterStatsPanel
+          fighter={{
+            weapons: fighter.weapons,
+            hemaRatingsId: fighter.hemaRatingsId,
+            hemaRatings: fighter.hemaRatings,
+            medals: fighter.medals,
+          }}
+          career={
+            career
+              ? { stats: career.stats, tournamentPlacements: career.tournamentPlacements }
+              : null
+          }
+          refereeStats={
+            refereeStats
+              ? {
+                  totalMatches: refereeStats.totalMatches,
+                  averageRefereeTimeMs: refereeStats.averageRefereeTimeMs,
+                  eventsWorked: refereeStats.eventsWorked,
+                  cards: refereeStats.cards,
+                }
+              : null
+          }
+        />
+      </section>
 
-      {fighter.hemaRatingsId && (
-        <section className="mb-6 rounded-xl border border-amber-700/50 bg-amber-950/20 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-                {t('publicApp.fighterProfile.hemaRatings')}
-              </h2>
-              <a
-                href={`https://hemaratings.com/fighters/details/${fighter.hemaRatingsId}/`}
-                className="mt-1 inline-block text-sm text-amber-200 underline-offset-4 hover:underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                #{fighter.hemaRatingsId}
-              </a>
-            </div>
-            {fighter.hemaRatings?.syncedAt && (
-              <p className="text-right text-[11px] text-gray-500">
-                {t('publicApp.fighterProfile.synced', {
-                  date: formatDate(fighter.hemaRatings.syncedAt),
-                })}
-              </p>
-            )}
-          </div>
-
-          {fighter.hemaRatings?.ratings.length ? (
-            <div className="mt-4 divide-y divide-amber-900/50">
-              {fighter.hemaRatings.ratings.map((rating) => (
-                <div
-                  key={`${rating.weapon}-${rating.category}`}
-                  className="py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{rating.weapon}</p>
-                      <p className="text-xs text-gray-400">{rating.category}</p>
-                      {rating.lastCompeted && (
-                        <p className="mt-1 text-[11px] text-gray-500">
-                          {t('publicApp.fighterProfile.lastCompeted', {
-                            date: formatDate(rating.lastCompeted),
-                          })}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-black tabular-nums text-amber-300">
-                        {rating.weightedRating.toFixed(1)}
-                      </p>
-                      {rating.rank !== null && (
-                        <p className="text-[11px] text-gray-500">
-                          {t('publicApp.fighterProfile.rank', { rank: rating.rank })}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-gray-400">
-              {t('publicApp.fighterProfile.ratingPending')}
-            </p>
-          )}
-        </section>
-      )}
-
-      {refereeStats && refereeStats.totalMatches > 0 && (
-        <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
-            {t('publicApp.fighterProfile.refereeing')}
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard
-              label={t('publicApp.fighterProfile.refereeMatches')}
-              value={refereeStats.totalMatches}
-            />
-            <StatCard
-              label={t('publicApp.fighterProfile.averageRefereeTime')}
-              value={formatDuration(refereeStats.averageRefereeTimeMs)}
-            />
-            <StatCard
-              label={t('publicApp.fighterProfile.yellowCards')}
-              value={refereeStats.cards.yellow}
-            />
-            <StatCard
-              label={t('publicApp.fighterProfile.redBlackCards')}
-              value={`${refereeStats.cards.red}/${refereeStats.cards.black}`}
-            />
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <ProfilePanel title={t('publicApp.fighterProfile.refereeRoles')}>
-              <RefereeLine
-                label={t('publicApp.fighterProfile.arbitreDeclarant')}
-                value={refereeStats.roles.arbitre_declarant}
-              />
-              <RefereeLine
-                label={t('publicApp.fighterProfile.arbitreAssesseur')}
-                value={refereeStats.roles.arbitre_assesseur}
-              />
-              <RefereeLine
-                label={t('publicApp.fighterProfile.arbitreTable')}
-                value={refereeStats.roles.arbitre_table}
-              />
-            </ProfilePanel>
-            {refereeStats.bestBuddies.length > 0 && (
-              <ProfilePanel title={t('publicApp.fighterProfile.bestRefereeBuddies')}>
-                <ul className="space-y-2 text-sm text-gray-300">
-                  {refereeStats.bestBuddies.slice(0, 3).map((buddy) => (
-                    <li
-                      key={buddy.userId}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-900 px-3 py-2"
-                    >
-                      <span>{buddy.displayName ?? t('common.unknown')}</span>
-                      <span className="text-xs text-gray-500">
-                        {t('publicApp.fighterProfile.matchesTogether', {
-                          count: buddy.matchesTogether,
-                        })}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </ProfilePanel>
-            )}
-          </div>
-        </section>
-      )}
+      {fighter.hemaRatingsId && <RatingHistorySection slug={fighter.slug} apiUrl={getApiUrl()} />}
 
       {career && (
         <section className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -580,7 +501,7 @@ export default async function FighterPage({ params }: Props) {
                 <span className="font-medium text-white">{placement.tournamentName}</span>
                 <p className="text-xs text-gray-500">
                   {placement.eventName} · {placement.weapon ?? t('common.unknown')} ·{' '}
-                  {placement.rank ?? t('publicApp.fighterProfile.dnp')}
+                  {placement.place ?? t('publicApp.fighterProfile.dnp')}
                 </p>
               </li>
             ))}
@@ -700,24 +621,6 @@ function ClubLine({ label, clubs }: { label: string; clubs: FighterClubLink[] })
       <span className="text-gray-500">{label}: </span>
       {clubs.map((club) => club.clubs?.name ?? t('common.unknown')).join(', ')}
     </p>
-  );
-}
-
-function RefereeLine({ label, value }: { label: string; value: number }) {
-  return (
-    <p className="mb-2 flex items-center justify-between gap-3 text-sm text-gray-300 last:mb-0">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-semibold tabular-nums text-white">{value}</span>
-    </p>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900 px-3 py-3">
-      <p className="text-[11px] uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="mt-1 text-xl font-black tabular-nums text-white">{value}</p>
-    </div>
   );
 }
 

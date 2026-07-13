@@ -351,6 +351,48 @@ describe('FightersService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('replaces imported medals on profile update for the owner', async () => {
+      const medalsChain = makeChain({ data: [], error: null });
+      medalsChain.insert.mockResolvedValue({ data: null, error: null });
+      const genericChain = makeChain({
+        data: { id: 'fighter-1', claimed_by_user_id: 'user-1', display_name: 'Me' },
+        error: null,
+      });
+      fromMock.mockImplementation((table: string) =>
+        table === 'fighter_manual_medals' ? medalsChain : genericChain,
+      );
+
+      await service.updateMyProfile('user-1', {
+        fighterId: 'fighter-1',
+        displayName: 'Me',
+        medals: [
+          { competition: 'Swordfish', year: 2019, rank: 1, weapon: 'Longsword' },
+          { competition: 'Fechtschule', year: 2021, rank: 3, weapon: 'Rapier' },
+        ],
+      });
+
+      expect(medalsChain.delete).toHaveBeenCalled();
+      expect(medalsChain.eq).toHaveBeenCalledWith('global_person_id', 'fighter-1');
+      expect(medalsChain.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          global_person_id: 'fighter-1',
+          competition: 'Swordfish',
+          year: 2019,
+          rank: 1,
+          weapon: 'Longsword',
+          sort_order: 0,
+        }),
+        expect.objectContaining({
+          global_person_id: 'fighter-1',
+          competition: 'Fechtschule',
+          year: 2021,
+          rank: 3,
+          weapon: 'Rapier',
+          sort_order: 1,
+        }),
+      ]);
+    });
+
     it('omits date of birth from public fighter profiles', async () => {
       const fighterChain = makeChain({ data: null, error: null });
       fighterChain.maybeSingle.mockResolvedValue({

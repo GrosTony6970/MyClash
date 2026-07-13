@@ -21,13 +21,23 @@ export interface RefereeSlot {
   scheduledAt: string | null;
   role: string;
   poolName: string | null;
+  poolId: string | null;
   tournamentName: string | null;
+  tournamentSlug: string | null;
+  liceName: string | null;
+  /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
+  matchKind: string | null;
+  roundOfCount: number | null;
+  bracketSlotId: string | null;
   skillName: string | null;
   skillColor: string | null;
 }
 
 export interface WorkshopEnrollment {
+  /** workshop_sessions.id (the enrolled session), NOT the parent workshop id. */
   workshopId: string;
+  /** Parent workshop slug — deep-links to the workshop in the Workshops tab. */
+  workshopSlug: string | null;
   workshopName: string;
   sessionStart: string | null;
   sessionEnd: string | null;
@@ -49,6 +59,10 @@ export interface ProgrammeContextRow {
   label: string;
   start: string;
   end: string | null;
+  /** 'admin' | 'break' — drives the neutral vs. accented default when no colorHex. */
+  blockType: string;
+  /** Admin-chosen "#rrggbb" tint for the bar; null = per-kind default. */
+  colorHex: string | null;
 }
 
 export interface MyEventInfo {

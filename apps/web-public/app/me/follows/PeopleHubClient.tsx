@@ -78,7 +78,7 @@ export function PeopleHubClient() {
           (needsAuth ? (
             <EmptyState title={t('publicApp.me.people.signInToManage')} />
           ) : (
-            <GroupsTab groupsApi={groupsApi} />
+            <GroupsTab apiUrl={apiUrl} groupsApi={groupsApi} />
           ))}
       </div>
     </main>

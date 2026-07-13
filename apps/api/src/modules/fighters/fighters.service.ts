@@ -87,6 +87,21 @@ export interface FighterPhotoUpload {
 
 type Row = Record<string, unknown>;
 
+/**
+ * Fighter-profile fields a user can hide from their public profile, mapped to
+ * the underlying column(s). `defaultPublic: false` means hidden unless the user
+ * opts in (date_of_birth stays private by default, preserving prior behaviour).
+ */
+const VISIBILITY_FIELDS: Record<string, { columns: string[]; defaultPublic: boolean }> = {
+  dateOfBirth: { columns: ['date_of_birth'], defaultPublic: false },
+  nationality: { columns: ['country_code'], defaultPublic: true },
+  gender: { columns: ['gender_category'], defaultPublic: true },
+  bio: { columns: ['bio'], defaultPublic: true },
+  alias: { columns: ['alias'], defaultPublic: true },
+  links: { columns: ['website_url', 'instagram_url', 'youtube_url'], defaultPublic: true },
+  practicingSince: { columns: ['practicing_since_year'], defaultPublic: true },
+};
+
 const DEFAULT_WEAPONS = [
   'Longsword',
   'Rapier',
@@ -149,7 +164,7 @@ export class FightersService {
 
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    return ((data ?? []) as Row[]).map((row) => this.sanitizePublicFighter(row));
   }
 
   /** Trigram-ranked fighter search. Returns full rows (same shape as list())
@@ -172,9 +187,9 @@ export class FightersService {
       .in('id', ids);
 
     const order = new Map(ids.map((id, index) => [id, index]));
-    return ((rows ?? []) as Row[]).sort(
-      (a, b) => (order.get(a['id'] as string) ?? 0) - (order.get(b['id'] as string) ?? 0),
-    );
+    return ((rows ?? []) as Row[])
+      .sort((a, b) => (order.get(a['id'] as string) ?? 0) - (order.get(b['id'] as string) ?? 0))
+      .map((row) => this.sanitizePublicFighter(row));
   }
 
   // ── Get by slug ──────────────────────────────────────────────────────────────
@@ -209,6 +224,20 @@ export class FightersService {
       }
       throw error;
     }
+  }
+
+  /** Public HEMA rating time-series for the ranking-history chart. Empty when
+   *  the fighter has no linked hema_ratings_id or the ratings service is absent. */
+  async getRatingHistoryBySlug(slug: string) {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('hema_ratings_id')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const hemaRatingsId = (data as Row | null)?.['hema_ratings_id'] as string | null | undefined;
+    if (!hemaRatingsId || !this.hemaRatings) return { series: [] };
+    return { series: await this.hemaRatings.getRatingHistory(hemaRatingsId) };
   }
 
   // ── Create ───────────────────────────────────────────────────────────────────
@@ -253,6 +282,16 @@ export class FightersService {
     if (dto.photoUrl !== undefined) updates['photo_url'] = dto.photoUrl;
     if (dto.bio !== undefined) updates['bio'] = dto.bio;
     if (dto.dateOfBirth !== undefined) updates['date_of_birth'] = dto.dateOfBirth;
+    // Public-profile identity fields: trim and coerce blank → null so an emptied
+    // input clears the column rather than storing '' (null-to-clear).
+    if (dto.alias !== undefined) updates['alias'] = dto.alias?.trim() || null;
+    if (dto.websiteUrl !== undefined) updates['website_url'] = dto.websiteUrl?.trim() || null;
+    if (dto.instagramUrl !== undefined) updates['instagram_url'] = dto.instagramUrl?.trim() || null;
+    if (dto.youtubeUrl !== undefined) updates['youtube_url'] = dto.youtubeUrl?.trim() || null;
+    if (dto.practicingSinceYear !== undefined)
+      updates['practicing_since_year'] = dto.practicingSinceYear ?? null;
+    if (dto.publicVisibility !== undefined)
+      updates['public_visibility'] = this.pickVisibilityKeys(dto.publicVisibility);
     updates['updated_at'] = new Date().toISOString();
 
     const { data, error } = await this.supabase.service
@@ -312,6 +351,7 @@ export class FightersService {
         await this.getFighterClubLinks(String(row['id'])),
       ),
       weapons: await this.getFighterWeaponLinks(String(row['id'])),
+      medals: await this.getFighterMedalLinks(String(row['id'])),
     };
   }
 
@@ -369,6 +409,12 @@ export class FightersService {
       photoUrl: dto.photoUrl,
       bio: dto.bio,
       dateOfBirth: dto.dateOfBirth,
+      alias: dto.alias,
+      websiteUrl: dto.websiteUrl,
+      instagramUrl: dto.instagramUrl,
+      youtubeUrl: dto.youtubeUrl,
+      practicingSinceYear: dto.practicingSinceYear,
+      publicVisibility: dto.publicVisibility,
     };
     await this.update(dto.fighterId, updateDto);
 
@@ -381,6 +427,7 @@ export class FightersService {
       );
     }
     if (dto.weapons !== undefined) await this.replaceFighterWeapons(dto.fighterId, dto.weapons);
+    if (dto.medals !== undefined) await this.replaceFighterMedals(dto.fighterId, dto.medals);
 
     return this.getMyProfile(userId);
   }
@@ -871,9 +918,35 @@ export class FightersService {
     return fighter;
   }
 
+  /**
+   * Project a global_persons row for public consumption:
+   *  - always strip contact/internal PII (email, claimed_by_user_id) and the
+   *    visibility config itself — older list endpoints leaked these;
+   *  - honour the per-field `public_visibility` map, dropping any column the
+   *    fighter marked hidden. Defaults: everything public except date_of_birth.
+   * Applied to every public read (getBySlug, list, fuzzy search).
+   */
   private sanitizePublicFighter(row: Row): Row {
-    const { date_of_birth: _dateOfBirth, ...publicRow } = row;
-    return publicRow;
+    const vis = (row['public_visibility'] ?? {}) as Record<string, unknown>;
+    const out: Row = { ...row };
+    delete out['email'];
+    delete out['claimed_by_user_id'];
+    delete out['public_visibility'];
+    for (const [key, cfg] of Object.entries(VISIBILITY_FIELDS)) {
+      const explicit = typeof vis[key] === 'boolean' ? (vis[key] as boolean) : undefined;
+      const visible = explicit ?? cfg.defaultPublic;
+      if (!visible) for (const col of cfg.columns) delete out[col];
+    }
+    return out;
+  }
+
+  /** Keep only known visibility keys with boolean values before persisting. */
+  private pickVisibilityKeys(input: Record<string, unknown>): Record<string, boolean> {
+    const out: Record<string, boolean> = {};
+    for (const key of Object.keys(VISIBILITY_FIELDS)) {
+      if (typeof input[key] === 'boolean') out[key] = input[key] as boolean;
+    }
+    return out;
   }
 
   private async withPublicProfileRelations(row: Row): Promise<Row> {
@@ -882,6 +955,10 @@ export class FightersService {
       ...row,
       clubs: await this.getFighterClubLinks(id),
       weapons: await this.getFighterWeaponLinks(id),
+      // Manual/imported podiums are publicly readable (RLS grants SELECT); surface
+      // them by slug so the shared stats panel shows the same medals as /me. Returns
+      // [] gracefully if the fighter_manual_medals table isn't present yet.
+      medals: await this.getFighterMedalLinks(id),
     };
   }
 
@@ -913,9 +990,21 @@ export class FightersService {
   private async getFighterWeaponLinks(fighterId: string) {
     const { data, error } = await this.supabase.service
       .from('fighter_weapons')
-      .select('favorite, sort_order, level, weapon_catalog(id, slug, name)')
+      .select('favorite, sort_order, level, style, weapon_catalog(id, slug, name)')
       .eq('global_person_id', fighterId)
       .order('favorite', { ascending: false })
+      .order('sort_order', { ascending: true });
+
+    if (error) return [];
+    return data ?? [];
+  }
+
+  private async getFighterMedalLinks(fighterId: string) {
+    const { data, error } = await this.supabase.service
+      .from('fighter_manual_medals')
+      .select('competition, year, rank, weapon')
+      .eq('global_person_id', fighterId)
+      .order('year', { ascending: false })
       .order('sort_order', { ascending: true });
 
     if (error) return [];
@@ -1007,6 +1096,7 @@ export class FightersService {
       weaponName?: string;
       favorite?: boolean;
       level?: 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced' | null;
+      style?: string | null;
     }>,
   ): Promise<void> {
     await this.supabase.service.from('fighter_weapons').delete().eq('global_person_id', fighterId);
@@ -1019,11 +1109,33 @@ export class FightersService {
         weapon_id: weaponId,
         favorite: Boolean(weapon.favorite),
         level: weapon.level ?? null,
+        style: weapon.style?.trim() || null,
         sort_order: index,
       });
     }
     if (rows.length === 0) return;
     const { error } = await this.supabase.service.from('fighter_weapons').insert(rows);
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  private async replaceFighterMedals(
+    fighterId: string,
+    medals: Array<{ competition: string; year: number; rank: number; weapon: string }>,
+  ): Promise<void> {
+    await this.supabase.service
+      .from('fighter_manual_medals')
+      .delete()
+      .eq('global_person_id', fighterId);
+    const rows: Row[] = medals.map((medal, index) => ({
+      global_person_id: fighterId,
+      competition: medal.competition,
+      year: medal.year,
+      rank: medal.rank,
+      weapon: medal.weapon,
+      sort_order: index,
+    }));
+    if (rows.length === 0) return;
+    const { error } = await this.supabase.service.from('fighter_manual_medals').insert(rows);
     if (error) throw new BadRequestException(error.message);
   }
 

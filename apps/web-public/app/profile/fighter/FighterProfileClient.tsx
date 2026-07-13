@@ -16,11 +16,37 @@ import { Avatar, Button, Card, ClubCombobox, type ClubOption, type ClubValue } f
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { AvatarCropper } from './AvatarCropper';
 import { InsightCard } from './InsightCard';
+import { ShareProfile } from '@/components/fighter/ShareProfile';
+import {
+  ZERO_WEAPON_STAT,
+  matchHemaRating,
+  medalGlyph,
+  placeHeadline,
+  weaponKey,
+} from '@/lib/weapon-stats';
 
 // Profile-photo upload limits. Mirrors the server cap (15 MB) and the
 // PNG/JPEG/WebP allowlist enforced by FightersService.uploadMyPhoto.
 const PHOTO_MAX_BYTES = 15 * 1024 * 1024;
 const ALLOWED_PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+// Common HEMA styles/traditions offered as autocomplete for the per-weapon
+// "style" field. Free text — users may type anything; these are only hints.
+const HEMA_STYLE_SUGGESTIONS = [
+  'KDF',
+  'German longsword',
+  'Italian longsword',
+  'Bolognese',
+  'Fiore',
+  'Meyer',
+  'Fabris',
+  'Destreza',
+  'Radaelli',
+  'English (Silver)',
+  'Sword & buckler (I.33)',
+  'Sabre',
+  'Smallsword',
+];
 
 interface ClubLink {
   role?: string;
@@ -32,6 +58,7 @@ type WeaponLevel = 'just_for_fun' | 'beginner' | 'intermediate' | 'advanced';
 interface WeaponLink {
   favorite?: boolean;
   level?: string | null;
+  style?: string | null;
   weapon_catalog?: { id?: string; name?: string | null } | null;
 }
 
@@ -40,17 +67,33 @@ interface WeaponCatalogEntry {
   name: string;
 }
 
+/** A manually imported podium from a tournament not run in the app. */
+interface FighterMedal {
+  competition: string;
+  year: number;
+  rank: number;
+  weapon: string;
+}
+
 interface FighterProfile {
   id: string;
+  slug?: string;
   display_name?: string;
   given_name?: string;
   family_name?: string;
   country_code?: string | null;
   dateOfBirth?: string | null;
   bio?: string | null;
+  alias?: string | null;
+  website_url?: string | null;
+  instagram_url?: string | null;
+  youtube_url?: string | null;
+  practicing_since_year?: number | null;
+  public_visibility?: Record<string, boolean> | null;
   photo_url?: string | null;
   clubs?: ClubLink[];
   weapons?: WeaponLink[];
+  medals?: FighterMedal[];
 }
 
 /** Per-scope combat stats (overall or one weapon), as returned by
@@ -148,6 +191,15 @@ interface RefereeStats {
   }>;
 }
 
+/** An editable imported-medal row. `year` is kept as a string for the input;
+ *  it is parsed to a number on save. */
+interface MedalFormRow {
+  competition: string;
+  year: string;
+  rank: 1 | 2 | 3;
+  weapon: string;
+}
+
 interface FormState {
   displayName: string;
   givenName: string;
@@ -155,11 +207,21 @@ interface FormState {
   nationality: string;
   dateOfBirth: string;
   bio: string;
+  alias: string;
+  websiteUrl: string;
+  instagramUrl: string;
+  youtubeUrl: string;
+  practicingSince: string;
+  visibility: Record<string, boolean>;
   photoUrl: string;
   mainClub: ClubValue | null;
   secondaryClubs: ClubValue[];
   previousClubs: ClubValue[];
-  selectedWeapons: Record<string, { name: string; favorite: boolean; level: WeaponLevel | null }>;
+  selectedWeapons: Record<
+    string,
+    { name: string; favorite: boolean; level: WeaponLevel | null; style: string }
+  >;
+  medals: MedalFormRow[];
 }
 
 const emptyForm: FormState = {
@@ -169,11 +231,18 @@ const emptyForm: FormState = {
   nationality: '',
   dateOfBirth: '',
   bio: '',
+  alias: '',
+  websiteUrl: '',
+  instagramUrl: '',
+  youtubeUrl: '',
+  practicingSince: '',
+  visibility: {},
   photoUrl: '',
   mainClub: null,
   secondaryClubs: [],
   previousClubs: [],
   selectedWeapons: {},
+  medals: [],
 };
 
 /** Build the ClubCombobox values for a given role from the profile club links,
@@ -200,6 +269,7 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
       name,
       favorite: Boolean(weapon.favorite),
       level: (weapon.level as WeaponLevel | null) ?? null,
+      style: weapon.style ?? '',
     };
   }
 
@@ -211,11 +281,23 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
     nationality: profile.country_code ?? '',
     dateOfBirth: formatDob(profile.dateOfBirth ?? ''),
     bio: profile.bio ?? '',
+    alias: profile.alias ?? '',
+    websiteUrl: profile.website_url ?? '',
+    instagramUrl: profile.instagram_url ?? '',
+    youtubeUrl: profile.youtube_url ?? '',
+    practicingSince: profile.practicing_since_year ? String(profile.practicing_since_year) : '',
+    visibility: profile.public_visibility ?? {},
     photoUrl: profile.photo_url ?? '',
     mainClub: mainClubs[0] ?? null,
     secondaryClubs: clubValuesByRole(profile.clubs, 'secondary'),
     previousClubs: clubValuesByRole(profile.clubs, 'previous'),
     selectedWeapons,
+    medals: (profile.medals ?? []).map((medal) => ({
+      competition: medal.competition,
+      year: String(medal.year),
+      rank: (medal.rank === 2 || medal.rank === 3 ? medal.rank : 1) as 1 | 2 | 3,
+      weapon: medal.weapon,
+    })),
   };
 }
 
@@ -353,6 +435,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         weaponName: weapon.name,
         favorite: weapon.favorite,
         level: weapon.level,
+        style: weapon.style.trim() || null,
       })),
     [form.selectedWeapons],
   );
@@ -365,7 +448,8 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     setForm((current) => {
       const selectedWeapons = { ...current.selectedWeapons };
       if (selectedWeapons[weapon.id]) delete selectedWeapons[weapon.id];
-      else selectedWeapons[weapon.id] = { name: weapon.name, favorite: false, level: null };
+      else
+        selectedWeapons[weapon.id] = { name: weapon.name, favorite: false, level: null, style: '' };
       return { ...current, selectedWeapons };
     });
   };
@@ -395,6 +479,52 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           [weapon.id]: { ...existing, level },
         },
       };
+    });
+  };
+
+  const setWeaponStyle = (weapon: WeaponCatalogEntry, style: string) => {
+    setForm((current) => {
+      const existing = current.selectedWeapons[weapon.id];
+      if (!existing) return current;
+      return {
+        ...current,
+        selectedWeapons: {
+          ...current.selectedWeapons,
+          [weapon.id]: { ...existing, style },
+        },
+      };
+    });
+  };
+
+  // Toggle a field's public visibility. Every toggle here defaults to public, so
+  // store the flipped explicit boolean.
+  const toggleVisibility = (key: string, currentlyVisible: boolean) => {
+    setForm((current) => ({
+      ...current,
+      visibility: { ...current.visibility, [key]: !currentlyVisible },
+    }));
+  };
+
+  const addMedal = () => {
+    setForm((current) => ({
+      ...current,
+      medals: [...current.medals, { competition: '', year: '', rank: 1, weapon: '' }],
+    }));
+  };
+
+  const updateMedal = (index: number, patch: Partial<MedalFormRow>) => {
+    setForm((current) => {
+      const medals = current.medals.slice();
+      medals[index] = { ...medals[index], ...patch } as MedalFormRow;
+      return { ...current, medals };
+    });
+  };
+
+  const removeMedal = (index: number) => {
+    setForm((current) => {
+      const medals = current.medals.slice();
+      medals.splice(index, 1);
+      return { ...current, medals };
     });
   };
 
@@ -441,6 +571,9 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         setDashboard((current) =>
           current ? { ...current, profile: { ...current.profile, photo_url: url } } : current,
         );
+        // Nudge the personal-space shell (sibling, /me-only mount) to refresh its
+        // sidebar avatar without a full reload.
+        window.dispatchEvent(new CustomEvent('myclash:profile-photo', { detail: { url } }));
         setMessage(t('publicApp.fighterProfile.saveSuccess'));
         closeCropper();
       })
@@ -462,6 +595,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         setDashboard((current) =>
           current ? { ...current, profile: { ...current.profile, photo_url: null } } : current,
         );
+        window.dispatchEvent(new CustomEvent('myclash:profile-photo', { detail: { url: null } }));
       })
       .catch(() => setError(t('publicApp.fighterProfile.photoError')))
       .finally(() => setPhotoBusy(false));
@@ -481,6 +615,17 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
       }
       dateOfBirthIso = parsed;
     }
+    // Year the fighter started HEMA. Send null (clear) unless it's a plausible
+    // 4-digit year in the DTO's accepted range, to avoid a 400 on partial input.
+    const practicingSinceRaw = form.practicingSince.trim();
+    const practicingSinceNum = Number(practicingSinceRaw);
+    const practicingSinceYear =
+      practicingSinceRaw &&
+      Number.isInteger(practicingSinceNum) &&
+      practicingSinceNum >= 1900 &&
+      practicingSinceNum <= 2100
+        ? practicingSinceNum
+        : null;
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -496,10 +641,26 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         countryCode: form.nationality || undefined,
         dateOfBirth: dateOfBirthIso,
         bio: form.bio || undefined,
+        // null-to-clear for the new identity fields (see project_zod_null_to_clear).
+        alias: form.alias.trim() || null,
+        websiteUrl: form.websiteUrl.trim() || null,
+        instagramUrl: form.instagramUrl.trim() || null,
+        youtubeUrl: form.youtubeUrl.trim() || null,
+        practicingSinceYear,
+        publicVisibility: form.visibility,
         mainClub: form.mainClub ? toClubInput(form.mainClub) : undefined,
         secondaryClubs: form.secondaryClubs.map(toClubInput),
         previousClubs: form.previousClubs.map(toClubInput),
         weapons: selectedWeaponRows,
+        // Drop incomplete rows client-side; the DTO enforces the rest.
+        medals: form.medals
+          .filter((medal) => medal.competition.trim() && medal.weapon && Number(medal.year))
+          .map((medal) => ({
+            competition: medal.competition.trim(),
+            year: Number(medal.year),
+            rank: medal.rank,
+            weapon: medal.weapon,
+          })),
       }),
     })
       .then(async (response) => {
@@ -587,6 +748,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
             <p className="truncate font-display text-lg font-semibold text-foreground">
               {form.displayName || form.givenName || form.familyName}
             </p>
+            {form.alias && <p className="truncate text-sm italic text-muted">{form.alias}</p>}
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <input
                 ref={fileInputRef}
@@ -619,11 +781,23 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
             </div>
           </div>
         </div>
+        {dashboard?.profile.slug && (
+          <div className="mb-4">
+            <ShareProfile slug={dashboard.profile.slug} />
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label={t('publicApp.fighterProfile.displayName')}
             value={form.displayName}
             onChange={(value) => updateField('displayName', value)}
+          />
+          <Field
+            label={t('publicApp.fighterProfile.alias')}
+            value={form.alias}
+            onChange={(value) => updateField('alias', value)}
+            maxLength={100}
+            hint={t('publicApp.fighterProfile.aliasHint')}
           />
           <Field
             label={t('publicApp.fighterProfile.nationality')}
@@ -652,6 +826,15 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
                 : undefined
             }
           />
+          <Field
+            label={t('publicApp.fighterProfile.practicingSince')}
+            type="number"
+            value={form.practicingSince}
+            onChange={(value) =>
+              updateField('practicingSince', value.replace(/[^\d]/g, '').slice(0, 4))
+            }
+            placeholder={t('publicApp.fighterProfile.practicingSincePlaceholder')}
+          />
         </div>
 
         <label className="mt-3 block text-sm" htmlFor="fighter-profile-bio">
@@ -664,6 +847,35 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
             onChange={(event) => updateField('bio', event.target.value)}
           />
         </label>
+
+        <div className="mt-4">
+          <h2 className="mb-2 font-display font-semibold text-lg sm:text-xl text-foreground">
+            {t('publicApp.fighterProfile.links')}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field
+              label={t('publicApp.fighterProfile.website')}
+              type="url"
+              value={form.websiteUrl}
+              onChange={(value) => updateField('websiteUrl', value)}
+              placeholder={t('publicApp.fighterProfile.linkPlaceholder')}
+            />
+            <Field
+              label={t('publicApp.fighterProfile.instagram')}
+              type="url"
+              value={form.instagramUrl}
+              onChange={(value) => updateField('instagramUrl', value)}
+              placeholder={t('publicApp.fighterProfile.linkPlaceholder')}
+            />
+            <Field
+              label={t('publicApp.fighterProfile.youtube')}
+              type="url"
+              value={form.youtubeUrl}
+              onChange={(value) => updateField('youtubeUrl', value)}
+              placeholder={t('publicApp.fighterProfile.linkPlaceholder')}
+            />
+          </div>
+        </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <ClubField label={t('publicApp.fighterProfile.mainClub')}>
@@ -717,11 +929,142 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
                   selected={Boolean(entry)}
                   favorite={Boolean(entry?.favorite)}
                   level={entry?.level ?? null}
+                  style={entry?.style ?? ''}
                   onToggle={() => toggleWeapon(weapon)}
                   onToggleFavorite={() => toggleFavorite(weapon)}
                   onLevelChange={(level) => setWeaponLevel(weapon, level)}
+                  onStyleChange={(style) => setWeaponStyle(weapon, style)}
                   t={t}
                 />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <h2 className="mb-2 font-display font-semibold text-lg sm:text-xl text-foreground">
+            {t('publicApp.fighterProfile.medalsImportTitle')}
+          </h2>
+          <p className="mb-2 text-xs text-muted">
+            {t('publicApp.fighterProfile.medalsImportHint')}
+          </p>
+          <div className="space-y-2">
+            {form.medals.map((medal, index) => (
+              <div
+                key={index}
+                className="grid gap-2 rounded-lg border border-border bg-background px-3 py-2 sm:grid-cols-[1fr_6rem_8rem_1fr_auto] sm:items-end"
+              >
+                <label className="block text-xs">
+                  <span className="text-foreground-secondary">
+                    {t('publicApp.fighterProfile.medalCompetition')}
+                  </span>
+                  <input
+                    type="text"
+                    aria-label={t('publicApp.fighterProfile.medalCompetition')}
+                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                    value={medal.competition}
+                    onChange={(event) => updateMedal(index, { competition: event.target.value })}
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="text-foreground-secondary">
+                    {t('publicApp.fighterProfile.medalYear')}
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    aria-label={t('publicApp.fighterProfile.medalYear')}
+                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                    value={medal.year}
+                    onChange={(event) => updateMedal(index, { year: event.target.value })}
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="text-foreground-secondary">
+                    {t('publicApp.fighterProfile.medalRank')}
+                  </span>
+                  <select
+                    aria-label={t('publicApp.fighterProfile.medalRank')}
+                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                    value={medal.rank}
+                    onChange={(event) =>
+                      updateMedal(index, { rank: Number(event.target.value) as 1 | 2 | 3 })
+                    }
+                  >
+                    <option value={1}>{t('publicApp.fighterProfile.medalRankGold')}</option>
+                    <option value={2}>{t('publicApp.fighterProfile.medalRankSilver')}</option>
+                    <option value={3}>{t('publicApp.fighterProfile.medalRankBronze')}</option>
+                  </select>
+                </label>
+                <label className="block text-xs">
+                  <span className="text-foreground-secondary">
+                    {t('publicApp.fighterProfile.medalWeaponLabel')}
+                  </span>
+                  <select
+                    aria-label={t('publicApp.fighterProfile.medalWeaponLabel')}
+                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                    value={medal.weapon}
+                    onChange={(event) => updateMedal(index, { weapon: event.target.value })}
+                  >
+                    <option value="">{t('publicApp.fighterProfile.statsForWeapon')}</option>
+                    {weapons.map((weapon) => (
+                      <option key={weapon.id} value={weapon.name}>
+                        {weapon.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => removeMedal(index)}
+                  className="justify-self-start text-xs font-semibold text-danger hover:underline sm:pb-2 sm:justify-self-auto"
+                >
+                  {t('publicApp.fighterProfile.medalRemove')}
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addMedal}
+            className="mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-foreground"
+          >
+            {t('publicApp.fighterProfile.medalAdd')}
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <h2 className="mb-1 font-display font-semibold text-lg sm:text-xl text-foreground">
+            {t('publicApp.fighterProfile.visibilityTitle')}
+          </h2>
+          <p className="mb-2 text-xs text-muted">{t('publicApp.fighterProfile.visibilityHint')}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { key: 'alias', label: t('publicApp.fighterProfile.alias') },
+              { key: 'bio', label: t('publicApp.fighterProfile.bio') },
+              { key: 'links', label: t('publicApp.fighterProfile.links') },
+              { key: 'practicingSince', label: t('publicApp.fighterProfile.practicingSince') },
+            ].map(({ key, label }) => {
+              const visible = form.visibility[key] ?? true;
+              return (
+                <label
+                  key={key}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={visible}
+                    onChange={() => toggleVisibility(key, visible)}
+                    className="h-4 w-4 accent-accent"
+                    aria-label={label}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-foreground">{label}</span>
+                  <span className="shrink-0 text-xs text-muted">
+                    {visible
+                      ? t('publicApp.fighterProfile.visibilityPublic')
+                      : t('publicApp.fighterProfile.visibilityHidden')}
+                  </span>
+                </label>
               );
             })}
           </div>
@@ -828,6 +1171,7 @@ function Field({
   type = 'text',
   hint,
   placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -835,6 +1179,7 @@ function Field({
   type?: string;
   hint?: string;
   placeholder?: string;
+  maxLength?: number;
 }) {
   const inputId = useId();
   return (
@@ -845,6 +1190,7 @@ function Field({
         type={type}
         aria-label={label}
         placeholder={placeholder}
+        maxLength={maxLength}
         className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -906,21 +1252,27 @@ function WeaponCard({
   selected,
   favorite,
   level,
+  style,
   onToggle,
   onToggleFavorite,
   onLevelChange,
+  onStyleChange,
   t,
 }: {
   name: string;
   selected: boolean;
   favorite: boolean;
   level: WeaponLevel | null;
+  style: string;
   onToggle: () => void;
   onToggleFavorite: () => void;
   onLevelChange: (level: WeaponLevel | null) => void;
+  onStyleChange: (style: string) => void;
   t: TFn;
 }) {
   const levelId = useId();
+  const styleId = useId();
+  const styleListId = useId();
   return (
     <div
       className={[
@@ -981,24 +1333,28 @@ function WeaponCard({
           </select>
         </label>
       )}
+      {selected && (
+        <label htmlFor={styleId} className="mt-2 flex items-center gap-2 text-xs text-muted">
+          <span className="shrink-0">{t('publicApp.fighterProfile.weaponStyle')}</span>
+          <input
+            id={styleId}
+            type="text"
+            list={styleListId}
+            value={style}
+            maxLength={100}
+            placeholder={t('publicApp.fighterProfile.weaponStylePlaceholder')}
+            onChange={(event) => onStyleChange(event.target.value)}
+            className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
+          />
+          <datalist id={styleListId}>
+            {HEMA_STYLE_SUGGESTIONS.map((suggestion) => (
+              <option key={suggestion} value={suggestion} />
+            ))}
+          </datalist>
+        </label>
+      )}
     </div>
   );
-}
-
-/** Medal glyph for a podium finish; empty for everyone else. */
-function medalGlyph(place: number | null): string {
-  if (place === 1) return '🥇';
-  if (place === 2) return '🥈';
-  if (place === 3) return '🥉';
-  return '';
-}
-
-/** Headline for a placement: a medal word for the podium, otherwise `#N`. */
-function placeHeadline(place: number | null, t: TFn): string {
-  if (place === 1) return t('publicApp.fighterProfile.resultChampion');
-  if (place === 2) return t('publicApp.fighterProfile.resultRunnerUp');
-  if (place === 3) return t('publicApp.fighterProfile.resultThird');
-  return place != null ? `#${place}` : '—';
 }
 
 /** Tokenized chip styling for a recent-form result (win/loss/draw). */
@@ -1009,9 +1365,9 @@ function formChipClass(outcome: 'win' | 'loss' | 'draw'): string {
   return `${base} bg-foreground/10 text-muted`;
 }
 
-/** Career statistics card with a Global / per-weapon tab bar. The combat tiles
- *  shift with the selected tab; the lower block holds tab-independent career
- *  totals. HEMA rank/rating only appear on a weapon tab with a matching rating. */
+/** Career statistics card with a Global / per-weapon dropdown. The combat tiles
+ *  shift with the selected weapon; the lower block holds weapon-independent
+ *  career totals. HEMA rank only appears on a weapon with a matching rating. */
 function FighterStatsCard({
   dashboard,
   t,
@@ -1024,32 +1380,64 @@ function FighterStatsCard({
   const career = dashboard.career;
   const overall = career.stats.overall;
   const fought = career.stats.byWeapon.filter((weapon) => weapon.matches > 0);
-  // Only show tournaments we could actually rank (a decided bracket or pool).
-  const placements = career.tournamentPlacements.filter((placement) => placement.place != null);
+  const manualMedals = dashboard.profile.medals ?? [];
+  const [statTab, setStatTab] = useState<string>('global');
+
+  // Weapon filter options: the union of weapons the fighter actually fought and
+  // weapons they only have imported medals for, deduped by normalized key. The
+  // option value is the key; the label is the first display name we saw.
+  const weaponOptions = (() => {
+    const byKey = new Map<string, string>();
+    for (const weapon of fought) {
+      const key = weaponKey(weapon.weapon);
+      if (key && !byKey.has(key)) byKey.set(key, weapon.weapon);
+    }
+    for (const medal of manualMedals) {
+      const key = weaponKey(medal.weapon);
+      if (key && !byKey.has(key)) byKey.set(key, medal.weapon);
+    }
+    return [...byKey.entries()].map(([key, label]) => ({ key, label }));
+  })();
+
+  // Combat tiles react to the selected weapon; a weapon with only imported
+  // medals (never fought in-app) shows zeroed combat stats, not the overall.
+  const active =
+    statTab === 'global'
+      ? overall
+      : (fought.find((weapon) => weaponKey(weapon.weapon) === statTab) ?? ZERO_WEAPON_STAT);
+
+  // Podium placements + imported medals, scoped to the selected weapon. Only
+  // count tournaments we could actually rank (a decided bracket or pool).
+  const placements = career.tournamentPlacements.filter(
+    (placement) =>
+      placement.place != null &&
+      (statTab === 'global' ||
+        (placement.weapon != null && weaponKey(placement.weapon) === statTab)),
+  );
+  const scopedManual =
+    statTab === 'global'
+      ? manualMedals
+      : manualMedals.filter((medal) => weaponKey(medal.weapon) === statTab);
   const medals = {
-    gold: placements.filter((placement) => placement.place === 1).length,
-    silver: placements.filter((placement) => placement.place === 2).length,
-    bronze: placements.filter((placement) => placement.place === 3).length,
+    gold:
+      placements.filter((placement) => placement.place === 1).length +
+      scopedManual.filter((medal) => medal.rank === 1).length,
+    silver:
+      placements.filter((placement) => placement.place === 2).length +
+      scopedManual.filter((medal) => medal.rank === 2).length,
+    bronze:
+      placements.filter((placement) => placement.place === 3).length +
+      scopedManual.filter((medal) => medal.rank === 3).length,
   };
-  const medalCount = medals.gold + medals.silver + medals.bronze;
+
+  const hema =
+    statTab === 'global' ? null : matchHemaRating(statTab, dashboard.hemaRatings?.ratings ?? []);
+
   const timeline = (career.stats.byYear ?? [])
     .filter((year) => year.year !== 'unknown' && year.matches > 0)
     .sort((a, b) => b.year.localeCompare(a.year));
   const streak = career.currentStreak;
-  const showInsights = medalCount > 0 || career.recentForm.length > 0 || timeline.length > 0;
-  const [statTab, setStatTab] = useState<string>('global');
-
-  const active =
-    statTab === 'global'
-      ? overall
-      : (fought.find((weapon) => weapon.weapon === statTab) ?? overall);
-
-  const hema =
-    statTab === 'global'
-      ? null
-      : ((dashboard.hemaRatings?.ratings ?? []).find(
-          (rating) => rating.weapon.toLowerCase() === statTab.toLowerCase(),
-        ) ?? null);
+  const showInsights = career.recentForm.length > 0 || timeline.length > 0;
 
   const winRate =
     active.matches === 0 ? '—' : `${Math.round((active.wins / active.matches) * 100)}%`;
@@ -1059,11 +1447,6 @@ function FighterStatsCard({
     .map((event) => event.startDate?.slice(0, 4))
     .filter((year): year is string => Boolean(year));
   const activeSince = years.length ? years.reduce((a, b) => (a < b ? a : b)) : null;
-
-  const tabs: Array<{ value: string; label: string }> = [
-    { value: 'global', label: t('publicApp.fighterProfile.statsGlobalTab') },
-    ...fought.map((weapon) => ({ value: weapon.weapon, label: weapon.weapon })),
-  ];
 
   return (
     <Card className={className}>
@@ -1083,36 +1466,70 @@ function FighterStatsCard({
         )}
       </div>
 
-      {tabs.length > 1 && (
-        <div
-          role="tablist"
-          aria-label={t('publicApp.fighterProfile.stats')}
-          className="mb-3 flex flex-wrap gap-1"
-        >
-          {tabs.map((tab) => {
-            const isActive = tab.value === statTab;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setStatTab(tab.value)}
-                className={[
-                  'min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors [touch-action:manipulation]',
-                  isActive
-                    ? 'bg-accent text-accent-foreground'
-                    : 'border border-border text-muted hover:text-foreground',
-                ].join(' ')}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
+      {weaponOptions.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStatTab('global')}
+            aria-pressed={statTab === 'global'}
+            className={[
+              'min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors [touch-action:manipulation]',
+              statTab === 'global'
+                ? 'bg-accent text-accent-foreground'
+                : 'border border-border text-muted hover:text-foreground',
+            ].join(' ')}
+          >
+            {t('publicApp.fighterProfile.statsGlobalTab')}
+          </button>
+          <select
+            aria-label={t('publicApp.fighterProfile.statsForWeapon')}
+            value={statTab === 'global' ? '' : statTab}
+            onChange={(event) => setStatTab(event.target.value || 'global')}
+            className="min-h-[36px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
+          >
+            <option value="">{t('publicApp.fighterProfile.statsForWeapon')}</option>
+            {weaponOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2 rounded-lg border border-border bg-background px-3 py-3">
+          <p className="text-[11px] uppercase tracking-widest text-muted">
+            {t('publicApp.fighterProfile.medals')}
+          </p>
+          <div className="mt-1 flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span aria-hidden className="text-lg leading-none">
+                🥇
+              </span>
+              <span className="text-xl font-black tabular-nums text-foreground">{medals.gold}</span>
+              <span className="sr-only">{t('publicApp.fighterProfile.medalsGold')}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span aria-hidden className="text-lg leading-none">
+                🥈
+              </span>
+              <span className="text-xl font-black tabular-nums text-foreground">
+                {medals.silver}
+              </span>
+              <span className="sr-only">{t('publicApp.fighterProfile.medalsSilver')}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span aria-hidden className="text-lg leading-none">
+                🥉
+              </span>
+              <span className="text-xl font-black tabular-nums text-foreground">
+                {medals.bronze}
+              </span>
+              <span className="sr-only">{t('publicApp.fighterProfile.medalsBronze')}</span>
+            </span>
+          </div>
+        </div>
         <DashboardStat label={t('publicApp.fighterProfile.matches')} value={active.matches} />
         <DashboardStat label={t('publicApp.fighterProfile.totalWins')} value={active.wins} />
         <DashboardStat label={t('publicApp.fighterProfile.totalLosses')} value={active.losses} />
@@ -1124,14 +1541,30 @@ function FighterStatsCard({
         />
         <DashboardStat label={t('publicApp.fighterProfile.doubleHits')} value={active.doubleHits} />
         <DashboardStat label={t('publicApp.fighterProfile.exchanges')} value={active.exchanges} />
-        {hema?.rank != null && (
-          <DashboardStat label={t('publicApp.fighterProfile.hemaRank')} value={`#${hema.rank}`} />
-        )}
-        {hema != null && (
-          <DashboardStat
-            label={t('publicApp.fighterProfile.hemaRating')}
-            value={Math.round(hema.weightedRating)}
-          />
+        {statTab !== 'global' && (
+          <div className="col-span-2 rounded-lg border border-border bg-background px-3 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-muted">
+              {t('publicApp.fighterProfile.hemaRank')}
+            </p>
+            {hema != null ? (
+              <div className="mt-1 flex items-baseline gap-3">
+                <span className="text-xl font-black tabular-nums text-foreground">
+                  {hema.rank != null ? `#${hema.rank}` : '—'}
+                </span>
+                <span className="text-sm text-muted">
+                  {t('publicApp.fighterProfile.hemaRatingValue', {
+                    rating: Math.round(hema.weightedRating),
+                  })}
+                </span>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-muted">
+                {dashboard.hemaRatings == null
+                  ? t('publicApp.fighterProfile.hemaNotLinked')
+                  : t('publicApp.fighterProfile.hemaNoWeaponRating')}
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -1170,7 +1603,7 @@ function FighterStatsCard({
         ))}
       </div>
 
-      {placements.length > 0 && (
+      {(placements.length > 0 || scopedManual.length > 0) && (
         <div className="mt-4 border-t border-border pt-4">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
             {t('publicApp.fighterProfile.resultsTitle')}
@@ -1214,6 +1647,35 @@ function FighterStatsCard({
                 </a>
               </li>
             ))}
+            {scopedManual.map((medal, index) => (
+              <li key={`manual-${medal.year}-${medal.competition}-${index}`}>
+                <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    {medalGlyph(medal.rank) && (
+                      <span aria-hidden className="text-base leading-none">
+                        {medalGlyph(medal.rank)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-foreground">
+                        {medal.competition}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        {[medal.weapon, medal.year].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex-shrink-0 text-right">
+                    <span className="block text-sm font-bold text-foreground">
+                      {placeHeadline(medal.rank, t)}
+                    </span>
+                    <span className="block text-xs text-muted">
+                      {t('publicApp.fighterProfile.medalImportedTag')}
+                    </span>
+                  </span>
+                </div>
+              </li>
+            ))}
           </ul>
         </div>
       )}
@@ -1223,26 +1685,6 @@ function FighterStatsCard({
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
             {t('publicApp.fighterProfile.insightsTitle')}
           </h3>
-
-          {medalCount > 0 && (
-            <div className="mb-2 flex flex-wrap gap-3 text-sm font-semibold text-foreground">
-              {medals.gold > 0 && (
-                <span>
-                  <span aria-hidden>🥇</span> {medals.gold}
-                </span>
-              )}
-              {medals.silver > 0 && (
-                <span>
-                  <span aria-hidden>🥈</span> {medals.silver}
-                </span>
-              )}
-              {medals.bronze > 0 && (
-                <span>
-                  <span aria-hidden>🥉</span> {medals.bronze}
-                </span>
-              )}
-            </div>
-          )}
 
           {streak.kind !== 'none' && streak.count > 1 && (
             <p className="mb-2 text-xs font-semibold text-muted">

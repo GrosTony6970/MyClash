@@ -36,7 +36,14 @@ function toContextRows(
       const start = zonedToUtcIso(day, block.startTime, tz);
       if (!start) return [];
       return [
-        { id: block.id, label: block.label, start, end: zonedToUtcIso(day, block.endTime, tz) },
+        {
+          id: block.id,
+          label: block.label,
+          start,
+          end: zonedToUtcIso(day, block.endTime, tz),
+          blockType: block.blockType,
+          colorHex: block.colorHex,
+        },
       ];
     });
 }

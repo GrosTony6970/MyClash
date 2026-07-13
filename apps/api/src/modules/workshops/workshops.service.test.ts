@@ -104,6 +104,9 @@ function buildSupabase(stubs: Stubs) {
 const makeNotifications = () => ({
   scheduleWorkshopSessionStarting: vi.fn().mockResolvedValue(undefined),
 });
+const makeFollowNotifications = () => ({
+  scheduleWorkshopStarting: vi.fn().mockResolvedValue(undefined),
+});
 const makeNotificationEvents = () => ({ workshopCancelled: vi.fn().mockResolvedValue(undefined) });
 const makeOrgs = () => ({ assertOrgRole: vi.fn().mockResolvedValue(undefined) });
 const makePrivacy = () => ({
@@ -117,6 +120,7 @@ function makeService(service: unknown) {
     makeNotificationEvents() as never,
     makeOrgs() as never,
     makePrivacy() as never,
+    makeFollowNotifications() as never,
   );
 }
 

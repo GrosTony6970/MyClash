@@ -53,6 +53,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         badge: 'FR',
       },
       { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
+      { href: 'statistics', labelKey: 'organizer.eventHub.sections.statistics', badge: 'STA' },
     ],
   },
   {

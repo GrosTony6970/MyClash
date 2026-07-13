@@ -39,6 +39,7 @@ const updateFollowSchema = z
   .object({
     notifyMatchStart: z.boolean().optional(),
     notifyWorkshopStart: z.boolean().optional(),
+    notifyRefereeStart: z.boolean().optional(),
   })
   .strict();
 class UpdateFollowDto extends createZodDto(updateFollowSchema) {}
@@ -136,6 +137,7 @@ export class FollowsController {
     return this.follows.updateNotifications(eventId, personId, identity, {
       notifyMatchStart: dto.notifyMatchStart,
       notifyWorkshopStart: dto.notifyWorkshopStart,
+      notifyRefereeStart: dto.notifyRefereeStart,
     });
   }
 

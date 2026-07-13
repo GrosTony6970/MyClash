@@ -2,16 +2,20 @@
 
 import { formatInZone } from '@myclash/time';
 import { EmptyState, SkillBadge, useNow } from '@myclash/ui';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { getApiUrl } from '../../lib/api-url';
+import { CollapsibleSection } from './CollapsibleSection';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
+import { kindAccentClass } from './kind-accent';
+import { matchKindHash, matchKindLabel } from './match-kind';
+import { programmeTint } from './programme-tint';
+import { aggregateReferee, partitionAtBars, type RefereeAggregate } from './schedule-model';
 import { classifyTime, type TemporalState } from './schedule-time';
 import type {
   PersonSchedule,
   ProgrammeContextRow,
-  RefereeSlot,
   ScheduleMatch,
   WorkshopEnrollment,
 } from './types';
@@ -20,11 +24,11 @@ const DEFAULT_TZ = 'Europe/Paris';
 
 type DisplayItem =
   | { kind: 'fight'; key: string; time: string | null; data: ScheduleMatch }
-  | { kind: 'referee'; key: string; time: string | null; data: RefereeSlot }
+  | { kind: 'referee'; key: string; time: string | null; data: RefereeAggregate }
   | { kind: 'workshop'; key: string; time: string | null; data: WorkshopEnrollment };
 
-/** A sub-group of same-tournament fights / same-assignment referee slots /
- *  enrolled workshops, rendered under one title + a connecting thread. */
+/** A sub-group of same-tournament fights / same-tournament referee assignments /
+ *  enrolled workshops, rendered under one collapsible title + a connecting thread. */
 interface Group {
   key: string;
   kind: 'fight' | 'referee' | 'workshop';
@@ -62,11 +66,21 @@ export function ScheduleView({
 
   // Live "now" clock so LIVE / NEXT track the current time and advance as the
   // event unfolds. `useNow` also honours an active super-admin time simulation
-  // (the `time_simulation` feature flag) so this time-dependent UI can be tested
-  // off a shifted clock. ScheduleView only ever mounts on the client (the page
-  // renders a Skeleton until its data fetch resolves), so it never hydrates on
-  // the server.
+  // (the `time_simulation` feature flag). ScheduleView only ever mounts on the
+  // client, so it never hydrates on the server.
   const now = useNow(getApiUrl());
+
+  // Retractable day + weapon sections. Default expanded (a key present in the set
+  // is collapsed); state is in-memory for the tab's lifetime.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const isOpen = (key: string) => !collapsed.has(key);
 
   const fmtTime = (iso: string | null) =>
     iso
@@ -75,21 +89,32 @@ export function ScheduleView({
   const fmtDay = (iso: string) =>
     formatInZone(iso, tz, { weekday: 'long', day: 'numeric', month: 'long' }, tag);
 
-  // Conflict detection spans matches + referee slots + workshops (bidirectional)
-  // so a fight/referee card flags an overlapping workshop the user joined.
+  // Fold the many per-match referee slots into one card per pool / bracket tier.
+  const referees = aggregateReferee(schedule.refereeSlots);
+
+  const refereePhaseLabel = (r: RefereeAggregate): string | null => {
+    const kind = matchKindLabel(t, r.matchKind, r.roundOfCount);
+    // Pool phase: `poolName` already reads "Pool N", so drop the redundant "Pool"
+    // kind; bracket phases keep their distinct kind label ("Final", "Round of 16").
+    return r.matchKind === 'pool' ? (r.poolName ?? kind) : (kind ?? r.poolName);
+  };
+  const refereeTitle = (r: RefereeAggregate): string => {
+    const phase = refereePhaseLabel(r);
+    const ref = t('publicApp.me.schedule.referee');
+    return phase ? `${ref} · ${phase}` : ref;
+  };
+
+  // Conflict detection spans matches + referee windows + workshops (bidirectional).
   const timed: TimedItem[] = [
     ...schedule.matches.flatMap((m) => {
       const ti = toTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m.scheduledAt);
       return ti ? [ti] : [];
     }),
-    ...schedule.refereeSlots.flatMap((r) => {
-      const ti = toTimed(
-        `ref-${r.matchId}`,
-        `${t('publicApp.me.schedule.referee')} · ${r.matchNumberLabel}`,
-        r.scheduledAt,
-      );
-      return ti ? [ti] : [];
-    }),
+    ...referees.flatMap((r) =>
+      r.startMs != null && r.endMs != null
+        ? [{ key: r.key, label: refereeTitle(r), start: r.startMs, end: r.endMs }]
+        : [],
+    ),
     ...(schedule.workshops ?? []).flatMap((w) => {
       const ti = toTimed(`ws-${w.workshopId}`, w.workshopName, w.sessionStart, w.sessionEnd);
       return ti ? [ti] : [];
@@ -101,13 +126,8 @@ export function ScheduleView({
     ...schedule.matches.map(
       (m): DisplayItem => ({ kind: 'fight', key: `fight-${m.id}`, time: m.scheduledAt, data: m }),
     ),
-    ...schedule.refereeSlots.map(
-      (r): DisplayItem => ({
-        kind: 'referee',
-        key: `ref-${r.matchId}`,
-        time: r.scheduledAt,
-        data: r,
-      }),
+    ...referees.map(
+      (r): DisplayItem => ({ kind: 'referee', key: r.key, time: r.startIso, data: r }),
     ),
     ...(schedule.workshops ?? []).map(
       (w): DisplayItem => ({
@@ -123,22 +143,24 @@ export function ScheduleView({
       (b.time ? new Date(b.time).getTime() : Infinity),
   );
 
-  // Classify each commitment against the real clock, then:
-  //   LIVE = anything in progress right now
-  //   NEXT = the first still-upcoming commitment in chronological order
-  // (mutually exclusive — NEXT is only ever drawn from `upcoming`, never `live`).
-  const startMsOf = (i: DisplayItem) => (i.time ? new Date(i.time).getTime() : null);
+  // Classify each commitment against the real clock (LIVE = in progress now;
+  // NEXT = first still-upcoming). Referee aggregates classify by their [start,end]
+  // window, like workshops.
   const states = new Map<string, TemporalState>(
     items.map((i) => [
       i.key,
       classifyTime(
         {
           kind: i.kind,
-          startMs: startMsOf(i),
+          startMs: i.time ? new Date(i.time).getTime() : null,
           endMs:
-            i.kind === 'workshop' && i.data.sessionEnd
-              ? new Date(i.data.sessionEnd).getTime()
-              : null,
+            i.kind === 'workshop'
+              ? i.data.sessionEnd
+                ? new Date(i.data.sessionEnd).getTime()
+                : null
+              : i.kind === 'referee'
+                ? i.data.endMs
+                : null,
           status: i.kind === 'fight' ? i.data.status : undefined,
         },
         now,
@@ -148,12 +170,25 @@ export function ScheduleView({
   const liveKeys = new Set([...states].filter(([, s]) => s === 'live').map(([key]) => key));
   const nextKey = items.find((i) => states.get(i.key) === 'upcoming')?.key;
 
+  // On open, jump to whatever is happening now (LIVE), else the next upcoming
+  // commitment. Runs once — later clock ticks must not yank the scroll.
+  const scrollTargetKey = items.find((i) => liveKeys.has(i.key))?.key ?? nextKey ?? null;
+  const didScrollRef = useRef(false);
+  useEffect(() => {
+    if (didScrollRef.current || !scrollTargetKey) return;
+    const el = document.getElementById(scrollTargetKey);
+    if (el) {
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      didScrollRef.current = true;
+    }
+  }, [scrollTargetKey]);
+
   if (items.length === 0) {
     return <EmptyState title={t('publicApp.me.schedule.emptyAll')} />;
   }
 
-  // Group by calendar day (event-local), then by tournament / referee
-  // assignment / workshops within each day.
+  // Group commitments by calendar day (event-local); programme bars keyed by the
+  // same day format so they render under the day they fall on.
   const byDay = new Map<string, DisplayItem[]>();
   for (const item of items) {
     const day = item.time
@@ -161,10 +196,6 @@ export function ScheduleView({
       : 'unscheduled';
     byDay.set(day, [...(byDay.get(day) ?? []), item]);
   }
-
-  // Programme context bars (lunch, ceremonies…) keyed by the SAME day format as
-  // byDay, so they render under the day the user has commitments. They never
-  // join `items`/`timed`, so they're excluded from conflict detection + "Next".
   const programmeByDay = new Map<string, ProgrammeContextRow[]>();
   for (const row of programme ?? []) {
     const day = formatInZone(
@@ -175,14 +206,10 @@ export function ScheduleView({
     );
     programmeByDay.set(day, [...(programmeByDay.get(day) ?? []), row]);
   }
-  for (const rows of programmeByDay.values()) {
-    rows.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-  }
 
   function groupKeyOf(item: DisplayItem): string {
     if (item.kind === 'fight') return `f:${item.data.tournamentName ?? ''}`;
-    if (item.kind === 'referee')
-      return `r:${item.data.tournamentName ?? ''}:${item.data.poolName ?? ''}`;
+    if (item.kind === 'referee') return `r:${item.data.tournamentName ?? ''}`;
     return 'w';
   }
 
@@ -195,9 +222,9 @@ export function ScheduleView({
     return t('publicApp.me.hub.tabWorkshops');
   }
 
-  function groupsForDay(dayItems: DisplayItem[]): Group[] {
+  function groupsFor(segItems: DisplayItem[]): Group[] {
     const map = new Map<string, Group>();
-    for (const item of dayItems) {
+    for (const item of segItems) {
       const key = groupKeyOf(item);
       let g = map.get(key);
       if (!g) {
@@ -215,6 +242,29 @@ export function ScheduleView({
       g.items.push(item);
     }
     return [...map.values()].sort((a, b) => a.firstTime - b.firstTime);
+  }
+
+  // A day is a chronological sequence of programme bars (hard dividers) and
+  // segments (break-free spans of commitments grouped by weapon). A weapon that
+  // straddles a break therefore appears as a section on either side of the bar.
+  type DayRow =
+    | { type: 'bar'; bar: ProgrammeContextRow }
+    | { type: 'segment'; index: number; groups: Group[] };
+
+  function rowsForDay(day: string, dayItems: DisplayItem[]): DayRow[] {
+    const slices = partitionAtBars(
+      dayItems.map((item) => ({
+        item,
+        sort: item.time ? new Date(item.time).getTime() : Infinity,
+      })),
+      (programmeByDay.get(day) ?? []).map((bar) => ({ bar, sort: new Date(bar.start).getTime() })),
+    );
+    return slices.map(
+      (slice): DayRow =>
+        slice.type === 'bar'
+          ? { type: 'bar', bar: slice.bar }
+          : { type: 'segment', index: slice.index, groups: groupsFor(slice.items) },
+    );
   }
 
   function statusFor(m: ScheduleMatch) {
@@ -267,15 +317,25 @@ export function ScheduleView({
       return (
         <CommitmentCard
           kind="referee"
-          timeLabel={fmtTime(r.scheduledAt)}
-          place={r.poolName}
-          title={`${t('publicApp.me.schedule.referee')} · ${r.matchNumberLabel}`}
-          meta={null}
+          timeLabel={fmtTime(r.startIso)}
+          place={r.liceName}
+          title={refereeTitle(r)}
+          meta={t(
+            r.count === 1
+              ? 'publicApp.me.schedule.matchCountOne'
+              : 'publicApp.me.schedule.matchCount',
+            { count: r.count },
+          )}
           conflict={conflictLabel}
           isNext={item.key === nextKey}
           nextLabel={t('publicApp.me.schedule.next')}
           isLive={liveKeys.has(item.key)}
           liveLabel={t('publicApp.me.schedule.live')}
+          href={
+            eventSlug && r.tournamentSlug
+              ? `/me/events/${eventSlug}/t/${r.tournamentSlug}${matchKindHash(r.matchKind)}`
+              : undefined
+          }
         />
       );
     }
@@ -292,8 +352,87 @@ export function ScheduleView({
         nextLabel={t('publicApp.me.schedule.next')}
         isLive={liveKeys.has(item.key)}
         liveLabel={t('publicApp.me.schedule.live')}
+        href={
+          eventSlug && w.workshopSlug
+            ? `/me/events/${eventSlug}/workshops#workshop-${w.workshopSlug}`
+            : undefined
+        }
       />
     );
+  }
+
+  function renderBar(row: ProgrammeContextRow): ReactNode {
+    const tint = programmeTint(row.colorHex);
+    return (
+      <div
+        style={
+          tint
+            ? { borderColor: tint.borderColor, backgroundColor: tint.backgroundColor }
+            : undefined
+        }
+        className={[
+          'flex items-center gap-2 rounded-md border px-3 py-2 text-xs',
+          tint ? 'text-foreground' : 'border-border bg-background/60 text-muted',
+        ].join(' ')}
+      >
+        <span className="shrink-0 font-bold tabular-nums text-foreground">
+          {fmtTime(row.start)}
+          {row.end ? `–${fmtTime(row.end)}` : ''}
+        </span>
+        <span className="truncate font-medium">{row.label}</span>
+      </div>
+    );
+  }
+
+  function renderDayBody(day: string, dayItems: DisplayItem[]): ReactNode {
+    return rowsForDay(day, dayItems).map((row) => {
+      if (row.type === 'bar') {
+        return <div key={`bar-${row.bar.id}`}>{renderBar(row.bar)}</div>;
+      }
+      return (
+        <div key={`seg-${row.index}`} className="flex flex-col gap-3">
+          {row.groups.map((group) => {
+            const secKey = `sec:${day}:${row.index}:${group.key}`;
+            return (
+              <CollapsibleSection
+                key={secKey}
+                open={isOpen(secKey)}
+                onToggle={() => toggle(secKey)}
+                headerClassName="mb-1.5"
+                bodyClassName="ml-1 flex flex-col gap-2 border-l-2 border-border pl-4"
+                header={
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={[
+                        'h-2 w-2 shrink-0 rounded-full',
+                        kindAccentClass(group.kind),
+                      ].join(' ')}
+                    />
+                    <span className="truncate text-xs font-bold text-foreground">
+                      {group.title}
+                    </span>
+                    {group.kind === 'referee' && group.skillName && (
+                      <SkillBadge
+                        color={group.skillColor ?? 'slate'}
+                        label={group.skillName}
+                        size="sm"
+                      />
+                    )}
+                  </>
+                }
+              >
+                {group.items.map((item) => (
+                  <div key={item.key} id={item.key}>
+                    {renderCard(item)}
+                  </div>
+                ))}
+              </CollapsibleSection>
+            );
+          })}
+        </div>
+      );
+    });
   }
 
   return (
@@ -316,56 +455,29 @@ export function ScheduleView({
         </div>
       )}
 
-      {[...byDay.entries()].map(([day, dayItems]) => (
-        <section key={day} className="mb-5">
-          {day !== 'unscheduled' && (
-            <h2 className="mb-2.5 mt-1 text-[11px] font-extrabold uppercase tracking-wider text-muted">
-              {fmtDay(dayItems.find((i) => i.time)?.time ?? day)}
-            </h2>
-          )}
-          {(programmeByDay.get(day)?.length ?? 0) > 0 && (
-            <div
-              className="mb-3 flex flex-col gap-1.5"
-              aria-label={t('publicApp.me.schedule.programmeContext')}
+      {[...byDay.entries()].map(([day, dayItems]) =>
+        day === 'unscheduled' ? (
+          <section key={day} className="mb-4">
+            <div className="flex flex-col gap-3 pl-3 sm:pl-4">{renderDayBody(day, dayItems)}</div>
+          </section>
+        ) : (
+          <section key={day} className="mb-4">
+            <CollapsibleSection
+              open={isOpen(`day:${day}`)}
+              onToggle={() => toggle(`day:${day}`)}
+              headerClassName="mb-2 mt-1"
+              bodyClassName="flex flex-col gap-3 pl-3 sm:pl-4"
+              header={
+                <span className="truncate font-display text-lg font-bold text-foreground">
+                  {fmtDay(dayItems.find((i) => i.time)?.time ?? day)}
+                </span>
+              }
             >
-              {programmeByDay.get(day)!.map((row) => (
-                <div
-                  key={row.id}
-                  className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-xs text-muted"
-                >
-                  <span className="shrink-0 font-semibold tabular-nums text-foreground">
-                    {fmtTime(row.start)}
-                    {row.end ? `–${fmtTime(row.end)}` : ''}
-                  </span>
-                  <span className="truncate">{row.label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex flex-col gap-4">
-            {groupsForDay(dayItems).map((group) => (
-              <div key={group.key}>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-accent" />
-                  <h3 className="truncate text-xs font-bold text-foreground">{group.title}</h3>
-                  {group.kind === 'referee' && group.skillName && (
-                    <SkillBadge
-                      color={group.skillColor ?? 'slate'}
-                      label={group.skillName}
-                      size="sm"
-                    />
-                  )}
-                </div>
-                <div className="ml-1 flex flex-col gap-2 border-l-2 border-border pl-4">
-                  {group.items.map((item) => (
-                    <div key={item.key}>{renderCard(item)}</div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+              {renderDayBody(day, dayItems)}
+            </CollapsibleSection>
+          </section>
+        ),
+      )}
     </div>
   );
 }

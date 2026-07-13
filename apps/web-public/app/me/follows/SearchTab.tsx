@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Avatar, EmptyState } from '@myclash/ui';
+import { Avatar, EmptyState, formatCountryName, useNow } from '@myclash/ui';
+import { flagEmoji } from '@/lib/flag';
 import { useI18n } from '@/i18n/I18nProvider';
 import { FollowButton } from './FollowButton';
 import { PersonContextDetails } from './PersonContextDetails';
@@ -32,7 +33,8 @@ function toPerson(r: RawResult): SearchPerson {
 }
 
 export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: GroupsApi }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const now = useNow(apiUrl);
   const [q, setQ] = useState('');
   const [results, setResults] = useState<SearchPerson[]>([]);
   const [status, setStatus] = useState<Status>('idle');
@@ -138,7 +140,18 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
                 <Avatar name={person.displayName} src={person.photoUrl ?? undefined} size="md" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">
+                    {flagEmoji(person.countryCode) && (
+                      <span aria-hidden className="mr-1.5">
+                        {flagEmoji(person.countryCode)}
+                      </span>
+                    )}
                     {person.displayName}
+                    {person.countryCode && (
+                      <span className="sr-only">
+                        {' '}
+                        · {formatCountryName(person.countryCode, locale)}
+                      </span>
+                    )}
                   </p>
                   {person.clubName && (
                     <p className="truncate text-xs text-muted">{person.clubName}</p>
@@ -162,7 +175,7 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
               </div>
             </div>
 
-            <PersonContextDetails ctx={ctx} />
+            <PersonContextDetails ctx={ctx} now={now} />
 
             {pickerOpen && (
               <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3">

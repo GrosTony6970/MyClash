@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { EmptyState } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
+import { Chevron } from './Chevron';
 import { MemberCard } from './MemberCard';
+import { usePersistedOpen } from './usePersistedOpen';
 import type { DirectoryGroup, useDirectoryGroups } from './useDirectoryGroups';
 
 type GroupsApi = ReturnType<typeof useDirectoryGroups>;
 
-export function GroupsTab({ groupsApi }: { groupsApi: GroupsApi }) {
+export function GroupsTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: GroupsApi }) {
   const { t } = useI18n();
   const [newName, setNewName] = useState('');
 
@@ -58,18 +60,27 @@ export function GroupsTab({ groupsApi }: { groupsApi: GroupsApi }) {
         />
       ) : (
         groupsApi.groups.map((group) => (
-          <GroupSection key={group.id} group={group} groupsApi={groupsApi} />
+          <GroupSection key={group.id} apiUrl={apiUrl} group={group} groupsApi={groupsApi} />
         ))
       )}
     </section>
   );
 }
 
-function GroupSection({ group, groupsApi }: { group: DirectoryGroup; groupsApi: GroupsApi }) {
+function GroupSection({
+  apiUrl,
+  group,
+  groupsApi,
+}: {
+  apiUrl: string;
+  group: DirectoryGroup;
+  groupsApi: GroupsApi;
+}) {
   const { t } = useI18n();
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(group.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [open, setOpen] = usePersistedOpen(`myclash:group-open:${group.id}`, true);
 
   function saveRename() {
     const trimmed = renameValue.trim();
@@ -114,7 +125,19 @@ function GroupSection({ group, groupsApi }: { group: DirectoryGroup; groupsApi: 
           </form>
         ) : (
           <>
-            <div className="flex min-w-0 items-baseline gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                aria-label={t(
+                  open ? 'publicApp.me.groups.collapse' : 'publicApp.me.groups.expand',
+                  { name: group.name },
+                )}
+                className="flex-shrink-0 rounded-md border border-border p-1.5 text-muted hover:bg-foreground/5"
+              >
+                <Chevron open={open} />
+              </button>
               <h2 className="truncate font-display text-lg font-bold text-foreground">
                 {group.name}
               </h2>
@@ -164,23 +187,26 @@ function GroupSection({ group, groupsApi }: { group: DirectoryGroup; groupsApi: 
         )}
       </div>
 
-      <div className="flex flex-col gap-3 p-4">
-        {group.members.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted">
-            {t('publicApp.me.groups.emptyGroup')}
-          </p>
-        ) : (
-          group.members.map((member) => (
-            <MemberCard
-              key={member.globalPersonId}
-              member={member}
-              onFollow={() => groupsApi.followPerson(member.globalPersonId)}
-              onUnfollow={() => groupsApi.unfollowPerson(member.globalPersonId)}
-              onRemove={() => void groupsApi.removeMember(group.id, member.globalPersonId)}
-            />
-          ))
-        )}
-      </div>
+      {open && (
+        <div className="flex flex-col gap-3 p-4">
+          {group.members.length === 0 ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted">
+              {t('publicApp.me.groups.emptyGroup')}
+            </p>
+          ) : (
+            group.members.map((member) => (
+              <MemberCard
+                key={member.globalPersonId}
+                apiUrl={apiUrl}
+                member={member}
+                onFollow={() => groupsApi.followPerson(member.globalPersonId)}
+                onUnfollow={() => groupsApi.unfollowPerson(member.globalPersonId)}
+                onRemove={() => void groupsApi.removeMember(group.id, member.globalPersonId)}
+              />
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }

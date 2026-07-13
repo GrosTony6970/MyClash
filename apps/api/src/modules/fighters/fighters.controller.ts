@@ -195,6 +195,13 @@ export class FightersController {
     return this.fighters.getRefereeStatsBySlug(slug);
   }
 
+  /** GET /api/v1/fighters/:slug/rating-history */
+  @Get(':slug/rating-history')
+  @ApiOperation({ summary: 'Get public Fighter HEMA rating history (time-series)' })
+  async ratingHistory(@Param('slug') slug: string) {
+    return this.fighters.getRatingHistoryBySlug(slug);
+  }
+
   /** GET /api/v1/fighters/:slug */
   @Get(':slug')
   @ApiOperation({ summary: 'Get fighter by slug (public)' })
