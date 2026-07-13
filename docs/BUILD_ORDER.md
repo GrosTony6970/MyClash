@@ -1157,8 +1157,8 @@
 - **Goal**: Postgres materialized views per ARCHITECTURE.md §5.3.
 - **Files**: `packages/db/migrations/0010_stats_views.sql`, `apps/api/src/modules/stats/**`.
 - **AC**:
-  - `mv_fighter_exchange_stats` produces all columns from the lyonamhe.fr stats table (Dbl, ✓1, ✓1-1, ✓2, ✓2-1, ✗1, ✗1-1, ✗2, ✗2-1, Total, Ratio).
-  - Refreshed by trigger after exchange insert/update/void; debounced via Redis lock (1s).
+  - Produces all columns from the lyonamhe.fr stats table (Dbl, ✓1, ✓1-1, ✓2, ✓2-1, ✗1, ✗1-1, ✗2, ✗2-1, Total, Ratio).
+  - **Superseded by migration 0128**: now computed on-read via the `fighter_exchange_stats(tournament_id)` function (always fresh, afterblow-mode-correct) instead of a trigger-refreshed materialized view.
 
 ### T-1002 · Tournament stats overview API
 

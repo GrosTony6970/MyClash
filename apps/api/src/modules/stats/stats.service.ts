@@ -1,8 +1,11 @@
 /**
  * stats.service.ts — T-1001 + T-1002
  *
- * Reads from mv_fighter_exchange_stats materialized view.
- * Provides tournament stats overview + per-fighter exchange stats.
+ * Per-fighter exchange stats + tournament overview, computed on-read via the
+ * fighter_exchange_stats(tournament_id) Postgres function (migration 0128). The
+ * former mv_fighter_exchange_stats materialized view was dropped because its
+ * refresh trigger only pg_notify'd a channel nobody listened on, so it served
+ * stale data. On-read is always fresh and nets afterblow points correctly.
  */
 
 import { Injectable } from '@nestjs/common';
@@ -61,18 +64,17 @@ export class StatsService {
   // ── Fighter exchange stats ────────────────────────────────────────────────────
 
   async getFighterStats(tournamentId: string): Promise<FighterExchangeStats[]> {
-    const { data, error } = await this.supabase.service
-      .from('mv_fighter_exchange_stats')
-      .select('*')
-      .eq('tournament_id', tournamentId)
-      .order('hit_ratio', { ascending: false, nullsFirst: false });
+    // Computed on-read (always fresh); already ordered by hit_ratio DESC in SQL.
+    const { data, error } = await this.supabase.service.rpc('fighter_exchange_stats', {
+      p_tournament_id: tournamentId,
+    });
 
     if (error) {
-      // View may not exist yet (pre-migration) — return empty
+      // Function may not exist yet (pre-migration) — return empty
       return [];
     }
 
-    return (data ?? []).map((r) => this.mapStats(r as Record<string, unknown>));
+    return ((data as Array<Record<string, unknown>> | null) ?? []).map((r) => this.mapStats(r));
   }
 
   // ── Tournament overview ───────────────────────────────────────────────────────
@@ -111,12 +113,6 @@ export class StatsService {
       clubCount: clubs.size,
       topFighters,
     };
-  }
-
-  // ── Refresh materialized view ─────────────────────────────────────────────────
-
-  async refreshStats(): Promise<void> {
-    await this.supabase.service.rpc('refresh_fighter_exchange_stats');
   }
 
   // ── Private ───────────────────────────────────────────────────────────────────

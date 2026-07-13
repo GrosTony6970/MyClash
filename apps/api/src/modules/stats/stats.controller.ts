@@ -3,10 +3,12 @@
  *
  * GET /api/v1/tournaments/:id/stats/overview
  * GET /api/v1/tournaments/:id/stats/fighters
- * POST /api/v1/tournaments/:id/stats/refresh (admin)
+ *
+ * Stats are computed on-read (fighter_exchange_stats, migration 0128) — there is
+ * no manual refresh endpoint because there is no materialized view to refresh.
  */
 
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { StatsService } from './stats.service';
 
@@ -27,14 +29,5 @@ export class StatsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async fighters(@Param('id', ParseUUIDPipe) id: string) {
     return this.stats.getFighterStats(id);
-  }
-
-  @Post('tournaments/:id/stats/refresh')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Manually refresh materialized view (admin)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async refresh() {
-    await this.stats.refreshStats();
-    return { refreshed: true };
   }
 }

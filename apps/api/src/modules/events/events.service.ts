@@ -437,19 +437,11 @@ export class EventsService {
     // Recompute league standings on completion, and whenever the test flag
     // flips — the league gate (computeTournamentContributions) writes empty
     // contributions for a now-test event, so recompute drops/re-adds its rows
-    // from league_tournament_results + rankings. Also refresh the materialized
-    // exchange stats so they pick up the new exclusion.
+    // from league_tournament_results + rankings. Fighter exchange stats need no
+    // action: they are computed on-read (fighter_exchange_stats, 0128) and filter
+    // is_test_event live, so a flag flip is reflected on the next request.
     if (dto.status === 'completed' || testFlagChanged) {
       await this.leagues?.recomputeForEvent(eventId);
-    }
-    if (testFlagChanged) {
-      // Best-effort: the MV also auto-refreshes via its exchange trigger, so a
-      // transient refresh failure must not fail the edit save.
-      try {
-        await this.supabase.service.rpc('refresh_fighter_exchange_stats');
-      } catch {
-        /* ignore — picked up by the next scheduled/trigger refresh */
-      }
     }
     return data;
   }

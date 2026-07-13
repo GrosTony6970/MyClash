@@ -413,7 +413,8 @@ export class ArchiveService {
       (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
     await this.insertMappedTables(data, maps, { targetEventId: restoredEventId, crossOrg });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
-    await this.refreshDerivedData();
+    // Fighter exchange stats are computed on-read (fighter_exchange_stats, 0128) —
+    // restored rows are reflected immediately, no derived-data refresh needed.
 
     return {
       scope: 'event',
@@ -487,7 +488,7 @@ export class ArchiveService {
       sourceTournament['id'] as string,
       restoredTournamentId,
     );
-    await this.refreshDerivedData();
+    // On-read fighter exchange stats (0128) — no derived-data refresh needed.
 
     return {
       scope: 'tournament',
@@ -1174,10 +1175,6 @@ export class ArchiveService {
         payload_json: { sourceId, restoredId, mode: 'copy' },
       })
       .select('*');
-  }
-
-  private async refreshDerivedData(): Promise<void> {
-    await this.db().rpc?.('refresh_fighter_exchange_stats');
   }
 
   private cleanRow(row: ArchiveRow): ArchiveRow {

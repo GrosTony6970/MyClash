@@ -829,6 +829,53 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
   }
 
+  // ── On-read stats freshness + afterblow netting (regression guard for 0128) ────
+  // The pool exchanges just scored must be reflected by the stats endpoints with
+  // NO refresh call anywhere — proving fighter_exchange_stats is computed on-read
+  // (the old materialized view went stale here). Both tournaments are deductive,
+  // so we also assert the netting invariant: every point one fighter is credited
+  // (given) is charged to their opponent (received), so the tournament-wide sums
+  // must match — this exercises the own-delta/opponent-delta point formula.
+  for (const tid of tournamentIds) {
+    await step(`stats fresh ${tid.slice(0, 8)}`, async () => {
+      const overview = (await (
+        await reqOk(await get(`tournaments/${tid}/stats/overview`))
+      ).json()) as {
+        participantCount: number;
+        exchangeCount: number;
+        doublesCount: number;
+      };
+      const fighters = (await (
+        await reqOk(await get(`tournaments/${tid}/stats/fighters`))
+      ).json()) as Array<{
+        pointsGiven: number;
+        pointsReceived: number;
+      }>;
+
+      // Freshness: scored data is visible immediately, no refresh needed.
+      expect(overview.exchangeCount).toBeGreaterThan(0);
+      expect(overview.participantCount).toBeGreaterThan(0);
+      expect(fighters.length).toBe(overview.participantCount);
+
+      // Deductive sanity: netted points never go negative.
+      for (const f of fighters) {
+        expect(f.pointsGiven).toBeGreaterThanOrEqual(0);
+        expect(f.pointsReceived).toBeGreaterThanOrEqual(0);
+      }
+
+      // Netting symmetry: Σ given === Σ received across the whole tournament.
+      const given = fighters.reduce((s, f) => s + f.pointsGiven, 0);
+      const received = fighters.reduce((s, f) => s + f.pointsReceived, 0);
+      expect(given).toBe(received);
+
+      console.log(
+        `    ↳ ${tid.slice(0, 8)}: ${overview.participantCount} fighters, ` +
+          `${overview.exchangeCount} exchanges, Σpts ${given} — fresh on-read`,
+      );
+      return given;
+    });
+  }
+
   // ── Play each tournament's bracket of 16 down to a champion ────────────────────
   // Completing the last pool match fire-and-forgets populate-bracket (silent
   // until the pool gate is met), so R1 may already be seeded — we call it

@@ -664,7 +664,7 @@ For fighter F in event E:
 - `Total` = sum of all above
 - `Ratio` = Dbl / Total
 
-This must be implemented as a materialized view or a denormalized aggregation table refreshed via BullMQ on every exchange commit. **Decision: use a materialized view `mv_fighter_exchange_stats` refreshed by trigger after exchange insert/update/void**, batched via Redis debounce (1s).
+**Current implementation (migration 0128): computed on-read** via the `fighter_exchange_stats(tournament_id)` Postgres function, scoped to one tournament. (The original `mv_fighter_exchange_stats` materialized view was dropped: its refresh trigger only `pg_notify`'d a channel with no listener, so it served stale data; the on-read function is always fresh and nets afterblow points correctly for both scoring modes.)
 
 ### 5.4 Match-level statistics (timing)
 
@@ -847,8 +847,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 ### 8.2 Computation strategy
 
 - **Hot path (live)**: realtime updates push deltas; UI maintains incremental aggregates.
-- **Cold path (post-match)**: BullMQ job `recompute-event-stats` runs after each match completes. Materializes:
-  - `mv_fighter_exchange_stats` (per-fighter exchange aggregates; the only materialized view — see `packages/db/migrations/0010_stats_views.sql`, refreshed in `0110`).
+- **Per-fighter exchange aggregates**: computed on-read by the `fighter_exchange_stats(tournament_id)` Postgres function (migration 0128) — always fresh, no materialization/refresh. (Superseded the `mv_fighter_exchange_stats` materialized view from `0010`/`0110`/`0113`, which went stale because its refresh trigger had no listener.)
 - Event- and tournament-level aggregates are served from plain `vw_tournament_query_*` views (fighters, pools, matches, exchange summary, referees), not a materialized event summary.
 - Public stats page reads these views directly (fast).
 
