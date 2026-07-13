@@ -24,6 +24,7 @@ import {
   type RankingSlot,
 } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
+import { SelfRowFocus } from './SelfRowFocus';
 import type { BracketSlot } from './page';
 
 interface Props {
@@ -131,6 +132,8 @@ export function FinalRankingTab({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+      {/* Personal space: scroll the viewer's own row into view on landing. */}
+      <SelfRowFocus panelId="panel-finalranking" active={!!highlightRegistrationId} />
       <table className="w-full text-sm">
         <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
           <tr>
@@ -152,6 +155,7 @@ export function FinalRankingTab({
             return (
               <tr
                 key={entry.registrationId}
+                data-self-row={isYou ? '' : undefined}
                 className={[
                   'border-b border-border last:border-0 hover:bg-background',
                   isYou ? 'bg-accent/5' : '',

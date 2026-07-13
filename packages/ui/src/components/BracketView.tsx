@@ -53,6 +53,10 @@ export interface BracketViewProps {
   refereeSelfKeys?: ReadonlySet<string>;
   /** Humanises a referee_skills.id role into a label (app-provided). */
   refereeRoleLabel?: (role: string | null) => string;
+  /** Tailwind horizontal-gap class between round columns. Defaults to the
+   *  compact `gap-16`; consumers (e.g. the public bracket) can pass a wider
+   *  value like `gap-24` without affecting other brackets. */
+  roundGapClass?: string;
 }
 
 const ROUND_GAP_CLASS = 'gap-16';
@@ -85,6 +89,7 @@ export function BracketView({
   showReferees = false,
   refereeSelfKeys,
   refereeRoleLabel,
+  roundGapClass = ROUND_GAP_CLASS,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
 
@@ -130,6 +135,7 @@ export function BracketView({
       blueColor={blueColor}
       roundCodeFor={roundCodeFor}
       pitchPx={pitchPx}
+      roundGapClass={roundGapClass}
     />
   ) : (
     <SingleElimLayout
@@ -144,6 +150,7 @@ export function BracketView({
       roundLabels={roundLabels}
       roundCodeFor={roundCodeFor}
       pitchPx={pitchPx}
+      roundGapClass={roundGapClass}
     />
   );
 
@@ -172,6 +179,7 @@ interface SingleElimLayoutProps {
   roundLabels?: Record<number, string>;
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
   pitchPx: number;
+  roundGapClass: string;
 }
 
 function SingleElimLayout({
@@ -186,6 +194,7 @@ function SingleElimLayout({
   roundLabels,
   roundCodeFor,
   pitchPx,
+  roundGapClass,
 }: SingleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -261,7 +270,7 @@ function SingleElimLayout({
   return (
     <div className="space-y-8">
       <div className="overflow-x-auto pb-6">
-        <div ref={containerRef} className={`relative flex ${ROUND_GAP_CLASS} w-full items-stretch`}>
+        <div ref={containerRef} className={`relative flex ${roundGapClass} w-full items-stretch`}>
           <BracketConnectors
             cardRefs={cardRefs.current}
             edges={edges}
@@ -374,6 +383,7 @@ interface DoubleElimLayoutProps {
   blueColor: ColorToken;
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
   pitchPx: number;
+  roundGapClass: string;
 }
 
 function DoubleElimLayout({
@@ -386,6 +396,7 @@ function DoubleElimLayout({
   blueColor,
   roundCodeFor,
   pitchPx,
+  roundGapClass,
 }: DoubleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -432,6 +443,7 @@ function DoubleElimLayout({
           )}
           accent="text-amber-600"
           pitchPx={pitchPx}
+          roundGapClass={roundGapClass}
         />
         {lbSlots.length > 0 && (
           <Lane
@@ -451,6 +463,7 @@ function DoubleElimLayout({
             )}
             accent="text-blue-600"
             pitchPx={pitchPx}
+            roundGapClass={roundGapClass}
           />
         )}
         {gfSlots.length > 0 && (
@@ -472,6 +485,7 @@ function DoubleElimLayout({
             accent="text-violet-600"
             roundLabelFn={(round) => (round === gfRound ? 'Grand Final' : 'Reset')}
             pitchPx={pitchPx}
+            roundGapClass={roundGapClass}
           />
         )}
       </div>
@@ -486,6 +500,7 @@ function Lane({
   accent,
   roundLabelFn,
   pitchPx,
+  roundGapClass,
 }: {
   title: string;
   slots: BracketSlotData[];
@@ -493,6 +508,7 @@ function Lane({
   accent: string;
   roundLabelFn?: (round: number, idx: number, total: number) => string;
   pitchPx: number;
+  roundGapClass: string;
 }) {
   const byRound = new Map<number, BracketSlotData[]>();
   for (const s of slots) {
@@ -512,7 +528,7 @@ function Lane({
   return (
     <section>
       <p className={`mb-3 text-xs font-semibold uppercase tracking-widest ${accent}`}>{title}</p>
-      <div className="flex w-full gap-16">
+      <div className={`flex w-full ${roundGapClass}`}>
         {rounds.map((round, idx) => {
           const rSlots = byRound.get(round) ?? [];
           const label = roundLabelFn ? roundLabelFn(round, idx, rounds.length) : `R${idx + 1}`;

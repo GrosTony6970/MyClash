@@ -22,6 +22,7 @@ import { accentClassFor } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
+import { SelfRowFocus } from './SelfRowFocus';
 import type { Pool } from './page';
 
 type Mode = 'overall' | 'by-pool';
@@ -179,6 +180,8 @@ export function StandingsView({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Personal space: scroll the viewer's own row into view on landing. */}
+      <SelfRowFocus panelId="panel-standings" active={!!highlightRegistrationId} />
       <div className="inline-flex w-fit gap-1 rounded-md border border-stone-200 bg-white p-1">
         <button
           type="button"
@@ -288,6 +291,7 @@ function OverallTable({
             return (
               <tr
                 key={row.registrationId}
+                data-self-row={isYou ? '' : undefined}
                 className={[
                   isCut ? 'border-b-2 border-foreground' : 'border-b border-border',
                   'last:border-0',

@@ -131,23 +131,38 @@ export function BracketLive({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentSlug]);
 
-  // Personal space only (highlightRegistrationId is set on the /me view, never
-  // on the public /e page): the bracket slot to scroll into view = the viewer's
-  // FURTHEST-round slot (their current position). Switch `s.round > best.round`
-  // to `<` to target their entry slot instead.
+  // Personal space only (highlightRegistrationId / refereeSelfKeys are set on the
+  // /me view, never on the public /e page): the bracket slot to scroll into view.
+  // Fighters land on their FURTHEST-round slot (their current position); referees
+  // — who have no registration — fall back to the EARLIEST-round match they're
+  // assigned to (their next duty). Switch the `>`/`<` comparisons to flip which.
   const targetSlotId = useMemo(() => {
-    if (!highlightRegistrationId) return null;
-    let best: { id: string; round: number } | null = null;
-    for (const s of slots) {
-      const mine =
-        (s as { redRegistrationId?: string | null }).redRegistrationId ===
-          highlightRegistrationId ||
-        (s as { blueRegistrationId?: string | null }).blueRegistrationId ===
-          highlightRegistrationId;
-      if (mine && (!best || s.round > best.round)) best = { id: s.id, round: s.round };
+    let fighter: { id: string; round: number } | null = null;
+    if (highlightRegistrationId) {
+      for (const s of slots) {
+        const mine =
+          (s as { redRegistrationId?: string | null }).redRegistrationId ===
+            highlightRegistrationId ||
+          (s as { blueRegistrationId?: string | null }).blueRegistrationId ===
+            highlightRegistrationId;
+        if (mine && (!fighter || s.round > fighter.round)) fighter = { id: s.id, round: s.round };
+      }
     }
-    return best?.id ?? null;
-  }, [slots, highlightRegistrationId]);
+    if (fighter) return fighter.id;
+
+    // refereeSelfKeys are `${slotId}::${role}` → the slot id is the part before "::".
+    if (refereeSelfKeys && refereeSelfKeys.size > 0) {
+      const mySlotIds = new Set(Array.from(refereeSelfKeys, (k) => k.split('::')[0]));
+      let referee: { id: string; round: number } | null = null;
+      for (const s of slots) {
+        if (mySlotIds.has(s.id) && (!referee || s.round < referee.round))
+          referee = { id: s.id, round: s.round };
+      }
+      if (referee) return referee.id;
+    }
+
+    return null;
+  }, [slots, highlightRegistrationId, refereeSelfKeys]);
 
   // Center the viewer's match on landing. Fires ONCE (ref guard) so realtime
   // score refreshes don't re-yank the scroll. `inline: 'center'` scrolls the
@@ -212,6 +227,7 @@ export function BracketLive({
     matchId: s.matchId,
     redRegistrationId: (s as { redRegistrationId?: string | null }).redRegistrationId ?? null,
     blueRegistrationId: (s as { blueRegistrationId?: string | null }).blueRegistrationId ?? null,
+    liceName: (s as { liceName?: string | null }).liceName ?? null,
     referees: s.referees ?? [],
   }));
 
@@ -265,6 +281,7 @@ export function BracketLive({
         }}
         bronzeMatch={bronze}
         onMatchClick={onMatchClick}
+        roundGapClass="gap-24"
         highlightRegistrationId={highlightRegistrationId}
         youLabel={t('publicApp.me.hub.youChip')}
         showReferees={showReferees}

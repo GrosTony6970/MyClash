@@ -51,6 +51,9 @@ export interface BracketSlot {
   matchId: string | null;
   redRegistrationId?: string | null;
   blueRegistrationId?: string | null;
+  /** Assigned piste ("lice") name — rendered as a pill beside the match code,
+   *  mirroring the admin bracket. Null when no piste is assigned. */
+  liceName?: string | null;
   /** Referees assigned to this bracket match (scope_type='match'). Rendered on
    *  the card when the bracket's fold/unfold toggle is on. */
   referees?: PoolReferee[];
