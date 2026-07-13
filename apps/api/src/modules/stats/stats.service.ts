@@ -117,21 +117,27 @@ export class StatsService {
 
   // ── Private ───────────────────────────────────────────────────────────────────
 
+  // matches/exchanges have NO tournament_id column — they reach a tournament only
+  // via phase_id → phases.tournament_id (exchanges via match → phase). Filtering a
+  // non-existent column PostgREST-400s the whole query; the error must be surfaced,
+  // not swallowed into `count ?? 0` (which silently reported 0 for every tournament).
   private async countMatches(tournamentId: string): Promise<number> {
-    const { count } = await this.supabase.service
+    const { count, error } = await this.supabase.service
       .from('matches')
-      .select('id', { count: 'exact', head: true })
-      .eq('tournament_id', tournamentId)
+      .select('id, phases!inner(tournament_id)', { count: 'exact', head: true })
+      .eq('phases.tournament_id', tournamentId)
       .neq('status', 'voided');
+    if (error) throw new Error(`countMatches failed: ${error.message}`);
     return count ?? 0;
   }
 
   private async countExchanges(tournamentId: string): Promise<number> {
-    const { count } = await this.supabase.service
+    const { count, error } = await this.supabase.service
       .from('exchanges')
-      .select('id', { count: 'exact', head: true })
-      .eq('tournament_id', tournamentId)
+      .select('id, matches!inner(phases!inner(tournament_id))', { count: 'exact', head: true })
+      .eq('matches.phases.tournament_id', tournamentId)
       .eq('voided', false);
+    if (error) throw new Error(`countExchanges failed: ${error.message}`);
     return count ?? 0;
   }
 

@@ -9,9 +9,9 @@ const fromMock = vi.fn();
 const mockSupabase = { service: { rpc: rpcMock, from: fromMock } };
 
 // from('matches'|'exchanges').select(id,{count,head}).eq().eq()/.neq() → { count }
-function makeCountChain(count: number) {
-  const chain = Object.assign(Promise.resolve({ count, data: null, error: null })) as Promise<{
-    count: number;
+function makeCountChain(count: number | null, error: { message: string } | null = null) {
+  const chain = Object.assign(Promise.resolve({ count, data: null, error })) as Promise<{
+    count: number | null;
   }> &
     Record<string, unknown>;
   for (const k of ['select', 'eq', 'neq']) chain[k] = vi.fn().mockReturnValue(chain);
@@ -121,7 +121,10 @@ describe('StatsService', () => {
         error: null,
       });
       // matches count = 5, exchanges count = 10
-      fromMock.mockImplementation((table: string) => makeCountChain(table === 'matches' ? 5 : 10));
+      const chains: Record<string, ReturnType<typeof makeCountChain>> = {};
+      fromMock.mockImplementation(
+        (table: string) => (chains[table] = makeCountChain(table === 'matches' ? 5 : 10)),
+      );
 
       const o = await makeService().getTournamentOverview('tour-1');
 
@@ -136,6 +139,35 @@ describe('StatsService', () => {
       // only fighters with a non-null hitRatio appear in topFighters
       expect(o.topFighters).toHaveLength(1);
       expect(o.topFighters[0]).toMatchObject({ name: 'Ann Red', club: 'Lyon', hitRatio: 1.5 });
+
+      // Regression guard: matches/exchanges have no tournament_id column — the
+      // counts MUST reach the tournament through phases, never a direct
+      // .eq('tournament_id', …) (which PostgREST-400s and silently returns 0).
+      expect(chains['matches']?.select).toHaveBeenCalledWith('id, phases!inner(tournament_id)', {
+        count: 'exact',
+        head: true,
+      });
+      expect(chains['matches']?.eq).toHaveBeenCalledWith('phases.tournament_id', 'tour-1');
+      expect(chains['exchanges']?.select).toHaveBeenCalledWith(
+        'id, matches!inner(phases!inner(tournament_id))',
+        { count: 'exact', head: true },
+      );
+      expect(chains['exchanges']?.eq).toHaveBeenCalledWith(
+        'matches.phases.tournament_id',
+        'tour-1',
+      );
+    });
+
+    it('surfaces (does not swallow) a count-query error', async () => {
+      rpcMock.mockResolvedValue({ data: [], error: null });
+      // A broken count query (e.g. an unknown column) must throw, not become 0.
+      fromMock.mockImplementation(() =>
+        makeCountChain(null, { message: 'column "tournament_id" does not exist' }),
+      );
+
+      await expect(makeService().getTournamentOverview('tour-1')).rejects.toThrow(
+        /count(Matches|Exchanges) failed/,
+      );
     });
 
     it('reports 0 doubles% when there are no exchanges', async () => {
