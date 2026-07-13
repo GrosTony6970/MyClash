@@ -565,6 +565,10 @@ export const en = {
       averageRefereeTime: 'Average time',
       refereeRoles: 'Referee roles',
       refereeHistory: 'Referee history',
+      refereeMatchVersus: '{red} vs {blue}',
+      refereeCoReferees: 'Co-referees',
+      refereeSoloMatch: 'Solo',
+      refereeYourRole: 'You:',
       refereeCards: 'Cards distributed',
       bestRefereeBuddies: 'Regular referee partners',
       arbitreDeclarant: 'Lead referee',
@@ -2412,6 +2416,16 @@ export const en = {
         title: 'Disable email',
         description:
           'Skip every outbound email (broadcasts, email-change confirmations, password resets) and log a mail.skipped line instead. Use when the SMTP provider is bouncing so the platform stops queueing dead messages.',
+      },
+      timeSimulation: {
+        title: 'Time simulation',
+        description:
+          'Shift the clock the public app (app.myclash.fr) uses so time-dependent UI — the schedule "Next" / "Live" badges — can be tested on demand. The clock advances forward from the datetime you set. ⚠️ While on, EVERY public visitor sees the simulated time (a badge shows the active value). Turn it off after testing.',
+        targetLabel: 'Simulated "now"',
+        targetHelp:
+          'The date & time the public app should treat as the current moment. The clock advances forward from here.',
+        saveButton: 'Save simulated time',
+        activeNote: 'Simulated time',
       },
       disableRealtime: {
         title: 'Disable Realtime',
@@ -6266,6 +6280,10 @@ export const fr = {
       averageRefereeTime: 'Temps moyen',
       refereeRoles: 'Roles arbitre',
       refereeHistory: 'Historique arbitre',
+      refereeMatchVersus: '{red} vs {blue}',
+      refereeCoReferees: 'Co-arbitres',
+      refereeSoloMatch: 'Seul',
+      refereeYourRole: 'Vous :',
       refereeCards: 'Cartons distribues',
       bestRefereeBuddies: 'Partenaires arbitres reguliers',
       arbitreDeclarant: 'Arbitre declarant',
@@ -8146,6 +8164,16 @@ export const fr = {
         title: 'Desactiver les emails',
         description:
           "Ignorer chaque envoi d'email (diffusions, confirmations de changement d'email, reset de mot de passe) et logger 'mail.skipped' a la place. A utiliser quand le fournisseur SMTP rebond pour eviter d'empiler des messages morts.",
+      },
+      timeSimulation: {
+        title: 'Simulation temporelle',
+        description:
+          'Decale l horloge utilisee par l app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps — les badges « Suivant » / « En direct » du planning. L horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l heure simulee (un badge affiche la valeur active). A desactiver apres les tests.',
+        targetLabel: 'Instant simule (« maintenant »)',
+        targetHelp:
+          'La date et l heure que l app publique doit considerer comme l instant present. L horloge avance a partir de ce point.',
+        saveButton: 'Enregistrer l heure simulee',
+        activeNote: 'Heure simulee',
       },
       disableRealtime: {
         title: 'Desactiver Realtime',

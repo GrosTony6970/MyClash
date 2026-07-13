@@ -468,6 +468,56 @@ describe('FightersService', () => {
       expect(updateChain.update).toHaveBeenCalledWith(expect.objectContaining({ photo_url: null }));
     });
   });
+
+  describe('fetchFighterNamesByMatch', () => {
+    type Resolver = {
+      fetchFighterNamesByMatch: (
+        ids: string[],
+      ) => Promise<Map<string, { redName: string | null; blueName: string | null }>>;
+    };
+
+    it('resolves red/blue fighter names per match with global display-name fallback', async () => {
+      const matchesChain = makeChain({ data: null, error: null });
+      matchesChain.in.mockResolvedValue({
+        data: [
+          { id: 'm1', red_registration_id: 'r1', blue_registration_id: 'r2' },
+          { id: 'm2', red_registration_id: 'r3', blue_registration_id: null },
+        ],
+        error: null,
+      });
+
+      const regsChain = makeChain({ data: null, error: null });
+      regsChain.in.mockResolvedValue({
+        data: [
+          // persons embed as object → "Given Family"
+          { id: 'r1', persons: { given_name: 'Anna', family_name: 'Red', global_persons: null } },
+          // persons embed as array with empty name → fall back to global display_name
+          {
+            id: 'r2',
+            persons: [
+              { given_name: '', family_name: '', global_persons: { display_name: 'Blue GP' } },
+            ],
+          },
+          { id: 'r3', persons: { given_name: 'Cara', family_name: 'Solo', global_persons: null } },
+        ],
+        error: null,
+      });
+
+      fromMock.mockReturnValueOnce(matchesChain).mockReturnValueOnce(regsChain);
+
+      const result = await (service as unknown as Resolver).fetchFighterNamesByMatch(['m1', 'm2']);
+
+      expect(result.get('m1')).toEqual({ redName: 'Anna Red', blueName: 'Blue GP' });
+      // Missing blue registration → null; red resolves normally.
+      expect(result.get('m2')).toEqual({ redName: 'Cara Solo', blueName: null });
+    });
+
+    it('returns an empty map (and issues no query) when there are no matches', async () => {
+      const result = await (service as unknown as Resolver).fetchFighterNamesByMatch([]);
+      expect(result.size).toBe(0);
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('parseBoolCell', () => {

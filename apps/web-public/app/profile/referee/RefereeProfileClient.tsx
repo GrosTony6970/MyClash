@@ -25,6 +25,15 @@ interface RefereeHistoryEntry {
   bracketRound: number | null;
   bracketSize: number | null;
   cards: { yellow: number; red: number; black: number };
+  coReferees: {
+    personId: string;
+    name: string | null;
+    skillId: string | null;
+    skillName: string | null;
+    skillColor: string | null;
+  }[];
+  redFighterName: string | null;
+  blueFighterName: string | null;
 }
 
 interface RefereeStats {
@@ -118,11 +127,26 @@ interface SkillRef {
   name: string;
   color: string;
 }
+interface CoRefereeChipData {
+  personId: string;
+  name: string | null;
+  skillName: string | null;
+  skillColor: string | null;
+}
+interface RefereeMatchRow {
+  matchId: string;
+  redFighterName: string | null;
+  blueFighterName: string | null;
+  /** The viewer's own role for this match (null when unresolved). */
+  viewerRole: SkillRef | null;
+  coReferees: CoRefereeChipData[];
+}
 interface TierGroup {
   key: string;
   order: number;
   matchIds: Set<string>;
   skills: Map<string, SkillRef>;
+  matches: Map<string, RefereeMatchRow>;
 }
 interface TournamentGroup {
   id: string;
@@ -171,13 +195,26 @@ function buildRefereeTree(history: RefereeHistoryEntry[], unknown: string): Even
         order: tier.order,
         matchIds: new Set(),
         skills: new Map(),
+        matches: new Map(),
       } satisfies TierGroup);
     tierGroup.matchIds.add(entry.matchId);
-    if (entry.skillId && entry.skillName && entry.skillColor) {
-      tierGroup.skills.set(entry.skillId, {
-        id: entry.skillId,
-        name: entry.skillName,
-        color: entry.skillColor,
+    const viewerRole: SkillRef | null =
+      entry.skillId && entry.skillName && entry.skillColor
+        ? { id: entry.skillId, name: entry.skillName, color: entry.skillColor }
+        : null;
+    if (viewerRole) tierGroup.skills.set(viewerRole.id, viewerRole);
+    if (!tierGroup.matches.has(entry.matchId)) {
+      tierGroup.matches.set(entry.matchId, {
+        matchId: entry.matchId,
+        redFighterName: entry.redFighterName,
+        blueFighterName: entry.blueFighterName,
+        viewerRole,
+        coReferees: (entry.coReferees ?? []).map((coRef) => ({
+          personId: coRef.personId,
+          name: coRef.name,
+          skillName: coRef.skillName,
+          skillColor: coRef.skillColor,
+        })),
       });
     }
     tournament.tiers.set(tier.key, tierGroup);
@@ -354,25 +391,41 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
                               <ul className="mb-1 ml-3 border-l border-border pl-3">
                                 {[...tournament.tiers.values()]
                                   .sort((a, b) => a.order - b.order)
-                                  .map((tier) => (
-                                    <li
-                                      key={tier.key}
-                                      className="flex flex-wrap items-center gap-2 py-1.5 text-xs text-muted"
-                                    >
-                                      <span className="font-semibold text-foreground-secondary">
-                                        {tierLabel(tier.key, t)}
-                                      </span>
-                                      <CountBadge count={tier.matchIds.size} t={t} />
-                                      {[...tier.skills.values()].map((skill) => (
-                                        <SkillBadge
-                                          key={skill.id}
-                                          color={skill.color}
-                                          label={skill.name}
-                                          size="xs"
-                                        />
-                                      ))}
-                                    </li>
-                                  ))}
+                                  .map((tier) => {
+                                    const tierKey = `${tKey}/${tier.key}`;
+                                    const tierOpen = openNodes.has(tierKey);
+                                    return (
+                                      <li key={tier.key} className="py-1.5 text-xs text-muted">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggle(tierKey)}
+                                          aria-expanded={tierOpen}
+                                          className="flex min-h-[36px] w-full flex-wrap items-center gap-2 text-left [touch-action:manipulation]"
+                                        >
+                                          <Chevron open={tierOpen} />
+                                          <span className="font-semibold text-foreground-secondary">
+                                            {tierLabel(tier.key, t)}
+                                          </span>
+                                          <CountBadge count={tier.matchIds.size} t={t} />
+                                          {[...tier.skills.values()].map((skill) => (
+                                            <SkillBadge
+                                              key={skill.id}
+                                              color={skill.color}
+                                              label={skill.name}
+                                              size="xs"
+                                            />
+                                          ))}
+                                        </button>
+                                        {tierOpen && (
+                                          <ul className="mt-1 ml-6 flex flex-col gap-1.5 border-l border-border pl-3">
+                                            {[...tier.matches.values()].map((match) => (
+                                              <MatchRow key={match.matchId} match={match} t={t} />
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
                               </ul>
                             )}
                           </div>
@@ -606,5 +659,57 @@ function SkillStat({
       </div>
       <p className="text-xl font-black tabular-nums text-foreground">{value}</p>
     </div>
+  );
+}
+
+/** One refereed match: fighters + the viewer's own role on the left, the
+ *  co-referees (name + skill badge) on the right. */
+function MatchRow({ match, t }: { match: RefereeMatchRow; t: TFn }) {
+  const red = match.redFighterName ?? t('common.unknown');
+  const blue = match.blueFighterName ?? t('common.unknown');
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-foreground-secondary">
+        <span className="min-w-0">
+          {t('publicApp.fighterProfile.refereeMatchVersus', { red, blue })}
+        </span>
+        {match.viewerRole && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+            {t('publicApp.fighterProfile.refereeYourRole')}
+            <SkillBadge color={match.viewerRole.color} label={match.viewerRole.name} size="xs" />
+          </span>
+        )}
+      </span>
+      {match.coReferees.length > 0 ? (
+        <span
+          className="flex flex-wrap items-center gap-1.5"
+          aria-label={t('publicApp.fighterProfile.refereeCoReferees')}
+        >
+          {match.coReferees.map((coRef) => (
+            <CoRefereeChip key={coRef.personId} coRef={coRef} t={t} />
+          ))}
+        </span>
+      ) : (
+        <span className="text-[11px] text-muted">
+          {t('publicApp.fighterProfile.refereeSoloMatch')}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** A co-referee's name paired with their referee-skill badge. Renders the
+ *  human-readable name only (never the id); the badge is omitted when the
+ *  co-referee has no resolved skill. */
+function CoRefereeChip({ coRef, t }: { coRef: CoRefereeChipData; t: TFn }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-1.5 py-0.5">
+      <span className="text-[11px] text-foreground-secondary">
+        {coRef.name ?? t('common.unknown')}
+      </span>
+      {coRef.skillName && coRef.skillColor && (
+        <SkillBadge color={coRef.skillColor} label={coRef.skillName} size="xs" />
+      )}
+    </span>
   );
 }

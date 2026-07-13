@@ -1190,6 +1190,9 @@ export class FightersService {
     const skillsByRole = includePrivateDetails
       ? await this.fetchRefereeSkillsByRole(allAssignments)
       : undefined;
+    const fighterNamesByMatchId = includePrivateDetails
+      ? await this.fetchFighterNamesByMatch(matchIds)
+      : undefined;
 
     return buildRefereeStats({
       userId: personId,
@@ -1199,7 +1202,64 @@ export class FightersService {
       buddiesByUserId,
       includePrivateDetails,
       skillsByRole,
+      fighterNamesByMatchId,
     });
+  }
+
+  /**
+   * Batched match_id → { redName, blueName } fighter display names. Resolves
+   * matches → registrations → persons → global_persons (same "Given Family"
+   * with global display-name fallback pattern as public-schedule's
+   * resolveRegistrationNames). Used only on the private `/me` referee path.
+   */
+  private async fetchFighterNamesByMatch(
+    matchIds: string[],
+  ): Promise<Map<string, { redName: string | null; blueName: string | null }>> {
+    const result = new Map<string, { redName: string | null; blueName: string | null }>();
+    if (matchIds.length === 0) return result;
+
+    const { data: matchRows } = await this.supabase.service
+      .from('matches')
+      .select('id, red_registration_id, blue_registration_id')
+      .in('id', matchIds);
+    const matches = (matchRows ?? []) as Row[];
+
+    const regIds = [
+      ...new Set(
+        matches
+          .flatMap((row) => [row['red_registration_id'], row['blue_registration_id']])
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+
+    const namesByReg = new Map<string, string>();
+    if (regIds.length > 0) {
+      const { data: regRows } = await this.supabase.service
+        .from('registrations')
+        .select('id, persons ( given_name, family_name, global_persons ( display_name ) )')
+        .in('id', regIds);
+      for (const row of (regRows ?? []) as Row[]) {
+        const personRaw = row['persons'];
+        const person = (Array.isArray(personRaw) ? personRaw[0] : personRaw) as Row | null;
+        if (!person) continue;
+        const given = String(person['given_name'] ?? '').trim();
+        const family = String(person['family_name'] ?? '').trim();
+        const gpRaw = person['global_persons'];
+        const gp = (Array.isArray(gpRaw) ? gpRaw[0] : gpRaw) as { display_name?: string } | null;
+        const name = `${given} ${family}`.trim() || (gp?.display_name ?? '').trim();
+        if (name) namesByReg.set(String(row['id']), name);
+      }
+    }
+
+    for (const row of matches) {
+      const redReg = row['red_registration_id'] as string | null;
+      const blueReg = row['blue_registration_id'] as string | null;
+      result.set(String(row['id']), {
+        redName: redReg ? (namesByReg.get(redReg) ?? null) : null,
+        blueName: blueReg ? (namesByReg.get(blueReg) ?? null) : null,
+      });
+    }
+    return result;
   }
 
   private async fetchRefereeSkillsByRole(

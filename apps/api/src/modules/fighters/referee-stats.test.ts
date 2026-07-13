@@ -35,6 +35,21 @@ describe('buildRefereeStats', () => {
         'buddy-2': { userId: 'buddy-2', displayName: 'Table Buddy' },
       },
       includePrivateDetails: true,
+      skillsByRole: new Map([
+        [
+          'arbitre_declarant',
+          { skillId: 'arbitre_declarant', skillName: 'Lead', skillColor: 'blue' },
+        ],
+        [
+          'arbitre_assesseur',
+          { skillId: 'arbitre_assesseur', skillName: 'Assessor', skillColor: 'green' },
+        ],
+        ['arbitre_table', { skillId: 'arbitre_table', skillName: 'Table', skillColor: 'purple' }],
+      ]),
+      fighterNamesByMatchId: new Map([
+        ['match-1', { redName: 'Red One', blueName: 'Blue One' }],
+        ['match-2', { redName: 'Red Two', blueName: 'Blue Two' }],
+      ]),
     });
 
     expect(stats.totalMatches).toBe(2);
@@ -53,6 +68,105 @@ describe('buildRefereeStats', () => {
     expect(stats.history).toEqual([
       expect.objectContaining({ matchId: 'match-1', role: 'arbitre_declarant' }),
       expect.objectContaining({ matchId: 'match-2', role: 'arbitre_table' }),
+    ]);
+
+    // Co-referees on match-1 exclude the viewer, resolve names + skills, and
+    // are stably ordered by skill name (Assessor before Table).
+    expect(stats.history?.[0]?.coReferees).toEqual([
+      {
+        personId: 'buddy-1',
+        name: 'Main Buddy',
+        skillId: 'arbitre_assesseur',
+        skillName: 'Assessor',
+        skillColor: 'green',
+      },
+      {
+        personId: 'buddy-2',
+        name: 'Table Buddy',
+        skillId: 'arbitre_table',
+        skillName: 'Table',
+        skillColor: 'purple',
+      },
+    ]);
+    expect(stats.history?.[0]).toMatchObject({
+      redFighterName: 'Red One',
+      blueFighterName: 'Blue One',
+    });
+    // match-2: only buddy-1 (declarant) refereed alongside the viewer.
+    expect(stats.history?.[1]?.coReferees).toEqual([
+      {
+        personId: 'buddy-1',
+        name: 'Main Buddy',
+        skillId: 'arbitre_declarant',
+        skillName: 'Lead',
+        skillColor: 'blue',
+      },
+    ]);
+    expect(stats.history?.[1]).toMatchObject({
+      redFighterName: 'Red Two',
+      blueFighterName: 'Blue Two',
+    });
+  });
+
+  it('dedupes a co-referee holding two roles on one match and orders deterministically', () => {
+    const stats = buildRefereeStats({
+      userId: 'user-ref',
+      assignments: [
+        { matchId: 'm', userId: 'user-ref', role: 'arbitre_declarant' },
+        { matchId: 'm', userId: 'buddy-dup', role: 'arbitre_assesseur' },
+        { matchId: 'm', userId: 'buddy-dup', role: 'arbitre_table' },
+        { matchId: 'm', userId: 'buddy-z', role: 'arbitre_table' },
+      ],
+      durations: [{ matchId: 'm', durationActiveMs: 60_000 }],
+      penalties: [],
+      buddiesByUserId: {
+        'buddy-dup': { userId: 'buddy-dup', displayName: 'Dup Ref' },
+        'buddy-z': { userId: 'buddy-z', displayName: 'Zed Ref' },
+      },
+      includePrivateDetails: true,
+      skillsByRole: new Map([
+        [
+          'arbitre_assesseur',
+          { skillId: 'arbitre_assesseur', skillName: 'Assessor', skillColor: 'green' },
+        ],
+        ['arbitre_table', { skillId: 'arbitre_table', skillName: 'Table', skillColor: 'purple' }],
+      ]),
+    });
+
+    const coRefs = stats.history?.[0]?.coReferees ?? [];
+    // buddy-dup appears once (first role wins), and Assessor sorts before Table.
+    expect(coRefs.map((c) => c.personId)).toEqual(['buddy-dup', 'buddy-z']);
+    expect(coRefs[0]).toMatchObject({ skillName: 'Assessor' });
+    expect(coRefs[1]).toMatchObject({ personId: 'buddy-z', skillName: 'Table' });
+  });
+
+  it('defaults co-referees to [] and fighter names to null when detail maps are absent', () => {
+    const stats = buildRefereeStats({
+      userId: 'user-ref',
+      assignments: [
+        { matchId: 'm', userId: 'user-ref', role: 'arbitre_table' },
+        { matchId: 'm', userId: 'buddy-1', role: 'custom-skill-id' },
+      ],
+      durations: [{ matchId: 'm', durationActiveMs: 60_000 }],
+      penalties: [],
+      buddiesByUserId: { 'buddy-1': { userId: 'buddy-1', displayName: 'Buddy One' } },
+      includePrivateDetails: true,
+    });
+
+    expect(stats.history?.[0]).toMatchObject({
+      redFighterName: null,
+      blueFighterName: null,
+    });
+    // A co-referee with a custom (unmapped) skill still surfaces, name resolved,
+    // skill name/color null but the raw role kept as skillId.
+    expect(stats.history?.[0]?.coReferees).toEqual([
+      {
+        personId: 'buddy-1',
+        name: 'Buddy One',
+        skillId: 'custom-skill-id',
+        skillName: null,
+        skillColor: null,
+      },
     ]);
   });
 

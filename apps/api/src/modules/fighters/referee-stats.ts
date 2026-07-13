@@ -58,6 +58,17 @@ export interface RefereeStatsInput {
   buddiesByUserId?: Record<string, RefereeBuddyInput>;
   includePrivateDetails?: boolean;
   skillsByRole?: Map<string, RefereeSkillInfo>;
+  /** Per-match red/blue fighter display names (private/`/me` path only). */
+  fighterNamesByMatchId?: Map<string, { redName: string | null; blueName: string | null }>;
+}
+
+/** A referee who officiated the same match as the viewer, with their skill. */
+export interface RefereeCoRefereeEntry {
+  personId: string;
+  name: string | null;
+  skillId: string | null;
+  skillName: string | null;
+  skillColor: string | null;
 }
 
 export interface RefereeHistoryEntry {
@@ -81,6 +92,12 @@ export interface RefereeHistoryEntry {
    *  (mirrors the top-level `cards` semantics) — lets the FE sum cards per
    *  event when the stat panel is scoped to a single event. */
   cards: { yellow: number; red: number; black: number };
+  /** Other referees on the same match (excludes the viewer), each with their
+   *  referee skill. Deduped by personId, stably ordered. */
+  coReferees: RefereeCoRefereeEntry[];
+  /** Fighter display names for this match (null when unresolved). */
+  redFighterName: string | null;
+  blueFighterName: string | null;
 }
 
 export interface RefereeStats {
@@ -129,12 +146,18 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
     cardsByMatch.set(penalty.matchId, perMatch);
   }
 
+  // Single source of truth for "who else was on this match" — reused by both
+  // the buddy aggregate and the per-match co-referee history below.
+  const assignmentsByMatch = new Map<string, RefereeAssignmentInput[]>();
+  for (const assignment of input.assignments) {
+    const bucket = assignmentsByMatch.get(assignment.matchId);
+    if (bucket) bucket.push(assignment);
+    else assignmentsByMatch.set(assignment.matchId, [assignment]);
+  }
+
   const buddyCounts = new Map<string, number>();
   for (const matchId of matchIds) {
-    const matchAssignments = input.assignments.filter(
-      (assignment) => assignment.matchId === matchId,
-    );
-    for (const assignment of matchAssignments) {
+    for (const assignment of assignmentsByMatch.get(matchId) ?? []) {
       if (assignment.userId === input.userId) continue;
       buddyCounts.set(assignment.userId, (buddyCounts.get(assignment.userId) ?? 0) + 1);
     }
@@ -162,6 +185,7 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               assignment.role && input.skillsByRole
                 ? (input.skillsByRole.get(assignment.role) ?? null)
                 : null;
+            const fighters = input.fighterNamesByMatchId?.get(assignment.matchId) ?? null;
             return {
               matchId: assignment.matchId,
               role: assignment.role,
@@ -180,11 +204,46 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               bracketRound: assignment.bracketRound ?? null,
               bracketSize: assignment.bracketSize ?? null,
               cards: cardsByMatch.get(assignment.matchId) ?? { yellow: 0, red: 0, black: 0 },
+              coReferees: buildCoReferees(assignmentsByMatch.get(assignment.matchId) ?? [], input),
+              redFighterName: fighters?.redName ?? null,
+              blueFighterName: fighters?.blueName ?? null,
             };
           }),
         }
       : {}),
   };
+}
+
+/** Resolve the co-referees on a match: every assignment except the viewer's,
+ *  deduped by personId (a ref may hold two roles on one match) and stably
+ *  ordered so downstream output is deterministic. Skill fields resolve to null
+ *  when the role is a custom skill absent from `skillsByRole` (or null). */
+function buildCoReferees(
+  matchAssignments: RefereeAssignmentInput[],
+  input: RefereeStatsInput,
+): RefereeCoRefereeEntry[] {
+  const byPerson = new Map<string, RefereeCoRefereeEntry>();
+  for (const assignment of matchAssignments) {
+    if (assignment.userId === input.userId) continue;
+    if (byPerson.has(assignment.userId)) continue;
+    const skill =
+      assignment.role && input.skillsByRole
+        ? (input.skillsByRole.get(assignment.role) ?? null)
+        : null;
+    byPerson.set(assignment.userId, {
+      personId: assignment.userId,
+      name: input.buddiesByUserId?.[assignment.userId]?.displayName ?? null,
+      skillId: skill?.skillId ?? assignment.role ?? null,
+      skillName: skill?.skillName ?? null,
+      skillColor: skill?.skillColor ?? null,
+    });
+  }
+  return [...byPerson.values()].sort(
+    (a, b) =>
+      (a.skillName ?? '').localeCompare(b.skillName ?? '') ||
+      (a.name ?? '').localeCompare(b.name ?? '') ||
+      a.personId.localeCompare(b.personId),
+  );
 }
 
 function isRefereeRole(value: unknown): value is RefereeRole {
