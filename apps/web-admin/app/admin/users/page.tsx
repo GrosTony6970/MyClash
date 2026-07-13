@@ -117,6 +117,7 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
   const [createDisplayName, setCreateDisplayName] = useState('');
   const [createSuperAdmin, setCreateSuperAdmin] = useState(false);
@@ -130,7 +131,7 @@ export default function AdminUsersPage() {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/users?perPage=100`, {
+    fetch(`${apiUrl}/api/v1/admin/users?perPage=100&scope=${showAll ? 'all' : 'staff'}`, {
       credentials: 'include',
       signal: controller.signal,
     })
@@ -161,7 +162,7 @@ export default function AdminUsersPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [apiUrl, refreshKey, t]);
+  }, [apiUrl, refreshKey, showAll, t]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,6 +197,9 @@ export default function AdminUsersPage() {
     setCreateEmail('');
     setCreateDisplayName('');
     setCreateSuperAdmin(false);
+    // A freshly created account has no org yet and is only "staff" if made a
+    // super-admin, so reveal all logins to keep the new row visible.
+    setShowAll(true);
     refresh();
   }
 
@@ -398,7 +402,7 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <input
           aria-label={t('admin.common.searchPlaceholder')}
           value={search}
@@ -415,6 +419,18 @@ export default function AdminUsersPage() {
             {t('actions.clear')}
           </button>
         )}
+        <label
+          className="ml-auto flex items-center gap-2 text-sm font-medium text-foreground-secondary"
+          title={t('admin.users.filter.showAllHelp')}
+        >
+          <input
+            type="checkbox"
+            checked={showAll}
+            onChange={(event) => setShowAll(event.target.checked)}
+            className="h-4 w-4 rounded border-border"
+          />
+          {t('admin.users.filter.showAll')}
+        </label>
       </div>
 
       {loading ? (

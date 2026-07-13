@@ -46,8 +46,14 @@ export class UsersAdminController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('perPage', new DefaultValuePipe(50), ParseIntPipe) perPage: number,
     @Query('q') q?: string,
+    @Query('scope', new DefaultValuePipe('staff')) scope?: string,
   ) {
-    return this.service.listUsers({ page, perPage, q });
+    return this.service.listUsers({
+      page,
+      perPage,
+      q,
+      scope: scope === 'all' ? 'all' : 'staff',
+    });
   }
 
   @Post()

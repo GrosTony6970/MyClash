@@ -2325,6 +2325,11 @@ export const en = {
         active: 'Active',
         disabled: 'Disabled',
       },
+      filter: {
+        showAll: 'Show all logins',
+        showAllHelp:
+          'Includes public users who signed in (e.g. with Google) but hold no role or organization.',
+      },
       create: {
         title: 'Create platform account',
         description:
@@ -8188,6 +8193,11 @@ export const fr = {
       status: {
         active: 'Actif',
         disabled: 'Desactive',
+      },
+      filter: {
+        showAll: 'Afficher toutes les connexions',
+        showAllHelp:
+          'Inclut les utilisateurs publics connectes (par ex. via Google) sans role ni organisation.',
       },
       create: {
         title: 'Creer un compte plateforme',

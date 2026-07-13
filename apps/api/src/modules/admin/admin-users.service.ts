@@ -19,6 +19,13 @@ export interface ListUsersQuery {
   page?: number;
   perPage?: number;
   q?: string;
+  /**
+   * `'staff'` (default) restricts the listing to real platform accounts —
+   * super-admins or members of any organization. `'all'` returns every
+   * `auth.users` row, including public self-signups (e.g. Google logins that
+   * hold no role or organization).
+   */
+  scope?: 'staff' | 'all';
 }
 
 export type DeletePlatformUserMode = 'safe' | 'cleanup';
@@ -51,23 +58,30 @@ export class AdminUsersService {
     const page = query.page ?? 1;
     const perPage = query.perPage ?? 50;
     const search = query.q?.trim();
-    if (search) return this.searchUsers(search, page, perPage);
+    const scope: 'staff' | 'all' = query.scope === 'all' ? 'all' : 'staff';
 
-    const response = await this.supabase.listAuthAdminUsers(page, perPage);
-    if (!response.ok || !response.data) {
-      this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
-      throw new BadRequestException('Could not inspect platform accounts');
+    // Fast path — show every login unfiltered: a single GoTrue admin page,
+    // matching the historical behaviour before scopes existed.
+    if (scope === 'all' && !search) {
+      const response = await this.supabase.listAuthAdminUsers(page, perPage);
+      if (!response.ok || !response.data) {
+        this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
+        throw new BadRequestException('Could not inspect platform accounts');
+      }
+      const ids = response.data.users.map((u) => u.id);
+      const [orgsByUser, superAdminIds] = await Promise.all([
+        this.fetchOrgMembershipsByUser(ids),
+        this.fetchSuperAdminIds(),
+      ]);
+      return {
+        users: response.data.users.map((user) =>
+          this.toListedUser(user, orgsByUser.get(user.id), superAdminIds.has(user.id)),
+        ),
+      };
     }
-    const ids = response.data.users.map((u) => u.id);
-    const [orgsByUser, superAdminIds] = await Promise.all([
-      this.fetchOrgMembershipsByUser(ids),
-      this.fetchSuperAdminIds(),
-    ]);
-    return {
-      users: response.data.users.map((user) =>
-        this.toListedUser(user, orgsByUser.get(user.id), superAdminIds.has(user.id)),
-      ),
-    };
+
+    // Staff scope (any) or a search: enumerate auth users and filter in-app.
+    return this.listMaterialized({ scope, search, page, perPage });
   }
 
   async getUser(userId: string) {
@@ -577,48 +591,93 @@ export class AdminUsersService {
     }
   }
 
-  private async searchUsers(search: string, page: number, perPage: number) {
-    const normalizedSearch = normalizeSearch(search);
-    const users: ListedPlatformUser[] = [];
+  /**
+   * Enumerate `auth.users` (paged) and apply the scope + search filters
+   * in-app, then paginate. Used for the staff scope and for any search.
+   *
+   * The staff predicate is evaluated from two id-only sets (super-admins and
+   * org members) so we never build a huge PostgREST `.in(...)` over every
+   * auth user. Detailed org membership (names/roles) is fetched only for the
+   * final page slice.
+   */
+  private async listMaterialized(opts: {
+    scope: 'staff' | 'all';
+    search?: string;
+    page: number;
+    perPage: number;
+  }) {
+    const normalizedSearch = opts.search ? normalizeSearch(opts.search) : null;
+    const [superAdminIds, orgMemberIds] = await Promise.all([
+      this.fetchSuperAdminIds(),
+      opts.scope === 'staff' ? this.fetchAllOrgMemberUserIds() : Promise.resolve(new Set<string>()),
+    ]);
+
+    const matched: ListedPlatformUser[] = [];
     let currentPage = 1;
     const authPageSize = 1000;
 
     while (currentPage <= 10) {
       const response = await this.supabase.listAuthAdminUsers(currentPage, authPageSize);
       if (!response.ok || !response.data) {
-        this.logger.warn(`Could not search Auth users through GoTrue: ${response.status}`);
+        this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
         throw new BadRequestException('Could not inspect platform accounts');
       }
 
       for (const user of response.data.users) {
-        const listedUser = this.toListedUser(user);
-        if (this.userMatchesSearch(listedUser, normalizedSearch)) users.push(listedUser);
+        const isSuperAdmin = superAdminIds.has(user.id);
+        if (opts.scope === 'staff' && !isSuperAdmin && !orgMemberIds.has(user.id)) continue;
+        // Org membership details are annotated on the final slice below.
+        const listedUser = this.toListedUser(user, undefined, isSuperAdmin);
+        if (normalizedSearch && !this.userMatchesSearch(listedUser, normalizedSearch)) continue;
+        matched.push(listedUser);
       }
 
       if (response.data.users.length < authPageSize) break;
       currentPage += 1;
     }
 
-    users.sort((a, b) => {
-      const aScore = this.userSearchScore(a, normalizedSearch);
-      const bScore = this.userSearchScore(b, normalizedSearch);
-      if (aScore !== bScore) return bScore - aScore;
-      return (a.email ?? a.id).localeCompare(b.email ?? b.id);
-    });
+    if (normalizedSearch) {
+      matched.sort((a, b) => {
+        const aScore = this.userSearchScore(a, normalizedSearch);
+        const bScore = this.userSearchScore(b, normalizedSearch);
+        if (aScore !== bScore) return bScore - aScore;
+        return (a.email ?? a.id).localeCompare(b.email ?? b.id);
+      });
+    } else {
+      matched.sort((a, b) => (a.email ?? a.id).localeCompare(b.email ?? b.id));
+    }
 
-    const start = Math.max(page - 1, 0) * perPage;
-    const slice = users.slice(start, start + perPage);
-    const [orgsByUser, superAdminIds] = await Promise.all([
-      this.fetchOrgMembershipsByUser(slice.map((u) => u.id)),
-      this.fetchSuperAdminIds(),
-    ]);
+    const start = Math.max(opts.page - 1, 0) * opts.perPage;
+    const slice = matched.slice(start, start + opts.perPage);
+    const orgsByUser = await this.fetchOrgMembershipsByUser(slice.map((u) => u.id));
     return {
       users: slice.map((u) => ({
         ...u,
         organizations: orgsByUser.get(u.id) ?? [],
-        is_super_admin: superAdminIds.has(u.id),
       })),
     };
+  }
+
+  /**
+   * All distinct `auth.users` ids that hold at least one organization
+   * membership. Used as the staff-scope predicate.
+   *
+   * NOTE: relies on PostgREST's default 1000-row cap. Fine at current scale;
+   * switch to a `.range()` loop if org membership ever exceeds 1000 rows.
+   */
+  private async fetchAllOrgMemberUserIds(): Promise<Set<string>> {
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .select('user_id');
+    if (error) {
+      this.logger.warn(`Could not fetch org member ids: ${error.message}`);
+      return new Set();
+    }
+    return new Set(
+      (data ?? [])
+        .map((row) => (row as { user_id?: string }).user_id)
+        .filter((id): id is string => typeof id === 'string'),
+    );
   }
 
   private toListedUser(
@@ -674,10 +733,33 @@ export class AdminUsersService {
     });
   }
 
+  /**
+   * Resolve a human-readable name for the account. Explicit `display_name`
+   * (set via the admin form) wins; otherwise we fall back to the name fields
+   * that OAuth providers populate on first sign-in (Google sets `full_name`
+   * and `name`, sometimes `given_name`/`family_name`), so a self-signup login
+   * shows its real name instead of a blank cell.
+   */
   private normalizeDisplayName(user: SupabaseAdminUser): ListedPlatformUser['display_name'] {
-    const displayName = user.user_metadata?.['display_name'];
-    return typeof displayName === 'string' && displayName.trim() ? displayName.trim() : null;
+    const metadata = user.user_metadata ?? {};
+    const candidates: unknown[] = [
+      metadata['display_name'],
+      metadata['full_name'],
+      metadata['name'],
+      joinName(metadata['given_name'], metadata['family_name']),
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    return null;
   }
+}
+
+function joinName(given: unknown, family: unknown): string {
+  return [given, family]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .map((part) => part.trim())
+    .join(' ');
 }
 
 function normalizeSearch(value: string): string {

@@ -61,7 +61,7 @@ describe('AdminUsersService', () => {
       detail: {},
     });
 
-    const result = await service.listUsers({ page: 2, perPage: 25 });
+    const result = await service.listUsers({ page: 2, perPage: 25, scope: 'all' });
 
     expect(listAuthAdminUsers).toHaveBeenCalledWith(2, 25);
     expect(result.users).toEqual([
@@ -90,7 +90,7 @@ describe('AdminUsersService', () => {
       detail: {},
     });
 
-    const result = await service.listUsers();
+    const result = await service.listUsers({ scope: 'all' });
 
     expect(result.users).toEqual([
       expect.objectContaining({ id: 'user-1', display_name: 'Owner One' }),
@@ -124,7 +124,7 @@ describe('AdminUsersService', () => {
       detail: {},
     });
 
-    const displayNameResult = await service.listUsers({ q: 'owner', perPage: 20 });
+    const displayNameResult = await service.listUsers({ q: 'owner', perPage: 20, scope: 'all' });
     expect(displayNameResult.users).toEqual([
       expect.objectContaining({
         id: 'user-owner',
@@ -146,7 +146,11 @@ describe('AdminUsersService', () => {
       detail: {},
     });
 
-    const emailResult = await service.listUsers({ q: 'referee@example', perPage: 20 });
+    const emailResult = await service.listUsers({
+      q: 'referee@example',
+      perPage: 20,
+      scope: 'all',
+    });
     expect(emailResult.users).toEqual([expect.objectContaining({ id: 'user-ref' })]);
 
     listAuthAdminUsers.mockResolvedValueOnce({
@@ -161,8 +165,130 @@ describe('AdminUsersService', () => {
       detail: {},
     });
 
-    const idResult = await service.listUsers({ q: 'target-id', perPage: 20 });
+    const idResult = await service.listUsers({ q: 'target-id', perPage: 20, scope: 'all' });
     expect(idResult.users).toEqual([expect.objectContaining({ id: 'user-target-id' })]);
+  });
+
+  it('restricts the staff scope to super-admins and org members', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'platform_roles')
+        return chain({ data: [{ user_id: 'user-super', created_at: '2026-01-01' }], error: null });
+      if (table === 'organization_members')
+        return chain({
+          data: [
+            {
+              user_id: 'user-org',
+              role: 'owner',
+              organizations: { id: 'org-1', name: 'Org A', slug: 'org-a' },
+            },
+          ],
+          error: null,
+        });
+      if (table === 'audit_log') return chain({ data: null, error: null });
+      return chain({ data: [], error: null });
+    });
+    listAuthAdminUsers.mockResolvedValue({
+      ok: true,
+      status: 200,
+      detail: {},
+      data: {
+        users: [
+          { id: 'user-super', email: 'super@example.com' },
+          { id: 'user-org', email: 'org@example.com' },
+          { id: 'user-plain', email: 'plain@example.com' },
+        ],
+      },
+    });
+
+    const result = await service.listUsers({ scope: 'staff', perPage: 50 });
+
+    const ids = result.users.map((u) => u.id);
+    expect(ids).toContain('user-super');
+    expect(ids).toContain('user-org');
+    expect(ids).not.toContain('user-plain');
+    expect(result.users).toHaveLength(2);
+    expect(listAuthAdminUsers).toHaveBeenCalledWith(1, 1000);
+  });
+
+  it('returns every login under the all scope', async () => {
+    listAuthAdminUsers.mockResolvedValue({
+      ok: true,
+      status: 200,
+      detail: {},
+      data: {
+        users: [
+          { id: 'user-super', email: 'super@example.com' },
+          { id: 'user-org', email: 'org@example.com' },
+          { id: 'user-plain', email: 'plain@example.com' },
+        ],
+      },
+    });
+
+    const result = await service.listUsers({ scope: 'all', perPage: 50 });
+
+    expect(result.users.map((u) => u.id).sort()).toEqual(['user-org', 'user-plain', 'user-super']);
+  });
+
+  it('applies the search filter within the staff scope', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'platform_roles')
+        return chain({ data: [{ user_id: 'staff-owner', created_at: '2026-01-01' }], error: null });
+      if (table === 'audit_log') return chain({ data: null, error: null });
+      return chain({ data: [], error: null });
+    });
+    listAuthAdminUsers.mockResolvedValue({
+      ok: true,
+      status: 200,
+      detail: {},
+      data: {
+        users: [
+          {
+            id: 'staff-owner',
+            email: 'owner@example.com',
+            user_metadata: { display_name: 'Owner Staff' },
+          },
+          {
+            id: 'public-owner',
+            email: 'owner2@example.com',
+            user_metadata: { display_name: 'Owner Public' },
+          },
+        ],
+      },
+    });
+
+    const result = await service.listUsers({ scope: 'staff', q: 'owner', perPage: 20 });
+
+    expect(result.users.map((u) => u.id)).toEqual(['staff-owner']);
+  });
+
+  it('derives the display name from OAuth metadata when display_name is unset', async () => {
+    listAuthAdminUsers.mockResolvedValue({
+      ok: true,
+      status: 200,
+      detail: {},
+      data: {
+        users: [
+          {
+            id: 'u-display',
+            user_metadata: { display_name: 'Explicit Name', full_name: 'Ignored Name' },
+          },
+          { id: 'u-full', user_metadata: { full_name: 'Full Name' } },
+          { id: 'u-name', user_metadata: { name: 'Name Only' } },
+          { id: 'u-parts', user_metadata: { given_name: 'Jane', family_name: 'Doe' } },
+          { id: 'u-none', user_metadata: {} },
+        ],
+      },
+    });
+
+    const result = await service.listUsers({ scope: 'all' });
+
+    expect(result.users).toEqual([
+      expect.objectContaining({ id: 'u-display', display_name: 'Explicit Name' }),
+      expect.objectContaining({ id: 'u-full', display_name: 'Full Name' }),
+      expect.objectContaining({ id: 'u-name', display_name: 'Name Only' }),
+      expect.objectContaining({ id: 'u-parts', display_name: 'Jane Doe' }),
+      expect.objectContaining({ id: 'u-none', display_name: null }),
+    ]);
   });
 
   it('creates confirmed users and returns a one-time temporary password', async () => {
