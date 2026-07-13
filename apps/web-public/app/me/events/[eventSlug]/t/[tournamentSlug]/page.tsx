@@ -120,7 +120,7 @@ export default function PersonalTournamentPage() {
 
   return (
     <main id="main-content" className="mx-auto min-h-screen max-w-2xl lg:max-w-6xl">
-      <div className="sticky top-16 z-10 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur">
+      <div className="sticky top-16 z-20 border-b border-border bg-surface px-4 py-3">
         <Link
           href={`/me/events/${eventSlug}`}
           className="inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-foreground"

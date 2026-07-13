@@ -40,7 +40,7 @@ export function EventHubChrome({
 
   return (
     <main id="main-content" className="mx-auto min-h-screen max-w-2xl">
-      <div className="sticky top-16 z-10 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur">
+      <div className="sticky top-16 z-20 border-b border-border bg-surface px-4 py-3">
         <div className="flex items-center gap-2">
           <Link
             href="/me/events"
