@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { useConfirm } from '@myclash/ui';
+import { Button, useConfirm } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
@@ -287,10 +287,10 @@ export default function EventChatPage() {
 
   return (
     <main className="mx-auto max-w-6xl p-8">
-      <div className="mb-6 text-sm text-muted">
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          {t('organizer.chat.backToEvent')}
-        </Link>
+      <div className="mb-6">
+        <Button variant="back" size="sm" asChild>
+          <Link href={`/org/${slug}/events/${eventId}`}>← {t('organizer.chat.backToEvent')}</Link>
+        </Button>
       </div>
 
       <div className="mb-6">

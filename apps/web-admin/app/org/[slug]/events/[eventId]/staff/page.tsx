@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { usePrompt } from '@myclash/ui';
+import { Button, usePrompt } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface StaffAccount {
@@ -152,9 +152,9 @@ export default function EventStaffPage() {
 
   return (
     <main className="mx-auto max-w-7xl p-8">
-      <Link href={`/org/${slug}/events/${eventId}`} className="text-sm text-muted hover:underline">
-        {t('organizer.staff.backToEvent')}
-      </Link>
+      <Button variant="back" size="sm" asChild>
+        <Link href={`/org/${slug}/events/${eventId}`}>← {t('organizer.staff.backToEvent')}</Link>
+      </Button>
       <h1 className="mt-3 font-display font-bold text-2xl sm:text-3xl">
         {t('organizer.staff.title')}
       </h1>

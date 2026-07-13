@@ -717,13 +717,9 @@ export default function AdminFightersPage() {
               <p className="text-xs text-muted mt-1">{t('admin.globalProfiles.requiredNote')}</p>
             </div>
             {editingProfile && (
-              <button
-                type="button"
-                onClick={resetProfileForm}
-                className="text-sm font-semibold text-foreground-secondary hover:text-foreground"
-              >
+              <Button type="button" variant="back" size="sm" onClick={resetProfileForm}>
                 {t('admin.globalProfiles.cancelEdit')}
-              </button>
+              </Button>
             )}
           </div>
           {createError && (

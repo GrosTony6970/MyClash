@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Button } from '@myclash/ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -226,10 +227,12 @@ export default function EventAIAssistantPage() {
 
   return (
     <main className="mx-auto max-w-7xl p-8">
-      <div className="mb-6 text-sm text-muted">
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          {t('organizer.aiAssistant.backToEvent')}
-        </Link>
+      <div className="mb-6">
+        <Button variant="back" size="sm" asChild>
+          <Link href={`/org/${slug}/events/${eventId}`}>
+            ← {t('organizer.aiAssistant.backToEvent')}
+          </Link>
+        </Button>
       </div>
 
       <div className="mb-6">

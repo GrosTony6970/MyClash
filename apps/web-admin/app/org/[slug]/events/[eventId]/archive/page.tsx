@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Button } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
@@ -150,12 +151,11 @@ export default function OrganizerArchivePage() {
   return (
     <main id="main-content" className="mx-auto p-8 max-w-2xl">
       <div className="mb-2">
-        <Link
-          href={`/org/${slug}/events/${eventId}`}
-          className="text-sm text-muted hover:underline"
-        >
-          {t('organizer.archive.backToEvent')}
-        </Link>
+        <Button variant="back" size="sm" asChild>
+          <Link href={`/org/${slug}/events/${eventId}`}>
+            ← {t('organizer.archive.backToEvent')}
+          </Link>
+        </Button>
       </div>
 
       <header className="mb-6">

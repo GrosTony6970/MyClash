@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Button } from '@myclash/ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -157,9 +158,11 @@ export default function EventNotificationsPage() {
   return (
     <main className="max-w-5xl p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-muted">
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          {t('organizer.broadcast.backToEvent')}
-        </Link>
+        <Button variant="back" size="sm" asChild>
+          <Link href={`/org/${slug}/events/${eventId}`}>
+            ← {t('organizer.broadcast.backToEvent')}
+          </Link>
+        </Button>
         <span>/</span>
         <span className="font-medium text-foreground">{t('organizer.broadcast.navLabel')}</span>
       </div>
