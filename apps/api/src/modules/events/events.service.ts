@@ -2206,7 +2206,7 @@ export class EventsService {
           'id, bracket_slot_id, status, red_score, blue_score, match_number_label, lice_id, lices(name)',
         )
         .in('bracket_slot_id', slotIds);
-      for (const m of (matchRows ?? []) as Array<{
+      for (const m of (matchRows ?? []) as unknown as Array<{
         id: string;
         bracket_slot_id: string;
         status: string;
