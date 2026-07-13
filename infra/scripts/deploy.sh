@@ -33,12 +33,14 @@ cd "$ROOT_DIR"
 USE_DEV_CERTS=0
 SKIP_BACKUP=0
 SKIP_MIGRATIONS=0
+CREATE_DEMO_ORG=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dev-certs)        USE_DEV_CERTS=1; shift ;;
     --skip-backup)      SKIP_BACKUP=1; shift ;;        # for fast iterating; never in prod
     --skip-migrations)  SKIP_MIGRATIONS=1; shift ;;    # for fast iterating; never in prod
+    --create-demo-org)  CREATE_DEMO_ORG=1; shift ;;    # provision the E2E sandbox org from .env.e2e
     -h|--help)
       cat <<EOF
 Usage: infra/scripts/deploy.sh [options]
@@ -46,9 +48,19 @@ Usage: infra/scripts/deploy.sh [options]
   --dev-certs          Use Let's Encrypt staging certificates.
   --skip-backup        Skip pre-deploy DB backup (DEV ONLY — never use in production).
   --skip-migrations    Skip migration step (DEV ONLY).
+  --create-demo-org    After deploy, provision the E2E sandbox org "test ai org"
+                       from .env.e2e (E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD/E2E_ORG_SLUG).
+                       Idempotent. Requires .env.e2e at the repo root.
   -h, --help           Show this help.
 
 For a fast single-service rebuild without a full deploy, see redeploy.sh.
+To (re)provision the demo org without a full deploy, run the seeder directly:
+  docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm \\
+    -e SUPABASE_URL=http://supabase-auth:9999 \\
+    -e SUPABASE_SERVICE_ROLE_KEY="\$SUPABASE_SERVICE_ROLE_KEY" \\
+    -e DATABASE_URL="postgres://\$POSTGRES_USER:\$POSTGRES_PASSWORD@db:5432/\$POSTGRES_DB" \\
+    -e E2E_ADMIN_EMAIL=... -e E2E_ADMIN_PASSWORD=... -e E2E_ORG_SLUG=... \\
+    api node /app/scripts/create-demo-org.mjs
 EOF
       exit 0
       ;;
@@ -548,6 +560,46 @@ elif [[ "$BOOTSTRAP_PASSWORD_SYNCED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" 
   ok "Super admin account already exists — password synced and verified from SEED_ADMIN_PASSWORD"
 else
   ok "Super admin account already exists — bootstrap roles verified"
+fi
+
+# ── Demo / E2E sandbox org (opt-in) ──────────────────────────────
+if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
+  hdr "Creating demo organization"
+
+  if [[ ! -f .env.e2e ]]; then
+    err ".env.e2e not found at repo root — required for --create-demo-org"
+    err "Copy .env.e2e.example to .env.e2e and set E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD / E2E_ORG_SLUG"
+    exit 1
+  fi
+
+  set -a
+  source ./.env.e2e
+  set +a
+  : "${E2E_ADMIN_EMAIL:?Missing E2E_ADMIN_EMAIL in .env.e2e}"
+  : "${E2E_ADMIN_PASSWORD:?Missing E2E_ADMIN_PASSWORD in .env.e2e}"
+  : "${E2E_ORG_SLUG:?Missing E2E_ORG_SLUG in .env.e2e}"
+
+  DEMO_ORG_RESULT=$("${COMPOSE[@]}" \
+    run --rm \
+    -e SUPABASE_URL="http://supabase-auth:9999" \
+    -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
+    -e DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
+    -e E2E_ADMIN_EMAIL="${E2E_ADMIN_EMAIL}" \
+    -e E2E_ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD}" \
+    -e E2E_ORG_SLUG="${E2E_ORG_SLUG}" \
+    -e DEMO_ORG_NAME="test ai org" \
+    api node /app/scripts/create-demo-org.mjs || echo '{"error":"create-demo-org failed"}')
+
+  DEMO_ORG_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$DEMO_ORG_RESULT")
+  DEMO_ORG_DETAIL=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.detail?JSON.stringify(r.detail):'')}catch{console.log('')}" "$DEMO_ORG_RESULT")
+
+  if [[ -n "$DEMO_ORG_ERROR" ]]; then
+    warn "Demo org creation reported an issue: $DEMO_ORG_ERROR"
+    [[ -n "$DEMO_ORG_DETAIL" ]] && warn "Bootstrap detail: $DEMO_ORG_DETAIL"
+    warn "You can run it manually — see: infra/scripts/deploy.sh --help"
+  else
+    ok "Demo organization 'test ai org' (${E2E_ORG_SLUG}) ready; owner ${E2E_ADMIN_EMAIL}"
+  fi
 fi
 
 # ── Smoke test ───────────────────────────────────────────────────
