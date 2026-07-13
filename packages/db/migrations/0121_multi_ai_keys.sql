@@ -148,10 +148,8 @@ WHERE api_key_enc IS NOT NULL;
 
 -- ── Retire singleton key storage ────────────────────────────────────────────
 -- platform_ai_settings / organization_ai_settings keep only the global ceiling
--- (+ org flags). Ensure the platform config row exists for the ceiling.
-INSERT INTO platform_ai_settings (setting_key) VALUES ('super_admin')
-ON CONFLICT (setting_key) DO NOTHING;
-
+-- (+ org flags). Drop the old NOT NULL key columns FIRST, so the bare config
+-- row seeded below is valid on a fresh DB where no row exists yet.
 ALTER TABLE platform_ai_settings
   DROP COLUMN IF EXISTS provider,
   DROP COLUMN IF EXISTS api_key_enc,
@@ -163,6 +161,12 @@ ALTER TABLE organization_ai_settings
   DROP COLUMN IF EXISTS api_key_enc,
   DROP COLUMN IF EXISTS api_key_iv,
   DROP COLUMN IF EXISTS model;
+
+-- Ensure the platform config row exists for the global ceiling. Runs AFTER the
+-- NOT NULL provider/api_key columns are dropped, so a (setting_key)-only row is
+-- valid; the remaining columns are the PK, a defaulted updated_at, and nullables.
+INSERT INTO platform_ai_settings (setting_key) VALUES ('super_admin')
+ON CONFLICT (setting_key) DO NOTHING;
 
 -- fighter_ai_settings was ONLY a key store (no ceiling/flags) → fully replaced.
 DROP TABLE IF EXISTS fighter_ai_settings;
