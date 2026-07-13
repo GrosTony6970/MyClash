@@ -22,9 +22,13 @@ data**. They are isolated from the local a11y/perf suites (`tests/a11y`,
 ```bash
 cp .env.e2e.example .env.e2e          # then fill in the E2E_* values
 pnpm exec playwright install chromium  # first time only
-pnpm test:e2e:prod                    # preserves the test event + prints its URL
+pnpm test:e2e:prod                    # runs all specs; preserves the event + prints its URL
 E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
+pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
+
+Specs are numbered `01`…`07` (see the Status table), so you can run one by number —
+`pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (3/hour per email) — the suite logs in **once** per run.
 > Don't loop runs rapidly on the same account.
@@ -32,6 +36,14 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 > Data is **kept by default** for inspection; CI sets `E2E_CLEANUP=1`. Each run
 > creates a fresh, uniquely-slugged event, so preserved events accumulate until
 > you clean up / redeploy.
+
+## Rate limits & pacing
+
+The API throttles **writes per IP**. The organizer's **public IP is whitelisted**, so
+runs from it are **unpaced** (fast) — this is the default and needs no configuration.
+From a **non-whitelisted IP** (or CI), set `E2E_PACE_MS=550` to pace writes under the
+limit, e.g. `E2E_PACE_MS=550 pnpm test:e2e:prod`. (Login throttling — 3/hour/email — is
+separate and applies regardless; the suite logs in once per run.)
 
 ## Participants CSV
 
@@ -47,7 +59,8 @@ your **real roster** at `fixtures/participants.local.csv` — it is git-ignored
 
 ## Populate a rich demo event (opt-in)
 
-`E2E_POPULATE=1 pnpm test:e2e:prod` additionally runs `populate-event.spec.ts`,
+`E2E_POPULATE=1 pnpm test:e2e:prod` additionally runs `07-populate-event.spec.ts`
+(**test 7**; run it alone with `E2E_POPULATE=1 pnpm test:e2e:prod tests/e2e/07-*.spec.ts`),
 which builds a fully-featured, **published** tournament + workshop in the test
 event: registers a fighter who is also a referee (with skills + pool
 assignment), runs the pool matches, creates + populates a bracket, tags an
@@ -59,14 +72,15 @@ recorded-results guard) — keep it for inspection or recreate the env.
 
 ## Status
 
-| Flow                              | Spec                          | State                                    |
-| --------------------------------- | ----------------------------- | ---------------------------------------- |
-| CSV participant import            | `participants-import.spec.ts` | active                                   |
-| Create tournament (wizard step 1) | `create-tournament.spec.ts`   | active                                   |
-| Create event (wizard)             | `create-event.spec.ts`        | step 1 active; full flow `test.fixme`    |
-| Schedule / programme              | `schedule.spec.ts`            | load smoke active; generate `test.fixme` |
-| Referee auto-assign board         | `referee-board.spec.ts`       | active                                   |
-| Offline scoring sync (PWA)        | `offline-sync.spec.ts`        | active                                   |
+| #   | Flow                              | Spec                             | State                                    |
+| --- | --------------------------------- | -------------------------------- | ---------------------------------------- |
+| 1   | CSV participant import            | `01-participants-import.spec.ts` | active                                   |
+| 2   | Create tournament (wizard step 1) | `02-create-tournament.spec.ts`   | active                                   |
+| 3   | Create event (wizard)             | `03-create-event.spec.ts`        | step 1 active; full flow `test.fixme`    |
+| 4   | Schedule / programme              | `04-schedule.spec.ts`            | load smoke active; generate `test.fixme` |
+| 5   | Referee auto-assign board         | `05-referee-board.spec.ts`       | active                                   |
+| 6   | Offline scoring sync (PWA)        | `06-offline-sync.spec.ts`        | active                                   |
+| 7   | Populate rich demo event          | `07-populate-event.spec.ts`      | opt-in (`E2E_POPULATE=1`); see above     |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
