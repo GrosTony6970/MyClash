@@ -1,5 +1,6 @@
 'use client';
 
+import { SkillBadge } from '@myclash/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -21,7 +22,10 @@ export interface CommitmentCardProps {
   liveLabel?: string;
   /** Fighter side for the accent stripe (fights only). */
   side?: 'red' | 'blue';
+  /** Referee badge label (the skill name, e.g. "Déclarant"); defaults to "REF". */
   refLabel?: string;
+  /** Referee skill color token (referee_skills.color), e.g. "orange"/"purple". */
+  refColor?: string;
   href?: string;
 }
 
@@ -73,6 +77,7 @@ export function CommitmentCard({
   liveLabel = 'Live',
   side,
   refLabel = 'REF',
+  refColor,
   href,
 }: CommitmentCardProps): ReactNode {
   const inner = (
@@ -133,9 +138,7 @@ export function CommitmentCard({
       </div>
       <div className="flex flex-col items-end justify-center gap-1.5">
         {kind === 'referee' && (
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-            {refLabel}
-          </span>
+          <SkillBadge color={refColor ?? 'slate'} label={refLabel} size="sm" />
         )}
         {status && (
           <span

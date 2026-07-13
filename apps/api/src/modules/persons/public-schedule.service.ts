@@ -37,6 +37,10 @@ export interface RefereeSlot {
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
+  /** The assignment's own window — set for pool-/lice-scoped rows that carry no
+   *  match, so the schedule can place them on a day even without a match time. */
+  startsAt: string | null;
+  endsAt: string | null;
   role: string;
   poolName: string | null;
   poolId: string | null;
@@ -51,6 +55,10 @@ export interface RefereeSlot {
   bracketSlotId: string | null;
   skillName: string | null;
   skillColor: string | null;
+  /** For a pool-/lice-scoped assignment (a whole-pool role like "Déclarant"),
+   *  the number of matches in the pool the person covers — so the card shows the
+   *  real bout count rather than "1". Null for per-match assignments. */
+  poolMatchCount: number | null;
 }
 
 export interface WorkshopEnrollment {
@@ -208,11 +216,15 @@ export class PublicScheduleService {
       (personLink as { global_person_id: string | null } | null)?.global_person_id ?? null;
     if (!globalPersonId) return [];
 
+    // Embed the match (match-scoped rows) AND the assignment's own pool/lice
+    // (pool-/lice-scoped rows that carry no match — e.g. a pool "Déclarant").
     const { data } = await this.supabase.service
       .from('referee_assignments')
       .select(
         `
-        role,
+        role, starts_at, ends_at, pool_id,
+        pools ( id, name, phases ( type, config_json, visibility_status, tournaments ( name, slug ) ) ),
+        lices ( name ),
         matches (
           id, match_number_label, scheduled_at, bracket_slot_id,
           pools ( id, name ),
@@ -226,28 +238,45 @@ export class PublicScheduleService {
 
     if (!data) return [];
 
+    type PhaseEmbed = {
+      visibility_status?: string | null;
+      type?: string | null;
+      config_json?: { bracketSize?: number } | null;
+      tournaments: { name?: string; slug?: string } | null;
+    } | null;
+
     // Carry phaseType/bracketSize alongside each slot for the match-kind derivation
     // below; they're stripped from the returned RefereeSlot.
     type RawSlot = RefereeSlot & { phaseType: string | null; bracketSize: number | null };
     const raw: RawSlot[] = (data as Array<Record<string, unknown>>).flatMap((a) => {
       const match = a['matches'] as Record<string, unknown> | null;
-      const pool = match?.['pools'] as { id?: string; name?: string } | null;
-      const lice = match?.['lices'] as { name?: string } | null;
-      const phase = match?.['phases'] as {
-        visibility_status?: string | null;
-        type?: string | null;
-        config_json?: { bracketSize?: number } | null;
-        tournaments: { name?: string; slug?: string } | null;
-      } | null;
-      if (phase?.visibility_status !== 'published') return [];
+      const matchPool = match?.['pools'] as { id?: string; name?: string } | null;
+      const matchLice = match?.['lices'] as { name?: string } | null;
+      const matchPhase = match?.['phases'] as PhaseEmbed;
+      // Direct assignment-scoped embeds (only set when scope_type is pool/lice).
+      const directPool = a['pools'] as { id?: string; name?: string; phases?: PhaseEmbed } | null;
+      const directLice = a['lices'] as { name?: string } | null;
+      const poolPhase = (directPool?.phases as PhaseEmbed) ?? null;
+
+      // Prefer the match, else fall back to the assignment's own pool/lice.
+      const phase = matchPhase ?? poolPhase;
+      const pool = matchPool ?? directPool ?? null;
+      const lice = matchLice ?? directLice ?? null;
+
+      // Hide rows whose phase isn't published yet (future bracket rounds). Pool
+      // phases are published for a live event, so pool "Déclarant" rows pass.
+      // Rows with no resolvable phase (rare) are kept rather than silently dropped.
+      if (phase && phase.visibility_status !== 'published') return [];
 
       return {
         matchId: (match?.['id'] as string) ?? '',
         matchNumberLabel: (match?.['match_number_label'] as string | null) ?? '',
         scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
+        startsAt: (a['starts_at'] as string | null) ?? null,
+        endsAt: (a['ends_at'] as string | null) ?? null,
         role: a['role'] as string,
         poolName: pool?.name ?? null,
-        poolId: pool?.id ?? null,
+        poolId: (pool?.id as string | undefined) ?? (a['pool_id'] as string | null) ?? null,
         tournamentName: phase?.tournaments?.name ?? null,
         tournamentSlug: phase?.tournaments?.slug ?? null,
         liceName: lice?.name ?? null,
@@ -256,6 +285,7 @@ export class PublicScheduleService {
         bracketSlotId: (match?.['bracket_slot_id'] as string | null) ?? null,
         skillName: null,
         skillColor: null,
+        poolMatchCount: null,
         phaseType: (phase?.type as string | null) ?? null,
         bracketSize: phase?.config_json?.bracketSize ?? null,
       };
@@ -269,6 +299,37 @@ export class PublicScheduleService {
       const { kind, roundOfCount } = computeMatchKind(s.phaseType, round, s.bracketSize);
       s.matchKind = kind;
       s.roundOfCount = roundOfCount;
+    }
+
+    // Pool-scoped assignments (no match) carry no direct lice and no match count.
+    // From the pool's matches, borrow a representative lice (mirrors the /me
+    // overview) and count the bouts the whole-pool role covers.
+    const scopePools = [
+      ...new Set(raw.filter((s) => !s.matchId && s.poolId).map((s) => s.poolId as string)),
+    ];
+    if (scopePools.length > 0) {
+      const { data: pm } = await this.supabase.service
+        .from('matches')
+        .select('pool_id, lices ( name )')
+        .in('pool_id', scopePools);
+      const byPool = new Map<string, { liceName: string | null; count: number }>();
+      for (const m of Array.isArray(pm) ? (pm as Array<Record<string, unknown>>) : []) {
+        const pid = String(m['pool_id']);
+        const lice = m['lices'] as { name?: string } | null;
+        const entry = byPool.get(pid) ?? { liceName: null, count: 0 };
+        entry.count += 1;
+        if (!entry.liceName && lice?.name) entry.liceName = lice.name;
+        byPool.set(pid, entry);
+      }
+      for (const s of raw) {
+        if (!s.matchId && s.poolId) {
+          const v = byPool.get(s.poolId);
+          if (v) {
+            if (!s.liceName) s.liceName = v.liceName;
+            s.poolMatchCount = v.count;
+          }
+        }
+      }
     }
 
     // Enrich with the referee skill name + colour (role holds referee_skills.id).
@@ -299,6 +360,8 @@ export class PublicScheduleService {
         matchId: s.matchId,
         matchNumberLabel: s.matchNumberLabel,
         scheduledAt: s.scheduledAt,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
         role: s.role,
         poolName: s.poolName,
         poolId: s.poolId,
@@ -310,6 +373,7 @@ export class PublicScheduleService {
         bracketSlotId: s.bracketSlotId,
         skillName: s.skillName,
         skillColor: s.skillColor,
+        poolMatchCount: s.poolMatchCount,
       }),
     );
   }

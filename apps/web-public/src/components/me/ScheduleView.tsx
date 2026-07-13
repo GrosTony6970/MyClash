@@ -35,6 +35,12 @@ interface Group {
   title: string;
   skillName?: string | null;
   skillColor?: string | null;
+  /** Header tokens: pool / lice shown only when uniform across the group; the
+   *  timeslot spans the group's earliest start → latest end. */
+  poolName?: string | null;
+  liceName?: string | null;
+  startMs: number | null;
+  endMs: number | null;
   items: DisplayItem[];
   firstTime: number;
 }
@@ -88,6 +94,13 @@ export function ScheduleView({
       : t('publicApp.me.schedule.tbd');
   const fmtDay = (iso: string) =>
     formatInZone(iso, tz, { weekday: 'long', day: 'numeric', month: 'long' }, tag);
+  /** "09:00–11:12" (or a single time when start == end / no end) from epoch ms. */
+  const fmtSlot = (startMs: number | null, endMs: number | null): string | null => {
+    if (startMs == null) return null;
+    const a = fmtTime(new Date(startMs).toISOString());
+    const b = endMs != null ? fmtTime(new Date(endMs).toISOString()) : null;
+    return b && b !== a ? `${a}–${b}` : a;
+  };
 
   // Fold the many per-match referee slots into one card per pool / bracket tier.
   const referees = aggregateReferee(schedule.refereeSlots);
@@ -222,6 +235,30 @@ export function ScheduleView({
     return t('publicApp.me.hub.tabWorkshops');
   }
 
+  /** Pool / lice / [start,end] window of one commitment, for header tokens. */
+  function itemBounds(item: DisplayItem): {
+    pool: string | null;
+    lice: string | null;
+    start: number | null;
+    end: number | null;
+  } {
+    if (item.kind === 'fight') {
+      const start = item.data.scheduledAt ? new Date(item.data.scheduledAt).getTime() : null;
+      return { pool: item.data.poolName, lice: item.data.liceName, start, end: start };
+    }
+    if (item.kind === 'referee') {
+      return {
+        pool: item.data.poolName,
+        lice: item.data.liceName,
+        start: item.data.startMs,
+        end: item.data.endMs ?? item.data.startMs,
+      };
+    }
+    const start = item.data.sessionStart ? new Date(item.data.sessionStart).getTime() : null;
+    const end = item.data.sessionEnd ? new Date(item.data.sessionEnd).getTime() : start;
+    return { pool: null, lice: null, start, end };
+  }
+
   function groupsFor(segItems: DisplayItem[]): Group[] {
     const map = new Map<string, Group>();
     for (const item of segItems) {
@@ -234,12 +271,29 @@ export function ScheduleView({
           title: groupTitle(item),
           skillName: item.kind === 'referee' ? item.data.skillName : null,
           skillColor: item.kind === 'referee' ? item.data.skillColor : null,
+          poolName: null,
+          liceName: null,
+          startMs: null,
+          endMs: null,
           items: [],
           firstTime: item.time ? new Date(item.time).getTime() : Infinity,
         };
         map.set(key, g);
       }
       g.items.push(item);
+    }
+    // Derive header tokens: pool / lice only when uniform across the group; the
+    // timeslot spans the earliest start → latest end.
+    for (const g of map.values()) {
+      const bounds = g.items.map(itemBounds);
+      const pools = [...new Set(bounds.map((b) => b.pool).filter((x): x is string => !!x))];
+      const lices = [...new Set(bounds.map((b) => b.lice).filter((x): x is string => !!x))];
+      const starts = bounds.map((b) => b.start).filter((n): n is number => n != null);
+      const ends = bounds.map((b) => b.end).filter((n): n is number => n != null);
+      g.poolName = pools.length === 1 ? pools[0]! : null;
+      g.liceName = lices.length === 1 ? lices[0]! : null;
+      g.startMs = starts.length ? Math.min(...starts) : null;
+      g.endMs = ends.length ? Math.max(...ends) : null;
     }
     return [...map.values()].sort((a, b) => a.firstTime - b.firstTime);
   }
@@ -326,6 +380,8 @@ export function ScheduleView({
               : 'publicApp.me.schedule.matchCount',
             { count: r.count },
           )}
+          refLabel={r.skillName ?? t('publicApp.me.events.roleReferee')}
+          refColor={r.skillColor ?? 'slate'}
           conflict={conflictLabel}
           isNext={item.key === nextKey}
           nextLabel={t('publicApp.me.schedule.next')}
@@ -371,15 +427,18 @@ export function ScheduleView({
             : undefined
         }
         className={[
-          'flex items-center gap-2 rounded-md border px-3 py-2 text-xs',
+          'flex items-center gap-3 rounded-lg border border-l-4 px-4 py-3 text-sm',
           tint ? 'text-foreground' : 'border-border bg-background/60 text-muted',
         ].join(' ')}
       >
-        <span className="shrink-0 font-bold tabular-nums text-foreground">
+        <span
+          className="shrink-0 font-bold tabular-nums"
+          style={tint ? { color: tint.borderColor } : undefined}
+        >
           {fmtTime(row.start)}
           {row.end ? `–${fmtTime(row.end)}` : ''}
         </span>
-        <span className="truncate font-medium">{row.label}</span>
+        <span className="truncate font-semibold">{row.label}</span>
       </div>
     );
   }
@@ -393,6 +452,8 @@ export function ScheduleView({
         <div key={`seg-${row.index}`} className="flex flex-col gap-3">
           {row.groups.map((group) => {
             const secKey = `sec:${day}:${row.index}:${group.key}`;
+            const slot = fmtSlot(group.startMs, group.endMs);
+            const meta = [group.poolName, group.liceName, slot].filter(Boolean).join(' · ');
             return (
               <CollapsibleSection
                 key={secKey}
@@ -401,25 +462,32 @@ export function ScheduleView({
                 headerClassName="mb-1.5"
                 bodyClassName="ml-1 flex flex-col gap-2 border-l-2 border-border pl-4"
                 header={
-                  <>
-                    <span
-                      aria-hidden="true"
-                      className={[
-                        'h-2 w-2 shrink-0 rounded-full',
-                        kindAccentClass(group.kind),
-                      ].join(' ')}
-                    />
-                    <span className="truncate text-xs font-bold text-foreground">
-                      {group.title}
-                    </span>
-                    {group.kind === 'referee' && group.skillName && (
-                      <SkillBadge
-                        color={group.skillColor ?? 'slate'}
-                        label={group.skillName}
-                        size="sm"
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className={[
+                          'h-2 w-2 shrink-0 rounded-full',
+                          kindAccentClass(group.kind),
+                        ].join(' ')}
                       />
+                      <span className="truncate text-xs font-bold text-foreground">
+                        {group.title}
+                      </span>
+                      {group.kind === 'referee' && group.skillName && (
+                        <SkillBadge
+                          color={group.skillColor ?? 'slate'}
+                          label={group.skillName}
+                          size="sm"
+                        />
+                      )}
+                    </span>
+                    {meta && (
+                      <span className="truncate pl-4 text-[11px] font-medium text-muted">
+                        {meta}
+                      </span>
                     )}
-                  </>
+                  </span>
                 }
               >
                 {group.items.map((item) => (

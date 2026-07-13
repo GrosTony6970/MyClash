@@ -54,12 +54,20 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
   }
   return [...map.entries()].map(([key, group]) => {
     const base = group[0]!;
-    const times = group
-      .map((s) => (s.scheduledAt ? new Date(s.scheduledAt).getTime() : NaN))
+    // Window from the match times when present, else the assignment's own
+    // starts_at/ends_at (pool-/lice-scoped rows carry no match). Matches use the
+    // project's default duration past each start; assignment rows use their real end.
+    const ms = (iso: string | null): number => (iso ? new Date(iso).getTime() : NaN);
+    const starts = group
+      .map((s) => ms(s.scheduledAt ?? s.startsAt))
       .filter((n) => !Number.isNaN(n))
       .sort((a, b) => a - b);
-    const startMs = times.length ? times[0]! : null;
-    const endMs = times.length ? times[times.length - 1]! + DEFAULT_DURATION_MS : null;
+    const ends = group
+      .map((s) => (s.scheduledAt ? ms(s.scheduledAt) + DEFAULT_DURATION_MS : ms(s.endsAt)))
+      .filter((n) => !Number.isNaN(n))
+      .sort((a, b) => a - b);
+    const startMs = starts.length ? starts[0]! : null;
+    const endMs = ends.length ? ends[ends.length - 1]! : null;
     return {
       key,
       tournamentName: base.tournamentName,
@@ -70,7 +78,9 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
       liceName: group.find((s) => s.liceName)?.liceName ?? null,
       skillName: base.skillName,
       skillColor: base.skillColor,
-      count: group.length,
+      // Whole-pool roles (Déclarant) fold to one slot but cover the pool's whole
+      // bout count; per-match assignments count their own rows.
+      count: group.find((s) => s.poolMatchCount != null)?.poolMatchCount ?? group.length,
       startIso: startMs != null ? new Date(startMs).toISOString() : null,
       startMs,
       endMs,

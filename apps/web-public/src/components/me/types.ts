@@ -19,6 +19,10 @@ export interface RefereeSlot {
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
+  /** The assignment's own window — set for pool-/lice-scoped rows with no match,
+   *  so the schedule can place them on a day even without a per-match time. */
+  startsAt: string | null;
+  endsAt: string | null;
   role: string;
   poolName: string | null;
   poolId: string | null;
@@ -31,6 +35,9 @@ export interface RefereeSlot {
   bracketSlotId: string | null;
   skillName: string | null;
   skillColor: string | null;
+  /** For a whole-pool role (e.g. "Déclarant"), the number of matches in the pool
+   *  the person covers, so the card shows the real bout count instead of "1". */
+  poolMatchCount: number | null;
 }
 
 export interface WorkshopEnrollment {

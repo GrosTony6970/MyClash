@@ -8,6 +8,8 @@ function slot(over: Partial<RefereeSlot>): RefereeSlot {
     matchId: 'm',
     matchNumberLabel: '',
     scheduledAt: null,
+    startsAt: null,
+    endsAt: null,
     role: 'ref',
     poolName: null,
     poolId: null,
@@ -19,6 +21,7 @@ function slot(over: Partial<RefereeSlot>): RefereeSlot {
     bracketSlotId: null,
     skillName: 'Director',
     skillColor: 'blue',
+    poolMatchCount: null,
     ...over,
   };
 }
@@ -72,6 +75,33 @@ describe('aggregateReferee', () => {
     // Window spans first→last match (+ default duration for the last).
     expect(agg!.startIso).toBe('2027-05-22T09:00:00.000Z');
     expect(agg!.endMs).toBe(new Date('2027-05-22T09:44:00Z').getTime() + DEFAULT_DURATION_MS);
+  });
+
+  it('derives a pool-scoped card window from starts_at/ends_at when there is no match', () => {
+    // A pool "Déclarant" assignment carries no match (scheduledAt null) — its
+    // window must come from the assignment's own starts_at/ends_at so the
+    // schedule can place it on the right day.
+    const [agg] = aggregateReferee([
+      slot({
+        matchId: '',
+        matchKind: 'pool',
+        poolId: 'p1',
+        poolName: 'Pool 1',
+        liceName: 'Lice 1',
+        scheduledAt: null,
+        startsAt: '2027-05-22T13:00:00Z',
+        endsAt: '2027-05-22T15:34:00Z',
+        poolMatchCount: 15,
+      }),
+    ]);
+    expect(agg).toBeDefined();
+    expect(agg!.poolName).toBe('Pool 1');
+    expect(agg!.liceName).toBe('Lice 1');
+    expect(agg!.startIso).toBe('2027-05-22T13:00:00.000Z');
+    expect(agg!.startMs).toBe(new Date('2027-05-22T13:00:00Z').getTime());
+    expect(agg!.endMs).toBe(new Date('2027-05-22T15:34:00Z').getTime());
+    // The card shows the pool's real bout count, not the single assignment row.
+    expect(agg!.count).toBe(15);
   });
 
   it('keeps distinct pools / tiers as separate cards', () => {
