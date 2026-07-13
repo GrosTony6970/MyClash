@@ -6,6 +6,7 @@ import {
   type MaintenanceBannerPayload,
   type MaintenanceBannerSeverity,
   type PublicFeatureFlagsSnapshot,
+  type TimeSimulationPayload,
 } from '@myclash/feature-flags';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { UpsertFeatureFlagDto } from './dto/admin-feature-flags.dto';
@@ -38,6 +39,21 @@ function parseMaintenanceBannerPayload(
   if (!message || typeof severity !== 'string') return null;
   if (!VALID_SEVERITIES.includes(severity as MaintenanceBannerSeverity)) return null;
   return { message, severity: severity as MaintenanceBannerSeverity };
+}
+
+function parseTimeSimulationPayload(
+  raw: Record<string, unknown> | null | undefined,
+): TimeSimulationPayload | null {
+  if (!raw) return null;
+  const simulatedNowIso =
+    typeof raw['simulatedNowIso'] === 'string' ? (raw['simulatedNowIso'] as string) : null;
+  const anchorRealIso =
+    typeof raw['anchorRealIso'] === 'string' ? (raw['anchorRealIso'] as string) : null;
+  if (!simulatedNowIso || !anchorRealIso) return null;
+  if (Number.isNaN(Date.parse(simulatedNowIso)) || Number.isNaN(Date.parse(anchorRealIso))) {
+    return null;
+  }
+  return { simulatedNowIso, anchorRealIso };
 }
 
 const FLAG_CACHE_TTL_MS = 5_000;
@@ -89,6 +105,15 @@ export class AdminFeatureFlagsService {
       }
       payload = { ...parsed };
     }
+    if (def?.payload === 'time_simulation' && dto.payloadJson) {
+      const parsed = parseTimeSimulationPayload(dto.payloadJson);
+      if (!parsed) {
+        throw new BadRequestException(
+          'time_simulation payload must be { simulatedNowIso: ISO string, anchorRealIso: ISO string }',
+        );
+      }
+      payload = { ...parsed };
+    }
 
     const now = new Date().toISOString();
     const { error } = await this.supabase.service.from('feature_flags').upsert({
@@ -118,13 +143,14 @@ export class AdminFeatureFlagsService {
     const empty: PublicFeatureFlagsSnapshot = {
       maintenanceBanner: { enabled: false, message: null, severity: null },
       realtimeDisabled: false,
+      timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
     };
 
     try {
       const { data, error } = await this.supabase.service
         .from('feature_flags')
         .select('key, enabled, payload_json')
-        .in('key', ['maintenance_banner', 'disable_realtime']);
+        .in('key', ['maintenance_banner', 'disable_realtime', 'time_simulation']);
       if (error) return empty;
 
       const rows = (data ?? []) as Array<{
@@ -134,7 +160,9 @@ export class AdminFeatureFlagsService {
       }>;
       const banner = rows.find((r) => r.key === 'maintenance_banner');
       const realtime = rows.find((r) => r.key === 'disable_realtime');
+      const timeSim = rows.find((r) => r.key === 'time_simulation');
       const payload = banner?.enabled ? parseMaintenanceBannerPayload(banner.payload_json) : null;
+      const simPayload = timeSim?.enabled ? parseTimeSimulationPayload(timeSim.payload_json) : null;
 
       return {
         maintenanceBanner: {
@@ -143,6 +171,11 @@ export class AdminFeatureFlagsService {
           severity: payload?.severity ?? null,
         },
         realtimeDisabled: !!realtime?.enabled,
+        timeSimulation: {
+          enabled: !!timeSim?.enabled,
+          simulatedNowIso: simPayload?.simulatedNowIso ?? null,
+          anchorRealIso: simPayload?.anchorRealIso ?? null,
+        },
       };
     } catch {
       return empty;

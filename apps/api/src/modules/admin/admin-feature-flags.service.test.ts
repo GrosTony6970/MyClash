@@ -26,10 +26,10 @@ describe('AdminFeatureFlagsService', () => {
 
     const flags = await service.listFlagsWithRegistry();
 
-    // Registry has 10 entries (admin_lockdown + 9 added across features,
-    // including disable_public_signups from the global-profile slice and
-    // disable_organizer_chat from the organizer chatbot).
-    expect(flags).toHaveLength(10);
+    // Registry has 11 entries (admin_lockdown + 10 added across features,
+    // including disable_public_signups from the global-profile slice,
+    // disable_organizer_chat from the organizer chatbot, and time_simulation).
+    expect(flags).toHaveLength(11);
     const keys = flags.map((f) => f.key);
     expect(keys).toEqual(
       expect.arrayContaining([
@@ -42,6 +42,7 @@ describe('AdminFeatureFlagsService', () => {
         'disable_organizer_chat',
         'disable_hema_sync',
         'disable_email',
+        'time_simulation',
         'disable_realtime',
       ]),
     );
@@ -186,6 +187,54 @@ describe('AdminFeatureFlagsService', () => {
     );
   });
 
+  it('persists a valid payload_json for the time_simulation flag', async () => {
+    const flagsChain = {
+      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
+    };
+    fromMock.mockImplementation((table: string) =>
+      table === 'feature_flags'
+        ? flagsChain
+        : { insert: vi.fn().mockResolvedValue({ data: null, error: null }) },
+    );
+
+    await service.upsertFlag(
+      'time_simulation',
+      {
+        enabled: true,
+        payloadJson: {
+          simulatedNowIso: '2027-05-22T08:00:00.000Z',
+          anchorRealIso: '2026-07-13T12:00:00.000Z',
+        },
+      },
+      'actor-user',
+    );
+
+    expect(flagsChain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'time_simulation',
+        payload_json: {
+          simulatedNowIso: '2027-05-22T08:00:00.000Z',
+          anchorRealIso: '2026-07-13T12:00:00.000Z',
+        },
+      }),
+    );
+  });
+
+  it('rejects malformed time_simulation payloads', async () => {
+    fromMock.mockImplementation(() => ({
+      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+
+    await expect(
+      service.upsertFlag(
+        'time_simulation',
+        { enabled: true, payloadJson: { simulatedNowIso: 'not-a-date' } as never },
+        'actor-user',
+      ),
+    ).rejects.toThrow(/time_simulation payload/);
+  });
+
   it('rejects malformed banner payloads', async () => {
     fromMock.mockImplementation(() => ({
       upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -239,6 +288,7 @@ describe('AdminFeatureFlagsService', () => {
       expect(snap).toEqual({
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
       });
     });
 
@@ -266,6 +316,7 @@ describe('AdminFeatureFlagsService', () => {
           severity: 'critical',
         },
         realtimeDisabled: false,
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
       });
     });
 
@@ -286,13 +337,44 @@ describe('AdminFeatureFlagsService', () => {
 
       const snap = await service.getPublicFlagsSnapshot();
 
-      expect(inSpy).toHaveBeenCalledWith('key', ['maintenance_banner', 'disable_realtime']);
+      expect(inSpy).toHaveBeenCalledWith('key', [
+        'maintenance_banner',
+        'disable_realtime',
+        'time_simulation',
+      ]);
       expect(snap).toEqual({
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: true,
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
       });
       expect(snap).not.toHaveProperty('adminLockdown');
       expect(snap).not.toHaveProperty('readOnlyMode');
+    });
+
+    it('includes the time simulation payload when the flag is on', async () => {
+      fromMock.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockResolvedValue({
+          data: [
+            {
+              key: 'time_simulation',
+              enabled: true,
+              payload_json: {
+                simulatedNowIso: '2027-05-22T08:00:00.000Z',
+                anchorRealIso: '2026-07-13T12:00:00.000Z',
+              },
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const snap = await service.getPublicFlagsSnapshot();
+      expect(snap.timeSimulation).toEqual({
+        enabled: true,
+        simulatedNowIso: '2027-05-22T08:00:00.000Z',
+        anchorRealIso: '2026-07-13T12:00:00.000Z',
+      });
     });
 
     it('returns the safe default if the supabase query errors', async () => {
@@ -305,6 +387,7 @@ describe('AdminFeatureFlagsService', () => {
       expect(snap).toEqual({
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
       });
     });
   });

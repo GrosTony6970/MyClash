@@ -32,6 +32,31 @@ function bannerPayload(raw: Record<string, unknown> | null | undefined): {
   return { message, severity: safeSeverity };
 }
 
+/** Read the stored simulated "now" ISO (for the `time_simulation` flag). */
+function readSimulatedNowIso(raw: Record<string, unknown> | null | undefined): string | null {
+  if (!raw) return null;
+  return typeof raw['simulatedNowIso'] === 'string' ? (raw['simulatedNowIso'] as string) : null;
+}
+
+/** UTC ISO instant → a `datetime-local` value (`YYYY-MM-DDTHH:mm`, admin-local). */
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** `datetime-local` value → the `time_simulation` payload (anchored to real now). */
+function buildTimeSimPayload(
+  localValue: string,
+): { simulatedNowIso: string; anchorRealIso: string } | undefined {
+  if (!localValue) return undefined;
+  const d = new Date(localValue);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return { simulatedNowIso: d.toISOString(), anchorRealIso: new Date().toISOString() };
+}
+
 export default function AdminFeatureFlagsPage() {
   const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -183,9 +208,13 @@ interface FlagItemProps {
 function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
   const enabled = row?.enabled ?? def.default;
   const hasBannerPayload = def.payload === 'maintenance_banner';
+  const hasTimeSimPayload = def.payload === 'time_simulation';
   const initialPayload = bannerPayload(row?.payloadJson ?? null);
   const [message, setMessage] = useState(initialPayload.message);
   const [severity, setSeverity] = useState<MaintenanceBannerSeverity>(initialPayload.severity);
+  const [simLocal, setSimLocal] = useState(() =>
+    isoToLocalInput(readSimulatedNowIso(row?.payloadJson ?? null)),
+  );
 
   // Resync local payload state when the row refreshes from the server
   // (e.g. another admin edited it). Without this, the local edits
@@ -195,6 +224,7 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional resync of local edit state when the server row refreshes
     setMessage(next.message);
     setSeverity(next.severity);
+    setSimLocal(isoToLocalInput(readSimulatedNowIso(row?.payloadJson ?? null)));
   }, [row?.payloadJson]);
 
   const dirty =
@@ -222,7 +252,11 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
           onClick={() =>
             void onSave(def.key, {
               enabled: !enabled,
-              payloadJson: hasBannerPayload ? { message, severity } : undefined,
+              payloadJson: hasBannerPayload
+                ? { message, severity }
+                : hasTimeSimPayload
+                  ? buildTimeSimPayload(simLocal)
+                  : undefined,
             })
           }
           disabled={busy}
@@ -275,6 +309,34 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
             className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {t('admin.featureFlags.maintenanceBanner.saveButton')}
+          </button>
+        </div>
+      )}
+
+      {hasTimeSimPayload && (
+        <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
+            {t('admin.featureFlags.timeSimulation.targetLabel')}
+            <input
+              type="datetime-local"
+              value={simLocal}
+              onChange={(e) => setSimLocal(e.target.value)}
+              className="rounded border border-border bg-surface px-2 py-1 text-sm text-foreground"
+            />
+            <span className="text-[11px] font-normal text-muted">
+              {t('admin.featureFlags.timeSimulation.targetHelp')}
+            </span>
+          </label>
+          <button
+            type="button"
+            disabled={busy || !simLocal}
+            onClick={() => {
+              const payload = buildTimeSimPayload(simLocal);
+              if (payload) void onSave(def.key, { enabled: true, payloadJson: payload });
+            }}
+            className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {t('admin.featureFlags.timeSimulation.saveButton')}
           </button>
         </div>
       )}

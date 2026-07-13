@@ -13,7 +13,7 @@
  * which uses `payload_json` to carry { message, severity }).
  */
 export type FeatureFlagGroup = 'incident' | 'delivery' | 'reliability';
-export type FeatureFlagPayloadShape = 'maintenance_banner';
+export type FeatureFlagPayloadShape = 'maintenance_banner' | 'time_simulation';
 
 export interface FeatureFlagDefinition {
   key: string;
@@ -96,6 +96,14 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagDefinition[] = [
     group: 'delivery',
   },
   {
+    key: 'time_simulation',
+    labelKey: 'admin.featureFlags.timeSimulation.title',
+    descriptionKey: 'admin.featureFlags.timeSimulation.description',
+    default: false,
+    group: 'delivery',
+    payload: 'time_simulation',
+  },
+  {
     key: 'disable_realtime',
     labelKey: 'admin.featureFlags.disableRealtime.title',
     descriptionKey: 'admin.featureFlags.disableRealtime.description',
@@ -116,6 +124,7 @@ export type KnownFeatureFlagKey =
   | 'disable_organizer_chat'
   | 'disable_hema_sync'
   | 'disable_email'
+  | 'time_simulation'
   | 'disable_realtime';
 
 export function isKnownFlagKey(value: string): value is KnownFeatureFlagKey {
@@ -141,6 +150,19 @@ export interface MaintenanceBannerPayload {
 }
 
 /**
+ * Payload shape for the `time_simulation` flag — a super-admin testing
+ * aid that shifts the clock the public app uses. Stored as an offset
+ * anchor: `simulatedNowIso` is what the clock should read as "now" at
+ * the moment it was saved (`anchorRealIso`); the effective offset is
+ * `simulatedNowIso − anchorRealIso`, so the simulated clock advances
+ * with real time. Surfaced through `GET /api/v1/public/feature-flags`.
+ */
+export interface TimeSimulationPayload {
+  simulatedNowIso: string;
+  anchorRealIso: string;
+}
+
+/**
  * Public feature-flags snapshot shape — what the FE consumes from
  * `GET /api/v1/public/feature-flags`. Only flags meant for FE
  * awareness leak through; internal kill-switches stay server-side.
@@ -152,4 +174,9 @@ export interface PublicFeatureFlagsSnapshot {
     severity: MaintenanceBannerSeverity | null;
   };
   realtimeDisabled: boolean;
+  timeSimulation: {
+    enabled: boolean;
+    simulatedNowIso: string | null;
+    anchorRealIso: string | null;
+  };
 }

@@ -4,6 +4,7 @@ import { defaultLocale, t } from '@myclash/i18n';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { MaybeSiteHeader } from './_components/MaybeSiteHeader';
 import { RuntimeBanner } from './_components/RuntimeBanner';
+import { SimulatedTimeBadge } from './_components/SimulatedTimeBadge';
 import '../src/styles/globals.css';
 
 // Tournament Manual aesthetic — same font stack as apps/web-admin.
@@ -59,6 +60,7 @@ export default function RootLayout({
           <RuntimeBanner />
           <MaybeSiteHeader />
           {children}
+          <SimulatedTimeBadge />
         </I18nProvider>
       </body>
     </html>

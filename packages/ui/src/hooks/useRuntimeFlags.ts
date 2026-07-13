@@ -26,6 +26,7 @@ const cacheByUrl = new Map<string, Cache>();
 const EMPTY: PublicFeatureFlagsSnapshot = {
   maintenanceBanner: { enabled: false, message: null, severity: null },
   realtimeDisabled: false,
+  timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
 };
 
 async function fetchOnce(apiUrl: string): Promise<PublicFeatureFlagsSnapshot | null> {

@@ -1,9 +1,10 @@
 'use client';
 
 import { formatInZone } from '@myclash/time';
-import { EmptyState, SkillBadge } from '@myclash/ui';
-import { useEffect, useState, type ReactNode } from 'react';
+import { EmptyState, SkillBadge, useNow } from '@myclash/ui';
+import type { ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
+import { getApiUrl } from '../../lib/api-url';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
 import { classifyTime, type TemporalState } from './schedule-time';
@@ -59,14 +60,13 @@ export function ScheduleView({
   const tz = timezone ?? DEFAULT_TZ;
   const tag = localeTag(locale);
 
-  // Live "now" clock so LIVE / NEXT track the real time and advance as the event
-  // unfolds. ScheduleView only ever mounts on the client (the page renders a
-  // Skeleton until its data fetch resolves), so this never hydrates on the server.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
+  // Live "now" clock so LIVE / NEXT track the current time and advance as the
+  // event unfolds. `useNow` also honours an active super-admin time simulation
+  // (the `time_simulation` feature flag) so this time-dependent UI can be tested
+  // off a shifted clock. ScheduleView only ever mounts on the client (the page
+  // renders a Skeleton until its data fetch resolves), so it never hydrates on
+  // the server.
+  const now = useNow(getApiUrl());
 
   const fmtTime = (iso: string | null) =>
     iso
