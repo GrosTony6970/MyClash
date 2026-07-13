@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useConfirm } from './useConfirm';
 import { Button } from './Button';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from './DataTable';
@@ -26,6 +26,15 @@ interface AiKeyItem {
 
 type ModelsMap = Record<AiKeyProvider, AiKeyModelOption[]>;
 
+/** Registry-vs-live model drift for a single key's provider. */
+interface ModelSyncReport {
+  provider: string;
+  registered: string[];
+  live: string[];
+  newAtProvider: string[];
+  missingAtProvider: string[];
+}
+
 export interface AiKeysManagerProps {
   /** Absolute URL of the keys collection (e.g. `${apiUrl}/api/v1/admin/ai-keys`). */
   apiBase: string;
@@ -36,6 +45,14 @@ export interface AiKeysManagerProps {
   ns: string;
   /** Called after any successful mutation (so a parent can refresh usage/budget). */
   onChanged?: () => void;
+  /**
+   * When true, each row gets a "Sync models" action that POSTs
+   * `${apiBase}/${id}/model-sync` and expands an inline registry-vs-live diff.
+   * Platform-admin only — that endpoint does not exist for org/fighter scopes,
+   * so leave this off (default) everywhere else. Requires the
+   * `<ns>.keys.sync*` leaves to exist for the given namespace.
+   */
+  perKeyModelSync?: boolean;
 }
 
 const PROVIDER_LABELS: Record<AiKeyProvider, string> = {
@@ -57,7 +74,14 @@ function eur(n: number): string {
  * edit / delete / set-active. Reused by the platform, org, and fighter pages —
  * they differ only by `apiBase` + i18n `ns`.
  */
-export function AiKeysManager({ apiBase, modelsUrl, t, ns, onChanged }: AiKeysManagerProps) {
+export function AiKeysManager({
+  apiBase,
+  modelsUrl,
+  t,
+  ns,
+  onChanged,
+  perKeyModelSync = false,
+}: AiKeysManagerProps) {
   const [keys, setKeys] = useState<AiKeyItem[]>([]);
   const [models, setModels] = useState<ModelsMap>(EMPTY_MODELS);
   const [loading, setLoading] = useState(true);
@@ -67,6 +91,14 @@ export function AiKeysManager({ apiBase, modelsUrl, t, ns, onChanged }: AiKeysMa
     open: false,
     editing: null,
   });
+  // Per-key model-sync state (only used when perKeyModelSync). One key's diff
+  // is shown at a time; clicking Sync on another key replaces it.
+  const [sync, setSync] = useState<{
+    keyId: string;
+    loading: boolean;
+    report: ModelSyncReport | null;
+    error: string | null;
+  } | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   const key = useCallback(
@@ -178,6 +210,32 @@ export function AiKeysManager({ apiBase, modelsUrl, t, ns, onChanged }: AiKeysMa
     }
   }
 
+  async function syncKey(id: string) {
+    setSync({ keyId: id, loading: true, report: null, error: null });
+    try {
+      // No request body → the endpoint diffs this key's provider registry
+      // against its live models. Returns a ModelSyncReport.
+      const res = await fetch(`${apiBase}/${id}/model-sync`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(key('syncError'));
+      setSync({
+        keyId: id,
+        loading: false,
+        report: (await res.json()) as ModelSyncReport,
+        error: null,
+      });
+    } catch (e) {
+      setSync({
+        keyId: id,
+        loading: false,
+        report: null,
+        error: e instanceof Error ? e.message : key('syncError'),
+      });
+    }
+  }
+
   function modelLabel(item: AiKeyItem): string {
     if (!item.model) return key('defaultModel');
     const opt = (models[item.provider] ?? []).find((m) => m.id === item.model);
@@ -226,51 +284,107 @@ export function AiKeysManager({ apiBase, modelsUrl, t, ns, onChanged }: AiKeysMa
             </DataTableCell>
           </DataTableHead>
           <tbody>
-            {keys.map((item) => (
-              <DataTableRow key={item.id}>
-                <DataTableCell className="font-medium text-foreground">{item.label}</DataTableCell>
-                <DataTableCell>{PROVIDER_LABELS[item.provider]}</DataTableCell>
-                <DataTableCell>{modelLabel(item)}</DataTableCell>
-                <DataTableCell mono>{`••••${item.keyLast4 ?? '••••'}`}</DataTableCell>
-                <DataTableCell>
-                  {item.monthlyBudgetEur == null ? key('unlimited') : eur(item.monthlyBudgetEur)}
-                </DataTableCell>
-                <DataTableCell>{eur(item.spentMtdEur)}</DataTableCell>
-                <DataTableCell>
-                  {item.isActive ? (
-                    <span className="inline-flex items-center rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
-                      {key('active')}
-                    </span>
-                  ) : (
-                    <RowActionButton
-                      variant="neutral"
-                      disabled={busy}
-                      onClick={() => void activate(item.id)}
-                    >
-                      {key('setActive')}
-                    </RowActionButton>
+            {keys.map((item) => {
+              const syncing = perKeyModelSync && sync?.keyId === item.id && sync.loading;
+              const showDiff = perKeyModelSync && sync?.keyId === item.id && !sync.loading;
+              return (
+                <Fragment key={item.id}>
+                  <DataTableRow>
+                    <DataTableCell className="font-medium text-foreground">
+                      {item.label}
+                    </DataTableCell>
+                    <DataTableCell>{PROVIDER_LABELS[item.provider]}</DataTableCell>
+                    <DataTableCell>{modelLabel(item)}</DataTableCell>
+                    <DataTableCell mono>{`••••${item.keyLast4 ?? '••••'}`}</DataTableCell>
+                    <DataTableCell>
+                      {item.monthlyBudgetEur == null
+                        ? key('unlimited')
+                        : eur(item.monthlyBudgetEur)}
+                    </DataTableCell>
+                    <DataTableCell>{eur(item.spentMtdEur)}</DataTableCell>
+                    <DataTableCell>
+                      {item.isActive ? (
+                        <span className="inline-flex items-center rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                          {key('active')}
+                        </span>
+                      ) : (
+                        <RowActionButton
+                          variant="neutral"
+                          disabled={busy}
+                          onClick={() => void activate(item.id)}
+                        >
+                          {key('setActive')}
+                        </RowActionButton>
+                      )}
+                    </DataTableCell>
+                    <DataTableCell className="text-right">
+                      <div className="inline-flex gap-1.5">
+                        {perKeyModelSync && (
+                          <RowActionButton
+                            variant="neutral"
+                            disabled={busy || syncing}
+                            onClick={() => void syncKey(item.id)}
+                          >
+                            {syncing ? key('syncing') : key('syncModels')}
+                          </RowActionButton>
+                        )}
+                        <RowActionButton
+                          variant="edit"
+                          disabled={busy}
+                          onClick={() => setDialog({ open: true, editing: item })}
+                        >
+                          {key('edit')}
+                        </RowActionButton>
+                        <RowActionButton
+                          variant="danger"
+                          disabled={busy}
+                          onClick={() => void remove(item)}
+                        >
+                          {key('delete')}
+                        </RowActionButton>
+                      </div>
+                    </DataTableCell>
+                  </DataTableRow>
+                  {showDiff && (
+                    <tr className="border-t border-border">
+                      <td colSpan={8} className="bg-background px-3 py-3 text-sm">
+                        {sync?.error ? (
+                          <p className="text-danger">{sync.error}</p>
+                        ) : sync?.report ? (
+                          sync.report.missingAtProvider.length === 0 &&
+                          sync.report.newAtProvider.length === 0 ? (
+                            <p className="text-success">{key('syncUpToDate')}</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {sync.report.missingAtProvider.length > 0 && (
+                                <div>
+                                  <p className="font-medium text-danger">{key('syncRetired')}</p>
+                                  <ul className="mt-1 list-disc pl-5 text-foreground-secondary">
+                                    {sync.report.missingAtProvider.map((id) => (
+                                      <li key={id}>{id}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {sync.report.newAtProvider.length > 0 && (
+                                <div>
+                                  <p className="font-medium text-foreground">{key('syncNew')}</p>
+                                  <ul className="mt-1 list-disc pl-5 text-foreground-secondary">
+                                    {sync.report.newAtProvider.map((id) => (
+                                      <li key={id}>{id}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        ) : null}
+                      </td>
+                    </tr>
                   )}
-                </DataTableCell>
-                <DataTableCell className="text-right">
-                  <div className="inline-flex gap-1.5">
-                    <RowActionButton
-                      variant="edit"
-                      disabled={busy}
-                      onClick={() => setDialog({ open: true, editing: item })}
-                    >
-                      {key('edit')}
-                    </RowActionButton>
-                    <RowActionButton
-                      variant="danger"
-                      disabled={busy}
-                      onClick={() => void remove(item)}
-                    >
-                      {key('delete')}
-                    </RowActionButton>
-                  </div>
-                </DataTableCell>
-              </DataTableRow>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </DataTable>
       )}

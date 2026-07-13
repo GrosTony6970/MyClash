@@ -24,14 +24,18 @@ interface NavSection {
 }
 
 /**
- * Sidebar IA — items grouped into four sections so 14 entries don't read
+ * Sidebar IA — items grouped into six sections so the entries don't read
  * as one flat wall.
  *
  *   1. Overview        — single dashboard entry.
  *   2. Content         — orgs, users, profiles, clubs, leagues, rulesets.
- *   3. Operations      — frozen results review.
- *   4. Platform health — audit log, system versions, backups, data quality.
- *   5. Settings        — feature flags, AI settings.
+ *   3. Operations      — review queue, frozen results.
+ *   4. Platform health — audit log, system versions, backups, HEMA ratings.
+ *   5. AI              — dashboard, keys, budget, model catalog, data quality.
+ *   6. Settings        — feature flags.
+ *
+ * `isActive()` exact-matches /admin and /admin/ai so those landing entries
+ * don't stay lit alongside their sibling children.
  */
 const navSections: readonly NavSection[] = [
   {
@@ -74,21 +78,35 @@ const navSections: readonly NavSection[] = [
       { href: '/admin/audit-log', labelKey: 'admin.shell.nav.auditLog', badge: 'A' },
       { href: '/admin/system-versions', labelKey: 'admin.shell.nav.systemVersions', badge: 'S' },
       { href: '/admin/backups', labelKey: 'admin.shell.nav.backups', badge: 'B' },
-      { href: '/admin/data-quality', labelKey: 'admin.shell.nav.dataQuality', badge: 'DQ' },
       { href: '/admin/hema-ratings', labelKey: 'admin.shell.nav.hemaRatings', badge: 'HR' },
+    ],
+  },
+  {
+    // Data Quality lives here (not Platform health): its scans are LLM-ranked
+    // and its findings deep-link from the AI notification bell. Its route
+    // stays /admin/data-quality — only the sidebar grouping moved.
+    headingKey: 'admin.shell.sectionAI',
+    items: [
+      { href: '/admin/ai', labelKey: 'admin.shell.nav.aiDashboard', badge: 'AI' },
+      { href: '/admin/ai/keys', labelKey: 'admin.shell.nav.aiKeys', badge: 'AK' },
+      { href: '/admin/ai/budget', labelKey: 'admin.shell.nav.aiBudget', badge: 'AB' },
+      { href: '/admin/ai/models', labelKey: 'admin.shell.nav.aiModels', badge: 'AM' },
+      { href: '/admin/data-quality', labelKey: 'admin.shell.nav.dataQuality', badge: 'DQ' },
     ],
   },
   {
     headingKey: 'admin.shell.sectionSettings',
     items: [
       { href: '/admin/feature-flags', labelKey: 'admin.shell.nav.featureFlags', badge: 'FF' },
-      { href: '/admin/ai-settings', labelKey: 'admin.shell.nav.aiSettings', badge: 'AI' },
     ],
   },
 ];
 
 function isActive(pathname: string, href: string) {
-  if (href === '/admin') return pathname === '/admin';
+  // /admin and /admin/ai are landing pages whose deeper paths belong to
+  // distinct sibling entries — exact-match them so the parent doesn't stay
+  // highlighted alongside the active child (e.g. on /admin/ai/keys).
+  if (href === '/admin' || href === '/admin/ai') return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

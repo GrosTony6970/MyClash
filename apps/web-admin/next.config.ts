@@ -63,6 +63,13 @@ const nextConfig: NextConfig = {
         destination: '/org/:slug/events/:eventId/tournaments/:tournamentId/settings#match-format',
         permanent: true,
       },
+      {
+        // The single AI-settings page was split into the /admin/ai section;
+        // keep old bookmarks/links resolving to the new AI dashboard.
+        source: '/admin/ai-settings',
+        destination: '/admin/ai',
+        permanent: true,
+      },
     ];
   },
 };

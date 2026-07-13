@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader, FoilMark, MetricCard, StatsGrid } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
@@ -44,6 +45,12 @@ export default function SuperAdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  // AI summary is not part of dashboard-stats, so it fetches separately. It
+  // stays null (section hidden) until at least one call succeeds — we never
+  // show zeros on a failed load.
+  const [aiSummary, setAiSummary] = useState<{ spent: number; ceiling: number | null } | null>(
+    null,
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -74,6 +81,38 @@ export default function SuperAdminDashboardPage() {
 
     return () => controller.abort();
   }, [apiUrl, t]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const now = new Date();
+    // Month-to-date window (UTC) so spend is comparable to the monthly ceiling;
+    // a bare summary call returns all-time totals.
+    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    Promise.all([
+      fetch(`${apiUrl}/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(from)}`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }).then((res) => (res.ok ? (res.json() as Promise<{ total: { costEur: number } }>) : null)),
+      fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }).then((res) =>
+        res.ok ? (res.json() as Promise<{ monthlyBudgetEur: number | null }>) : null,
+      ),
+    ])
+      .then(([usage, cfg]) => {
+        if (usage || cfg) {
+          setAiSummary({
+            spent: usage?.total.costEur ?? 0,
+            ceiling: cfg?.monthlyBudgetEur ?? null,
+          });
+        }
+      })
+      .catch(() => {
+        // Network error / abort — leave the AI section hidden.
+      });
+    return () => controller.abort();
+  }, [apiUrl]);
 
   const metricSections = useMemo(() => {
     if (!stats) return [];
@@ -234,6 +273,44 @@ export default function SuperAdminDashboardPage() {
           </>
         ) : null}
       </section>
+
+      {aiSummary && (
+        <section className="mb-12">
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-accent">
+              {t('admin.dashboard.section.ai')}
+            </h2>
+            <FoilMark className="text-muted" width={32} />
+          </div>
+          <StatsGrid cols={3}>
+            <MetricCard
+              label={t('admin.dashboard.stats.aiSpend')}
+              value={`€${aiSummary.spent.toFixed(2)}`}
+            />
+            <MetricCard
+              label={t('admin.dashboard.stats.aiBudgetCeiling')}
+              value={
+                aiSummary.ceiling == null
+                  ? t('admin.aiSettings.keys.unlimited')
+                  : `€${aiSummary.ceiling.toFixed(2)}`
+              }
+            />
+            <MetricCard
+              label={t('admin.dashboard.stats.aiUtilization')}
+              value={
+                aiSummary.ceiling && aiSummary.ceiling > 0
+                  ? `${Math.round((aiSummary.spent / aiSummary.ceiling) * 100)}%`
+                  : '—'
+              }
+            />
+          </StatsGrid>
+          <div className="mt-4">
+            <Link href="/admin/ai" className="text-sm font-semibold text-accent hover:underline">
+              {t('admin.dashboard.manageAi')}
+            </Link>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
