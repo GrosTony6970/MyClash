@@ -114,7 +114,6 @@ export default function OrgLeagueManagePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('draft');
-  const [publicVisibility, setPublicVisibility] = useState(false);
 
   // Ruleset form state
   const [rankingDimensions, setRankingDimensions] = useState<'weapon' | 'weapon_category'>(
@@ -140,7 +139,6 @@ export default function OrgLeagueManagePage() {
     setName(found.name);
     setDescription(found.description ?? '');
     setStatus(found.status);
-    setPublicVisibility(found.public_visibility);
     setRankingDimensions(found.scoring_config?.rankingDimensions ?? 'weapon');
     const parsed = parseScoringRef(found.scoring_system);
     setScoringSystem(parsed.code);
@@ -311,7 +309,8 @@ export default function OrgLeagueManagePage() {
         name: name.trim(),
         description: description.trim() || null,
         status,
-        publicVisibility,
+        // Visibility is derived from status: Published ⇒ publicly visible.
+        publicVisibility: status === 'published',
       },
       'organizer.leagues.manage.savedToast',
     );
@@ -571,6 +570,9 @@ export default function OrgLeagueManagePage() {
                 <option value="published">{t('admin.adminLeagues.statusPublished')}</option>
                 <option value="archived">{t('admin.adminLeagues.statusArchived')}</option>
               </select>
+              <span className="mt-1 block text-xs text-muted">
+                {t('organizer.leagues.manage.basics.statusHelp')}
+              </span>
             </label>
           </div>
           <label className="mt-4 block">
@@ -583,20 +585,6 @@ export default function OrgLeagueManagePage() {
               rows={3}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             />
-          </label>
-          <label className="mt-4 flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={publicVisibility}
-              onChange={(e) => setPublicVisibility(e.target.checked)}
-              className="mt-1"
-            />
-            <span className="text-sm text-foreground">
-              {t('organizer.leagues.manage.basics.publicVisibilityLabel')}
-              <span className="mt-0.5 block text-xs text-muted">
-                {t('organizer.leagues.manage.basics.publicVisibilityHelp')}
-              </span>
-            </span>
           </label>
           <button
             type="button"

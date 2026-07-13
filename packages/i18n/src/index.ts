@@ -3376,12 +3376,7 @@ export const en = {
           statusPublished: 'Published',
           statusArchived: 'Archived',
           statusHelp:
-            'Draft = still being set up · Published = live · Archived = retired but kept for results',
-          publicVisibilityLabel: 'Public visibility',
-          publicVisibilityHelp:
-            'When on, this league appears on app.myclash.fr in the Leagues tab. Both Public visibility and Status = Published are required for the league to actually show.',
-          notLivePublicWarning:
-            'Public visibility is on but Status is not "Published" yet — this league still won’t appear on app.myclash.fr until you publish it.',
+            'Draft = still being set up · Published = live and publicly visible on app.myclash.fr · Archived = retired but kept for results',
           descriptionLabel: 'Description',
           previewSummary: 'Preview points + tie-breakers',
           pointsByRankLabel: 'Points by rank',
@@ -3402,12 +3397,17 @@ export const en = {
           tooLargeError: 'Logo must be 10 MB or smaller.',
         },
         owners: {
-          heading: 'Owner platform accounts',
+          heading: 'League administrators (individual accounts)',
+          description:
+            'Grants an individual account admin access to this league, independent of any organisation. To let a whole organisation manage this league, use Member organisations below.',
           empty: 'No accounts linked yet.',
           nameFallback: '(no name)',
           searchPlaceholder: 'Search accounts to add…',
           detachButton: 'Detach',
           detachConfirm: 'Detach this account from the league?',
+          orgMembershipsLabel: 'Member of',
+          orgMembershipsHint:
+            'Organisations this account belongs to. Shown for context only — it does not link the organisation to this league.',
           addError: 'Add failed',
           detachError: 'Detach failed',
         },
@@ -3415,6 +3415,12 @@ export const en = {
           heading: 'Member organisations',
           empty: 'No orgs linked yet.',
           addHeading: 'Add organisation',
+          roleLabel: 'Role',
+          roleMember: 'Member',
+          roleAdmin: 'Admin',
+          roleOwner: 'Owner',
+          roleHint:
+            'Admin or Owner lets the organisation manage this league (it then appears under its Manage tab). Member is participation only.',
           detachButton: 'Detach',
           detachConfirm: 'Detach this organisation from the league?',
           addError: 'Add failed',
@@ -4020,10 +4026,8 @@ export const en = {
         basics: {
           nameLabel: 'Name',
           statusLabel: 'Status',
+          statusHelp: 'Published makes this league publicly visible on app.myclash.fr.',
           descriptionLabel: 'Description',
-          publicVisibilityLabel: 'Public visibility',
-          publicVisibilityHelp:
-            'When on (and status is Published), the league appears publicly on app.myclash.fr.',
         },
         ruleset: {
           scoringSystemLabel: 'Scoring system',
@@ -9134,12 +9138,7 @@ export const fr = {
           statusPublished: 'Publie',
           statusArchived: 'Archive',
           statusHelp:
-            'Brouillon = en cours de configuration · Publie = actif · Archive = retire mais conserve pour les resultats',
-          publicVisibilityLabel: 'Visibilite publique',
-          publicVisibilityHelp:
-            "Quand active, cette ligue apparait sur app.myclash.fr dans l'onglet Ligues. Visibilite publique et Statut = Publie sont tous deux necessaires pour que la ligue s'affiche reellement.",
-          notLivePublicWarning:
-            "La visibilite publique est activee mais le statut n'est pas encore \"Publie\" — cette ligue ne s'affichera toujours pas sur app.myclash.fr tant qu'elle ne sera pas publiee.",
+            'Brouillon = en cours de configuration · Publie = actif et visible publiquement sur app.myclash.fr · Archive = retire mais conserve pour les resultats',
           descriptionLabel: 'Description',
           previewSummary: 'Apercu points + departages',
           pointsByRankLabel: 'Points par rang',
@@ -9160,12 +9159,17 @@ export const fr = {
           tooLargeError: 'Le logo doit faire 10 Mo ou moins.',
         },
         owners: {
-          heading: 'Comptes proprietaires',
+          heading: 'Administrateurs de la ligue (comptes individuels)',
+          description:
+            "Donne a un compte individuel un acces admin a cette ligue, independamment de toute organisation. Pour qu'une organisation entiere gere cette ligue, utilisez Organisations membres ci-dessous.",
           empty: 'Aucun compte lie.',
           nameFallback: '(sans nom)',
           searchPlaceholder: 'Chercher des comptes a ajouter…',
           detachButton: 'Detacher',
           detachConfirm: 'Detacher ce compte de la ligue ?',
+          orgMembershipsLabel: 'Membre de',
+          orgMembershipsHint:
+            "Organisations auxquelles ce compte appartient. Affiche a titre indicatif uniquement — cela ne lie pas l'organisation a cette ligue.",
           addError: "Echec de l'ajout",
           detachError: 'Echec du detachement',
         },
@@ -9173,6 +9177,12 @@ export const fr = {
           heading: 'Organisations membres',
           empty: 'Aucune organisation liee.',
           addHeading: 'Ajouter une organisation',
+          roleLabel: 'Role',
+          roleMember: 'Membre',
+          roleAdmin: 'Admin',
+          roleOwner: 'Proprietaire',
+          roleHint:
+            "Admin ou Proprietaire permet a l'organisation de gerer cette ligue (elle apparait alors dans son onglet Gerer). Membre = participation uniquement.",
           detachButton: 'Detacher',
           detachConfirm: 'Detacher cette organisation de la ligue ?',
           addError: "Echec de l'ajout",
@@ -9785,10 +9795,8 @@ export const fr = {
         basics: {
           nameLabel: 'Nom',
           statusLabel: 'Statut',
+          statusHelp: 'Publie rend cette ligue visible publiquement sur app.myclash.fr.',
           descriptionLabel: 'Description',
-          publicVisibilityLabel: 'Visibilite publique',
-          publicVisibilityHelp:
-            'Activee (et statut Publie), la ligue apparait publiquement sur app.myclash.fr.',
         },
         ruleset: {
           scoringSystemLabel: 'Systeme de pointage',

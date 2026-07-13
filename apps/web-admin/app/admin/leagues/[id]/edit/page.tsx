@@ -156,7 +156,9 @@ export default function EditLeaguePage() {
   const [seasonYear, setSeasonYear] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('draft');
-  const [publicVisibility, setPublicVisibility] = useState(false);
+  // Role applied when attaching an org below. Admin/Owner surface the league in
+  // the org's Manage tab; Member is participation-only (Membership tab).
+  const [orgAddRole, setOrgAddRole] = useState<'member' | 'admin' | 'owner'>('member');
   const [rankingDimensions, setRankingDimensions] = useState<'weapon' | 'weapon_category'>(
     'weapon',
   );
@@ -204,7 +206,6 @@ export default function EditLeaguePage() {
     setSeasonYear(String(found.season_year));
     setDescription(found.description ?? '');
     setStatus(found.status);
-    setPublicVisibility(found.public_visibility);
     setRankingDimensions(found.scoring_config?.rankingDimensions ?? 'weapon');
     const parsed = parseScoringRef(found.scoring_system);
     setScoringSystem(parsed.code);
@@ -423,7 +424,8 @@ export default function EditLeaguePage() {
           name: name.trim(),
           description: description.trim() || null,
           status,
-          publicVisibility,
+          // Visibility is derived from status: Published ⇒ publicly visible.
+          publicVisibility: status === 'published',
           scoringConfig,
         }),
       });
@@ -533,7 +535,7 @@ export default function EditLeaguePage() {
     }
   }
 
-  async function addOrg(orgId: string) {
+  async function addOrg(orgId: string, role: 'member' | 'admin' | 'owner') {
     setBusy(true);
     setError(null);
     try {
@@ -541,7 +543,7 @@ export default function EditLeaguePage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId: orgId, role: 'member' }),
+        body: JSON.stringify({ organizationId: orgId, role }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -774,13 +776,11 @@ export default function EditLeaguePage() {
               </span>
             </label>
           )}
-          {/* Publishing controls. Grouped + described so the operator
-              understands that Status (lifecycle) and Public visibility
-              (whether app.myclash.fr lists the league) are two distinct
-              switches, and that BOTH must be on for the league to
-              appear publicly. Reflects the BE AND-gate at
-              leagues.service.ts:45-56 — keeping the filter unchanged
-              and surfacing the rule in the UI. */}
+          {/* Publishing control. A single Status dropdown drives everything:
+              Published ⇒ the league is publicly visible on app.myclash.fr.
+              The BE AND-gate (leagues.service.ts:45-56) still requires
+              public_visibility = true AND status = 'published'; we derive
+              public_visibility from status on save so the two stay in lockstep. */}
           <fieldset className="sm:col-span-2 rounded-lg border border-border bg-background p-4">
             <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
               {t('admin.leagues.editPage.basics.publishingLegend')}
@@ -806,30 +806,6 @@ export default function EditLeaguePage() {
                 {t('admin.leagues.editPage.basics.statusHelp')}
               </span>
             </label>
-            <label className="mt-3 flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={publicVisibility}
-                onChange={(e) => setPublicVisibility(e.target.checked)}
-                className="mt-0.5 h-4 w-4"
-              />
-              <span>
-                <span className="block text-sm font-medium text-foreground">
-                  {t('admin.leagues.editPage.basics.publicVisibilityLabel')}
-                </span>
-                <span className="mt-0.5 block text-xs text-muted">
-                  {t('admin.leagues.editPage.basics.publicVisibilityHelp')}
-                </span>
-              </span>
-            </label>
-            {publicVisibility && status !== 'published' && (
-              <p
-                role="alert"
-                className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning"
-              >
-                {t('admin.leagues.editPage.basics.notLivePublicWarning')}
-              </p>
-            )}
           </fieldset>
           <label className="text-xs font-medium text-foreground-secondary sm:col-span-2">
             {t('admin.leagues.editPage.basics.descriptionLabel')}
@@ -963,9 +939,10 @@ export default function EditLeaguePage() {
 
       {/* Owner accounts */}
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.owners.heading')}
         </h2>
+        <p className="mb-4 text-xs text-muted">{t('admin.leagues.editPage.owners.description')}</p>
         {userRoles.length === 0 ? (
           <p className="text-sm text-muted italic">{t('admin.leagues.editPage.owners.empty')}</p>
         ) : (
@@ -979,7 +956,13 @@ export default function EditLeaguePage() {
                   </p>
                   <p className="text-xs text-muted">{r.email}</p>
                   {r.organizations.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
+                    <div
+                      className="mt-1 flex flex-wrap items-center gap-1"
+                      title={t('admin.leagues.editPage.owners.orgMembershipsHint')}
+                    >
+                      <span className="text-[10px] uppercase tracking-wide text-muted">
+                        {t('admin.leagues.editPage.owners.orgMembershipsLabel')}
+                      </span>
                       {r.organizations.slice(0, 3).map((o) => (
                         <span
                           key={o.id}
@@ -1070,12 +1053,29 @@ export default function EditLeaguePage() {
             <p className="text-xs font-medium text-foreground-secondary mb-2">
               {t('admin.leagues.editPage.orgs.addHeading')}
             </p>
+            <label className="mb-3 block">
+              <span className="mb-1 block text-xs font-medium text-foreground">
+                {t('admin.leagues.editPage.orgs.roleLabel')}
+              </span>
+              <select
+                value={orgAddRole}
+                onChange={(e) => setOrgAddRole(e.target.value as 'member' | 'admin' | 'owner')}
+                className="w-full rounded-md border border-border px-3 py-2 text-sm sm:w-auto"
+              >
+                <option value="member">{t('admin.leagues.editPage.orgs.roleMember')}</option>
+                <option value="admin">{t('admin.leagues.editPage.orgs.roleAdmin')}</option>
+                <option value="owner">{t('admin.leagues.editPage.orgs.roleOwner')}</option>
+              </select>
+              <span className="mt-1 block text-xs text-muted">
+                {t('admin.leagues.editPage.orgs.roleHint')}
+              </span>
+            </label>
             <div className="grid gap-1 sm:grid-cols-2 max-h-40 overflow-y-auto">
               {availableOrgs.map((o) => (
                 <button
                   key={o.id}
                   type="button"
-                  onClick={() => void addOrg(o.id)}
+                  onClick={() => void addOrg(o.id, orgAddRole)}
                   disabled={busy}
                   className="rounded border border-border px-3 py-1.5 text-left text-sm hover:bg-info/10 disabled:opacity-50"
                 >
