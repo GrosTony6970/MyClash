@@ -41,6 +41,8 @@ export interface EventRollup {
   slug: string | null;
   tournamentCount: number;
   participantCount: number;
+  uniqueFighters: number;
+  uniqueReferees: number;
   matchCount: number;
   completedMatchCount: number;
   completionPercent: number;

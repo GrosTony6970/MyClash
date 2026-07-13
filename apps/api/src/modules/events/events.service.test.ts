@@ -247,7 +247,12 @@ describe('EventsService', () => {
           error: null,
         }),
       )
-      .mockReturnValueOnce(makeAwaitableChain({ count: 3, error: null }))
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [{ person_id: 'ref-1' }, { person_id: 'ref-1' }, { person_id: 'ref-2' }],
+          error: null,
+        }),
+      )
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
       // NEW: getPhasesForTournaments — empty in this fixture so no pools
       // count query follows. Per-tournament poolCount=0, bracketSize=null.
@@ -258,7 +263,8 @@ describe('EventsService', () => {
       totals: {
         tournaments: 1,
         registeredFighters: 1,
-        qualifiedReferees: 3,
+        uniqueFighters: 1,
+        uniqueReferees: 2,
         clubsRepresented: 1,
       },
       tournaments: [
@@ -275,6 +281,58 @@ describe('EventsService', () => {
       ],
     });
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'scorekeeper');
+  });
+
+  it('getEventUniqueParticipantCounts dedupes fighters by global identity + distinct qualified referees', async () => {
+    service = new EventsService(
+      { service: { from: fromMock } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+      undefined,
+      {} as never,
+    );
+    fromMock
+      // getEventTournaments
+      .mockReturnValueOnce(
+        makeAwaitableChain({ data: [{ id: 'tournament-1' }, { id: 'tournament-2' }], error: null }),
+      )
+      // getRegistrationsForTournaments — one human (global g-1) registered in
+      // both tournaments via two person rows, person-2 once, person-3 withdrawn.
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            { tournament_id: 'tournament-1', person_id: 'person-1', status: 'registered' },
+            { tournament_id: 'tournament-2', person_id: 'person-1b', status: 'registered' },
+            { tournament_id: 'tournament-1', person_id: 'person-2', status: 'registered' },
+            { tournament_id: 'tournament-1', person_id: 'person-3', status: 'withdrawn' },
+          ],
+          error: null,
+        }),
+      )
+      // getEventPersons — person-1 and person-1b share global_person_id g-1.
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            { id: 'person-1', global_person_id: 'g-1' },
+            { id: 'person-1b', global_person_id: 'g-1' },
+            { id: 'person-2', global_person_id: null },
+            { id: 'person-3', global_person_id: 'g-3' },
+          ],
+          error: null,
+        }),
+      )
+      // getRefereeQualificationPersons — ref-1 qualified for two roles, ref-2 one.
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [{ person_id: 'ref-1' }, { person_id: 'ref-1' }, { person_id: 'ref-2' }],
+          error: null,
+        }),
+      );
+
+    await expect(service.getEventUniqueParticipantCounts('event-1')).resolves.toEqual({
+      uniqueFighters: 2, // {g-1, person-2}; person-3 withdrawn is excluded
+      uniqueReferees: 2, // {ref-1, ref-2}
+    });
   });
 
   it('exposes per-tournament max_participants / max_waitlist + waitlistedCount + event totals', async () => {
@@ -358,7 +416,7 @@ describe('EventsService', () => {
         }),
       )
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
-      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
     assertOrgRole.mockResolvedValue(undefined);
@@ -423,7 +481,7 @@ describe('EventsService', () => {
       )
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
-      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
     assertOrgRole.mockResolvedValue(undefined);

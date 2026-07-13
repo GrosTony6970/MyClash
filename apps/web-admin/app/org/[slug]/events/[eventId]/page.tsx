@@ -49,7 +49,8 @@ interface DashboardStats {
     waitlistedFighters: number;
     maxParticipants: number | null;
     maxWaitlist: number | null;
-    qualifiedReferees: number;
+    uniqueFighters: number;
+    uniqueReferees: number;
     clubsRepresented: number;
   };
   tournaments: Array<
@@ -519,6 +520,10 @@ export default function EventDetailPage() {
             )}
           />
           <MetricCard
+            label={t('organizer.eventHub.dashboard.uniqueFighters')}
+            value={String(stats?.totals.uniqueFighters ?? 0)}
+          />
+          <MetricCard
             label={t('organizer.eventHub.dashboard.waitlist')}
             value={formatCountOfMax(
               stats?.totals.waitlistedFighters ?? 0,
@@ -530,8 +535,8 @@ export default function EventDetailPage() {
             value={String(stats?.totals.clubsRepresented ?? 0)}
           />
           <MetricCard
-            label={t('organizer.eventHub.dashboard.qualifiedReferees')}
-            value={String(stats?.totals.qualifiedReferees ?? 0)}
+            label={t('organizer.eventHub.dashboard.uniqueReferees')}
+            value={String(stats?.totals.uniqueReferees ?? 0)}
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.countdown')}

@@ -37,6 +37,29 @@ import {
   resolveRulesetConfigDefaults,
 } from './ruleset-defaults';
 
+/**
+ * Distinct people with an ACTIVE registration across the event, deduped by
+ * identity (`persons.global_person_id`, falling back to `person_id`). A fighter
+ * entered in two tournaments counts once. "Active" mirrors the registered-total
+ * filter: waitlisted/withdrawn/disqualified rows are excluded.
+ */
+export function countUniqueActiveFighters(
+  registrations: Array<{ person_id: string; status: string | null }>,
+  globalByPersonId: Map<string, string | null>,
+): number {
+  const keys = new Set<string>();
+  for (const r of registrations) {
+    if (['withdrawn', 'disqualified', 'waitlist'].includes(r.status ?? '')) continue;
+    keys.add(globalByPersonId.get(r.person_id) ?? r.person_id);
+  }
+  return keys.size;
+}
+
+/** Distinct `person_id` count (person_id already references global_persons). */
+export function countDistinctPersonIds(rows: Array<{ person_id: string }>): number {
+  return new Set(rows.map((r) => r.person_id)).size;
+}
+
 const EVENT_LOGO_BUCKET = 'event-assets';
 const EVENT_LOGO_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EVENT_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -501,14 +524,14 @@ export class EventsService {
 
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, persons, refereeQualifications, refereeCounts, phases] =
-      await Promise.all([
-        this.getRegistrationsForTournaments(tournamentIds),
-        this.getEventPersons(eventId),
-        this.countRefereeQualifications(eventId),
-        this.countTournamentRefereeAssignments(eventId, tournamentIds),
-        this.getPhasesForTournaments(tournamentIds),
-      ]);
+    const [registrations, persons, qualificationRows, refereeCounts, phases] = await Promise.all([
+      this.getRegistrationsForTournaments(tournamentIds),
+      this.getEventPersons(eventId),
+      this.getRefereeQualificationPersons(eventId),
+      this.countTournamentRefereeAssignments(eventId, tournamentIds),
+      this.getPhasesForTournaments(tournamentIds),
+    ]);
+    const globalByPersonId = new Map(persons.map((person) => [person.id, person.global_person_id]));
 
     const registrationsByTournament = new Map<string, number>();
     const waitlistByTournament = new Map<string, number>();
@@ -600,7 +623,8 @@ export class EventsService {
         waitlistedFighters: totalWaitlistedFighters,
         maxParticipants: totalMaxParticipants,
         maxWaitlist: totalMaxWaitlist,
-        qualifiedReferees: refereeQualifications,
+        uniqueFighters: countUniqueActiveFighters(registrations, globalByPersonId),
+        uniqueReferees: countDistinctPersonIds(qualificationRows),
         clubsRepresented: representedClubIds.size,
       },
       tournaments: tournaments.map((tournament) => {
@@ -626,6 +650,31 @@ export class EventsService {
           assignedRefereeCount: refereeCounts.get(tournament.id) ?? 0,
         };
       }),
+    };
+  }
+
+  /**
+   * Distinct-people headcounts for an event, shared by the Command Center
+   * dashboard and the organizer statistics page so both surfaces agree:
+   * - uniqueFighters: distinct people with an active registration
+   * - uniqueReferees: distinct qualified referees
+   * The dashboard computes these inline from data it already loads; this
+   * method is the standalone path for callers (e.g. EventStatsService) that
+   * don't otherwise fetch registrations/persons/qualifications.
+   */
+  async getEventUniqueParticipantCounts(
+    eventId: string,
+  ): Promise<{ uniqueFighters: number; uniqueReferees: number }> {
+    const tournamentIds = (await this.getEventTournaments(eventId)).map((t) => t.id);
+    const [registrations, persons, qualifications] = await Promise.all([
+      this.getRegistrationsForTournaments(tournamentIds),
+      this.getEventPersons(eventId),
+      this.getRefereeQualificationPersons(eventId),
+    ]);
+    const globalByPersonId = new Map(persons.map((person) => [person.id, person.global_person_id]));
+    return {
+      uniqueFighters: countUniqueActiveFighters(registrations, globalByPersonId),
+      uniqueReferees: countDistinctPersonIds(qualifications),
     };
   }
 
@@ -1773,13 +1822,13 @@ export class EventsService {
     }>;
   }
 
-  private async countRefereeQualifications(eventId: string) {
-    const { count, error } = await this.supabase.service
+  private async getRefereeQualificationPersons(eventId: string) {
+    const { data, error } = await this.supabase.service
       .from('referee_qualifications')
-      .select('id', { count: 'exact', head: true })
+      .select('person_id')
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
-    return count ?? 0;
+    return (data ?? []) as Array<{ person_id: string }>;
   }
 
   private async countTournamentRefereeAssignments(eventId: string, tournamentIds: string[]) {
@@ -2147,12 +2196,15 @@ export class EventsService {
         red_score: number | null;
         blue_score: number | null;
         match_number_label: string | null;
+        liceName: string | null;
       }
     >();
     if (slotIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
-        .select('id, bracket_slot_id, status, red_score, blue_score, match_number_label')
+        .select(
+          'id, bracket_slot_id, status, red_score, blue_score, match_number_label, lice_id, lices(name)',
+        )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as Array<{
         id: string;
@@ -2161,6 +2213,7 @@ export class EventsService {
         red_score: number | null;
         blue_score: number | null;
         match_number_label: string | null;
+        lices: { name: string | null } | null;
       }>) {
         matchBySlot.set(m.bracket_slot_id, {
           id: m.id,
@@ -2168,6 +2221,7 @@ export class EventsService {
           red_score: m.red_score,
           blue_score: m.blue_score,
           match_number_label: m.match_number_label,
+          liceName: m.lices?.name ?? null,
         });
       }
     }
@@ -2226,6 +2280,7 @@ export class EventsService {
         matchId: match?.id ?? null,
         redRegistrationId: s.registration_a_id,
         blueRegistrationId: s.registration_b_id,
+        liceName: match?.liceName ?? null,
         referees: match?.id ? (refereesByMatch.get(match.id) ?? []) : [],
       };
     });

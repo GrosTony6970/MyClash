@@ -76,7 +76,12 @@ export class EventStatsService {
       tournaments.map((t) => t.id),
     );
 
-    const clubCount = await this.countEventClubs(eventId);
+    const [clubCount, uniqueCounts] = await Promise.all([
+      this.countEventClubs(eventId),
+      // Distinct-people headcounts, shared with the Command Center dashboard so
+      // both surfaces report identical unique fighter/referee numbers.
+      this.events.getEventUniqueParticipantCounts(eventId),
+    ]);
 
     // ── Event-level rollup (net-new aggregation) ──
     const exchangeCount = summaries.reduce((s, t) => s + t.exchangeCount, 0);
@@ -91,6 +96,8 @@ export class EventStatsService {
         slug: event.slug,
         tournamentCount: tournaments.length,
         participantCount: summaries.reduce((s, t) => s + t.participantCount, 0),
+        uniqueFighters: uniqueCounts.uniqueFighters,
+        uniqueReferees: uniqueCounts.uniqueReferees,
         matchCount,
         completedMatchCount,
         completionPercent: roundPct(completedMatchCount, matchCount),

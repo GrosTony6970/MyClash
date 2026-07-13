@@ -45,6 +45,10 @@ export interface EventStatsRollup {
   slug: string | null;
   tournamentCount: number;
   participantCount: number;
+  /** Distinct people with an active registration (deduped across tournaments). */
+  uniqueFighters: number;
+  /** Distinct qualified referees for the event. */
+  uniqueReferees: number;
   matchCount: number;
   completedMatchCount: number;
   completionPercent: number;

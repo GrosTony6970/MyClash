@@ -52,6 +52,7 @@ function makeService(opts: {
   orgs?: ReturnType<typeof makeOrgs>;
   overviewByTournament?: Record<string, ReturnType<typeof overview>>;
   standingsHeaderByTournament?: Record<string, Record<string, unknown>>;
+  uniqueCounts?: { uniqueFighters: number; uniqueReferees: number };
 }) {
   const orgs = opts.orgs ?? makeOrgs();
   const events = {
@@ -59,6 +60,9 @@ function makeService(opts: {
       tournament: opts.standingsHeaderByTournament?.[tSlug] ?? {},
       bracketSlots: [],
     })),
+    getEventUniqueParticipantCounts: vi.fn(
+      async () => opts.uniqueCounts ?? { uniqueFighters: 0, uniqueReferees: 0 },
+    ),
   };
   const stats = {
     getTournamentOverview: vi.fn(
@@ -142,6 +146,7 @@ describe('EventStatsService', () => {
         t1s: { participantCount: 22, completedMatchCount: 8 },
         t2s: { participantCount: 12, completedMatchCount: 5 },
       },
+      uniqueCounts: { uniqueFighters: 28, uniqueReferees: 6 },
     });
 
     const res = await service.getEventStatistics('e1', 'user-1');
@@ -161,6 +166,9 @@ describe('EventStatsService', () => {
     expect(res.event.tournamentCount).toBe(2);
     // Distinct event clubs from persons.club_id union.
     expect(res.event.clubCount).toBe(2);
+    // Distinct-people headcounts come from the shared EventsService method.
+    expect(res.event.uniqueFighters).toBe(28);
+    expect(res.event.uniqueReferees).toBe(6);
     // Per-tournament completion propagates.
     expect(res.tournaments[0]).toMatchObject({
       id: 't1',

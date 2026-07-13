@@ -15,6 +15,10 @@ export function EventStatBand({ event, t }: { event: EventRollup; t: Translate }
         detail={t('organizer.eventStats.band.participantsHint', { count: event.tournamentCount })}
       />
       <MetricCard
+        label={t('organizer.eventStats.band.uniqueFighters')}
+        value={String(event.uniqueFighters)}
+      />
+      <MetricCard
         label={t('organizer.eventStats.band.tournaments')}
         value={String(event.tournamentCount)}
       />
@@ -25,6 +29,10 @@ export function EventStatBand({ event, t }: { event: EventRollup; t: Translate }
         detail={t('organizer.eventStats.band.doublesHint')}
       />
       <MetricCard label={t('organizer.eventStats.band.clubs')} value={String(event.clubCount)} />
+      <MetricCard
+        label={t('organizer.eventStats.band.uniqueReferees')}
+        value={String(event.uniqueReferees)}
+      />
       <MetricCard
         label={t('organizer.eventStats.band.completion')}
         value={`${event.completionPercent}%`}
