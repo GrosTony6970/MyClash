@@ -2,7 +2,7 @@
 
 Cross-platform Node scripts that run on the **developer's machine** (Windows, macOS, Linux).
 
-Distinct from `infra/scripts/` which runs **on the OVH VPS**.
+Distinct from [`infra/scripts/`](../infra/scripts/README.md) which runs **on the OVH VPS**.
 
 | Script              | Purpose                                                  | Wired to              |
 | ------------------- | -------------------------------------------------------- | --------------------- |

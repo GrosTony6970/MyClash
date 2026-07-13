@@ -74,28 +74,57 @@ set -a; source ./.env; set +a
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"
 
-COMPOSE_FILES=(-f infra/docker-compose.prod.yml)
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
-# ── Stop services (keep db running for restore) ──────────────────
-hdr "Stopping app services"
+# ── Stop every service holding a DB connection (keep db running) ──
+# DROP DATABASE fails while ANY session is connected. The Supabase sidecars
+# (auth/rest/realtime/storage) keep persistent pools to ${POSTGRES_DB}, so they
+# must be stopped too — not just the app tier. The final `up -d` brings them back.
+hdr "Stopping services connected to the database"
 
-docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" stop api web-public web-scoring web-admin worker
-ok "App services stopped"
+"${COMPOSE[@]}" stop \
+  api web-public web-scoring web-admin worker \
+  supabase-auth supabase-rest supabase-realtime supabase-storage
+ok "Services stopped"
 
 # ── Restore database ─────────────────────────────────────────────
 if [[ "$BACKUP_FILE" != "none" && -f "$BACKUP_FILE" ]]; then
   hdr "Restoring database from $BACKUP_FILE"
 
-  # Drop and recreate the schema cleanly to ensure a deterministic restore
-  docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" exec -T db \
-    psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};"
-  docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" exec -T db \
-    psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"
+  # Drop + recreate cleanly. WITH (FORCE) terminates any straggler backend
+  # (PG13+) — belt-and-suspenders now that the connected services are stopped.
+  "${COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+    -c "DROP DATABASE IF EXISTS \"${POSTGRES_DB}\" WITH (FORCE);"
+  "${COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+    -c "CREATE DATABASE \"${POSTGRES_DB}\";"
 
-  gunzip -c "$BACKUP_FILE" | \
-    docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" exec -T db \
-    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-  ok "Database restored"
+  # Replay in a single transaction with ON_ERROR_STOP so a truncated or corrupt
+  # dump rolls the fresh database back to empty instead of leaving a half-restored,
+  # incoherent database reported as "success".
+  gunzip -c "$BACKUP_FILE" \
+    | "${COMPOSE[@]}" exec -T db \
+        psql -v ON_ERROR_STOP=1 --single-transaction -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+  ok "Postgres restored from $BACKUP_FILE"
+
+  # ── Validate schema coherence before declaring success ─────────
+  hdr "Validating restored database"
+  validate_query() {
+    "${COMPOSE[@]}" exec -T db \
+      psql -v ON_ERROR_STOP=1 -tAX -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1" \
+      | tr -d '[:space:]'
+  }
+  for schema in public auth storage; do
+    if [[ "$(validate_query "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${schema}';")" != "1" ]]; then
+      err "Restore validation FAILED: schema '${schema}' missing — restored database is not coherent"
+      exit 1
+    fi
+  done
+  PUBLIC_TABLES=$(validate_query "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';")
+  if [[ "${PUBLIC_TABLES:-0}" -lt 10 ]]; then
+    err "Restore validation FAILED: only ${PUBLIC_TABLES:-0} public tables present — restore looks incomplete"
+    exit 1
+  fi
+  ok "Restore validation passed (public tables=${PUBLIC_TABLES})"
 fi
 
 # ── Reset git ────────────────────────────────────────────────────
@@ -107,13 +136,13 @@ ok "Code reset"
 # ── Rebuild ──────────────────────────────────────────────────────
 hdr "Rebuilding images"
 
-docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" build
+"${COMPOSE[@]}" build
 ok "Images built"
 
 # ── Restart ──────────────────────────────────────────────────────
 hdr "Starting stack"
 
-docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" up -d
+"${COMPOSE[@]}" up -d
 ok "Stack started"
 
 # ── Smoke test ───────────────────────────────────────────────────

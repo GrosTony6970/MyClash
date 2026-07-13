@@ -15,11 +15,29 @@
 #            container are preserved. Pair with `redeploy.sh <service>` to recreate.
 #            Cannot be combined with --wipe-db / --full (those are whole-stack ops).
 
-set -euo pipefail
+set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
+
+usage() {
+  cat <<'EOF'
+Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--force]
+       infra/scripts/destroy.sh <service...> [--force]
+
+  (no args)    Remove containers + locally-built images. ALL data preserved.
+  --wipe-db    Also remove Docker volumes (postgres, redis, storage data).
+               data/ folder and logs/ are kept.
+  --full       Complete reset: volumes + data/ + logs/ destroyed.
+               backups/ and .env are NEVER touched.
+  <service...> Selective: stop & remove only the named containers.
+               Volumes, images, data/, logs/, and other containers preserved.
+               Cannot be combined with --wipe-db / --full.
+  --force      Skip confirmation prompt.
+  -h, --help   Show this help.
+EOF
+}
 
 WIPE_DB=0
 FULL=0
@@ -30,21 +48,7 @@ while [[ $# -gt 0 ]]; do
     --wipe-db) WIPE_DB=1; shift ;;
     --full)    FULL=1; shift ;;
     --force)   FORCE=1; shift ;;
-    -h|--help)
-      echo "Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--force]"
-      echo "       infra/scripts/destroy.sh <service...> [--force]"
-      echo
-      echo "  (no args)    Remove containers + locally-built images. ALL data preserved."
-      echo "  --wipe-db    Also remove Docker volumes (postgres, redis, storage data)."
-      echo "               data/ folder and logs/ are kept."
-      echo "  --full       Complete reset: volumes + data/ + logs/ destroyed."
-      echo "               backups/ and .env are NEVER touched."
-      echo "  <service...> Selective: stop & remove only the named containers."
-      echo "               Volumes, images, data/, logs/, and other containers preserved."
-      echo "               Cannot be combined with --wipe-db / --full."
-      echo "  --force      Skip confirmation prompt"
-      exit 0
-      ;;
+    -h|--help) usage; exit 0 ;;
     -*) err "Unknown option: $1"; exit 1 ;;
     *)  SERVICES+=("$1"); shift ;;
   esac

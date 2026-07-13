@@ -7,22 +7,28 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+usage() {
+  cat <<'EOF'
+Usage: infra/scripts/start.sh
+
+Start the stack (docker compose up -d) without rebuilding or redeploying.
+  -h, --help   Show this help.
+EOF
+}
+
 case "${1:-}" in
-  -h|--help)
-    echo "Usage: infra/scripts/start.sh"
-    echo
-    echo "Start the stack (docker compose up -d) without rebuilding or redeploying."
-    exit 0
-    ;;
+  -h|--help) usage; exit 0 ;;
 esac
+
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 hdr "Validating configuration"
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 ok ".env found"
 
 hdr "Starting containers"
-docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml up -d
+"${COMPOSE[@]}" up -d
 ok "Stack started"
 
 echo
-docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml ps
+"${COMPOSE[@]}" ps

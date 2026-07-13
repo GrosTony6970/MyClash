@@ -22,7 +22,7 @@ Usage: infra/scripts/refresh.sh [service...]
 Restart running containers and wait for health. Does NOT rebuild images —
 use redeploy.sh to pick up a code change.
 
-  (no service)  Restart all app services: api web-public web-scoring web-admin worker
+  (no service)  Restart all app services: api web-public web-scoring web-admin web-marketing worker
   service...    Restart only the named services.
   -h, --help    Show this help.
 EOF
@@ -39,7 +39,7 @@ done
 COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 if [[ $# -eq 0 ]]; then
-  SERVICES=(api web-public web-scoring web-admin worker)
+  SERVICES=(api web-public web-scoring web-admin web-marketing worker)
 else
   SERVICES=("$@")
 fi

@@ -43,9 +43,3 @@ require_cmd() {
     exit 1
   fi
 }
-
-# Resolve the repo root from any script that sources this library.
-# Usage: ROOT_DIR=$(repo_root); cd "$ROOT_DIR"
-repo_root() {
-  cd "$(dirname "${BASH_SOURCE[1]}")/../.." && pwd
-}

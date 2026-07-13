@@ -12,6 +12,10 @@
 set -Eeuo pipefail
 
 # ── Logging helpers (standalone — no lib/log.sh dependency) ─────
+# Kept self-contained on purpose: this script also needs an `_ask` prompt-with-default
+# helper that lib/log.sh doesn't provide, and it runs during first-time provisioning
+# where depending on repo-relative helpers buys nothing. Raw ANSI (not tput) for the
+# same reason.
 _ok()   { echo -e "\033[32m✓\033[0m $*"; }
 _err()  { echo -e "\033[31m✗\033[0m $*" >&2; }
 _warn() { echo -e "\033[33m!\033[0m $*"; }

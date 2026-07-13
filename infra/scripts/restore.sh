@@ -100,7 +100,6 @@ if [[ $# -eq 0 ]]; then
 fi
 
 # ── --from-s3 mode ───────────────────────────────────────────────
-FROM_S3=0
 TIMESTAMP_ARG=""
 
 AUTO_YES=0
@@ -113,7 +112,6 @@ done
 [[ "${MYCLASH_RESTORE_CONFIRM:-}" == "1" ]] && AUTO_YES=1
 
 if [[ "${1:-}" == "--from-s3" ]]; then
-  FROM_S3=1
   TIMESTAMP_ARG="${2:-}"
   [[ -n "$TIMESTAMP_ARG" ]] || { err "Usage: restore.sh --from-s3 <timestamp>"; exit 1; }
 

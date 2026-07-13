@@ -16,7 +16,11 @@
 # docs/DISASTER_RECOVERY.md). Safe to run on any docker host.
 #
 # Requires: docker. First run pulls the postgres image (a few minutes).
-# Usage: bash infra/scripts/test-restore-roundtrip.sh
+# Usage: bash infra/scripts/test-restore-roundtrip.sh   (or ./test-restore-roundtrip.sh)
+#
+# Deliberately does NOT source lib/log.sh: this is a self-contained test with plain
+# `echo`/PASS/FAIL output (no colors, no shared ops helpers), so it can be copied and
+# run in isolation on any docker host.
 
 set -Eeuo pipefail
 

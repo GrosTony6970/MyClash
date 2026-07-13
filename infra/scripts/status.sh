@@ -2,7 +2,7 @@
 # infra/scripts/status.sh — comprehensive status check
 # Modeled on MyFAL status.sh; extended for MyClash's multi-service stack.
 
-set -euo pipefail
+set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"

@@ -11,7 +11,7 @@
 # untouched. Use this for a fast single-app iteration without a whole-stack redeploy.
 #
 # Usage:
-#   infra/scripts/redeploy.sh                # all app services (api web-public web-scoring web-admin worker)
+#   infra/scripts/redeploy.sh                # all app services (api web-public web-scoring web-admin web-marketing worker)
 #   infra/scripts/redeploy.sh api worker     # only these
 #   infra/scripts/redeploy.sh web-admin
 #   infra/scripts/redeploy.sh api --pull     # git fetch + reset --hard origin/main first
@@ -38,7 +38,7 @@ Usage: infra/scripts/redeploy.sh [service...] [options]
 Rebuild + recreate only the named app services, leaving every other container
 (db, redis, supabase-*, traefik, and the other apps) running untouched.
 
-  (no service)  Redeploy all app services: api web-public web-scoring web-admin worker
+  (no service)  Redeploy all app services: api web-public web-scoring web-admin web-marketing worker
   service...    One or more of: api worker web-public web-scoring web-admin web-marketing
 
 Options:
@@ -71,7 +71,7 @@ done
 
 # Default to the full app set (matches refresh.sh).
 if [[ "${#SERVICES[@]}" -eq 0 ]]; then
-  SERVICES=(api web-public web-scoring web-admin worker)
+  SERVICES=(api web-public web-scoring web-admin web-marketing worker)
 fi
 
 # ── Validate service names ───────────────────────────────────────

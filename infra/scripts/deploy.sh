@@ -28,7 +28,6 @@ source "$SCRIPT_DIR/lib/log.sh"
 
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
-DOTENV="$ROOT_DIR/.env"
 
 # ── Arguments ────────────────────────────────────────────────────
 USE_DEV_CERTS=0
@@ -241,11 +240,11 @@ print_service_health_diagnostics() {
   local services=("$@")
 
   warn "Docker Compose service snapshot:"
-  docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps || true
+  "${COMPOSE[@]}" ps || true
 
   for svc in "${services[@]}"; do
     local id
-    id=$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps -q "$svc" 2>/dev/null || true)
+    id=$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null || true)
     if [[ -z "$id" ]]; then
       warn "$svc: no container found"
       continue
@@ -309,10 +308,11 @@ set +a
 
 ok "Environment variables present"
 
-# Compose file selection
-COMPOSE_FILES=(-f infra/docker-compose.prod.yml)
+# Compose command: env-file + prod compose file, staging overlay for --dev-certs.
+# --env-file is kept absolute ("$ROOT_DIR/.env") so the script works no matter the cwd.
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 if [[ "$USE_DEV_CERTS" -eq 1 ]]; then
-  COMPOSE_FILES+=(-f infra/docker-compose.staging-certs.yml)
+  COMPOSE+=(-f infra/docker-compose.staging-certs.yml)
   warn "Using Let's Encrypt staging certificates (--dev-certs)"
 fi
 
@@ -336,7 +336,7 @@ fi
 hdr "Syncing version stamps"
 
 if [[ -f VERSION ]]; then
-  APP_VERSION=$(cat VERSION | tr -d '[:space:]')
+  APP_VERSION=$(tr -d '[:space:]' < VERSION)
   APP_VERSION_NODOT="${APP_VERSION//./}"
 
   # Service worker cache names per app
@@ -374,13 +374,13 @@ hdr "Pre-deploy database backup"
 
 if [[ "$SKIP_BACKUP" -eq 1 ]]; then
   warn "Skipping pre-deploy backup (--skip-backup)"
-elif ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps --status running db 2>/dev/null | grep -q db; then
+elif ! "${COMPOSE[@]}" ps --status running db 2>/dev/null | grep -q db; then
   warn "Database not running — skipping pre-deploy backup (likely first deploy)"
 else
   TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
   BACKUP_FILE="backups/pre-deploy/${TIMESTAMP}.sql.gz"
   info "Dumping to $BACKUP_FILE"
-  if docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" exec -T db \
+  if "${COMPOSE[@]}" exec -T db \
        pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" 2>/dev/null | gzip > "$BACKUP_FILE"; then
     ok "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
   else
@@ -435,7 +435,7 @@ ok "System version manifest written to data/system-versions.json"
 # ── Build ────────────────────────────────────────────────────────
 hdr "Building images"
 
-docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" build
+"${COMPOSE[@]}" build
 ok "Images built"
 
 # ── Migrations ───────────────────────────────────────────────────
@@ -446,7 +446,7 @@ if [[ "$SKIP_MIGRATIONS" -eq 1 ]]; then
 else
   # Migration runs as a one-off compose run command, not a service.
   # Failure here exits the script before `up` is called — old containers stay up.
-  if ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
+  if ! "${COMPOSE[@]}" \
          run --rm api node packages/db/scripts/migrate.mjs; then
     err "Migration failed — deploy aborted; previous version is still running"
     err "Investigate, then either fix and re-run, or rollback with: infra/scripts/rollback.sh"
@@ -472,7 +472,7 @@ hdr "Starting stack"
 UP_TIMEOUT=120
 rc=0
 timeout --kill-after=10 "$UP_TIMEOUT" \
-  docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d || rc=$?
+  "${COMPOSE[@]}" up -d || rc=$?
 if [[ "$rc" -ne 0 ]]; then
   if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
     warn "docker compose up -d exited abnormally (code $rc: timeout/killed) — verifying container state via healthcheck poll"
@@ -489,10 +489,10 @@ hdr "Waiting for services to become healthy"
 
 RETRIES=20
 DELAY=3
-for svc in api web-public web-scoring web-admin supabase-storage; do
+for svc in api web-public web-scoring web-admin web-marketing supabase-storage; do
   for i in $(seq 1 "$RETRIES"); do
     HEALTH=$(docker inspect --format='{{.State.Health.Status}}' \
-              "$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")
+              "$("${COMPOSE[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")
     if [[ "$HEALTH" == "healthy" ]]; then
       ok "$svc healthy"
       break
@@ -510,7 +510,7 @@ done
 # ── Bootstrap super admin (first deploy only) ────────────────────
 hdr "Super admin bootstrap"
 
-BOOTSTRAP_RESULT=$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
+BOOTSTRAP_RESULT=$("${COMPOSE[@]}" \
   run --rm \
   -e SUPABASE_URL="http://supabase-auth:9999" \
   -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
@@ -576,7 +576,7 @@ ok "Metadata saved to .last-deploy.json"
 # ── Summary ──────────────────────────────────────────────────────
 hdr "Deploy complete"
 
-docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps
+"${COMPOSE[@]}" ps
 
 echo
 ok "Deployed commit ${NEW_COMMIT:0:8} to https://${DOMAIN}"
