@@ -16,6 +16,9 @@ export interface CommitmentCardProps {
   conflict?: string | null;
   isNext?: boolean;
   nextLabel?: string;
+  /** Currently in progress — takes visual precedence over `isNext`. */
+  isLive?: boolean;
+  liveLabel?: string;
   /** Fighter side for the accent stripe (fights only). */
   side?: 'red' | 'blue';
   refLabel?: string;
@@ -64,6 +67,8 @@ export function CommitmentCard({
   conflict,
   isNext,
   nextLabel = 'Next',
+  isLive,
+  liveLabel = 'Live',
   side,
   refLabel = 'REF',
   href,
@@ -73,13 +78,23 @@ export function CommitmentCard({
       className={[
         'relative flex gap-3 rounded-xl border bg-surface p-4 [touch-action:manipulation]',
         conflict ? 'border-l-4 border-l-danger border-border' : 'border-border',
-        isNext ? 'ring-2 ring-accent' : '',
+        isLive ? 'ring-2 ring-danger' : isNext ? 'ring-2 ring-accent' : '',
       ].join(' ')}
     >
-      {isNext && (
-        <span className="absolute -top-2 left-12 rounded-md bg-accent px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-accent-foreground">
-          {nextLabel}
+      {isLive ? (
+        <span className="absolute -top-2 left-12 inline-flex items-center gap-1 rounded-md bg-danger px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-danger-foreground">
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-danger-foreground animate-pulse motion-reduce:animate-none"
+            aria-hidden
+          />
+          {liveLabel}
         </span>
+      ) : (
+        isNext && (
+          <span className="absolute -top-2 left-12 rounded-md bg-accent px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-accent-foreground">
+            {nextLabel}
+          </span>
+        )
       )}
       <span
         className={['w-1 shrink-0 self-stretch rounded', stripeFor(kind, side)].join(' ')}

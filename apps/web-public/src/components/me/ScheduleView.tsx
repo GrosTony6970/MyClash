@@ -2,10 +2,11 @@
 
 import { formatInZone } from '@myclash/time';
 import { EmptyState, SkillBadge } from '@myclash/ui';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
+import { classifyTime, type TemporalState } from './schedule-time';
 import type {
   PersonSchedule,
   ProgrammeContextRow,
@@ -57,6 +58,15 @@ export function ScheduleView({
   const { t, locale } = useI18n();
   const tz = timezone ?? DEFAULT_TZ;
   const tag = localeTag(locale);
+
+  // Live "now" clock so LIVE / NEXT track the real time and advance as the event
+  // unfolds. ScheduleView only ever mounts on the client (the page renders a
+  // Skeleton until its data fetch resolves), so this never hydrates on the server.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const fmtTime = (iso: string | null) =>
     iso
@@ -113,10 +123,30 @@ export function ScheduleView({
       (b.time ? new Date(b.time).getTime() : Infinity),
   );
 
-  // "Next" = the first not-yet-completed commitment in chronological order.
-  const nextKey = items.find((i) =>
-    i.kind === 'fight' ? i.data.status !== 'completed' : true,
-  )?.key;
+  // Classify each commitment against the real clock, then:
+  //   LIVE = anything in progress right now
+  //   NEXT = the first still-upcoming commitment in chronological order
+  // (mutually exclusive — NEXT is only ever drawn from `upcoming`, never `live`).
+  const startMsOf = (i: DisplayItem) => (i.time ? new Date(i.time).getTime() : null);
+  const states = new Map<string, TemporalState>(
+    items.map((i) => [
+      i.key,
+      classifyTime(
+        {
+          kind: i.kind,
+          startMs: startMsOf(i),
+          endMs:
+            i.kind === 'workshop' && i.data.sessionEnd
+              ? new Date(i.data.sessionEnd).getTime()
+              : null,
+          status: i.kind === 'fight' ? i.data.status : undefined,
+        },
+        now,
+      ),
+    ]),
+  );
+  const liveKeys = new Set([...states].filter(([, s]) => s === 'live').map(([key]) => key));
+  const nextKey = items.find((i) => states.get(i.key) === 'upcoming')?.key;
 
   if (items.length === 0) {
     return <EmptyState title={t('publicApp.me.schedule.emptyAll')} />;
@@ -219,6 +249,8 @@ export function ScheduleView({
           conflict={conflictLabel}
           isNext={item.key === nextKey}
           nextLabel={t('publicApp.me.schedule.next')}
+          isLive={liveKeys.has(item.key)}
+          liveLabel={t('publicApp.me.schedule.live')}
           side={m.isRed ? 'red' : 'blue'}
           href={
             eventSlug
@@ -242,6 +274,8 @@ export function ScheduleView({
           conflict={conflictLabel}
           isNext={item.key === nextKey}
           nextLabel={t('publicApp.me.schedule.next')}
+          isLive={liveKeys.has(item.key)}
+          liveLabel={t('publicApp.me.schedule.live')}
         />
       );
     }
@@ -256,6 +290,8 @@ export function ScheduleView({
         conflict={conflictLabel}
         isNext={item.key === nextKey}
         nextLabel={t('publicApp.me.schedule.next')}
+        isLive={liveKeys.has(item.key)}
+        liveLabel={t('publicApp.me.schedule.live')}
       />
     );
   }
