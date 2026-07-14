@@ -48,9 +48,9 @@ export function RatingHistorySection({ slug, apiUrl }: Props) {
   const label = (s: Series) => (s.category ? `${s.weapon} · ${s.category}` : s.weapon);
 
   return (
-    <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
+    <section className="mb-6 rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-accent">
           {t('publicApp.fighterProfile.ratingHistory')}
         </h2>
         {withData.length > 1 && (
@@ -58,7 +58,7 @@ export function RatingHistorySection({ slug, apiUrl }: Props) {
             aria-label={t('publicApp.fighterProfile.ratingHistoryWeapon')}
             value={selected}
             onChange={(event) => setSelected(Number(event.target.value))}
-            className="rounded-md border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200"
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
           >
             {withData.map((s, i) => (
               <option key={label(s)} value={i}>

@@ -93,7 +93,7 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
   const hasMore = items.length < total;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4">
       {/* Pointer-only click-outside-to-close. A real <button> (so it's not a
           non-interactive element with a click handler), but hidden from the
           tab order + AT — keyboard/SR users close via Escape or the header ✕,
@@ -109,19 +109,19 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="match-history-title"
-        className="relative z-10 flex w-full max-w-2xl flex-col rounded-xl border border-gray-700 bg-gray-950 shadow-2xl"
+        className="relative z-10 flex w-full max-w-2xl flex-col rounded-xl border border-border bg-surface shadow-2xl"
         style={{ maxHeight: '85vh' }}
       >
-        <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2
             id="match-history-title"
-            className="text-xs font-semibold uppercase tracking-wider text-amber-400"
+            className="text-xs font-semibold uppercase tracking-wider text-accent"
           >
             {t('publicApp.fighterProfile.matchHistoryTitle')}
           </h2>
           <button
             onClick={onClose}
-            className="rounded p-1 text-gray-400 transition-colors hover:text-white"
+            className="rounded p-1 text-muted transition-colors hover:text-foreground"
             aria-label={t('actions.close')}
           >
             ✕
@@ -130,9 +130,9 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <p className="p-6 text-center text-sm text-gray-400">{t('common.loading')}</p>
+            <p className="p-6 text-center text-sm text-muted">{t('common.loading')}</p>
           ) : items.length === 0 ? (
-            <p className="p-6 text-center text-sm text-gray-400">
+            <p className="p-6 text-center text-sm text-muted">
               {t('publicApp.fighterProfile.matchHistoryEmpty')}
             </p>
           ) : (
@@ -143,11 +143,13 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
                 return (
                   <div
                     key={match.id}
-                    className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900 px-4 py-3"
+                    className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3"
                   >
                     <div>
-                      <p className="text-sm font-medium text-white">{match.opponentName || '—'}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm font-medium text-foreground">
+                        {match.opponentName || '—'}
+                      </p>
+                      <p className="text-xs text-muted">
                         {match.eventName || match.tournamentName}
                         {match.weapon ? ` · ${match.weapon}` : ''}
                       </p>
@@ -157,15 +159,15 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
                         className={[
                           'rounded-full px-2 py-0.5 text-xs font-bold',
                           won
-                            ? 'bg-green-900 text-green-300'
+                            ? 'bg-success/15 text-success'
                             : draw
-                              ? 'bg-yellow-900 text-yellow-300'
-                              : 'bg-red-900/50 text-red-400',
+                              ? 'bg-warning/15 text-warning'
+                              : 'bg-danger/15 text-danger',
                         ].join(' ')}
                       >
                         {won ? 'W' : draw ? 'D' : 'L'}
                       </span>
-                      <p className="font-mono text-sm font-bold tabular-nums text-white">
+                      <p className="font-mono text-sm font-bold tabular-nums text-foreground">
                         {match.ourScore}-{match.opponentScore}
                       </p>
                     </div>
@@ -181,14 +183,14 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
                 <button
                   onClick={() => void handleLoadMore()}
                   disabled={loadingMore}
-                  className="rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition-colors hover:border-gray-500 hover:text-white disabled:opacity-50"
+                  className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-foreground-secondary transition-colors hover:border-muted hover:text-foreground disabled:opacity-50"
                 >
                   {loadingMore
                     ? t('common.loading')
                     : t('publicApp.fighterProfile.matchHistoryLoadMore')}
                 </button>
               ) : items.length > 0 ? (
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-muted">
                   {t('publicApp.fighterProfile.matchHistoryNoMore')}
                 </p>
               ) : null}

@@ -305,13 +305,13 @@ export default async function FighterPage({ params }: Props) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-gray-700 bg-gray-900 text-xl font-black text-gray-300">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-surface text-xl font-black text-muted">
             ?
           </div>
-          <h1 className="mb-2 font-display font-bold text-2xl sm:text-3xl text-white">
+          <h1 className="mb-2 font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('publicApp.fighterProfile.notFoundTitle')}
           </h1>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted">
             {t('publicApp.fighterProfile.notFoundDescription', { slug })}
           </p>
         </div>
@@ -334,36 +334,36 @@ export default async function FighterPage({ params }: Props) {
           <img
             src={fighter.photoUrl}
             alt={fighter.displayName}
-            className="h-20 w-20 rounded-full border-2 border-gray-700 object-cover"
+            className="h-20 w-20 rounded-full border-2 border-border object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-700 bg-red-900 text-2xl font-black text-red-200">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-border bg-accent text-2xl font-black text-accent-foreground">
             {fighter.givenName[0]}
             {fighter.familyName[0]}
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
             {fighter.displayName}
           </h1>
-          {fighter.alias && <p className="text-sm italic text-gray-400">{fighter.alias}</p>}
+          {fighter.alias && <p className="text-sm italic text-muted">{fighter.alias}</p>}
           {fighter.clubName && (
             <Link
               href={`/clubs/${fighter.clubSlug ?? ''}`}
-              className="block text-sm text-gray-400 transition-colors hover:text-white"
+              className="block text-sm text-muted transition-colors hover:text-foreground"
             >
               {fighter.clubName}
             </Link>
           )}
           {fighter.practicingSinceYear && (
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-muted">
               {t('publicApp.fighterProfile.practicingSinceLabel', {
                 year: fighter.practicingSinceYear,
               })}
             </p>
           )}
           {fighter.hemaRatingsScore !== null && (
-            <p className="mt-1 text-xs text-amber-400">
+            <p className="mt-1 text-xs text-accent">
               {t('publicApp.fighterProfile.hemaRatings')}: {fighter.hemaRatingsScore.toFixed(1)}
             </p>
           )}
@@ -377,7 +377,7 @@ export default async function FighterPage({ params }: Props) {
                   href={fighter.websiteUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-gray-400 transition-colors hover:text-white"
+                  className="text-muted transition-colors hover:text-foreground"
                 >
                   {t('publicApp.fighterProfile.website')}
                 </a>
@@ -387,7 +387,7 @@ export default async function FighterPage({ params }: Props) {
                   href={fighter.instagramUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-gray-400 transition-colors hover:text-white"
+                  className="text-muted transition-colors hover:text-foreground"
                 >
                   {t('publicApp.fighterProfile.instagram')}
                 </a>
@@ -397,7 +397,7 @@ export default async function FighterPage({ params }: Props) {
                   href={fighter.youtubeUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-gray-400 transition-colors hover:text-white"
+                  className="text-muted transition-colors hover:text-foreground"
                 >
                   {t('publicApp.fighterProfile.youtube')}
                 </a>
@@ -407,7 +407,7 @@ export default async function FighterPage({ params }: Props) {
                   href={fighter.hemaRatings.detailsUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-gray-400 transition-colors hover:text-white"
+                  className="text-muted transition-colors hover:text-foreground"
                 >
                   {t('publicApp.fighterProfile.hemaRatings')}
                 </a>
@@ -422,14 +422,18 @@ export default async function FighterPage({ params }: Props) {
         )}
       </div>
 
-      {fighter.bio && <p className="mb-6 text-sm leading-relaxed text-gray-300">{fighter.bio}</p>}
+      {fighter.bio && (
+        <p className="mb-6 text-sm leading-relaxed text-foreground-secondary">{fighter.bio}</p>
+      )}
 
       {insight && (
-        <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+        <section className="mb-6 rounded-xl border border-border bg-surface p-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
             {t('publicApp.fighterProfile.insightTitle')}
           </h2>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-300">{insight}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground-secondary">
+            {insight}
+          </p>
         </section>
       )}
 
@@ -476,10 +480,13 @@ export default async function FighterPage({ params }: Props) {
           <CareerList title={t('publicApp.fighterProfile.upcoming')}>
             {career.upcoming.slice(0, 5).map((registration) => (
               <li key={registration.id}>
-                <Link className="font-medium text-white" href={`/e/${registration.eventSlug}`}>
+                <Link
+                  className="font-medium text-foreground hover:text-accent"
+                  href={`/e/${registration.eventSlug}`}
+                >
                   {registration.eventName}
                 </Link>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted">
                   {registration.tournamentName} · {formatDate(registration.eventStartDate)}
                 </p>
               </li>
@@ -488,18 +495,21 @@ export default async function FighterPage({ params }: Props) {
           <CareerList title={t('publicApp.fighterProfile.eventParticipation')}>
             {career.eventParticipation.slice(0, 5).map((event) => (
               <li key={event.eventId}>
-                <Link className="font-medium text-white" href={`/e/${event.eventSlug}`}>
+                <Link
+                  className="font-medium text-foreground hover:text-accent"
+                  href={`/e/${event.eventSlug}`}
+                >
                   {event.eventName}
                 </Link>
-                <p className="text-xs text-gray-500">{formatDate(event.startDate)}</p>
+                <p className="text-xs text-muted">{formatDate(event.startDate)}</p>
               </li>
             ))}
           </CareerList>
           <CareerList title={t('publicApp.fighterProfile.tournamentPlacements')}>
             {career.tournamentPlacements.slice(0, 5).map((placement) => (
               <li key={placement.tournamentId}>
-                <span className="font-medium text-white">{placement.tournamentName}</span>
-                <p className="text-xs text-gray-500">
+                <span className="font-medium text-foreground">{placement.tournamentName}</span>
+                <p className="text-xs text-muted">
                   {placement.eventName} · {placement.weapon ?? t('common.unknown')} ·{' '}
                   {placement.place ?? t('publicApp.fighterProfile.dnp')}
                 </p>
@@ -509,8 +519,8 @@ export default async function FighterPage({ params }: Props) {
           <CareerList title={t('publicApp.fighterProfile.leagueRankings')}>
             {career.leagueRankings.slice(0, 5).map((ranking) => (
               <li key={`${ranking.leagueName}-${ranking.group}`}>
-                <span className="font-medium text-white">{ranking.leagueName}</span>
-                <p className="text-xs text-gray-500">
+                <span className="font-medium text-foreground">{ranking.leagueName}</span>
+                <p className="text-xs text-muted">
                   {ranking.group} · {t('publicApp.fighterProfile.rank', { rank: ranking.rank })} ·{' '}
                   {ranking.totalPoints}
                 </p>
@@ -522,8 +532,8 @@ export default async function FighterPage({ params }: Props) {
 
       {live.length > 0 && (
         <section className="mb-6">
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-red-400">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-danger">
+            <span className="h-2 w-2 rounded-full bg-danger" />
             {t('publicApp.fighterProfile.liveNow')}
           </h2>
           {live.map((match) => (
@@ -531,15 +541,17 @@ export default async function FighterPage({ params }: Props) {
               key={match.id}
               href={match.eventSlug ? `/e/${match.eventSlug}/match/${match.id}` : '#'}
             >
-              <div className="rounded-xl border-2 border-red-700 bg-red-950/30 p-4">
-                <p className="mb-1 text-xs text-gray-400">{match.matchNumberLabel}</p>
-                <p className="font-bold text-white">{match.opponentName ?? t('common.unknown')}</p>
+              <div className="rounded-xl border-2 border-danger bg-danger/10 p-4">
+                <p className="mb-1 text-xs text-foreground-secondary">{match.matchNumberLabel}</p>
+                <p className="font-bold text-foreground">
+                  {match.opponentName ?? t('common.unknown')}
+                </p>
                 <p className="mt-1 text-2xl font-black tabular-nums">
-                  <span className="text-red-400">
+                  <span className="text-danger">
                     {match.isRed ? match.redScore : match.blueScore}
                   </span>
-                  <span className="mx-1.5 text-gray-600">-</span>
-                  <span className="text-blue-400">
+                  <span className="mx-1.5 text-muted">-</span>
+                  <span className="text-info">
                     {match.isRed ? match.blueScore : match.redScore}
                   </span>
                 </p>
@@ -551,7 +563,7 @@ export default async function FighterPage({ params }: Props) {
 
       {history.length > 0 ? (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">
             {t('publicApp.fighterProfile.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -564,12 +576,12 @@ export default async function FighterPage({ params }: Props) {
                   key={match.id}
                   href={match.eventSlug ? `/e/${match.eventSlug}/match/${match.id}` : '#'}
                 >
-                  <div className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 transition-colors hover:border-gray-600">
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-muted">
                     <div>
-                      <p className="text-sm font-medium text-white">
+                      <p className="text-sm font-medium text-foreground">
                         {match.opponentName ?? t('common.unknown')}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted">
                         {match.eventName ?? match.matchNumberLabel}
                       </p>
                     </div>
@@ -577,12 +589,12 @@ export default async function FighterPage({ params }: Props) {
                       <span
                         className={[
                           'rounded-full px-2 py-0.5 text-xs font-bold',
-                          won ? 'bg-green-900 text-green-300' : 'bg-red-900/50 text-red-400',
+                          won ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger',
                         ].join(' ')}
                       >
                         {won ? 'W' : 'L'}
                       </span>
-                      <p className="font-mono text-sm font-bold tabular-nums text-white">
+                      <p className="font-mono text-sm font-bold tabular-nums text-foreground">
                         {myScore}-{oppScore}
                       </p>
                     </div>
@@ -595,7 +607,7 @@ export default async function FighterPage({ params }: Props) {
         </section>
       ) : (
         <div className="py-12 text-center">
-          <p className="text-sm text-gray-500">{t('publicApp.fighterProfile.noMatchHistory')}</p>
+          <p className="text-sm text-muted">{t('publicApp.fighterProfile.noMatchHistory')}</p>
           <MatchHistoryTrigger slug={fighter.slug} apiUrl={getApiUrl()} />
         </div>
       )}
@@ -605,10 +617,8 @@ export default async function FighterPage({ params }: Props) {
 
 function ProfilePanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
-        {title}
-      </h2>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">{title}</h2>
       {children}
     </div>
   );
@@ -617,8 +627,8 @@ function ProfilePanel({ title, children }: { title: string; children: React.Reac
 function ClubLine({ label, clubs }: { label: string; clubs: FighterClubLink[] }) {
   if (clubs.length === 0) return null;
   return (
-    <p className="mb-2 text-sm text-gray-300 last:mb-0">
-      <span className="text-gray-500">{label}: </span>
+    <p className="mb-2 text-sm text-foreground-secondary last:mb-0">
+      <span className="text-muted">{label}: </span>
       {clubs.map((club) => club.clubs?.name ?? t('common.unknown')).join(', ')}
     </p>
   );
@@ -626,11 +636,9 @@ function ClubLine({ label, clubs }: { label: string; clubs: FighterClubLink[] })
 
 function CareerList({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-amber-400">
-        {title}
-      </h2>
-      <ul className="space-y-3 text-sm text-gray-300">{children}</ul>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-accent">{title}</h2>
+      <ul className="space-y-3 text-sm text-foreground-secondary">{children}</ul>
     </div>
   );
 }

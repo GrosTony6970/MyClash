@@ -17,7 +17,7 @@ export function MatchHistoryTrigger({ slug, apiUrl }: Props) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="mt-3 text-xs font-semibold text-amber-400 underline-offset-4 hover:underline"
+        className="mt-3 text-xs font-semibold text-accent underline-offset-4 hover:underline"
       >
         {t('publicApp.fighterProfile.matchHistoryShowAll')} →
       </button>
