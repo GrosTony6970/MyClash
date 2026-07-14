@@ -39,10 +39,14 @@ interface FighterStats {
   afterblowGiven1: number;
   hitsGiven2: number;
   afterblowGiven2: number;
+  hitsGiven3: number;
+  afterblowGiven3: number;
   hitsReceived1: number;
   afterblowReceived1: number;
   hitsReceived2: number;
   afterblowReceived2: number;
+  hitsReceived3: number;
+  afterblowReceived3: number;
   blowsGiven: number;
   blowsReceived: number;
   afterblowsReceivedTotal: number;
@@ -70,28 +74,40 @@ interface Overview {
   }>;
 }
 
+interface TargetValueStats {
+  maxValue: number | null;
+  distribution: Array<{ value: number; cleanHits: number }>;
+  hunters: Array<{ personId: string; name: string; club: string | null; cleanHits: number }>;
+}
+
+const EMPTY_TARGETS: TargetValueStats = { maxValue: null, distribution: [], hunters: [] };
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
 async function fetchStats(
   tournamentId: string,
   apiUrl: string,
-): Promise<{ overview: Overview | null; fighters: FighterStats[] }> {
+): Promise<{ overview: Overview | null; fighters: FighterStats[]; targets: TargetValueStats }> {
   try {
-    const [overviewRes, fightersRes] = await Promise.all([
+    const [overviewRes, fightersRes, targetsRes] = await Promise.all([
       fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/stats/overview`, {
         cache: 'no-store',
       }),
       fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/stats/fighters`, {
         cache: 'no-store',
       }),
+      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/stats/target-values`, {
+        cache: 'no-store',
+      }),
     ]);
 
     const overview = overviewRes.ok ? ((await overviewRes.json()) as Overview) : null;
     const fighters = fightersRes.ok ? ((await fightersRes.json()) as FighterStats[]) : [];
+    const targets = targetsRes.ok ? ((await targetsRes.json()) as TargetValueStats) : EMPTY_TARGETS;
 
-    return { overview, fighters };
+    return { overview, fighters, targets };
   } catch {
-    return { overview: null, fighters: [] };
+    return { overview: null, fighters: [], targets: EMPTY_TARGETS };
   }
 }
 
@@ -155,10 +171,19 @@ export default async function StatsPage({ params }: Props) {
     );
   }
 
-  const { overview, fighters } = await fetchStats(tournamentId, apiUrl);
+  const { overview, fighters, targets } = await fetchStats(tournamentId, apiUrl);
 
   // Sort fighters by hit_ratio desc (blow-based, mode-independent)
   const sorted = [...fighters].sort((a, b) => (b.hitRatio ?? -1) - (a.hitRatio ?? -1));
+
+  // Show value-3 columns only when the ruleset produced 3-pt hits (migration 0136).
+  const hasV3 = fighters.some(
+    (f) => f.hitsGiven3 + f.afterblowGiven3 + f.hitsReceived3 + f.afterblowReceived3 > 0,
+  );
+
+  // Point-value distribution (1pt/2pt/3pt) for the stacked bar.
+  const targetTotal = targets.distribution.reduce((s, d) => s + d.cleanHits, 0);
+  const DIST_COLORS = ['bg-amber-600', 'bg-red-800', 'bg-purple-700', 'bg-emerald-700'];
 
   // Exchange type distribution
   const totalClean = fighters.reduce((s, f) => s + f.hitsGiven1 + f.hitsGiven2, 0) / 2; // each exchange counted twice (attacker + defender)
@@ -304,6 +329,70 @@ export default async function StatsPage({ params }: Props) {
         </section>
       )}
 
+      {/* ── Deep-target hunters ── */}
+      {targets.hunters.length > 0 && (
+        <section className="mb-8">
+          <h2
+            className="text-xs font-semibold uppercase tracking-wider mb-1"
+            style={{ color: 'var(--event-accent, #f59e0b)' }}
+          >
+            {t('publicApp.tournamentStats.deepTargetsTitle')}
+          </h2>
+          <p className="text-xs text-gray-600 mb-3">
+            {t('publicApp.tournamentStats.deepTargetsCaption', { points: targets.maxValue ?? 0 })}
+          </p>
+          <div className="flex flex-col gap-2">
+            {targets.hunters.map((h, i) => (
+              <div
+                key={h.personId}
+                className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3"
+              >
+                <span className="text-gray-600 font-bold w-5 text-right text-sm">{i + 1}</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-white text-sm">{h.name}</p>
+                  {h.club && <p className="text-xs text-gray-500">{h.club}</p>}
+                </div>
+                <p className="font-mono font-bold text-white">{h.cleanHits}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Target zones (1pt / 2pt / 3pt distribution) ── */}
+      {targetTotal > 0 && (
+        <section className="mb-8">
+          <h2
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
+            style={{ color: 'var(--event-accent, #f59e0b)' }}
+          >
+            {t('publicApp.tournamentStats.pointDistributionTitle')}
+          </h2>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
+              {targets.distribution.map((d, i) => (
+                <div
+                  key={d.value}
+                  className={`${DIST_COLORS[i % DIST_COLORS.length]} transition-all`}
+                  style={{ width: `${(d.cleanHits / targetTotal) * 100}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+              {targets.distribution.map((d, i) => (
+                <span key={d.value}>
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${DIST_COLORS[i % DIST_COLORS.length]} mr-1`}
+                  />
+                  {t('publicApp.tournamentStats.pointDistributionSegment', { points: d.value })}{' '}
+                  {pct(d.cleanHits, targetTotal)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Per-fighter detailed table ── */}
       {sorted.length > 0 && (
         <section>
@@ -350,6 +439,12 @@ export default async function StatsPage({ params }: Props) {
                   >
                     ✓2-1
                   </th>
+                  {hasV3 && (
+                    <>
+                      <th className="text-center py-2 px-1.5 font-medium text-green-500">✓3</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-orange-400">✓3-1</th>
+                    </>
+                  )}
                   <th
                     className="text-center py-2 px-1.5 font-medium text-red-400"
                     title={t('publicApp.tournamentStats.colClean1ReceivedTitle')}
@@ -374,11 +469,23 @@ export default async function StatsPage({ params }: Props) {
                   >
                     ✗2-1
                   </th>
+                  {hasV3 && (
+                    <>
+                      <th className="text-center py-2 px-1.5 font-medium text-red-400">✗3</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-red-300">✗3-1</th>
+                    </>
+                  )}
                   <th
                     className="text-center py-2 px-1.5 font-medium"
                     title={t('publicApp.tournamentStats.colTotalTitle')}
                   >
                     {t('publicApp.tournamentStats.colTotal')}
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium"
+                    title={t('publicApp.tournamentStats.colDoublePctTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colDoublePct')}
                   </th>
                   <th
                     className="text-right py-2 pl-2 font-medium"
@@ -412,6 +519,16 @@ export default async function StatsPage({ params }: Props) {
                     <td className="text-center py-2 px-1.5 text-orange-300">
                       {fmt(f.afterblowGiven2)}
                     </td>
+                    {hasV3 && (
+                      <>
+                        <td className="text-center py-2 px-1.5 text-green-400">
+                          {fmt(f.hitsGiven3)}
+                        </td>
+                        <td className="text-center py-2 px-1.5 text-orange-300">
+                          {fmt(f.afterblowGiven3)}
+                        </td>
+                      </>
+                    )}
                     <td className="text-center py-2 px-1.5 text-red-400">{fmt(f.hitsReceived1)}</td>
                     <td
                       className="text-center py-2 px-1.5 text-red-300"
@@ -426,7 +543,22 @@ export default async function StatsPage({ params }: Props) {
                     >
                       {fmt(f.afterblowReceived2)}
                     </td>
+                    {hasV3 && (
+                      <>
+                        <td className="text-center py-2 px-1.5 text-red-400">
+                          {fmt(f.hitsReceived3)}
+                        </td>
+                        <td className="text-center py-2 px-1.5 text-red-300">
+                          {fmt(f.afterblowReceived3)}
+                        </td>
+                      </>
+                    )}
                     <td className="text-center py-2 px-1.5">{fmt(f.totalExchanges)}</td>
+                    <td className="text-center py-2 px-1.5">
+                      {f.totalExchanges > 0
+                        ? `${Math.round((f.doubles / f.totalExchanges) * 100)}%`
+                        : '0%'}
+                    </td>
                     <td className="text-right py-2 pl-2 font-mono font-bold">
                       {fmtRatio(f.hitRatio)}
                     </td>

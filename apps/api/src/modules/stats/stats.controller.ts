@@ -30,4 +30,13 @@ export class StatsController {
   async fighters(@Param('id', ParseUUIDPipe) id: string) {
     return this.stats.getFighterStats(id);
   }
+
+  @Get('tournaments/:id/stats/target-values')
+  @ApiOperation({
+    summary: 'Exchange point-value distribution + deep-target hunters (clean hits, ruleset-aware)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async targetValues(@Param('id', ParseUUIDPipe) id: string) {
+    return this.stats.getTargetValueStats(id);
+  }
 }

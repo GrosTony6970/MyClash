@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { EventStatBand } from '../../../../../../src/components/statistics/EventStatBand';
 import { TournamentStatSection } from '../../../../../../src/components/statistics/TournamentStatSection';
+import { WeaponPointStatsSection } from '../../../../../../src/components/statistics/WeaponPointStats';
 import { RefereeWorkloadTable } from '../../../../../../src/components/statistics/RefereeWorkloadTable';
 import type { EventStatistics } from '../../../../../../src/components/statistics/types';
 
@@ -58,6 +59,8 @@ export default function EventStatisticsPage() {
       ) : data ? (
         <div className="space-y-8">
           <EventStatBand event={data.event} t={t} />
+
+          <WeaponPointStatsSection breakdown={data.weaponBreakdown} t={t} />
 
           {data.tournaments.length === 0 ? (
             <p className="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-muted">

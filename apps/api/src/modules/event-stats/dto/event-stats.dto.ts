@@ -68,10 +68,24 @@ export interface RefereeWorkloadRow {
   averageRefereeTimeMs: number;
 }
 
+/** Per-weapon point-value stats (deep-target hunters + point distribution). */
+export interface WeaponTargetStats {
+  /** tournaments.weapon display name; null when the tournament has no weapon set. */
+  weapon: string | null;
+  /** Highest point value present ("deep target"); null when there are no clean hits. */
+  maxValue: number | null;
+  /** Total clean hits per point value, ascending by value (stacked-bar source). */
+  distribution: Array<{ value: number; cleanHits: number }>;
+  /** Top-5 deep-target hunters: clean hits at maxValue, merged by person across the weapon's tournaments. */
+  hunters: Array<{ personId: string; name: string; club: string | null; cleanHits: number }>;
+}
+
 export interface EventStatisticsResponse {
   event: EventStatsRollup;
   tournaments: TournamentStatSummary[];
   referees: RefereeWorkloadRow[];
+  /** Per-weapon deep-target hunters + point-value distribution (side-by-side comparison). */
+  weaponBreakdown: WeaponTargetStats[];
 }
 
 /** Lazy per-tournament detail: overall standings + full per-fighter blow table. */

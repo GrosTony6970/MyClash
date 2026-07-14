@@ -64,17 +64,41 @@ function DistributionBar({
 // ── Per-fighter blow table (lyonamhe.fr layout) ─────────────────────────────
 function DetailTable({ fighters, t }: { fighters: FighterStats[]; t: Translate }) {
   const sorted = [...fighters].sort((a, b) => (b.hitRatio ?? -1) - (a.hitRatio ?? -1));
-  const numCols: Array<{ key: keyof FighterStats; head: string; cls?: string }> = [
-    { key: 'doubles', head: t('organizer.eventStats.detail.colDoubles') },
-    { key: 'hitsGiven1', head: '✓1', cls: 'text-success' },
-    { key: 'afterblowGiven1', head: '✓1-1', cls: 'text-warning' },
-    { key: 'hitsGiven2', head: '✓2', cls: 'text-success' },
-    { key: 'afterblowGiven2', head: '✓2-1', cls: 'text-warning' },
-    { key: 'hitsReceived1', head: '✗1', cls: 'text-danger' },
-    { key: 'afterblowReceived1', head: '✗1-1', cls: 'text-danger' },
-    { key: 'hitsReceived2', head: '✗2', cls: 'text-danger' },
-    { key: 'afterblowReceived2', head: '✗2-1', cls: 'text-danger' },
-    { key: 'totalExchanges', head: t('organizer.eventStats.detail.colTotal') },
+  // Show the value-3 columns only when the ruleset actually produced 3-pt hits,
+  // so the common 1/2 tournaments stay unchanged (migration 0136).
+  const hasV3 = fighters.some(
+    (f) => f.hitsGiven3 + f.afterblowGiven3 + f.hitsReceived3 + f.afterblowReceived3 > 0,
+  );
+  const doublePct = (f: FighterStats) =>
+    f.totalExchanges > 0 ? `${Math.round((f.doubles / f.totalExchanges) * 100)}%` : '0%';
+  const numCols: Array<{ head: string; cls?: string; value: (f: FighterStats) => string }> = [
+    { head: t('organizer.eventStats.detail.colDoubles'), value: (f) => fmt(f.doubles) },
+    { head: '✓1', cls: 'text-success', value: (f) => fmt(f.hitsGiven1) },
+    { head: '✓1-1', cls: 'text-warning', value: (f) => fmt(f.afterblowGiven1) },
+    { head: '✓2', cls: 'text-success', value: (f) => fmt(f.hitsGiven2) },
+    { head: '✓2-1', cls: 'text-warning', value: (f) => fmt(f.afterblowGiven2) },
+    ...(hasV3
+      ? [
+          { head: '✓3', cls: 'text-success', value: (f: FighterStats) => fmt(f.hitsGiven3) },
+          { head: '✓3-1', cls: 'text-warning', value: (f: FighterStats) => fmt(f.afterblowGiven3) },
+        ]
+      : []),
+    { head: '✗1', cls: 'text-danger', value: (f) => fmt(f.hitsReceived1) },
+    { head: '✗1-1', cls: 'text-danger', value: (f) => fmt(f.afterblowReceived1) },
+    { head: '✗2', cls: 'text-danger', value: (f) => fmt(f.hitsReceived2) },
+    { head: '✗2-1', cls: 'text-danger', value: (f) => fmt(f.afterblowReceived2) },
+    ...(hasV3
+      ? [
+          { head: '✗3', cls: 'text-danger', value: (f: FighterStats) => fmt(f.hitsReceived3) },
+          {
+            head: '✗3-1',
+            cls: 'text-danger',
+            value: (f: FighterStats) => fmt(f.afterblowReceived3),
+          },
+        ]
+      : []),
+    { head: t('organizer.eventStats.detail.colTotal'), value: (f) => fmt(f.totalExchanges) },
+    { head: t('organizer.eventStats.detail.colDoublePct'), value: doublePct },
   ];
   return (
     <div>
@@ -89,10 +113,7 @@ function DetailTable({ fighters, t }: { fighters: FighterStats[]; t: Translate }
                 {t('organizer.eventStats.detail.colFighter')}
               </th>
               {numCols.map((c) => (
-                <th
-                  key={String(c.key)}
-                  className={`px-1.5 py-2 text-center font-medium ${c.cls ?? ''}`}
-                >
+                <th key={c.head} className={`px-1.5 py-2 text-center font-medium ${c.cls ?? ''}`}>
                   {c.head}
                 </th>
               ))}
@@ -114,8 +135,8 @@ function DetailTable({ fighters, t }: { fighters: FighterStats[]; t: Translate }
                   {f.clubName ? <p className="text-xs text-muted">{f.clubName}</p> : null}
                 </td>
                 {numCols.map((c) => (
-                  <td key={String(c.key)} className={`px-1.5 py-2 text-center ${c.cls ?? ''}`}>
-                    {fmt(f[c.key] as number)}
+                  <td key={c.head} className={`px-1.5 py-2 text-center ${c.cls ?? ''}`}>
+                    {c.value(f)}
                   </td>
                 ))}
                 <td className="py-2 pl-2 text-right font-mono font-bold">{fmtRatio(f.hitRatio)}</td>

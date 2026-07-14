@@ -53,6 +53,7 @@ function makeService(opts: {
   overviewByTournament?: Record<string, ReturnType<typeof overview>>;
   standingsHeaderByTournament?: Record<string, Record<string, unknown>>;
   uniqueCounts?: { uniqueFighters: number; uniqueReferees: number };
+  targetRowsByTournament?: Record<string, unknown[]>;
 }) {
   const orgs = opts.orgs ?? makeOrgs();
   const events = {
@@ -69,6 +70,7 @@ function makeService(opts: {
       async (id: string) => opts.overviewByTournament?.[id] ?? overview(),
     ),
     getFighterStats: vi.fn(async () => []),
+    getTargetValueRows: vi.fn(async (id: string) => opts.targetRowsByTournament?.[id] ?? []),
   };
   const poolStandings = {
     getPoolStandings: vi.fn(async () => ({
@@ -278,5 +280,77 @@ describe('EventStatsService', () => {
     expect(jane.averageRefereeTimeMs).toBe(90000); // (60000 + 120000) / 2
     // Sorted by matchesReffed desc — Jane (2) before Max (1).
     expect(res.referees[0]!.personId).toBe('ref-1');
+  });
+
+  it('builds a per-weapon breakdown (deep-target hunters + point distribution) grouped by weapon', async () => {
+    setupTables({
+      events: {
+        data: { id: 'e1', organization_id: 'org-1', slug: 'evt', name: 'Evt' },
+        error: null,
+      },
+      tournaments: {
+        data: [
+          {
+            id: 't1',
+            slug: 't1s',
+            name: 'Longsword',
+            weapon: 'longsword',
+            color: null,
+            status: 'completed',
+          },
+          {
+            id: 't2',
+            slug: 't2s',
+            name: 'Rapier',
+            weapon: 'rapier',
+            color: null,
+            status: 'completed',
+          },
+        ],
+        error: null,
+      },
+      referee_assignments: { data: [], error: null },
+      persons: { data: [], error: null },
+    });
+    const tv = (o: Record<string, unknown>) => ({
+      registrationId: 'r',
+      personId: 'p',
+      givenName: 'A',
+      familyName: 'B',
+      clubName: null,
+      pointValue: 1,
+      cleanHits: 1,
+      ...o,
+    });
+    const { service } = makeService({
+      targetRowsByTournament: {
+        t1: [
+          tv({ personId: 'p1', pointValue: 2, cleanHits: 5 }),
+          tv({ personId: 'p2', pointValue: 2, cleanHits: 3 }),
+          tv({ personId: 'p1', pointValue: 1, cleanHits: 4 }),
+        ],
+        t2: [
+          tv({ personId: 'p3', pointValue: 3, cleanHits: 6 }),
+          tv({ personId: 'p3', pointValue: 1, cleanHits: 2 }),
+        ],
+      },
+    });
+
+    const res = await service.getEventStatistics('e1', 'user-1');
+
+    // Two weapon groups, sorted by weapon name asc.
+    expect(res.weaponBreakdown.map((w) => w.weapon)).toEqual(['longsword', 'rapier']);
+
+    const [longsword, rapier] = res.weaponBreakdown;
+    // Longsword: deep target = 2; distribution sorted asc; hunters at value 2.
+    expect(longsword!.maxValue).toBe(2);
+    expect(longsword!.distribution).toEqual([
+      { value: 1, cleanHits: 4 },
+      { value: 2, cleanHits: 8 },
+    ]);
+    expect(longsword!.hunters.map((h) => h.personId)).toEqual(['p1', 'p2']);
+    // Rapier: ruleset-aware deep target = 3 (not hardcoded to 2).
+    expect(rapier!.maxValue).toBe(3);
+    expect(rapier!.hunters[0]).toMatchObject({ personId: 'p3', cleanHits: 6 });
   });
 });

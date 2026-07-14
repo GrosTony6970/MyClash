@@ -61,10 +61,19 @@ export interface RefereeWorkloadRow {
   averageRefereeTimeMs: number;
 }
 
+/** Per-weapon point-value stats (deep-target hunters + point distribution). */
+export interface WeaponTargetStats {
+  weapon: string | null;
+  maxValue: number | null;
+  distribution: Array<{ value: number; cleanHits: number }>;
+  hunters: Array<{ personId: string; name: string; club: string | null; cleanHits: number }>;
+}
+
 export interface EventStatistics {
   event: EventRollup;
   tournaments: TournamentSummary[];
   referees: RefereeWorkloadRow[];
+  weaponBreakdown: WeaponTargetStats[];
 }
 
 /** Per-fighter blow breakdown (lyonamhe.fr layout). */
@@ -78,10 +87,14 @@ export interface FighterStats {
   afterblowGiven1: number;
   hitsGiven2: number;
   afterblowGiven2: number;
+  hitsGiven3: number;
+  afterblowGiven3: number;
   hitsReceived1: number;
   afterblowReceived1: number;
   hitsReceived2: number;
   afterblowReceived2: number;
+  hitsReceived3: number;
+  afterblowReceived3: number;
   blowsGiven: number;
   blowsReceived: number;
   totalExchanges: number;
