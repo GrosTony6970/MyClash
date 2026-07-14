@@ -169,6 +169,31 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       `(${shared.length} fight both tournaments AND referee; Anthony fights + referees)`,
   );
 
+  // ── Scripted competitors: David Perchais + Robin Rabechault ───────────────────
+  // Each competes in Longsword (eliminated at the quarter-final), referees both
+  // tournaments, and is an instructor. Force each into the Longsword roster + the
+  // referee list (deduped; keep Longsword ≤32 by dropping a plain filler), and
+  // remove them from Sidesword so they only compete in Longsword.
+  const david =
+    persons.find((p) => /perchais/i.test(p.familyName) && /david/i.test(p.givenName)) ?? null;
+  const robin = persons.find((p) => /rabechault/i.test(p.familyName)) ?? null;
+  const scripted = [david, robin].filter((p): p is Person => p !== null);
+  for (const s of scripted) {
+    const bIdx = fightersB.findIndex((p) => p.id === s.id);
+    if (bIdx >= 0) fightersB.splice(bIdx, 1);
+    if (!fightersA.some((p) => p.id === s.id)) {
+      const dropIdx = fightersA.findIndex(
+        (p) => p.id !== anthony.id && !scripted.some((x) => x.id === p.id),
+      );
+      if (dropIdx >= 0) fightersA.splice(dropIdx, 1);
+      fightersA.push(s);
+    }
+    if (!referees.some((p) => p.id === s.id)) referees.push(s);
+  }
+  console.log(
+    `  → scripted competitors: ${scripted.map((s) => `${s.givenName} ${s.familyName}`).join(', ') || '(none found)'}`,
+  );
+
   // ── Rebrand the throwaway event for the demo (name + place + a 2-day window) ──
   //    country is an ISO 3166-1 alpha-2 code ('FR'); the public UI renders it via
   //    formatCountryName('FR', locale) → "France".
@@ -444,6 +469,68 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     '09',
     'red',
   );
+
+  // Capture the scripted fighters' Longsword registration ids and force them into
+  // DIFFERENT pools (so both can sweep → overall ranks 1-2 → opposite bracket
+  // halves → they never meet before the final). Must run before any pool scores.
+  let davidRegId: string | null = null;
+  let robinRegId: string | null = null;
+  if (long.id && scripted.length) {
+    const regs = (await (
+      await reqOk(await get(`tournaments/${long.id}/registrations`))
+    ).json()) as Array<{
+      id: string;
+      persons?: { given_name?: string; family_name?: string } | null;
+    }>;
+    const regIdOf = (fam: RegExp, giv?: RegExp): string | null =>
+      regs.find(
+        (r) =>
+          r.persons &&
+          fam.test(r.persons.family_name ?? '') &&
+          (!giv || giv.test(r.persons.given_name ?? '')),
+      )?.id ?? null;
+    davidRegId = david ? regIdOf(/perchais/i, /david/i) : null;
+    robinRegId = robin ? regIdOf(/rabechault/i) : null;
+
+    await step('scripted: David & Robin into different pools', async () => {
+      const pwm = (await (
+        await reqOk(await get(`tournaments/${long.id}/pools-with-matches`))
+      ).json()) as Array<{
+        poolId?: string;
+        id?: string;
+        pool_id?: string;
+        matches?: Array<{
+          red_registration_id: string | null;
+          blue_registration_id: string | null;
+        }>;
+      }>;
+      const pid = (p: (typeof pwm)[number]): string => (p.poolId ?? p.id ?? p.pool_id) as string;
+      const poolOf = (regId: string | null) =>
+        regId
+          ? pwm.find((p) =>
+              (p.matches ?? []).some(
+                (m) => m.red_registration_id === regId || m.blue_registration_id === regId,
+              ),
+            )
+          : undefined;
+      const davidPool = poolOf(davidRegId);
+      const robinPool = poolOf(robinRegId);
+      const sharePool = davidPool && robinPool && pid(davidPool) === pid(robinPool);
+      if (sharePool && robinRegId) {
+        const other = pwm.find((p) => pid(p) !== pid(davidPool!));
+        if (other) {
+          await reqOk(
+            await post(`pools/${pid(other)}/members`, { data: { registrationId: robinRegId } }),
+          );
+        }
+      }
+      console.log(
+        `    ↳ David reg=${davidRegId?.slice(0, 8) ?? '—'}, Robin reg=${robinRegId?.slice(0, 8) ?? '—'}` +
+          `${sharePool ? ' (moved apart)' : ''}`,
+      );
+      return true;
+    });
+  }
   // Lunch break between the two tournaments. Created BETWEEN the buildTournament
   // calls so its sort_order lands between the Longsword (sort_order 2) and
   // Sidesword (sort_order 4) pool blocks; generate's cursor slides it to 12:00
@@ -525,6 +612,49 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     }
   }
   console.log(`  ✓ granted ${rSkill} referee skills (all 3 roles each → interchangeable)`);
+
+  // ── Scripted referees: David & Robin referee a Sidesword pool + a Longsword SF ──
+  // Sidesword pool (day-1 afternoon) is conflict-free (they don't fight Sidesword).
+  // The Longsword semi-final (round 3) match rows already exist (generate-bracket)
+  // with lice_id still null — required by the match-scope CHECK — and both lose their
+  // QF so they never fight the SF. Done before fillReferees to avoid double-booking.
+  if (scripted.length && long.id) {
+    await step('scripted: David & Robin referee both tournaments', async () => {
+      const lsRes = await get(`tournaments/${long.id}/bracket`);
+      const lsBracket = lsRes.ok()
+        ? ((await lsRes.json()) as { slots: Array<{ round: number; matchId: string | null }> })
+        : { slots: [] };
+      const sfMatchIds = lsBracket.slots
+        .filter((s) => s.round === 3 && s.matchId)
+        .map((s) => s.matchId as string);
+      for (let i = 0; i < scripted.length; i++) {
+        const g = refId(scripted[i]);
+        const swPool = side.poolIds[i % Math.max(side.poolIds.length, 1)];
+        if (swPool) {
+          const r = await post(`events/${eventId}/referee-assignments`, {
+            data: { poolId: swPool, role: 'arbitre_declarant', personId: g },
+          });
+          if (!r.ok()) console.log(`    ✗ ${scripted[i].familyName} Sidesword ref: ${r.status()}`);
+        }
+        const sf = sfMatchIds[i % Math.max(sfMatchIds.length, 1)];
+        if (sf) {
+          // Longsword semi-final (round 3) — David/Robin lost their QF so they never
+          // fight it. Role-scoped per-match referee (person_id = global id); the
+          // service now writes lice_id null itself, so no pre-null needed.
+          const r = await put(`matches/${sf}/referee-role-assignments`, {
+            data: { role: 'arbitre_declarant', refereeId: g },
+          });
+          if (!r.ok())
+            console.log(`    ✗ ${scripted[i].familyName} Longsword SF ref: ${r.status()}`);
+          else
+            console.log(
+              `    ✓ ${scripted[i].familyName} Longsword SF ref (match ${sf.slice(0, 8)})`,
+            );
+        }
+      }
+      return true;
+    });
+  }
 
   // Fill referee slots from the conflict-aware assignment board: the product's
   // auto-assign engine does a bulk pass, then a deterministic top-up assigns each
@@ -642,8 +772,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // auto-completes the match as a 0–0 double loss (both fighters lose,
   // end_reason=max_doubles, no winner). This is the ONLY place that posts that
   // many doubles, and it is reachable for pool matches only (gated by
-  // `allowDoubleOut`) — a null winner can't advance a bracket slot.
-  const DOUBLE_OUT_IDXS = new Set([5, 12]);
+  // `allowDoubleOut`) — a null winner can't advance a bracket slot. Set to the
+  // first 2 NON-scripted Longsword pool matches at play time (scripted matches are
+  // forced shutout wins), so `doubleOuts > 0` always holds.
+  let doubleOutMatchIds = new Set<string>();
   let played = 0;
   let exchangesPosted = 0;
   let cardsPosted = 0;
@@ -654,11 +786,58 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const blue = m.blue_registration_id;
     if (!red || !blue || m.status === 'completed') return; // bye or already played
 
+    // ── Scripted competitors sweep their Longsword pool (shutout → top-2 seed). ──
+    const poolScriptedRegIds = [davidRegId, robinRegId].filter((x): x is string => Boolean(x));
+    const scriptedSide: 'red' | 'blue' | null = poolScriptedRegIds.includes(red)
+      ? 'red'
+      : poolScriptedRegIds.includes(blue)
+        ? 'blue'
+        : null;
+    if (scriptedSide) {
+      matchBaseMs = baseMsOf(m.id, WS_DAYS[0]!, '09:00', idx * 90_000);
+      await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
+      const wColor = scriptedSide;
+      const lColor = scriptedSide === 'red' ? 'blue' : 'red';
+      const wReg = scriptedSide === 'red' ? red : blue;
+      let sq = 1;
+      let sclk = 4_000 + Math.floor(Math.random() * 8_000);
+      for (let i = 0; i < 8; i++) {
+        // 8–0 shutout → 0 hits received, no doubles → maximal TF_v1 ratio.
+        await exchange(m.id, {
+          sequence: sq++,
+          type: 'clean',
+          firstStrikerColor: wColor,
+          firstStrikeValue: 1,
+          clockTimeMs: sclk,
+        });
+        sclk += gapMs();
+        exchangesPosted++;
+      }
+      for (let a = 0; a < 2; a++) {
+        // ≥2 afterblows, opponent-struck net-zero (1-1) → scripted timesHit stays 0.
+        await exchange(m.id, {
+          sequence: sq++,
+          type: 'afterblow',
+          firstStrikerColor: lColor,
+          firstStrikeValue: 1,
+          afterblowValue: 1,
+          clockTimeMs: sclk,
+        });
+        sclk += gapMs();
+        exchangesPosted++;
+      }
+      await patch(`matches/${m.id}/status`, {
+        data: { status: 'completed', winnerRegistrationId: wReg },
+      });
+      played++;
+      return;
+    }
+
     // Pools were scheduled on day 1 → use their real scheduled_at as the clock base.
     matchBaseMs = baseMsOf(m.id, WS_DAYS[0]!, '09:00', idx * 90_000);
     await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
 
-    if (allowDoubleOut && DOUBLE_OUT_IDXS.has(idx)) {
+    if (allowDoubleOut && doubleOutMatchIds.has(m.id)) {
       let dclock = 10_000;
       for (let d = 1; d <= DOUBLE_CAP; d++) {
         await exchange(m.id, { sequence: d, type: 'double', clockTimeMs: dclock });
@@ -709,19 +888,29 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       }
     }
 
-    // ~30%: a net-zero afterblow for the winner (deductive nets ~0 → still ahead).
-    if (Math.random() < 0.3) {
-      await exchange(m.id, {
-        sequence: seq++,
-        type: 'afterblow',
-        firstStrikerColor: winnerColor,
-        firstStrikeValue: 1,
-        afterblowValue: 1,
-        clockTimeMs: clock,
-      });
-      clock += gapMs();
-      exchangesPosted++;
-    }
+    // Two afterblows every match: one 2-1 struck by the WINNER (deductive → winner
+    // +1, stays clearly ahead and below the 10 cap) and one net-zero 1-1 (either
+    // side). Keeps afterblows at ~15% of exchanges and exercises the 2-1 path.
+    await exchange(m.id, {
+      sequence: seq++,
+      type: 'afterblow',
+      firstStrikerColor: winnerColor,
+      firstStrikeValue: 2,
+      afterblowValue: 1,
+      clockTimeMs: clock,
+    });
+    clock += gapMs();
+    exchangesPosted++;
+    await exchange(m.id, {
+      sequence: seq++,
+      type: 'afterblow',
+      firstStrikerColor: Math.random() < 0.5 ? winnerColor : loserColor,
+      firstStrikeValue: 1,
+      afterblowValue: 1,
+      clockTimeMs: clock,
+    });
+    clock += gapMs();
+    exchangesPosted++;
     // ~25%: ONE extra "double" — a single double stays below DOUBLE_CAP so this
     // stays a normal win (never a double-out); it scores nobody but dents the
     // TF_v1 score ratio (it grows the denominator).
@@ -792,6 +981,21 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       await reqOk(await get(`tournaments/${tid}/pools-with-matches`))
     ).json()) as Array<{ matches?: PwmMatch[] }>;
     const matches = pools.flatMap((p) => p.matches ?? []);
+    if (allowDoubleOut) {
+      const scriptedRegIds = [davidRegId, robinRegId].filter((x): x is string => Boolean(x));
+      doubleOutMatchIds = new Set(
+        matches
+          .filter(
+            (m) =>
+              m.red_registration_id &&
+              m.blue_registration_id &&
+              !scriptedRegIds.includes(m.red_registration_id) &&
+              !scriptedRegIds.includes(m.blue_registration_id),
+          )
+          .slice(0, 2)
+          .map((m) => m.id),
+      );
+    }
     let idx = 0;
     for (const m of matches) {
       try {
@@ -909,6 +1113,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const playBracketMatch = async (
     s: BracketSlot,
     baseMs: number,
+    forcedWinnerReg: string | null = null,
   ): Promise<{ winnerName: string | null }> => {
     const mid = s.matchId!;
     const red = s.redRegistrationId!;
@@ -916,7 +1121,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     matchBaseMs = baseMs; // brackets are scheduled only after play → computed day-2 slot
     await patch(`matches/${mid}/status`, { data: { status: 'running' } });
 
-    const winnerColor: 'red' | 'blue' = Math.random() < 0.5 ? 'red' : 'blue';
+    const winnerColor: 'red' | 'blue' =
+      forcedWinnerReg === red
+        ? 'red'
+        : forcedWinnerReg === blue
+          ? 'blue'
+          : Math.random() < 0.5
+            ? 'red'
+            : 'blue';
     const loserColor = winnerColor === 'red' ? 'blue' : 'red';
     const winnerReg = winnerColor === 'red' ? red : blue;
     const loserReg = winnerColor === 'red' ? blue : red;
@@ -949,19 +1161,28 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       await hit(loserColor, v);
       l -= v;
     }
-    // ~25%: a net-zero afterblow for the winner (deductive nets ~0 → winner stays ahead).
-    if (Math.random() < 0.25) {
-      await exchange(mid, {
-        sequence: seq++,
-        type: 'afterblow',
-        firstStrikerColor: winnerColor,
-        firstStrikeValue: 1,
-        afterblowValue: 1,
-        clockTimeMs: clock,
-      });
-      clock += gapMs();
-      exchangesPosted++;
-    }
+    // Two afterblows: one 2-1 struck by the winner (winner +1, stays ahead, below
+    // the 10 cap) and one net-zero 1-1.
+    await exchange(mid, {
+      sequence: seq++,
+      type: 'afterblow',
+      firstStrikerColor: winnerColor,
+      firstStrikeValue: 2,
+      afterblowValue: 1,
+      clockTimeMs: clock,
+    });
+    clock += gapMs();
+    exchangesPosted++;
+    await exchange(mid, {
+      sequence: seq++,
+      type: 'afterblow',
+      firstStrikerColor: Math.random() < 0.5 ? winnerColor : loserColor,
+      firstStrikeValue: 1,
+      afterblowValue: 1,
+      clockTimeMs: clock,
+    });
+    clock += gapMs();
+    exchangesPosted++;
     // ~25%: ONE "double" exchange (scores nobody) — a single double stays below
     // DOUBLE_CAP, so a bracket match never double-outs and always resolves to a
     // winner that can advance.
@@ -1030,6 +1251,24 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         if (!s.matchId || !s.redRegistrationId || !s.blueRegistrationId) continue; // bye / unresolved
         if (s.status === 'completed') continue;
         try {
+          // Longsword scripting: David & Robin win the round-of-16 (round 1) and
+          // lose the quarter-final (round 2) → eliminated at the QF. They're in
+          // opposite halves, so no slot ever holds both.
+          let forcedWinnerReg: string | null = null;
+          if (name.startsWith('Longsword')) {
+            const bracketScriptedRegIds = [davidRegId, robinRegId].filter((x): x is string =>
+              Boolean(x),
+            );
+            const inSlot = bracketScriptedRegIds.find(
+              (rid) => rid === s.redRegistrationId || rid === s.blueRegistrationId,
+            );
+            if (inSlot) {
+              const opp =
+                s.redRegistrationId === inSlot ? s.blueRegistrationId : s.redRegistrationId;
+              if (round === 1) forcedWinnerReg = inSlot;
+              else if (round === 2) forcedWinnerReg = opp;
+            }
+          }
           const { winnerName } = await playBracketMatch(
             s,
             baseMsOf(
@@ -1038,6 +1277,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
               `${bracketStartHour(name)}:00`,
               ((round - 1) * 30 + (s.position - 1) * 5) * 60_000,
             ),
+            forcedWinnerReg,
           );
           played++;
           if (round === finalRound && s.position === 1) champion = winnerName;
@@ -1157,6 +1397,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   console.log(`  ✓ workshop venue + ${areaIds.length} areas`);
 
   let wMade = 0;
+  const createdWorkshopIds: string[] = [];
   for (let i = 0; i < 6; i++) {
     const instructor = instructors[i % Math.max(instructors.length, 1)];
     const ok = await step(`workshop ${i + 1}`, async () => {
@@ -1184,6 +1425,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         }),
       );
       const workshopId = ((await res.json()) as { id: string }).id;
+      createdWorkshopIds.push(workshopId);
       if (instructor) {
         await post(`events/${eventId}/instructors/${instructor.id}`);
         await post(`workshops/${workshopId}/instructors`, {
@@ -1210,6 +1452,21 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     if (ok) wMade++;
   }
   console.log(`  ✓ ${wMade}/6 workshops published`);
+
+  // ── Extra instructors: David, Robin, Anthony (all also fighters / referees). ────
+  await step('instructors: David, Robin, Anthony', async () => {
+    const extraInstructors = [david, robin, anthony].filter((p): p is Person => p !== null);
+    for (let i = 0; i < extraInstructors.length; i++) {
+      const p = extraInstructors[i];
+      await post(`events/${eventId}/instructors/${p.id}`);
+      const ws = createdWorkshopIds[i % Math.max(createdWorkshopIds.length, 1)];
+      if (ws) await post(`workshops/${ws}/instructors`, { data: { globalPersonId: refId(p) } });
+    }
+    console.log(
+      `    ↳ tagged ${extraInstructors.map((p) => p.familyName).join(', ')} as instructors`,
+    );
+    return true;
+  });
 
   for (const id of tournamentIds) {
     await step(`publish tournament ${id.slice(0, 8)}`, async () =>
