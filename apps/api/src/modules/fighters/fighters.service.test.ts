@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FightersService, parseBoolCell } from './fighters.service';
+import { buildRefereeStats, type RefereeAssignmentInput } from './referee-stats';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -558,6 +559,59 @@ describe('FightersService', () => {
       const result = await (service as unknown as Resolver).fetchFighterNamesByMatch([]);
       expect(result.size).toBe(0);
       expect(fromMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('mapRefereeAssignments — test-event exclusion', () => {
+    type Mapper = { mapRefereeAssignments: (rows: unknown[]) => RefereeAssignmentInput[] };
+
+    // A completed match-scoped referee_assignments row, shaped like the embed in
+    // fetchRefereeAssignmentsByPerson (matches → phases → tournaments → events).
+    const assignmentRow = (over: { matchId: string; eventId: string; isTest: boolean }) => ({
+      match_id: over.matchId,
+      person_id: 'gp-1',
+      role: 'arbitre_declarant',
+      matches: {
+        id: over.matchId,
+        status: 'completed',
+        scheduled_at: null,
+        pool_id: null,
+        bracket_slot_id: null,
+        pools: null,
+        bracket_slots: null,
+        phases: {
+          type: 'pool',
+          config_json: null,
+          tournaments: {
+            id: 't1',
+            name: 'Longsword',
+            weapon: 'longsword',
+            events: { id: over.eventId, name: 'Event', is_test_event: over.isTest },
+          },
+        },
+      },
+    });
+
+    it('drops assignments in test events, so referee career stats never count them', () => {
+      const rows = [
+        assignmentRow({ matchId: 'm-real', eventId: 'e-real', isTest: false }),
+        assignmentRow({ matchId: 'm-test', eventId: 'e-test', isTest: true }),
+      ];
+
+      const mapped = (service as unknown as Mapper).mapRefereeAssignments(rows);
+      // The test-event assignment is dropped by the mapper (mirrors the fighter
+      // career exclusion); only the real-event match survives.
+      expect(mapped.map((a) => a.matchId)).toEqual(['m-real']);
+
+      // …and it cascades to the derived stats: totalMatches/eventsWorked exclude it.
+      const stats = buildRefereeStats({
+        userId: 'gp-1',
+        assignments: mapped,
+        durations: [],
+        penalties: [],
+      });
+      expect(stats.totalMatches).toBe(1);
+      expect(stats.eventsWorked).toBe(1);
     });
   });
 });
