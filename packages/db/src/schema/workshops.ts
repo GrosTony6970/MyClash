@@ -2,7 +2,7 @@
  * Workshops, sessions, instructors, and enrollments.
  * Workshops are scoped to an Event (not a Tournament).
  */
-import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, pgTable, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { events } from './events';
 // `fighters` maps to the `global_persons` table (renamed in migration 0023).
 import { fighters as globalPersons } from './fighters';
@@ -84,8 +84,23 @@ export const workshopEnrollments = pgTable('workshop_enrollments', {
     .references(() => workshopSessions.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull(),
   status: text('status').notNull().default('intent'),
-  // intent | confirmed | waitlisted | cancelled
+  // intent | confirmed | waitlisted | cancelled | refused (0132)
   position: integer('position'),
   enrolledAt: timestamp('enrolled_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Workshop feedback (0133) ────────────────────────────────────────────────────
+// One editable rating (1..5) + optional comment per participant per workshop.
+// `rater_person_id` is the event-scoped persons.id (like enrollments.user_id).
+export const workshopFeedback = pgTable('workshop_feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workshopId: uuid('workshop_id')
+    .notNull()
+    .references(() => workshops.id, { onDelete: 'cascade' }),
+  raterPersonId: uuid('rater_person_id').notNull(),
+  rating: smallint('rating').notNull(),
+  comment: text('comment'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

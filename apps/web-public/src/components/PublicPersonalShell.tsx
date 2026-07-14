@@ -19,6 +19,7 @@ const navItems = [
   { href: '/me/settings', labelKey: 'publicApp.personalShell.nav.settings', badge: 'St' },
   { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
   { href: '/me/events', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
+  { href: '/me/instructor', labelKey: 'publicApp.personalShell.nav.instructor', badge: 'In' },
 ] as const;
 
 function isActive(pathname: string, href: string) {

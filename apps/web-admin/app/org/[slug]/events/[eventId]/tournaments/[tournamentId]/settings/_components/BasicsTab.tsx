@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
+import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 
 interface Ruleset {
   code: string;
@@ -34,6 +35,7 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
   const params = useParams<{ slug: string }>();
   const orgSlug = params.slug;
   const toast = useToast();
+  const weaponOptions = useWeaponOptions();
   const [data, setData] = useState<TournamentBasics | null>(null);
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
@@ -90,8 +92,10 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Send null (not undefined) so selecting "None" actually clears the
+          // weapon — the DTO is nullish and the service maps null to a clear.
           name: data.name,
-          weapon: data.weapon ?? undefined,
+          weapon: data.weapon,
           rulesetCode: data.rulesetCode,
           rulesetVersion: data.rulesetVersion,
           penaltyRulesetId: data.penaltyRulesetId,
@@ -140,11 +144,24 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
       </label>
 
       <Field label={t('organizer.tournaments.settings.weapon')}>
-        <input
+        <select
           value={data.weapon ?? ''}
           onChange={(e) => setData({ ...data, weapon: e.target.value || null })}
           className="w-full rounded-md border border-border px-3 py-2 text-sm"
-        />
+        >
+          <option value="">{t('common.none')}</option>
+          {/* Union the current stored value even if it's no longer an active
+              catalog entry, so it stays selected until the operator changes it
+              (the API accepts an unchanged legacy value). */}
+          {(data.weapon && !weaponOptions.includes(data.weapon)
+            ? [data.weapon, ...weaponOptions]
+            : weaponOptions
+          ).map((w) => (
+            <option key={w} value={w}>
+              {w}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <Field label={t('organizer.tournaments.settings.ruleset')}>

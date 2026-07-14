@@ -33,8 +33,10 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
+import { BroadcastNotificationsService } from '../notifications/broadcast-notifications.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
+import { FeedbackService } from './feedback.service';
 import { WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
@@ -92,6 +94,34 @@ const updateWorkshopSchema = z
   .strict();
 class UpdateWorkshopBody extends createZodDto(updateWorkshopSchema) {}
 
+// Instructor-scoped edit: only the four fields an instructor may change.
+// `.nullish()` (= nullable + optional) lets the FE send null to clear a field.
+const instructorUpdateWorkshopSchema = z
+  .object({
+    weapon: z.string().nullish(),
+    descriptionMd: z.string().nullish(),
+    level: z.string().nullish(),
+    language: z.string().nullish(),
+  })
+  .strict();
+class InstructorUpdateWorkshopBody extends createZodDto(instructorUpdateWorkshopSchema) {}
+
+const notifyWorkshopSchema = z
+  .object({
+    title: z.string().min(1).max(120),
+    body: z.string().min(1).max(1000),
+  })
+  .strict();
+class NotifyWorkshopBody extends createZodDto(notifyWorkshopSchema) {}
+
+const submitFeedbackSchema = z
+  .object({
+    rating: z.number().int().min(1).max(5),
+    comment: z.string().max(2000).nullish(),
+  })
+  .strict();
+class SubmitFeedbackBody extends createZodDto(submitFeedbackSchema) {}
+
 const createSessionSchema = z
   .object({
     startTime: z.iso.datetime(),
@@ -141,6 +171,8 @@ export class WorkshopsController {
     private readonly workshops: WorkshopsService,
     private readonly enrollment: EnrollmentService,
     private readonly supabase: SupabaseService,
+    private readonly broadcasts: BroadcastNotificationsService,
+    private readonly feedback: FeedbackService,
   ) {}
 
   // ── Workshops CRUD ────────────────────────────────────────────────────────────
@@ -198,6 +230,72 @@ export class WorkshopsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.workshops.updateWorkshop(id, dto, userId);
+  }
+
+  @Patch('workshops/:id/instructor')
+  @ApiOperation({
+    summary: 'Edit weapon/description/level/language (workshop instructor or workshop_lead+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async instructorUpdate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: InstructorUpdateWorkshopBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.updateWorkshopByInstructor(id, dto, userId);
+  }
+
+  @Post('workshops/:id/notify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Message all enrollees of a workshop (workshop instructor or workshop_lead+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async notifyEnrollees(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: NotifyWorkshopBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.assertCanManageWorkshopAsInstructorOrLead(id, userId);
+    const { eventId, personIds } = await this.workshops.getWorkshopEnrolleeRecipients(id);
+    if (personIds.length === 0) return { id: null, recipientCount: 0 };
+    return this.broadcasts.sendToEventPersons(eventId, userId, personIds, dto.title, dto.body);
+  }
+
+  // ── Workshop feedback (ratings) ─────────────────────────────────────────────────
+
+  @Post('workshops/:id/feedback')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Submit/update your rating for a workshop (enrolled + started)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async submitFeedback(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SubmitFeedbackBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const personId = await this.resolvePersonIdForWorkshop(req, id);
+    return this.feedback.submitFeedback(id, personId, dto.rating, dto.comment ?? null);
+  }
+
+  @Get('workshops/:id/my-feedback')
+  @ApiOperation({ summary: 'Your existing rating for a workshop (prefill)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async myFeedback(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const personId = await this.resolvePersonIdForWorkshop(req, id);
+    return this.feedback.getMyFeedback(id, personId);
+  }
+
+  @Get('workshops/:id/feedback')
+  @ApiOperation({
+    summary: 'Anonymous feedback for a workshop (workshop instructor or workshop_lead+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async workshopFeedback(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.assertCanManageWorkshopAsInstructorOrLead(id, userId);
+    return this.feedback.getWorkshopFeedback(id);
   }
 
   /** POST /api/v1/workshops/:id/logo — square logo (workshop_lead+). */
@@ -378,7 +476,7 @@ export class WorkshopsController {
   }
 
   @Get('workshop-sessions/:id/roster')
-  @ApiOperation({ summary: 'Get session roster (workshop_lead+)' })
+  @ApiOperation({ summary: 'Get session roster (workshop instructor, or workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getRoster(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
@@ -421,19 +519,83 @@ export class WorkshopsController {
     return { ok: true };
   }
 
+  @Post('workshop-sessions/:id/enrollments/:personId/accept')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Accept an enrollee — confirm a waitlisted/refused person (workshop instructor or workshop_lead+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async acceptEnrollee(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.workshops.assertCanManageSessionAsInstructorOrLead(
+      id,
+      await getUserId(req, this.supabase),
+    );
+    await this.enrollment.accept(id, personId);
+    return { ok: true };
+  }
+
+  @Post('workshop-sessions/:id/enrollments/:personId/refuse')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Refuse an enrollee — soft-remove, blocks re-registration (workshop instructor or workshop_lead+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async refuseEnrollee(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.workshops.assertCanManageSessionAsInstructorOrLead(
+      id,
+      await getUserId(req, this.supabase),
+    );
+    await this.enrollment.refuse(id, personId);
+    return { ok: true };
+  }
+
   // ── Private ───────────────────────────────────────────────────────────────────
 
   private async resolvePersonId(req: FastifyRequest, sessionId: string): Promise<string> {
+    return this.resolvePersonIdForEvent(req, await this.eventIdForSession(sessionId));
+  }
+
+  /** Workshop-scoped variant (feedback is per-workshop, not per-session). */
+  private async resolvePersonIdForWorkshop(
+    req: FastifyRequest,
+    workshopId: string,
+  ): Promise<string> {
+    const { data } = await this.supabase.service
+      .from('workshops')
+      .select('event_id')
+      .eq('id', workshopId)
+      .maybeSingle();
+    const eventId = (data as { event_id?: string } | null)?.event_id ?? null;
+    return this.resolvePersonIdForEvent(req, eventId);
+  }
+
+  /**
+   * Resolve the caller to an EVENT-SCOPED persons.id. A user claimed in several
+   * events has one persons row per event; scoping to `eventId` keeps the write on
+   * the right person. Falls back to the guest session's person_id.
+   */
+  private async resolvePersonIdForEvent(
+    req: FastifyRequest,
+    eventId: string | null,
+  ): Promise<string> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
 
-    // Try claimed user → find their person FOR THIS SESSION'S EVENT. A user
-    // claimed in several events has one persons row per event; scoping to the
-    // session's event keeps the enrollment on the right person.
     const accessToken = cookies?.['sb-access-token'];
     if (accessToken) {
       const { data } = await this.supabase.anon.auth.getUser(accessToken);
       if (data.user) {
-        const eventId = await this.eventIdForSession(sessionId);
         let query = this.supabase.service
           .from('persons')
           .select('id')
@@ -444,7 +606,6 @@ export class WorkshopsController {
       }
     }
 
-    // Try guest session
     const guestToken = cookies?.['mc_guest'];
     if (guestToken) {
       // Decode without verification to get person_id (guard already verified)

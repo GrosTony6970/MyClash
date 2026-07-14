@@ -26,6 +26,7 @@ interface FighterRow {
   is_fighter?: boolean;
   is_referee?: boolean;
   is_workshop_participant?: boolean;
+  is_instructor?: boolean;
   merged_into_id?: string | null;
   deleted_at?: string | null;
   clubs?: {
@@ -81,6 +82,7 @@ interface ProfileForm {
   isFighter: boolean;
   isReferee: boolean;
   isWorkshopParticipant: boolean;
+  isInstructor: boolean;
 }
 
 const emptyProfileForm: ProfileForm = {
@@ -98,6 +100,7 @@ const emptyProfileForm: ProfileForm = {
   isFighter: true,
   isReferee: false,
   isWorkshopParticipant: false,
+  isInstructor: false,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -266,6 +269,7 @@ export default function AdminFightersPage() {
       isFighter: Boolean(profile.is_fighter),
       isReferee: Boolean(profile.is_referee),
       isWorkshopParticipant: Boolean(profile.is_workshop_participant),
+      isInstructor: Boolean(profile.is_instructor),
     });
     setCreateError(null);
     setCreateSuccess(null);
@@ -332,7 +336,7 @@ export default function AdminFightersPage() {
     setCreateError(null);
     setCreateSuccess(null);
     try {
-      if (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant) {
+      if (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant && !form.isInstructor) {
         throw new Error(t('admin.globalProfiles.roleRequired'));
       }
       // Convert the locale-formatted DOB to ISO before POST. Empty
@@ -369,6 +373,7 @@ export default function AdminFightersPage() {
             isFighter: form.isFighter,
             isReferee: form.isReferee,
             isWorkshopParticipant: form.isWorkshopParticipant,
+            isInstructor: form.isInstructor,
           }),
         },
       );
@@ -679,6 +684,11 @@ export default function AdminFightersPage() {
                             {t('admin.globalProfiles.roleWorkshop')}
                           </span>
                         )}
+                        {p.is_instructor && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                            {t('admin.globalProfiles.roleInstructor')}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-2.5 px-4 text-muted text-sm">{p.country_code ?? '—'}</td>
@@ -931,10 +941,11 @@ export default function AdminFightersPage() {
                       key: 'isWorkshopParticipant',
                       label: t('admin.globalProfiles.roleWorkshopLabel'),
                     },
+                    { key: 'isInstructor', label: t('admin.globalProfiles.roleInstructorLabel') },
                   ] as {
                     key: keyof Pick<
                       ProfileForm,
-                      'isFighter' | 'isReferee' | 'isWorkshopParticipant'
+                      'isFighter' | 'isReferee' | 'isWorkshopParticipant' | 'isInstructor'
                     >;
                     label: string;
                   }[]
@@ -957,7 +968,10 @@ export default function AdminFightersPage() {
               disabled={
                 !form.givenName.trim() ||
                 !form.familyName.trim() ||
-                (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant) ||
+                (!form.isFighter &&
+                  !form.isReferee &&
+                  !form.isWorkshopParticipant &&
+                  !form.isInstructor) ||
                 creating
               }
               className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm self-start"

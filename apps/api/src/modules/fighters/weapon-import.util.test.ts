@@ -101,6 +101,9 @@ describe('replaceFighterWeaponsFromCell', () => {
     expect((inserts['weapon_catalog'] as Array<Record<string, unknown>>)[0]).toMatchObject({
       name: 'Obscure Weapon',
       slug: 'obscure-weapon',
+      // Import-created rows are inactive until a super-admin promotes them, so
+      // unvetted names never leak into the strict tournament/workshop picker.
+      active: false,
     });
     expect(inserts['fighter_weapons']).toHaveLength(1);
   });

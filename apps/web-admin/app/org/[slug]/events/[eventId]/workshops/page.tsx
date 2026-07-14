@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { nextSlugFromName } from './slug-from-name';
 import {
   durationFromStartEnd,
@@ -25,7 +26,6 @@ import { eachDay } from '../schedule/event-days';
 import { formatInZone, zonedDay } from '@myclash/time';
 import {
   TournamentColorDot,
-  WeaponCombobox,
   accentClassFor,
   useConfirm,
   statusPillTone,
@@ -186,26 +186,10 @@ export default function WorkshopsAdminPage() {
     };
   }, [apiUrl, eventId, refreshKey]);
 
-  // Weapon suggestions for the workshop editor — the shared weapon_catalog
-  // (same source as the fighter profile). Free text either way, so the combobox
-  // still accepts custom entries when a discipline isn't in the catalog.
-  const [weaponOptions, setWeaponOptions] = useState<string[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/weapons`, { credentials: 'include' });
-        if (!res.ok) return;
-        const rows = (await res.json()) as Array<{ id: string; name: string }>;
-        if (!cancelled) setWeaponOptions(rows.map((w) => w.name).filter(Boolean));
-      } catch {
-        /* combobox stays free-text only */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [apiUrl]);
+  // Weapon options for the workshop editor — the active shared weapon_catalog
+  // (same strict source as tournaments). The stored value must be a catalog
+  // entry; the API rejects anything else.
+  const weaponOptions = useWeaponOptions();
 
   // Create / edit modal. `editingId` null → create, else editing that workshop.
   const [showCreate, setShowCreate] = useState(false);
@@ -1030,14 +1014,24 @@ export default function WorkshopsAdminPage() {
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
                   Weapon
                 </label>
-                <WeaponCombobox
+                <select
                   value={form.weapon}
-                  onChange={(v) => setForm((f) => ({ ...f, weapon: v }))}
-                  options={weaponOptions}
-                  placeholder="Longsword, Rapier…"
-                  className="w-full"
+                  onChange={(e) => setForm((f) => ({ ...f, weapon: e.target.value }))}
                   aria-label="Weapon"
-                />
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="">—</option>
+                  {/* Union an edited workshop's stored weapon even if it's no
+                      longer an active catalog entry, so it stays selected. */}
+                  {(form.weapon && !weaponOptions.includes(form.weapon)
+                    ? [form.weapon, ...weaponOptions]
+                    : weaponOptions
+                  ).map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

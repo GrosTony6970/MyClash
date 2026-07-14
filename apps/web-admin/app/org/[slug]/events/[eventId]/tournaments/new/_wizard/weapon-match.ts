@@ -1,25 +1,11 @@
 /**
- * Canonical weapon presets offered by the tournament-creation wizard, and a
- * fuzzy matcher that picks the best preset from a tournament Name.
+ * Fuzzy matcher that picks the best weapon from a tournament Name.
  *
- * The list is suggestions, not a constraint: the weapon column is free text,
- * so a custom value typed in the combobox is kept as-is. `matchWeapon` only
- * powers the auto-prefill from the Name field.
+ * The candidate list is supplied by the caller — the shared weapon_catalog,
+ * fetched via `GET /api/v1/weapons` (see useWeaponOptions) — so there is no
+ * hardcoded list here anymore. `matchWeapon` only powers the auto-prefill of
+ * the (now catalog-constrained) weapon field from the Name.
  */
-export const WEAPONS = [
-  'Longsword',
-  'Sidesword',
-  'Sabre',
-  'Multiple Weapons',
-  'Messer',
-  'Sword & Buckler',
-  'Rapier',
-  'Rapier & Dagger',
-  'Sidesword & Buckler',
-  'Sidesword & Dagger',
-  'Smallsword',
-  'Cutting',
-] as const;
 
 /** Accent-fold + lowercase + split into alphanumeric word tokens. So `&`,
  * `and`, hyphens, case and diacritics never block a match. */
@@ -39,7 +25,7 @@ function tokens(value: string): string[] {
  * then the longest weapon string. Returns null when nothing matches, so a
  * custom name leaves the field untouched.
  */
-export function matchWeapon(name: string, weapons: readonly string[] = WEAPONS): string | null {
+export function matchWeapon(name: string, weapons: readonly string[]): string | null {
   const nameTokens = new Set(tokens(name));
   if (nameTokens.size === 0) return null;
 

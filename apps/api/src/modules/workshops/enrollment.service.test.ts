@@ -18,7 +18,7 @@ interface Row {
   id: string;
   workshop_session_id: string;
   user_id: string;
-  status: 'confirmed' | 'waitlisted';
+  status: 'confirmed' | 'waitlisted' | 'refused';
   position: number | null;
 }
 
@@ -272,6 +272,25 @@ describe('EnrollmentService.enroll', () => {
     expect(fake.inserts).toHaveLength(0);
   });
 
+  it('blocks re-registration when the person was refused by the instructor', async () => {
+    const fake = buildFake({
+      capacity: 5,
+      seed: [
+        {
+          id: 'e-r',
+          workshop_session_id: 's-1',
+          user_id: 'p-refused',
+          status: 'refused',
+          position: null,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await expect(svc.enroll('s-1', 'p-refused')).rejects.toThrow(/instructor/i);
+    expect(fake.inserts).toHaveLength(0);
+  });
+
   it('ticks global_persons.is_workshop_participant when the person has a global link', async () => {
     const fake = buildFake({ capacity: 2, personGlobalId: 'gp-42' });
     const svc = new EnrollmentService(fake.supabase as never, notif as never);
@@ -341,5 +360,85 @@ describe('EnrollmentService.cancel', () => {
     expect(promoted?.position).toBeNull();
     expect(fake.rows.find((r) => r.user_id === 'p-conf')).toBeUndefined();
     expect(notif.waitlistPromoted).toHaveBeenCalledWith('s-1', 'p-wait');
+  });
+});
+
+describe('EnrollmentService.accept', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('promotes a waitlisted person to confirmed and notifies', async () => {
+    const fake = buildFake({
+      capacity: 1,
+      seed: [
+        {
+          id: 'e-w',
+          workshop_session_id: 's-1',
+          user_id: 'p-w',
+          status: 'waitlisted',
+          position: 1,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await svc.accept('s-1', 'p-w');
+
+    expect(fake.rows.find((r) => r.user_id === 'p-w')?.status).toBe('confirmed');
+    expect(notif.waitlistPromoted).toHaveBeenCalledWith('s-1', 'p-w');
+  });
+
+  it('reinstates a refused person to confirmed without notifying', async () => {
+    const fake = buildFake({
+      capacity: 5,
+      seed: [
+        {
+          id: 'e-r',
+          workshop_session_id: 's-1',
+          user_id: 'p-r',
+          status: 'refused',
+          position: null,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await svc.accept('s-1', 'p-r');
+
+    expect(fake.rows.find((r) => r.user_id === 'p-r')?.status).toBe('confirmed');
+    expect(notif.waitlistPromoted).not.toHaveBeenCalled();
+  });
+});
+
+describe('EnrollmentService.refuse', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('soft-removes a confirmed attendee and promotes the waitlist', async () => {
+    const fake = buildFake({
+      capacity: 1,
+      seed: [
+        {
+          id: 'e-c',
+          workshop_session_id: 's-1',
+          user_id: 'p-c',
+          status: 'confirmed',
+          position: null,
+        },
+        {
+          id: 'e-w',
+          workshop_session_id: 's-1',
+          user_id: 'p-w',
+          status: 'waitlisted',
+          position: 1,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await svc.refuse('s-1', 'p-c');
+
+    // The refused person keeps a row (sticky) with status 'refused'.
+    expect(fake.rows.find((r) => r.user_id === 'p-c')?.status).toBe('refused');
+    // The freed seat promotes the top of the waitlist.
+    expect(fake.rows.find((r) => r.user_id === 'p-w')?.status).toBe('confirmed');
   });
 });

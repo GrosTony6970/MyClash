@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { TournamentColorDot, useToast, WeaponCombobox } from '@myclash/ui';
+import { TournamentColorDot, useToast } from '@myclash/ui';
+import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
-import { WEAPONS, matchWeapon } from './weapon-match';
+import { matchWeapon } from './weapon-match';
 import { pickWizardDefaults } from './wizard-defaults';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -42,6 +43,7 @@ export function Step1Basics({
   onCreated: (id: string) => void;
 }) {
   const toast = useToast();
+  const weaponOptions = useWeaponOptions();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [weapon, setWeapon] = useState('');
@@ -110,7 +112,7 @@ export function Step1Basics({
 
       if (initialTournamentId) {
         // Resume flow — PATCH the existing draft
-        await fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, {
+        const res = await fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -125,6 +127,9 @@ export function Step1Basics({
             maxWaitlist: parsedMaxWaitlist,
           }),
         });
+        // Guard the response so a failed save surfaces a toast instead of
+        // silently advancing the wizard and discarding the edits.
+        if (!res.ok) throw new Error(t('admin.common.updateFailed'));
         onCreated(initialTournamentId);
       } else {
         // Initial flow — POST new draft tournament
@@ -175,7 +180,7 @@ export function Step1Basics({
             setName(v);
             if (!initialTournamentId) setSlug(slugify(v));
             if (!weaponTouched) {
-              const m = matchWeapon(v);
+              const m = matchWeapon(v, weaponOptions);
               if (m) setWeapon(m);
             }
           }}
@@ -202,18 +207,27 @@ export function Step1Basics({
         <span className="block text-xs font-medium text-foreground-secondary mb-1">
           {t('organizer.tournaments.wizard.weapon')}
         </span>
-        <WeaponCombobox
+        <select
           value={weapon}
-          onChange={(v) => {
-            setWeapon(v);
+          onChange={(e) => {
+            setWeapon(e.target.value);
             setWeaponTouched(true);
           }}
-          options={WEAPONS}
-          placeholder={t('organizer.tournaments.wizard.weaponPlaceholder')}
-          emptyHint={t('organizer.tournaments.wizard.weaponCustomHint')}
           aria-label={t('organizer.tournaments.wizard.weapon')}
-          className="w-full"
-        />
+          className="w-full rounded-md border border-border px-3 py-2 text-sm"
+        >
+          <option value="">{t('common.none')}</option>
+          {/* Include a resumed draft's stored weapon even if it's no longer an
+              active catalog entry, so it stays selected until changed. */}
+          {(weapon && !weaponOptions.includes(weapon)
+            ? [weapon, ...weaponOptions]
+            : weaponOptions
+          ).map((w) => (
+            <option key={w} value={w}>
+              {w}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="block">

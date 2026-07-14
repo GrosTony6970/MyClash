@@ -70,13 +70,72 @@ export class BroadcastNotificationsService {
     const recipients = this.dedupeRecipients(await this.resolveRecipients(eventId, dto));
     if (recipients.length === 0) throw new BadRequestException('No recipients matched');
 
+    return this.dispatchBroadcast(
+      eventId,
+      actorUserId,
+      {
+        severity: dto.severity as BroadcastSeverity,
+        targetType: dto.targetType as BroadcastTargetType,
+        title,
+        body,
+        tournamentId: dto.tournamentId ?? null,
+      },
+      recipients,
+    );
+  }
+
+  /**
+   * Send a message to an explicit set of event persons WITHOUT the org-admin gate.
+   * The caller MUST have authorized the actor (e.g. a workshop instructor
+   * messaging their own enrollees). Reuses the broadcast pipeline so the message
+   * lands in delivery history + the recipients' notifications surface.
+   */
+  async sendToEventPersons(
+    eventId: string,
+    actorUserId: string,
+    personIds: string[],
+    title: string,
+    body: string,
+  ): Promise<{ id: string; recipientCount: number }> {
+    const t = title.trim();
+    const b = body.trim();
+    if (!t || !b) throw new BadRequestException('Title and body are required');
+    const ids = Array.from(new Set(personIds));
+    if (ids.length === 0) throw new BadRequestException('At least one recipient is required');
+
+    const recipients = this.dedupeRecipients(await this.getPersonsByIds(eventId, ids));
+    if (recipients.length === 0) throw new BadRequestException('No recipients matched');
+
+    return this.dispatchBroadcast(
+      eventId,
+      actorUserId,
+      { severity: 'info', targetType: 'specific_persons', title: t, body: b, tournamentId: null },
+      recipients,
+    );
+  }
+
+  /** Persist the broadcast + recipients, audit, and fan out immediate deliveries. */
+  private async dispatchBroadcast(
+    eventId: string,
+    actorUserId: string,
+    params: {
+      severity: BroadcastSeverity;
+      targetType: BroadcastTargetType;
+      title: string;
+      body: string;
+      tournamentId: string | null;
+    },
+    recipients: PersonRecipient[],
+  ): Promise<{ id: string; recipientCount: number }> {
+    const { severity, targetType, title, body, tournamentId } = params;
+
     const { data: broadcast, error: broadcastError } = await this.supabase.service
       .from('event_broadcast_notifications')
       .insert({
         event_id: eventId,
         actor_user_id: actorUserId,
-        severity: dto.severity,
-        target_type: dto.targetType,
+        severity,
+        target_type: targetType,
         title,
         body,
         recipient_count: recipients.length,
@@ -104,9 +163,9 @@ export class BroadcastNotificationsService {
 
     await this.audit(actorUserId, eventId, {
       broadcastId,
-      severity: dto.severity,
-      targetType: dto.targetType,
-      tournamentId: dto.tournamentId ?? null,
+      severity,
+      targetType,
+      tournamentId,
       recipientCount: recipients.length,
     });
 
@@ -123,7 +182,7 @@ export class BroadcastNotificationsService {
           url: '/notifications',
           email: recipient.email,
           emailSubject: title,
-          severity: dto.severity,
+          severity,
         }),
       ),
     );

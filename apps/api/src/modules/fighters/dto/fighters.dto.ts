@@ -135,6 +135,7 @@ const createGlobalPersonSchema = z
     isFighter: z.boolean().optional(),
     isReferee: z.boolean().optional(),
     isWorkshopParticipant: z.boolean().optional(),
+    isInstructor: z.boolean().optional(),
   })
   .strict();
 export class CreateGlobalPersonDto extends createZodDto(createGlobalPersonSchema) {}
@@ -163,6 +164,7 @@ const updateGlobalPersonSchema = z
     isFighter: z.boolean().optional(),
     isReferee: z.boolean().optional(),
     isWorkshopParticipant: z.boolean().optional(),
+    isInstructor: z.boolean().optional(),
   })
   .strict();
 export class UpdateGlobalPersonDto extends createZodDto(updateGlobalPersonSchema) {}
@@ -172,6 +174,7 @@ const fighterRolesSchema = z
     isFighter: z.boolean().optional(),
     isReferee: z.boolean().optional(),
     isWorkshopParticipant: z.boolean().optional(),
+    isInstructor: z.boolean().optional(),
   })
   .strict();
 export class FighterRolesDto extends createZodDto(fighterRolesSchema) {}
@@ -179,7 +182,7 @@ export class FighterRolesDto extends createZodDto(fighterRolesSchema) {}
 const globalPersonQuerySchema = z
   .object({
     q: z.string().max(100).optional(),
-    roles: z.array(z.enum(['fighter', 'referee', 'workshop_participant'])).optional(),
+    roles: z.array(z.enum(['fighter', 'referee', 'workshop_participant', 'instructor'])).optional(),
   })
   .strict();
 export class GlobalPersonQueryDto extends createZodDto(globalPersonQuerySchema) {}
@@ -220,6 +223,9 @@ const importDecisionSchema = z
     isFighter: z.boolean(),
     isReferee: z.boolean(),
     isWorkshopParticipant: z.boolean(),
+    // Optional (unlike its siblings): the CSV import flow does not yet carry an
+    // is_instructor column, so decisions without it stay valid and default false.
+    isInstructor: z.boolean().optional(),
   })
   .strict();
 export class ImportDecisionDto extends createZodDto(importDecisionSchema) {}

@@ -55,6 +55,7 @@ const navSections: readonly NavSection[] = [
       // The isActive() check uses startsWith('/admin/rulesets') so the
       // link stays highlighted on both sub-routes.
       { href: '/admin/rulesets', labelKey: 'admin.shell.nav.rulesets', badge: 'R' },
+      { href: '/admin/weapons', labelKey: 'admin.shell.nav.weapons', badge: 'W' },
     ],
   },
   {

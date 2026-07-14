@@ -50,6 +50,7 @@ export const fighters = pgTable('global_persons', {
   isFighter: text('is_fighter'),
   isReferee: text('is_referee'),
   isWorkshopParticipant: text('is_workshop_participant'),
+  isInstructor: text('is_instructor'),
   mergedIntoId: uuid('merged_into_id').references((): AnyPgColumn => fighters.id, {
     onDelete: 'set null',
   }),

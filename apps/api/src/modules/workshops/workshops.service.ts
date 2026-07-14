@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
+import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
@@ -368,6 +369,12 @@ export class WorkshopsService {
       await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
     }
 
+    // Strict catalog-only weapon (mirrors tournaments): a non-empty value must
+    // resolve to an active weapon_catalog entry; the canonical name is stored.
+    const weapon = dto.weapon?.trim()
+      ? await resolveCatalogWeapon(this.supabase.service, dto.weapon)
+      : null;
+
     const { data, error } = await this.supabase.service
       .from('workshops')
       .insert({
@@ -378,7 +385,7 @@ export class WorkshopsService {
         description_md: dto.descriptionMd ?? null,
         category: dto.category ?? null,
         level: dto.level ?? 'all',
-        weapon: dto.weapon ?? null,
+        weapon,
         language: dto.language ?? 'fr',
         capacity: dto.capacity ?? null,
         duration_minutes: dto.durationMinutes ?? null,
@@ -411,7 +418,27 @@ export class WorkshopsService {
     if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.level !== undefined) updates['level'] = dto.level;
-    if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
+    if (dto.weapon !== undefined) {
+      const submitted = dto.weapon?.trim() ?? '';
+      if (!submitted) {
+        updates['weapon'] = null;
+      } else {
+        // Legacy escape hatch: accept an unchanged value even if it's no longer
+        // an active catalog entry, so unrelated edits never 400.
+        const { data: cur } = await this.supabase.service
+          .from('workshops')
+          .select('weapon')
+          .eq('id', workshopId)
+          .maybeSingle();
+        const currentWeapon = String(
+          (cur as { weapon?: string | null } | null)?.weapon ?? '',
+        ).trim();
+        updates['weapon'] =
+          submitted === currentWeapon
+            ? currentWeapon
+            : await resolveCatalogWeapon(this.supabase.service, submitted);
+      }
+    }
     if (dto.language !== undefined) updates['language'] = dto.language;
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
     if (dto.durationMinutes !== undefined) updates['duration_minutes'] = dto.durationMinutes;
@@ -427,6 +454,57 @@ export class WorkshopsService {
       .select('*')
       .single();
 
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  /**
+   * Instructor-scoped workshop edit: only weapon / description / level / language,
+   * authorized for an instructor of the workshop (or org workshop_lead+). Weapon
+   * is validated against the catalog exactly like the organizer update path.
+   */
+  async updateWorkshopByInstructor(
+    workshopId: string,
+    dto: {
+      weapon?: string | null;
+      descriptionMd?: string | null;
+      level?: string | null;
+      language?: string | null;
+    },
+    userId: string,
+  ) {
+    await this.assertCanManageWorkshopAsInstructorOrLead(workshopId, userId);
+
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
+    if (dto.level !== undefined) updates['level'] = dto.level;
+    if (dto.language !== undefined) updates['language'] = dto.language;
+    if (dto.weapon !== undefined) {
+      const submitted = dto.weapon?.trim() ?? '';
+      if (!submitted) {
+        updates['weapon'] = null;
+      } else {
+        const { data: cur } = await this.supabase.service
+          .from('workshops')
+          .select('weapon')
+          .eq('id', workshopId)
+          .maybeSingle();
+        const currentWeapon = String(
+          (cur as { weapon?: string | null } | null)?.weapon ?? '',
+        ).trim();
+        updates['weapon'] =
+          submitted === currentWeapon
+            ? currentWeapon
+            : await resolveCatalogWeapon(this.supabase.service, submitted);
+      }
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('workshops')
+      .update(updates)
+      .eq('id', workshopId)
+      .select('*')
+      .single();
     if (error) throw new BadRequestException(error.message);
     return data;
   }
@@ -530,6 +608,7 @@ export class WorkshopsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    await this.tickGlobalInstructor(globalPersonId);
     return data;
   }
 
@@ -579,6 +658,7 @@ export class WorkshopsService {
         { onConflict: 'event_id,person_id', ignoreDuplicates: true },
       );
     if (error) throw new BadRequestException(error.message);
+    await this.tickGlobalInstructor(globalPersonId);
   }
 
   /** Untag a person as an instructor for this event. */
@@ -620,6 +700,20 @@ export class WorkshopsService {
       );
     }
     throw new BadRequestException(`Global person ${personId} not found.`);
+  }
+
+  /**
+   * Tick-only: mark the person's global `is_instructor` flag true. Mirrors the
+   * referee auto-tick (ensureEventReferee) — never auto-cleared, so untagging an
+   * event instructor or removing a workshop instructor leaves the flag set. The
+   * `.eq('is_instructor', false)` guard skips needless writes.
+   */
+  private async tickGlobalInstructor(globalPersonId: string): Promise<void> {
+    await this.supabase.service
+      .from('global_persons')
+      .update({ is_instructor: true, updated_at: new Date().toISOString() })
+      .eq('id', globalPersonId)
+      .eq('is_instructor', false);
   }
 
   // ── Create session ────────────────────────────────────────────────────────────
@@ -708,10 +802,10 @@ export class WorkshopsService {
     await this.assertCanManageSession(sessionId, userId);
   }
 
-  // ── Session roster (organizer-only) ────────────────────────────────────────────
+  // ── Session roster (instructor of the workshop, or org workshop_lead+) ──────────
 
   async getSessionRoster(sessionId: string, userId: string) {
-    await this.assertCanManageSession(sessionId, userId);
+    await this.assertCanManageSessionAsInstructorOrLead(sessionId, userId);
 
     const { data, error } = await this.supabase.service
       .from('workshop_enrollments')
@@ -727,29 +821,93 @@ export class WorkshopsService {
 
     if (error) throw new BadRequestException(error.message);
     type Gp = { id: string; given_name: string; family_name: string };
-    return (data ?? []).map((raw) => {
-      const e = raw as unknown as {
+    const raws = (data ?? []) as unknown as Array<{
+      id: string;
+      status: string;
+      position: number | null;
+      enrolled_at: string;
+      user_id: string | null;
+      global_person_id: string | null;
+      global_persons: Gp | Gp[] | null;
+    }>;
+
+    // Names come from the linked global profile when set; otherwise resolve the
+    // event-scoped persons row (enrollment.user_id) so self-enrolled attendees —
+    // which never set global_person_id — still show a real name to the instructor.
+    const oneGp = (v: Gp | Gp[] | null): Gp | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+    const unresolvedUserIds = raws
+      .filter((e) => !oneGp(e.global_persons) && e.user_id)
+      .map((e) => e.user_id as string);
+
+    const personNames = new Map<string, { givenName: string; familyName: string }>();
+    if (unresolvedUserIds.length > 0) {
+      const { data: persons } = await this.supabase.service
+        .from('persons')
+        .select('id, given_name, family_name')
+        .in('id', unresolvedUserIds);
+      for (const p of (persons ?? []) as Array<{
         id: string;
-        status: string;
-        position: number | null;
-        enrolled_at: string;
-        user_id: string | null;
-        global_person_id: string | null;
-        global_persons: Gp | Gp[] | null;
-      };
-      // Supabase types a joined FK as an array; a to-one link is a single row.
-      const gp = Array.isArray(e.global_persons) ? (e.global_persons[0] ?? null) : e.global_persons;
+        given_name: string;
+        family_name: string;
+      }>) {
+        personNames.set(String(p.id), { givenName: p.given_name, familyName: p.family_name });
+      }
+    }
+
+    return raws.map((e) => {
+      const gp = oneGp(e.global_persons);
+      const fallback = e.user_id ? (personNames.get(e.user_id) ?? null) : null;
+      const persons = gp
+        ? { id: gp.id, givenName: gp.given_name, familyName: gp.family_name, clubs: null }
+        : fallback
+          ? {
+              id: e.user_id as string,
+              givenName: fallback.givenName,
+              familyName: fallback.familyName,
+              clubs: null,
+            }
+          : null;
       return {
         id: e.id,
         status: e.status,
         waitlistPosition: e.position,
         enrolledAt: e.enrolled_at,
+        // Event-scoped persons.id — the target for accept/refuse/promote.
+        personId: e.user_id,
         global_person_id: e.global_person_id,
-        persons: gp
-          ? { id: gp.id, givenName: gp.given_name, familyName: gp.family_name, clubs: null }
-          : null,
+        persons,
       };
     });
+  }
+
+  /**
+   * Event id + unique enrollee persons.ids (confirmed + waitlisted) across all of
+   * a workshop's sessions — the recipient set for an instructor's "notify all".
+   */
+  async getWorkshopEnrolleeRecipients(
+    workshopId: string,
+  ): Promise<{ eventId: string; personIds: string[] }> {
+    const eventId = await this.resolveWorkshopEvent(workshopId);
+    const { data: sessions } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('id')
+      .eq('workshop_id', workshopId);
+    const sessionIds = ((sessions ?? []) as Array<{ id: string }>).map((s) => s.id);
+    if (sessionIds.length === 0) return { eventId, personIds: [] };
+
+    const { data: enr } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('user_id')
+      .in('workshop_session_id', sessionIds)
+      .in('status', ['confirmed', 'waitlisted']);
+    const personIds = Array.from(
+      new Set(
+        ((enr ?? []) as Array<{ user_id: string | null }>)
+          .map((e) => e.user_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    return { eventId, personIds };
   }
 
   // ── DTO mapping ────────────────────────────────────────────────────────────────
@@ -973,6 +1131,56 @@ export class WorkshopsService {
       String((session as { workshop_id: string }).workshop_id),
     );
     await this.assertCanManageEvent(eventId, userId);
+  }
+
+  // ── Instructor-scoped authorization ─────────────────────────────────────────────
+  // Instructors manage their OWN workshops from the personal space, without an
+  // org-membership role. These guards allow either an instructor of the specific
+  // workshop OR an org workshop_lead+ (organizers retain full access).
+
+  /** Global person id for a claimed auth user (null if unclaimed / anonymous). */
+  private async resolveClaimedGlobalPersonId(userId: string): Promise<string | null> {
+    if (!userId || userId === 'anonymous') return null;
+    const { data } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', userId)
+      .maybeSingle();
+    return (data as { id: string } | null)?.id ?? null;
+  }
+
+  /** True when the claimed user is a listed instructor of this workshop. */
+  private async isWorkshopInstructor(workshopId: string, userId: string): Promise<boolean> {
+    const globalPersonId = await this.resolveClaimedGlobalPersonId(userId);
+    if (!globalPersonId) return false;
+    const { data } = await this.supabase.service
+      .from('workshop_instructors')
+      .select('id')
+      .eq('workshop_id', workshopId)
+      .eq('global_person_id', globalPersonId)
+      .maybeSingle();
+    return Boolean(data);
+  }
+
+  async assertCanManageWorkshopAsInstructorOrLead(
+    workshopId: string,
+    userId: string,
+  ): Promise<void> {
+    if (await this.isWorkshopInstructor(workshopId, userId)) return;
+    await this.assertCanManageEvent(await this.resolveWorkshopEvent(workshopId), userId);
+  }
+
+  async assertCanManageSessionAsInstructorOrLead(sessionId: string, userId: string): Promise<void> {
+    const { data: session } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('workshop_id')
+      .eq('id', sessionId)
+      .maybeSingle();
+    if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
+    await this.assertCanManageWorkshopAsInstructorOrLead(
+      String((session as { workshop_id: string }).workshop_id),
+      userId,
+    );
   }
 
   // ── Cross-org guards ─────────────────────────────────────────────────────────

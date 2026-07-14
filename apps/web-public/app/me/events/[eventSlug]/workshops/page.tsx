@@ -166,6 +166,9 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
                   ? Math.max(0, session.capacity - session.confirmedCount)
                   : null;
               const full = session.capacity != null && remaining === 0 && !enrolled;
+              // Rating unlocks for attendees once the session has started.
+              const started =
+                session.startsAt != null && new Date(session.startsAt).getTime() <= Date.now();
               return (
                 <div key={w.id} id={`workshop-${w.slug}`} className="scroll-mt-24">
                   <WorkshopCard
@@ -174,15 +177,20 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
                     highlighted={enrolled}
                     showLocation
                     footer={
-                      <WorkshopRegisterControls
-                        enrolled={enrolled}
-                        full={full}
-                        conflict={enrolled ? null : conflictFor(session)}
-                        busy={busy === session.id}
-                        labels={labels}
-                        onRegister={() => void act(session.id, 'POST')}
-                        onCancel={() => void act(session.id, 'DELETE')}
-                      />
+                      <div className="flex flex-col gap-2">
+                        <WorkshopRegisterControls
+                          enrolled={enrolled}
+                          full={full}
+                          conflict={enrolled ? null : conflictFor(session)}
+                          busy={busy === session.id}
+                          labels={labels}
+                          onRegister={() => void act(session.id, 'POST')}
+                          onCancel={() => void act(session.id, 'DELETE')}
+                        />
+                        {enrolled && started && (
+                          <WorkshopRatingControl workshopId={w.id} api={api} />
+                        )}
+                      </div>
                     }
                   />
                 </div>
@@ -191,6 +199,107 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+// Participant rating for a workshop they attended (session already started).
+// One editable rating (1..5) + optional comment; prefilled from my-feedback.
+function WorkshopRatingControl({ workshopId, api }: { workshopId: string; api: string }) {
+  const { t } = useI18n();
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${api}/api/v1/workshops/${workshopId}/my-feedback`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { rating: number; comment: string | null } | null;
+        if (data) {
+          setRating(data.rating);
+          setComment(data.comment ?? '');
+        }
+      })
+      .catch(() => {
+        // prefill is best-effort
+      });
+    return () => controller.abort();
+  }, [api, workshopId]);
+
+  async function submit() {
+    if (rating < 1) return;
+    setBusy(true);
+    setError(false);
+    setSaved(false);
+    try {
+      const res = await fetch(`${api}/api/v1/workshops/${workshopId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ rating, comment: comment.trim() || null }),
+      });
+      if (!res.ok) throw new Error('feedback');
+      setSaved(true);
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+        {t('publicApp.me.workshops.rateTitle')}
+      </p>
+      <div className="mt-1 flex gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={t('publicApp.me.workshops.rateStarLabel', { n })}
+            onClick={() => {
+              setRating(n);
+              setSaved(false);
+            }}
+            className={`text-xl leading-none ${n <= rating ? 'text-amber-500' : 'text-muted'}`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      <textarea
+        rows={2}
+        value={comment}
+        maxLength={2000}
+        placeholder={t('publicApp.me.workshops.rateCommentPlaceholder')}
+        onChange={(e) => {
+          setComment(e.target.value);
+          setSaved(false);
+        }}
+        className="mt-2 w-full resize-none rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      {error && <p className="mt-1 text-sm text-danger">{t('publicApp.me.workshops.rateError')}</p>}
+      {saved && (
+        <p className="mt-1 text-sm text-success">{t('publicApp.me.workshops.rateSaved')}</p>
+      )}
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          disabled={busy || rating < 1}
+          onClick={() => void submit()}
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+        >
+          {t('publicApp.me.workshops.rateSubmit')}
+        </button>
+      </div>
     </div>
   );
 }

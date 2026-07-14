@@ -135,6 +135,48 @@ export interface WorkshopHistoryGroup {
   workshops: WorkshopHistoryWorkshop[];
 }
 
+/** A session of a workshop the signed-in instructor teaches, with live counts. */
+export interface InstructorWorkshopSession {
+  id: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  status: string | null;
+  locationLabel: string | null;
+  venue: { name: string } | null;
+  area: { name: string } | null;
+  capacity: number | null;
+  confirmedCount: number;
+  waitlistCount: number;
+}
+
+export interface InstructorWorkshop {
+  id: string;
+  slug: string;
+  title: string;
+  shortDescription: string | null;
+  descriptionMd: string | null;
+  category: string | null;
+  level: string | null;
+  weapon: string | null;
+  language: string | null;
+  color: string | null;
+  coverImageUrl: string | null;
+  capacity: number | null;
+  durationMinutes: number | null;
+  sessions: InstructorWorkshopSession[];
+}
+
+export interface InstructorWorkshopGroup {
+  event: {
+    id: string;
+    slug: string;
+    name: string;
+    timezone: string | null;
+    startDate: string | null;
+  };
+  workshops: InstructorWorkshop[];
+}
+
 /** PostgREST embeds resolve to an object (1:1) or an array (1:N); normalise to one. */
 function one<T = Row>(value: unknown): T | null {
   if (Array.isArray(value)) return (value[0] as T) ?? null;
@@ -839,5 +881,155 @@ export class MeEventsService {
         displayName: String(i['display_name'] ?? ''),
       })),
     };
+  }
+
+  // ── /me/instructor-workshops ────────────────────────────────────────────────
+
+  /**
+   * Every workshop the signed-in user TEACHES (inverse of getMyWorkshopHistory),
+   * grouped by event, with live confirmed/waitlist counts per session. Powers the
+   * personal-space Instructor page.
+   *
+   * Identity: instructors are keyed by `workshop_instructors.global_person_id`
+   * (= global_persons.id), resolved from the auth user via claimed_by_user_id.
+   * Test events are dropped via mapEvent. Events most-recent first; workshops
+   * within an event by first session start.
+   */
+  async getInstructorWorkshops(userId: string): Promise<InstructorWorkshopGroup[]> {
+    const globalPersonId = await this.resolveGlobalPersonId(userId);
+    if (!globalPersonId) return [];
+
+    const { data } = await this.supabase.service
+      .from('workshop_instructors')
+      .select(
+        `workshops (
+          id, slug, title, short_description, description_md,
+          category, level, weapon, language, color, cover_image_url,
+          capacity, duration_minutes,
+          events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+          workshop_sessions (
+            id, starts_at, ends_at, status, location_label,
+            venues ( name ), venue_areas ( name )
+          )
+        )`,
+      )
+      .eq('global_person_id', globalPersonId);
+
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+
+    const groups = new Map<
+      string,
+      { event: MyEventInfo; workshops: Map<string, InstructorWorkshop> }
+    >();
+    const sessionIds: string[] = [];
+
+    for (const r of rows) {
+      const workshop = one<Row>(r['workshops']);
+      if (!workshop) continue;
+      const event = this.mapEvent(one(workshop['events']));
+      if (!event) continue; // drops test + missing events
+
+      let group = groups.get(event.id);
+      if (!group) {
+        group = { event, workshops: new Map() };
+        groups.set(event.id, group);
+      }
+      const workshopId = String(workshop['id']);
+      if (group.workshops.has(workshopId)) continue;
+
+      const capacity = (workshop['capacity'] as number | null) ?? null;
+      const sessions = Array.isArray(workshop['workshop_sessions'])
+        ? (workshop['workshop_sessions'] as Row[])
+        : [];
+      const mappedSessions: InstructorWorkshopSession[] = sessions.map((s) => {
+        const id = String(s['id']);
+        sessionIds.push(id);
+        const venue = one<Row>(s['venues']);
+        const area = one<Row>(s['venue_areas']);
+        return {
+          id,
+          startsAt: (s['starts_at'] as string | null) ?? null,
+          endsAt: (s['ends_at'] as string | null) ?? null,
+          status: (s['status'] as string | null) ?? null,
+          locationLabel: (s['location_label'] as string | null) ?? null,
+          venue: venue ? { name: String(venue['name']) } : null,
+          area: area ? { name: String(area['name']) } : null,
+          capacity,
+          confirmedCount: 0,
+          waitlistCount: 0,
+        };
+      });
+
+      group.workshops.set(workshopId, {
+        id: workshopId,
+        slug: String(workshop['slug']),
+        title: String(workshop['title'] ?? ''),
+        shortDescription: (workshop['short_description'] as string | null) ?? null,
+        descriptionMd: (workshop['description_md'] as string | null) ?? null,
+        category: (workshop['category'] as string | null) ?? null,
+        level: (workshop['level'] as string | null) ?? null,
+        weapon: (workshop['weapon'] as string | null) ?? null,
+        language: (workshop['language'] as string | null) ?? null,
+        color: (workshop['color'] as string | null) ?? null,
+        coverImageUrl: (workshop['cover_image_url'] as string | null) ?? null,
+        capacity,
+        durationMinutes: (workshop['duration_minutes'] as number | null) ?? null,
+        sessions: mappedSessions,
+      });
+    }
+
+    // Live counts for every session in one query.
+    if (sessionIds.length > 0) {
+      const { data: enr } = await this.supabase.service
+        .from('workshop_enrollments')
+        .select('workshop_session_id, status')
+        .in('workshop_session_id', sessionIds);
+      const counts = new Map<string, { confirmed: number; waitlisted: number }>();
+      for (const e of Array.isArray(enr) ? (enr as Row[]) : []) {
+        const sid = String(e['workshop_session_id']);
+        const c = counts.get(sid) ?? { confirmed: 0, waitlisted: 0 };
+        const st = String(e['status']);
+        if (st === 'confirmed') c.confirmed++;
+        else if (st === 'waitlisted') c.waitlisted++;
+        counts.set(sid, c);
+      }
+      for (const g of groups.values()) {
+        for (const w of g.workshops.values()) {
+          for (const s of w.sessions) {
+            const c = counts.get(s.id);
+            if (c) {
+              s.confirmedCount = c.confirmed;
+              s.waitlistCount = c.waitlisted;
+            }
+          }
+        }
+      }
+    }
+
+    const firstStart = (w: InstructorWorkshop): string | null =>
+      w.sessions
+        .map((s) => s.startsAt)
+        .filter((v): v is string => Boolean(v))
+        .sort()[0] ?? null;
+
+    return [...groups.values()]
+      .map((g) => ({
+        event: {
+          id: g.event.id,
+          slug: g.event.slug,
+          name: g.event.name,
+          timezone: g.event.timezone,
+          startDate: g.event.startDate,
+        },
+        workshops: [...g.workshops.values()].sort((a, b) => {
+          const sa = firstStart(a);
+          const sb = firstStart(b);
+          if (sa && sb) return sa < sb ? -1 : sa > sb ? 1 : 0;
+          if (sa) return -1;
+          if (sb) return 1;
+          return a.title.localeCompare(b.title);
+        }),
+      }))
+      .sort((a, b) => (b.event.startDate ?? '').localeCompare(a.event.startDate ?? ''));
   }
 }

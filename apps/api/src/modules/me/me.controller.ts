@@ -73,4 +73,13 @@ export class MeController {
     const userId = await resolveUserId(req, this.supabase);
     return { events: await this.me.getMyWorkshopHistory(userId) };
   }
+
+  @Get('instructor-workshops')
+  @ApiOperation({
+    summary: 'Workshops the current user teaches, grouped by event, with roster counts',
+  })
+  async instructorWorkshops(@Req() req: FastifyRequest) {
+    const userId = await resolveUserId(req, this.supabase);
+    return { events: await this.me.getInstructorWorkshops(userId) };
+  }
 }

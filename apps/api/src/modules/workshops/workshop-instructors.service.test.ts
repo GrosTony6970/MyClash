@@ -30,6 +30,11 @@ function tableStub(maybeSingleData: unknown, captures: Record<string, unknown[]>
         select: vi.fn(() => ({ single })),
       });
     }),
+    // The is_instructor auto-tick does `.update(...).eq(...).eq(...)` (awaited).
+    update: vi.fn((payload: unknown) => {
+      (captures[`${name}.update`] ??= []).push(payload);
+      return api;
+    }),
     delete: vi.fn(() => api),
   });
   return api;
@@ -75,6 +80,8 @@ describe('WorkshopsService — instructors', () => {
       global_person_id: 'gp-1',
       display_name: 'Fiore dei Liberi',
     });
+    // Auto-tick: assigning a workshop instructor marks the global is_instructor flag.
+    expect(captures['global_persons.update']?.[0]).toMatchObject({ is_instructor: true });
   });
 
   it('addInstructor falls back to given+family name when display_name is blank', async () => {
@@ -113,5 +120,7 @@ describe('WorkshopsService — instructors', () => {
       event_id: 'event-1',
       person_id: 'gp-9',
     });
+    // Auto-tick: tagging an event instructor marks the global is_instructor flag.
+    expect(captures['global_persons.update']?.[0]).toMatchObject({ is_instructor: true });
   });
 });

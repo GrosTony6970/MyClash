@@ -198,7 +198,9 @@ const createTournamentSchema = z
       .min(2)
       .max(100)
       .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, digits, and hyphens'),
-    weapon: z.string().optional(),
+    // Nullish (not just optional) so the FE can send null to mean "no weapon",
+    // matching the settings/resume clear path and the sibling clearable fields.
+    weapon: z.string().nullish(),
     rulesetCode: z.string().optional(),
     rulesetVersion: z.string().optional(),
     rulesetConfig: tournamentRulesetConfigSchema.optional(),
@@ -222,7 +224,9 @@ export class CreateTournamentDto extends createZodDto(createTournamentSchema) {}
 const updateTournamentSchema = z
   .object({
     name: z.string().min(2).max(200).optional(),
-    weapon: z.string().optional(),
+    // Nullish so selecting "None" clears the weapon (send null); the service's
+    // `if (dto.weapon !== undefined)` block maps an empty/null value to null.
+    weapon: z.string().nullish(),
     status: z.enum(['draft', 'published', 'running', 'completed', 'archived']).optional(),
     // Tournament scoring configuration (afterblow mode + button config)
     scoringConfig: z.record(z.string(), z.unknown()).optional(),

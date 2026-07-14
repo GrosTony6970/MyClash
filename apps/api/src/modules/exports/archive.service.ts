@@ -189,6 +189,7 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
 
   'follows', // user social graph, not event data
   'club_review_requests', // club-verification workflow, not event data
+  'workshop_feedback', // post-event participant ratings/comments; sentiment, not structural event data
 ]);
 
 const ARCHIVE_COLLECTED_TABLES = new Set<string>(Object.keys(TABLE_TO_ARCHIVE_KEY));

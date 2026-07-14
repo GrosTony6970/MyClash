@@ -176,7 +176,7 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                 </h2>
                 {globalPerson ? (
                   <>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_fighter')}
                         label={t('publicApp.personalSpace.roles.fighter')}
@@ -194,6 +194,12 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                         label={t('publicApp.personalSpace.roles.workshopParticipant')}
                         linkedText={t('publicApp.personalSpace.roles.workshopLinked')}
                         href="/"
+                      />
+                      <RolePill
+                        active={roleEnabled(globalPerson, 'is_instructor')}
+                        label={t('publicApp.personalSpace.roles.instructor')}
+                        linkedText={t('publicApp.personalSpace.roles.instructorLinked')}
+                        href="/me/instructor"
                       />
                     </div>
                     {typeof globalPerson['date_of_birth'] === 'string' &&

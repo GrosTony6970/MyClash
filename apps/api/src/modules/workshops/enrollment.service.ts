@@ -15,7 +15,13 @@
  *   - Race-condition safe: relies on the confirmed-count check
  */
 
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -49,6 +55,10 @@ export class EnrollmentService {
 
     if (existing) {
       const e = existing as { id: string; status: string; position: number | null };
+      // Soft-block: an instructor-refused person cannot silently re-register.
+      if (e.status === 'refused') {
+        throw new ForbiddenException('You were removed from this workshop by the instructor.');
+      }
       await this.markGlobalWorkshopParticipant(personId);
       return {
         id: e.id,
@@ -233,6 +243,65 @@ export class EnrollmentService {
 
     await this.recompactWaitlist(sessionId);
     await this.notificationEvents.waitlistPromoted(sessionId, personId);
+  }
+
+  // ── Instructor moderation: accept / refuse ─────────────────────────────────────
+
+  /**
+   * Accept an enrollee into the workshop — promotes a waitlisted person or
+   * reinstates a refused one to 'confirmed'. Idempotent for already-confirmed.
+   * Notifies + recompacts only when promoting from the waitlist.
+   */
+  async accept(sessionId: string, personId: string): Promise<void> {
+    const { data: enrollment } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('id, status')
+      .eq('workshop_session_id', sessionId)
+      .eq('user_id', personId)
+      .maybeSingle();
+
+    if (!enrollment) throw new NotFoundException('Enrollment not found');
+    const e = enrollment as { id: string; status: string };
+    if (e.status === 'confirmed') return;
+    const wasWaitlisted = e.status === 'waitlisted';
+
+    await this.supabase.service
+      .from('workshop_enrollments')
+      .update({ status: 'confirmed', position: null })
+      .eq('id', e.id);
+
+    if (wasWaitlisted) {
+      await this.recompactWaitlist(sessionId);
+      await this.notificationEvents.waitlistPromoted(sessionId, personId);
+    }
+  }
+
+  /**
+   * Refuse an enrollee — soft + sticky. Sets status 'refused' (keeps the row so
+   * enroll() blocks silent re-registration). A freed confirmed seat promotes the
+   * top of the waitlist. No-ops if not enrolled or already refused.
+   */
+  async refuse(sessionId: string, personId: string): Promise<void> {
+    const { data: enrollment } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('id, status')
+      .eq('workshop_session_id', sessionId)
+      .eq('user_id', personId)
+      .maybeSingle();
+
+    if (!enrollment) return;
+    const e = enrollment as { id: string; status: string };
+    if (e.status === 'refused') return;
+    const wasConfirmed = e.status === 'confirmed';
+
+    await this.supabase.service
+      .from('workshop_enrollments')
+      .update({ status: 'refused', position: null })
+      .eq('id', e.id);
+
+    if (wasConfirmed) {
+      await this.promoteNextWaitlisted(sessionId);
+    }
   }
 
   // ── Private: promote top waitlisted ──────────────────────────────────────────

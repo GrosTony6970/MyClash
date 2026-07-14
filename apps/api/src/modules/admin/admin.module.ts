@@ -42,6 +42,8 @@ import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
 import { UsersAdminController } from './users.controller';
+import { WeaponsAdminController } from './weapons/weapons-admin.controller';
+import { WeaponsAdminService } from './weapons/weapons-admin.service';
 
 @Module({
   imports: [HemaRatingsModule, MatchesModule, OrganizationsModule, AIUsageModule],
@@ -66,6 +68,7 @@ import { UsersAdminController } from './users.controller';
     HemaRatingsAdminController,
     LeagueScoringSystemsController,
     ClaimRequestsAdminController,
+    WeaponsAdminController,
   ],
   providers: [
     ClaimRequestsService,
@@ -93,6 +96,7 @@ import { UsersAdminController } from './users.controller';
     ModelSyncService,
     AIDataQualityService,
     LeagueScoringSystemsService,
+    WeaponsAdminService,
     SuperAdminGuard,
   ],
   exports: [

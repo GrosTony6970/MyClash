@@ -313,11 +313,10 @@ export class FightersService {
     return this.update(id, dto);
   }
 
-  async listWeapons() {
-    const { data, error } = await this.supabase.service
-      .from('weapon_catalog')
-      .select('*')
-      .order('name', { ascending: true });
+  async listWeapons(activeOnly = false) {
+    let query = this.supabase.service.from('weapon_catalog').select('*');
+    if (activeOnly) query = query.eq('active', true);
+    const { data, error } = await query.order('name', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
@@ -1565,6 +1564,7 @@ export class FightersService {
       isFighter: dto.isFighter,
       isReferee: dto.isReferee,
       isWorkshopParticipant: dto.isWorkshopParticipant,
+      isInstructor: dto.isInstructor,
     });
     const clubId = await this.resolveGlobalPersonClubInput(dto);
     const baseSlug = slugify(displayName);
@@ -1584,6 +1584,7 @@ export class FightersService {
         is_fighter: dto.isFighter ?? false,
         is_referee: dto.isReferee ?? false,
         is_workshop_participant: dto.isWorkshopParticipant ?? false,
+        is_instructor: dto.isInstructor ?? false,
       })
       .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
       .single();
@@ -1619,6 +1620,7 @@ export class FightersService {
       isFighter: dto.isFighter ?? Boolean(row['is_fighter']),
       isReferee: dto.isReferee ?? Boolean(row['is_referee']),
       isWorkshopParticipant: dto.isWorkshopParticipant ?? Boolean(row['is_workshop_participant']),
+      isInstructor: dto.isInstructor ?? Boolean(row['is_instructor']),
     };
     this.assertAtLeastOneRole(nextRoles);
 
@@ -1647,6 +1649,7 @@ export class FightersService {
     if (dto.isWorkshopParticipant !== undefined) {
       updates['is_workshop_participant'] = dto.isWorkshopParticipant;
     }
+    if (dto.isInstructor !== undefined) updates['is_instructor'] = dto.isInstructor;
     updates['updated_at'] = new Date().toISOString();
 
     const { data, error } = await this.supabase.service
@@ -1691,6 +1694,7 @@ export class FightersService {
         isFighter: boolean;
         isReferee: boolean;
         isWorkshopParticipant: boolean;
+        isInstructor: boolean;
       };
     }>;
   }> {
@@ -1756,6 +1760,7 @@ export class FightersService {
           isFighter: false,
           isReferee: false,
           isWorkshopParticipant: false,
+          isInstructor: false,
         },
       });
     }
@@ -1786,6 +1791,9 @@ export class FightersService {
           isFighter: parseBoolCell(row.is_fighter),
           isReferee: parseBoolCell(row.is_referee),
           isWorkshopParticipant: parseBoolCell(row.is_workshop_participant),
+          // CSV import has no is_instructor column yet — instructors are set via
+          // event tagging (auto-tick) or the admin role checkbox.
+          isInstructor: false,
         },
       });
     }
@@ -1868,6 +1876,7 @@ export class FightersService {
         is_fighter: decision.isFighter ? 'true' : 'false',
         is_referee: decision.isReferee ? 'true' : 'false',
         is_workshop_participant: decision.isWorkshopParticipant ? 'true' : 'false',
+        is_instructor: decision.isInstructor ? 'true' : 'false',
       };
 
       try {
@@ -1985,8 +1994,14 @@ export class FightersService {
     isFighter?: boolean;
     isReferee?: boolean;
     isWorkshopParticipant?: boolean;
+    isInstructor?: boolean;
   }): void {
-    if (!roles.isFighter && !roles.isReferee && !roles.isWorkshopParticipant) {
+    if (
+      !roles.isFighter &&
+      !roles.isReferee &&
+      !roles.isWorkshopParticipant &&
+      !roles.isInstructor
+    ) {
       throw new BadRequestException('At least one global profile role is required');
     }
   }
@@ -2043,6 +2058,7 @@ export class FightersService {
     if (dto.isReferee !== undefined) updates['is_referee'] = dto.isReferee;
     if (dto.isWorkshopParticipant !== undefined)
       updates['is_workshop_participant'] = dto.isWorkshopParticipant;
+    if (dto.isInstructor !== undefined) updates['is_instructor'] = dto.isInstructor;
     updates['updated_at'] = new Date().toISOString();
 
     const { data, error } = await this.supabase.service

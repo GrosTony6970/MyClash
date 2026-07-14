@@ -9,6 +9,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
+import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { LeaguesService } from '../leagues/leagues.service';
@@ -2323,13 +2324,19 @@ export class EventsService {
     const version = normalizeRulesetVersion(dto.rulesetVersion ?? '1');
     const rulesetConfig = await resolveRulesetConfigDefaults(this.supabase, code, version);
 
+    // Strict catalog-only weapon: a non-empty value must resolve to an active
+    // weapon_catalog entry (throws 400 otherwise); the canonical name is stored.
+    const weapon = dto.weapon?.trim()
+      ? await resolveCatalogWeapon(this.supabase.service, dto.weapon)
+      : null;
+
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .insert({
         event_id: eventId,
         slug: dto.slug,
         name: dto.name.trim(),
-        weapon: dto.weapon ?? null,
+        weapon,
         ruleset_code: code,
         // Persist the registry-canonical version ('1' -> '1.0.0'), not the raw
         // shorthand: the @myclash/rulesets registry keys built-ins as
@@ -2408,7 +2415,20 @@ export class EventsService {
     const currentJson = current as Record<string, unknown>;
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
-    if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
+    if (dto.weapon !== undefined) {
+      const submitted = dto.weapon?.trim() ?? '';
+      const currentWeapon = String(currentJson['weapon'] ?? '').trim();
+      if (!submitted) {
+        updates['weapon'] = null;
+      } else if (submitted === currentWeapon) {
+        // Legacy escape hatch: an unchanged value is accepted even if it's not
+        // in the catalog, so editing a tournament whose weapon predates the
+        // catalog (or was later deactivated) never 400s on unrelated saves.
+        updates['weapon'] = currentJson['weapon'];
+      } else {
+        updates['weapon'] = await resolveCatalogWeapon(this.supabase.service, submitted);
+      }
+    }
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.rulesetCode !== undefined) updates['ruleset_code'] = dto.rulesetCode;
     if (dto.rulesetVersion !== undefined) updates['ruleset_version'] = dto.rulesetVersion;

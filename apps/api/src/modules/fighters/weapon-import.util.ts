@@ -20,7 +20,7 @@ export interface ParsedImportWeapon {
   favorite: boolean;
 }
 
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize('NFD')
@@ -82,9 +82,15 @@ async function resolveWeaponCatalogId(
     .eq('slug', slug)
     .maybeSingle();
   if (existing) return String((existing as { id: unknown }).id);
+  // Import-created rows land INACTIVE: fighter imports run on the service client
+  // (bypassing the super-admin weapon_catalog_write RLS), so an unvetted name
+  // must not silently appear in the strict tournament/workshop picker
+  // (GET /weapons?active=true). A super-admin promotes it via /admin/weapons.
+  // active=false does not gate the fighter_weapons FK, so the link still works
+  // and the weapon still shows on the (non-strict) fighter profile picker.
   const { data, error } = await service
     .from('weapon_catalog')
-    .insert({ name, slug })
+    .insert({ name, slug, active: false })
     .select('id')
     .single();
   if (error) throw new Error(error.message);

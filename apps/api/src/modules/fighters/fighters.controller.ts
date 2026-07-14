@@ -20,6 +20,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -281,8 +282,13 @@ export class WeaponsController {
 
   @Get()
   @ApiOperation({ summary: 'List controlled weapon catalog entries' })
-  async list() {
-    return this.fighters.listWeapons();
+  @ApiQuery({
+    name: 'active',
+    required: false,
+    description: 'When "true", only return active catalog entries (for pickers).',
+  })
+  async list(@Query('active') active?: string) {
+    return this.fighters.listWeapons(active === 'true');
   }
 }
 
