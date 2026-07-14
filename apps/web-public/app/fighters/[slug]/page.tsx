@@ -177,6 +177,7 @@ interface RecentMatch {
   redScore: number;
   blueScore: number;
   isRed: boolean;
+  outcome: 'win' | 'loss' | 'draw';
   eventName: string | null;
   eventSlug: string | null;
   scheduledAt: string | null;
@@ -570,7 +571,12 @@ export default async function FighterPage({ params }: Props) {
             {history.map((match) => {
               const myScore = match.isRed ? match.redScore : match.blueScore;
               const oppScore = match.isRed ? match.blueScore : match.redScore;
-              const won = myScore > oppScore;
+              const chipClass =
+                match.outcome === 'win'
+                  ? 'bg-success/15 text-success'
+                  : match.outcome === 'draw'
+                    ? 'bg-warning/15 text-warning'
+                    : 'bg-danger/15 text-danger';
               return (
                 <Link
                   key={match.id}
@@ -587,12 +593,11 @@ export default async function FighterPage({ params }: Props) {
                     </div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={[
-                          'rounded-full px-2 py-0.5 text-xs font-bold',
-                          won ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger',
-                        ].join(' ')}
+                        className={['rounded-full px-2 py-0.5 text-xs font-bold', chipClass].join(
+                          ' ',
+                        )}
                       >
-                        {won ? 'W' : 'L'}
+                        {match.outcome === 'win' ? 'W' : match.outcome === 'draw' ? 'D' : 'L'}
                       </span>
                       <p className="font-mono text-sm font-bold tabular-nums text-foreground">
                         {myScore}-{oppScore}

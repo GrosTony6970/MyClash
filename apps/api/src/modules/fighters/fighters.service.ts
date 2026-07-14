@@ -44,6 +44,11 @@ import {
   type RefereePenaltyInput,
   type RefereeSkillInfo,
 } from './referee-stats';
+import {
+  buildProfileRecentMatch,
+  type ProfileRecentMatch,
+  type RecentMatchRow,
+} from './recent-matches';
 
 export interface MatchSummary {
   id: string;
@@ -87,6 +92,10 @@ export interface FighterPhotoUpload {
 }
 
 type Row = Record<string, unknown>;
+
+/** Completed matches shown inline on the profile "recent results" strip; the
+ *  full history is behind the "show all matches" modal. */
+const RECENT_COMPLETED_LIMIT = 5;
 
 /**
  * Fighter-profile fields a user can hide from their public profile, mapped to
@@ -970,7 +979,107 @@ export class FightersService {
       // them by slug so the shared stats panel shows the same medals as /me. Returns
       // [] gracefully if the fighter_manual_medals table isn't present yet.
       medals: await this.getFighterMedalLinks(id),
+      // Live + recent completed matches for the profile's "recent results" strip.
+      recentMatches: await this.getRecentMatchesForProfile(id),
     };
+  }
+
+  /** Recent live + completed matches for the public profile "recent results"
+   *  strip. Test-event matches are excluded (career-consistent), and completed
+   *  matches are capped at a small preview — the full history lives behind the
+   *  "show all matches" modal (getPaginatedMatches). Each match carries the
+   *  winner-aware outcome so a draw is never mislabelled as a loss. */
+  private async getRecentMatchesForProfile(fighterId: string): Promise<ProfileRecentMatch[]> {
+    // registrations has no global_person_id (dropped in 0083) — walk through
+    // person_id → persons.global_person_id, as the paginated match path does.
+    const { data: regData, error: regError } = await this.supabase.service
+      .from('registrations')
+      .select(
+        'id, persons!inner(global_person_id), tournaments(events(id, name, slug, is_test_event))',
+      )
+      .eq('persons.global_person_id', fighterId);
+    if (regError || !regData) return [];
+
+    const registrations = (regData as Row[]).filter((reg) => {
+      const tournament = reg['tournaments'] as Row | null;
+      const event = tournament?.['events'] as Row | null;
+      return event?.['is_test_event'] !== true;
+    });
+    if (registrations.length === 0) return [];
+
+    const regById = new Map<string, Row>();
+    const ownRegistrationIds = new Set<string>();
+    for (const reg of registrations) {
+      const regId = String(reg['id']);
+      regById.set(regId, reg);
+      ownRegistrationIds.add(regId);
+    }
+
+    const ids = [...ownRegistrationIds].join(',');
+    const orFilter = `red_registration_id.in.(${ids}),blue_registration_id.in.(${ids})`;
+    const columns =
+      'id, status, scheduled_at, created_at, match_number_label, red_registration_id, blue_registration_id, winner_registration_id, red_score, blue_score';
+
+    // Running matches (usually 0–1) plus the most recent completed ones.
+    const [liveRes, completedRes] = await Promise.all([
+      this.supabase.service.from('matches').select(columns).or(orFilter).eq('status', 'running'),
+      this.supabase.service
+        .from('matches')
+        .select(columns)
+        .or(orFilter)
+        .eq('status', 'completed')
+        .order('scheduled_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(RECENT_COMPLETED_LIMIT),
+    ]);
+
+    const matchRows = [...((liveRes.data ?? []) as Row[]), ...((completedRes.data ?? []) as Row[])];
+    if (matchRows.length === 0) return [];
+
+    // Opponent display names — the registration NOT owned by this fighter.
+    const opponentRegIds = new Set<string>();
+    for (const match of matchRows) {
+      const redId = (match['red_registration_id'] as string | null) ?? null;
+      const blueId = (match['blue_registration_id'] as string | null) ?? null;
+      if (redId && !ownRegistrationIds.has(redId)) opponentRegIds.add(redId);
+      if (blueId && !ownRegistrationIds.has(blueId)) opponentRegIds.add(blueId);
+    }
+    const opponentNames = new Map<string, string>();
+    if (opponentRegIds.size > 0) {
+      const { data: oppData } = await this.supabase.service
+        .from('registrations')
+        .select('id, persons(global_persons(display_name))')
+        .in('id', [...opponentRegIds]);
+      for (const row of (oppData ?? []) as Row[]) {
+        const person = row['persons'] as Row | null;
+        const gp = person?.['global_persons'] as Row | null;
+        opponentNames.set(String(row['id']), String(gp?.['display_name'] ?? ''));
+      }
+    }
+
+    return matchRows.map((match) => {
+      const redId = (match['red_registration_id'] as string | null) ?? null;
+      const blueId = (match['blue_registration_id'] as string | null) ?? null;
+      // Event context comes from the fighter's OWN registration on this match.
+      const myRegId = redId && ownRegistrationIds.has(redId) ? redId : blueId;
+      const myReg = myRegId ? regById.get(myRegId) : null;
+      const tournament = (myReg?.['tournaments'] as Row | null) ?? null;
+      const event = (tournament?.['events'] as Row | null) ?? null;
+      const rowInput: RecentMatchRow = {
+        id: String(match['id']),
+        status: String(match['status']),
+        scheduledAt: (match['scheduled_at'] as string | null) ?? null,
+        matchNumberLabel: (match['match_number_label'] as string | null) ?? null,
+        redRegistrationId: redId,
+        blueRegistrationId: blueId,
+        winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
+        redScore: Number(match['red_score'] ?? 0),
+        blueScore: Number(match['blue_score'] ?? 0),
+        eventName: String(event?.['name'] ?? ''),
+        eventSlug: String(event?.['slug'] ?? ''),
+      };
+      return buildProfileRecentMatch(rowInput, ownRegistrationIds, opponentNames);
+    });
   }
 
   private async assertFighterOwner(fighterId: string, userId: string): Promise<void> {
