@@ -515,9 +515,9 @@ export class QualificationsService {
    * at notification-dispatch time, where we need an email address.
    *
    * - Upserts event_referees row (ON CONFLICT DO NOTHING).
-   * - Promotes global is_referee = 'true' iff it was NULL, with provenance flag
-   *   (is_referee_event_managed = true) so removeEventReferee can safely clear
-   *   it later. Pre-existing manual referee tags are preserved.
+   * - Ticks global is_referee = true when the person is not already a referee.
+   *   Tick-only: the flag is never auto-cleared (see removeEventReferee), so a
+   *   person stays flagged as a referee even after leaving every roster.
    */
   async ensureEventReferee(eventId: string, personId: string, actorUserId: string): Promise<void> {
     const event = await this.getEvent(eventId);
@@ -532,8 +532,8 @@ export class QualificationsService {
     if (gpErr) throw new BadRequestException(gpErr.message);
 
     let resolvedGlobalId: string | null = (globalPerson as { id: string } | null)?.id ?? null;
-    let isRefereeRaw: string | null =
-      (globalPerson as { is_referee: string | null } | null)?.is_referee ?? null;
+    let isRefereeRaw: boolean | string | null =
+      (globalPerson as { is_referee: boolean | string | null } | null)?.is_referee ?? null;
 
     // Fallback: the caller may have passed an event-scoped persons.id (the
     // FE's lookup payload exposes both ids and the picker / participants-
@@ -558,7 +558,7 @@ export class QualificationsService {
           .select('is_referee')
           .eq('id', resolvedGlobalId)
           .maybeSingle();
-        isRefereeRaw = (gp2 as { is_referee: string | null } | null)?.is_referee ?? null;
+        isRefereeRaw = (gp2 as { is_referee: boolean | string | null } | null)?.is_referee ?? null;
       } else if (personsRow) {
         throw new BadRequestException(
           `Participant ${personId} has no global profile — link or create one first.`,
@@ -582,16 +582,15 @@ export class QualificationsService {
 
     if (upsertError) throw new BadRequestException(upsertError.message);
 
-    if (isRefereeRaw === null) {
+    const alreadyReferee = isRefereeRaw === true || isRefereeRaw === 'true';
+    if (!alreadyReferee) {
       await this.supabase.service
         .from('global_persons')
         .update({
-          is_referee: 'true',
-          is_referee_event_managed: true,
+          is_referee: true,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', resolvedGlobalId)
-        .is('is_referee', null);
+        .eq('id', resolvedGlobalId);
     }
   }
 
@@ -599,8 +598,8 @@ export class QualificationsService {
    * Remove a person as referee for an event.
    * - Cascades referee_assignments cleanup defensively.
    * - Deletes the event_referees row.
-   * - Clears the global is_referee flag IFF we set it AND no other event still
-   *   has them as a referee.
+   * - Tick-only: the global is_referee flag is intentionally left untouched, so a
+   *   person keeps their referee tag after being removed from an event roster.
    */
   async removeEventReferee(eventId: string, personId: string, actorUserId: string): Promise<void> {
     const event = await this.getEvent(eventId);
@@ -619,25 +618,6 @@ export class QualificationsService {
       .eq('person_id', personId);
 
     if (delErr) throw new BadRequestException(delErr.message);
-
-    const { data: remaining, error: remErr } = await this.supabase.service
-      .from('event_referees')
-      .select('event_id')
-      .eq('person_id', personId)
-      .limit(1);
-
-    if (remErr) throw new BadRequestException(remErr.message);
-    if (remaining && remaining.length > 0) return;
-
-    await this.supabase.service
-      .from('global_persons')
-      .update({
-        is_referee: null,
-        is_referee_event_managed: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', personId)
-      .eq('is_referee_event_managed', true);
   }
 
   /**

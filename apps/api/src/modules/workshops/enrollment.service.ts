@@ -15,7 +15,7 @@
  *   - Race-condition safe: relies on the confirmed-count check
  */
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -29,6 +29,8 @@ export interface EnrollmentResult {
 
 @Injectable()
 export class EnrollmentService {
+  private readonly logger = new Logger(EnrollmentService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notificationEvents: NotificationEventsService,
@@ -47,6 +49,7 @@ export class EnrollmentService {
 
     if (existing) {
       const e = existing as { id: string; status: string; position: number | null };
+      await this.markGlobalWorkshopParticipant(personId);
       return {
         id: e.id,
         personId,
@@ -100,6 +103,8 @@ export class EnrollmentService {
 
       if (error) throw new BadRequestException(error.message);
 
+      await this.markGlobalWorkshopParticipant(personId);
+
       return {
         id: (data as { id: string }).id,
         personId,
@@ -123,6 +128,8 @@ export class EnrollmentService {
 
     if (error) throw new BadRequestException(error.message);
 
+    await this.markGlobalWorkshopParticipant(personId);
+
     return {
       id: (data as { id: string }).id,
       personId,
@@ -130,6 +137,54 @@ export class EnrollmentService {
       status: 'confirmed',
       waitlistPosition: null,
     };
+  }
+
+  // ── Global role flag ───────────────────────────────────────────────────────────
+
+  /**
+   * Best-effort: tick the person's global `is_workshop_participant` flag.
+   *
+   * `personId` is an event-scoped `persons.id`; the global flag lives on
+   * `global_persons`, reachable via `persons.global_person_id`. Guests whose
+   * `persons` row has no global link are skipped (nothing to flag). Tick-only:
+   * the flag is never cleared on cancel. Failures are logged and swallowed — a
+   * profile-flag write must never fail an otherwise-successful enrollment.
+   */
+  private async markGlobalWorkshopParticipant(personId: string): Promise<void> {
+    try {
+      const { data: person, error: personErr } = await this.supabase.service
+        .from('persons')
+        .select('global_person_id')
+        .eq('id', personId)
+        .maybeSingle();
+
+      if (personErr) {
+        this.logger.warn(
+          `workshop-participant flag: persons lookup failed for ${personId}: ${personErr.message}`,
+        );
+        return;
+      }
+
+      const globalPersonId = (person as { global_person_id: string | null } | null)
+        ?.global_person_id;
+      if (!globalPersonId) return;
+
+      const { error: updateErr } = await this.supabase.service
+        .from('global_persons')
+        .update({ is_workshop_participant: true, updated_at: new Date().toISOString() })
+        .eq('id', globalPersonId)
+        .eq('is_workshop_participant', false);
+
+      if (updateErr) {
+        this.logger.warn(
+          `workshop-participant flag: update failed for global person ${globalPersonId}: ${updateErr.message}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `workshop-participant flag: unexpected error for ${personId}: ${(err as Error).message}`,
+      );
+    }
   }
 
   // ── Cancel ────────────────────────────────────────────────────────────────────

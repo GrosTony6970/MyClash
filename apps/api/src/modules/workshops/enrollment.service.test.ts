@@ -27,10 +27,20 @@ interface Row {
  * service uses. Records inserts/updates/deletes so tests can assert on
  * real column names and verify promotion behaviour through the public API.
  */
-function buildFake(opts: { capacity: number | null; seed?: Row[] }) {
+function buildFake(opts: {
+  capacity: number | null;
+  seed?: Row[];
+  personGlobalId?: string | null;
+  personsError?: { message: string } | null;
+  globalUpdateError?: { message: string } | null;
+}) {
   const rows: Row[] = [...(opts.seed ?? [])];
   let idc = rows.length;
   const inserts: Record<string, unknown>[] = [];
+  const globalUpdates: Array<{
+    payload: Record<string, unknown> | null;
+    filters: Record<string, unknown>;
+  }> = [];
 
   function table(name: string) {
     if (name === 'workshop_sessions') {
@@ -45,6 +55,43 @@ function buildFake(opts: { capacity: number | null; seed?: Row[] }) {
           }),
         }),
       };
+    }
+    if (name === 'persons') {
+      // markGlobalWorkshopParticipant resolves personId → global_person_id.
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: () =>
+              Promise.resolve({
+                data:
+                  opts.personGlobalId === undefined
+                    ? null
+                    : { global_person_id: opts.personGlobalId },
+                error: opts.personsError ?? null,
+              }),
+          }),
+        }),
+      };
+    }
+    if (name === 'global_persons') {
+      // Records the is_workshop_participant tick for assertions.
+      let payload: Record<string, unknown> | null = null;
+      const filters: Record<string, unknown> = {};
+      const gpBuilder: Record<string, unknown> = {
+        update: (p: Record<string, unknown>) => {
+          payload = p;
+          return gpBuilder;
+        },
+        eq: (col: string, val: unknown) => {
+          filters[col] = val;
+          return gpBuilder;
+        },
+        then: (resolve: (v: { data: null; error: { message: string } | null }) => unknown) => {
+          globalUpdates.push({ payload, filters });
+          return resolve({ data: null, error: opts.globalUpdateError ?? null });
+        },
+      };
+      return gpBuilder;
     }
     // workshop_enrollments — a chainable filter builder.
     const filters: { col: string; val: unknown }[] = [];
@@ -141,6 +188,7 @@ function buildFake(opts: { capacity: number | null; seed?: Row[] }) {
     supabase: { service: { from: (n: string) => table(n) }, anon: {} },
     rows,
     inserts,
+    globalUpdates,
   };
 }
 
@@ -222,6 +270,42 @@ describe('EnrollmentService.enroll', () => {
     const res = await svc.enroll('s-1', 'p-1');
     expect(res.id).toBe('e-9');
     expect(fake.inserts).toHaveLength(0);
+  });
+
+  it('ticks global_persons.is_workshop_participant when the person has a global link', async () => {
+    const fake = buildFake({ capacity: 2, personGlobalId: 'gp-42' });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await svc.enroll('s-1', 'person-1');
+
+    expect(fake.globalUpdates).toHaveLength(1);
+    const [gu] = fake.globalUpdates;
+    expect(gu?.payload).toMatchObject({ is_workshop_participant: true });
+    expect(gu?.filters).toMatchObject({ id: 'gp-42', is_workshop_participant: false });
+  });
+
+  it('does not touch global_persons when the person has no global link', async () => {
+    const fake = buildFake({ capacity: 2, personGlobalId: null });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'guest-1');
+
+    expect(res.status).toBe('confirmed');
+    expect(fake.globalUpdates).toHaveLength(0);
+  });
+
+  it('still enrolls when the global_persons flag update fails', async () => {
+    const fake = buildFake({
+      capacity: 2,
+      personGlobalId: 'gp-42',
+      globalUpdateError: { message: 'boom' },
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'person-1');
+
+    expect(res.status).toBe('confirmed');
+    expect(fake.inserts[0]).toMatchObject({ user_id: 'person-1', status: 'confirmed' });
   });
 });
 

@@ -1184,15 +1184,13 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
   // ── ensureEventReferee ────────────────────────────────────────────────────────
 
   describe('ensureEventReferee', () => {
-    it('sets global_persons.is_referee = "true" when a claimed profile exists', async () => {
+    it('ticks global_persons.is_referee = true when a claimed profile exists', async () => {
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
-      // claimed global_person check — found. is_referee MUST be `null` (not
-      // undefined) for the gp update branch to fire — production gates on
-      // `claimed.is_referee === null` so pre-existing referee tags survive.
+      // claimed global_person check — found, not yet a referee.
       const claimedData = { id: 'gp-1', is_referee: null };
       const claimedChain = makeChain({ data: claimedData, error: null });
       claimedChain.maybeSingle.mockResolvedValue({ data: claimedData, error: null });
@@ -1211,9 +1209,62 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
 
       await service.ensureEventReferee('event-1', 'user-target', 'actor-admin');
 
-      // Verify global_persons update was called with is_referee = 'true'
+      // Verify global_persons update was called with is_referee = true (boolean)
       const updateCall = (gpUpdateChain as unknown as { update: ReturnType<typeof vi.fn> }).update;
-      expect(updateCall).toHaveBeenCalledWith(expect.objectContaining({ is_referee: 'true' }));
+      expect(updateCall).toHaveBeenCalledWith(expect.objectContaining({ is_referee: true }));
+    });
+
+    it('ticks is_referee even when it is already the (boolean) default false', async () => {
+      // Regression: the real-world value is boolean `false` (column is
+      // BOOLEAN NOT NULL DEFAULT FALSE), never `null`. The old `.is(null)`
+      // guard never matched, so the tick was dead code. It must fire here.
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const claimedData = { id: 'gp-1', is_referee: false };
+      const claimedChain = makeChain({ data: claimedData, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: claimedData, error: null });
+
+      const upsertChain = makeResolvedChain({ data: null, error: null });
+      const gpUpdateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(claimedChain) // global_person check → is_referee false
+        .mockReturnValueOnce(upsertChain) // event_referees upsert
+        .mockReturnValueOnce(gpUpdateChain); // global_persons update
+
+      await service.ensureEventReferee('event-1', 'gp-1', 'actor-admin');
+
+      const updateCall = (gpUpdateChain as unknown as { update: ReturnType<typeof vi.fn> }).update;
+      expect(updateCall).toHaveBeenCalledWith(expect.objectContaining({ is_referee: true }));
+    });
+
+    it('does not re-write is_referee when the person is already a referee', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const claimedData = { id: 'gp-1', is_referee: true };
+      const claimedChain = makeChain({ data: claimedData, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: claimedData, error: null });
+
+      const upsertChain = makeResolvedChain({ data: null, error: null });
+      const gpUpdateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(claimedChain) // global_person check → already referee
+        .mockReturnValueOnce(upsertChain) // event_referees upsert
+        .mockReturnValueOnce(gpUpdateChain); // (should NOT be used)
+
+      await service.ensureEventReferee('event-1', 'gp-1', 'actor-admin');
+
+      const updateCall = (gpUpdateChain as unknown as { update: ReturnType<typeof vi.fn> }).update;
+      expect(updateCall).not.toHaveBeenCalled();
     });
 
     it('upserts event_referees with default availability flags', async () => {
