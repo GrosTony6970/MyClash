@@ -793,12 +793,18 @@ describe('MatchesService', () => {
         return Promise.resolve({ data: null, error: null });
       }) as never;
 
+      // The real DB resolves the event in ONE query via
+      // matches → phases → tournaments.event_id, and match-scoped rows must be
+      // lice-null. NOTE: mocks can't reproduce the real-DB failures this fixed
+      // (a missing phases.event_id column, and the scope CHECK forbidding a
+      // non-null lice_id on scope_type='match') — so these assertions pin the
+      // query/row SHAPE that the real DB requires.
       fromMock.mockImplementation((tableName: string) => {
         if (tableName === 'matches') {
-          return makeChain({ data: { phase_id: 'phase-1', lice_id: 'lice-1' }, error: null });
-        }
-        if (tableName === 'phases') {
-          return makeChain({ data: { event_id: 'event-1' }, error: null });
+          return makeChain({
+            data: { phases: { tournaments: { event_id: 'event-1' } } },
+            error: null,
+          });
         }
         if (tableName === 'referee_assignments') {
           return refereeChain;
@@ -815,7 +821,7 @@ describe('MatchesService', () => {
         scope_type: 'match',
         pool_id: null,
         match_id: 'match-1',
-        lice_id: 'lice-1',
+        lice_id: null,
         role: 'arbitre_declarant',
         auto_assigned: false,
         status: 'assigned',
@@ -829,10 +835,10 @@ describe('MatchesService', () => {
 
       fromMock.mockImplementation((tableName: string) => {
         if (tableName === 'matches') {
-          return makeChain({ data: { phase_id: 'phase-1', lice_id: null }, error: null });
-        }
-        if (tableName === 'phases') {
-          return makeChain({ data: { event_id: 'event-1' }, error: null });
+          return makeChain({
+            data: { phases: { tournaments: { event_id: 'event-1' } } },
+            error: null,
+          });
         }
         if (tableName === 'referee_assignments') {
           return refereeChain;

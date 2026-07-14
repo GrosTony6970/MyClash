@@ -466,27 +466,25 @@ export class MatchesService {
     role: string,
     refereeId: string | null,
   ): Promise<{ matchId: string; role: string; refereeId: string | null }> {
-    // 1. Load match to derive event_id (via phases.event_id) and to
-    //    carry lice_id onto the assignment row so the assignment-board
-    //    scheduling joins still resolve.
+    // 1. Load the match and resolve its event via phases → tournaments.event_id
+    //    (the `phases` table has no event_id column of its own — it keys on
+    //    tournament_id, and the event is reached one hop further up).
     const { data: match, error: matchErr } = await this.supabase.service
       .from('matches')
-      .select('phase_id, lice_id')
+      .select('phases ( tournaments ( event_id ) )')
       .eq('id', matchId)
       .maybeSingle();
     if (matchErr) throw new BadRequestException(matchErr.message);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
-    const phaseId = (match as { phase_id: string }).phase_id;
-    const liceId = (match as { lice_id: string | null }).lice_id ?? null;
-
-    const { data: phase, error: phaseErr } = await this.supabase.service
-      .from('phases')
-      .select('event_id')
-      .eq('id', phaseId)
-      .maybeSingle();
-    if (phaseErr) throw new BadRequestException(phaseErr.message);
-    if (!phase) throw new NotFoundException(`Phase ${phaseId} not found`);
-    const eventId = (phase as { event_id: string }).event_id;
+    // PostgREST nests a to-one embed as an object (or a 1-element array). Normalize.
+    const one = (v: unknown): Record<string, unknown> | null =>
+      Array.isArray(v)
+        ? ((v[0] as Record<string, unknown>) ?? null)
+        : ((v as Record<string, unknown>) ?? null);
+    const phase = one((match as Record<string, unknown>)['phases']);
+    const tournament = one(phase?.['tournaments']);
+    const eventId = tournament?.['event_id'] as string | undefined;
+    if (!eventId) throw new NotFoundException(`Event for match ${matchId} not found`);
 
     // 2. Idempotent clear — delete any existing assignment for the
     //    (match, role) tuple. Mirrors the manual-assignment branch in
@@ -509,7 +507,10 @@ export class MatchesService {
       scope_type: 'match',
       pool_id: null,
       match_id: matchId,
-      lice_id: liceId,
+      // Match-scoped rows MUST be lice-null (referee_assignments_scope_check,
+      // migration 0091); lice_id is reserved for the 'lice' scope. The
+      // assignment-board engine writes null here too.
+      lice_id: null,
       role,
       auto_assigned: false,
       status: 'assigned',
