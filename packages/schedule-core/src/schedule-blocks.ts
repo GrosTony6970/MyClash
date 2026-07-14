@@ -20,6 +20,9 @@ export interface BlockMatchInput {
   roundCode?: string;
   phaseType: string | null;
   tournamentName: string | null;
+  /** Tournament slug — carried onto the block so a read-only public grid can
+   *  link a block to its tournament page. Optional; admin callers omit it. */
+  tournamentSlug?: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
   /** Match length in minutes — drives block height + retime-on-resize. */
@@ -46,6 +49,8 @@ export interface ScheduleBlock {
   liceIds: string[];
   label: string;
   tournamentName: string | null;
+  /** Tournament slug, or null — lets a read-only grid link the block to its tournament. */
+  tournamentSlug: string | null;
   kind: 'pool' | 'bracket' | 'other';
   startIso: string;
   /** Last fight's start + its duration — the run's true end, never padded. */
@@ -126,6 +131,7 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
       liceIds,
       label,
       tournamentName: first.tournamentName,
+      tournamentSlug: first.tournamentSlug ?? null,
       kind,
       startIso: new Date(startMs).toISOString(),
       endIso: new Date(endMs).toISOString(),

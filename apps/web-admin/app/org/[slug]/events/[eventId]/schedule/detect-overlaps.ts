@@ -11,7 +11,7 @@
  *
  * Pure: no React, no I/O.
  */
-import { SLOT_MINUTES } from './schedule-grid-geometry';
+import { SLOT_MINUTES } from '@myclash/schedule-core';
 
 export interface OverlapMatch {
   liceId: string;

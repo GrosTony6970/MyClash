@@ -13,7 +13,6 @@ import {
   tintTextClassFor,
 } from '@myclash/ui';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
-import { parseBracketRound } from './bracket-round-group';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
@@ -23,15 +22,8 @@ import { newBreakDraftFromCell } from './new-break-draft';
 import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
-import { eachDay, formatDayLabel } from './event-days';
-import {
-  buildScheduleBlocks,
-  type ScheduleBlock,
-  type ScheduleBlockMatch,
-} from './schedule-blocks';
 import { computeLiceDrift } from './lice-drift';
 import { scheduleToCsv } from './schedule-csv';
-import { computeGridEndSlot } from './compute-grid-end';
 import { respaceMatchesEvenly } from './lice-span';
 import { distributeGroups } from './auto-place';
 import { detectScheduleOverlaps } from './detect-overlaps';
@@ -54,7 +46,14 @@ import {
   snapSlot,
   venueColor,
   zoomToSlotHeight,
-} from './schedule-grid-geometry';
+  parseBracketRound,
+  eachDay,
+  formatDayLabel,
+  buildScheduleBlocks,
+  type ScheduleBlock,
+  type ScheduleBlockMatch,
+  computeGridEndSlot,
+} from '@myclash/schedule-core';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -169,18 +168,18 @@ interface ScheduleMatch {
 }
 
 // Geometry constants + slot helpers (slotToTime / isoToSlot /
-// formatSlotTime / computeVenueGroups …) live in
-// ./schedule-grid-geometry, shared with BlockGridView. TOTAL_SLOTS
-// floors at DEFAULT_GRID_END_HOUR for now; Stage G makes the visible
-// end dynamic per day.
+// formatSlotTime / computeVenueGroups …) live in the shared
+// @myclash/schedule-core package. TOTAL_SLOTS floors at
+// DEFAULT_GRID_END_HOUR for now; Stage G makes the visible end
+// dynamic per day.
 const TOTAL_SLOTS = ((DEFAULT_GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
 
 // Stable empty set for the block grid's conflict/overlap tint props until S7b
 // computes the real ones (avoids a new-ref churn each render).
 const EMPTY_STRING_SET: Set<string> = new Set();
 
-// `eachDay` / `formatDayLabel` moved to ./event-days (shared with the
-// workshop schedule board). Imported at the top of this module.
+// `eachDay` / `formatDayLabel` live in @myclash/schedule-core (shared
+// with the workshop schedule board). Imported at the top of this module.
 
 /** True when `scheduledAtIso` falls on the same calendar day (UTC) as `dayIso`. */
 function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boolean {

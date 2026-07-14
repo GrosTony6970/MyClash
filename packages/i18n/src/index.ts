@@ -38,6 +38,9 @@ export const en = {
         viewTournamentSchedule: 'Tournament schedule',
         viewWorkshopSchedule: 'Workshop schedule',
         notScheduled: 'Not scheduled yet',
+        now: 'Now',
+        fightCountSingular: '{count} fight',
+        fightCountPlural: '{count} fights',
       },
       tournament: {
         firstPool: 'First pool',
@@ -5933,6 +5936,9 @@ export const fr = {
         viewTournamentSchedule: 'Planning des tournois',
         viewWorkshopSchedule: 'Planning des ateliers',
         notScheduled: 'Pas encore planifie',
+        now: 'Maintenant',
+        fightCountSingular: '{count} combat',
+        fightCountPlural: '{count} combats',
       },
       tournament: {
         firstPool: 'Premiere poule',

@@ -30,6 +30,10 @@ export interface ScheduleGridMatch {
    *  tournament has no color set; the FE's tint helpers fall back
    *  to the default token. */
   tournamentColor: string | null;
+  /** Tournament slug — lets a read-only grid (e.g. the public event
+   *  schedule) link a block to its `/e/{slug}/t/{tournamentSlug}` page.
+   *  Null when the tournament is missing/unresolved. */
+  tournamentSlug: string | null;
   durationMinutes: number;
   /** 'pool' / 'single_elim' / 'double_elim' — drives the bracket-vs-pool chip on the grid. */
   phaseType: string | null;
@@ -55,6 +59,7 @@ interface PhaseRow {
 interface TournamentRow {
   id: string;
   name: string;
+  slug: string | null;
   weapon: string | null;
   color: string | null;
 }
@@ -141,7 +146,7 @@ export class ScheduleGridService {
     // 1. Tournaments for this event.
     const { data: tournamentsData, error: tournamentsErr } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, color')
+      .select('id, name, slug, weapon, color')
       .eq('event_id', eventId);
     if (tournamentsErr) throw new BadRequestException(tournamentsErr.message);
     const tournaments = ((tournamentsData ?? []) as TournamentRow[]).filter((t) => Boolean(t.id));
@@ -299,6 +304,7 @@ export class ScheduleGridService {
         blueRegistrationId: m.blue_registration_id ?? '',
         tournamentName,
         tournamentColor: tournament?.color ?? null,
+        tournamentSlug: tournament?.slug ?? null,
         durationMinutes: 5,
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,

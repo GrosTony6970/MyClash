@@ -4,7 +4,7 @@
  * lices, no color. Pure — the caller turns the draft into a POST.
  */
 
-import { slotToHHMM, snapSlot } from './schedule-grid-geometry';
+import { slotToHHMM, snapSlot } from '@myclash/schedule-core';
 import type { BlockEditDraft } from './BlockEditPopover';
 
 const DEFAULT_SPAN_SLOTS = 6; // 30 min at SLOT_MINUTES = 5

@@ -28,10 +28,10 @@ import {
   slotToTime,
   snapSlot,
   zoomToSlotHeight,
-} from '../schedule/schedule-grid-geometry';
+  formatDayLabel,
+} from '@myclash/schedule-core';
 import { minutesIntoDayInZone } from '@myclash/time';
 import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
-import { formatDayLabel } from '../schedule/event-days';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import {
   breakTimesFromSlots,

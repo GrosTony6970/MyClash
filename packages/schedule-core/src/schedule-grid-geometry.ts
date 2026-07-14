@@ -1,7 +1,7 @@
 /**
  * Shared time-axis geometry for the Schedule canvas — used by BOTH the
- * Detailed grid ([grid.tsx]) and the Block grid ([BlockGridView.tsx]) so
- * the two surfaces agree on slot math, column sizing and venue banding.
+ * organizer admin schedule grid and the public event schedule timeline so
+ * every surface agrees on slot math, column sizing and venue banding.
  *
  * The axis runs from `GRID_START_HOUR` in `SLOT_MINUTES` steps. The end of
  * the axis is dynamic (see `compute-grid-end.ts`); `DEFAULT_GRID_END_HOUR`

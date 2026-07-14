@@ -7,7 +7,7 @@
  *
  * Pure: no React, no I/O. Generic over any item carrying a round-code `name`.
  */
-import { parseBracketRound } from '../../schedule/bracket-round-group';
+import { parseBracketRound } from '@myclash/schedule-core';
 
 export function groupBracketPoolsBySection<T extends { name: string }>(
   pools: T[],

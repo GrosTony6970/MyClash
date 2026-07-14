@@ -6,7 +6,7 @@
  * day's break bars (which are immovable obstacles). Co-located with the board
  * so it speaks the grid's 5-min slot vocabulary; lives apart so it's testable.
  */
-import { slotToHHMM } from '../schedule/schedule-grid-geometry';
+import { slotToHHMM } from '@myclash/schedule-core';
 
 export interface SlottedItem {
   id: string;

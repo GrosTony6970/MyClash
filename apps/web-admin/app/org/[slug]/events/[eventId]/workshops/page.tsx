@@ -22,7 +22,7 @@ import {
   endFromStartDuration,
   workshopSessionTimes,
 } from './workshop-session-times';
-import { eachDay } from '../schedule/event-days';
+import { eachDay } from '@myclash/schedule-core';
 import { formatInZone, zonedDay } from '@myclash/time';
 import {
   TournamentColorDot,

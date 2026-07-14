@@ -18,7 +18,6 @@
 
 import { useRef, useState } from 'react';
 import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
-import type { ScheduleBlock } from './schedule-blocks';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
 import { blockTint } from './block-tint';
@@ -36,7 +35,8 @@ import {
   resizeStartSlot,
   snapSlot,
   venueColor,
-} from './schedule-grid-geometry';
+  type ScheduleBlock,
+} from '@myclash/schedule-core';
 
 export interface ViewLice {
   id: string;

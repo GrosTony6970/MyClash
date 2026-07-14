@@ -7,7 +7,7 @@
  *
  * Pure: no React, no I/O.
  */
-import { parseBracketRound } from './bracket-round-group';
+import { parseBracketRound } from '@myclash/schedule-core';
 
 export interface CsvMatch {
   scheduledAt: string | null;

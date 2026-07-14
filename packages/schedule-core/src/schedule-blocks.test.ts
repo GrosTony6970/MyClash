@@ -145,4 +145,18 @@ describe('buildScheduleBlocks', () => {
     ])[0]!;
     expect(blk.matches[0]).toMatchObject({ id: 'a', liceId: 'lice-1', durationMinutes: 7 });
   });
+
+  it('carries an optional tournamentSlug onto the block (null when omitted)', () => {
+    const withSlug = buildScheduleBlocks([
+      {
+        ...poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
+        tournamentSlug: 'longsword-open',
+      },
+    ])[0]!;
+    expect(withSlug.tournamentSlug).toBe('longsword-open');
+    const withoutSlug = buildScheduleBlocks([
+      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
+    ])[0]!;
+    expect(withoutSlug.tournamentSlug).toBeNull();
+  });
 });
