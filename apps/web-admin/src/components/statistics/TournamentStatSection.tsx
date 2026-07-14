@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import type { FighterStats, TournamentDetail, TournamentSummary } from './types';
+import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
+import { useStandingsView } from '@/components/standings/useStandingsView';
+import { getColumnHelp } from '@/components/standings/columnHelp';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -129,6 +132,10 @@ function DetailTable({ fighters, t }: { fighters: FighterStats[]; t: Translate }
 // ── Overall standings table (generic ruleset columns) ───────────────────────
 function StandingsTable({ detail, t }: { detail: TournamentDetail; t: Translate }) {
   const { columns, rows } = detail.standings;
+  const { query, setQuery, view, sortKey, direction, toggle } = useStandingsView(rows);
+  const sortAscLabel = t('admin.common.sortAscLabel');
+  const sortDescLabel = t('admin.common.sortDescLabel');
+  const lastDataIndex = columns.length - 1;
   if (rows.length === 0) {
     return <p className="text-sm text-muted">{t('organizer.eventStats.tournament.noStandings')}</p>;
   }
@@ -137,21 +144,77 @@ function StandingsTable({ detail, t }: { detail: TournamentDetail; t: Translate 
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
         {t('organizer.eventStats.tournament.standings')}
       </h4>
+      <div className="mb-2 flex items-center gap-2">
+        <input
+          aria-label={t('organizer.pools.standings.searchFighter')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('organizer.pools.standings.searchFighter')}
+          className="w-64 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            className="px-2 text-sm text-muted hover:text-foreground-secondary"
+          >
+            {t('actions.clear')}
+          </button>
+        )}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-background text-xs uppercase tracking-[0.14em] text-muted">
             <tr>
-              <th className="px-3 py-2">#</th>
-              <th className="px-3 py-2">{t('organizer.eventStats.detail.colFighter')}</th>
-              {columns.map((c) => (
+              <th className="px-3 py-2">
+                <StandingsHeaderCell
+                  label="#"
+                  columnKey="rank"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  help={getColumnHelp('rank', t)}
+                  align="left"
+                  tooltipAnchor="start"
+                  ariaSortAsc={sortAscLabel}
+                  ariaSortDesc={sortDescLabel}
+                />
+              </th>
+              <th className="px-3 py-2">
+                <StandingsHeaderCell
+                  label={t('organizer.eventStats.detail.colFighter')}
+                  columnKey="fighter"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  help={getColumnHelp('fighter', t)}
+                  align="left"
+                  tooltipAnchor="start"
+                  ariaSortAsc={sortAscLabel}
+                  ariaSortDesc={sortDescLabel}
+                />
+              </th>
+              {columns.map((c, i) => (
                 <th key={c.key} className="px-3 py-2 text-center">
-                  {c.label}
+                  <StandingsHeaderCell
+                    label={c.label}
+                    columnKey={c.key}
+                    sortDesc={c.sortDesc}
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    help={getColumnHelp(c.key, t)}
+                    align="center"
+                    tooltipAnchor={i === lastDataIndex ? 'end' : 'center'}
+                    ariaSortAsc={sortAscLabel}
+                    ariaSortDesc={sortDescLabel}
+                  />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {view.map((r) => (
               <tr key={r.registrationId} className="border-t border-border">
                 <td className="px-3 py-2 text-muted">{r.rank}</td>
                 <td className="px-3 py-2">

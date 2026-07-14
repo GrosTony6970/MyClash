@@ -5375,6 +5375,24 @@ export const en = {
         noMatchesYet:
           'No matches completed yet. Standings will appear as scorekeepers finish matches.',
         emptyPool: 'No matches completed in this pool yet.',
+        searchFighter: 'Filter by fighter name',
+        help: {
+          rank: 'Final standing, set by the ranking metric and its tie-breakers.',
+          fighter: 'The competitor and their club.',
+          score:
+            'The ranking metric this table is sorted by; higher is better. Set by the tournament ruleset.',
+          W: 'Matches won.',
+          L: 'Matches lost.',
+          D: 'Matches drawn (ended level).',
+          F: 'Matches lost by forfeit (no-show or withdrawal).',
+          ptsScored: 'Total points scored across all pool matches.',
+          ptsConceded: 'Total points conceded across all pool matches.',
+          diff: 'Differential: points scored minus points conceded.',
+          doubles: 'Double hits (both fighters land at once); fewer is better.',
+          hitsGiven: 'Clean hits landed on opponents.',
+          hitsReceived: 'Clean hits received; fewer is better.',
+          status: "Whether this fighter's pool matches are all completed.",
+        },
       },
     },
     staff: {
@@ -11349,6 +11367,25 @@ export const fr = {
         noMatchesYet:
           'Aucun combat terminé. Le classement apparaîtra à mesure que les arbitres valident les combats.',
         emptyPool: "Aucun combat terminé dans cette poule pour l'instant.",
+        searchFighter: 'Filtrer par nom de tireur',
+        help: {
+          rank: 'Classement final, déterminé par le score et ses départages.',
+          fighter: 'Le compétiteur et son club.',
+          score:
+            "Le score de classement qui ordonne ce tableau ; plus il est élevé, mieux c'est. Défini par le règlement.",
+          W: 'Matchs gagnés.',
+          L: 'Matchs perdus.',
+          D: 'Matchs nuls (à égalité).',
+          F: 'Matchs perdus par forfait (absence ou abandon).',
+          ptsScored: 'Total des points marqués sur tous les matchs de poule.',
+          ptsConceded: 'Total des points encaissés sur tous les matchs de poule.',
+          diff: 'Différentiel : points marqués moins points encaissés.',
+          doubles:
+            "Doubles (les deux tireurs touchent en même temps) ; moins il y en a, mieux c'est.",
+          hitsGiven: 'Touches nettes portées aux adversaires.',
+          hitsReceived: "Touches nettes reçues ; moins il y en a, mieux c'est.",
+          status: 'Indique si tous les matchs de poule de ce tireur sont terminés.',
+        },
       },
     },
     staff: {

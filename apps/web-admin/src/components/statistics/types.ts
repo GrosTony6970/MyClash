@@ -92,6 +92,8 @@ export interface FighterStats {
 export interface StandingsColumn {
   key: string;
   label: string;
+  /** Natural sort direction from the ruleset (true = higher-is-better). */
+  sortDesc?: boolean;
 }
 
 export interface StandingsRow {

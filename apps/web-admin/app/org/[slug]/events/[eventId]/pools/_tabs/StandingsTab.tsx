@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
+import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
+import { useStandingsView } from '@/components/standings/useStandingsView';
+import { getColumnHelp } from '@/components/standings/columnHelp';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -252,6 +255,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
             columns={overall.columns}
             rows={overall.rows}
             cutAfterIndex={bracketSize}
+            showFilter
           />
         ))}
 
@@ -302,12 +306,15 @@ function StandingsTable({
   columns,
   rows,
   cutAfterIndex,
+  showFilter,
 }: {
   columns: StandingsColumn[];
   rows: StandingsRow[];
   /** Draw a qualification cut line after this many fighters (= bracket size).
    *  Only meaningful in the overall ranking; omitted in by-pool mode. */
   cutAfterIndex?: number | null;
+  /** Show the fuzzy fighter-name filter above the table (overall view only). */
+  showFilter?: boolean;
 }) {
   // Surface the ranking metric (score) first and make it stand out — it's the
   // column the standings are actually ordered by.
@@ -315,79 +322,158 @@ function StandingsTable({
     ...columns.filter((c) => c.key === 'score'),
     ...columns.filter((c) => c.key !== 'score'),
   ];
+  const { query, setQuery, view, sortKey, direction, toggle, isDefaultOrder } =
+    useStandingsView(rows);
+  const sortAscLabel = t('admin.common.sortAscLabel');
+  const sortDescLabel = t('admin.common.sortDescLabel');
+  // The bracket cut line is index-based, so it only makes sense while the rows
+  // are in canonical rank order (no active sort/filter).
+  const showCut = cutAfterIndex != null && isDefaultOrder;
+  const lastDataIndex = orderedColumns.length - 1;
   return (
-    <table className="w-full text-sm">
-      <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-        <tr>
-          <th className="w-16 px-4 py-2 text-center">{t('organizer.pools.standings.rank')}</th>
-          <th className="px-4 py-2">{t('organizer.pools.standings.fighter')}</th>
-          {orderedColumns.map((c) => (
-            <th
-              key={c.key}
-              className={
-                c.key === 'score'
-                  ? 'bg-accent/10 px-4 py-2 text-center text-sm font-bold normal-case tracking-normal text-accent'
-                  : 'px-4 py-2 text-center'
-              }
+    <div className="space-y-3">
+      {showFilter && (
+        <div className="flex items-center gap-2">
+          <input
+            aria-label={t('organizer.pools.standings.searchFighter')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('organizer.pools.standings.searchFighter')}
+            className="w-72 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="px-2 text-sm text-muted hover:text-foreground-secondary"
             >
-              {c.label}
+              {t('actions.clear')}
+            </button>
+          )}
+        </div>
+      )}
+      <table className="w-full text-sm">
+        <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
+          <tr>
+            <th className="w-16 px-4 py-2 text-center">
+              <StandingsHeaderCell
+                label={t('organizer.pools.standings.rank')}
+                columnKey="rank"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                help={getColumnHelp('rank', t)}
+                align="center"
+                tooltipAnchor="start"
+                ariaSortAsc={sortAscLabel}
+                ariaSortDesc={sortDescLabel}
+              />
             </th>
-          ))}
-          <th className="px-4 py-2">{t('organizer.pools.standings.status')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, idx) => {
-          // Qualification cutoff: a black line below the Nth fighter (N =
-          // bracket size). Skip it when everyone qualifies (cut at/after the
-          // last row).
-          const isCut = cutAfterIndex != null && idx === cutAfterIndex - 1 && idx < rows.length - 1;
-          return (
-            <tr
-              key={row.registrationId}
-              className={`${
-                isCut ? 'border-b-2 border-foreground' : 'border-b border-border'
-              } last:border-0 hover:bg-background`}
-            >
-              <td className="px-4 py-2 text-center font-mono tabular-nums text-foreground-secondary">
-                {row.rank}
-              </td>
-              <td className="px-4 py-2">
-                <span className="font-medium text-foreground">{row.displayName}</span>
-                {row.club && (
-                  <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
-                    {row.club.abbreviation ?? row.club.name}
-                  </span>
-                )}
-              </td>
-              {orderedColumns.map((c) => (
-                <td
-                  key={c.key}
-                  className={
-                    c.key === 'score'
-                      ? 'bg-accent/5 px-4 py-2 text-center font-mono text-base font-bold tabular-nums text-foreground'
-                      : 'px-4 py-2 text-center font-mono tabular-nums text-foreground-secondary'
-                  }
-                >
-                  {formatStat(c, row.stats[c.key], '—')}
+            <th className="px-4 py-2">
+              <StandingsHeaderCell
+                label={t('organizer.pools.standings.fighter')}
+                columnKey="fighter"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                help={getColumnHelp('fighter', t)}
+                align="left"
+                tooltipAnchor="start"
+                ariaSortAsc={sortAscLabel}
+                ariaSortDesc={sortDescLabel}
+              />
+            </th>
+            {orderedColumns.map((c, i) => (
+              <th
+                key={c.key}
+                className={
+                  c.key === 'score' ? 'bg-accent/10 px-4 py-2 text-center' : 'px-4 py-2 text-center'
+                }
+              >
+                <StandingsHeaderCell
+                  label={c.label}
+                  columnKey={c.key}
+                  sortDesc={c.sortDesc}
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  help={getColumnHelp(c.key, t)}
+                  align="center"
+                  tooltipAnchor={i === lastDataIndex ? 'end' : 'center'}
+                  ariaSortAsc={sortAscLabel}
+                  ariaSortDesc={sortDescLabel}
+                />
+              </th>
+            ))}
+            <th className="px-4 py-2">
+              <StandingsHeaderCell
+                label={t('organizer.pools.standings.status')}
+                columnKey="status"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                help={getColumnHelp('status', t)}
+                align="left"
+                tooltipAnchor="end"
+                ariaSortAsc={sortAscLabel}
+                ariaSortDesc={sortDescLabel}
+              />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {view.map((row, idx) => {
+            // Qualification cutoff: a black line below the Nth fighter (N =
+            // bracket size). Skip it when everyone qualifies (cut at/after the
+            // last row).
+            const isCut = showCut && idx === cutAfterIndex - 1 && idx < view.length - 1;
+            return (
+              <tr
+                key={row.registrationId}
+                className={`${
+                  isCut ? 'border-b-2 border-foreground' : 'border-b border-border'
+                } last:border-0 hover:bg-background`}
+              >
+                <td className="px-4 py-2 text-center font-mono tabular-nums text-foreground-secondary">
+                  {row.rank}
                 </td>
-              ))}
-              <td className="px-4 py-2">
-                <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                    row.status === 'completed'
-                      ? 'bg-success/10 text-success'
-                      : 'bg-border text-foreground-secondary'
-                  }`}
-                >
-                  {row.status}
-                </span>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                <td className="px-4 py-2">
+                  <span className="font-medium text-foreground">{row.displayName}</span>
+                  {row.club && (
+                    <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
+                      {row.club.abbreviation ?? row.club.name}
+                    </span>
+                  )}
+                </td>
+                {orderedColumns.map((c) => (
+                  <td
+                    key={c.key}
+                    className={
+                      c.key === 'score'
+                        ? 'bg-accent/5 px-4 py-2 text-center font-mono text-base font-bold tabular-nums text-foreground'
+                        : 'px-4 py-2 text-center font-mono tabular-nums text-foreground-secondary'
+                    }
+                  >
+                    {formatStat(c, row.stats[c.key], '—')}
+                  </td>
+                ))}
+                <td className="px-4 py-2">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      row.status === 'completed'
+                        ? 'bg-success/10 text-success'
+                        : 'bg-border text-foreground-secondary'
+                    }`}
+                  >
+                    {row.status}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
