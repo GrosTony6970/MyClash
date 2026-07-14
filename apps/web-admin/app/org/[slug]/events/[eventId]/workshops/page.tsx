@@ -25,6 +25,7 @@ import { eachDay } from '../schedule/event-days';
 import { formatInZone, zonedDay } from '@myclash/time';
 import {
   TournamentColorDot,
+  WeaponCombobox,
   accentClassFor,
   useConfirm,
   statusPillTone,
@@ -61,6 +62,8 @@ interface Workshop {
   title: string;
   category: string | null;
   level: string | null;
+  /** Weapon/discipline (free text), like tournaments. */
+  weapon: string | null;
   language: string | null;
   capacity: number | null;
   durationMinutes: number | null;
@@ -109,6 +112,7 @@ const EMPTY_FORM = {
   slug: '',
   category: '',
   level: '',
+  weapon: '',
   language: 'fr',
   capacity: 20,
   durationMinutes: '' as string | number,
@@ -181,6 +185,27 @@ export default function WorkshopsAdminPage() {
       cancelled = true;
     };
   }, [apiUrl, eventId, refreshKey]);
+
+  // Weapon suggestions for the workshop editor — the shared weapon_catalog
+  // (same source as the fighter profile). Free text either way, so the combobox
+  // still accepts custom entries when a discipline isn't in the catalog.
+  const [weaponOptions, setWeaponOptions] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/weapons`, { credentials: 'include' });
+        if (!res.ok) return;
+        const rows = (await res.json()) as Array<{ id: string; name: string }>;
+        if (!cancelled) setWeaponOptions(rows.map((w) => w.name).filter(Boolean));
+      } catch {
+        /* combobox stays free-text only */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl]);
 
   // Create / edit modal. `editingId` null → create, else editing that workshop.
   const [showCreate, setShowCreate] = useState(false);
@@ -273,6 +298,7 @@ export default function WorkshopsAdminPage() {
       slug: w.slug,
       category: w.category ?? '',
       level: w.level ?? '',
+      weapon: w.weapon ?? '',
       language: w.language ?? 'fr',
       capacity: w.capacity ?? 20,
       durationMinutes: w.durationMinutes ?? '',
@@ -417,6 +443,7 @@ export default function WorkshopsAdminPage() {
             title: form.title.trim(),
             category: form.category.trim() || null,
             level: form.level.trim() || null,
+            weapon: form.weapon.trim() || null,
             language: form.language,
             capacity: form.capacity,
             durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
@@ -501,6 +528,7 @@ export default function WorkshopsAdminPage() {
           slug: form.slug.trim(),
           category: form.category.trim() || null,
           level: form.level.trim() || null,
+          weapon: form.weapon.trim() || undefined,
           language: form.language,
           capacity: form.capacity,
           durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
@@ -998,6 +1026,19 @@ export default function WorkshopsAdminPage() {
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  Weapon
+                </label>
+                <WeaponCombobox
+                  value={form.weapon}
+                  onChange={(v) => setForm((f) => ({ ...f, weapon: v }))}
+                  options={weaponOptions}
+                  placeholder="Longsword, Rapier…"
+                  className="w-full"
+                  aria-label="Weapon"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
@@ -1007,7 +1048,7 @@ export default function WorkshopsAdminPage() {
                     type="text"
                     value={form.category}
                     onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                    placeholder="Longsword, Messer…"
+                    placeholder="Technique, Sparring…"
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>

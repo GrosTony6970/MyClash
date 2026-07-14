@@ -207,6 +207,7 @@ export const en = {
         dashboard: 'Dashboard',
         fighter: 'Fighter profile',
         referee: 'Referee profile',
+        workshop: 'Workshop profile',
         profile: 'Profile',
         follows: 'Following',
         people: 'People',
@@ -323,7 +324,7 @@ export const en = {
         colEvents: 'Events',
       },
       profile: {
-        tabsLabel: 'Switch between fighter and referee profile',
+        tabsLabel: 'Switch between fighter, referee and workshop profile',
       },
       events: {
         title: 'My events',
@@ -612,6 +613,9 @@ export const en = {
       refereeDashboard: 'Referee dashboard',
       refereeDashboardDescription:
         'Review your referee activity, card history, roles, and regular referee partners.',
+      workshopDashboard: 'Workshop dashboard',
+      workshopDashboardDescription:
+        'Review the workshops you have attended, grouped by event, with per-weapon totals.',
       refereeMatches: 'Refereed matches',
       averageRefereeTime: 'Average time',
       refereeRoles: 'Referee roles',
@@ -1084,6 +1088,18 @@ export const en = {
       sendLoginLink: 'Send login link',
       emptyTitle: "You're not following anyone yet.",
       emptyFindPeople: 'Find people to follow on the People page →',
+    },
+    workshopProfile: {
+      statEvents: 'Events attended',
+      statWorkshops: 'Workshops attended',
+      statWeapons: 'Weapon types',
+      byWeaponTitle: 'By weapon',
+      unspecifiedWeapon: 'Unspecified',
+      workshopsSingular: '{count} workshop',
+      workshopsPlural: '{count} workshops',
+      emptyTitle: 'No workshops yet',
+      emptyDescription: 'Workshops you attend will appear here, grouped by event.',
+      loadError: 'Could not load your workshops.',
     },
     workshops: {
       metadataTitle: 'Workshops — {name}',
@@ -6041,6 +6057,7 @@ export const fr = {
         dashboard: 'Tableau de bord',
         fighter: 'Profil combattant',
         referee: 'Profil arbitre',
+        workshop: 'Profil atelier',
         profile: 'Profil',
         follows: 'Suivis',
         people: 'Personnes',
@@ -6159,7 +6176,7 @@ export const fr = {
         colEvents: 'Événements',
       },
       profile: {
-        tabsLabel: 'Basculer entre le profil combattant et arbitre',
+        tabsLabel: 'Basculer entre les profils combattant, arbitre et atelier',
       },
       events: {
         title: 'Mes événements',
@@ -6450,6 +6467,9 @@ export const fr = {
       refereeDashboard: 'Tableau arbitre',
       refereeDashboardDescription:
         'Consultez votre activite arbitre, les cartons distribues, vos roles et vos partenaires reguliers.',
+      workshopDashboard: 'Tableau ateliers',
+      workshopDashboardDescription:
+        'Consultez les ateliers auxquels vous avez participé, regroupés par événement, avec les totaux par arme.',
       refereeMatches: 'Assauts arbitres',
       averageRefereeTime: 'Temps moyen',
       refereeRoles: 'Roles arbitre',
@@ -6935,6 +6955,19 @@ export const fr = {
       sendLoginLink: 'Envoyer le lien de connexion',
       emptyTitle: 'Vous ne suivez encore personne.',
       emptyFindPeople: 'Trouvez des personnes à suivre sur la page Participants →',
+    },
+    workshopProfile: {
+      statEvents: 'Événements suivis',
+      statWorkshops: 'Ateliers suivis',
+      statWeapons: 'Types d’arme',
+      byWeaponTitle: 'Par arme',
+      unspecifiedWeapon: 'Non précisé',
+      workshopsSingular: '{count} atelier',
+      workshopsPlural: '{count} ateliers',
+      emptyTitle: 'Aucun atelier pour le moment',
+      emptyDescription:
+        'Les ateliers auxquels vous participez apparaîtront ici, regroupés par événement.',
+      loadError: 'Impossible de charger vos ateliers.',
     },
     workshops: {
       metadataTitle: 'Ateliers — {name}',

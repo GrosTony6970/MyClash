@@ -90,6 +90,51 @@ export interface UpcomingItem {
   role: string | null;
 }
 
+/**
+ * A single attended workshop, shaped to the web-public `WorkshopListItem`
+ * contract (WorkshopCard.tsx) so the personal Workshop profile can render it
+ * with the shared card. `sessions` carries only the session the user enrolled
+ * in (its date drives the card); `confirmedCount` is 0 (unused on this surface).
+ */
+export interface WorkshopHistoryWorkshop {
+  id: string;
+  slug: string;
+  title: string;
+  shortDescription: string | null;
+  descriptionMd: string | null;
+  category: string | null;
+  level: string | null;
+  weapon: string | null;
+  language: string | null;
+  color: string | null;
+  coverImageUrl: string | null;
+  capacity: number | null;
+  durationMinutes: number | null;
+  sessions: Array<{
+    id: string;
+    startsAt: string | null;
+    endsAt: string | null;
+    locationLabel: string | null;
+    venue: { name: string } | null;
+    area: { name: string } | null;
+    capacity: number | null;
+    confirmedCount: number;
+    status: string | null;
+  }>;
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+}
+
+export interface WorkshopHistoryGroup {
+  event: {
+    id: string;
+    slug: string;
+    name: string;
+    timezone: string | null;
+    startDate: string | null;
+  };
+  workshops: WorkshopHistoryWorkshop[];
+}
+
 /** PostgREST embeds resolve to an object (1:1) or an array (1:N); normalise to one. */
 function one<T = Row>(value: unknown): T | null {
   if (Array.isArray(value)) return (value[0] as T) ?? null;
@@ -661,6 +706,138 @@ export class MeEventsService {
       endDate: (row['end_date'] as string | null) ?? null,
       status: String(row['status'] ?? ''),
       timezone: (row['timezone'] as string | null) ?? null,
+    };
+  }
+
+  // ── /me/workshop-history ────────────────────────────────────────────────────
+
+  /**
+   * Every workshop the signed-in user has attended, grouped by event, for the
+   * personal Workshop profile (/me/profile?tab=workshop). "Attended" = an
+   * enrollment in status `confirmed` or `intent` (waitlisted/cancelled excluded).
+   *
+   * Identity: `workshop_enrollments.user_id` holds the event-scoped `persons.id`,
+   * so we resolve the user's claimed persons first (like listMyEvents) and query
+   * enrollments by those ids. Test events are dropped via mapEvent. Events are
+   * ordered most-recent first; workshops within an event by session start.
+   */
+  async getMyWorkshopHistory(userId: string): Promise<WorkshopHistoryGroup[]> {
+    const claimedPersons = await this.fetchClaimedPersons(userId);
+    const personIds = claimedPersons.map((p) => p.id);
+    if (personIds.length === 0) return [];
+
+    const { data } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select(
+        `workshop_sessions (
+          id, starts_at, ends_at, location_label, status,
+          venues ( name ), venue_areas ( name ),
+          workshops (
+            id, slug, title, short_description, description_md,
+            category, level, weapon, language, color, cover_image_url,
+            capacity, duration_minutes,
+            events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+            workshop_instructors ( global_person_id, display_name )
+          )
+        )`,
+      )
+      .in('user_id', personIds)
+      .in('status', ['confirmed', 'intent']);
+
+    const rows = Array.isArray(data) ? (data as Row[]) : [];
+
+    // event id → group, deduping repeated workshops (a user with >1 claimed
+    // person in the same event could otherwise surface the same workshop twice).
+    const groups = new Map<
+      string,
+      { event: MyEventInfo; workshops: Map<string, WorkshopHistoryWorkshop> }
+    >();
+    for (const r of rows) {
+      const session = one<Row>(r['workshop_sessions']);
+      if (!session) continue;
+      const workshop = one<Row>(session['workshops']);
+      if (!workshop) continue;
+      const event = this.mapEvent(one(workshop['events']));
+      if (!event) continue; // drops test + missing events
+
+      let group = groups.get(event.id);
+      if (!group) {
+        group = { event, workshops: new Map() };
+        groups.set(event.id, group);
+      }
+      const workshopId = String(workshop['id']);
+      if (group.workshops.has(workshopId)) continue;
+      group.workshops.set(workshopId, this.mapHistoryWorkshop(workshop, session));
+    }
+
+    const firstStart = (w: WorkshopHistoryWorkshop): string | null =>
+      w.sessions
+        .map((s) => s.startsAt)
+        .filter((v): v is string => Boolean(v))
+        .sort()[0] ?? null;
+
+    return (
+      [...groups.values()]
+        .map((g) => ({
+          event: {
+            id: g.event.id,
+            slug: g.event.slug,
+            name: g.event.name,
+            timezone: g.event.timezone,
+            startDate: g.event.startDate,
+          },
+          workshops: [...g.workshops.values()].sort((a, b) => {
+            const sa = firstStart(a);
+            const sb = firstStart(b);
+            if (sa && sb) return sa < sb ? -1 : sa > sb ? 1 : 0;
+            if (sa) return -1;
+            if (sb) return 1;
+            return a.title.localeCompare(b.title);
+          }),
+        }))
+        // Most recent event first; events without a start date sort last.
+        .sort((a, b) => (b.event.startDate ?? '').localeCompare(a.event.startDate ?? ''))
+    );
+  }
+
+  private mapHistoryWorkshop(w: Row, s: Row): WorkshopHistoryWorkshop {
+    const venue = one<Row>(s['venues']);
+    const area = one<Row>(s['venue_areas']);
+    const capacity = (w['capacity'] as number | null) ?? null;
+    const instructors = Array.isArray(w['workshop_instructors'])
+      ? (w['workshop_instructors'] as Row[])
+      : [];
+    return {
+      id: String(w['id']),
+      slug: String(w['slug']),
+      title: String(w['title'] ?? ''),
+      shortDescription: (w['short_description'] as string | null) ?? null,
+      descriptionMd: (w['description_md'] as string | null) ?? null,
+      category: (w['category'] as string | null) ?? null,
+      level: (w['level'] as string | null) ?? null,
+      weapon: (w['weapon'] as string | null) ?? null,
+      language: (w['language'] as string | null) ?? null,
+      color: (w['color'] as string | null) ?? null,
+      coverImageUrl: (w['cover_image_url'] as string | null) ?? null,
+      capacity,
+      durationMinutes: (w['duration_minutes'] as number | null) ?? null,
+      sessions: [
+        {
+          id: String(s['id']),
+          startsAt: (s['starts_at'] as string | null) ?? null,
+          endsAt: (s['ends_at'] as string | null) ?? null,
+          locationLabel: (s['location_label'] as string | null) ?? null,
+          venue: venue ? { name: String(venue['name']) } : null,
+          area: area ? { name: String(area['name']) } : null,
+          capacity,
+          confirmedCount: 0,
+          status: (s['status'] as string | null) ?? null,
+        },
+      ],
+      instructors: instructors.map((i) => ({
+        globalPersonId: (i['global_person_id'] as string | null) ?? null,
+        displayName: String(i['display_name'] ?? ''),
+      })),
     };
   }
 }

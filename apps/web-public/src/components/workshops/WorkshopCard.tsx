@@ -16,6 +16,7 @@ export interface WorkshopListItem {
   descriptionMd: string | null;
   category: string | null;
   level: string | null;
+  weapon: string | null;
   language: string | null;
   color: string | null;
   coverImageUrl: string | null;
@@ -217,6 +218,11 @@ export function WorkshopCard({
             </>
           )}
           <div className="mt-3 flex flex-wrap gap-1.5">
+            {w.weapon && (
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                {w.weapon}
+              </span>
+            )}
             {w.category && (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
                 {w.category}

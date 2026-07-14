@@ -2,8 +2,10 @@
  * me.controller.ts
  *
  * Personal-space cross-event endpoints for the redesigned /me:
- *   GET /api/v1/me/events    — events the current user is involved in
- *   GET /api/v1/me/upcoming  — next N fights + referee slots across all events
+ *   GET /api/v1/me/events           — events the current user is involved in
+ *   GET /api/v1/me/upcoming         — next N fights + referee slots across all events
+ *   GET /api/v1/me/leagues          — published leagues the user is ranked in
+ *   GET /api/v1/me/workshop-history — attended workshops grouped by event
  *
  * Auth: resolves the claimed user from the Supabase access token (Bearer header
  * or `sb-access-token` cookie), mirroring the other authenticated /me routes.
@@ -61,5 +63,14 @@ export class MeController {
   async leagues(@Req() req: FastifyRequest) {
     const userId = await resolveUserId(req, this.supabase);
     return this.me.listMyLeagues(userId);
+  }
+
+  @Get('workshop-history')
+  @ApiOperation({
+    summary: 'Workshops the current user has attended (confirmed/intent), grouped by event',
+  })
+  async workshopHistory(@Req() req: FastifyRequest) {
+    const userId = await resolveUserId(req, this.supabase);
+    return { events: await this.me.getMyWorkshopHistory(userId) };
   }
 }

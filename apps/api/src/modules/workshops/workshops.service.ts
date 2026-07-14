@@ -45,6 +45,8 @@ export interface CreateWorkshopDto {
   descriptionMd?: string | null;
   category?: string | null;
   level?: string | null;
+  /** Weapon/discipline (free text), like tournaments.weapon. */
+  weapon?: string | null;
   language?: string | null;
   capacity?: number | null;
   /** Optional default duration; sessions derive end time from it. */
@@ -68,6 +70,8 @@ export interface UpdateWorkshopDto {
   descriptionMd?: string | null;
   category?: string | null;
   level?: string | null;
+  /** Weapon/discipline (free text); send `null` to clear. */
+  weapon?: string | null;
   language?: string | null;
   capacity?: number | null;
   durationMinutes?: number | null;
@@ -136,6 +140,8 @@ export interface WorkshopView {
   descriptionMd: string | null;
   category: string | null;
   level: string | null;
+  /** Weapon/discipline (free text), like tournaments.weapon. */
+  weapon: string | null;
   language: string | null;
   capacity: number | null;
   durationMinutes: number | null;
@@ -180,6 +186,7 @@ interface RawWorkshop {
   description_md: string | null;
   category: string | null;
   level: string | null;
+  weapon: string | null;
   language: string | null;
   capacity: number | null;
   duration_minutes: number | null;
@@ -206,7 +213,7 @@ function toArray<T>(value: T | T[] | null | undefined): T[] {
 const PUBLIC_WORKSHOP_STATUSES = ['published', 'running', 'completed'];
 
 const WORKSHOP_SELECT = `
-  id, slug, title, short_description, description_md, category, level, language,
+  id, slug, title, short_description, description_md, category, level, weapon, language,
   capacity, duration_minutes, status, sort_order, color, cover_image_url, venue_id,
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
@@ -371,6 +378,7 @@ export class WorkshopsService {
         description_md: dto.descriptionMd ?? null,
         category: dto.category ?? null,
         level: dto.level ?? 'all',
+        weapon: dto.weapon ?? null,
         language: dto.language ?? 'fr',
         capacity: dto.capacity ?? null,
         duration_minutes: dto.durationMinutes ?? null,
@@ -403,6 +411,7 @@ export class WorkshopsService {
     if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.level !== undefined) updates['level'] = dto.level;
+    if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
     if (dto.language !== undefined) updates['language'] = dto.language;
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
     if (dto.durationMinutes !== undefined) updates['duration_minutes'] = dto.durationMinutes;
@@ -755,6 +764,7 @@ export class WorkshopsService {
       descriptionMd: row.description_md,
       category: row.category,
       level: row.level,
+      weapon: row.weapon,
       language: row.language,
       capacity,
       durationMinutes: row.duration_minutes,
