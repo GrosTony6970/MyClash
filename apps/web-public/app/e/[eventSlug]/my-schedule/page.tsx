@@ -14,7 +14,6 @@
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
@@ -190,13 +189,6 @@ export default function MySchedulePage() {
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
             {t('publicApp.mySchedule.signInTitle')}
           </h1>
-          <Link
-            href={`/e/${eventSlug}/onboarding`}
-            className="text-sm underline"
-            style={{ color: 'var(--event-primary, #c0392b)' }}
-          >
-            {t('publicApp.mySchedule.findYourself')}
-          </Link>
         </div>
       </main>
     );

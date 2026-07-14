@@ -381,33 +381,19 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
         </section>
       )}
 
-      <section className="border-t border-stone-200 pt-6">
-        {isCompleted ? (
-          <>
-            <p className="mb-3 text-sm text-slate-600">{tr('publicApp.eventHome.cta.eventOver')}</p>
-            {tournaments[0] && (
-              <Link
-                href={`/e/${eventSlug}/t/${encodeURIComponent(tournaments[0].slug)}`}
-                className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
-              >
-                {tr('publicApp.eventHome.cta.viewResults')}
-              </Link>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="mb-3 text-sm text-slate-600">
-              {tr('publicApp.eventHome.cta.participantPrompt')}
-            </p>
+      {isCompleted && (
+        <section className="border-t border-stone-200 pt-6">
+          <p className="mb-3 text-sm text-slate-600">{tr('publicApp.eventHome.cta.eventOver')}</p>
+          {tournaments[0] && (
             <Link
-              href={`/e/${eventSlug}/onboarding`}
+              href={`/e/${eventSlug}/t/${encodeURIComponent(tournaments[0].slug)}`}
               className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
             >
-              {tr('publicApp.eventHome.cta.imAParticipant')}
+              {tr('publicApp.eventHome.cta.viewResults')}
             </Link>
-          </>
-        )}
-      </section>
+          )}
+        </section>
+      )}
     </main>
   );
 }
