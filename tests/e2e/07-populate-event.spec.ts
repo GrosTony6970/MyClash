@@ -31,7 +31,10 @@ const POPULATE = ['1', 'true', 'yes'].includes((process.env.E2E_POPULATE ?? '').
 const SKILLS = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
 const COLORS = ['red', 'blue', 'green', 'amber', 'violet', 'teal', 'orange', 'gold'];
 const WS_LEVELS = ['all', 'beginner', 'intermediate', 'advanced'];
+// All six are active shared weapon_catalog names, so they pass the strict
+// catalog validation on the workshop weapon field (mig 0130 + 0133).
 const WS_TOPICS = ['Longsword', 'Sidesword', 'Rapier', 'Sabre', 'Messer', 'Dagger'];
+const WS_CATEGORIES = ['Technique', 'Sparring', 'Drills'];
 const LOCAL_CSV = 'tests/e2e/fixtures/participants.local.csv';
 const SAMPLE_CSV = 'tests/e2e/fixtures/participants.sample.csv';
 
@@ -1164,7 +1167,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
             title: `Demo Workshop ${i + 1}`,
             durationMinutes: WS_DURATION_MIN,
             level: WS_LEVELS[i % WS_LEVELS.length],
-            category: WS_TOPICS[i % WS_TOPICS.length], // no weapon field on workshops; use category
+            // Workshops now carry a real catalog-validated weapon (mig 0130 + the
+            // shared weapon_catalog); WS_TOPICS are all active catalog names.
+            weapon: WS_TOPICS[i % WS_TOPICS.length],
+            category: WS_CATEGORIES[i % WS_CATEGORIES.length],
             descriptionMd:
               `A hands-on ${WS_TOPICS[i % WS_TOPICS.length]} workshop for ` +
               `${WS_LEVELS[i % WS_LEVELS.length]} practitioners.\n\n` +
