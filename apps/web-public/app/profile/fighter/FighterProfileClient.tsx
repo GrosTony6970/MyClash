@@ -17,13 +17,7 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
 import { AvatarCropper } from './AvatarCropper';
 import { InsightCard } from './InsightCard';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
-import {
-  ZERO_WEAPON_STAT,
-  matchHemaRating,
-  medalGlyph,
-  placeHeadline,
-  weaponKey,
-} from '@/lib/weapon-stats';
+import { matchHemaRating, medalGlyph, placeHeadline, weaponKey } from '@/lib/weapon-stats';
 
 // Profile-photo upload limits. Mirrors the server cap (15 MB) and the
 // PNG/JPEG/WebP allowlist enforced by FightersService.uploadMyPhoto.
@@ -115,6 +109,7 @@ interface FighterPlacement {
   tournamentId: string;
   tournamentName: string;
   tournamentSlug: string;
+  eventId: string;
   eventName: string;
   eventSlug: string;
   weapon: string | null;
@@ -122,6 +117,30 @@ interface FighterPlacement {
   place: number | null;
   resultKind: string | null;
   totalRanked: number | null;
+}
+
+/** Raw per-(event × weapon) combat counts (unfinalized) — the client sums the
+ *  buckets matching the selected event+weapon scope, then derives the rates. */
+interface FighterEventStat {
+  eventKey: string;
+  eventId: string;
+  eventName: string;
+  weapon: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  doubleHits: number;
+  exchanges: number;
+}
+
+/** A received penalty card enriched with its event + weapon (private path). */
+interface FighterPenalty {
+  eventKey: string;
+  eventId: string;
+  eventName: string;
+  weapon: string;
+  card: string;
+  category: string | null;
 }
 
 interface DashboardResponse {
@@ -149,7 +168,11 @@ interface DashboardResponse {
       overall: WeaponStat;
       byWeapon: Array<WeaponStat & { weapon: string }>;
       byYear: Array<WeaponStat & { year: string }>;
+      byEvent: FighterEventStat[];
     };
+    // Cards received across the fighter's career, present only on the private
+    // `/me` dashboard. Filtered + tallied client-side by the selected scope.
+    penalties?: FighterPenalty[];
   };
   // Per-weapon HEMA Ratings, surfaced by getMyDashboard when a hema_ratings_id
   // is linked. `ratings[].weapon` may not exactly match the tournament-derived
@@ -1209,6 +1232,12 @@ function DashboardStat({ label, value }: { label: string; value: string | number
   );
 }
 
+/** Stable per-event key — must match the server's `eventKeyOf` (fighter-career.ts)
+ *  so event-picker keys line up with placements. Falls back to the event name. */
+function eventKeyOf(eventId: string, eventName: string): string {
+  return eventId || `name:${eventName || 'unknown'}`;
+}
+
 type TFn = (key: string, values?: Record<string, string | number>) => string;
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -1378,10 +1407,12 @@ function FighterStatsCard({
   className?: string;
 }) {
   const career = dashboard.career;
-  const overall = career.stats.overall;
   const fought = career.stats.byWeapon.filter((weapon) => weapon.matches > 0);
+  const byEvent = career.stats.byEvent ?? [];
+  const penaltyList = career.penalties;
   const manualMedals = dashboard.profile.medals ?? [];
-  const [statTab, setStatTab] = useState<string>('global');
+  const [statTab, setStatTab] = useState<string>('global'); // weapon scope
+  const [eventTab, setEventTab] = useState<string>('global'); // event scope
 
   // Weapon filter options: the union of weapons the fighter actually fought and
   // weapons they only have imported medals for, deduped by normalized key. The
@@ -1399,25 +1430,86 @@ function FighterStatsCard({
     return [...byKey.entries()].map(([key, label]) => ({ key, label }));
   })();
 
-  // Combat tiles react to the selected weapon; a weapon with only imported
-  // medals (never fought in-app) shows zeroed combat stats, not the overall.
-  const active =
-    statTab === 'global'
-      ? overall
-      : (fought.find((weapon) => weaponKey(weapon.weapon) === statTab) ?? ZERO_WEAPON_STAT);
+  // Event filter options: every event the fighter fought a completed match in,
+  // unioned with events they only received a card in (no completed match).
+  const eventOptions = (() => {
+    const byKey = new Map<string, string>();
+    for (const bucket of byEvent) {
+      if (bucket.matches > 0 && !byKey.has(bucket.eventKey))
+        byKey.set(bucket.eventKey, bucket.eventName);
+    }
+    for (const penalty of penaltyList ?? []) {
+      if (!byKey.has(penalty.eventKey)) byKey.set(penalty.eventKey, penalty.eventName);
+    }
+    return [...byKey.entries()].map(([key, label]) => ({ key, label: label || key }));
+  })();
 
-  // Podium placements + imported medals, scoped to the selected weapon. Only
-  // count tournaments we could actually rank (a decided bracket or pool).
+  const inEvent = (evKey: string) => eventTab === 'global' || evKey === eventTab;
+  const inWeapon = (weapon: string | null | undefined) =>
+    statTab === 'global' || (weapon != null && weaponKey(weapon) === statTab);
+
+  // Combat tiles: sum the raw per-(event × weapon) buckets matching the current
+  // scope, then derive the rates (mirrors the server's finalizeStats). A weapon
+  // with only imported medals has no bucket → naturally reads as zero.
+  const active: WeaponStat = (() => {
+    const acc = { matches: 0, wins: 0, losses: 0, doubleHits: 0, exchanges: 0 };
+    for (const bucket of byEvent) {
+      if (!inEvent(bucket.eventKey) || !inWeapon(bucket.weapon)) continue;
+      acc.matches += bucket.matches;
+      acc.wins += bucket.wins;
+      acc.losses += bucket.losses;
+      acc.doubleHits += bucket.doubleHits;
+      acc.exchanges += bucket.exchanges;
+    }
+    return {
+      ...acc,
+      winLossRatio: acc.losses === 0 ? (acc.wins > 0 ? acc.wins : null) : acc.wins / acc.losses,
+      doubleHitPercentage:
+        acc.exchanges === 0 ? 0 : Math.round((acc.doubleHits / acc.exchanges) * 10000) / 100,
+    };
+  })();
+
+  // Received penalty cards, scoped to the selected event + weapon: color counts
+  // + top-3 reason categories (see the Penalties section below).
+  const scopedPenalties = (penaltyList ?? []).filter(
+    (penalty) => inEvent(penalty.eventKey) && inWeapon(penalty.weapon),
+  );
+  const penaltyCounts = { yellow: 0, red: 0, black: 0 };
+  for (const penalty of scopedPenalties) {
+    if (penalty.card === 'yellow' || penalty.card === 'red' || penalty.card === 'black')
+      penaltyCounts[penalty.card] += 1;
+  }
+  const topReasons = (() => {
+    const counts = new Map<string, number>();
+    for (const penalty of scopedPenalties) {
+      const key = penalty.category?.trim() || t('common.unknown');
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([category, count]) => ({ category, count }));
+  })();
+  // The whole penalty section shows only when there are cards in the current
+  // scope (the field itself is present only on the private `/me` path).
+  const hasPenalties = scopedPenalties.length > 0;
+
+  // Podium placements + imported medals, scoped to the selected event + weapon.
+  // Only count tournaments we could actually rank (a decided bracket or pool).
+  // Imported medals have no in-app event → shown only in the global-event view.
   const placements = career.tournamentPlacements.filter(
     (placement) =>
       placement.place != null &&
+      inEvent(eventKeyOf(placement.eventId, placement.eventName)) &&
       (statTab === 'global' ||
         (placement.weapon != null && weaponKey(placement.weapon) === statTab)),
   );
   const scopedManual =
-    statTab === 'global'
-      ? manualMedals
-      : manualMedals.filter((medal) => weaponKey(medal.weapon) === statTab);
+    eventTab !== 'global'
+      ? []
+      : statTab === 'global'
+        ? manualMedals
+        : manualMedals.filter((medal) => weaponKey(medal.weapon) === statTab);
   const medals = {
     gold:
       placements.filter((placement) => placement.place === 1).length +
@@ -1466,34 +1558,56 @@ function FighterStatsCard({
         )}
       </div>
 
-      {weaponOptions.length > 0 && (
+      {(eventOptions.length > 0 || weaponOptions.length > 0) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
+          {/* Global resets BOTH scopes; the event + weapon selects narrow every
+              tile below (combat, medals, and penalties), like the referee card. */}
           <button
             type="button"
-            onClick={() => setStatTab('global')}
-            aria-pressed={statTab === 'global'}
+            onClick={() => {
+              setEventTab('global');
+              setStatTab('global');
+            }}
+            aria-pressed={eventTab === 'global' && statTab === 'global'}
             className={[
               'min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors [touch-action:manipulation]',
-              statTab === 'global'
+              eventTab === 'global' && statTab === 'global'
                 ? 'bg-accent text-accent-foreground'
                 : 'border border-border text-muted hover:text-foreground',
             ].join(' ')}
           >
             {t('publicApp.fighterProfile.statsGlobalTab')}
           </button>
-          <select
-            aria-label={t('publicApp.fighterProfile.statsForWeapon')}
-            value={statTab === 'global' ? '' : statTab}
-            onChange={(event) => setStatTab(event.target.value || 'global')}
-            className="min-h-[36px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
-          >
-            <option value="">{t('publicApp.fighterProfile.statsForWeapon')}</option>
-            {weaponOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          {eventOptions.length > 0 && (
+            <select
+              aria-label={t('publicApp.fighterProfile.statsForEvent')}
+              value={eventTab === 'global' ? '' : eventTab}
+              onChange={(event) => setEventTab(event.target.value || 'global')}
+              className="min-h-[36px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
+            >
+              <option value="">{t('publicApp.fighterProfile.statsForEvent')}</option>
+              {eventOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {weaponOptions.length > 0 && (
+            <select
+              aria-label={t('publicApp.fighterProfile.statsForWeapon')}
+              value={statTab === 'global' ? '' : statTab}
+              onChange={(event) => setStatTab(event.target.value || 'global')}
+              className="min-h-[36px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent [touch-action:manipulation]"
+            >
+              <option value="">{t('publicApp.fighterProfile.statsForWeapon')}</option>
+              {weaponOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
@@ -1567,6 +1681,70 @@ function FighterStatsCard({
           </div>
         )}
       </div>
+
+      {hasPenalties && (
+        <div className="mt-4 border-t border-border pt-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">
+            {t('publicApp.fighterProfile.penaltiesReceived')}
+          </h3>
+          {/* Card-colour counts — emoji glyphs (like the medals tile) rather than
+              raw colour classes, so it stays within the tokenized palette. */}
+          <div className="rounded-lg border border-border bg-background px-3 py-3">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="text-lg leading-none">
+                  🟨
+                </span>
+                <span className="text-xl font-black tabular-nums text-foreground">
+                  {penaltyCounts.yellow}
+                </span>
+                <span className="sr-only">{t('publicApp.fighterProfile.penaltyYellow')}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="text-lg leading-none">
+                  🟥
+                </span>
+                <span className="text-xl font-black tabular-nums text-foreground">
+                  {penaltyCounts.red}
+                </span>
+                <span className="sr-only">{t('publicApp.fighterProfile.penaltyRed')}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="text-lg leading-none">
+                  ⬛
+                </span>
+                <span className="text-xl font-black tabular-nums text-foreground">
+                  {penaltyCounts.black}
+                </span>
+                <span className="sr-only">{t('publicApp.fighterProfile.penaltyBlack')}</span>
+              </span>
+            </div>
+          </div>
+
+          {topReasons.length > 0 && (
+            <>
+              <p className="mb-2 mt-3 text-[11px] uppercase tracking-widest text-muted">
+                {t('publicApp.fighterProfile.topPenalties')}
+              </p>
+              <ul className="space-y-1.5">
+                {topReasons.map((reason, index) => (
+                  <li
+                    key={`${reason.category}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                      {reason.category}
+                    </span>
+                    <span className="flex-shrink-0 text-sm font-black tabular-nums text-foreground">
+                      {reason.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-4">
         <DashboardStat

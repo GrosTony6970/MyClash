@@ -309,4 +309,161 @@ describe('buildFighterCareer', () => {
     });
     expect(career.currentStreak).toEqual({ kind: 'win', count: 2 });
   });
+
+  it('buckets combat stats per event × weapon as raw (unfinalized) counts', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-ls',
+          tournamentId: 't-ls',
+          tournamentName: 'Longsword',
+          tournamentSlug: 'longsword',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'event-1',
+          eventName: 'FAL 2026',
+          eventSlug: 'fal-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-03-01',
+          eventEndDate: '2026-03-02',
+        },
+        {
+          id: 'reg-rap',
+          tournamentId: 't-rap',
+          tournamentName: 'Rapier',
+          tournamentSlug: 'rapier',
+          tournamentStatus: 'completed',
+          weapon: 'Rapier',
+          eventId: 'event-2',
+          eventName: 'Winter 2026',
+          eventSlug: 'winter-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-01-05',
+          eventEndDate: '2026-01-06',
+        },
+      ],
+      matches: [
+        {
+          id: 'm-ls-win',
+          tournamentId: 't-ls',
+          status: 'completed',
+          redRegistrationId: 'reg-ls',
+          blueRegistrationId: 'opp',
+          winnerRegistrationId: 'reg-ls',
+          redScore: 5,
+          blueScore: 1,
+          scheduledAt: '2026-03-01T10:00:00Z',
+          matchNumberLabel: null,
+          opponentName: null,
+        },
+        {
+          id: 'm-rap-loss',
+          tournamentId: 't-rap',
+          status: 'completed',
+          redRegistrationId: 'reg-rap',
+          blueRegistrationId: 'opp',
+          winnerRegistrationId: 'opp',
+          redScore: 2,
+          blueScore: 5,
+          scheduledAt: '2026-01-05T10:00:00Z',
+          matchNumberLabel: null,
+          opponentName: null,
+        },
+      ],
+      exchanges: [
+        { id: 'ex-1', matchId: 'm-ls-win', type: 'double', voided: false },
+        { id: 'ex-2', matchId: 'm-ls-win', type: 'clean', voided: false },
+        { id: 'ex-3', matchId: 'm-rap-loss', type: 'clean', voided: false },
+      ],
+      leagueRankings: [],
+    });
+
+    expect(career.stats.byEvent).toEqual(
+      expect.arrayContaining([
+        {
+          eventKey: 'event-1',
+          eventId: 'event-1',
+          eventName: 'FAL 2026',
+          weapon: 'Longsword',
+          matches: 1,
+          wins: 1,
+          losses: 0,
+          doubleHits: 1,
+          exchanges: 2,
+        },
+        {
+          eventKey: 'event-2',
+          eventId: 'event-2',
+          eventName: 'Winter 2026',
+          weapon: 'Rapier',
+          matches: 1,
+          wins: 0,
+          losses: 1,
+          doubleHits: 0,
+          exchanges: 1,
+        },
+      ]),
+    );
+    // Buckets are raw — no server-derived rate fields (client re-derives).
+    expect(career.stats.byEvent[0]).not.toHaveProperty('winLossRatio');
+    expect(career.stats.byEvent[0]).not.toHaveProperty('doubleHitPercentage');
+  });
+
+  it('enriches received penalties with event + weapon, only on the private path', () => {
+    const base = {
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-ls',
+          tournamentId: 't-ls',
+          tournamentName: 'Longsword',
+          tournamentSlug: 'longsword',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'event-1',
+          eventName: 'FAL 2026',
+          eventSlug: 'fal-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-03-01',
+          eventEndDate: '2026-03-02',
+        },
+      ],
+      matches: [],
+      exchanges: [],
+      leagueRankings: [],
+    };
+
+    // No penalties supplied → the field is omitted (public projection).
+    expect(buildFighterCareer(base).penalties).toBeUndefined();
+
+    const career = buildFighterCareer({
+      ...base,
+      penalties: [
+        { registrationId: 'reg-ls', card: 'yellow', category: 'Sortie de Lice' },
+        { registrationId: 'reg-ls', card: 'red', category: 'Sortie de Lice' },
+        // A card whose registration isn't in the career set is dropped.
+        { registrationId: 'unknown-reg', card: 'black', category: 'Insulte' },
+      ],
+    });
+
+    expect(career.penalties).toEqual([
+      {
+        eventKey: 'event-1',
+        eventId: 'event-1',
+        eventName: 'FAL 2026',
+        weapon: 'Longsword',
+        card: 'yellow',
+        category: 'Sortie de Lice',
+      },
+      {
+        eventKey: 'event-1',
+        eventId: 'event-1',
+        eventName: 'FAL 2026',
+        weapon: 'Longsword',
+        card: 'red',
+        category: 'Sortie de Lice',
+      },
+    ]);
+  });
 });

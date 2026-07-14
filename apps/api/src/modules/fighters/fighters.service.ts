@@ -33,6 +33,7 @@ import {
   type CareerExchangeInput,
   type CareerLeagueRankingInput,
   type CareerMatchInput,
+  type CareerPenaltyInput,
   type CareerRegistrationInput,
   type TournamentPlacement,
 } from './fighter-career';
@@ -523,7 +524,7 @@ export class FightersService {
     const personId = String((profile as Row)['id']);
     return {
       profile,
-      career: await this.getCareerForFighter(personId),
+      career: await this.getCareerForFighter(personId, {}, { includePenalties: true }),
       refereeStats: await this.getRefereeStatsForPerson(personId, true),
       // Per-weapon HEMA Ratings (rank + weighted rating) for the profile stats
       // tabs. Best-effort: a missing/unlinked id or an un-synced fighter must
@@ -735,7 +736,11 @@ export class FightersService {
         });
   }
 
-  async getCareerForFighter(fighterId: string, query: { year?: string; weapon?: string } = {}) {
+  async getCareerForFighter(
+    fighterId: string,
+    query: { year?: string; weapon?: string } = {},
+    opts: { includePenalties?: boolean } = {},
+  ) {
     const registrations = await this.fetchCareerRegistrations(fighterId, query);
     const registrationIds = registrations.map((registration) => registration.id);
     const matches =
@@ -744,6 +749,12 @@ export class FightersService {
       matches.length > 0 ? await this.fetchCareerExchanges(matches.map((match) => match.id)) : [];
     const leagueRankings = await this.fetchCareerLeagueRankings(fighterId);
     const placementByRegistrationId = await this.computeTournamentPlacements(registrations);
+    // Cards received are private — only fetched for the fighter's own dashboard,
+    // never the public `/fighters/:slug` career projection.
+    const penalties =
+      opts.includePenalties && registrationIds.length > 0
+        ? await this.fetchFighterPenalties(registrationIds)
+        : undefined;
 
     return buildFighterCareer({
       fighterId,
@@ -752,6 +763,7 @@ export class FightersService {
       exchanges,
       leagueRankings,
       placementByRegistrationId,
+      penalties,
     });
   }
 
@@ -1402,7 +1414,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, is_test_event))))',
       )
       .eq('person_id', personId)
       .eq('scope_type', 'match')
@@ -1415,7 +1427,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, is_test_event))))',
       )
       .in('match_id', matchIds)
       .eq('scope_type', 'match');
@@ -1437,6 +1449,11 @@ export class FightersService {
         const phase = match?.['phases'] as Row | null;
         const tournament = phase?.['tournaments'] as Row | null;
         const event = tournament?.['events'] as Row | null;
+        // Test-event work never counts toward a referee's cross-event career
+        // stats — mirrors the fighter career exclusion (fetchCareerRegistrations).
+        // Scoped to the profile/career path; per-event stats (event-stats.service)
+        // intentionally still include test data, per the 0129 precedent.
+        if (event?.['is_test_event'] === true) return null;
         const pool = match?.['pools'] as Row | null;
         const bracketSlot = match?.['bracket_slots'] as Row | null;
         // bracketSize lives on the phase config (same source matches.service
@@ -1501,6 +1518,29 @@ export class FightersService {
       card: String(row['card']),
       voided: Boolean(row['voided']),
     }));
+  }
+
+  /** Cards a fighter RECEIVED, keyed to their career registrations (private
+   *  `/me` dashboard only). `category` coalesces the ruleset entry's snapshotted
+   *  `short_name` with a manual card's free-text `reason`. Voided cards are
+   *  excluded at the query level. Best-effort: any error yields no penalties
+   *  rather than breaking dashboard load. */
+  private async fetchFighterPenalties(registrationIds: string[]): Promise<CareerPenaltyInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('match_penalties')
+      .select('registration_id, card, short_name, reason, voided')
+      .in('registration_id', registrationIds)
+      .eq('voided', false);
+    if (error) return [];
+    return ((data ?? []) as Row[]).map((row) => {
+      const shortName = (row['short_name'] as string | null) ?? null;
+      const reason = (row['reason'] as string | null) ?? null;
+      return {
+        registrationId: String(row['registration_id']),
+        card: String(row['card']),
+        category: shortName ?? reason,
+      };
+    });
   }
 
   private async fetchRefereeBuddyNames(

@@ -45,6 +45,42 @@ export interface CareerLeagueRankingInput {
   group: string;
 }
 
+/** A penalty card a fighter received, linked back to a career registration.
+ *  `category` coalesces the ruleset entry's `short_name` and a manual card's
+ *  free-text `reason` (see FightersService.fetchFighterPenalties). Only passed
+ *  on the private `/me` path so cards-received stays off public projections. */
+export interface CareerPenaltyInput {
+  registrationId: string;
+  card: string;
+  category: string | null;
+}
+
+/** Raw per-(event × weapon) combat counts. Unlike `byWeapon`/`byYear` these are
+ *  NOT finalized (no winLossRatio/doubleHitPercentage) — the client sums the
+ *  buckets matching the selected event+weapon scope, then derives the rates. */
+export interface FighterEventStat {
+  eventKey: string;
+  eventId: string;
+  eventName: string;
+  weapon: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  doubleHits: number;
+  exchanges: number;
+}
+
+/** A received penalty enriched with its event/weapon, ready for client-side
+ *  event+weapon filtering and top-reason tallying. */
+export interface FighterPenalty {
+  eventKey: string;
+  eventId: string;
+  eventName: string;
+  weapon: string;
+  card: string;
+  category: string | null;
+}
+
 /** A fighter's final placement in one completed tournament, derived from the
  *  shared `computeFinalRanking` (same ordering the public tournament page
  *  shows). `place` is 1-indexed; `totalRanked` is the size of the ranked field. */
@@ -63,6 +99,9 @@ export interface BuildFighterCareerInput {
   /** Per-registration final placement, keyed by registration id. Optional so
    *  callers (and tests) that don't compute placements still build a career. */
   placementByRegistrationId?: Map<string, TournamentPlacement>;
+  /** Received penalty cards. Only provided on the private `/me` dashboard path;
+   *  when present, the career emits an enriched `penalties` list. */
+  penalties?: CareerPenaltyInput[];
 }
 
 export interface FighterCareerStats {
@@ -101,6 +140,12 @@ function finalizeStats(stats: FighterCareerStats): FighterCareerStats {
   };
 }
 
+/** Stable per-event key for a registration (falls back to the event name so two
+ *  distinct events never collapse when an id is somehow missing). */
+function eventKeyOf(eventId: string, eventName: string): string {
+  return eventId || `name:${eventName || 'unknown'}`;
+}
+
 export function buildFighterCareer(input: BuildFighterCareerInput) {
   const registrationById = new Map(
     input.registrations.map((registration) => [registration.id, registration]),
@@ -114,6 +159,9 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
   const overall = emptyStats();
   const byWeapon = new Map<string, FighterCareerStats & { weapon: string }>();
   const byYear = new Map<string, FighterCareerStats & { year: string }>();
+  // Per-(event × weapon) raw counts — lets the client re-scope combat tiles by
+  // the selected event and/or weapon. Keyed by `${eventKey}|${weapon}`.
+  const byEvent = new Map<string, FighterEventStat>();
 
   for (const match of input.matches) {
     if (match.status !== 'completed') continue;
@@ -129,6 +177,8 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
 
     const weapon = registration.weapon ?? 'Unknown';
     const year = registration.eventStartDate?.slice(0, 4) ?? 'unknown';
+    const eventKey = eventKeyOf(registration.eventId, registration.eventName);
+    const eventBucketKey = `${eventKey}|${weapon}`;
     const weaponStats =
       byWeapon.get(weapon) ??
       ({
@@ -141,8 +191,21 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
         ...emptyStats(),
         year,
       } satisfies FighterCareerStats & { year: string });
+    const eventStats =
+      byEvent.get(eventBucketKey) ??
+      ({
+        eventKey,
+        eventId: registration.eventId,
+        eventName: registration.eventName,
+        weapon,
+        matches: 0,
+        wins: 0,
+        losses: 0,
+        doubleHits: 0,
+        exchanges: 0,
+      } satisfies FighterEventStat);
 
-    for (const stats of [overall, weaponStats, yearStats]) {
+    for (const stats of [overall, weaponStats, yearStats, eventStats]) {
       stats.matches += 1;
       if (match.winnerRegistrationId === registrationId) stats.wins += 1;
       else if (match.winnerRegistrationId) stats.losses += 1;
@@ -150,6 +213,7 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
 
     byWeapon.set(weapon, weaponStats);
     byYear.set(year, yearStats);
+    byEvent.set(eventBucketKey, eventStats);
   }
 
   for (const exchange of input.exchanges) {
@@ -167,10 +231,12 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     if (!registration) continue;
     const weapon = registration.weapon ?? 'Unknown';
     const year = registration.eventStartDate?.slice(0, 4) ?? 'unknown';
+    const eventBucketKey = `${eventKeyOf(registration.eventId, registration.eventName)}|${weapon}`;
     const weaponStats = byWeapon.get(weapon);
     const yearStats = byYear.get(year);
+    const eventStats = byEvent.get(eventBucketKey);
 
-    for (const stats of [overall, weaponStats, yearStats]) {
+    for (const stats of [overall, weaponStats, yearStats, eventStats]) {
       if (!stats) continue;
       stats.exchanges += 1;
       if (exchange.type === 'double') stats.doubleHits += 1;
@@ -235,6 +301,26 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     currentStreak = { kind: mostRecent.outcome, count };
   }
 
+  // Received penalty cards, enriched with each card's event + weapon via its
+  // registration. Only emitted when the caller supplied penalties (private
+  // `/me` path) — coalescing to a flat list the client filters + tallies.
+  const penalties: FighterPenalty[] | undefined = input.penalties
+    ? input.penalties.flatMap((penalty) => {
+        const registration = registrationById.get(penalty.registrationId);
+        if (!registration) return [];
+        return [
+          {
+            eventKey: eventKeyOf(registration.eventId, registration.eventName),
+            eventId: registration.eventId,
+            eventName: registration.eventName,
+            weapon: registration.weapon ?? 'Unknown',
+            card: penalty.card,
+            category: penalty.category,
+          },
+        ];
+      })
+    : undefined;
+
   return {
     recentForm,
     currentStreak,
@@ -256,6 +342,7 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
           tournamentId: registration.tournamentId,
           tournamentName: registration.tournamentName,
           tournamentSlug: registration.tournamentSlug,
+          eventId: registration.eventId,
           eventName: registration.eventName,
           eventSlug: registration.eventSlug,
           weapon: registration.weapon,
@@ -272,6 +359,8 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
       overall: finalizeStats(overall),
       byWeapon: [...byWeapon.values()].map(finalizeStats),
       byYear: [...byYear.values()].map(finalizeStats),
+      byEvent: [...byEvent.values()],
     },
+    ...(penalties ? { penalties } : {}),
   };
 }
