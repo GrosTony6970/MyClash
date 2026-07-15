@@ -14,7 +14,9 @@ const createEventSchema = z
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
-    publicLandingMd: z.string().optional(),
+    // Nullish: the FE edit form sends `publicLandingMd: value || null`, so a
+    // bare `.optional()` 400'd the whole payload for empty descriptions.
+    publicLandingMd: z.string().nullish(),
     // Mark as a test/dry-run event: hidden from public/personal/stats and
     // hard-deletable even with recorded results.
     isTestEvent: z.boolean().optional(),
@@ -38,7 +40,8 @@ const updateEventSchema = z
     endDate: z.string().optional(),
     // IANA timezone
     timezone: z.string().max(64).optional(),
-    publicLandingMd: z.string().optional(),
+    // Nullish: null clears the landing description (FE sends `value || null`).
+    publicLandingMd: z.string().nullish(),
     status: z.enum(['draft', 'published', 'running', 'completed', 'archived']).optional(),
     // Public URL of the event logo (set by the upload endpoint).
     logoUrl: z.string().max(500).nullish(),

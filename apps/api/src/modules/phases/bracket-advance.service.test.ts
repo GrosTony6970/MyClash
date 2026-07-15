@@ -478,6 +478,18 @@ describe('BracketAdvanceService.createMatchIfReady — stamps match_number_label
             };
             return chain;
           }
+          if (table === 'phases') {
+            // matchRulesetForPhase resolves the tournament's ruleset stamp.
+            const chain = {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
+                error: null,
+              }),
+            };
+            return chain;
+          }
           return {} as never;
         }),
       },

@@ -117,6 +117,7 @@ export function FinalRankingTab({
     blueClubAbbrev: s.blueClubAbbrev ?? null,
     redScore: s.redScore,
     blueScore: s.blueScore,
+    winnerRegistrationId: s.winnerRegistrationId ?? null,
   }));
 
   const maxRound = rankingSlots.reduce((m, s) => Math.max(m, s.round), 0);

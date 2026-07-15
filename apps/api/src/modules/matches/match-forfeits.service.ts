@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { resolveForfeitPolicy, type ForfeitReason } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
-import type { BracketAdvanceService } from '../phases/bracket-advance.service';
+// Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
+// silently injects undefined (see di-wiring.regression.test.ts).
+import { BracketAdvanceService } from '../phases/bracket-advance.service';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { forfeitEndReason } from './forfeit-end-reason';

@@ -47,6 +47,9 @@ export interface BracketSlot {
   blueClubAbbrev?: string | null;
   redScore: number | null;
   blueScore: number | null;
+  /** Recorded match winner — authoritative over score comparison (a forfeit
+   *  can complete a match with the lower-scored fighter winning). */
+  winnerRegistrationId?: string | null;
   status: string;
   matchId: string | null;
   redRegistrationId?: string | null;
@@ -89,20 +92,27 @@ export function derivePodium(bracketSlots: BracketSlot[]): PodiumData | undefine
   const final = bracketSlots.find((s) => s.round === maxRound && s.position === 1) ?? null;
   const bronze = bracketSlots.find((s) => s.round === maxRound && s.position === 2) ?? null;
   if (!final && !bronze) return undefined;
-  const winnerName = (s: BracketSlot | null) => {
+  // Recorded winner first — forfeits can award the lower-scored fighter (a
+  // keep-current injury forfeit stores the pre-forfeit score, even 0-0).
+  const winnerSide = (s: BracketSlot | null): 'red' | 'blue' | null => {
     if (!s || s.status !== 'completed') return null;
+    if (s.winnerRegistrationId && s.winnerRegistrationId === s.redRegistrationId) return 'red';
+    if (s.winnerRegistrationId && s.winnerRegistrationId === s.blueRegistrationId) return 'blue';
     const rs = s.redScore ?? 0;
     const bs = s.blueScore ?? 0;
     if (rs === bs) return null;
-    const name = rs > bs ? s.redFighterName : s.blueFighterName;
+    return rs > bs ? 'red' : 'blue';
+  };
+  const winnerName = (s: BracketSlot | null) => {
+    const side = winnerSide(s);
+    if (!side) return null;
+    const name = side === 'red' ? s!.redFighterName : s!.blueFighterName;
     return name ? { fighterName: name } : null;
   };
   const loserName = (s: BracketSlot | null) => {
-    if (!s || s.status !== 'completed') return null;
-    const rs = s.redScore ?? 0;
-    const bs = s.blueScore ?? 0;
-    if (rs === bs) return null;
-    const name = rs > bs ? s.blueFighterName : s.redFighterName;
+    const side = winnerSide(s);
+    if (!side) return null;
+    const name = side === 'red' ? s!.blueFighterName : s!.redFighterName;
     return name ? { fighterName: name } : null;
   };
   return {

@@ -36,6 +36,7 @@ import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 // erased at runtime so the @Optional() param silently resolves to `undefined`.
 import { BracketAdvanceService } from './bracket-advance.service';
 import { buildRoundCode } from '../matches/round-code.helper';
+import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
 import { computePoolReschedule } from './pool-reschedule';
 import { poolMatchSortKey } from './pool-match-sort';
@@ -272,6 +273,10 @@ export class PhasesService {
       throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
     const phaseId = (phase as { id: string }).id;
 
+    // Scoring resolves the engine from the MATCH row — stamp the tournament's
+    // ruleset (not a hardcoded TF_v1) or non-TF tournaments score wrong.
+    const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
+
     const createdPools: Array<{ id: string; name: string; matchCount: number }> = [];
 
     // Create pools + pool_members + matches
@@ -321,8 +326,7 @@ export class PhasesService {
               lice_id: dto.liceId ?? null,
               red_registration_id: registrationIds[bm.homeIndex]!,
               blue_registration_id: registrationIds[bm.awayIndex]!,
-              ruleset_code: 'TF_v1',
-              ruleset_version: '1.0.0',
+              ...rulesetStamp,
               match_number_label: bm.label,
               status: 'scheduled',
               red_score: 0,
@@ -569,6 +573,12 @@ export class PhasesService {
 
     if (readySlots.length === 0) return;
 
+    // All slots belong to the same freshly-generated phase.
+    const rulesetStamp = await matchRulesetForPhase(
+      this.supabase.service,
+      readySlots[0]!['phase_id'] as string,
+    );
+
     const matchInserts = readySlots.map((slot) => ({
       phase_id: slot['phase_id'],
       bracket_slot_id: slot['id'],
@@ -576,8 +586,7 @@ export class PhasesService {
         typeof slot['registration_a_id'] === 'string' ? slot['registration_a_id'] : null,
       blue_registration_id:
         typeof slot['registration_b_id'] === 'string' ? slot['registration_b_id'] : null,
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
+      ...rulesetStamp,
       status: 'scheduled',
       red_score: 0,
       blue_score: 0,
@@ -817,6 +826,8 @@ export class PhasesService {
       bySeed.set(seedNum, reg.id);
     });
 
+    const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
+
     // For each R1 slot, recompute red/blue from the slot's intended seeds.
     // The generator already encodes the standard distribution (seed K vs
     // seed size+1−K, seeds 1 & 2 in opposite halves) in source_a_ref/
@@ -852,8 +863,7 @@ export class PhasesService {
             bracket_slot_id: slot.id,
             red_registration_id: regA,
             blue_registration_id: regB,
-            ruleset_code: 'TF_v1',
-            ruleset_version: '1.0.0',
+            ...rulesetStamp,
             status: 'scheduled',
             red_score: 0,
             blue_score: 0,
@@ -1111,6 +1121,7 @@ export class PhasesService {
     }
 
     // 7. Compute the plan + apply per-slot updates + match upsert.
+    const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
     const plan = buildR1SeedingPlan(rankings, slots);
     let slotsSeeded = 0;
     const slotPosById = new Map<string, number>(slots.map((s) => [s.id, s.position]));
@@ -1147,8 +1158,7 @@ export class PhasesService {
             bracket_slot_id: update.slotId,
             red_registration_id: update.registrationAId,
             blue_registration_id: update.registrationBId,
-            ruleset_code: 'TF_v1',
-            ruleset_version: '1.0.0',
+            ...rulesetStamp,
             status: 'scheduled',
             red_score: 0,
             blue_score: 0,
@@ -1382,13 +1392,16 @@ export class PhasesService {
         status: string;
         red_score: number | null;
         blue_score: number | null;
+        winner_registration_id: string | null;
         lice_id: string | null;
       }
     >();
     if (slotIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
-        .select('id, bracket_slot_id, status, red_score, blue_score, lice_id')
+        .select(
+          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, lice_id',
+        )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as Array<{
         id: string;
@@ -1396,6 +1409,7 @@ export class PhasesService {
         status: string;
         red_score: number | null;
         blue_score: number | null;
+        winner_registration_id: string | null;
         lice_id: string | null;
       }>) {
         matchBySlot.set(m.bracket_slot_id, {
@@ -1403,6 +1417,7 @@ export class PhasesService {
           status: m.status,
           red_score: m.red_score,
           blue_score: m.blue_score,
+          winner_registration_id: m.winner_registration_id ?? null,
           lice_id: m.lice_id ?? null,
         });
       }
@@ -1453,6 +1468,9 @@ export class PhasesService {
         blueClubAbbrev: blue?.clubAbbrev ?? null,
         redScore: match?.red_score ?? null,
         blueScore: match?.blue_score ?? null,
+        // Recorded winner — forfeits can award the lower-scored fighter, so
+        // ranking consumers must not re-derive the winner from the score.
+        winnerRegistrationId: match?.winner_registration_id ?? null,
         status: match?.status ?? 'scheduled',
         matchId: match?.id ?? null,
         liceId: match?.lice_id ?? null,
@@ -2018,13 +2036,13 @@ export class PhasesService {
       liceLabel: '1',
       poolLabel: poolNumberLabel,
     });
+    const rulesetStamp = await matchRulesetForPhase(this.supabase.service, ctx.phaseId as string);
     const matchInserts = bergerMatches.map((bm) => ({
       phase_id: ctx.phaseId,
       pool_id: poolId,
       red_registration_id: registrationIds[bm.homeIndex]!,
       blue_registration_id: registrationIds[bm.awayIndex]!,
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
+      ...rulesetStamp,
       match_number_label: bm.label,
       status: 'scheduled',
       red_score: 0,

@@ -157,9 +157,12 @@ export function StandingsView({
       .on(
         'postgres_changes',
         {
+          // `matches` (not `exchanges`): every exchange recomputes the match
+          // score row, and exchanges has no pool_id — an invalid filter column
+          // errors the channel join and standings never live-refresh.
           event: '*',
           schema: 'public',
-          table: 'exchanges',
+          table: 'matches',
           filter: `pool_id=in.(${poolIds.join(',')})`,
         },
         refresh,

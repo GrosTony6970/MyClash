@@ -37,4 +37,12 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
     notTypeOnly(src, 'PoolStandingsService');
     notTypeOnly(src, 'BracketAdvanceService');
   });
+
+  it('match-forfeits.service value-imports BracketAdvanceService', () => {
+    // Regressed once: `import type` here made applyBracketForfeit's
+    // `this.bracketAdvance?.onMatchCompleted(...)` a silent no-op — forfeit
+    // winners were never advanced to the next bracket slot.
+    const src = read('./match-forfeits.service.ts');
+    notTypeOnly(src, 'BracketAdvanceService');
+  });
 });

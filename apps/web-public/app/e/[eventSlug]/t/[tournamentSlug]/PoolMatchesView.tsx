@@ -178,16 +178,10 @@ export function PoolMatchesView({
       .on(
         'postgres_changes',
         {
-          event: '*',
-          schema: 'public',
-          table: 'exchanges',
-          filter: `pool_id=in.(${poolIds.join(',')})`,
-        },
-        refresh,
-      )
-      .on(
-        'postgres_changes',
-        {
+          // Single binding on `matches`: every exchange recomputes the match
+          // score row, so this fires per hit. The old extra binding on
+          // `exchanges` filtered by pool_id — a column exchanges doesn't have —
+          // which errored the WHOLE channel and killed this binding too.
           event: '*',
           schema: 'public',
           table: 'matches',

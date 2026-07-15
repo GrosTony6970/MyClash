@@ -2196,6 +2196,7 @@ export class EventsService {
         status: string;
         red_score: number | null;
         blue_score: number | null;
+        winner_registration_id: string | null;
         match_number_label: string | null;
         liceName: string | null;
       }
@@ -2204,7 +2205,7 @@ export class EventsService {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
         .select(
-          'id, bracket_slot_id, status, red_score, blue_score, match_number_label, lice_id, lices(name)',
+          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, match_number_label, lice_id, lices(name)',
         )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as unknown as Array<{
@@ -2213,6 +2214,7 @@ export class EventsService {
         status: string;
         red_score: number | null;
         blue_score: number | null;
+        winner_registration_id: string | null;
         match_number_label: string | null;
         lices: { name: string | null } | null;
       }>) {
@@ -2221,6 +2223,7 @@ export class EventsService {
           status: m.status,
           red_score: m.red_score,
           blue_score: m.blue_score,
+          winner_registration_id: m.winner_registration_id,
           match_number_label: m.match_number_label,
           liceName: m.lices?.name ?? null,
         });
@@ -2277,6 +2280,9 @@ export class EventsService {
         blueClubAbbrev: blue?.clubAbbrev ?? null,
         redScore: match?.red_score ?? null,
         blueScore: match?.blue_score ?? null,
+        // Forfeits can complete a match with the lower score winning — the
+        // final ranking must read the recorded winner, not compare scores.
+        winnerRegistrationId: match?.winner_registration_id ?? null,
         status: match?.status ?? 'scheduled',
         matchId: match?.id ?? null,
         redRegistrationId: s.registration_a_id,

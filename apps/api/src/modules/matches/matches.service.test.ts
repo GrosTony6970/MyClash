@@ -246,6 +246,52 @@ describe('MatchesService', () => {
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
     });
 
+    it('appends at the server next sequence when a stale pad sequence collides', async () => {
+      // A pad whose local counter reset (mid-match reload / device swap) POSTs
+      // sequence 1 while the server already holds 1..12. The offline outbox
+      // treats 400 as a TERMINAL drop, so createExchange must append instead
+      // of rejecting: retry with the server's max(sequence)+1.
+      const appended = { id: 'ex-13', client_uuid: 'uuid-stale', match_id: 'm1', sequence: 13 };
+
+      const checkChain = makeChain({ data: null, error: null }); // client_uuid fresh
+      const roundChain = makeChain({
+        data: { current_round: 1, awaiting_round_advance: false },
+        error: null,
+      });
+      const collidingInsert = makeChain({ data: null, error: null });
+      collidingInsert.single.mockResolvedValue({
+        data: null,
+        error: {
+          message: 'duplicate key value violates unique constraint "exchanges_match_id_sequence"',
+        },
+      });
+      const raceChain = makeChain({ data: null, error: null }); // still not a client_uuid dup
+      const maxSeqChain = makeChain({ data: { sequence: 12 }, error: null });
+      const retryInsert = makeChain({ data: null, error: null });
+      retryInsert.single.mockResolvedValue({ data: appended, error: null });
+
+      fromMock
+        .mockReturnValueOnce(checkChain)
+        .mockReturnValueOnce(roundChain)
+        .mockReturnValueOnce(collidingInsert)
+        .mockReturnValueOnce(raceChain)
+        .mockReturnValueOnce(maxSeqChain)
+        .mockReturnValueOnce(retryInsert);
+
+      const result = await service.createExchange('m1', {
+        clientUuid: 'uuid-stale',
+        sequence: 1,
+        type: 'clean',
+        occurredAt: new Date().toISOString(),
+        firstStrikerColor: 'red',
+        firstStrikeValue: 1,
+      });
+
+      expect((result as { sequence: number }).sequence).toBe(13);
+      expect(retryInsert.insert).toHaveBeenCalledWith(expect.objectContaining({ sequence: 13 }));
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
+    });
+
     it('rejects new exchange creation when event results are frozen', async () => {
       service = new MatchesService(
         mockSupabase as never,

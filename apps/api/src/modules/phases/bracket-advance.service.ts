@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { matchRulesetForPhase } from './match-ruleset';
 
 interface PhaseConfig {
   autoAdvance?: boolean;
@@ -222,8 +223,8 @@ export class BracketAdvanceService {
       status: 'scheduled',
       red_score: 0,
       blue_score: 0,
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
+      // Tournament's ruleset, not a hardcoded TF_v1 — scoring reads the match row.
+      ...(await matchRulesetForPhase(this.supabase.service, slot.phase_id)),
       match_number_label: typeof slot.position === 'number' ? String(slot.position) : null,
     });
 

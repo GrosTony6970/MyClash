@@ -7,6 +7,7 @@ import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { useI18n } from '../i18n/I18nProvider';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
+import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
@@ -91,6 +92,37 @@ export function MatchView({
 }: MatchViewProps) {
   const { t } = useI18n();
   const [nextSequence, setNextSequence] = useState(1);
+  // Seed the sequence counter — a fresh mount must NOT restart at 1 when the
+  // match already has exchanges (mid-match reload, device swap, second pad):
+  // a stale sequence collides with UNIQUE(match_id, sequence) server-side and
+  // the offline outbox drops the 400 terminally — the scored hit vanishes.
+  // The IndexedDB outbox/synced seed covers offline same-device reloads; the
+  // server fetch covers device swaps. Functional max keeps taps recorded
+  // before seeding completes monotonic.
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    void (async () => {
+      const seeds = [await outboxNextSequence(match.id)];
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/exchanges`, {
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const rows = (await res.json()) as Array<{ sequence?: number | null }>;
+          seeds.push(rows.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0) + 1);
+        }
+      } catch {
+        // Offline — the IndexedDB seed alone is correct for same-device reloads.
+      }
+      if (!cancelled) setNextSequence((n) => Math.max(n, ...seeds));
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [apiUrl, match.id]);
   const [scoringConfig, setScoringConfig] =
     useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
   const [matchFormat, setMatchFormat] = useState<MatchFormatConfig>(DEFAULT_MATCH_FORMAT_CONFIG);

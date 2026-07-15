@@ -938,9 +938,15 @@ export class MeEventsService {
       if (group.workshops.has(workshopId)) continue;
 
       const capacity = (workshop['capacity'] as number | null) ?? null;
-      const sessions = Array.isArray(workshop['workshop_sessions'])
-        ? (workshop['workshop_sessions'] as Row[])
-        : [];
+      // UNIQUE(workshop_id) (migration 0098) flipped this embed array → object;
+      // the old Array.isArray(...) : [] fallback dropped every session, so
+      // instructor workshops rendered with no schedule.
+      const sessionsEmbed = workshop['workshop_sessions'];
+      const sessions = Array.isArray(sessionsEmbed)
+        ? (sessionsEmbed as Row[])
+        : sessionsEmbed
+          ? [sessionsEmbed as Row]
+          : [];
       const mappedSessions: InstructorWorkshopSession[] = sessions.map((s) => {
         const id = String(s['id']);
         sessionIds.push(id);

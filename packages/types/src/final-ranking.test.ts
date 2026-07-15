@@ -121,4 +121,33 @@ describe('computeFinalRanking', () => {
     // a–h are all bracket entrants → not appended; no completed matches → empty.
     expect(computeFinalRanking(undecided, POOL)).toEqual([]);
   });
+
+  it('crowns the recorded winner over the higher score (keep-current forfeit)', () => {
+    // Injury forfeit in the Final: A led 5-2 when they forfeited — the score
+    // stays (keep_current policy) but winner_registration_id is E. The old
+    // score-derived winner ranked the injured forfeiter champion.
+    const { slots, bronzeId } = buildSlots();
+    const forfeitFinal = slots.map((s) =>
+      s.round === 3 && s.position === 1 ? { ...s, winnerRegistrationId: 'e' } : s,
+    );
+    const ranking = computeFinalRanking(forfeitFinal, POOL, bronzeId);
+    expect(ranking[0]?.registrationId).toBe('e');
+    expect(ranking[0]?.resultKind).toBe('champion');
+    expect(ranking[1]?.registrationId).toBe('a');
+    expect(ranking[1]?.resultKind).toBe('runnerUp');
+  });
+
+  it('resolves a 0-0 forfeit final via the recorded winner instead of returning empty', () => {
+    // Forfeit before the first exchange: 0-0 score, winner recorded. The old
+    // equal-score guard returned null → the whole ranking rendered empty.
+    const { slots, bronzeId } = buildSlots();
+    const zeroFinal = slots.map((s) =>
+      s.round === 3 && s.position === 1
+        ? { ...s, redScore: 0, blueScore: 0, winnerRegistrationId: 'e' }
+        : s,
+    );
+    const ranking = computeFinalRanking(zeroFinal, POOL, bronzeId);
+    expect(ranking[0]?.registrationId).toBe('e');
+    expect(ranking[1]?.registrationId).toBe('a');
+  });
 });

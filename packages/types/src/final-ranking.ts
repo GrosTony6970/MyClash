@@ -19,8 +19,11 @@
  *   finally      = every other pool fighter who never made the bracket, ranked
  *                  by pool score (descending) — so the ranking lists EVERYONE.
  *
- * Winner of a match is the higher match score (mirrors the bracket view's
- * winnerName/loserName + the public page). Pure: no React, no I/O.
+ * Winner of a match is the recorded `winnerRegistrationId` when present —
+ * forfeits and black cards can complete a match with the LOWER score winning
+ * (e.g. an injury forfeit keeps the current 5-3 but awards the opponent).
+ * Score comparison is only the fallback for slots without a recorded winner.
+ * Pure: no React, no I/O.
  */
 
 export interface RankingSlot {
@@ -36,6 +39,9 @@ export interface RankingSlot {
   blueClubAbbrev?: string | null;
   redScore: number | null;
   blueScore: number | null;
+  /** Recorded match winner (matches.winner_registration_id) — authoritative
+   *  over score comparison; forfeits can award the lower-scored fighter. */
+  winnerRegistrationId?: string | null;
 }
 
 /** A pool-phase fighter (every registration that competed in the pools). */
@@ -73,9 +79,6 @@ interface Side {
 
 function winnerLoser(slot: RankingSlot): { winner: Side; loser: Side } | null {
   if (slot.status !== 'completed') return null;
-  if (slot.redScore === null || slot.blueScore === null || slot.redScore === slot.blueScore) {
-    return null;
-  }
   if (
     !slot.redRegistrationId ||
     !slot.blueRegistrationId ||
@@ -94,6 +97,13 @@ function winnerLoser(slot: RankingSlot): { winner: Side; loser: Side } | null {
     fighterName: slot.blueFighterName,
     clubAbbrev: slot.blueClubAbbrev ?? null,
   };
+  // Recorded winner first: a keep-current forfeit stores the pre-forfeit score
+  // (possibly favouring the forfeiter, or 0-0) with the OPPONENT as winner.
+  if (slot.winnerRegistrationId === red.registrationId) return { winner: red, loser: blue };
+  if (slot.winnerRegistrationId === blue.registrationId) return { winner: blue, loser: red };
+  if (slot.redScore === null || slot.blueScore === null || slot.redScore === slot.blueScore) {
+    return null;
+  }
   return slot.redScore > slot.blueScore
     ? { winner: red, loser: blue }
     : { winner: blue, loser: red };

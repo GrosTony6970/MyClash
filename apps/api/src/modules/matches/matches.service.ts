@@ -644,42 +644,55 @@ export class MatchesService {
     const afterblowMode = dto.type === 'afterblow' ? await this.getAfterblowMode(matchId) : 'full';
     const { redDelta, blueDelta } = this.computeDeltas(dto, afterblowMode);
 
-    const { data, error } = await this.supabase.service
-      .from('exchanges')
-      .insert({
-        client_uuid: dto.clientUuid,
-        match_id: matchId,
-        round_number: roundNumber,
-        sequence: dto.sequence,
-        type: dto.type,
-        occurred_at: dto.occurredAt,
-        recorded_at: new Date().toISOString(),
-        clock_time_ms: dto.clockTimeMs ?? null,
-        duration_since_prev_ms: dto.durationSincePrevMs ?? null,
-        first_striker_color: dto.firstStrikerColor ?? null,
-        first_strike_value: dto.firstStrikeValue ?? null,
-        afterblow_value: dto.afterblowValue ?? null,
-        no_exchange_reason: dto.noExchangeReason ?? null,
-        red_score_delta: redDelta,
-        blue_score_delta: blueDelta,
-        staff_account_id: context?.staffAccountId ?? null,
-        voided: false,
-      })
-      .select('*')
-      .single();
+    const insertRow = (sequence: number) =>
+      this.supabase.service
+        .from('exchanges')
+        .insert({
+          client_uuid: dto.clientUuid,
+          match_id: matchId,
+          round_number: roundNumber,
+          sequence,
+          type: dto.type,
+          occurred_at: dto.occurredAt,
+          recorded_at: new Date().toISOString(),
+          clock_time_ms: dto.clockTimeMs ?? null,
+          duration_since_prev_ms: dto.durationSincePrevMs ?? null,
+          first_striker_color: dto.firstStrikerColor ?? null,
+          first_strike_value: dto.firstStrikeValue ?? null,
+          afterblow_value: dto.afterblowValue ?? null,
+          no_exchange_reason: dto.noExchangeReason ?? null,
+          red_score_delta: redDelta,
+          blue_score_delta: blueDelta,
+          staff_account_id: context?.staffAccountId ?? null,
+          voided: false,
+        })
+        .select('*')
+        .single();
+    const isUniqueViolation = (message: string) =>
+      message.includes('unique') || message.includes('duplicate');
 
-    if (error) {
+    let { data, error } = await insertRow(dto.sequence);
+
+    if (error && isUniqueViolation(error.message)) {
       // Handle race condition: another request inserted the same client_uuid
-      if (error.message.includes('unique') || error.message.includes('duplicate')) {
-        const { data: raceExisting } = await this.supabase.service
-          .from('exchanges')
-          .select('*')
-          .eq('client_uuid', dto.clientUuid)
-          .maybeSingle();
-        if (raceExisting) return raceExisting;
+      const { data: raceExisting } = await this.supabase.service
+        .from('exchanges')
+        .select('*')
+        .eq('client_uuid', dto.clientUuid)
+        .maybeSingle();
+      if (raceExisting) return raceExisting;
+
+      // Fresh client_uuid → the collision is on UNIQUE(match_id, sequence): the
+      // pad's local counter restarted below the server max (mid-match reload,
+      // device swap). The pad's intent is "append", so append at the server's
+      // next free sequence — a 400 here is dropped TERMINALLY by the offline
+      // outbox and the scored hit would silently vanish.
+      for (let attempt = 0; attempt < 3 && error && isUniqueViolation(error.message); attempt++) {
+        ({ data, error } = await insertRow(await this.nextExchangeSequence(matchId)));
       }
-      throw new BadRequestException(error.message);
     }
+
+    if (error) throw new BadRequestException(error.message);
 
     // Recompute authoritative match score from all non-voided exchanges
     await this.scoring.recomputeMatchScore(matchId);

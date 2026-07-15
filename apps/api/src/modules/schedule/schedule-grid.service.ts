@@ -182,7 +182,11 @@ export class ScheduleGridService {
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
-      .order('match_number_label', { ascending: true });
+      .order('match_number_label', { ascending: true })
+      // Explicit limit: PostgREST deployments with a `max-rows` cap (Supabase
+      // CLI defaults to 1000) silently truncate otherwise — matches beyond row
+      // 1000 vanished from the grid for large events.
+      .limit(10_000);
     if (matchesErr) throw new BadRequestException(matchesErr.message);
     const matches = (matchesData ?? []) as MatchRow[];
     if (matches.length === 0) return [];
@@ -198,7 +202,8 @@ export class ScheduleGridService {
       const { data: poolsData } = await this.supabase.service
         .from('pools')
         .select('id, name, sort_order')
-        .in('id', poolIds);
+        .in('id', poolIds)
+        .limit(poolIds.length);
       for (const p of (poolsData ?? []) as PoolRow[]) {
         poolById.set(p.id, p);
       }
@@ -216,7 +221,8 @@ export class ScheduleGridService {
       const { data: slotsData } = await this.supabase.service
         .from('bracket_slots')
         .select('id, round, source_a_type, source_a_ref, source_b_type, source_b_ref')
-        .in('id', bracketSlotIds);
+        .in('id', bracketSlotIds)
+        .limit(bracketSlotIds.length);
       for (const s of (slotsData ?? []) as BracketSlotRow[]) {
         bracketSourceBySlotId.set(s.id, {
           round: s.round,

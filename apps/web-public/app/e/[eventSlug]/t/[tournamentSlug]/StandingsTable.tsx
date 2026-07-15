@@ -62,7 +62,10 @@ export function StandingsTable({
     }
   }
 
-  // Subscribe to exchange changes for this pool's matches
+  // Subscribe to score changes for this pool's matches. NOTE: bind to
+  // `matches` (updated on every exchange-driven score recompute), NOT to
+  // `exchanges` — exchanges has no pool_id column, and an invalid filter
+  // column errors the whole channel join (standings never live-refresh).
   useEffect(() => {
     const channel = supabase
       .channel(`pool-standings-${poolId}`)
@@ -71,11 +74,11 @@ export function StandingsTable({
         {
           event: '*',
           schema: 'public',
-          table: 'exchanges',
+          table: 'matches',
           filter: `pool_id=eq.${poolId}`,
         },
         () => {
-          // Exchange changed → re-fetch standings
+          // Match score changed → re-fetch standings
           void refresh();
         },
       )

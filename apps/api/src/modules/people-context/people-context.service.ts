@@ -584,6 +584,7 @@ export class PeopleContextService {
               blueClubAbbrev: slot.blueClubAbbrev ?? null,
               redScore: slot.redScore ?? null,
               blueScore: slot.blueScore ?? null,
+              winnerRegistrationId: slot.winnerRegistrationId ?? null,
             }));
             // 2-arg call (no explicit bronzeSlotId) to match the public FinalRankingTab.
             const ranking = computeFinalRanking(slots, poolEntries);

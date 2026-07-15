@@ -455,6 +455,11 @@ describe('PhasesService', () => {
       // createInitialBracketMatches now pre-creates a matches row for
       // every non-bye slot, including play-in slots with null
       // registrations — so a matchInsertChain MUST be queued.
+      // It first resolves the tournament's ruleset stamp (matchRulesetForPhase).
+      const rulesetChain = makeChain({
+        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
+        error: null,
+      });
       const matchInsertChain = makeAwaitableChain({ data: null, error: null });
 
       // Trailing reads from the post-write getTournamentBracket() delegation.
@@ -486,6 +491,7 @@ describe('PhasesService', () => {
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(bracketSlotInsertChain)
+        .mockReturnValueOnce(rulesetChain) // matchRulesetForPhase (phases → tournaments)
         .mockReturnValueOnce(matchInsertChain) // pre-created bracket placeholder rows
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
         .mockReturnValueOnce(slotsReadChain); // delegation read 2
@@ -640,6 +646,10 @@ describe('PhasesService', () => {
       });
 
       const phaseUpdateChain = makeChain({ data: null, error: null });
+      const rulesetChain = makeChain({
+        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
+        error: null,
+      });
       const matchInsertChain = makeChain({ data: null, error: null });
 
       const phaseReadChain = makeChain({ data: null, error: null });
@@ -675,7 +685,9 @@ describe('PhasesService', () => {
         .mockReturnValueOnce(phaseUpdateChain) // phases update (bronzeSlotId)
         // createInitialBracketMatches now pre-creates a matches row for
         // every non-bye slot (R1, R2+, bronze), even when registrations
-        // are still null — so the matches insert IS queued.
+        // are still null — so the matches insert IS queued, preceded by
+        // the matchRulesetForPhase lookup.
+        .mockReturnValueOnce(rulesetChain)
         .mockReturnValueOnce(matchInsertChain)
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
         .mockReturnValueOnce(slotsReadChain); // delegation read 2
@@ -1190,7 +1202,12 @@ describe('PhasesService', () => {
         inserted = rows;
         return Promise.resolve({ data: null, error: null });
       }) as never;
-      fromMock.mockReturnValueOnce(insertChain);
+      // matchRulesetForPhase (phases → tournaments) runs before the insert.
+      const rulesetChain = makeChain({
+        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(rulesetChain).mockReturnValueOnce(insertChain);
 
       const slots = [
         {
@@ -1247,7 +1264,12 @@ describe('PhasesService', () => {
         inserted = rows;
         return Promise.resolve({ data: null, error: null });
       }) as never;
-      fromMock.mockReturnValueOnce(insertChain);
+      // matchRulesetForPhase (phases → tournaments) runs before the insert.
+      const rulesetChain = makeChain({
+        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(rulesetChain).mockReturnValueOnce(insertChain);
 
       const slots = [
         // R1 played match — both fighters known
