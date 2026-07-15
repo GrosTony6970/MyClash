@@ -1,9 +1,9 @@
 import { BackLink } from '@/components/BackLink';
-import { defaultLocale, t, type Locale } from '@myclash/i18n';
+import { createTranslator, defaultLocale, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
-import { resolveServerLocale } from '@/i18n/server-locale';
+import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
 import type { ParticipantLike } from './_components/filter-participants';
 
@@ -83,6 +83,7 @@ export async function generateMetadata({
   params: Promise<{ eventSlug: string }>;
 }): Promise<{ title: string; description: string }> {
   const { eventSlug } = await params;
+  const t = await getServerT();
   const event = await fetchEventInfo(eventSlug);
   if (!event) return { title: t('publicApp.participants.metaTitleFallback'), description: '' };
   const place = formatEventPlace(event);
@@ -101,6 +102,7 @@ export default async function ParticipantsPage({
 }) {
   const { eventSlug } = await params;
   const locale = await resolveServerLocale();
+  const t = createTranslator(getMessages(locale));
   const [event, participants] = await Promise.all([
     fetchEventInfo(eventSlug),
     fetchParticipants(eventSlug),

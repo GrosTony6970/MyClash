@@ -6,7 +6,7 @@
  */
 
 import type { Metadata } from 'next';
-import { t as tr } from '@myclash/i18n';
+import { createTranslator, getMessages } from '@myclash/i18n';
 import { getApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
@@ -27,6 +27,7 @@ export default async function TournamentSchedulePage({ params }: Props) {
   const { eventSlug } = await params;
   const apiUrl = getApiUrl();
   const locale = await resolveServerLocale();
+  const tr = createTranslator(getMessages(locale));
   const [event, schedule] = await Promise.all([
     fetchEventInfo(eventSlug, apiUrl),
     loadTournamentSchedule(eventSlug, apiUrl),

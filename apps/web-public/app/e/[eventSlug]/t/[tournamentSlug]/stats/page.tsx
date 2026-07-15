@@ -15,7 +15,7 @@
 
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
-import { t } from '@myclash/i18n';
+import { getServerT } from '@/i18n/server-locale';
 import Link from 'next/link';
 
 interface Props {
@@ -24,6 +24,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tournamentSlug } = await params;
+  const t = await getServerT();
   return { title: `${t('publicApp.tournamentStats.metaTitle')} — ${tournamentSlug}` };
 }
 
@@ -149,6 +150,7 @@ function pct(n: number, total: number): string {
 
 export default async function StatsPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
+  const t = await getServerT();
   const apiUrl = getApiUrl();
 
   const tournamentId = await fetchTournamentId(eventSlug, tournamentSlug, apiUrl);

@@ -1,5 +1,5 @@
 import { getApiUrl } from '@/lib/api-url';
-import { t } from '@myclash/i18n';
+import { getServerT } from '@/i18n/server-locale';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
 
@@ -108,6 +108,7 @@ async function fetchPublicLeagues(): Promise<PublicLeague[]> {
 }
 
 export async function PublicEventsBrowser({ personal = false }: { personal?: boolean } = {}) {
+  const t = await getServerT();
   const [{ events, unavailable }, leagues] = await Promise.all([
     fetchPublicEvents(),
     fetchPublicLeagues(),

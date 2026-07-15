@@ -1,5 +1,5 @@
-import { t } from '@myclash/i18n';
 import { PublicEventsBrowser } from './_components/PublicEventsBrowser';
+import { getServerT } from '@/i18n/server-locale';
 
 // Next.js 16 defaults route segments to static rendering. The public
 // landing page must always reflect the current published-events list
@@ -10,7 +10,8 @@ import { PublicEventsBrowser } from './_components/PublicEventsBrowser';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default function HomePage() {
+export default async function HomePage() {
+  const t = await getServerT();
   return (
     <main
       id="main-content"

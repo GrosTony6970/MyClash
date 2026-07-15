@@ -13,10 +13,10 @@
 
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
-import { resolveServerLocale } from '@/i18n/server-locale';
+import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
 import { BackLink } from '@/components/BackLink';
 import { MedalPodium } from '@myclash/ui';
-import { t } from '@myclash/i18n';
+import { createTranslator, getMessages } from '@myclash/i18n';
 import { StandingsView } from './StandingsView';
 import { PoolMatchesView } from './PoolMatchesView';
 import { BracketLive } from './BracketLive';
@@ -37,6 +37,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getApiUrl();
+  const t = await getServerT();
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
   if (outcome.kind !== 'ok') return { title: `${tournamentSlug} · MyClash` };
   const { data } = outcome;
@@ -99,6 +100,7 @@ export default async function TournamentPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getApiUrl();
   const locale = await resolveServerLocale();
+  const t = createTranslator(getMessages(locale));
 
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
 

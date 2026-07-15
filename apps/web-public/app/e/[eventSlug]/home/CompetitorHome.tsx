@@ -6,7 +6,7 @@
  */
 
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
+import { createTranslator, getMessages } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { EventBackLink } from './_components/EventBackLink';
 import { resolveServerLocale } from '@/i18n/server-locale';
@@ -63,7 +63,9 @@ async function fetchEventBranding(
 }
 
 export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
-  const tag = localeToBcp47(await resolveServerLocale());
+  const locale = await resolveServerLocale();
+  const tag = localeToBcp47(locale);
+  const t = createTranslator(getMessages(locale));
   const [matches, branding] = await Promise.all([
     fetchMyMatches(eventSlug, apiUrl),
     fetchEventBranding(eventSlug, apiUrl),

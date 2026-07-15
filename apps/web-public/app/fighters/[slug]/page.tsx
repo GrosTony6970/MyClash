@@ -6,7 +6,7 @@
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
-import { t, type Locale } from '@myclash/i18n';
+import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { resolveServerLocale } from '@/i18n/server-locale';
 import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
@@ -286,7 +286,7 @@ async function fetchRefereeStats(slug: string, apiUrl: string): Promise<RefereeS
 }
 
 function formatDate(date: string | null, locale: Locale): string {
-  if (!date) return t('common.unknown');
+  if (!date) return createTranslator(getMessages(locale))('common.unknown');
   return new Date(date).toLocaleDateString(localeToBcp47(locale));
 }
 
@@ -299,6 +299,7 @@ export default async function FighterPage({ params }: Props) {
   const { slug } = await params;
   const apiUrl = getApiUrl();
   const locale = await resolveServerLocale();
+  const t = createTranslator(getMessages(locale));
   const [fighter, career, refereeStats] = await Promise.all([
     fetchFighter(slug, apiUrl),
     fetchCareer(slug, apiUrl),
@@ -449,9 +450,21 @@ export default async function FighterPage({ params }: Props) {
       {fighter.clubs.length > 0 && (
         <section className="mb-6">
           <ProfilePanel title={t('publicApp.fighterProfile.clubs')}>
-            <ClubLine label={t('publicApp.fighterProfile.mainClub')} clubs={mainClubs} />
-            <ClubLine label={t('publicApp.fighterProfile.secondaryClubs')} clubs={secondaryClubs} />
-            <ClubLine label={t('publicApp.fighterProfile.previousClubs')} clubs={previousClubs} />
+            <ClubLine
+              label={t('publicApp.fighterProfile.mainClub')}
+              clubs={mainClubs}
+              locale={locale}
+            />
+            <ClubLine
+              label={t('publicApp.fighterProfile.secondaryClubs')}
+              clubs={secondaryClubs}
+              locale={locale}
+            />
+            <ClubLine
+              label={t('publicApp.fighterProfile.previousClubs')}
+              clubs={previousClubs}
+              locale={locale}
+            />
           </ProfilePanel>
         </section>
       )}
@@ -637,8 +650,17 @@ function ProfilePanel({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function ClubLine({ label, clubs }: { label: string; clubs: FighterClubLink[] }) {
+function ClubLine({
+  label,
+  clubs,
+  locale,
+}: {
+  label: string;
+  clubs: FighterClubLink[];
+  locale: Locale;
+}) {
   if (clubs.length === 0) return null;
+  const t = createTranslator(getMessages(locale));
   return (
     <p className="mb-2 text-sm text-foreground-secondary last:mb-0">
       <span className="text-muted">{label}: </span>

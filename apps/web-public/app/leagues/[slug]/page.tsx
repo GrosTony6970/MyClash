@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
 import { getApiUrl, getPublicApiUrl } from '@/lib/api-url';
+import { getServerT } from '@/i18n/server-locale';
 
 interface League {
   id: string;
@@ -110,6 +110,7 @@ export default async function PublicLeagueStandingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const t = await getServerT();
   const apiUrl = getApiUrl();
   const league = await fetchLeague(apiUrl, slug);
   if (!league) notFound();

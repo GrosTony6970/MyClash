@@ -8,7 +8,7 @@
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
+import { getServerT } from '@/i18n/server-locale';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -61,6 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ClubPage({ params }: Props) {
+  const t = await getServerT();
   const { slug } = await params;
   const apiUrl = getApiUrl();
   const club = await fetchClub(slug, apiUrl);

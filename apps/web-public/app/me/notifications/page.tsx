@@ -1,8 +1,9 @@
-import { t } from '@myclash/i18n';
 import { getApiUrl } from '@/lib/api-url';
+import { getServerT } from '@/i18n/server-locale';
 import NotificationSettingsClient from '../../notifications/NotificationSettingsClient';
 
-export default function PersonalNotificationsPage() {
+export default async function PersonalNotificationsPage() {
+  const t = await getServerT();
   const apiUrl = getApiUrl();
 
   return (

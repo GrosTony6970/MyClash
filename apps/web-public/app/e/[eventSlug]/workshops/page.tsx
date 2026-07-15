@@ -8,9 +8,9 @@
  */
 
 import type { Metadata } from 'next';
-import { t } from '@myclash/i18n';
 import { BackLink } from '@/components/BackLink';
 import { getApiUrl } from '@/lib/api-url';
+import { getServerT } from '@/i18n/server-locale';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
 import { fetchEventInfo } from '../_components/EventHeader';
 
@@ -20,6 +20,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventSlug } = await params;
+  const t = await getServerT();
   return { title: t('publicApp.workshops.metadataTitle', { name: eventSlug }) };
 }
 
@@ -37,6 +38,7 @@ async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<Worksh
 
 export default async function WorkshopsPage({ params }: Props) {
   const { eventSlug } = await params;
+  const t = await getServerT();
   const apiUrl = getApiUrl();
   const [workshops, event] = await Promise.all([
     fetchWorkshops(eventSlug, apiUrl),

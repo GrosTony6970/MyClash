@@ -1,5 +1,5 @@
-import { t } from '@myclash/i18n';
 import { BackLink } from '@/components/BackLink';
+import { getServerT } from '@/i18n/server-locale';
 
 /**
  * "← Back to events" link rendered at the top of each event-home
@@ -11,6 +11,7 @@ import { BackLink } from '@/components/BackLink';
  * Delegates to the shared {@link BackLink} so the back affordance
  * matches every other public event page (tournament, workshops, …).
  */
-export function EventBackLink() {
+export async function EventBackLink() {
+  const t = await getServerT();
   return <BackLink href="/" label={t('publicApp.eventHome.backToEvents')} />;
 }
