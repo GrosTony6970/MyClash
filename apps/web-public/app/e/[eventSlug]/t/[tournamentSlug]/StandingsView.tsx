@@ -119,7 +119,7 @@ export function StandingsView({
   // legacy look).
   const activePillClass = colorToken
     ? `${accentClassFor(colorToken)} text-white`
-    : 'bg-red-800 text-white';
+    : 'bg-accent text-accent-foreground';
 
   // Fetch overall standings when the mode is `overall` (or on refresh).
   useEffect(() => {
@@ -174,12 +174,12 @@ export function StandingsView({
     <div className="flex flex-col gap-4">
       {/* Personal space: scroll the viewer's own row into view on landing. */}
       <SelfRowFocus panelId="panel-standings" active={!!highlightRegistrationId} />
-      <div className="inline-flex w-fit gap-1 rounded-md border border-stone-200 bg-white p-1">
+      <div className="inline-flex w-fit gap-1 rounded-md border border-border bg-surface p-1">
         <button
           type="button"
           onClick={() => selectMode('overall')}
           className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-            mode === 'overall' ? activePillClass : 'text-slate-700 hover:bg-stone-50'
+            mode === 'overall' ? activePillClass : 'text-foreground-secondary hover:bg-background'
           }`}
         >
           {t('publicApp.tournament.standings.modeOverall')}
@@ -188,7 +188,7 @@ export function StandingsView({
           type="button"
           onClick={() => selectMode('by-pool')}
           className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-            mode === 'by-pool' ? activePillClass : 'text-slate-700 hover:bg-stone-50'
+            mode === 'by-pool' ? activePillClass : 'text-foreground-secondary hover:bg-background'
           }`}
         >
           {t('publicApp.tournament.standings.modeByPool')}

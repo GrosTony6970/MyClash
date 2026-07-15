@@ -113,7 +113,7 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" className="flex flex-wrap gap-1 border-b border-stone-200">
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-border">
         <button
           type="button"
           role="tab"
@@ -122,12 +122,12 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
           className={
             'rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors ' +
             (activeKey === 'main'
-              ? 'border-x border-t border-stone-200 bg-white text-slate-900'
-              : 'text-slate-500 hover:text-slate-700')
+              ? 'border-x border-t border-border bg-surface text-foreground'
+              : 'text-muted hover:text-foreground-secondary')
           }
         >
           {tr('publicApp.participants.mainListTab')}{' '}
-          <span className="ml-1 text-xs text-slate-400">({mainList.length})</span>
+          <span className="ml-1 text-xs text-muted">({mainList.length})</span>
         </button>
         {waitlistTabs.map((tab) => {
           const key = `waitlist-${tab.tournamentSlug}`;
@@ -142,12 +142,12 @@ export function ParticipantsTabbedView({ eventSlug, participants }: Props) {
               className={
                 'rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors ' +
                 (selected
-                  ? 'border-x border-t border-stone-200 bg-white text-slate-900'
-                  : 'text-slate-500 hover:text-slate-700')
+                  ? 'border-x border-t border-border bg-surface text-foreground'
+                  : 'text-muted hover:text-foreground-secondary')
               }
             >
               {tr('publicApp.participants.waitlistTab', { name: tab.tournamentName })}
-              <span className="ml-1 text-xs text-amber-700">({tab.entries.length})</span>
+              <span className="ml-1 text-xs text-warning">({tab.entries.length})</span>
             </button>
           );
         })}
@@ -163,21 +163,19 @@ function WaitlistView({ tab }: { tab: WaitlistTab }) {
   const { t } = useI18n();
   return (
     <section>
-      <p className="mb-3 text-xs text-slate-500">{t('publicApp.participants.waitlistOrderHint')}</p>
+      <p className="mb-3 text-xs text-muted">{t('publicApp.participants.waitlistOrderHint')}</p>
       <ol className="space-y-1">
         {tab.entries.map((entry) => (
           <li
             key={entry.globalPersonId}
-            className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-2"
+            className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-2"
           >
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-sm font-bold tabular-nums text-amber-800">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-warning/10 text-sm font-bold tabular-nums text-warning">
               {entry.waitlistPosition ?? '—'}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-slate-900 truncate">{entry.displayName}</p>
-              {entry.clubName && (
-                <p className="text-xs text-slate-500 truncate">{entry.clubName}</p>
-              )}
+              <p className="font-semibold text-foreground truncate">{entry.displayName}</p>
+              {entry.clubName && <p className="text-xs text-muted truncate">{entry.clubName}</p>}
             </div>
           </li>
         ))}

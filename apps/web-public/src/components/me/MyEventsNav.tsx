@@ -79,7 +79,7 @@ export function MyEventsNav({ onNavigate }: { onNavigate?: () => void }) {
                   <span
                     className={[
                       'h-2 w-2 shrink-0 rounded-full',
-                      i % 2 === 0 ? 'bg-blue-400' : 'bg-amber-400',
+                      i % 2 === 0 ? 'bg-info' : 'bg-gold',
                     ].join(' ')}
                   />
                   <span className="truncate">{e.event.name}</span>

@@ -43,7 +43,7 @@ export default function RootPage() {
           priority
           className="mx-auto mb-3 h-14 w-14"
         />
-        <p className="text-gray-400 text-sm">{t('common.loading')}</p>
+        <p className="text-muted text-sm">{t('common.loading')}</p>
       </div>
     </main>
   );

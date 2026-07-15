@@ -26,9 +26,9 @@ interface PersonResult {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  competitor: 'bg-red-900/60 text-red-300 border-red-800',
-  referee: 'bg-blue-900/60 text-blue-300 border-blue-800',
-  workshop_lead: 'bg-amber-900/60 text-amber-300 border-amber-800',
+  competitor: 'bg-accent/10 text-accent border-accent/30',
+  referee: 'bg-info/10 text-info border-info/30',
+  workshop_lead: 'bg-warning/10 text-warning border-warning/30',
 };
 
 export default function PeoplePage() {
@@ -91,14 +91,14 @@ export default function PeoplePage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('publicApp.people.searchPlaceholder')}
-          className="w-full bg-gray-900 border border-gray-700 text-white placeholder-gray-500
+          className="w-full bg-surface border border-border text-foreground placeholder:text-muted
                      px-4 py-3 text-base rounded-xl
                      focus:outline-none focus:ring-2 focus:border-transparent"
           style={{ '--tw-ring-color': 'var(--event-primary, #c0392b)' } as React.CSSProperties}
         />
         {loading && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2">
-            <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
+            <span className="w-4 h-4 border-2 border-muted border-t-transparent rounded-full animate-spin inline-block" />
           </span>
         )}
       </div>
@@ -109,15 +109,13 @@ export default function PeoplePage() {
           {results.map((p) => (
             <li key={p.id}>
               <Link href={`/e/${eventSlug}/people/${p.id}`}>
-                <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+                <div className="bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <p className="font-semibold text-white">
+                      <p className="font-semibold text-foreground">
                         {p.given_name} {p.family_name}
                       </p>
-                      {p.club_label && (
-                        <p className="text-xs text-gray-400 mt-0.5">{p.club_label}</p>
-                      )}
+                      {p.club_label && <p className="text-xs text-muted mt-0.5">{p.club_label}</p>}
                       {/* Role badges */}
                       {p.roles && p.roles.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
@@ -126,7 +124,7 @@ export default function PeoplePage() {
                               key={role}
                               className={[
                                 'text-xs px-2 py-0.5 rounded-full border font-medium',
-                                ROLE_COLORS[role] ?? 'bg-gray-800 text-gray-400 border-gray-700',
+                                ROLE_COLORS[role] ?? 'bg-border text-muted border-border',
                               ].join(' ')}
                             >
                               {role.replace('_', ' ')}
@@ -138,9 +136,9 @@ export default function PeoplePage() {
                     {/* Next event */}
                     {p.nextEventLabel && (
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-gray-500">{p.nextEventLabel}</p>
+                        <p className="text-xs text-muted">{p.nextEventLabel}</p>
                         {p.nextEventAt && (
-                          <p className="text-xs text-gray-600">
+                          <p className="text-xs text-muted">
                             {new Date(p.nextEventAt).toLocaleTimeString('fr-FR', {
                               hour: '2-digit',
                               minute: '2-digit',
@@ -160,7 +158,7 @@ export default function PeoplePage() {
       {/* Empty state */}
       {query.trim().length >= 2 && !loading && results.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-sm">
+          <p className="text-muted text-sm">
             {t('publicApp.people.noParticipantsFound', { query })}
           </p>
         </div>
@@ -168,7 +166,7 @@ export default function PeoplePage() {
 
       {/* Prompt */}
       {query.trim().length < 2 && (
-        <p className="text-gray-500 text-sm text-center py-8">
+        <p className="text-muted text-sm text-center py-8">
           {t('publicApp.people.minSearchChars')}
         </p>
       )}

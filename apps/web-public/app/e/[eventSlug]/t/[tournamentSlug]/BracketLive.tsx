@@ -231,7 +231,7 @@ export function BracketLive({
       aria-live="polite"
     >
       {podium && podiumDecided && (
-        <div className="mb-6 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+        <div className="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm">
           <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
         </div>
       )}
@@ -241,7 +241,7 @@ export function BracketLive({
             type="button"
             onClick={() => setShowReferees((v) => !v)}
             aria-pressed={showReferees}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-stone-400 hover:text-slate-900"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-foreground-secondary transition-colors hover:border-muted hover:text-foreground"
           >
             {showReferees
               ? t('publicApp.tournament.bracket.hideReferees')
@@ -273,7 +273,7 @@ export function BracketLive({
         refereeSelfKeys={refereeSelfKeys}
         refereeRoleLabel={refereeRoleLabel}
       />
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-muted">
         {t('publicApp.tournament.bracket.summarySize', { count: bracketSize })}
         {mainBracketSize &&
           mainBracketSize !== bracketSize &&

@@ -269,7 +269,7 @@ function WorkshopRatingControl({ workshopId, api }: { workshopId: string; api: s
               setRating(n);
               setSaved(false);
             }}
-            className={`text-xl leading-none ${n <= rating ? 'text-amber-500' : 'text-muted'}`}
+            className={`text-xl leading-none ${n <= rating ? 'text-gold' : 'text-muted'}`}
           >
             ★
           </button>
@@ -295,7 +295,7 @@ function WorkshopRatingControl({ workshopId, api }: { workshopId: string; api: s
           type="button"
           disabled={busy || rating < 1}
           onClick={() => void submit()}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {t('publicApp.me.workshops.rateSubmit')}
         </button>

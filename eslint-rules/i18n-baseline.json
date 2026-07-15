@@ -676,5 +676,5 @@
     "403:62:literalText",
     "429:14:literalText"
   ],
-  "apps/web-scoring/src/components/SyncStatus.tsx": ["141:12:literalText", "150:32:literalText"]
+  "apps/web-scoring/src/components/SyncStatus.tsx": ["147:12:literalText", "156:32:literalText"]
 }

@@ -195,7 +195,7 @@ export default function MatchScoringPage({ params }: Props) {
   if (loading) {
     return (
       <main id="main-content" className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400">{t('scoring.lice.loadingMatch')}</p>
+        <p className="text-muted">{t('scoring.lice.loadingMatch')}</p>
       </main>
     );
   }
@@ -221,12 +221,14 @@ export default function MatchScoringPage({ params }: Props) {
         data-pending={pending}
         className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${
           syncPhase === 'online'
-            ? 'bg-green-900 text-green-300'
+            ? 'bg-success/25 text-success'
             : syncPhase === 'syncing'
-              ? 'bg-yellow-900 text-yellow-300 animate-pulse'
+              ? 'bg-warning/25 text-warning animate-pulse'
               : syncPhase === 'error'
-                ? 'bg-orange-900 text-orange-200'
-                : 'bg-red-900 text-red-300 animate-pulse'
+                ? // Raw orange ON PURPOSE: 4th hue of the sync categorical set
+                  // (success/warning/danger already taken by online/syncing/offline).
+                  'bg-orange-900 text-orange-200'
+                : 'bg-danger/25 text-danger animate-pulse'
         }`}
       >
         <span>

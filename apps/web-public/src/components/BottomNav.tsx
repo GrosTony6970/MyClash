@@ -121,7 +121,7 @@ export function BottomNav({ notificationsUnread = 0 }: { notificationsUnread?: n
               <Icon className="h-5 w-5" />
               {item.key === 'more' && notificationsUnread > 0 && (
                 <span
-                  className="absolute -right-2 -top-1.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-danger px-1 text-[0.6rem] font-bold leading-tight text-white"
+                  className="absolute -right-2 -top-1.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-danger px-1 text-[0.6rem] font-bold leading-tight text-danger-foreground"
                   aria-label={t('publicApp.me.nav.unreadLabel', { count: notificationsUnread })}
                 >
                   {notificationsUnread > 9 ? '9+' : notificationsUnread}

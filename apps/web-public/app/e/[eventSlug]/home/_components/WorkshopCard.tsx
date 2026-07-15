@@ -31,7 +31,7 @@ export function WorkshopCard({
   return (
     <Link
       href={`/e/${eventSlug}/w/${encodeURIComponent(w.slug)}`}
-      className={`group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40${className ? ` ${className}` : ''}`}
+      className={`group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40${className ? ` ${className}` : ''}`}
     >
       {w.color && (
         <span
@@ -49,23 +49,23 @@ export function WorkshopCard({
           />
         )}
         <div className="min-w-0 flex-1">
-          <p className="font-display text-base font-semibold text-slate-900">{w.title}</p>
+          <p className="font-display text-base font-semibold text-foreground">{w.title}</p>
           {instructorNames.length > 0 && (
-            <p className="mt-0.5 truncate text-sm text-slate-500">{instructorNames.join(', ')}</p>
+            <p className="mt-0.5 truncate text-sm text-muted">{instructorNames.join(', ')}</p>
           )}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {w.category && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-foreground-secondary">
                 {w.category}
               </span>
             )}
             {w.level && (
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+              <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs text-info">
                 {w.level}
               </span>
             )}
             {w.durationMinutes != null && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-muted">
                 {t('publicApp.fighterProfile.minutes', { count: w.durationMinutes })}
               </span>
             )}
@@ -73,7 +73,7 @@ export function WorkshopCard({
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-slate-500">
+        <span className="text-muted">
           {session?.startsAt &&
             formatInZone(session.startsAt, tz, {
               weekday: 'short',
@@ -86,7 +86,7 @@ export function WorkshopCard({
             session.endsAt &&
             ` – ${formatInZone(session.endsAt, tz, { hour: '2-digit', minute: '2-digit' })}`}
         </span>
-        <span className="font-semibold text-red-700 group-hover:text-red-800">→</span>
+        <span className="font-semibold text-accent group-hover:text-accent-hover">→</span>
       </div>
     </Link>
   );

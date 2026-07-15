@@ -183,11 +183,11 @@ export function ScoringColumn({
       </p>
       {pointCap !== undefined && !reverse && (
         <>
-          <p className="-mt-2 text-center text-sm font-semibold tabular-nums text-gray-500">
+          <p className="-mt-2 text-center text-sm font-semibold tabular-nums text-muted">
             {`${score} / ${pointCap}`}
           </p>
           {/* Cap-progress bar */}
-          <div className="mx-auto h-1 w-24 overflow-hidden rounded-full bg-gray-800">
+          <div className="mx-auto h-1 w-24 overflow-hidden rounded-full bg-surface">
             <div
               className="h-full rounded-full transition-[width] duration-300"
               style={{
@@ -201,11 +201,11 @@ export function ScoringColumn({
 
       {/* Fighter name + club — live winner cup beside the name once capped. */}
       <div className="text-center">
-        <p className="flex items-center justify-center gap-2 text-3xl font-bold text-white leading-tight truncate">
+        <p className="flex items-center justify-center gap-2 text-3xl font-bold text-foreground leading-tight truncate">
           {reachedCap && <span aria-hidden>🏆</span>}
           {fighterName}
         </p>
-        {club && <p className="text-lg text-gray-400 mt-0.5 truncate">{club}</p>}
+        {club && <p className="text-lg text-muted mt-0.5 truncate">{club}</p>}
       </div>
 
       {/* Card-counter chips (ruleset-driven) */}
@@ -233,7 +233,7 @@ export function ScoringColumn({
       {/* CLEAN HIT */}
       {!readOnly && visibleClean.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted">
             {t('scoring.lice.cleanHitsHeader')}
           </p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -264,7 +264,7 @@ export function ScoringColumn({
       {/* AFTERBLOW */}
       {!readOnly && visibleAfterblows.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted">
             {t('scoring.lice.afterblowHeader')}
           </p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -333,13 +333,13 @@ export function ScoringColumn({
 
       {/* PENALTIES — inline picker (hidden in the read-only / locked view). */}
       {!readOnly && (
-        <div className="flex flex-col gap-2 mt-6 border-t border-gray-800 pt-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+        <div className="flex flex-col gap-2 mt-6 border-t border-border pt-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted">
             {t('scoring.lice.penaltiesHeader')}
           </p>
 
           {penaltyError && (
-            <p className="rounded-lg bg-red-900 px-3 py-2 text-xs text-red-100">{penaltyError}</p>
+            <p className="rounded-lg bg-danger/20 px-3 py-2 text-xs text-danger">{penaltyError}</p>
           )}
 
           {quickEntries.length > 0 && (
@@ -352,7 +352,7 @@ export function ScoringColumn({
                     type="button"
                     disabled={penaltyDisabled}
                     onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-900 px-2.5 py-2 text-xs font-semibold text-gray-100 hover:border-yellow-600 disabled:opacity-40"
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs font-semibold text-foreground hover:border-warning disabled:opacity-40"
                   >
                     {card && (
                       <span
@@ -370,12 +370,12 @@ export function ScoringColumn({
             value={penaltyQuery}
             onChange={(e) => setPenaltyQuery(e.target.value)}
             placeholder={t('scoring.lice.penaltySearch')}
-            className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 outline-none focus:border-yellow-500"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-warning"
           />
 
           <div className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
             {filteredEntries.length === 0 && (
-              <p className="text-center text-xs text-gray-500 py-3">
+              <p className="text-center text-xs text-muted py-3">
                 {t('scoring.lice.penaltiesNone')}
               </p>
             )}
@@ -415,14 +415,14 @@ function PenaltyEntryRow({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="w-full min-h-[44px] rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-left text-sm hover:border-yellow-600 disabled:opacity-40 flex items-center gap-2"
+      className="w-full min-h-[44px] rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm hover:border-warning disabled:opacity-40 flex items-center gap-2"
     >
       <div className="flex-1 min-w-0">
-        <span className="font-semibold text-gray-100">
+        <span className="font-semibold text-foreground">
           {entry.ref_number}. {entry.short_name}
         </span>
-        <span className="block text-[10px] text-gray-500 truncate">
-          <span className="mr-1.5 rounded bg-gray-800 px-1 py-0.5 font-semibold text-gray-400">
+        <span className="block text-[10px] text-muted truncate">
+          <span className="mr-1.5 rounded bg-border px-1 py-0.5 font-semibold text-muted">
             {groupLabel} {entry.group_number}
           </span>
           {entry.description}

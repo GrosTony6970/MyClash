@@ -74,11 +74,11 @@ function ClaimForm() {
         <h1 className="font-display font-bold text-2xl sm:text-3xl mb-4">
           {t('publicApp.claim.sentTitle')}
         </h1>
-        <p className="text-gray-600">
+        <p className="text-foreground-secondary">
           {t('publicApp.claim.confirmSentPrefix')} <strong>{email}</strong>.{' '}
           {t('publicApp.claim.confirmSentSuffix')}
         </p>
-        <p className="mt-4 text-sm text-gray-400">{t('publicApp.claim.linkExpires')}</p>
+        <p className="mt-4 text-sm text-muted">{t('publicApp.claim.linkExpires')}</p>
       </div>
     );
   }
@@ -88,7 +88,9 @@ function ClaimForm() {
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-2">
         {t('publicApp.claim.confirmProfileTitle')}
       </h1>
-      <p className="text-gray-600 mb-8">{t('publicApp.claim.confirmProfileDescription')}</p>
+      <p className="text-foreground-secondary mb-8">
+        {t('publicApp.claim.confirmProfileDescription')}
+      </p>
 
       <form
         onSubmit={(e) => {
@@ -108,12 +110,12 @@ function ClaimForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t('publicApp.claim.emailPlaceholder')}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
         {error && (
-          <p className="text-sm text-red-600" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {error}
           </p>
         )}
@@ -121,7 +123,7 @@ function ClaimForm() {
         <button
           type="submit"
           disabled={loading || !personId}
-          className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+          className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors"
         >
           {loading ? t('publicApp.claim.sending') : t('publicApp.claim.sendConfirmationLink')}
         </button>
@@ -133,15 +135,17 @@ function ClaimForm() {
           void handleGoogleClaim();
         }}
         disabled={loading || !personId}
-        className="mt-3 w-full inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+        className="mt-3 w-full inline-flex items-center justify-center gap-2 border border-border hover:border-accent disabled:opacity-50 text-foreground font-semibold py-2 px-4 rounded-md transition-colors"
       >
         <GoogleIcon />
         {t('auth.oauth.continueWithGoogle')}
       </button>
 
-      <p className="mt-6 text-sm text-gray-500">
+      <p className="mt-6 text-sm text-muted">
         {t('publicApp.claim.emailMismatch')}{' '}
-        <span className="text-gray-700">{t('publicApp.claim.emailMismatchAction')}</span>
+        <span className="text-foreground-secondary">
+          {t('publicApp.claim.emailMismatchAction')}
+        </span>
       </p>
     </div>
   );
@@ -151,7 +155,7 @@ export default function ClaimPage() {
   const { t } = useI18n();
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <Suspense fallback={<p className="text-gray-500">{t('publicApp.claim.loading')}</p>}>
+      <Suspense fallback={<p className="text-muted">{t('publicApp.claim.loading')}</p>}>
         <ClaimForm />
       </Suspense>
     </main>

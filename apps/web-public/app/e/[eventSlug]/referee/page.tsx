@@ -35,9 +35,9 @@ interface RefereeAssignment {
 }
 
 const STATUS_COLORS: Record<AssignmentStatus, string> = {
-  assigned: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-  confirmed: 'bg-green-100 text-green-700 border-green-300',
-  declined: 'bg-red-100 text-red-500 border-red-200 opacity-60',
+  assigned: 'bg-warning/10 text-warning border-warning/30',
+  confirmed: 'bg-success/10 text-success border-success/30',
+  declined: 'bg-danger/10 text-danger border-danger/30 opacity-60',
 };
 
 export default function RefereeDashboardPage() {
@@ -99,7 +99,7 @@ export default function RefereeDashboardPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -115,7 +115,7 @@ export default function RefereeDashboardPage() {
         </h1>
         <Link
           href={`/e/${eventSlug}/my-schedule`}
-          className="text-sm text-gray-500 hover:text-gray-700 underline"
+          className="text-sm text-muted hover:text-foreground-secondary underline"
         >
           {t('publicApp.refereePublic.mySchedule')}
         </Link>
@@ -124,7 +124,7 @@ export default function RefereeDashboardPage() {
       {assignments.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-4xl mb-3">🏛️</p>
-          <p className="text-gray-400 text-sm">{t('publicApp.refereePublic.noAssignments')}</p>
+          <p className="text-muted text-sm">{t('publicApp.refereePublic.noAssignments')}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -134,13 +134,13 @@ export default function RefereeDashboardPage() {
               className={[
                 'border-2 rounded-xl p-4',
                 a.status === 'declined' ? 'opacity-60' : '',
-                a.status === 'confirmed' ? 'border-green-300' : 'border-gray-200',
+                a.status === 'confirmed' ? 'border-success/40' : 'border-border',
               ].join(' ')}
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
-                  <p className="font-bold text-gray-900">{a.poolName}</p>
+                  <p className="font-bold text-foreground">{a.poolName}</p>
                   <p
                     className="text-sm font-medium mt-0.5"
                     style={{ color: 'var(--event-primary, #c0392b)' }}
@@ -165,17 +165,17 @@ export default function RefereeDashboardPage() {
                     <Link
                       key={m.id}
                       href={`/e/${eventSlug}/referee/match/${m.id}`}
-                      className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm hover:border-gray-300 transition-colors"
+                      className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2 text-sm hover:border-muted transition-colors"
                     >
                       <div>
-                        <p className="font-medium text-gray-900">{m.matchNumberLabel}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="font-medium text-foreground">{m.matchNumberLabel}</p>
+                        <p className="text-xs text-muted">
                           {m.redFighterName ?? '?'} {t('scoring.liveMatch.versus')}{' '}
                           {m.blueFighterName ?? '?'}
                         </p>
                       </div>
                       {m.scheduledAt && (
-                        <p className="text-xs text-gray-400 flex-shrink-0">
+                        <p className="text-xs text-muted flex-shrink-0">
                           {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -203,7 +203,7 @@ export default function RefereeDashboardPage() {
                   <button
                     onClick={() => void updateStatus(a.id, 'declined')}
                     disabled={updating === a.id}
-                    className="flex-1 py-1.5 rounded-lg text-sm font-medium border border-gray-300 text-gray-600 hover:border-gray-400 transition-colors disabled:opacity-50"
+                    className="flex-1 py-1.5 rounded-lg text-sm font-medium border border-border text-foreground-secondary hover:border-muted transition-colors disabled:opacity-50"
                   >
                     {t('publicApp.refereePublic.decline')}
                   </button>

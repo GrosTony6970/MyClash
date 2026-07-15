@@ -55,7 +55,7 @@ interface Props {
 // underline visually pairs with the text. Falls back to red-800 for
 // tournaments with no configured color (legacy look preserved).
 function activeTabClassesFor(token: string | null | undefined): string {
-  if (!token) return 'border-red-800 text-red-800';
+  if (!token) return 'border-accent text-accent';
   return `${tintTextClassFor(token)} ${tintBorderClassFor(token)}`;
 }
 
@@ -142,7 +142,7 @@ export function TournamentTabs({ defaultTab, tabs, colorToken, trailingLink }: P
       <div
         role="tablist"
         aria-label={tr('publicApp.tournament.tablistLabel')}
-        className="flex flex-wrap items-center gap-1 border-b border-stone-200"
+        className="flex flex-wrap items-center gap-1 border-b border-border"
       >
         {visibleTabs.map((tab) => {
           const isActive = tab.key === active;
@@ -161,8 +161,10 @@ export function TournamentTabs({ defaultTab, tabs, colorToken, trailingLink }: P
               onClick={() => switchTo(tab.key)}
               onKeyDown={onKeyDown}
               className={[
-                '-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40',
-                isActive ? activeClasses : 'border-transparent text-slate-600 hover:text-slate-900',
+                '-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+                isActive
+                  ? activeClasses
+                  : 'border-transparent text-foreground-secondary hover:text-foreground',
               ].join(' ')}
             >
               {tab.label}
@@ -172,7 +174,7 @@ export function TournamentTabs({ defaultTab, tabs, colorToken, trailingLink }: P
         {trailingLink && (
           <Link
             href={trailingLink.href}
-            className="-mb-px border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+            className="-mb-px border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >
             {trailingLink.label} →
           </Link>

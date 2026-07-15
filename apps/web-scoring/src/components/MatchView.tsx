@@ -420,7 +420,7 @@ export function MatchView({
   const blueName = match.blueFighterName ?? t('scoring.lice.blue');
 
   return (
-    <div className="flex flex-1 flex-col bg-gray-950">
+    <div className="flex flex-1 flex-col bg-background">
       <MatchHeader
         matchId={match.id}
         apiUrl={apiUrl}
@@ -444,14 +444,14 @@ export function MatchView({
       />
 
       {match.lockedAt && (
-        <div className="mx-4 mt-3 flex flex-col items-center gap-2 rounded-xl border border-yellow-700 bg-yellow-950 px-4 py-3 text-center text-sm font-bold text-yellow-100">
+        <div className="mx-4 mt-3 flex flex-col items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-center text-sm font-bold text-warning">
           <span>{t('scoring.corrections.matchLocked')}</span>
-          {unlockError && <span className="text-xs font-normal text-red-300">{unlockError}</span>}
+          {unlockError && <span className="text-xs font-normal text-danger">{unlockError}</span>}
           <button
             type="button"
             disabled={unlockBusy}
             onClick={() => void handleUnlock()}
-            className="min-h-[44px] rounded-lg border-2 border-yellow-600 bg-yellow-900 px-4 py-2 text-sm font-bold text-yellow-100 hover:bg-yellow-800 disabled:opacity-40"
+            className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30 disabled:opacity-40"
           >
             ↻ {unlockBusy ? t('scoring.match.reopening') : t('scoring.match.reopen')}
           </button>
@@ -568,11 +568,11 @@ export function MatchView({
           remaining / inside the soft zone — the operator decides. */}
       {pendingResume && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-yellow-700 bg-gray-900 p-6 text-center shadow-2xl">
-            <p className="mb-2 text-lg font-bold text-yellow-300">
-              {t('scoring.resumeGuard.title')}
+          <div className="w-full max-w-md rounded-xl border border-warning/40 bg-surface p-6 text-center shadow-2xl">
+            <p className="mb-2 text-lg font-bold text-warning">{t('scoring.resumeGuard.title')}</p>
+            <p className="mb-5 text-sm text-foreground-secondary">
+              {t('scoring.resumeGuard.message')}
             </p>
-            <p className="mb-5 text-sm text-gray-300">{t('scoring.resumeGuard.message')}</p>
             <div className="flex justify-center gap-3">
               <button
                 type="button"
@@ -581,7 +581,7 @@ export function MatchView({
                   setPendingResume(null);
                   void onClockAction(action, true);
                 }}
-                className="rounded-lg border-2 border-yellow-600 bg-yellow-900/40 px-4 py-2 text-sm font-bold text-yellow-200 hover:bg-yellow-900"
+                className="rounded-lg border-2 border-warning bg-warning/20 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30"
               >
                 {t('scoring.resumeGuard.continueAnyway')}
               </button>
@@ -591,7 +591,7 @@ export function MatchView({
                   setPendingResume(null);
                   void onClockAction('end');
                 }}
-                className="rounded-lg border-2 border-red-700 bg-red-950 px-4 py-2 text-sm font-bold text-red-200 hover:bg-red-900"
+                className="rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
               >
                 {t('scoring.resumeGuard.endMatch')}
               </button>
@@ -599,7 +599,7 @@ export function MatchView({
             <button
               type="button"
               onClick={() => setPendingResume(null)}
-              className="mt-4 text-xs text-gray-500 hover:text-gray-300"
+              className="mt-4 text-xs text-muted hover:text-foreground-secondary"
             >
               {t('scoring.result.close')}
             </button>
@@ -613,8 +613,8 @@ export function MatchView({
           (a clinched round ends the clock instead of awaiting). */}
       {isBestOf && awaitingRoundAdvance && clockState?.status !== 'ended' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-sky-600 bg-gray-900 p-8 text-center shadow-2xl">
-            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-sky-400">
+          <div className="w-full max-w-lg rounded-xl border border-info/60 bg-surface p-8 text-center shadow-2xl">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-info">
               {t('scoring.rounds.roundComplete', { round: String(currentRound) })}
             </p>
             {(() => {
@@ -627,10 +627,10 @@ export function MatchView({
                 </p>
               ) : null;
             })()}
-            <p className="mb-4 font-mono text-2xl font-bold text-gray-300">
+            <p className="mb-4 font-mono text-2xl font-bold text-foreground-secondary">
               {match.redScore} – {match.blueScore}
             </p>
-            <p className="mb-6 text-sm font-semibold text-gray-400">
+            <p className="mb-6 text-sm font-semibold text-muted">
               {t('scoring.rounds.seriesTally')}{' '}
               <span style={{ color: sideStyle(scoringConfig, 'red').border }}>{redRoundWins}</span>
               {' – '}
@@ -638,12 +638,12 @@ export function MatchView({
                 {blueRoundWins}
               </span>
             </p>
-            {clockError && <p className="mb-3 text-xs font-normal text-red-300">{clockError}</p>}
+            {clockError && <p className="mb-3 text-xs font-normal text-danger">{clockError}</p>}
             <button
               type="button"
               disabled={roundBusy}
               onClick={() => void onRoundAdvance()}
-              className="rounded-lg border-2 border-sky-600 bg-sky-700 px-6 py-2 text-sm font-bold text-white hover:bg-sky-800 disabled:opacity-40"
+              className="rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30 disabled:opacity-40"
             >
               {t('scoring.rounds.startRound', { round: String(currentRound + 1) })} →
             </button>
@@ -654,8 +654,8 @@ export function MatchView({
       {/* End-of-match result: winner (highest score) or draw. */}
       {clockState?.status === 'ended' && !resultDismissed && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-amber-600 bg-gray-900 p-8 text-center shadow-2xl">
-            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-amber-400">
+          <div className="w-full max-w-lg rounded-xl border border-gold/60 bg-surface p-8 text-center shadow-2xl">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-gold">
               {t('scoring.result.finalResult')}
             </p>
             {(() => {
@@ -671,24 +671,26 @@ export function MatchView({
                   <span aria-hidden>🏆</span> {winnerName}
                 </p>
               ) : (
-                <p className="mb-2 text-3xl font-black text-white">{t('scoring.result.draw')}</p>
+                <p className="mb-2 text-3xl font-black text-foreground">
+                  {t('scoring.result.draw')}
+                </p>
               );
             })()}
-            <p className="mb-6 font-mono text-2xl font-bold text-gray-300">
+            <p className="mb-6 font-mono text-2xl font-bold text-foreground-secondary">
               {match.redScore} – {match.blueScore}
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => setResultDismissed(true)}
-                className="rounded-lg border-2 border-gray-600 bg-gray-800 px-6 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700"
+                className="rounded-lg border-2 border-border bg-surface px-6 py-2 text-sm font-bold text-foreground-secondary hover:bg-border"
               >
                 {t('scoring.result.close')}
               </button>
               {nextMatch && (
                 <a
                   href={(buildMatchHref ?? ((id) => `/matches/${id}`))(nextMatch.id)}
-                  className="rounded-lg border-2 border-green-600 bg-green-700 px-6 py-2 text-sm font-bold text-white hover:bg-green-800"
+                  className="rounded-lg border-2 border-success bg-success px-6 py-2 text-sm font-bold text-success-foreground hover:bg-success-hover"
                 >
                   {t('scoring.lice.nextMatchLabel')} →
                 </a>
@@ -715,10 +717,10 @@ export function NoMatchView({ mode = 'lice' }: NoMatchViewProps) {
       className="flex min-h-screen items-center justify-center p-8 text-center"
     >
       <div className="max-w-md">
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl font-bold text-foreground">
           {mode === 'match' ? t('scoring.match.unavailableTitle') : t('scoring.lice.noMatchTitle')}
         </h1>
-        <p className="mt-3 text-gray-400">
+        <p className="mt-3 text-muted">
           {mode === 'match'
             ? t('scoring.match.unavailableBody')
             : t('scoring.lice.noMatchDescription')}

@@ -1,4 +1,9 @@
 @import 'tailwindcss';
+/* Shared MyClash design tokens (fonts + semantic colour surfaces + scopes).
+ * The scoring app renders inside [data-theme='dark'] (set on <body>) so the
+ * tokens resolve to the dark surface set — preserving the tablet-friendly
+ * dark look while the chrome uses the same semantic classes as the other apps. */
+@import '../../../../packages/ui/src/theme.css';
 /*
  * Pull shared UI components into Tailwind's content scan so colour-token
  * classes referenced only from packages/ui (SkillBadge, MatchCard,

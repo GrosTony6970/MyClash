@@ -121,10 +121,10 @@ function ClaimConfirm() {
           <h1 className="mb-4 font-display font-bold text-2xl sm:text-3xl">
             {t('publicApp.claim.errorTitle')}
           </h1>
-          <p className="text-red-600" role="alert">
+          <p className="text-danger" role="alert">
             {t(error.messageKey)}
           </p>
-          <details className="mt-4 text-left text-xs text-gray-500">
+          <details className="mt-4 text-left text-xs text-muted">
             <summary className="cursor-pointer">{t('auth.oauth.detailsToggle')}</summary>
             <pre className="mt-2 whitespace-pre-wrap break-words">
               {error.phase}: {error.cause.name} — {error.cause.message}
@@ -144,7 +144,7 @@ function ClaimConfirm() {
         <h1 className="mb-4 font-display font-bold text-2xl sm:text-3xl">
           {t('publicApp.claim.confirming')}
         </h1>
-        <p className="text-gray-600">{t('publicApp.claim.confirmingWait')}</p>
+        <p className="text-foreground-secondary">{t('publicApp.claim.confirmingWait')}</p>
       </div>
     </main>
   );

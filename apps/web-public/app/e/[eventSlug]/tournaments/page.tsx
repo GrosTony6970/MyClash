@@ -36,11 +36,11 @@ export default async function TournamentsListPage({ params }: Props) {
       />
       {event && <EventHeader event={event} />}
       <section>
-        <h1 className="mb-4 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+        <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.section.tournaments')}
         </h1>
         {tournaments.length === 0 ? (
-          <p className="text-sm text-slate-500">{tr('publicApp.eventHome.tournaments.empty')}</p>
+          <p className="text-sm text-muted">{tr('publicApp.eventHome.tournaments.empty')}</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {tournaments.map((t) => (

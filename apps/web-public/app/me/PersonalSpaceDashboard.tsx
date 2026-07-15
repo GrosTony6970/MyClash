@@ -131,14 +131,14 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#1d4ed8]">
+        <header className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-accent">
             {t('publicApp.personalSpace.eyebrow')}
           </p>
-          <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl text-[#0f172a]">
+          <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('publicApp.personalSpace.title')}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground-secondary">
             {t('publicApp.personalSpace.subtitle', {
               name: displayName ?? t('common.unknown'),
             })}
@@ -148,13 +148,13 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
         <DashboardToday />
 
         {loading && (
-          <section className="rounded-lg border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">
+          <section className="rounded-lg border border-border bg-surface p-5 text-sm font-semibold text-foreground-secondary shadow-sm">
             {t('publicApp.personalSpace.loading')}
           </section>
         )}
 
         {error && (
-          <section className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">
+          <section className="rounded-lg border border-danger/30 bg-danger/10 p-5 text-sm font-semibold text-danger">
             {t('publicApp.personalSpace.loadError')}
           </section>
         )}
@@ -195,8 +195,8 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
             </section>
 
             <section className="grid gap-4">
-              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="font-display font-semibold text-lg sm:text-xl text-[#0f172a]">
+              <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+                <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                   {t('publicApp.personalSpace.profileTitle')}
                 </h2>
                 {globalPerson ? (
@@ -229,8 +229,8 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                     </div>
                     {typeof globalPerson['date_of_birth'] === 'string' &&
                       globalPerson['date_of_birth'] && (
-                        <p className="mt-4 text-sm text-slate-600">
-                          <span className="font-semibold text-slate-700">
+                        <p className="mt-4 text-sm text-foreground-secondary">
+                          <span className="font-semibold text-foreground-secondary">
                             {t('publicApp.personalSpace.dateOfBirthLabel')}:
                           </span>{' '}
                           <span className="tabular-nums">
@@ -348,18 +348,18 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
 
   if (claim.kind === 'pending') {
     return (
-      <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-4">
-        <p className="text-sm font-bold text-blue-800">{t('publicApp.claim.pendingTitle')}</p>
-        <p className="mt-2 text-sm text-blue-700">{t('publicApp.claim.pendingDescription')}</p>
+      <div className="mt-4 rounded-md border border-info/30 bg-info/10 p-4">
+        <p className="text-sm font-bold text-info">{t('publicApp.claim.pendingTitle')}</p>
+        <p className="mt-2 text-sm text-info">{t('publicApp.claim.pendingDescription')}</p>
       </div>
     );
   }
 
   if (claim.kind === 'sent') {
     return (
-      <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-4">
-        <p className="text-sm font-bold text-emerald-800">{t('publicApp.claim.sentTitle')}</p>
-        <p className="mt-2 text-sm text-emerald-700">
+      <div className="mt-4 rounded-md border border-success/30 bg-success/10 p-4">
+        <p className="text-sm font-bold text-success">{t('publicApp.claim.sentTitle')}</p>
+        <p className="mt-2 text-sm text-success">
           {t('publicApp.claim.sentDescription', { email: claim.redactedEmail })}
         </p>
       </div>
@@ -368,20 +368,20 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
 
   return (
     <div className="mt-4">
-      <p className="text-sm font-semibold text-slate-700">{t('publicApp.claim.searchTitle')}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-500">
-        {t('publicApp.claim.searchDescription')}
+      <p className="text-sm font-semibold text-foreground-secondary">
+        {t('publicApp.claim.searchTitle')}
       </p>
+      <p className="mt-1 text-sm leading-6 text-muted">{t('publicApp.claim.searchDescription')}</p>
       <input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t('publicApp.claim.searchPlaceholder')}
-        className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-[#1d4ed8] focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]"
+        className="mt-3 w-full rounded-md border border-border px-3 py-2 text-sm shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         aria-label={t('publicApp.claim.searchPlaceholder')}
       />
       {claim.kind === 'error' && (
-        <p className="mt-2 text-sm text-red-700" role="alert">
+        <p className="mt-2 text-sm text-danger" role="alert">
           {claim.code === 'already_pending'
             ? t('publicApp.claim.errors.alreadyPending')
             : claim.code === 'already_claimed' || claim.code === 'Profile is already claimed'
@@ -391,20 +391,20 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
       )}
       <ul className="mt-3 flex flex-col gap-2">
         {showResults && searching && (
-          <li className="text-sm text-slate-500">{t('publicApp.claim.searching')}</li>
+          <li className="text-sm text-muted">{t('publicApp.claim.searching')}</li>
         )}
         {showResults && !searching && results.length === 0 && (
-          <li className="text-sm text-slate-500">{t('publicApp.claim.noResults')}</li>
+          <li className="text-sm text-muted">{t('publicApp.claim.noResults')}</li>
         )}
         {showResults &&
           results.map((row) => (
             <li
               key={row.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-800">{row.display_name}</p>
-                <p className="truncate text-xs text-slate-500">
+                <p className="truncate text-sm font-bold text-foreground">{row.display_name}</p>
+                <p className="truncate text-xs text-muted">
                   {[
                     row.club_label,
                     row.country_code,
@@ -418,16 +418,16 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
                 type="button"
                 onClick={() => void startClaim(row)}
                 disabled={claim.kind === 'requesting'}
-                className="shrink-0 rounded-md bg-[#1d4ed8] px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground hover:bg-accent-hover disabled:opacity-60"
               >
                 {t('publicApp.claim.thisIsMe')}
               </button>
             </li>
           ))}
       </ul>
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-muted">
         {t('publicApp.claim.findEventsFallback')}{' '}
-        <Link href="/" className="font-bold text-[#1d4ed8] hover:underline">
+        <Link href="/" className="font-bold text-accent hover:underline">
           {t('publicApp.personalSpace.findEvents')}
         </Link>
       </p>
@@ -448,15 +448,15 @@ function StatCard({
 }) {
   const body = (
     <>
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-3 text-3xl font-black tabular-nums text-[#0f172a]">{value}</p>
-      {value === 0 && hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
+      <p className="mt-3 text-3xl font-black tabular-nums text-foreground">{value}</p>
+      {value === 0 && hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </>
   );
-  const base = 'block rounded-lg border border-slate-200 bg-white p-5 shadow-sm';
+  const base = 'block rounded-lg border border-border bg-surface p-5 shadow-sm';
   if (href) {
     return (
-      <Link href={href} className={`${base} transition hover:border-[#1d4ed8]/40 hover:shadow-md`}>
+      <Link href={href} className={`${base} transition hover:border-accent/40 hover:shadow-md`}>
         {body}
       </Link>
     );
@@ -479,12 +479,12 @@ function RolePill({
   const className = [
     'block rounded-md border px-3 py-3 text-sm font-bold',
     active
-      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-      : 'border-slate-200 bg-slate-50 text-slate-400',
+      ? 'border-success/40 bg-success/10 text-foreground'
+      : 'border-border bg-background text-muted',
     href
       ? active
-        ? 'transition hover:border-emerald-400'
-        : 'transition hover:border-[#1d4ed8]/50'
+        ? 'transition hover:border-success/60'
+        : 'transition hover:border-accent/50'
       : '',
   ].join(' ');
 
@@ -492,12 +492,12 @@ function RolePill({
     <>
       <div className="flex items-center justify-between gap-2">
         <span>{label}</span>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success px-2 py-0.5 text-xs font-semibold text-success-foreground">
           <span aria-hidden="true">✓</span>
           {t('publicApp.personalSpace.roles.linkedPill')}
         </span>
       </div>
-      <p className="mt-1 text-xs font-medium text-emerald-700">{linkedText}</p>
+      <p className="mt-1 text-xs font-medium text-success">{linkedText}</p>
     </>
   ) : (
     label
@@ -540,7 +540,7 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
   if (state.kind === 'confirming' || state.kind === 'pending') {
     return (
       <div
-        className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+        className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
         role="alertdialog"
         aria-modal="true"
         aria-label={t('publicApp.personalSpace.unlinkConfirmTitle')}
@@ -552,7 +552,7 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
             type="button"
             onClick={() => void unlink()}
             disabled={state.kind === 'pending'}
-            className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-60"
+            className="rounded-md bg-warning px-3 py-1.5 text-xs font-bold text-warning-foreground hover:bg-warning-hover disabled:opacity-60"
           >
             {state.kind === 'pending'
               ? t('common.loading')
@@ -562,7 +562,7 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
             type="button"
             onClick={() => setState({ kind: 'idle' })}
             disabled={state.kind === 'pending'}
-            className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+            className="rounded-md border border-warning/40 px-3 py-1.5 text-xs font-bold text-warning hover:bg-warning/10 disabled:opacity-60"
           >
             {t('actions.cancel')}
           </button>
@@ -574,14 +574,14 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
   return (
     <div className="mt-4">
       {state.kind === 'error' && (
-        <p className="mb-2 text-xs text-red-700" role="alert">
+        <p className="mb-2 text-xs text-danger" role="alert">
           {t('publicApp.personalSpace.unlinkError')}
         </p>
       )}
       <button
         type="button"
         onClick={() => setState({ kind: 'confirming' })}
-        className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+        className="text-xs font-semibold text-muted underline-offset-2 hover:text-foreground-secondary hover:underline"
       >
         {t('publicApp.personalSpace.unlinkAction')}
       </button>
@@ -622,13 +622,13 @@ function ClaimableCard({
   }
 
   return (
-    <section className="rounded-lg border border-[#1d4ed8]/30 bg-[#1d4ed8]/5 p-5 shadow-sm">
+    <section className="rounded-lg border border-accent/30 bg-accent/5 p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-[#0f172a]">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('publicApp.personalSpace.claimable.title')}
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+          <p className="mt-1 max-w-2xl text-sm text-foreground-secondary">
             {t('publicApp.personalSpace.claimable.description')}
           </p>
         </div>
@@ -636,7 +636,7 @@ function ClaimableCard({
           type="button"
           disabled={busy}
           onClick={() => void claim(claimable.map((c) => c.id))}
-          className="rounded-md bg-[#1d4ed8] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#1e40af] disabled:opacity-60"
+          className="rounded-md bg-accent px-3 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover disabled:opacity-60"
         >
           {busy
             ? t('common.loading')
@@ -645,7 +645,7 @@ function ClaimableCard({
       </div>
 
       {error && (
-        <p className="mt-3 text-sm text-red-700" role="alert">
+        <p className="mt-3 text-sm text-danger" role="alert">
           {t('publicApp.personalSpace.claimable.error')}
         </p>
       )}
@@ -654,19 +654,19 @@ function ClaimableCard({
         {claimable.map((person) => (
           <li
             key={person.id}
-            className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
+            className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2"
           >
             <span className="min-w-0">
-              <span className="font-semibold text-slate-800">{person.name}</span>
+              <span className="font-semibold text-foreground">{person.name}</span>
               {person.eventName && (
-                <span className="text-sm text-slate-500"> · {person.eventName}</span>
+                <span className="text-sm text-muted"> · {person.eventName}</span>
               )}
             </span>
             <button
               type="button"
               disabled={busy}
               onClick={() => void claim([person.id])}
-              className="shrink-0 rounded-md border border-[#1d4ed8]/40 px-3 py-1.5 text-xs font-bold text-[#1d4ed8] transition hover:bg-[#1d4ed8]/10 disabled:opacity-60"
+              className="shrink-0 rounded-md border border-accent/40 px-3 py-1.5 text-xs font-bold text-accent transition hover:bg-accent/10 disabled:opacity-60"
             >
               {t('publicApp.personalSpace.claimable.claim')}
             </button>

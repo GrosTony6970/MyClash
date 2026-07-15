@@ -81,11 +81,11 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
             <img
               src={branding.logoUrl}
               alt=""
-              className="h-14 w-14 rounded-lg border border-stone-200 object-cover"
+              className="h-14 w-14 rounded-lg border border-border object-cover"
             />
           )}
           {branding.name && (
-            <p className="font-display text-lg font-bold text-slate-900">{branding.name}</p>
+            <p className="font-display text-lg font-bold text-foreground">{branding.name}</p>
           )}
         </section>
       )}
@@ -93,8 +93,8 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {/* Live now */}
       {live.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-success">
+            <span className="inline-block h-2 w-2 rounded-full bg-success motion-safe:animate-pulse" />
             {t('publicApp.eventHome.liveNow')}
           </h2>
           <div className="flex flex-col gap-3">
@@ -102,24 +102,24 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-emerald-300 bg-white p-4 transition-colors hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="block rounded-xl border border-success/40 bg-surface p-4 transition-colors hover:border-success focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
-                  {m.liceName && <p className="text-xs text-slate-500">{m.liceName}</p>}
+                  <p className="text-xs text-muted">{m.matchNumberLabel}</p>
+                  {m.liceName && <p className="text-xs text-muted">{m.liceName}</p>}
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="font-bold text-slate-900">{m.redFighterName ?? '?'}</p>
-                  <p className="text-2xl font-black tabular-nums text-slate-900">
-                    <span className={m.redScore > m.blueScore ? 'text-emerald-700' : undefined}>
+                  <p className="font-bold text-foreground">{m.redFighterName ?? '?'}</p>
+                  <p className="text-2xl font-black tabular-nums text-foreground">
+                    <span className={m.redScore > m.blueScore ? 'text-success' : undefined}>
                       {m.redScore}
                     </span>
-                    <span className="mx-1.5 text-slate-400">–</span>
-                    <span className={m.blueScore > m.redScore ? 'text-emerald-700' : undefined}>
+                    <span className="mx-1.5 text-muted">–</span>
+                    <span className={m.blueScore > m.redScore ? 'text-success' : undefined}>
                       {m.blueScore}
                     </span>
                   </p>
-                  <p className="font-bold text-slate-900">{m.blueFighterName ?? '?'}</p>
+                  <p className="font-bold text-foreground">{m.blueFighterName ?? '?'}</p>
                 </div>
               </Link>
             ))}
@@ -130,7 +130,7 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {/* Upcoming favorites */}
       {upcoming.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('publicApp.accompanistHome.comingUp')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -138,20 +138,20 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-stone-200 bg-white px-4 py-3 transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-foreground">
                       {t('publicApp.accompanistHome.fighterVersus', {
                         red: m.redFighterName ?? '?',
                         blue: m.blueFighterName ?? '?',
                       })}
                     </p>
-                    <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
+                    <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                   </div>
                   {m.scheduledAt && (
-                    <span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-mono text-slate-700">
+                    <span className="rounded-md bg-border px-2 py-1 text-xs font-mono text-foreground-secondary">
                       {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -170,10 +170,10 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {matches.length === 0 && (
         <div className="py-12 text-center">
           <p className="mb-3 text-4xl">👥</p>
-          <p className="mb-4 text-slate-500">{t('publicApp.accompanistHome.emptyFollowing')}</p>
+          <p className="mb-4 text-muted">{t('publicApp.accompanistHome.emptyFollowing')}</p>
           <Link
             href={`/e/${eventSlug}/people`}
-            className="text-sm font-semibold text-red-700 underline hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+            className="text-sm font-semibold text-accent underline hover:text-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >
             {t('publicApp.accompanistHome.browseParticipants')}
           </Link>

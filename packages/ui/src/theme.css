@@ -54,6 +54,14 @@
   --color-strong: #0f172a; /* slate-900 */
   --color-strong-foreground: #ffffff;
   --color-strong-hover: #020617; /* slate-950 */
+
+  /* Fighter-corner DOMAIN colors (scoring surfaces): the red/blue corner is
+   * rule semantics, not decoration — tokenized so scoring chrome can theme
+   * without repainting the corners. */
+  --color-corner-red: #dc2626; /* red-600 */
+  --color-corner-red-foreground: #ffffff;
+  --color-corner-blue: #2563eb; /* blue-600 */
+  --color-corner-blue-foreground: #ffffff;
 }
 
 /* Dark surface — dark sidebars (both apps), web-public /me + auth. */
@@ -78,6 +86,9 @@
   --color-strong: #e2e8f0; /* slate-200 (inverse on dark) */
   --color-strong-foreground: #0f172a;
   --color-strong-hover: #cbd5e1; /* slate-300 */
+
+  --color-corner-red: #ef4444; /* red-500 — brighter for contrast on dark */
+  --color-corner-blue: #3b82f6; /* blue-500 */
 }
 
 /* Personal-space accent — blue (web-public /me + auth). Default accent is red. */

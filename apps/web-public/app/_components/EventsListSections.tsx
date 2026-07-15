@@ -89,7 +89,7 @@ export function EventsListSections({
         <label
           id="public-events-search-label"
           htmlFor="public-events-search"
-          className="text-xs font-semibold uppercase tracking-wider text-slate-500"
+          className="text-xs font-semibold uppercase tracking-wider text-muted"
         >
           {t('publicApp.home.searchLabel')}
         </label>
@@ -99,7 +99,7 @@ export function EventsListSections({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('publicApp.home.searchPlaceholder')}
-          className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 sm:max-w-md"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 sm:max-w-md"
         />
       </section>
 
@@ -114,7 +114,7 @@ function EmptySectionMessage({ sectionKey, query }: { sectionKey: SectionKey; qu
   const trimmed = query.trim();
   const message = t(emptySectionMessageKey(sectionKey, trimmed)).replace('{query}', trimmed);
   return (
-    <p className="rounded-lg border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+    <p className="rounded-lg border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
       {message}
     </p>
   );
@@ -123,10 +123,10 @@ function EmptySectionMessage({ sectionKey, query }: { sectionKey: SectionKey; qu
 function SectionHeader({ id, title, count }: { id: string; title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 id={id} className="font-display text-lg font-semibold text-slate-900 sm:text-xl">
+      <h2 id={id} className="font-display text-lg font-semibold text-foreground sm:text-xl">
         {title}
       </h2>
-      <span className="text-xs text-slate-500">{count}</span>
+      <span className="text-xs text-muted">{count}</span>
     </div>
   );
 }
@@ -137,7 +137,7 @@ function OrganiserEyebrow({ event }: { event: PublicEvent }) {
   const dateRange = formatDateRange(event);
   if (!orgName && !orgLogo && !dateRange) return null;
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-600">
+    <div className="flex items-center gap-2 text-xs text-foreground-secondary">
       {orgLogo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -145,10 +145,10 @@ function OrganiserEyebrow({ event }: { event: PublicEvent }) {
           alt=""
           width={20}
           height={20}
-          className="h-5 w-5 rounded-full border border-stone-200 bg-white object-contain"
+          className="h-5 w-5 rounded-full border border-border bg-surface object-contain"
         />
       )}
-      {orgName && <span className="font-semibold text-slate-700">{orgName}</span>}
+      {orgName && <span className="font-semibold text-foreground-secondary">{orgName}</span>}
       {orgName && dateRange && <span aria-hidden="true">·</span>}
       {dateRange && <span>{dateRange}</span>}
     </div>
@@ -164,17 +164,17 @@ function EventLogo({ src, alt }: { src: string | null | undefined; alt: string }
       alt={alt}
       width={40}
       height={40}
-      className="h-10 w-10 shrink-0 rounded border border-stone-200 bg-white object-contain"
+      className="h-10 w-10 shrink-0 rounded border border-border bg-surface object-contain"
     />
   );
 }
 
 function LiveTag() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-success/60 bg-success/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-success">
       <span
         aria-hidden="true"
-        className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+        className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse"
       />
       {t('publicApp.home.liveTag')}
     </span>
@@ -183,7 +183,7 @@ function LiveTag() {
 
 function PublishedTag() {
   return (
-    <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+    <span className="inline-flex items-center rounded-full border border-info/40 bg-info/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-info">
       {t('publicApp.home.publishedTag')}
     </span>
   );
@@ -191,7 +191,7 @@ function PublishedTag() {
 
 function PastTag() {
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+    <span className="inline-flex items-center rounded-full border border-border bg-border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
       {t('publicApp.home.pastTag')}
     </span>
   );
@@ -222,29 +222,27 @@ function LiveSection({
               key={event.slug ?? event.id}
               href={eventHref(event, personal)}
               style={{ borderLeftColor: orgAccent(event) }}
-              className="group flex min-h-44 flex-col justify-between rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="group flex min-h-44 flex-col justify-between rounded-lg border border-border border-l-4 bg-surface p-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <div className="flex flex-col gap-3">
                 <OrganiserEyebrow event={event} />
                 <div className="flex items-start gap-3">
                   <EventLogo src={event.logo_url} alt={event.name ?? ''} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-display text-lg font-semibold leading-tight text-slate-900">
+                    <p className="font-display text-lg font-semibold leading-tight text-foreground">
                       {event.name ?? t('publicApp.home.unknownEvent')}
                     </p>
                     {(() => {
                       const place = formatEventLocation(event);
-                      return place ? <p className="mt-1 text-sm text-slate-500">{place}</p> : null;
+                      return place ? <p className="mt-1 text-sm text-muted">{place}</p> : null;
                     })()}
                   </div>
                   <LiveTag />
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-slate-500">
-                  {tournamentCountLabel(event.tournament_count)}
-                </span>
-                <span className="font-semibold text-red-700 group-hover:text-red-800">
+                <span className="text-muted">{tournamentCountLabel(event.tournament_count)}</span>
+                <span className="font-semibold text-accent group-hover:text-accent-hover">
                   {t('publicApp.home.openEvent')}
                 </span>
               </div>
@@ -271,23 +269,21 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
         const resultsReady = event.status === 'completed' && (event.tournament_count ?? 0) > 0;
         return (
           <span
-            className={
-              resultsReady ? 'font-semibold text-red-700' : 'text-xs italic text-slate-500'
-            }
+            className={resultsReady ? 'font-semibold text-accent' : 'text-xs italic text-muted'}
           >
             {resultsReady ? t('publicApp.home.resultsReady') : t('publicApp.home.resultsPending')}
           </span>
         );
       })()
     ) : (
-      <span className="text-sm text-slate-500">{tournamentCountLabel(event.tournament_count)}</span>
+      <span className="text-sm text-muted">{tournamentCountLabel(event.tournament_count)}</span>
     );
 
   return (
     <Link
       href={eventHref(event, personal)}
       style={{ borderLeftColor: orgAccent(event) }}
-      className="group flex flex-col gap-3 rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+      className="group flex flex-col gap-3 rounded-lg border border-border border-l-4 bg-surface p-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
     >
       <OrganiserEyebrow event={event} />
       <div
@@ -302,18 +298,18 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
             <span aria-hidden="true" className="hidden md:block" />
           ))}
         <div className="min-w-0">
-          <p className="font-display text-base font-semibold leading-tight text-slate-900">
+          <p className="font-display text-base font-semibold leading-tight text-foreground">
             {event.name ?? t('publicApp.home.unknownEvent')}
           </p>
         </div>
-        <p className="text-sm text-slate-500">
-          <span className="font-medium text-slate-600 md:hidden">
+        <p className="text-sm text-muted">
+          <span className="font-medium text-foreground-secondary md:hidden">
             {t('publicApp.home.colLocation')} ·{' '}
           </span>
           {formatEventLocation(event) ?? '—'}
         </p>
-        <p className="text-sm text-slate-500">
-          <span className="font-medium text-slate-600 md:hidden">
+        <p className="text-sm text-muted">
+          <span className="font-medium text-foreground-secondary md:hidden">
             {t('publicApp.home.colLeague')} ·{' '}
           </span>
           {(() => {
@@ -343,7 +339,7 @@ function EventTableHeader({
   // The transparent 4px left border mirrors each row's colored `border-l-4` so
   // the header labels line up exactly above the row content (the row's border
   // sits outside its padding, shifting its content 4px to the right).
-  const headerClass = `hidden md:grid ${gridColsClass(hasLogos)} md:items-center md:gap-4 md:border-b md:border-l-4 md:border-stone-200 md:border-l-transparent md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500`;
+  const headerClass = `hidden md:grid ${gridColsClass(hasLogos)} md:items-center md:gap-4 md:border-b md:border-l-4 md:border-border md:border-l-transparent md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-muted`;
   return (
     <div role="row" className={headerClass}>
       {hasLogos && (

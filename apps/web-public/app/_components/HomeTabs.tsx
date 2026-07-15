@@ -39,7 +39,7 @@ export function HomeTabs({
   const [tab, setTab] = useState<Tab>('events');
   return (
     <div className="flex flex-col gap-6">
-      <div className="inline-flex self-start rounded-md border border-stone-200 bg-white p-1 shadow-sm">
+      <div className="inline-flex self-start rounded-md border border-border bg-surface p-1 shadow-sm">
         {(
           [
             ['events', t('publicApp.home.tabEvents')],
@@ -52,7 +52,9 @@ export function HomeTabs({
             onClick={() => setTab(value)}
             className={[
               'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
-              tab === value ? 'bg-red-700 text-white' : 'text-slate-600 hover:bg-stone-100',
+              tab === value
+                ? 'bg-accent text-accent-foreground'
+                : 'text-foreground-secondary hover:bg-background',
             ].join(' ')}
           >
             {label}

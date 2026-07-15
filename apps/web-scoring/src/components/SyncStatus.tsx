@@ -42,27 +42,29 @@ function getConfig(status: SyncStatus, pendingCount: number): StatusConfig {
       return {
         label: 'Online',
         sublabel: pendingCount > 0 ? `${pendingCount} synced` : undefined,
-        dot: 'bg-green-400',
-        bar: 'bg-green-900',
+        dot: 'bg-success',
+        bar: 'bg-success/25',
         pulse: false,
       };
     case 'syncing':
       return {
         label: 'Syncing…',
         sublabel: `${pendingCount} pending`,
-        dot: 'bg-yellow-400',
-        bar: 'bg-yellow-900',
+        dot: 'bg-warning',
+        bar: 'bg-warning/25',
         pulse: true,
       };
     case 'offline':
       return {
         label: 'Offline',
         sublabel: pendingCount > 0 ? `${pendingCount} queued locally` : 'No connection',
-        dot: 'bg-red-400',
-        bar: 'bg-red-950',
+        dot: 'bg-danger',
+        bar: 'bg-danger/25',
         pulse: true,
       };
     case 'error':
+      // Raw orange ON PURPOSE: 4-state categorical set (green/yellow/red/orange);
+      // mapping to warning would collide with the syncing state.
       return {
         label: 'Sync error',
         sublabel: pendingCount > 0 ? `${pendingCount} not synced` : undefined,
@@ -110,14 +112,18 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
         <span
           className={`w-2 h-2 rounded-full ${config.dot} ${config.pulse ? 'animate-pulse' : ''}`}
         />
-        <span className="text-white">{config.label}</span>
-        {pendingCount > 0 && <span className="text-white/70 font-normal">{pendingCount}</span>}
+        <span className="text-foreground">{config.label}</span>
+        {pendingCount > 0 && <span className="text-foreground/70 font-normal">{pendingCount}</span>}
       </div>
     );
   }
 
   return (
-    <div className={`w-full px-4 py-2 ${config.bar} text-white`} role="status" aria-live="polite">
+    <div
+      className={`w-full px-4 py-2 ${config.bar} text-foreground`}
+      role="status"
+      aria-live="polite"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
@@ -128,7 +134,7 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
           <div>
             <span className="text-sm font-bold">{config.label}</span>
             {config.sublabel && (
-              <span className="ml-2 text-xs text-white/70">{config.sublabel}</span>
+              <span className="ml-2 text-xs text-foreground/70">{config.sublabel}</span>
             )}
           </div>
         </div>
@@ -137,7 +143,7 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
         {(isError || isOffline) && onRetry && networkOnline && (
           <button
             onClick={onRetry}
-            className="text-xs font-bold underline text-white/90 hover:text-white ml-4"
+            className="text-xs font-bold underline text-foreground/90 hover:text-foreground ml-4"
           >
             Retry
           </button>
@@ -146,7 +152,7 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
 
       {/* Expanded error message */}
       {isError && syncState?.lastError && (
-        <p className="text-xs text-white/70 mt-1 pl-4">
+        <p className="text-xs text-foreground/70 mt-1 pl-4">
           {syncState.lastError} — contact admin if issue persists.
         </p>
       )}

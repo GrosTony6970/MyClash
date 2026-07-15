@@ -37,8 +37,8 @@ const stripeFor = (kind: 'fight' | 'referee' | 'workshop', side?: 'red' | 'blue'
     : kind === 'workshop'
       ? 'bg-success'
       : side === 'blue'
-        ? 'bg-blue-700'
-        : 'bg-red-700';
+        ? 'bg-corner-blue'
+        : 'bg-corner-red';
 
 const toneClasses: Record<StatusTone, string> = {
   done: 'bg-success/15 text-success',

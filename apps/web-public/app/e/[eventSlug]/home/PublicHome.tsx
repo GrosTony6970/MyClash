@@ -92,35 +92,35 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {tr('publicApp.people.title')}
           </h2>
           <Link
             href={`/e/${eventSlug}/participants`}
-            className="group block max-w-sm rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+            className="group block max-w-sm rounded-xl border border-border bg-surface p-5 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
           >
-            <p className="font-display text-xs font-bold uppercase tracking-widest text-slate-500">
+            <p className="font-display text-xs font-bold uppercase tracking-widest text-muted">
               {tr('publicApp.people.title')}
             </p>
             <p className="mt-2 flex items-baseline gap-2">
-              <span className="text-4xl font-black tabular-nums text-slate-900">
+              <span className="text-4xl font-black tabular-nums text-foreground">
                 {participantsCounts.active}
               </span>
-              <span className="text-sm text-slate-500">
+              <span className="text-sm text-muted">
                 {tr('publicApp.eventHome.participants.registered')}
               </span>
             </p>
             {participantsCounts.waitlist > 0 && (
-              <p className="mt-1 flex items-baseline gap-2 border-t border-stone-200 pt-2">
-                <span className="text-2xl font-bold tabular-nums text-amber-700">
+              <p className="mt-1 flex items-baseline gap-2 border-t border-border pt-2">
+                <span className="text-2xl font-bold tabular-nums text-warning">
                   {participantsCounts.waitlist}
                 </span>
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-muted">
                   {tr('publicApp.eventHome.participants.onWaitlist')}
                 </span>
               </p>
             )}
-            <p className="mt-3 text-xs font-semibold text-red-700 group-hover:text-red-800">
+            <p className="mt-3 text-xs font-semibold text-accent group-hover:text-accent-hover">
               {tr('publicApp.eventHome.participants.viewList')}
             </p>
           </Link>
@@ -130,13 +130,13 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {tournaments.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
               {tr('publicApp.eventHome.section.tournaments')}
             </h2>
             {tournaments.length > 3 && (
               <Link
                 href={`/e/${eventSlug}/tournaments`}
-                className="text-xs font-semibold text-red-700 hover:text-red-800"
+                className="text-xs font-semibold text-accent hover:text-accent-hover"
               >
                 {tr('publicApp.eventHome.tournaments.seeFullList')}
               </Link>
@@ -159,13 +159,13 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       {workshops.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
               {tr('publicApp.eventHome.section.workshops')}
             </h2>
             {workshops.length > 6 && (
               <Link
                 href={`/e/${eventSlug}/workshops`}
-                className="text-xs font-semibold text-red-700 hover:text-red-800"
+                className="text-xs font-semibold text-accent hover:text-accent-hover"
               >
                 {tr('publicApp.eventHome.workshops.seeFullList')}
               </Link>
@@ -187,27 +187,27 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {(tournaments.length > 0 || workshops.length > 0) && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {tr('publicApp.eventHome.section.schedule')}
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {tournaments.length > 0 && (
               <Link
                 href={`/e/${eventSlug}/schedule/tournaments`}
-                className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-stone-200 bg-white p-4 pl-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-border bg-surface p-4 pl-5 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
-                <span aria-hidden="true" className="absolute left-0 top-0 h-full w-1 bg-red-500" />
+                <span aria-hidden="true" className="absolute left-0 top-0 h-full w-1 bg-accent" />
                 <div className="min-w-0">
-                  <p className="font-display text-base font-semibold text-slate-900">
+                  <p className="font-display text-base font-semibold text-foreground">
                     {tr('publicApp.eventHome.schedule.tournamentsCard')}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-muted">
                     {firstPoolStart
                       ? `${tr('publicApp.eventHome.tournament.firstPool')}: ${formatInZone(firstPoolStart, tz, dateTimeFmt)}`
                       : tr('publicApp.eventHome.schedule.notScheduled')}
                   </p>
                 </div>
-                <span className="shrink-0 font-semibold text-red-700 group-hover:text-red-800">
+                <span className="shrink-0 font-semibold text-accent group-hover:text-accent-hover">
                   →
                 </span>
               </Link>
@@ -215,23 +215,20 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
             {workshops.length > 0 && (
               <Link
                 href={`/e/${eventSlug}/schedule/workshops`}
-                className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-stone-200 bg-white p-4 pl-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-xl border border-border bg-surface p-4 pl-5 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
-                <span
-                  aria-hidden="true"
-                  className="absolute left-0 top-0 h-full w-1 bg-amber-500"
-                />
+                <span aria-hidden="true" className="absolute left-0 top-0 h-full w-1 bg-gold" />
                 <div className="min-w-0">
-                  <p className="font-display text-base font-semibold text-slate-900">
+                  <p className="font-display text-base font-semibold text-foreground">
                     {tr('publicApp.eventHome.schedule.workshopsCard')}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-muted">
                     {wsFirstStart
                       ? `${formatInZone(wsFirstStart, tz, dateTimeFmt)}${wsLastEnd ? ` → ${formatInZone(wsLastEnd, tz, dateTimeFmt)}` : ''}`
                       : tr('publicApp.eventHome.schedule.notScheduled')}
                   </p>
                 </div>
-                <span className="shrink-0 font-semibold text-red-700 group-hover:text-red-800">
+                <span className="shrink-0 font-semibold text-accent group-hover:text-accent-hover">
                   →
                 </span>
               </Link>
@@ -242,7 +239,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {venues.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {tr('publicApp.eventHome.section.venues')}
           </h2>
           <div className={CARD_SCROLL_2}>
@@ -253,30 +250,30 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
               return (
                 <article
                   key={v.id}
-                  className={`flex flex-col gap-2 rounded-xl border border-stone-200 bg-white p-4 shadow-sm ${SCROLL_ITEM}`}
+                  className={`flex flex-col gap-2 rounded-xl border border-border bg-surface p-4 shadow-sm ${SCROLL_ITEM}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-display text-base font-semibold text-slate-900">
+                      <p className="font-display text-base font-semibold text-foreground">
                         {v.name}
                       </p>
-                      {v.address && <p className="mt-0.5 text-xs text-slate-500">{v.address}</p>}
+                      {v.address && <p className="mt-0.5 text-xs text-muted">{v.address}</p>}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {v.hosts_tournament && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                        <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-semibold text-info">
                           {tr('publicApp.eventHome.schedule.tournament')}
                         </span>
                       )}
                       {v.hosts_workshop && (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                        <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                           {tr('publicApp.eventHome.schedule.workshop')}
                         </span>
                       )}
                     </div>
                   </div>
                   {v.venue_areas && v.venue_areas.length > 0 && (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted">
                       {tr(
                         v.venue_areas.length === 1
                           ? 'publicApp.eventHome.venues.areaCountSingular'
@@ -293,7 +290,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                       href={mapsHref}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="text-xs font-semibold text-red-700 hover:text-red-800"
+                      className="text-xs font-semibold text-accent hover:text-accent-hover"
                     >
                       {tr('publicApp.eventHome.venues.openInMaps')}
                     </a>
@@ -307,8 +304,8 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {!isCompleted && live.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-success">
+            <span className="inline-block h-2 w-2 rounded-full bg-success motion-safe:animate-pulse" />
             {tr('publicApp.eventHome.liveNow')}
           </h2>
           <div className="flex flex-col gap-3">
@@ -316,24 +313,24 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-emerald-300 bg-white p-4 shadow-sm transition-colors hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                className="block rounded-xl border border-success/40 bg-surface p-4 shadow-sm transition-colors hover:border-success focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
-                <p className="mb-2 text-xs text-slate-500">
+                <p className="mb-2 text-xs text-muted">
                   {m.tournamentName} · {m.matchNumberLabel}
                   {m.liceName && ` · ${m.liceName}`}
                 </p>
                 <div className="flex items-center justify-between">
-                  <p className="font-bold text-slate-900">{m.redFighterName ?? '?'}</p>
-                  <p className="text-2xl font-black tabular-nums text-slate-900">
-                    <span className={m.redScore > m.blueScore ? 'text-emerald-700' : undefined}>
+                  <p className="font-bold text-foreground">{m.redFighterName ?? '?'}</p>
+                  <p className="text-2xl font-black tabular-nums text-foreground">
+                    <span className={m.redScore > m.blueScore ? 'text-success' : undefined}>
                       {m.redScore}
                     </span>
-                    <span className="mx-1.5 text-slate-400">–</span>
-                    <span className={m.blueScore > m.redScore ? 'text-emerald-700' : undefined}>
+                    <span className="mx-1.5 text-muted">–</span>
+                    <span className={m.blueScore > m.redScore ? 'text-success' : undefined}>
                       {m.blueScore}
                     </span>
                   </p>
-                  <p className="font-bold text-slate-900">{m.blueFighterName ?? '?'}</p>
+                  <p className="font-bold text-foreground">{m.blueFighterName ?? '?'}</p>
                 </div>
               </Link>
             ))}
@@ -343,7 +340,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
 
       {!isCompleted && upcoming.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {tr('publicApp.eventHome.scheduleHighlights')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -351,22 +348,22 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="block rounded-xl border border-border bg-surface px-4 py-3 shadow-sm transition-colors hover:border-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-foreground">
                       {tr('publicApp.eventHome.matchVersus', {
                         red: m.redFighterName ?? '?',
                         blue: m.blueFighterName ?? '?',
                       })}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted">
                       {m.tournamentName} · {m.matchNumberLabel}
                     </p>
                   </div>
                   {m.scheduledAt && (
-                    <span className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs text-slate-700">
+                    <span className="rounded-md bg-border px-2 py-1 font-mono text-xs text-foreground-secondary">
                       {formatInZone(m.scheduledAt, tz, {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -382,12 +379,14 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
       )}
 
       {isCompleted && (
-        <section className="border-t border-stone-200 pt-6">
-          <p className="mb-3 text-sm text-slate-600">{tr('publicApp.eventHome.cta.eventOver')}</p>
+        <section className="border-t border-border pt-6">
+          <p className="mb-3 text-sm text-foreground-secondary">
+            {tr('publicApp.eventHome.cta.eventOver')}
+          </p>
           {tournaments[0] && (
             <Link
               href={`/e/${eventSlug}/t/${encodeURIComponent(tournaments[0].slug)}`}
-              className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+              className="inline-block rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40"
             >
               {tr('publicApp.eventHome.cta.viewResults')}
             </Link>

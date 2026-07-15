@@ -184,7 +184,7 @@ export default function MySchedulePage() {
   if (loading) {
     return (
       <main id="main-content" className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -197,7 +197,7 @@ export default function MySchedulePage() {
       >
         <div>
           <p className="text-4xl mb-3">📅</p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
             {t('publicApp.mySchedule.signInTitle')}
           </h1>
         </div>
@@ -266,7 +266,7 @@ export default function MySchedulePage() {
         <button
           onClick={() => setFocusMode((f) => !f)}
           aria-pressed={focusMode}
-          className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-400 transition-colors"
+          className="text-xs border border-border rounded-lg px-3 py-1.5 text-foreground-secondary hover:border-muted transition-colors"
         >
           {focusMode ? t('publicApp.mySchedule.showAll') : t('publicApp.mySchedule.focusOnMe')}
         </button>
@@ -276,7 +276,7 @@ export default function MySchedulePage() {
           account — offer the permanent upgrade (claim) + explicit logout
           (DELETE /guest-sessions/me, previously unreachable from any UI). */}
       {isGuest && (
-        <div className="mb-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        <div className="mb-4 rounded-xl border border-dashed border-border bg-background px-4 py-3 text-sm text-foreground-secondary">
           <p>{t('publicApp.mySchedule.guestBanner')}</p>
           <div className="mt-2 flex flex-wrap gap-3">
             <Link
@@ -293,7 +293,7 @@ export default function MySchedulePage() {
                   credentials: 'include',
                 }).finally(() => window.location.assign(`/e/${eventSlug}/home`));
               }}
-              className="text-gray-500 underline hover:no-underline"
+              className="text-muted underline hover:no-underline"
             >
               {t('publicApp.mySchedule.guestEndSession')}
             </button>
@@ -315,7 +315,7 @@ export default function MySchedulePage() {
               'flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
               dayFilter === 'all'
                 ? 'text-white border-transparent'
-                : 'text-gray-600 border-gray-300',
+                : 'text-foreground-secondary border-border',
             ].join(' ')}
             style={dayFilter === 'all' ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
           >
@@ -330,7 +330,7 @@ export default function MySchedulePage() {
                 'flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
                 dayFilter === day
                   ? 'text-white border-transparent'
-                  : 'text-gray-600 border-gray-300',
+                  : 'text-foreground-secondary border-border',
               ].join(' ')}
               style={dayFilter === day ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
             >
@@ -344,7 +344,7 @@ export default function MySchedulePage() {
       {isEmpty && (
         <div className="text-center py-12">
           <p className="text-4xl mb-3">📅</p>
-          <p className="text-gray-400 text-sm">
+          <p className="text-muted text-sm">
             {dayFilter !== 'all'
               ? t('publicApp.mySchedule.emptyDay')
               : t('publicApp.mySchedule.emptyAll')}
@@ -356,7 +356,7 @@ export default function MySchedulePage() {
       {Array.from(byDay.entries()).map(([day, items]) => (
         <section key={day} className="mb-6">
           {day !== 'unscheduled' && (
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
               {formatDay(day)}
             </h2>
           )}
@@ -372,18 +372,18 @@ export default function MySchedulePage() {
                   className={[
                     'border-2 rounded-xl px-4 py-3 text-sm',
                     hasConflict
-                      ? 'border-red-400 bg-red-50'
+                      ? 'border-danger/40 bg-danger/10'
                       : item.kind === 'match'
-                        ? 'border-gray-200 bg-white'
+                        ? 'border-border bg-surface'
                         : item.kind === 'referee'
-                          ? 'border-blue-200 bg-blue-50'
-                          : 'border-amber-200 bg-amber-50',
+                          ? 'border-info/30 bg-info/10'
+                          : 'border-warning/30 bg-warning/10',
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       {/* Time */}
-                      <p className="text-xs text-gray-400 mb-0.5">
+                      <p className="text-xs text-muted mb-0.5">
                         {formatTime(item.time, t)}
                         {item.kind === 'match' && item.data.liceName && (
                           <span className="ml-1">· {item.data.liceName}</span>
@@ -396,19 +396,19 @@ export default function MySchedulePage() {
                       {/* Content */}
                       {item.kind === 'match' && (
                         <>
-                          <p className="font-semibold text-gray-900">
+                          <p className="font-semibold text-foreground">
                             {item.data.matchNumberLabel}
                           </p>
-                          <p className="text-gray-500 text-xs mt-0.5">
+                          <p className="text-muted text-xs mt-0.5">
                             {t('publicApp.mySchedule.vs')}{' '}
                             {item.data.opponentName ?? t('publicApp.mySchedule.tbd')}
                             {item.data.tournamentName && ` · ${item.data.tournamentName}`}
                           </p>
                           {item.data.status === 'completed' && (
                             <p className="text-xs font-mono mt-0.5">
-                              <span className="text-red-500">{item.data.redScore}</span>
-                              <span className="text-gray-400 mx-1">–</span>
-                              <span className="text-blue-500">{item.data.blueScore}</span>
+                              <span className="text-corner-red">{item.data.redScore}</span>
+                              <span className="text-muted mx-1">–</span>
+                              <span className="text-corner-blue">{item.data.blueScore}</span>
                             </p>
                           )}
                         </>
@@ -416,10 +416,10 @@ export default function MySchedulePage() {
 
                       {item.kind === 'referee' && (
                         <>
-                          <p className="font-semibold text-blue-800">
+                          <p className="font-semibold text-info">
                             {t('publicApp.mySchedule.refereePrefix')} — {item.data.matchNumberLabel}
                           </p>
-                          <p className="text-blue-600 text-xs mt-0.5">
+                          <p className="text-info text-xs mt-0.5">
                             {item.data.role.replace(/_/g, ' ')}
                             {item.data.tournamentName && ` · ${item.data.tournamentName}`}
                           </p>
@@ -428,16 +428,16 @@ export default function MySchedulePage() {
 
                       {item.kind === 'workshop' && (
                         <>
-                          <p className="font-semibold text-amber-800">{item.data.workshopName}</p>
+                          <p className="font-semibold text-warning">{item.data.workshopName}</p>
                           {item.data.location && (
-                            <p className="text-amber-600 text-xs mt-0.5">📍 {item.data.location}</p>
+                            <p className="text-warning text-xs mt-0.5">📍 {item.data.location}</p>
                           )}
                         </>
                       )}
 
                       {/* Conflict warning */}
                       {hasConflict && (
-                        <p className="text-xs text-red-600 mt-1 font-medium">
+                        <p className="text-xs text-danger mt-1 font-medium">
                           {t('publicApp.mySchedule.conflictsWith', {
                             items: itemConflicts.join(', '),
                           })}
@@ -447,8 +447,8 @@ export default function MySchedulePage() {
 
                     {/* Status badge */}
                     {item.kind === 'match' && item.data.status === 'running' && (
-                      <span className="flex items-center gap-1 text-xs font-bold text-red-500 flex-shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                      <span className="flex items-center gap-1 text-xs font-bold text-danger flex-shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
                         {t('publicApp.mySchedule.live')}
                       </span>
                     )}

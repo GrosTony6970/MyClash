@@ -91,7 +91,7 @@ export default function LiceMatchListPage({ params }: Props) {
   if (loading) {
     return (
       <main id="main-content" className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400">{t('scoring.lice.loadingMatch')}</p>
+        <p className="text-muted">{t('scoring.lice.loadingMatch')}</p>
       </main>
     );
   }

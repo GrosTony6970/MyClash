@@ -70,12 +70,10 @@ export default async function ClubPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">🏛️</p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
             {t('publicApp.clubs.notFoundTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">
-            {t('publicApp.clubs.notFoundDescription', { slug })}
-          </p>
+          <p className="text-muted text-sm">{t('publicApp.clubs.notFoundDescription', { slug })}</p>
         </div>
       </main>
     );
@@ -90,32 +88,34 @@ export default async function ClubPage({ params }: Props) {
           <img
             src={club.logoUrl}
             alt={club.name}
-            className="w-16 h-16 rounded-xl object-contain border border-gray-700 bg-gray-900 p-1"
+            className="w-16 h-16 rounded-xl object-contain border border-border bg-surface p-1"
           />
         ) : (
-          <div className="w-16 h-16 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-2xl">
+          <div className="w-16 h-16 rounded-xl bg-surface border border-border flex items-center justify-center text-2xl">
             🏛️
           </div>
         )}
         <div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">{club.name}</h1>
-          {club.country && <p className="text-sm text-gray-400">{club.country}</p>}
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+            {club.name}
+          </h1>
+          {club.country && <p className="text-sm text-muted">{club.country}</p>}
         </div>
       </div>
 
       {/* Members */}
       {club.members.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gold mb-3">
             {t('publicApp.clubs.members', { count: club.members.length })}
           </h2>
           <div className="flex flex-col gap-2">
             {club.members.map((m) => (
               <Link key={m.fighterId} href={`/fighters/${m.fighterSlug}`}>
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
-                  <p className="font-medium text-white">{m.displayName}</p>
+                <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
+                  <p className="font-medium text-foreground">{m.displayName}</p>
                   {m.hemaRatingsScore !== null && (
-                    <p className="text-xs text-amber-400">{m.hemaRatingsScore.toFixed(1)}</p>
+                    <p className="text-xs text-gold">{m.hemaRatingsScore.toFixed(1)}</p>
                   )}
                 </div>
               </Link>
@@ -127,7 +127,7 @@ export default async function ClubPage({ params }: Props) {
       {/* Recent results */}
       {club.recentResults.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gold mb-3">
             {t('publicApp.clubs.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -139,26 +139,26 @@ export default async function ClubPage({ params }: Props) {
                   key={r.matchId}
                   href={r.eventSlug ? `/e/${r.eventSlug}/match/${r.matchId}` : '#'}
                 >
-                  <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+                  <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                     <div>
-                      <p className="text-sm font-medium text-white">
+                      <p className="text-sm font-medium text-foreground">
                         {t('publicApp.clubs.versus', {
                           fighter: r.fighterName,
                           opponent: r.opponentName ?? '?',
                         })}
                       </p>
-                      {r.eventName && <p className="text-xs text-gray-500">{r.eventName}</p>}
+                      {r.eventName && <p className="text-xs text-muted">{r.eventName}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       <span
                         className={[
                           'text-xs font-bold px-2 py-0.5 rounded-full',
-                          r.won ? 'bg-green-900 text-green-300' : 'bg-red-900/50 text-red-400',
+                          r.won ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
                         ].join(' ')}
                       >
                         {r.won ? 'W' : 'L'}
                       </span>
-                      <p className="text-sm font-mono font-bold text-white tabular-nums">
+                      <p className="text-sm font-mono font-bold text-foreground tabular-nums">
                         {myScore}–{oppScore}
                       </p>
                     </div>
@@ -172,7 +172,7 @@ export default async function ClubPage({ params }: Props) {
 
       {club.members.length === 0 && club.recentResults.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-sm">{t('publicApp.clubs.noData')}</p>
+          <p className="text-muted text-sm">{t('publicApp.clubs.noData')}</p>
         </div>
       )}
     </main>

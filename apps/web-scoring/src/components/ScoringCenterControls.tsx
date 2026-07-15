@@ -174,10 +174,10 @@ export function ScoringCenterControls({
         ? blueName
         : null;
   const doubleChipTone = (() => {
-    if (maxDoubles === null) return 'bg-gray-800 text-gray-300';
-    if (doubleCount >= maxDoubles) return 'bg-red-900 text-red-200 border border-red-500';
-    if (doubleCount >= maxDoubles - 1) return 'bg-amber-900 text-amber-200 border border-amber-500';
-    return 'bg-gray-800 text-gray-300';
+    if (maxDoubles === null) return 'bg-surface text-foreground-secondary';
+    if (doubleCount >= maxDoubles) return 'bg-danger/20 text-danger border border-danger';
+    if (doubleCount >= maxDoubles - 1) return 'bg-warning/20 text-warning border border-warning';
+    return 'bg-surface text-foreground-secondary';
   })();
 
   const events = useMemo(
@@ -234,11 +234,11 @@ export function ScoringCenterControls({
       {/* Double-loss banner — the double cap was hit, both fighters lose
           and the match is closed (scoring is already locked by status). */}
       {doubleLoss && (
-        <div className="w-full rounded-xl border-2 border-red-500 bg-red-950 px-4 py-3 text-center">
-          <p className="text-lg font-black uppercase tracking-widest text-red-300">
+        <div className="w-full rounded-xl border-2 border-danger bg-danger/15 px-4 py-3 text-center">
+          <p className="text-lg font-black uppercase tracking-widest text-danger">
             {t('scoring.liveMatch.doubleLoss')}
           </p>
-          <p className="mt-1 text-xs font-semibold text-red-200">
+          <p className="mt-1 text-xs font-semibold text-danger">
             {t('scoring.liveMatch.doubleLossSubtitle')}
           </p>
         </div>
@@ -248,10 +248,12 @@ export function ScoringCenterControls({
           ruleset; the carded fighter forfeits, the opponent wins. */}
       {blackCardLoserName && (
         <div className="w-full rounded-xl border-2 border-gray-100 bg-gray-900 px-4 py-3 text-center">
-          <p className="text-lg font-black uppercase tracking-widest text-white">
+          <p className="text-lg font-black uppercase tracking-widest text-foreground">
             {t('scoring.liveMatch.blackCard')}
           </p>
-          <p className="mt-1 text-xs font-semibold text-gray-300">{blackCardLoserName}</p>
+          <p className="mt-1 text-xs font-semibold text-foreground-secondary">
+            {blackCardLoserName}
+          </p>
         </div>
       )}
 
@@ -273,14 +275,14 @@ export function ScoringCenterControls({
       <p
         className={`font-mono text-6xl font-black tabular-nums leading-none ${
           warned
-            ? 'text-red-500'
+            ? 'text-danger'
             : status === 'running'
-              ? 'text-white'
+              ? 'text-foreground'
               : status === 'halted'
-                ? 'text-yellow-400'
+                ? 'text-warning'
                 : status === 'ended'
-                  ? 'text-gray-500'
-                  : 'text-gray-600'
+                  ? 'text-muted'
+                  : 'text-muted/70'
         }`}
       >
         <ClockText ms={shownMs} />
@@ -288,7 +290,7 @@ export function ScoringCenterControls({
 
       {/* Total time */}
       {clockState?.startedAt && (
-        <p className="text-xs uppercase tracking-widest text-gray-500">
+        <p className="text-xs uppercase tracking-widest text-muted">
           {t('scoring.clock.totalTime')}{' '}
           <span className="font-mono">
             <ClockText ms={totalMs} />
@@ -296,7 +298,7 @@ export function ScoringCenterControls({
         </p>
       )}
 
-      {clockError && <p className="text-center text-xs text-red-400">{clockError}</p>}
+      {clockError && <p className="text-center text-xs text-danger">{clockError}</p>}
 
       {!readOnly && (
         <>
@@ -321,7 +323,7 @@ export function ScoringCenterControls({
                 type="button"
                 disabled={clockLoading || roundBusy}
                 onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
-                className="min-h-[44px] rounded-lg border-2 border-red-700 bg-red-950 px-4 py-1.5 text-sm font-bold text-red-200 hover:bg-red-900 active:bg-red-800 disabled:opacity-40"
+                className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
               >
                 {isBestOf ? t('scoring.rounds.endRound') : t('scoring.clock.endMatch')}
               </button>
@@ -331,7 +333,7 @@ export function ScoringCenterControls({
                 type="button"
                 disabled={clockLoading}
                 onClick={() => setResetConfirmOpen(true)}
-                className="min-h-[44px] rounded-lg border-2 border-gray-600 bg-gray-800 px-4 py-1.5 text-sm font-bold text-gray-200 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40"
+                className="min-h-[44px] rounded-lg border-2 border-border bg-surface px-4 py-1.5 text-sm font-bold text-foreground-secondary hover:bg-border active:bg-muted/40 disabled:opacity-40"
               >
                 {t('scoring.clock.reset')}
               </button>
@@ -356,12 +358,12 @@ export function ScoringCenterControls({
           {/* Best-of round counter + round-win pips (Round N / R wins – B wins) */}
           {isBestOf && (
             <div className="mt-2 flex items-center justify-center gap-2 text-xs font-bold">
-              <span className="text-slate-400">
+              <span className="text-muted">
                 {t('scoring.rounds.label', { current: String(currentRound) })}
               </span>
-              <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-0.5 tabular-nums text-slate-200">
+              <span className="rounded-full border border-border bg-surface px-3 py-0.5 tabular-nums text-foreground-secondary">
                 <span style={{ color: sideStyle(config, 'red').border }}>{redRoundWins}</span>
-                <span className="mx-1 text-slate-500">–</span>
+                <span className="mx-1 text-muted">–</span>
                 <span style={{ color: sideStyle(config, 'blue').border }}>{blueRoundWins}</span>
               </span>
             </div>
@@ -379,7 +381,7 @@ export function ScoringCenterControls({
               type="button"
               disabled={!canScore || submit.submitting}
               onClick={() => submit.submitDouble()}
-              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-amber-700 bg-amber-950 px-4 py-2 text-sm font-bold text-amber-200 hover:bg-amber-900 active:bg-amber-800 disabled:opacity-40"
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-warning bg-warning/15 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/25 active:bg-warning/35 disabled:opacity-40"
             >
               ⚔ {t('scoring.lice.eventRowDouble')}
             </button>
@@ -387,7 +389,7 @@ export function ScoringCenterControls({
               type="button"
               disabled={!canScore || submit.submitting}
               onClick={() => submit.submitNoExchange('other')}
-              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-gray-600 bg-gray-800 px-4 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40"
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-border bg-surface px-4 py-2 text-sm font-bold text-foreground-secondary hover:bg-border active:bg-muted/40 disabled:opacity-40"
             >
               ⏸ {t('scoring.lice.eventRowNoExchange')}
             </button>
@@ -395,7 +397,7 @@ export function ScoringCenterControls({
 
           {/* Exchanges count + Clear last exchange */}
           <div className="flex flex-col items-center gap-1 mt-3 w-full">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               {t('scoring.lice.exchangesCount', { count: String(events.length) })}
             </p>
             <button
@@ -412,27 +414,29 @@ export function ScoringCenterControls({
 
       {/* Events list — scrollable unified timeline */}
       <div className="w-full mt-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1.5 text-center">
+        <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1.5 text-center">
           {t('scoring.lice.eventsHeader')}
         </p>
         <div
           ref={eventsListRef}
-          className="max-h-[260px] overflow-y-auto rounded-lg border border-gray-800 bg-gray-950 p-2 space-y-1"
+          className="max-h-[260px] overflow-y-auto rounded-lg border border-border bg-background p-2 space-y-1"
         >
-          {events.length === 0 && <p className="text-center text-xs text-gray-600 py-2">—</p>}
+          {events.length === 0 && <p className="text-center text-xs text-muted py-2">—</p>}
           {events.map((ev) => (
             <div key={ev.id} className="flex items-center gap-2 text-sm py-0.5">
-              <span className="font-mono text-gray-500 tabular-nums w-7 flex-shrink-0">
+              <span className="font-mono text-muted tabular-nums w-7 flex-shrink-0">
                 #{ev.number}
               </span>
-              <span className="font-mono text-gray-400 tabular-nums">{ev.timeLabel}</span>
+              <span className="font-mono text-muted tabular-nums">{ev.timeLabel}</span>
               {ev.sideColor && (
                 <span
                   className="inline-block h-2 w-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: ev.sideColor }}
                 />
               )}
-              <span className="font-semibold text-gray-100 truncate flex-1">{ev.fighterLabel}</span>
+              <span className="font-semibold text-foreground truncate flex-1">
+                {ev.fighterLabel}
+              </span>
               {ev.card && (
                 <span
                   title={ev.card}
@@ -440,15 +444,15 @@ export function ScoringCenterControls({
                 />
               )}
               {ev.icon && (
-                <span className="text-amber-300" aria-hidden>
+                <span className="text-warning" aria-hidden>
                   {ev.icon}
                 </span>
               )}
-              <span className="text-gray-400 truncate">{ev.typeLabel}</span>
-              {ev.delta && <span className="font-bold text-white">{ev.delta}</span>}
+              <span className="text-muted truncate">{ev.typeLabel}</span>
+              {ev.delta && <span className="font-bold text-foreground">{ev.delta}</span>}
               {ev.opponentDelta && (
                 <span className="flex items-center gap-1 flex-shrink-0">
-                  <span className="text-gray-600">·</span>
+                  <span className="text-muted">·</span>
                   {ev.opponentSideColor && (
                     <span
                       className="inline-block h-2 w-2 rounded-full flex-shrink-0"
@@ -456,9 +460,9 @@ export function ScoringCenterControls({
                     />
                   )}
                   {ev.opponentLabel && (
-                    <span className="text-gray-400 truncate max-w-[6rem]">{ev.opponentLabel}</span>
+                    <span className="text-muted truncate max-w-[6rem]">{ev.opponentLabel}</span>
                   )}
-                  <span className="font-bold text-white">{ev.opponentDelta}</span>
+                  <span className="font-bold text-foreground">{ev.opponentDelta}</span>
                 </span>
               )}
             </div>
@@ -468,7 +472,7 @@ export function ScoringCenterControls({
 
       {/* Spacebar hint (when idle) */}
       {!readOnly && status === 'idle' && (
-        <p className="mt-2 text-[10px] text-gray-600">{t('scoring.lice.spacebarHint')}</p>
+        <p className="mt-2 text-[10px] text-muted">{t('scoring.lice.spacebarHint')}</p>
       )}
     </div>
   );
@@ -488,7 +492,8 @@ function primaryAction(status: 'idle' | 'running' | 'halted' | 'ended'): {
         action: 'start',
         labelKey: 'scoring.clock.start',
         icon: '▶',
-        classes: 'border-green-600 bg-green-700 text-white hover:bg-green-800 active:bg-green-900',
+        classes:
+          'border-success bg-success text-success-foreground hover:bg-success-hover active:bg-success-hover',
       };
     case 'running':
       return {
@@ -496,21 +501,22 @@ function primaryAction(status: 'idle' | 'running' | 'halted' | 'ended'): {
         labelKey: 'scoring.clock.pauseShort',
         icon: '⏸',
         classes:
-          'border-yellow-600 bg-yellow-700 text-white hover:bg-yellow-800 active:bg-yellow-900',
+          'border-warning bg-warning text-warning-foreground hover:bg-warning-hover active:bg-warning-hover',
       };
     case 'halted':
       return {
         action: 'resume',
         labelKey: 'scoring.clock.resume',
         icon: '▶',
-        classes: 'border-green-600 bg-green-700 text-white hover:bg-green-800 active:bg-green-900',
+        classes:
+          'border-success bg-success text-success-foreground hover:bg-success-hover active:bg-success-hover',
       };
     case 'ended':
       return {
         action: 'reopen',
         labelKey: 'scoring.clock.reopen',
         icon: '↻',
-        classes: 'border-gray-600 bg-gray-700 text-white hover:bg-gray-600 active:bg-gray-500',
+        classes: 'border-border bg-surface text-foreground hover:bg-border active:bg-muted/40',
       };
     default:
       return null;

@@ -105,10 +105,10 @@ export default async function TournamentPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center">
           <p className="text-4xl mb-3">⚔️</p>
-          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
+          <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl mb-2">
             {t('publicApp.tournament.errors.notFoundTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">{t('publicApp.tournament.errors.notFoundBody')}</p>
+          <p className="text-muted text-sm">{t('publicApp.tournament.errors.notFoundBody')}</p>
         </div>
       </main>
     );
@@ -119,16 +119,16 @@ export default async function TournamentPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="max-w-md text-center">
           <p className="text-4xl mb-3">⚠️</p>
-          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
+          <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl mb-2">
             {t('publicApp.tournament.errors.loadFailedTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">{t('publicApp.tournament.errors.loadFailedBody')}</p>
+          <p className="text-muted text-sm">{t('publicApp.tournament.errors.loadFailedBody')}</p>
           {(outcome.message || outcome.status) && (
-            <details className="mt-4 text-left text-xs text-gray-500">
+            <details className="mt-4 text-left text-xs text-muted">
               <summary className="cursor-pointer">
                 {t('publicApp.tournament.errors.technicalDetails')}
               </summary>
-              <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-gray-900 px-3 py-2 text-gray-400">
+              <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-surface px-3 py-2 text-muted">
                 {outcome.status ? `HTTP ${outcome.status}\n` : ''}
                 {outcome.message ?? ''}
               </pre>
@@ -243,7 +243,7 @@ export default async function TournamentPage({ params }: Props) {
           >
             {tournament.name}
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-muted">
             {tournament.weapon && `${tournament.weapon} · `}
             {tournament.rulesetCode}
             {fighterCount > 0 &&
@@ -253,11 +253,13 @@ export default async function TournamentPage({ params }: Props) {
       </div>
 
       {recap && (
-        <section className="mb-6 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-2 font-display text-lg font-semibold text-slate-800">
+        <section className="mb-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+          <h2 className="mb-2 font-display text-lg font-semibold text-foreground">
             {t('publicApp.tournament.recapTitle')}
           </h2>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{recap}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground-secondary">
+            {recap}
+          </p>
         </section>
       )}
 
@@ -342,7 +344,7 @@ export default async function TournamentPage({ params }: Props) {
                   podiumDecided={podiumDecided}
                 />
               ) : (
-                <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-slate-500">
+                <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
                   {t('publicApp.tournament.bracket.placeholder')}
                 </div>
               ),
@@ -353,7 +355,7 @@ export default async function TournamentPage({ params }: Props) {
             visible: podiumTabVisible,
             panel:
               podium && podiumDecided ? (
-                <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
                 </div>
               ) : null,

@@ -114,12 +114,12 @@ export function DashboardToday() {
                   <span className="block truncate text-sm font-bold">{e.event.name}</span>
                   <span className="mt-0.5 flex flex-wrap gap-1.5">
                     {e.roles.isCompetitor && (
-                      <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
                         {t('publicApp.me.events.roleCompetitor')}
                       </span>
                     )}
                     {e.roles.isReferee && (
-                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-warning">
                         {t('publicApp.me.events.roleReferee')}
                       </span>
                     )}

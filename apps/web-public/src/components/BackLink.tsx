@@ -19,7 +19,7 @@ export function BackLink({
     <Link
       href={href}
       className={[
-        'inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40',
+        'inline-flex items-center gap-1.5 self-start rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:border-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
         className ?? '',
       ]
         .filter(Boolean)

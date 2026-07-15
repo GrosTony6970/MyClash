@@ -66,11 +66,12 @@ export default function ScoringLoginPage() {
             className="mx-auto mb-6 h-20 w-20"
           />
           <h1 className="text-2xl font-bold mb-4">{t('scoring.login.checkEmailTitle')}</h1>
-          <p className="text-gray-400">
-            {t('scoring.login.checkEmailPrefix')} <strong className="text-white">{email}</strong>.{' '}
+          <p className="text-muted">
+            {t('scoring.login.checkEmailPrefix')}{' '}
+            <strong className="text-foreground">{email}</strong>.{' '}
             {t('scoring.login.checkEmailSuffix')}
           </p>
-          <p className="mt-4 text-sm text-gray-500">{t('scoring.login.linkExpires')}</p>
+          <p className="mt-4 text-sm text-muted">{t('scoring.login.linkExpires')}</p>
         </div>
       </main>
     );
@@ -89,22 +90,22 @@ export default function ScoringLoginPage() {
             className="mx-auto mb-3 h-20 w-20"
           />
           <h1 className="text-2xl font-bold">{t('scoring.login.title')}</h1>
-          <p className="text-gray-400 text-sm mt-1">{t('scoring.login.scorekeeperAccess')}</p>
+          <p className="text-muted text-sm mt-1">{t('scoring.login.scorekeeperAccess')}</p>
         </div>
 
         <form
           onSubmit={(e) => {
             void handleStaffSubmit(e);
           }}
-          className="mb-8 flex flex-col gap-4 rounded-xl border border-gray-800 bg-gray-900/60 p-4"
+          className="mb-8 flex flex-col gap-4 rounded-xl border border-border bg-surface/60 p-4"
         >
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-400">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
             {t('scoring.login.localStaffAccess')}
           </h2>
           <div>
             <label
               htmlFor="eventSlugOrCode"
-              className="block text-sm font-medium text-gray-300 mb-1"
+              className="block text-sm font-medium text-foreground-secondary mb-1"
             >
               {t('scoring.login.eventIdentifier')}
             </label>
@@ -114,11 +115,14 @@ export default function ScoringLoginPage() {
               value={eventSlugOrCode}
               onChange={(e) => setEventSlugOrCode(e.target.value)}
               placeholder={t('scoring.login.eventIdentifierPlaceholder')}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+              className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
           </div>
           <div>
-            <label htmlFor="staffUsername" className="block text-sm font-medium text-gray-300 mb-1">
+            <label
+              htmlFor="staffUsername"
+              className="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               {t('scoring.login.username')}
             </label>
             <input
@@ -126,11 +130,14 @@ export default function ScoringLoginPage() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+              className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
           </div>
           <div>
-            <label htmlFor="staffPin" className="block text-sm font-medium text-gray-300 mb-1">
+            <label
+              htmlFor="staffPin"
+              className="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               {t('scoring.login.pin')}
             </label>
             <input
@@ -140,18 +147,18 @@ export default function ScoringLoginPage() {
               required
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+              className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
           </div>
           {staffError && (
-            <p className="text-sm text-red-400" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {staffError}
             </p>
           )}
           <button
             type="submit"
             disabled={staffLoading}
-            className="w-full bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg"
+            className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-bold py-3 px-4 rounded-lg transition-colors text-lg"
           >
             {staffLoading ? t('scoring.login.signingIn') : t('scoring.login.signInWithPin')}
           </button>
@@ -164,7 +171,10 @@ export default function ScoringLoginPage() {
           className="flex flex-col gap-4"
         >
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               {t('scoring.login.emailAddress')}
             </label>
             <input
@@ -175,12 +185,12 @@ export default function ScoringLoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t('scoring.login.emailPlaceholder')}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+              className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-400" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {error}
             </p>
           )}
@@ -188,7 +198,7 @@ export default function ScoringLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg"
+            className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-bold py-3 px-4 rounded-lg transition-colors text-lg"
           >
             {loading ? t('scoring.login.sending') : t('scoring.login.sendLoginLink')}
           </button>

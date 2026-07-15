@@ -25,7 +25,7 @@ import {
 export type { WorkshopListItem };
 
 const SELECT_CLS =
-  'border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/40';
+  'border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40';
 
 export function WorkshopsBrowser({
   workshops,
@@ -96,7 +96,7 @@ export function WorkshopsBrowser({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('publicApp.workshops.searchPlaceholder')}
-          className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/40"
+          className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
       </div>
       {(dayOptions.length > 0 ||
@@ -173,13 +173,13 @@ export function WorkshopsBrowser({
 
       {filtered.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-sm text-gray-400">{t('publicApp.workshops.emptySearch')}</p>
+          <p className="text-sm text-muted">{t('publicApp.workshops.emptySearch')}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-8">
           {groups.map((group) => (
             <section key={group.key}>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
                 {workshopDayLabel(group, timezone, t)}
               </h2>
               <div className="flex flex-col gap-4">

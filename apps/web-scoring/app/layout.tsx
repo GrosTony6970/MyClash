@@ -34,7 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="apple-touch-icon" href="/brand/Logomini_nobackground.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="bg-gray-950 text-white min-h-screen">
+      <body data-theme="dark" className="bg-background text-foreground min-h-screen">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-black focus:rounded focus:shadow-lg focus:text-sm focus:font-semibold"

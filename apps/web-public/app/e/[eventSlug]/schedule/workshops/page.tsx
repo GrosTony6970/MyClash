@@ -38,7 +38,7 @@ export default async function WorkshopSchedulePage({ params }: Props) {
       />
       {event && <EventHeader event={event} />}
       <section>
-        <h1 className="mb-4 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+        <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.schedule.viewWorkshopSchedule')}
         </h1>
         <ScheduleAgenda

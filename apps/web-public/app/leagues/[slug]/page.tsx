@@ -90,7 +90,7 @@ function initialsFor(name: string | null | undefined): string {
 function rankBadge(rank: number): React.ReactNode {
   const token = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null;
   if (!token) {
-    return <span className="text-sm font-semibold tabular-nums text-slate-500">{rank}</span>;
+    return <span className="text-sm font-semibold tabular-nums text-muted">{rank}</span>;
   }
   return (
     <span
@@ -124,33 +124,33 @@ export default async function PublicLeagueStandingsPage({
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
       <Link
         href="/"
-        className="inline-flex items-center text-sm font-semibold text-red-700 hover:text-red-800"
+        className="inline-flex items-center text-sm font-semibold text-accent hover:text-accent-hover"
       >
         ← {t('publicApp.leagues.backToHome')}
       </Link>
 
-      <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:py-8">
+      <section className="flex flex-col gap-4 border-y border-border py-6 sm:flex-row sm:items-start sm:py-8">
         {league.logo_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={league.logo_url}
             alt=""
-            className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white object-cover"
+            className="h-20 w-20 shrink-0 rounded-xl border border-border bg-surface object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-slate-50 text-base font-semibold text-slate-500">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-base font-semibold text-muted">
             {initialsFor(league.name)}
           </div>
         )}
         <div className="flex-1">
-          <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-slate-900">
+          <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
             {league.name}
           </h1>
           {league.season_year != null && (
-            <p className="text-sm tabular-nums text-slate-500">{league.season_year}</p>
+            <p className="text-sm tabular-nums text-muted">{league.season_year}</p>
           )}
           {league.description && (
-            <p className="mt-2 max-w-prose text-sm leading-6 text-slate-600">
+            <p className="mt-2 max-w-prose text-sm leading-6 text-foreground-secondary">
               {league.description}
             </p>
           )}
@@ -160,7 +160,7 @@ export default async function PublicLeagueStandingsPage({
                   getApiUrl() would leak the docker-internal host here. */}
               <a
                 href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.csv`}
-                className="font-semibold text-red-700 hover:text-red-800"
+                className="font-semibold text-accent hover:text-accent-hover"
               >
                 {t('publicApp.leagues.downloadReport')}
               </a>
@@ -168,7 +168,7 @@ export default async function PublicLeagueStandingsPage({
                 href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.print.html`}
                 target="_blank"
                 rel="noreferrer"
-                className="font-semibold text-red-700 hover:text-red-800"
+                className="font-semibold text-accent hover:text-accent-hover"
               >
                 {t('publicApp.leagues.printableReport')}
               </a>
@@ -179,7 +179,7 @@ export default async function PublicLeagueStandingsPage({
 
       {memberEvents.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-slate-900">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('publicApp.leagues.memberEventsTitle')}
           </h2>
           <ul className="flex flex-wrap gap-2">
@@ -187,10 +187,10 @@ export default async function PublicLeagueStandingsPage({
               <li key={event.id}>
                 <Link
                   href={`/e/${event.slug}`}
-                  className="inline-flex flex-col rounded-lg border border-stone-200 bg-white px-4 py-2 shadow-sm transition-colors hover:border-red-400"
+                  className="inline-flex flex-col rounded-lg border border-border bg-surface px-4 py-2 shadow-sm transition-colors hover:border-accent"
                 >
-                  <span className="text-sm font-semibold text-slate-900">{event.name}</span>
-                  <span className="text-xs text-slate-500">{event.organization.name}</span>
+                  <span className="text-sm font-semibold text-foreground">{event.name}</span>
+                  <span className="text-xs text-muted">{event.organization.name}</span>
                 </Link>
               </li>
             ))}
@@ -199,13 +199,13 @@ export default async function PublicLeagueStandingsPage({
       )}
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+        <div className="rounded-lg border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
           {t('publicApp.leagues.empty')}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
           <table className="min-w-full text-sm">
-            <thead className="bg-stone-50 text-slate-600">
+            <thead className="bg-background text-foreground-secondary">
               <tr className="text-xs font-semibold uppercase tracking-wider">
                 <th className="px-3 py-2 text-left">{t('publicApp.leagues.rankColumn')}</th>
                 <th className="px-3 py-2 text-left">{t('publicApp.leagues.fighterColumn')}</th>
@@ -218,15 +218,17 @@ export default async function PublicLeagueStandingsPage({
                 ))}
               </tr>
             </thead>
-            <tbody className="text-slate-800">
+            <tbody className="text-foreground">
               {rows.map((row) => (
-                <tr key={row.id} className="border-t border-stone-100 even:bg-slate-50/50">
+                <tr key={row.id} className="border-t border-border even:bg-background/50">
                   <td className="px-3 py-2">{rankBadge(row.rank)}</td>
-                  <td className="px-3 py-2 font-medium text-slate-900">
+                  <td className="px-3 py-2 font-medium text-foreground">
                     {row.fighters?.display_name ?? '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-600">{row.fighters?.clubs?.name ?? '—'}</td>
-                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
+                  <td className="px-3 py-2 text-foreground-secondary">
+                    {row.fighters?.clubs?.name ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-foreground">
                     {row.total_points}
                   </td>
                   {columns.map((column) => {
@@ -236,12 +238,12 @@ export default async function PublicLeagueStandingsPage({
                     return (
                       <td
                         key={column.tournament_id}
-                        className="px-3 py-2 tabular-nums text-slate-700"
+                        className="px-3 py-2 tabular-nums text-foreground-secondary"
                       >
                         {result ? (
                           `${result.finalRank} / ${result.leaguePoints}`
                         ) : (
-                          <span className="text-slate-400">{t('publicApp.leagues.dnp')}</span>
+                          <span className="text-muted">{t('publicApp.leagues.dnp')}</span>
                         )}
                       </td>
                     );

@@ -178,7 +178,7 @@ export default function RefereeMatchPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -188,10 +188,10 @@ export default function RefereeMatchPage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">⚔️</p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-900 mb-2">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
             {t('publicApp.refereePublic.matchNotFound')}
           </h1>
-          <Link href={`/e/${eventSlug}/referee`} className="text-sm text-gray-500 hover:underline">
+          <Link href={`/e/${eventSlug}/referee`} className="text-sm text-muted hover:underline">
             ← {t('publicApp.refereePublic.backToDuties')}
           </Link>
         </div>
@@ -204,7 +204,7 @@ export default function RefereeMatchPage() {
       {/* Back */}
       <Link
         href={`/e/${eventSlug}/referee`}
-        className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
+        className="text-sm text-muted hover:text-foreground-secondary mb-4 inline-block"
       >
         ← {t('publicApp.refereePublic.refereeDuties')}
       </Link>
@@ -218,7 +218,7 @@ export default function RefereeMatchPage() {
           {match.matchNumberLabel}
         </h1>
         {refereeCtx && (
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-muted mt-0.5">
             {t('publicApp.refereePublic.yourRole')}{' '}
             <strong>{roleLabels[refereeCtx.role] ?? refereeCtx.role}</strong>
           </p>
@@ -228,32 +228,34 @@ export default function RefereeMatchPage() {
       {/* Scoreboard */}
       <div className="grid grid-cols-3 items-center gap-3 mb-6">
         <div className="text-center">
-          <div className="bg-red-950 border-2 border-red-700 rounded-xl p-3">
-            <p className="text-xs text-red-300 font-bold uppercase mb-0.5">
+          <div className="bg-corner-red/10 border-2 border-corner-red rounded-xl p-3">
+            <p className="text-xs text-corner-red font-bold uppercase mb-0.5">
               {t('publicApp.refereePublic.cornerRed')}
             </p>
-            <p className="font-bold text-white text-sm leading-tight">
+            <p className="font-bold text-foreground text-sm leading-tight">
               {match.redFighterName ?? '?'}
             </p>
           </div>
-          <p className="text-4xl font-black text-red-400 mt-2 tabular-nums">{match.redScore}</p>
+          <p className="text-4xl font-black text-corner-red mt-2 tabular-nums">{match.redScore}</p>
         </div>
         <div className="text-center">
-          <p className="text-gray-500 text-xl font-bold">{t('publicApp.refereePublic.vs')}</p>
-          <p className="text-xs text-gray-600 mt-1 uppercase tracking-widest">
+          <p className="text-muted text-xl font-bold">{t('publicApp.refereePublic.vs')}</p>
+          <p className="text-xs text-muted mt-1 uppercase tracking-widest">
             {statusLabels[match.status] ?? match.status}
           </p>
         </div>
         <div className="text-center">
-          <div className="bg-blue-950 border-2 border-blue-700 rounded-xl p-3">
-            <p className="text-xs text-blue-300 font-bold uppercase mb-0.5">
+          <div className="bg-corner-blue/10 border-2 border-corner-blue rounded-xl p-3">
+            <p className="text-xs text-corner-blue font-bold uppercase mb-0.5">
               {t('publicApp.refereePublic.cornerBlue')}
             </p>
-            <p className="font-bold text-white text-sm leading-tight">
+            <p className="font-bold text-foreground text-sm leading-tight">
               {match.blueFighterName ?? '?'}
             </p>
           </div>
-          <p className="text-4xl font-black text-blue-400 mt-2 tabular-nums">{match.blueScore}</p>
+          <p className="text-4xl font-black text-corner-blue mt-2 tabular-nums">
+            {match.blueScore}
+          </p>
         </div>
       </div>
 
@@ -264,14 +266,14 @@ export default function RefereeMatchPage() {
           <button
             onClick={() => void clockAction('halt')}
             disabled={acting || match.status !== 'running'}
-            className="py-4 rounded-xl font-bold text-lg bg-yellow-700 hover:bg-yellow-600 text-white disabled:opacity-40 transition-colors"
+            className="py-4 rounded-xl font-bold text-lg bg-warning hover:bg-warning-hover text-warning-foreground disabled:opacity-40 transition-colors"
           >
             {t('scoring.clock.halt')}
           </button>
           <button
             onClick={() => void clockAction('resume')}
             disabled={acting || match.status !== 'halted'}
-            className="py-4 rounded-xl font-bold text-lg bg-green-700 hover:bg-green-600 text-white disabled:opacity-40 transition-colors"
+            className="py-4 rounded-xl font-bold text-lg bg-success hover:bg-success-hover text-success-foreground disabled:opacity-40 transition-colors"
           >
             {t('scoring.clock.resume')}
           </button>
@@ -282,7 +284,7 @@ export default function RefereeMatchPage() {
           <button
             onClick={() => setShowWarning(true)}
             disabled={acting}
-            className="py-3 rounded-xl font-bold text-base bg-orange-700 hover:bg-orange-600 text-white disabled:opacity-40 transition-colors"
+            className="py-3 rounded-xl font-bold text-base bg-warning hover:bg-warning-hover text-warning-foreground disabled:opacity-40 transition-colors"
           >
             {t('publicApp.refereePublic.issueWarning')}
           </button>
@@ -292,15 +294,15 @@ export default function RefereeMatchPage() {
         <button
           onClick={() => void requestAttention()}
           disabled={acting}
-          className="py-3 rounded-xl font-bold text-base border-2 border-gray-600 text-gray-300 hover:border-gray-400 disabled:opacity-40 transition-colors"
+          className="py-3 rounded-xl font-bold text-base border-2 border-border text-foreground-secondary hover:border-muted disabled:opacity-40 transition-colors"
         >
           🔔 {t('publicApp.refereePublic.requestAttention')}
         </button>
 
         {/* Table-specific tools */}
         {isTable && (
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-gray-400">
-            <p className="font-medium text-gray-300 mb-1">
+          <div className="bg-surface border border-border rounded-xl p-3 text-sm text-muted">
+            <p className="font-medium text-foreground-secondary mb-1">
               {t('publicApp.refereePublic.scoringOversight')}
             </p>
             <p className="text-xs">{t('publicApp.refereePublic.scoringOversightBody')}</p>
@@ -311,14 +313,14 @@ export default function RefereeMatchPage() {
       {/* Warning modal */}
       {showWarning && (
         <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-5">
-            <h2 className="text-lg font-bold text-white mb-4">
+          <div className="bg-surface border border-border rounded-xl w-full max-w-md p-5">
+            <h2 className="text-lg font-bold text-foreground mb-4">
               {t('publicApp.refereePublic.issueWarning')}
             </h2>
 
             {/* Target */}
             <div className="mb-4">
-              <p className="text-xs text-gray-400 mb-2">
+              <p className="text-xs text-muted mb-2">
                 {t('publicApp.refereePublic.targetFighter')}
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -330,9 +332,9 @@ export default function RefereeMatchPage() {
                       'py-2 rounded-lg font-semibold text-sm border-2 transition-colors',
                       warningTarget === color
                         ? color === 'red'
-                          ? 'border-red-500 bg-red-900 text-red-200'
-                          : 'border-blue-500 bg-blue-900 text-blue-200'
-                        : 'border-gray-700 text-gray-400',
+                          ? 'border-corner-red bg-corner-red/10 text-corner-red'
+                          : 'border-corner-blue bg-corner-blue/10 text-corner-blue'
+                        : 'border-border text-muted',
                     ].join(' ')}
                   >
                     {color === 'red'
@@ -345,7 +347,7 @@ export default function RefereeMatchPage() {
 
             {/* Reason */}
             <div className="mb-4">
-              <p className="text-xs text-gray-400 mb-2">{t('publicApp.refereePublic.reason')}</p>
+              <p className="text-xs text-muted mb-2">{t('publicApp.refereePublic.reason')}</p>
               <div className="flex flex-col gap-1.5">
                 {WARNING_REASON_IDS.map((id) => (
                   <button
@@ -354,8 +356,8 @@ export default function RefereeMatchPage() {
                     className={[
                       'text-left px-3 py-2 rounded-lg text-sm border transition-colors',
                       warningReason === id
-                        ? 'border-orange-500 bg-orange-900/40 text-orange-200'
-                        : 'border-gray-700 text-gray-400',
+                        ? 'border-warning bg-warning/10 text-warning'
+                        : 'border-border text-muted',
                     ].join(' ')}
                   >
                     {warningReasonLabels[id]}
@@ -366,29 +368,27 @@ export default function RefereeMatchPage() {
 
             {/* Note */}
             <div className="mb-4">
-              <p className="text-xs text-gray-400 mb-1">
-                {t('publicApp.refereePublic.noteOptional')}
-              </p>
+              <p className="text-xs text-muted mb-1">{t('publicApp.refereePublic.noteOptional')}</p>
               <input
                 type="text"
                 value={warningNote}
                 onChange={(e) => setWarningNote(e.target.value)}
                 placeholder={t('publicApp.refereePublic.notePlaceholder')}
-                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full bg-surface border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowWarning(false)}
-                className="flex-1 py-2 rounded-lg border border-gray-700 text-gray-400 text-sm"
+                className="flex-1 py-2 rounded-lg border border-border text-muted text-sm"
               >
                 {t('actions.cancel')}
               </button>
               <button
                 onClick={() => void issueWarning()}
                 disabled={acting}
-                className="flex-1 py-2 rounded-lg bg-orange-700 hover:bg-orange-600 text-white font-semibold text-sm disabled:opacity-50"
+                className="flex-1 py-2 rounded-lg bg-warning hover:bg-warning-hover text-warning-foreground font-semibold text-sm disabled:opacity-50"
               >
                 {acting ? '…' : t('publicApp.refereePublic.issueWarning')}
               </button>

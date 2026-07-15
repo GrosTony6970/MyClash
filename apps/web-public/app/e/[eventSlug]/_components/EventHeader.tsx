@@ -103,36 +103,38 @@ export function EventHeader({ event }: { event: EventInfo }) {
         </section>
       )}
 
-      <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:justify-between sm:py-8">
+      <section className="flex flex-col gap-4 border-y border-border py-6 sm:flex-row sm:items-start sm:justify-between sm:py-8">
         <div className="flex min-w-0 items-start gap-3">
           {event.organizationLogoUrl && (
             <img
               src={event.organizationLogoUrl}
               alt=""
-              className="h-14 w-14 shrink-0 rounded-lg border border-stone-200 bg-white object-contain"
+              className="h-14 w-14 shrink-0 rounded-lg border border-border bg-surface object-contain"
             />
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
+            <h1 className="mb-1 font-display text-3xl font-bold text-foreground sm:text-4xl">
               {event.name}
             </h1>
             {event.organizationName && (
-              <p className="text-sm font-semibold text-slate-700">{event.organizationName}</p>
+              <p className="text-sm font-semibold text-foreground-secondary">
+                {event.organizationName}
+              </p>
             )}
-            {place ? <p className="text-sm text-slate-500">{place}</p> : null}
-            <p className="mt-0.5 text-sm text-slate-500">
+            {place ? <p className="text-sm text-muted">{place}</p> : null}
+            <p className="mt-0.5 text-sm text-muted">
               {formatDateRange(event.startDate, event.endDate)}
             </p>
 
             {event.status === 'running' && (
-              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-success/60 bg-success/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-success">
+                <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
                 {t('publicApp.eventHome.liveNow')}
               </span>
             )}
 
             {event.publicLandingMd && (
-              <div className="prose prose-sm mt-4 max-w-none whitespace-pre-line text-sm leading-relaxed text-slate-700">
+              <div className="prose prose-sm mt-4 max-w-none whitespace-pre-line text-sm leading-relaxed text-foreground-secondary">
                 {event.publicLandingMd}
               </div>
             )}
@@ -143,7 +145,7 @@ export function EventHeader({ event }: { event: EventInfo }) {
           <img
             src={event.logoUrl}
             alt=""
-            className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white object-cover sm:ml-4"
+            className="h-20 w-20 shrink-0 rounded-xl border border-border bg-surface object-cover sm:ml-4"
           />
         )}
       </section>

@@ -99,7 +99,7 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
 
   // Score emphasis: when there's a winner, dim the loser; otherwise both full.
   const scoreClass = (side: 'red' | 'blue') => {
-    const base = side === 'red' ? 'text-red-600' : 'text-blue-600';
+    const base = side === 'red' ? 'text-corner-red' : 'text-corner-blue';
     if (!winner) return base;
     return winner === side ? `${base} font-black` : `${base} opacity-40`;
   };
@@ -113,24 +113,24 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
     });
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
       {label && (
-        <p className="mb-3 text-center text-xs font-medium tracking-widest text-gray-400 uppercase">
+        <p className="mb-3 text-center text-xs font-medium tracking-widest text-muted uppercase">
           {label}
         </p>
       )}
 
       {summary.bestOf > 1 && (
-        <p className="mb-3 text-center text-xs font-bold tracking-wide text-sky-600">
+        <p className="mb-3 text-center text-xs font-bold tracking-wide text-info">
           {t('scoring.rounds.counter', {
             current: String(match.currentRound),
             total: String(summary.bestOf),
           })}
           {' · '}
           {t('scoring.rounds.seriesTally')}{' '}
-          <span className="text-red-600">{match.redRoundWins}</span>
-          <span className="text-gray-400">–</span>
-          <span className="text-blue-600">{match.blueRoundWins}</span>
+          <span className="text-corner-red">{match.redRoundWins}</span>
+          <span className="text-muted">–</span>
+          <span className="text-corner-blue">{match.blueRoundWins}</span>
         </p>
       )}
 
@@ -140,48 +140,48 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
           <span className={`text-6xl font-bold tabular-nums ${scoreClass('red')}`}>
             {match.redScore}
           </span>
-          <span className="text-sm font-semibold text-gray-800">
+          <span className="text-sm font-semibold text-foreground">
             {summary.redName || t('scoring.liveMatch.red')}
           </span>
-          {summary.redClub && <span className="text-xs text-gray-500">{summary.redClub}</span>}
+          {summary.redClub && <span className="text-xs text-muted">{summary.redClub}</span>}
         </div>
 
         {/* Divider */}
-        <span className="mt-8 text-3xl font-light text-gray-300">–</span>
+        <span className="mt-8 text-3xl font-light text-muted">–</span>
 
         {/* Blue side */}
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
           <span className={`text-6xl font-bold tabular-nums ${scoreClass('blue')}`}>
             {match.blueScore}
           </span>
-          <span className="text-sm font-semibold text-gray-800">
+          <span className="text-sm font-semibold text-foreground">
             {summary.blueName || t('scoring.liveMatch.blue')}
           </span>
-          {summary.blueClub && <span className="text-xs text-gray-500">{summary.blueClub}</span>}
+          {summary.blueClub && <span className="text-xs text-muted">{summary.blueClub}</span>}
         </div>
       </div>
 
       {/* Meta: winner, start/end, referee, status */}
-      <div className="mt-5 flex flex-col items-center gap-1 border-t border-gray-100 pt-4 text-center">
+      <div className="mt-5 flex flex-col items-center gap-1 border-t border-border pt-4 text-center">
         {summary.bestOf > 1 && match.awaitingRoundAdvance && (
-          <p className="text-sm font-bold text-sky-600">
+          <p className="text-sm font-bold text-info">
             {t('scoring.rounds.roundComplete', { round: String(match.currentRound) })}
           </p>
         )}
-        {winnerName && <p className="text-lg font-black text-gray-900">🏆 {winnerName}</p>}
+        {winnerName && <p className="text-lg font-black text-foreground">🏆 {winnerName}</p>}
         {(match.startedAt || match.endedAt) && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             {match.startedAt && `${t('scoring.liveMatch.started')} ${fmtTime(match.startedAt)}`}
             {match.startedAt && match.endedAt && ' · '}
             {match.endedAt && `${t('scoring.liveMatch.ended')} ${fmtTime(match.endedAt)}`}
           </p>
         )}
         {summary.referees.length > 0 && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             {t('scoring.liveMatch.referee')}: {summary.referees.join(', ')}
           </p>
         )}
-        <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted">
           {statusLabel[match.status]}
         </span>
       </div>
@@ -201,7 +201,7 @@ function ExchangeLabel({
   const { t } = useI18n();
   if (exchange.type === 'no_exchange') {
     return (
-      <span className="text-gray-400">
+      <span className="text-muted">
         {t('scoring.liveMatch.noExchange')}
         {exchange.noExchangeReason ? ` - ${exchange.noExchangeReason}` : ''}
       </span>
@@ -209,20 +209,18 @@ function ExchangeLabel({
   }
 
   if (exchange.type === 'double') {
-    return (
-      <span className="font-medium text-orange-600">{t('scoring.liveMatch.doubleTouch')}</span>
-    );
+    return <span className="font-medium text-warning">{t('scoring.liveMatch.doubleTouch')}</span>;
   }
 
   const side = exchange.scoringSide ?? 'red';
   const value = exchange.scoreDelta ?? 0;
   const name = side === 'red' ? redName : blueName;
-  const nameClass = side === 'red' ? 'text-red-600' : 'text-blue-600';
+  const nameClass = side === 'red' ? 'text-corner-red' : 'text-corner-blue';
 
   if (exchange.type === 'afterblow') {
     const abValue = exchange.defenderDelta ?? 0;
     const oppName = side === 'red' ? blueName : redName;
-    const oppClass = side === 'red' ? 'text-blue-600' : 'text-red-600';
+    const oppClass = side === 'red' ? 'text-corner-blue' : 'text-corner-red';
     return (
       <span>
         <span className={`font-medium ${nameClass}`}>{name}</span>
@@ -258,31 +256,29 @@ function ExchangeFeed({
 
   return (
     <div className="mt-4">
-      <h2 className="mb-2 text-sm font-semibold tracking-wide text-gray-500 uppercase">
+      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">
         {t('scoring.liveMatch.exchanges')}
       </h2>
 
       {active.length === 0 && (
-        <p className="py-8 text-center text-sm text-gray-400">
-          {t('scoring.liveMatch.noExchanges')}
-        </p>
+        <p className="py-8 text-center text-sm text-muted">{t('scoring.liveMatch.noExchanges')}</p>
       )}
 
       <ol className="space-y-2">
         {active.map((ex) => (
           <li
             key={ex.id}
-            className="rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm shadow-xs"
+            className="rounded-lg border border-border bg-surface px-4 py-3 text-sm shadow-xs"
           >
             <div className="flex items-baseline gap-2">
-              <span className="w-6 shrink-0 font-mono text-xs tabular-nums text-gray-400">
+              <span className="w-6 shrink-0 font-mono text-xs tabular-nums text-muted">
                 #{ex.sequence}
               </span>
               <span className="flex-1">
                 <ExchangeLabel exchange={ex} redName={redName} blueName={blueName} />
               </span>
             </div>
-            <p className="ml-8 mt-0.5 text-xs tabular-nums text-gray-400">
+            <p className="ml-8 mt-0.5 text-xs tabular-nums text-muted">
               {formatMatchClock(ex.clockTimeMs)}
             </p>
           </li>
@@ -290,7 +286,7 @@ function ExchangeFeed({
       </ol>
 
       {voided.length > 0 && (
-        <p className="mt-3 text-center text-xs text-gray-400">
+        <p className="mt-3 text-center text-xs text-muted">
           {t('scoring.liveMatch.voidedHidden', {
             count: voided.length,
             plural: voided.length > 1 ? 's' : '',
@@ -320,9 +316,9 @@ function PenaltyFeed({
   if (active.length === 0) return null;
 
   const cardClass: Record<MatchPenaltyRow['card'], string> = {
-    yellow: 'border-yellow-400 bg-yellow-50 text-yellow-800',
-    red: 'border-red-400 bg-red-50 text-red-800',
-    black: 'border-gray-900 bg-gray-900 text-white',
+    yellow: 'border-warning/40 bg-warning/10 text-warning',
+    red: 'border-danger/40 bg-danger/10 text-danger',
+    black: 'border-strong bg-strong text-strong-foreground',
   };
 
   const cardLabel: Record<MatchPenaltyRow['card'], string> = {
@@ -333,15 +329,15 @@ function PenaltyFeed({
 
   const fighterFor = (registrationId: string): { name: string; className: string } | null => {
     if (registrationId === match.redRegistrationId)
-      return { name: redName, className: 'text-red-600' };
+      return { name: redName, className: 'text-corner-red' };
     if (registrationId === match.blueRegistrationId)
-      return { name: blueName, className: 'text-blue-600' };
+      return { name: blueName, className: 'text-corner-blue' };
     return null;
   };
 
   return (
     <div className="mt-4">
-      <h2 className="mb-2 text-sm font-semibold tracking-wide text-gray-500 uppercase">
+      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">
         {t('scoring.liveMatch.cards')}
       </h2>
       <ol className="space-y-2">
@@ -350,7 +346,7 @@ function PenaltyFeed({
           return (
             <li
               key={penalty.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm shadow-xs"
+              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm shadow-xs"
             >
               <span className="flex-1">
                 <span
@@ -363,7 +359,7 @@ function PenaltyFeed({
                 )}
                 {penalty.short_name ?? penalty.reason ?? t('scoring.liveMatch.directCard')}
               </span>
-              <span className="ml-2 shrink-0 tabular-nums text-xs text-gray-400">
+              <span className="ml-2 shrink-0 tabular-nums text-xs text-muted">
                 {penalty.causes_match_forfeit ? `${t('scoring.liveMatch.matchLost')} · ` : ''}
                 {formatMatchClock(penalty.clock_time_ms)}
               </span>
@@ -535,8 +531,8 @@ export function MatchLiveView({
       {/* Connection indicator — live match without a healthy channel (WS
           dropped, or realtime disabled by the kill-switch → 30s polling). */}
       {showReconnecting(connected && !realtimeDisabled, match.status) && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-yellow-50 px-4 py-2 text-sm text-yellow-700">
-          <span className="h-2 w-2 rounded-full bg-yellow-400" />
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-warning/10 px-4 py-2 text-sm text-warning">
+          <span className="h-2 w-2 rounded-full bg-warning" />
           {t('scoring.liveMatch.reconnecting')}
         </div>
       )}

@@ -39,7 +39,7 @@ export default async function TournamentSchedulePage({ params }: Props) {
       />
       {event && <EventHeader event={event} />}
       <section>
-        <h1 className="mb-4 font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+        <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.schedule.viewTournamentSchedule')}
         </h1>
         {schedule ? (
@@ -49,9 +49,7 @@ export default async function TournamentSchedulePage({ params }: Props) {
             emptyLabel={tr('publicApp.eventHome.schedule.notScheduled')}
           />
         ) : (
-          <p className="text-sm text-slate-500">
-            {tr('publicApp.eventHome.schedule.notScheduled')}
-          </p>
+          <p className="text-sm text-muted">{tr('publicApp.eventHome.schedule.notScheduled')}</p>
         )}
       </section>
     </main>

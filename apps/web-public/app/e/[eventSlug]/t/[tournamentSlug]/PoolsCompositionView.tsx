@@ -83,9 +83,9 @@ interface Props {
 }
 
 function statusDot(status: string): string {
-  if (status === 'confirmed') return 'bg-emerald-500';
-  if (status === 'pending') return 'bg-amber-500';
-  return 'bg-slate-400';
+  if (status === 'confirmed') return 'bg-success';
+  if (status === 'pending') return 'bg-warning';
+  return 'bg-muted';
 }
 
 function statusLabel(status: string): string {
@@ -117,7 +117,7 @@ export function PoolsCompositionView({
   refereeRowKeys,
   wide = false,
 }: Props) {
-  const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
+  const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-foreground';
   const ringIds = new Set(ringPoolIds ?? []);
   const refRowKeys = new Set(refereeRowKeys ?? []);
   // Two static class strings (kept whole so Tailwind's purge retains both).
@@ -127,7 +127,7 @@ export function PoolsCompositionView({
 
   if (pools.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
         {t('publicApp.tournament.pools.rostersPending')}
       </p>
     );
@@ -145,7 +145,7 @@ export function PoolsCompositionView({
                 ? `${formatDay(section.startAt)} · ${formatTime(section.startAt)}`
                 : t('publicApp.tournament.pools.notScheduled')}
             </h3>
-            <span aria-hidden="true" className="h-px flex-1 bg-stone-200" />
+            <span aria-hidden="true" className="h-px flex-1 bg-border" />
           </header>
 
           <div className={gridClass}>
@@ -158,10 +158,10 @@ export function PoolsCompositionView({
                   href={`#poolmatches/${pool.id}`}
                   aria-label={t('publicApp.tournament.pools.viewMatchesAria', { pool: pool.name })}
                   className={[
-                    'relative block scroll-mt-28 overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-300',
+                    'relative block scroll-mt-28 overflow-hidden rounded-xl border bg-surface shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                     isMyPool
                       ? 'border-accent ring-2 ring-accent'
-                      : 'border-stone-200 hover:border-stone-300',
+                      : 'border-border hover:border-muted',
                   ].join(' ')}
                 >
                   <span
@@ -169,13 +169,13 @@ export function PoolsCompositionView({
                     className="absolute left-0 top-0 h-full w-1"
                     style={{ backgroundColor: accentColor }}
                   />
-                  <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3 pl-5">
+                  <header className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-3 pl-5">
                     <h3 className={`font-display text-lg font-semibold sm:text-xl ${titleClass}`}>
                       {pool.name}
                     </h3>
                     <span className="flex items-center gap-3">
                       {pool.liceName && (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-foreground-secondary">
                           {pool.liceColorHex && (
                             <span
                               aria-hidden="true"
@@ -186,7 +186,7 @@ export function PoolsCompositionView({
                           {pool.liceName}
                         </span>
                       )}
-                      <span className="whitespace-nowrap text-xs uppercase tracking-wider text-slate-500">
+                      <span className="whitespace-nowrap text-xs uppercase tracking-wider text-muted">
                         {t('publicApp.tournament.fighterCount', { count: pool.members.length })}
                       </span>
                     </span>
@@ -194,11 +194,11 @@ export function PoolsCompositionView({
 
                   <div className="px-4 py-3 pl-5">
                     {pool.members.length === 0 ? (
-                      <p className="text-sm italic text-slate-500">
+                      <p className="text-sm italic text-muted">
                         {t('publicApp.tournament.pools.noMembers')}
                       </p>
                     ) : (
-                      <ul className="flex flex-col divide-y divide-stone-100">
+                      <ul className="flex flex-col divide-y divide-border">
                         {pool.members.map((m) => {
                           const isYou =
                             !!highlightRegistrationId &&
@@ -213,7 +213,7 @@ export function PoolsCompositionView({
                             >
                               <span className="flex items-center gap-3 min-w-0">
                                 <span
-                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
+                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-border font-mono text-xs text-foreground-secondary"
                                   aria-label={
                                     m.seed !== null
                                       ? t('publicApp.tournament.pools.seedAria', { seed: m.seed })
@@ -225,7 +225,7 @@ export function PoolsCompositionView({
                                 <span
                                   className={[
                                     'truncate font-medium',
-                                    isYou ? 'text-accent' : 'text-slate-900',
+                                    isYou ? 'text-accent' : 'text-foreground',
                                   ].join(' ')}
                                 >
                                   {m.fighterName}
@@ -237,7 +237,7 @@ export function PoolsCompositionView({
                                 )}
                               </span>
                               {(m.clubAbbreviation ?? m.clubName) && (
-                                <span className="min-w-0 shrink-[9999] truncate text-xs text-slate-500">
+                                <span className="min-w-0 shrink-[9999] truncate text-xs text-muted">
                                   {m.clubAbbreviation ?? m.clubName}
                                 </span>
                               )}
@@ -249,8 +249,8 @@ export function PoolsCompositionView({
                   </div>
 
                   {pool.referees.length > 0 && (
-                    <footer className="border-t border-stone-100 bg-stone-50/60 px-4 py-3 pl-5">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <footer className="border-t border-border bg-background/60 px-4 py-3 pl-5">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
                         {t('publicApp.tournament.pools.referees')}
                       </p>
                       <ul className="flex flex-col gap-1.5">
@@ -270,7 +270,7 @@ export function PoolsCompositionView({
                                 <span
                                   className={[
                                     'truncate',
-                                    isMe ? 'font-bold text-accent' : 'text-slate-700',
+                                    isMe ? 'font-bold text-accent' : 'text-foreground-secondary',
                                   ].join(' ')}
                                 >
                                   {r.displayName}

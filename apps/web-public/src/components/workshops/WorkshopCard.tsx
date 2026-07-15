@@ -41,18 +41,18 @@ export function capacityBadge(confirmed: number, capacity: number, t: TFn): Reac
   const pct = confirmed / capacity;
   if (pct >= 1)
     return (
-      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+      <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
         {t('publicApp.workshops.full')}
       </span>
     );
   if (pct >= 0.8)
     return (
-      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+      <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
         {t('publicApp.workshops.almostFull')}
       </span>
     );
   return (
-    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+    <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
       {t('publicApp.workshops.spotsLeft', { count: capacity - confirmed })}
     </span>
   );
@@ -174,7 +174,7 @@ export function WorkshopCard({
     return () => ro.disconnect();
   }, [expandable, expanded, description]);
 
-  const surface = highlighted ? 'border-success/40 bg-success/5' : 'border-stone-200 bg-white';
+  const surface = highlighted ? 'border-success/40 bg-success/5' : 'border-border bg-surface';
 
   const body = (
     <>
@@ -194,15 +194,15 @@ export function WorkshopCard({
           />
         )}
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-lg font-semibold text-slate-900">{w.title}</h3>
+          <h3 className="font-display text-lg font-semibold text-foreground">{w.title}</h3>
           {instructorNames.length > 0 && (
-            <p className="mt-0.5 text-sm text-slate-500">{instructorNames.join(', ')}</p>
+            <p className="mt-0.5 text-sm text-muted">{instructorNames.join(', ')}</p>
           )}
           {description && (
             <>
               <p
                 ref={expandable ? descRef : undefined}
-                className={`mt-2 text-sm text-slate-600 ${expandable && expanded ? '' : 'line-clamp-2'}`}
+                className={`mt-2 text-sm text-foreground-secondary ${expandable && expanded ? '' : 'line-clamp-2'}`}
               >
                 {description}
               </p>
@@ -210,7 +210,7 @@ export function WorkshopCard({
                 <button
                   type="button"
                   onClick={() => setExpanded((v) => !v)}
-                  className="mt-1 text-xs font-medium text-red-600 hover:text-red-700"
+                  className="mt-1 text-xs font-medium text-accent hover:text-accent-hover"
                 >
                   {expanded ? t('publicApp.workshops.showLess') : t('publicApp.workshops.showMore')}
                 </button>
@@ -219,33 +219,33 @@ export function WorkshopCard({
           )}
           <div className="mt-3 flex flex-wrap gap-1.5">
             {w.weapon && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs font-medium text-foreground-secondary">
                 {w.weapon}
               </span>
             )}
             {w.category && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-foreground-secondary">
                 {w.category}
               </span>
             )}
             {w.level && (
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+              <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs text-info">
                 {w.level}
               </span>
             )}
             {w.durationMinutes != null && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-foreground-secondary">
                 {t('publicApp.workshops.durationMinutes', { count: w.durationMinutes })}
               </span>
             )}
             {w.language && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
+              <span className="rounded-full bg-border px-2 py-0.5 text-xs text-foreground-secondary">
                 {w.language.toUpperCase()}
               </span>
             )}
           </div>
           {firstSession?.startsAt && (
-            <p className="mt-3 text-xs font-medium text-slate-500">
+            <p className="mt-3 text-xs font-medium text-muted">
               {formatInZone(firstSession.startsAt, timezone, {
                 weekday: 'short',
                 day: 'numeric',
@@ -258,9 +258,9 @@ export function WorkshopCard({
                   hour: '2-digit',
                   minute: '2-digit',
                 })}`}
-              {showLocation && location && <span className="text-slate-400"> · {location}</span>}
+              {showLocation && location && <span className="text-muted"> · {location}</span>}
               {moreCount > 0 && (
-                <span className="text-slate-400">
+                <span className="text-muted">
                   {' '}
                   · {t('publicApp.workshops.moreSessions', { count: moreCount })}
                 </span>
@@ -270,7 +270,7 @@ export function WorkshopCard({
         </div>
         <div className="flex-shrink-0 text-right">
           {totalCapacity > 0 && capacityBadge(totalConfirmed, totalCapacity, t)}
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-muted">
             {w.sessions.length === 1
               ? t('publicApp.workshops.sessionCountSingular', { count: w.sessions.length })
               : t('publicApp.workshops.sessionCountPlural', { count: w.sessions.length })}
@@ -285,7 +285,7 @@ export function WorkshopCard({
     return (
       <Link
         href={href}
-        className="group relative block overflow-hidden rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition-colors hover:border-red-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500/40"
+        className="group relative block overflow-hidden rounded-xl border border-border bg-surface p-5 shadow-sm transition-colors hover:border-accent hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
       >
         {body}
       </Link>

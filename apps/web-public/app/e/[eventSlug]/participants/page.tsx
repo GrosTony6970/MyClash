@@ -113,7 +113,7 @@ export default async function ParticipantsPage({
                 <img
                   src={event.logoUrl}
                   alt=""
-                  className="h-16 w-16 rounded-xl border border-stone-200 object-cover"
+                  className="h-16 w-16 rounded-xl border border-border object-cover"
                 />
               )}
               {event.organizationLogoUrl && (
@@ -121,28 +121,26 @@ export default async function ParticipantsPage({
                 <img
                   src={event.organizationLogoUrl}
                   alt=""
-                  className="h-10 w-10 rounded-full border border-stone-200 object-contain"
+                  className="h-10 w-10 rounded-full border border-border object-contain"
                 />
               )}
             </div>
           )}
           <div className="flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted">
               {t('publicApp.people.title')}
             </p>
-            <h1 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+            <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl">
               {event.name}
             </h1>
             {event.organizationName && (
-              <p className="text-sm text-slate-700">{event.organizationName}</p>
+              <p className="text-sm text-foreground-secondary">{event.organizationName}</p>
             )}
             {(() => {
               const place = formatEventPlace(event);
-              return place ? <p className="text-sm text-slate-500">{place}</p> : null;
+              return place ? <p className="text-sm text-muted">{place}</p> : null;
             })()}
-            <p className="text-sm text-slate-500">
-              {formatDateRange(event.startDate, event.endDate)}
-            </p>
+            <p className="text-sm text-muted">{formatDateRange(event.startDate, event.endDate)}</p>
             <BackLink
               href={`/e/${eventSlug}/home`}
               label={t('publicApp.tournament.backToEventHome')}

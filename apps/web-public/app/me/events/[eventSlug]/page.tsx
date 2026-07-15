@@ -147,7 +147,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
                     {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
                   </div>
                   {tr.poolName && (
-                    <span className="shrink-0 rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                    <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">
                       {tr.poolName}
                     </span>
                   )}
@@ -193,7 +193,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
                 {r.skillName ? (
                   <SkillBadge color={r.skillColor ?? 'slate'} label={r.skillName} size="sm" />
                 ) : (
-                  <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                  <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-bold text-warning">
                     {t('publicApp.me.events.roleReferee')}
                   </span>
                 )}

@@ -41,8 +41,8 @@ function scheduledTime(iso: string | null): string {
 function LiveBadge() {
   const { t } = useI18n();
   return (
-    <span className="inline-flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+    <span className="inline-flex items-center gap-1.5 bg-danger text-danger-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-danger-foreground animate-pulse" />
       {t('publicApp.live.badge')}
     </span>
   );
@@ -55,24 +55,24 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
     <div
       className={[
         'rounded-xl p-3 border',
-        isLive ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700',
+        isLive ? 'bg-danger/10 border-danger/40' : 'bg-surface border-border',
       ].join(' ')}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-gray-400 font-medium">{label}</span>
+        <span className="text-xs text-muted font-medium">{label}</span>
         {isLive ? (
           <LiveBadge />
         ) : match.scheduledAt ? (
-          <span className="text-xs text-gray-500">{scheduledTime(match.scheduledAt)}</span>
+          <span className="text-xs text-muted">{scheduledTime(match.scheduledAt)}</span>
         ) : null}
       </div>
-      <p className="text-sm font-bold text-white">{match.matchNumberLabel}</p>
-      <p className="text-sm text-gray-300 mt-0.5">
+      <p className="text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
+      <p className="text-sm text-foreground-secondary mt-0.5">
         {match.redFighterName ?? '?'}{' '}
-        <span className="text-gray-500 text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
+        <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
         {match.blueFighterName ?? '?'}
       </p>
-      {match.tournamentName && <p className="text-xs text-gray-500 mt-1">{match.tournamentName}</p>}
+      {match.tournamentName && <p className="text-xs text-muted mt-1">{match.tournamentName}</p>}
     </div>
   );
 }
@@ -142,7 +142,7 @@ export default function LivePage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -152,10 +152,10 @@ export default function LivePage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📅</p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
             {t('publicApp.live.scheduleUnavailableTitle')}
           </h1>
-          <p className="text-gray-400 text-sm">{t('publicApp.live.scheduleUnavailableBody')}</p>
+          <p className="text-muted text-sm">{t('publicApp.live.scheduleUnavailableBody')}</p>
         </div>
       </main>
     );
@@ -168,10 +168,10 @@ export default function LivePage() {
       return (
         <main className="flex min-h-screen items-center justify-center px-4 text-center">
           <div>
-            <p className="text-gray-400 text-sm">{t('publicApp.live.liceNotFound')}</p>
+            <p className="text-muted text-sm">{t('publicApp.live.liceNotFound')}</p>
             <button
               onClick={() => router.push(`/e/${eventSlug}/live`)}
-              className="mt-4 text-sm text-blue-400 hover:underline"
+              className="mt-4 text-sm text-accent hover:underline"
             >
               ← {t('publicApp.live.backToOverview')}
             </button>
@@ -184,20 +184,22 @@ export default function LivePage() {
       <main className="flex flex-col min-h-screen px-4 py-6 max-w-md mx-auto gap-4">
         <button
           onClick={() => router.push(`/e/${eventSlug}/live`)}
-          className="text-sm text-gray-400 hover:text-white flex items-center gap-1 self-start"
+          className="text-sm text-muted hover:text-foreground flex items-center gap-1 self-start"
         >
           ← {t('publicApp.live.allPistes')}
         </button>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
             {t('publicApp.live.piste')}
           </p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">{ls.lice.name}</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+            {ls.lice.name}
+          </h1>
         </div>
 
         {state.currentBlock && (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted">
             {state.currentBlock.label} · {formatTime(state.currentBlock.startTime)}–
             {formatTime(state.currentBlock.endTime)}
           </p>
@@ -206,14 +208,14 @@ export default function LivePage() {
         {ls.runningMatch ? (
           <MatchCard match={ls.runningMatch} label={t('publicApp.live.nowFighting')} />
         ) : (
-          <div className="rounded-xl p-4 bg-gray-800 border border-gray-700 text-center">
-            <p className="text-gray-400 text-sm">{t('publicApp.live.noActiveMatch')}</p>
+          <div className="rounded-xl p-4 bg-surface border border-border text-center">
+            <p className="text-muted text-sm">{t('publicApp.live.noActiveMatch')}</p>
           </div>
         )}
 
         {ls.nextMatch && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
               {t('publicApp.live.upNext')}
             </p>
             <MatchCard match={ls.nextMatch} label={t('publicApp.live.next')} />
@@ -231,24 +233,24 @@ export default function LivePage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
             {t('publicApp.live.liveSchedule')}
           </p>
           {state.currentBlock ? (
             <>
-              <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+              <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
                 {state.currentBlock.label}
               </h1>
-              <p className="text-sm text-gray-400 mt-0.5">
+              <p className="text-sm text-muted mt-0.5">
                 {formatTime(state.currentBlock.startTime)}–{formatTime(state.currentBlock.endTime)}
               </p>
             </>
           ) : state.nextBlock ? (
             <>
-              <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-400">
+              <h1 className="font-display font-bold text-2xl sm:text-3xl text-muted">
                 {t('publicApp.live.betweenSessions')}
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-muted mt-0.5">
                 {t('publicApp.live.nextBlock', {
                   label: state.nextBlock.label,
                   time: formatTime(state.nextBlock.startTime),
@@ -256,7 +258,7 @@ export default function LivePage() {
               </p>
             </>
           ) : (
-            <h1 className="font-display font-bold text-2xl sm:text-3xl text-gray-400">
+            <h1 className="font-display font-bold text-2xl sm:text-3xl text-muted">
               {t('publicApp.live.noActiveSession')}
             </h1>
           )}
@@ -266,17 +268,17 @@ export default function LivePage() {
 
       {/* Lice grid */}
       {state.lices.length === 0 ? (
-        <p className="text-gray-500 text-sm">{t('publicApp.live.noPistesConfigured')}</p>
+        <p className="text-muted text-sm">{t('publicApp.live.noPistesConfigured')}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {state.lices.map((ls) => (
             <Link
               key={ls.lice.id}
               href={`/e/${eventSlug}/live?lice=${ls.lice.id}`}
-              className="rounded-xl bg-gray-800 border border-gray-700 p-4 hover:border-gray-500 transition-colors block"
+              className="rounded-xl bg-surface border border-border p-4 hover:border-muted transition-colors block"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                <span className="text-xs font-bold text-muted uppercase tracking-wide">
                   {ls.lice.name}
                 </span>
                 {ls.runningMatch && <LiveBadge />}
@@ -284,41 +286,41 @@ export default function LivePage() {
 
               {ls.runningMatch ? (
                 <div>
-                  <p className="text-sm font-bold text-white">{ls.runningMatch.matchNumberLabel}</p>
-                  <p className="text-sm text-gray-300 mt-0.5">
+                  <p className="text-sm font-bold text-foreground">
+                    {ls.runningMatch.matchNumberLabel}
+                  </p>
+                  <p className="text-sm text-foreground-secondary mt-0.5">
                     {ls.runningMatch.redFighterName ?? '?'}{' '}
-                    <span className="text-gray-500 text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
+                    <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
                     {ls.runningMatch.blueFighterName ?? '?'}
                   </p>
                 </div>
               ) : ls.nextMatch ? (
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">{t('publicApp.live.nextUp')}</p>
-                  <p className="text-sm font-medium text-gray-300">
+                  <p className="text-xs text-muted mb-1">{t('publicApp.live.nextUp')}</p>
+                  <p className="text-sm font-medium text-foreground-secondary">
                     {ls.nextMatch.matchNumberLabel}
                   </p>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-muted">
                     {ls.nextMatch.redFighterName ?? '?'}{' '}
-                    <span className="text-gray-500 text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
+                    <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
                     {ls.nextMatch.blueFighterName ?? '?'}
                   </p>
                   {ls.nextMatch.scheduledAt && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted mt-1">
                       {scheduledTime(ls.nextMatch.scheduledAt)}
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="text-gray-500 text-sm">–</p>
+                <p className="text-muted text-sm">–</p>
               )}
             </Link>
           ))}
         </div>
       )}
 
-      <p className="text-xs text-gray-600 text-center">
-        {t('publicApp.live.updatesAutomatically')}
-      </p>
+      <p className="text-xs text-muted text-center">{t('publicApp.live.updatesAutomatically')}</p>
     </main>
   );
 }

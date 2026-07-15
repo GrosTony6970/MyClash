@@ -146,7 +146,7 @@ export default function MatchClock({
   if (!clockState) {
     return (
       <div className="flex h-32 items-center justify-center">
-        <p className="text-sm text-gray-500">{t('scoring.clock.loading')}</p>
+        <p className="text-sm text-muted">{t('scoring.clock.loading')}</p>
       </div>
     );
   }
@@ -160,14 +160,14 @@ export default function MatchClock({
       <div
         className={`text-7xl font-black tabular-nums tracking-tight ${
           warned
-            ? 'text-red-500'
+            ? 'text-danger'
             : status === 'running'
-              ? 'text-white'
+              ? 'text-foreground'
               : status === 'halted'
-                ? 'text-yellow-400'
+                ? 'text-warning'
                 : status === 'ended'
-                  ? 'text-gray-500'
-                  : 'text-gray-600'
+                  ? 'text-muted'
+                  : 'text-muted/70'
         }`}
       >
         {formatClockMs(shownMs)}
@@ -187,13 +187,13 @@ export default function MatchClock({
       })()}
 
       {clockState.startedAt && clockState.status !== 'idle' && (
-        <div className="flex items-center gap-2 text-gray-500">
+        <div className="flex items-center gap-2 text-muted">
           <span className="text-xs uppercase tracking-widest">{t('scoring.clock.totalTime')}</span>
           <span className="font-mono text-sm tabular-nums">{formatClockMs(wallElapsedMs)}</span>
         </div>
       )}
 
-      {error && <p className="text-center text-sm text-red-400">{error}</p>}
+      {error && <p className="text-center text-sm text-danger">{error}</p>}
 
       <div className="flex flex-wrap justify-center gap-3">
         {status === 'idle' && (
@@ -259,17 +259,17 @@ function ClockButton({
   onClick: () => void;
 }) {
   const colors = {
-    green: 'bg-green-700 hover:bg-green-600 active:bg-green-800',
-    yellow: 'bg-yellow-700 hover:bg-yellow-600 active:bg-yellow-800',
-    red: 'bg-red-700 hover:bg-red-600 active:bg-red-800',
-    gray: 'bg-gray-700 hover:bg-gray-600 active:bg-gray-800',
+    green: 'bg-success hover:bg-success-hover active:bg-success-hover',
+    yellow: 'bg-warning hover:bg-warning-hover active:bg-warning-hover',
+    red: 'bg-danger hover:bg-danger-hover active:bg-danger-hover',
+    gray: 'bg-border hover:bg-muted/50 active:bg-border',
   };
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${colors[color]} min-w-[120px] rounded-xl px-6 py-3 text-lg font-bold text-white transition-colors disabled:opacity-40`}
+      className={`${colors[color]} min-w-[120px] rounded-xl px-6 py-3 text-lg font-bold text-foreground transition-colors disabled:opacity-40`}
     >
       {label}
     </button>

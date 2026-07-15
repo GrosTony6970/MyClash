@@ -76,7 +76,7 @@ export function ParticipantsTab({ entries }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" className="flex gap-1 border-b border-stone-200">
+      <div role="tablist" className="flex gap-1 border-b border-border">
         <button
           type="button"
           role="tab"
@@ -85,12 +85,12 @@ export function ParticipantsTab({ entries }: Props) {
           className={
             'rounded-t-lg px-3 py-1.5 text-sm font-semibold ' +
             (sub === 'main'
-              ? 'border-x border-t border-stone-200 bg-white text-slate-900'
-              : 'text-slate-500 hover:text-slate-700')
+              ? 'border-x border-t border-border bg-surface text-foreground'
+              : 'text-muted hover:text-foreground-secondary')
           }
         >
           {t('publicApp.tournament.participants.mainList')}{' '}
-          <span className="ml-1 text-xs text-slate-400">{`(${mainAll.length})`}</span>
+          <span className="ml-1 text-xs text-muted">{`(${mainAll.length})`}</span>
         </button>
         {hasWaitlist && (
           <button
@@ -101,12 +101,12 @@ export function ParticipantsTab({ entries }: Props) {
             className={
               'rounded-t-lg px-3 py-1.5 text-sm font-semibold ' +
               (sub === 'waitlist'
-                ? 'border-x border-t border-stone-200 bg-white text-slate-900'
-                : 'text-slate-500 hover:text-slate-700')
+                ? 'border-x border-t border-border bg-surface text-foreground'
+                : 'text-muted hover:text-foreground-secondary')
             }
           >
             {t('publicApp.tournament.participants.waitingList')}{' '}
-            <span className="ml-1 text-xs text-amber-700">{`(${waitAll.length})`}</span>
+            <span className="ml-1 text-xs text-warning">{`(${waitAll.length})`}</span>
           </button>
         )}
       </div>
@@ -116,7 +116,7 @@ export function ParticipantsTab({ entries }: Props) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t('publicApp.tournament.participants.search')}
-        className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-stone-500 focus:outline-none focus:ring-2 focus:ring-stone-200"
+        className="w-full rounded-lg border border-border bg-surface px-4 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
       />
 
       {sub === 'main' ? (
@@ -155,10 +155,10 @@ function ParticipantsTable({
 }) {
   const colSpan = showPosition ? 5 : 4;
   return (
-    <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-stone-200 text-left text-xs uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
             {showPosition && <th className="w-12 px-4 py-2 text-center">{'#'}</th>}
             <SortableTh
               label={t('publicApp.tournament.participants.colName')}
@@ -188,7 +188,7 @@ function ParticipantsTable({
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={colSpan} className="px-4 py-6 text-center text-sm italic text-slate-500">
+              <td colSpan={colSpan} className="px-4 py-6 text-center text-sm italic text-muted">
                 {emptyLabel}
               </td>
             </tr>
@@ -196,15 +196,15 @@ function ParticipantsTable({
           {rows.map((e) => (
             <tr
               key={e.personId}
-              className="border-b border-stone-100 last:border-0 hover:bg-stone-50"
+              className="border-b border-border last:border-0 hover:bg-background"
             >
               {showPosition && (
-                <td className="px-4 py-2 text-center font-mono text-xs tabular-nums text-amber-800">
+                <td className="px-4 py-2 text-center font-mono text-xs tabular-nums text-warning">
                   {e.waitlistPosition ?? '—'}
                 </td>
               )}
-              <td className="px-4 py-2 font-semibold text-slate-900">{e.displayName}</td>
-              <td className="px-4 py-2 text-slate-500">{e.clubName ?? e.clubAbbrev ?? '—'}</td>
+              <td className="px-4 py-2 font-semibold text-foreground">{e.displayName}</td>
+              <td className="px-4 py-2 text-muted">{e.clubName ?? e.clubAbbrev ?? '—'}</td>
               <td className="px-4 py-2">
                 {e.isReferee && (
                   <SkillBadge
@@ -213,7 +213,7 @@ function ParticipantsTable({
                   />
                 )}
               </td>
-              <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-700">
+              <td className="px-4 py-2 text-right font-mono tabular-nums text-foreground-secondary">
                 {formatRating(e.hemaRating)}
               </td>
             </tr>
@@ -246,7 +246,7 @@ function SortableTh({
         <button
           type="button"
           onClick={() => onSort(col)}
-          className="inline-flex items-center gap-1 font-medium uppercase tracking-wider hover:text-slate-700"
+          className="inline-flex items-center gap-1 font-medium uppercase tracking-wider hover:text-foreground-secondary"
         >
           {label}
           {active && <span aria-hidden="true">{sortDir === 'asc' ? '▲' : '▼'}</span>}

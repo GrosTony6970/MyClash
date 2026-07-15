@@ -12,13 +12,16 @@ export const revalidate = 0;
 
 export default function HomePage() {
   return (
-    <main id="main-content" className="min-h-screen bg-stone-50 px-4 py-6 text-slate-900 sm:px-6">
+    <main
+      id="main-content"
+      className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6"
+    >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-        <section className="border-y border-stone-200 py-5">
-          <p className="max-w-2xl font-display font-bold text-2xl sm:text-3xl text-slate-900">
+        <section className="border-y border-border py-5">
+          <p className="max-w-2xl font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('publicApp.home.title')}
           </p>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground-secondary">
             {t('publicApp.home.subtitle')}
           </p>
         </section>

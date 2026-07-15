@@ -284,7 +284,7 @@ export function ScoringPad({
   if (!scoringEnabled) {
     return (
       <div className="flex items-center justify-center p-6 text-center">
-        <p className="text-gray-500 text-sm">{t('scoring.pad.scoringUnavailable')}</p>
+        <p className="text-muted text-sm">{t('scoring.pad.scoringUnavailable')}</p>
       </div>
     );
   }
@@ -293,16 +293,16 @@ export function ScoringPad({
     <div className="flex flex-col gap-4 select-none">
       {/* Clock running banner — blocks scoring */}
       {clockRunning && (
-        <div className="bg-yellow-900 border-2 border-yellow-500 text-yellow-200 rounded-xl px-4 py-3 text-center font-bold animate-pulse">
+        <div className="bg-warning/20 border-2 border-warning text-warning rounded-xl px-4 py-3 text-center font-bold animate-pulse">
           {t('scoring.pad.clockRunning')}
         </div>
       )}
 
       {/* Error */}
       {error && (
-        <div className="bg-red-900 border border-red-600 text-red-200 rounded-lg px-4 py-2 text-sm text-center">
+        <div className="bg-danger/20 border border-danger text-danger rounded-lg px-4 py-2 text-sm text-center">
           {error}
-          <button onClick={() => setError(null)} className="ml-3 underline text-red-300">
+          <button onClick={() => setError(null)} className="ml-3 underline text-danger">
             {t('actions.dismiss')}
           </button>
         </div>
@@ -323,7 +323,7 @@ export function ScoringPad({
             >
               {redSideLabel}
             </p>
-            <p className="font-bold text-white text-base leading-tight mt-0.5 truncate">
+            <p className="font-bold text-foreground text-base leading-tight mt-0.5 truncate">
               {redName}
             </p>
             <p className="text-5xl font-black mt-1 tabular-nums" style={{ color: redStyle.text }}>
@@ -366,8 +366,8 @@ export function ScoringPad({
                     key={btn.label}
                     onClick={() => onAfterblowBtn('red', btn)}
                     disabled={submitting || !canScore}
-                    className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
-                               hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
+                    className="min-h-[48px] rounded-xl border-2 border-warning bg-warning/15 text-warning font-bold text-sm
+                               hover:bg-warning/25 active:bg-warning/35 disabled:opacity-40 transition-colors touch-manipulation"
                     title={
                       config.afterblowMode === 'deductive'
                         ? t('scoring.pad.afterblowTitleDeductive', {
@@ -409,7 +409,7 @@ export function ScoringPad({
             >
               {blueSideLabel}
             </p>
-            <p className="font-bold text-white text-base leading-tight mt-0.5 truncate">
+            <p className="font-bold text-foreground text-base leading-tight mt-0.5 truncate">
               {blueName}
             </p>
             <p className="text-5xl font-black mt-1 tabular-nums" style={{ color: blueStyle.text }}>
@@ -452,8 +452,8 @@ export function ScoringPad({
                     key={btn.label}
                     onClick={() => onAfterblowBtn('blue', btn)}
                     disabled={submitting || !canScore}
-                    className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
-                               hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
+                    className="min-h-[48px] rounded-xl border-2 border-warning bg-warning/15 text-warning font-bold text-sm
+                               hover:bg-warning/25 active:bg-warning/35 disabled:opacity-40 transition-colors touch-manipulation"
                     title={
                       config.afterblowMode === 'deductive'
                         ? t('scoring.pad.afterblowTitleDeductive', {
@@ -488,8 +488,8 @@ export function ScoringPad({
         <button
           onClick={onDouble}
           disabled={submitting || !canScore}
-          className="min-h-[52px] rounded-xl border-2 border-orange-600 bg-orange-900 text-orange-100 font-bold
-                     hover:bg-orange-800 active:bg-orange-700 disabled:opacity-40 transition-colors touch-manipulation"
+          className="min-h-[52px] rounded-xl border-2 border-warning bg-warning/25 text-warning font-bold
+                     hover:bg-warning/35 active:bg-warning/45 disabled:opacity-40 transition-colors touch-manipulation"
         >
           {t('scoring.liveMatch.doubleTouch')}
           <span className="block text-xs font-normal opacity-70">
@@ -499,8 +499,8 @@ export function ScoringPad({
         <button
           onClick={() => setShowNoExchange(true)}
           disabled={submitting || !canScore}
-          className="min-h-[52px] rounded-xl border-2 border-gray-600 bg-gray-800 text-gray-200 font-bold
-                     hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40 transition-colors touch-manipulation"
+          className="min-h-[52px] rounded-xl border-2 border-border bg-surface text-foreground-secondary font-bold
+                     hover:bg-border active:bg-muted/40 disabled:opacity-40 transition-colors touch-manipulation"
         >
           {t('scoring.liveMatch.noExchange')}
           <span className="block text-xs font-normal opacity-70">
@@ -510,7 +510,7 @@ export function ScoringPad({
       </div>
 
       {/* Afterblow mode indicator */}
-      <p className="text-center text-xs text-gray-600">
+      <p className="text-center text-xs text-muted">
         {t('scoring.pad.afterblowMode', { mode: config.afterblowMode })}
       </p>
 
@@ -519,8 +519,8 @@ export function ScoringPad({
         <button
           onClick={() => void handleUndo()}
           disabled={submitting || !canScore}
-          className="w-full py-3 rounded-xl border-2 border-yellow-600 text-yellow-400 font-bold text-sm
-                     hover:bg-yellow-900 active:bg-yellow-800 transition-colors disabled:opacity-50"
+          className="w-full py-3 rounded-xl border-2 border-warning text-warning font-bold text-sm
+                     hover:bg-warning/20 active:bg-warning/30 transition-colors disabled:opacity-50"
         >
           {t('scoring.pad.undoLastExchange')}
         </button>
@@ -528,23 +528,23 @@ export function ScoringPad({
 
       {/* Submitting */}
       {submitting && (
-        <p className="text-center text-gray-400 text-xs animate-pulse">
-          {t('scoring.pad.recording')}
-        </p>
+        <p className="text-center text-muted text-xs animate-pulse">{t('scoring.pad.recording')}</p>
       )}
 
       {/* No-exchange reason picker */}
       {showNoExchange && (
         <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4">
-            <p className="text-sm font-bold text-white mb-3">{t('scoring.pad.noExchangeReason')}</p>
+          <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-4">
+            <p className="text-sm font-bold text-foreground mb-3">
+              {t('scoring.pad.noExchangeReason')}
+            </p>
             <div className="grid grid-cols-2 gap-2">
               {noExchangeReasons.map((r) => (
                 <button
                   key={r.id}
                   onClick={() => onNoExchange(r.id)}
-                  className="min-h-[56px] rounded-xl border-2 border-gray-600 bg-gray-800 text-gray-200 font-medium text-sm
-                             hover:bg-gray-700 active:bg-gray-600 transition-colors"
+                  className="min-h-[56px] rounded-xl border-2 border-border bg-surface text-foreground-secondary font-medium text-sm
+                             hover:bg-border active:bg-muted/40 transition-colors"
                 >
                   {r.label}
                   <span className="block text-xs font-normal opacity-60">{r.sub}</span>
@@ -553,7 +553,7 @@ export function ScoringPad({
             </div>
             <button
               onClick={() => setShowNoExchange(false)}
-              className="mt-3 w-full text-sm text-gray-500 hover:text-gray-300"
+              className="mt-3 w-full text-sm text-muted hover:text-foreground-secondary"
             >
               {t('actions.cancel')}
             </button>

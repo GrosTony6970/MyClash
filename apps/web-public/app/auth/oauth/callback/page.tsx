@@ -163,10 +163,10 @@ function PublicOAuthCallback() {
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl font-bold mb-4">{t('auth.oauth.errorTitle')}</h1>
-          <p className="text-red-600" role="alert">
+          <p className="text-danger" role="alert">
             {t(error.messageKey, error.messageValues)}
           </p>
-          <details className="mt-4 text-left text-xs text-gray-500">
+          <details className="mt-4 text-left text-xs text-muted">
             <summary className="cursor-pointer">{t('auth.oauth.detailsToggle')}</summary>
             <pre className="mt-2 whitespace-pre-wrap break-words">
               {error.phase}: {error.cause.name} — {error.cause.message}
@@ -184,7 +184,7 @@ function PublicOAuthCallback() {
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm text-center">
         <h1 className="text-2xl font-bold mb-4">{t('auth.oauth.completing')}</h1>
-        <p className="text-gray-600">{t('auth.oauth.wait')}</p>
+        <p className="text-foreground-secondary">{t('auth.oauth.wait')}</p>
       </div>
     </main>
   );

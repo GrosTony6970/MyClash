@@ -27,10 +27,10 @@ export default async function PublicLeaguesPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-7">
-        <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
           {t('admin.dashboard.leaguesTitle')}
         </h1>
-        <p className="text-sm text-gray-400 mt-1">{t('admin.dashboard.leaguesDescription')}</p>
+        <p className="text-sm text-muted mt-1">{t('admin.dashboard.leaguesDescription')}</p>
       </div>
 
       <div className="grid gap-4">
@@ -38,20 +38,22 @@ export default async function PublicLeaguesPage() {
           <Link
             key={league.id}
             href={`/leagues/${league.slug}`}
-            className="rounded-lg border border-white/10 bg-white/5 p-5 hover:border-amber-400/60"
+            className="rounded-lg border border-border bg-surface p-5 hover:border-accent"
           >
-            <h2 className="font-display font-semibold text-lg sm:text-xl text-white">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {league.name}
             </h2>
-            <p className="text-sm text-gray-400 mt-1">{league.season_year}</p>
+            <p className="text-sm text-muted mt-1">{league.season_year}</p>
             {league.description && (
-              <p className="text-sm text-gray-300 mt-3 leading-6">{league.description}</p>
+              <p className="text-sm text-foreground-secondary mt-3 leading-6">
+                {league.description}
+              </p>
             )}
           </Link>
         ))}
       </div>
 
-      {leagues.length === 0 && <p className="text-sm text-gray-400">{t('admin.leagues.empty')}</p>}
+      {leagues.length === 0 && <p className="text-sm text-muted">{t('admin.leagues.empty')}</p>}
     </main>
   );
 }

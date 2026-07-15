@@ -74,11 +74,11 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="border-b border-stone-200 bg-white shadow-sm">
+    <header className="border-b border-border bg-surface shadow-sm">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link
           href="/"
-          className="flex items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="flex items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
           aria-label={t('app.name')}
         >
           <Image
@@ -90,10 +90,10 @@ export function SiteHeader() {
             className="h-10 w-10 sm:h-12 sm:w-12"
           />
           <div className="flex flex-col">
-            <span className="font-display text-lg font-semibold leading-tight text-slate-900 sm:text-xl">
+            <span className="font-display text-lg font-semibold leading-tight text-foreground sm:text-xl">
               {t('app.name')}
             </span>
-            <span className="hidden text-xs text-slate-500 sm:block">
+            <span className="hidden text-xs text-muted sm:block">
               {t('publicApp.home.description')}
             </span>
           </div>
@@ -102,7 +102,7 @@ export function SiteHeader() {
         {authState === 'signed-out' && (
           <Link
             href="/login"
-            className="rounded-md bg-red-800 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent"
           >
             {t('publicApp.home.signIn')}
           </Link>
@@ -112,7 +112,7 @@ export function SiteHeader() {
           <div className="flex items-center gap-2">
             <Link
               href="/me"
-              className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-red-400 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent"
             >
               {displayName ?? t('publicApp.home.signedInFallback')}
             </Link>
@@ -121,7 +121,7 @@ export function SiteHeader() {
               onClick={() => void signOut()}
               disabled={loggingOut}
               aria-label={t('publicApp.personalShell.logout')}
-              className="rounded-md border border-stone-300 p-2 text-slate-600 transition hover:border-red-400 hover:text-red-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="rounded-md border border-border p-2 text-foreground-secondary transition hover:border-accent hover:text-accent disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                 <path

@@ -159,7 +159,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
               <span>{t(item.labelKey)}</span>
               {item.href === '/me/notifications' && notificationsUnread > 0 && (
                 <span
-                  className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
+                  className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[0.65rem] font-bold text-danger-foreground"
                   aria-label={t('publicApp.me.nav.unreadLabel', { count: notificationsUnread })}
                 >
                   {notificationsUnread > 9 ? '9+' : notificationsUnread}

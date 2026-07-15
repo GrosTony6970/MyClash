@@ -179,7 +179,7 @@ export default function PersonProfilePage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -189,7 +189,7 @@ export default function PersonProfilePage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">👤</p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white mb-2">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
             {t('publicApp.following.personNotFound')}
           </h1>
         </div>
@@ -205,7 +205,7 @@ export default function PersonProfilePage() {
     <main className="px-4 py-6 max-w-lg mx-auto">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-800 border border-gray-700 text-white text-sm px-4 py-2 rounded-xl shadow-lg">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-surface border border-border text-foreground text-sm px-4 py-2 rounded-xl shadow-lg">
           {toast}
         </div>
       )}
@@ -213,16 +213,16 @@ export default function PersonProfilePage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-white">
+          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
             {profile.givenName} {profile.familyName}
           </h1>
-          {profile.clubLabel && <p className="text-gray-400 text-sm mt-0.5">{profile.clubLabel}</p>}
+          {profile.clubLabel && <p className="text-muted text-sm mt-0.5">{profile.clubLabel}</p>}
           {profile.roles.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {profile.roles.map((r) => (
                 <span
                   key={r}
-                  className="text-xs px-2 py-0.5 rounded-full border bg-gray-800 text-gray-300 border-gray-700"
+                  className="text-xs px-2 py-0.5 rounded-full border bg-border text-foreground-secondary border-border"
                 >
                   {r.replace('_', ' ')}
                 </span>
@@ -239,7 +239,7 @@ export default function PersonProfilePage() {
             className={[
               'flex-shrink-0 px-4 py-2 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50',
               following
-                ? 'bg-gray-800 border border-gray-600 text-gray-300 hover:border-red-600 hover:text-red-400'
+                ? 'bg-surface border border-border text-foreground-secondary hover:border-danger hover:text-danger'
                 : 'text-white',
             ].join(' ')}
             style={!following ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
@@ -249,7 +249,7 @@ export default function PersonProfilePage() {
               : t('publicApp.following.followButton')}
           </button>
         ) : (
-          <p className="text-xs text-gray-600 flex-shrink-0 max-w-[120px] text-right">
+          <p className="text-xs text-muted flex-shrink-0 max-w-[120px] text-right">
             {t('publicApp.following.prefersNotFollowed')}
           </p>
         )}
@@ -260,9 +260,11 @@ export default function PersonProfilePage() {
           guest-session quick access (previously unreachable server flow).
           Guests see only the claim upgrade; claimed users see nothing. */}
       {viewerType !== 'claimed' && (
-        <div className="mb-6 rounded-xl border border-dashed border-gray-600 bg-gray-900 px-4 py-3">
-          <p className="text-sm text-gray-300">
-            <span className="font-semibold text-white">{t('publicApp.people.thisIsMeTitle')}</span>{' '}
+        <div className="mb-6 rounded-xl border border-dashed border-border bg-surface px-4 py-3">
+          <p className="text-sm text-foreground-secondary">
+            <span className="font-semibold text-foreground">
+              {t('publicApp.people.thisIsMeTitle')}
+            </span>{' '}
             {t('publicApp.people.thisIsMeHint')}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -278,7 +280,7 @@ export default function PersonProfilePage() {
                 type="button"
                 onClick={() => void handleGuestAccess()}
                 disabled={guestLoading}
-                className="rounded-lg border border-gray-600 px-3 py-1.5 text-sm font-semibold text-gray-200 transition-colors hover:border-gray-400 disabled:opacity-50"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:border-muted disabled:opacity-50"
               >
                 {t('publicApp.people.guestAccessButton')}
               </button>
@@ -290,15 +292,15 @@ export default function PersonProfilePage() {
       {/* Live now */}
       {live.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-danger mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
             {t('publicApp.fighterProfile.liveNow')}
           </h2>
           {live.map((m) => (
             <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-              <div className="rounded-xl border-2 border-red-700 bg-red-950/30 p-4 mb-2">
-                <p className="text-xs text-gray-400 mb-1">{m.matchNumberLabel}</p>
-                <p className="font-bold text-white">
+              <div className="rounded-xl border-2 border-danger/40 bg-danger/10 p-4 mb-2">
+                <p className="text-xs text-muted mb-1">{m.matchNumberLabel}</p>
+                <p className="font-bold text-foreground">
                   {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
                 </p>
               </div>
@@ -319,15 +321,15 @@ export default function PersonProfilePage() {
           <div className="flex flex-col gap-2">
             {upcoming.map((m) => (
               <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+                <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-foreground">
                       {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
                     </p>
-                    <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
+                    <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                   </div>
                   {m.scheduledAt && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-muted">
                       {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -354,14 +356,14 @@ export default function PersonProfilePage() {
             {schedule.refereeSlots.map((s) => (
               <div
                 key={s.matchId}
-                className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3"
+                className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-white">{s.matchNumberLabel}</p>
-                  <p className="text-xs text-gray-500">{s.role.replace('_', ' ')}</p>
+                  <p className="text-sm font-medium text-foreground">{s.matchNumberLabel}</p>
+                  <p className="text-xs text-muted">{s.role.replace('_', ' ')}</p>
                 </div>
                 {s.scheduledAt && (
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted">
                     {new Date(s.scheduledAt).toLocaleTimeString('fr-FR', {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -390,25 +392,25 @@ export default function PersonProfilePage() {
               const won = myScore > oppScore;
               return (
                 <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-                  <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+                  <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                     <div>
-                      <p className="text-sm font-medium text-white">
+                      <p className="text-sm font-medium text-foreground">
                         {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
                       </p>
-                      <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
+                      <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
                         className={[
                           'text-xs font-bold px-2 py-0.5 rounded-full',
-                          won ? 'bg-green-900 text-green-300' : 'bg-red-900/50 text-red-400',
+                          won ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
                         ].join(' ')}
                       >
                         {won
                           ? t('publicApp.following.resultWin')
                           : t('publicApp.following.resultLoss')}
                       </span>
-                      <p className="text-sm font-mono font-bold text-white tabular-nums">
+                      <p className="text-sm font-mono font-bold text-foreground tabular-nums">
                         {myScore}–{oppScore}
                       </p>
                     </div>

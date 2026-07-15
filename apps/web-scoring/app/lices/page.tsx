@@ -80,7 +80,7 @@ export default function LicePickerPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400">{t('scoring.lice.loadingAssignments')}</p>
+        <p className="text-muted">{t('scoring.lice.loadingAssignments')}</p>
       </main>
     );
   }
@@ -89,10 +89,10 @@ export default function LicePickerPage() {
     return (
       <main className="flex min-h-screen items-center justify-center p-8">
         <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
+          <p className="text-danger mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="text-sm text-gray-400 hover:text-white underline"
+            className="text-sm text-muted hover:text-foreground underline"
           >
             {t('scoring.lice.retry')}
           </button>
@@ -106,7 +106,7 @@ export default function LicePickerPage() {
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="text-center max-w-sm">
           <h1 className="text-xl font-bold mb-2">{t('scoring.lice.noAssignedTitle')}</h1>
-          <p className="text-gray-400 text-sm">{t('scoring.lice.noAssignedDescription')}</p>
+          <p className="text-muted text-sm">{t('scoring.lice.noAssignedDescription')}</p>
         </div>
       </main>
     );
@@ -117,12 +117,12 @@ export default function LicePickerPage() {
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
-          <p className="text-gray-400 text-sm mt-1">{t('scoring.lice.selectLice')}</p>
+          <p className="text-muted text-sm mt-1">{t('scoring.lice.selectLice')}</p>
         </div>
         <button
           onClick={() => void handleLogout()}
           disabled={loggingOut}
-          className="text-sm text-gray-400 hover:text-white underline disabled:opacity-50"
+          className="text-sm text-muted hover:text-foreground underline disabled:opacity-50"
         >
           {t('scoring.lice.logout')}
         </button>
@@ -133,21 +133,21 @@ export default function LicePickerPage() {
           <button
             key={assignment.liceId}
             onClick={() => router.push(`/lices/${assignment.liceId}`)}
-            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-5 text-left transition-colors"
+            className="bg-surface hover:bg-border border border-border rounded-xl p-5 text-left transition-colors"
           >
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold">{assignment.liceName}</h2>
-                <p className="text-gray-400 text-sm">
+                <p className="text-muted text-sm">
                   {[assignment.tournamentName, assignment.eventName].filter(Boolean).join(' - ')}
                 </p>
               </div>
               {assignment.currentMatchId ? (
-                <span className="bg-red-700 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
+                <span className="bg-danger text-danger-foreground text-xs font-bold px-2 py-1 rounded-full animate-pulse">
                   {t('scoring.lice.live')}
                 </span>
               ) : (
-                <span className="text-gray-500 text-sm">-&gt;</span>
+                <span className="text-muted text-sm">-&gt;</span>
               )}
             </div>
           </button>

@@ -48,12 +48,12 @@ function LeagueLogo({ league }: { league: PublicLeague }) {
       <img
         src={league.logo_url}
         alt={league.name ?? ''}
-        className="h-10 w-10 shrink-0 rounded border border-stone-200 bg-white object-contain"
+        className="h-10 w-10 shrink-0 rounded border border-border bg-surface object-contain"
       />
     );
   }
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-stone-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-border bg-background text-[11px] font-semibold text-muted">
       {initialsFor(league.name)}
     </div>
   );
@@ -61,7 +61,7 @@ function LeagueLogo({ league }: { league: PublicLeague }) {
 
 function LeagueActiveTag() {
   return (
-    <span className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+    <span className="inline-flex items-center rounded-full border border-success/60 bg-success/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-success">
       {t('publicApp.home.leagueStatusActive')}
     </span>
   );
@@ -69,7 +69,7 @@ function LeagueActiveTag() {
 
 function LeaguePastTag() {
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+    <span className="inline-flex items-center rounded-full border border-border bg-border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
       {t('publicApp.home.leagueStatusPast')}
     </span>
   );
@@ -82,31 +82,31 @@ function LeagueRow({ league, variant }: { league: PublicLeague; variant: 'active
     <Link
       href={leagueHref(league)}
       style={{ borderLeftColor: accentColor }}
-      className="group flex flex-col gap-3 rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500 md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4"
+      className="group flex flex-col gap-3 rounded-lg border border-border border-l-4 bg-surface p-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4"
     >
       <LeagueLogo league={league} />
       <div className="min-w-0">
-        <p className="font-display text-base font-semibold leading-tight text-slate-900">
+        <p className="font-display text-base font-semibold leading-tight text-foreground">
           {league.name ?? '—'}
         </p>
         {league.season_year != null && (
-          <p className="mt-0.5 text-xs text-slate-500 tabular-nums">{league.season_year}</p>
+          <p className="mt-0.5 text-xs text-muted tabular-nums">{league.season_year}</p>
         )}
       </div>
-      <p className="text-sm text-slate-700 tabular-nums">
-        <span className="font-medium text-slate-600 md:hidden">
+      <p className="text-sm text-foreground-secondary tabular-nums">
+        <span className="font-medium text-foreground-secondary md:hidden">
           {t('publicApp.home.colEvents')} ·{' '}
         </span>
         {league.event_count ?? 0}
       </p>
-      <p className="truncate text-sm text-slate-500">
-        <span className="font-medium text-slate-600 md:hidden">
+      <p className="truncate text-sm text-muted">
+        <span className="font-medium text-foreground-secondary md:hidden">
           {t('publicApp.home.colGroups')} ·{' '}
         </span>
         {groupsBreakdown(league.groups)}
       </p>
       <span className="self-start md:self-center">{tag}</span>
-      <span className="text-sm font-semibold text-red-700 group-hover:text-red-800">
+      <span className="text-sm font-semibold text-accent group-hover:text-accent-hover">
         {t('publicApp.home.openLeague')}
       </span>
     </Link>
@@ -117,7 +117,7 @@ function LeagueTableHeader() {
   return (
     <div
       role="row"
-      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-stone-200 md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500"
+      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-border md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-muted"
     >
       <span role="columnheader" aria-label={t('publicApp.home.colLogo')}>
         {' '}
@@ -138,17 +138,17 @@ function LeagueTableHeader() {
 function SectionHeader({ id, title, count }: { id: string; title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 id={id} className="font-display font-semibold text-lg sm:text-xl text-slate-900">
+      <h2 id={id} className="font-display font-semibold text-lg sm:text-xl text-foreground">
         {title}
       </h2>
-      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{count}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-muted">{count}</span>
     </div>
   );
 }
 
 function LeaguesEmpty() {
   return (
-    <div className="rounded-lg border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+    <div className="rounded-lg border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
       {t('publicApp.home.leaguesEmptyDescription')}
     </div>
   );
@@ -174,7 +174,7 @@ export function PublicLeaguesSections({ leagues }: { leagues: PublicLeague[] }) 
         {active.length > 0 ? (
           <div role="table" aria-labelledby="public-leagues-active-title">
             <LeagueTableHeader />
-            <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
+            <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-border">
               {active.map((league) => (
                 <LeagueRow key={league.slug ?? league.id} league={league} variant="active" />
               ))}
@@ -194,7 +194,7 @@ export function PublicLeaguesSections({ leagues }: { leagues: PublicLeague[] }) 
         {past.length > 0 ? (
           <div role="table" aria-labelledby="public-leagues-past-title">
             <LeagueTableHeader />
-            <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
+            <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-border">
               {past.map((league) => (
                 <LeagueRow key={league.slug ?? league.id} league={league} variant="past" />
               ))}
@@ -208,7 +208,7 @@ export function PublicLeaguesSections({ leagues }: { leagues: PublicLeague[] }) 
       <div className="text-right">
         <Link
           href="/leagues"
-          className="text-sm font-semibold text-red-700 transition-colors hover:text-red-800"
+          className="text-sm font-semibold text-accent transition-colors hover:text-accent-hover"
         >
           {t('publicApp.home.allLeaguesLink')} →
         </Link>

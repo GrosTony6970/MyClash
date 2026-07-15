@@ -78,15 +78,19 @@ function ResetPassword() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0f172a] px-4 py-10 text-white">
-      <div className="mx-auto max-w-md rounded-lg border border-slate-700 bg-slate-950 p-8 shadow-2xl">
+    <main
+      data-theme="dark"
+      data-accent="personal"
+      className="min-h-screen bg-background px-4 py-10 text-foreground"
+    >
+      <div className="mx-auto max-w-md rounded-lg border border-border bg-surface p-8 shadow-2xl">
         <h1 className="text-2xl font-black">{t('publicApp.resetPassword.title')}</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
+        <p className="mt-2 text-sm leading-6 text-muted">
           {t('publicApp.resetPassword.description')}
         </p>
 
         <label className="mt-6 block">
-          <span className="text-sm font-semibold text-slate-200">
+          <span className="text-sm font-semibold text-foreground-secondary">
             {t('publicApp.resetPassword.newPassword')}
           </span>
           <input
@@ -94,12 +98,12 @@ function ResetPassword() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
-            className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-3 text-white outline-none focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/30"
+            className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </label>
 
         <label className="mt-4 block">
-          <span className="text-sm font-semibold text-slate-200">
+          <span className="text-sm font-semibold text-foreground-secondary">
             {t('publicApp.login.passwordConfirmLabel')}
           </span>
           <input
@@ -107,7 +111,7 @@ function ResetPassword() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             autoComplete="new-password"
-            className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-3 text-white outline-none focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/30"
+            className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </label>
 
@@ -123,7 +127,7 @@ function ResetPassword() {
           ).map(({ rule, key }) => {
             const failed = validation.failing.includes(rule);
             return (
-              <li key={rule} className={failed ? 'text-slate-400' : 'text-emerald-400'}>
+              <li key={rule} className={failed ? 'text-muted' : 'text-success'}>
                 <span aria-hidden>{failed ? '○' : '✓'}</span> {t(key)}
               </li>
             );
@@ -143,7 +147,7 @@ function ResetPassword() {
 
         {error && (
           <p
-            className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100"
+            className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
             role="alert"
           >
             {error}

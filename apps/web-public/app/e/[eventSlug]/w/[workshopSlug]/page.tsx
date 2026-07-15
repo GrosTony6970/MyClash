@@ -152,7 +152,7 @@ export default function WorkshopDetailPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
@@ -162,7 +162,7 @@ export default function WorkshopDetailPage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📚</p>
-          <h1 className="mb-3 font-display text-2xl font-bold text-gray-900 sm:text-3xl">
+          <h1 className="mb-3 font-display text-2xl font-bold text-foreground sm:text-3xl">
             {t('publicApp.workshopDetail.notFound')}
           </h1>
           <BackLink
@@ -183,7 +183,7 @@ export default function WorkshopDetailPage() {
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm px-4 py-2 rounded-xl shadow-lg">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-strong text-strong-foreground text-sm px-4 py-2 rounded-xl shadow-lg">
           {toast}
         </div>
       )}
@@ -220,28 +220,28 @@ export default function WorkshopDetailPage() {
 
         {/* Instructors */}
         {instructorNames.length > 0 && (
-          <p className="text-gray-500 text-sm mb-3">{instructorNames.join(', ')}</p>
+          <p className="text-muted text-sm mb-3">{instructorNames.join(', ')}</p>
         )}
 
         {/* Tags */}
         <div className="flex flex-wrap gap-1.5 mb-4">
           {workshop.category && (
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-border text-foreground-secondary px-2 py-0.5 rounded-full">
               {workshop.category}
             </span>
           )}
           {workshop.level && (
-            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-info/10 text-info px-2 py-0.5 rounded-full">
               {workshop.level}
             </span>
           )}
           {workshop.language && (
-            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-border text-muted px-2 py-0.5 rounded-full">
               {workshop.language.toUpperCase()}
             </span>
           )}
           {workshop.durationMinutes != null && (
-            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-border text-muted px-2 py-0.5 rounded-full">
               {t('publicApp.workshops.durationMinutes', { count: workshop.durationMinutes })}
             </span>
           )}
@@ -249,7 +249,7 @@ export default function WorkshopDetailPage() {
 
         {/* Description — paragraphs/line breaks preserved */}
         {description && (
-          <div className="prose prose-sm mb-6 max-w-none whitespace-pre-line text-sm leading-relaxed text-gray-600">
+          <div className="prose prose-sm mb-6 max-w-none whitespace-pre-line text-sm leading-relaxed text-foreground-secondary">
             {description}
           </div>
         )}
@@ -286,12 +286,12 @@ export default function WorkshopDetailPage() {
               return (
                 <div
                   key={session.id}
-                  className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+                  className="rounded-xl border border-border bg-surface p-4 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       {session.startsAt && (
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-foreground">
                           {formatInZone(session.startsAt, tz, {
                             weekday: 'short',
                             day: 'numeric',
@@ -300,7 +300,7 @@ export default function WorkshopDetailPage() {
                         </p>
                       )}
                       {(session.startsAt || session.endsAt || session.locationLabel) && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-muted">
                           {session.startsAt &&
                             formatInZone(session.startsAt, tz, {
                               hour: '2-digit',
@@ -316,7 +316,7 @@ export default function WorkshopDetailPage() {
                         </p>
                       )}
                       {cap > 0 && (
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-muted mt-0.5">
                           {t('publicApp.workshopDetail.enrolledCount', {
                             confirmed: session.confirmedCount,
                             capacity: cap,
@@ -327,11 +327,11 @@ export default function WorkshopDetailPage() {
 
                     <div className="flex-shrink-0">
                       {enrolled === 'confirmed' ? (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
                           {t('publicApp.workshopDetail.enrolled')}
                         </span>
                       ) : enrolled === 'waitlisted' ? (
-                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                        <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
                           {t('publicApp.workshopDetail.waitlisted')}
                         </span>
                       ) : (

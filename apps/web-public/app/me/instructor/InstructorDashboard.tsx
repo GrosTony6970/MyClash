@@ -354,7 +354,7 @@ function EditPanel({
           type="button"
           disabled={busy}
           onClick={() => void save()}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {t('publicApp.me.instructor.save')}
         </button>
@@ -434,7 +434,7 @@ function NotifyPanel({ workshopId, apiUrl }: { workshopId: string; apiUrl: strin
           type="button"
           disabled={busy || !title.trim() || !body.trim()}
           onClick={() => void send()}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {busy ? t('publicApp.me.instructor.sending') : t('publicApp.me.instructor.send')}
         </button>
@@ -454,7 +454,7 @@ interface FeedbackSummary {
 
 function Stars({ value }: { value: number }) {
   return (
-    <span className="text-sm tabular-nums text-amber-500" aria-hidden="true">
+    <span className="text-sm tabular-nums text-gold" aria-hidden="true">
       {'★'.repeat(Math.round(value))}
       <span className="text-muted">{'★'.repeat(Math.max(0, 5 - Math.round(value)))}</span>
     </span>

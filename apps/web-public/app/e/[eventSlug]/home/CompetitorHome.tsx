@@ -81,33 +81,33 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
             <img
               src={branding.logoUrl}
               alt=""
-              className="h-14 w-14 rounded-lg border border-stone-200 object-cover"
+              className="h-14 w-14 rounded-lg border border-border object-cover"
             />
           )}
           {branding.name && (
-            <p className="font-display text-lg font-bold text-slate-900">{branding.name}</p>
+            <p className="font-display text-lg font-bold text-foreground">{branding.name}</p>
           )}
         </section>
       )}
 
       {/* Next match */}
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('publicApp.competitorHome.nextMatch')}
         </h2>
         {nextMatch ? (
           <Link
             href={`/e/${eventSlug}/match/${nextMatch.id}`}
-            className="block rounded-xl border border-emerald-300 bg-white p-5 transition-colors hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+            className="block rounded-xl border border-success/40 bg-surface p-5 transition-colors hover:border-success focus:outline-none focus:ring-2 focus:ring-accent/40"
           >
-            <p className="mb-1 text-xs text-slate-500">{nextMatch.matchNumberLabel}</p>
-            <p className="text-xl font-bold text-slate-900">
+            <p className="mb-1 text-xs text-muted">{nextMatch.matchNumberLabel}</p>
+            <p className="text-xl font-bold text-foreground">
               {t('publicApp.competitorHome.versus', {
                 name: nextMatch.opponentName ?? t('publicApp.competitorHome.tbd'),
               })}
             </p>
             {nextMatch.scheduledAt && (
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted">
                 {new Date(nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -120,12 +120,12 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
               className={[
                 'mt-3 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold uppercase',
                 nextMatch.status === 'running'
-                  ? 'border border-emerald-400/60 bg-emerald-50 text-emerald-700'
-                  : 'border border-stone-300 bg-stone-100 text-slate-700',
+                  ? 'border border-success/60 bg-success/10 text-success'
+                  : 'border border-border bg-background text-foreground-secondary',
               ].join(' ')}
             >
               {nextMatch.status === 'running' && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
               )}
               {nextMatch.status === 'running'
                 ? t('publicApp.competitorHome.live')
@@ -133,10 +133,8 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
             </span>
           </Link>
         ) : (
-          <div className="rounded-xl border border-stone-200 bg-white p-5 text-center">
-            <p className="text-sm text-slate-500">
-              {t('publicApp.competitorHome.noUpcomingMatches')}
-            </p>
+          <div className="rounded-xl border border-border bg-surface p-5 text-center">
+            <p className="text-sm text-muted">{t('publicApp.competitorHome.noUpcomingMatches')}</p>
           </div>
         )}
       </section>
@@ -144,7 +142,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Today's parcours */}
       {upcoming.length > 1 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('publicApp.competitorHome.todaysSchedule')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -152,19 +150,19 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-stone-200 bg-white px-4 py-3 transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-foreground">
                       {t('publicApp.competitorHome.versus', {
                         name: m.opponentName ?? t('publicApp.competitorHome.tbd'),
                       })}
                     </p>
-                    <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
+                    <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                   </div>
                   {m.scheduledAt && (
-                    <span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-mono text-slate-700">
+                    <span className="rounded-md bg-border px-2 py-1 text-xs font-mono text-foreground-secondary">
                       {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -182,7 +180,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Last results */}
       {past.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('publicApp.fighterProfile.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -190,23 +188,23 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-stone-200 bg-white px-4 py-3 transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="block rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-foreground">
                       {t('publicApp.competitorHome.versus', {
                         name: m.opponentName ?? t('publicApp.competitorHome.tbd'),
                       })}
                     </p>
-                    <p className="text-xs text-slate-500">{m.matchNumberLabel}</p>
+                    <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                   </div>
-                  <p className="text-lg font-black tabular-nums text-slate-900">
-                    <span className={m.redScore > m.blueScore ? 'text-emerald-700' : undefined}>
+                  <p className="text-lg font-black tabular-nums text-foreground">
+                    <span className={m.redScore > m.blueScore ? 'text-success' : undefined}>
                       {m.redScore}
                     </span>
-                    <span className="mx-1 text-slate-400">–</span>
-                    <span className={m.blueScore > m.redScore ? 'text-emerald-700' : undefined}>
+                    <span className="mx-1 text-muted">–</span>
+                    <span className={m.blueScore > m.redScore ? 'text-success' : undefined}>
                       {m.blueScore}
                     </span>
                   </p>
@@ -221,7 +219,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {matches.length === 0 && (
         <div className="py-12 text-center">
           <p className="mb-3 text-4xl">⚔️</p>
-          <p className="text-slate-500">{t('publicApp.competitorHome.emptyMatches')}</p>
+          <p className="text-muted">{t('publicApp.competitorHome.emptyMatches')}</p>
         </div>
       )}
     </main>

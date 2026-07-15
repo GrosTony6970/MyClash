@@ -19,7 +19,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="sticky top-0 z-10 -mx-4 bg-stone-50/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-stone-50/80 sm:mx-0 sm:rounded-md">
+      <div className="sticky top-0 z-10 -mx-4 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:mx-0 sm:rounded-md">
         <label htmlFor="participants-search" className="sr-only">
           {tr('publicApp.participants.searchLabel')}
         </label>
@@ -29,13 +29,13 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={tr('publicApp.participants.searchPlaceholder')}
-          className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 sm:max-w-md"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 sm:max-w-md"
           aria-label={tr('publicApp.participants.searchAria')}
         />
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+        <p className="rounded-xl border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
           {query.trim() === ''
             ? tr('publicApp.tournament.participants.emptyMain')
             : tr('publicApp.participants.noSearchMatch')}
@@ -47,20 +47,20 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
             {visible.map((p) => (
               <li
                 key={p.globalPersonId}
-                className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-border bg-surface p-4 shadow-sm"
               >
                 {p.personId ? (
                   <Link
                     href={`/e/${eventSlug}/people/${p.personId}`}
-                    className="text-base font-semibold text-slate-900 hover:text-red-700"
+                    className="text-base font-semibold text-foreground hover:text-accent"
                   >
                     {p.displayName}
                   </Link>
                 ) : (
-                  <span className="text-base font-semibold text-slate-900">{p.displayName}</span>
+                  <span className="text-base font-semibold text-foreground">{p.displayName}</span>
                 )}
                 {(p.clubName || p.clubAbbrev) && (
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted">
                     {p.clubAbbrev ? `${p.clubAbbrev} · ${p.clubName ?? ''}` : p.clubName}
                   </p>
                 )}
@@ -110,7 +110,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
           <div className="hidden md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-stone-200 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted">
                   <th scope="col" className="py-2 pr-4">
                     {tr('publicApp.tournament.participants.colName')}
                   </th>
@@ -130,22 +130,22 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
               </thead>
               <tbody>
                 {visible.map((p) => (
-                  <tr key={p.globalPersonId} className="border-b border-stone-100">
+                  <tr key={p.globalPersonId} className="border-b border-border">
                     <th scope="row" className="py-3 pr-4 text-left">
                       {p.personId ? (
                         <Link
                           href={`/e/${eventSlug}/people/${p.personId}`}
-                          className="font-semibold text-slate-900 hover:text-red-700"
+                          className="font-semibold text-foreground hover:text-accent"
                         >
                           {p.displayName}
                         </Link>
                       ) : (
-                        <span className="font-semibold text-slate-900">{p.displayName}</span>
+                        <span className="font-semibold text-foreground">{p.displayName}</span>
                       )}
                     </th>
-                    <td className="py-3 pr-4 text-slate-600">
+                    <td className="py-3 pr-4 text-foreground-secondary">
                       {p.clubAbbrev && (
-                        <span className="mr-1 rounded bg-stone-100 px-1.5 py-px font-mono text-[10px] text-slate-700">
+                        <span className="mr-1 rounded bg-border px-1.5 py-px font-mono text-[10px] text-foreground-secondary">
                           {p.clubAbbrev}
                         </span>
                       )}
@@ -153,7 +153,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                     </td>
                     <td className="py-3 pr-4">
                       {p.tournaments.length === 0 ? (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted">—</span>
                       ) : (
                         <ul className="flex flex-wrap gap-1">
                           {p.tournaments.map((t) => (
@@ -201,7 +201,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
         </>
       )}
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted">
         {tr('publicApp.participants.countSummary', {
           visible: visible.length,
           total: participants.length,
