@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useToast } from '@myclash/ui';
+import { DataTable, DataTableCell, DataTableHead, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import type { ReviewQueueItem } from './_types';
 import { QueueRow } from './_components/QueueRow';
@@ -248,32 +248,28 @@ export default function ReviewQueuePage() {
       {!loading && items.length === 0 ? (
         <p className="text-muted text-sm">{t('admin.reviewQueue.noPending')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colType')}</th>
-                <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colTarget')}</th>
-                <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colRequester')}</th>
-                <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colAge')}</th>
-                <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colReason')}</th>
-                <th className="py-2 pr-4 font-medium">{t('admin.reviewQueue.colStatus')}</th>
-                <th className="py-2 font-medium">{t('admin.reviewQueue.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <QueueRow
-                  key={`${item.type}-${item.id}`}
-                  item={item}
-                  busyId={busyId}
-                  onApprove={(it) => setApproveTarget(it)}
-                  onReject={(it) => setRejectTarget(it)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable className="min-w-[900px]">
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.reviewQueue.colType')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.reviewQueue.colTarget')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.reviewQueue.colRequester')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.reviewQueue.colAge')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.reviewQueue.colReason')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.reviewQueue.colStatus')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.reviewQueue.colActions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {items.map((item) => (
+              <QueueRow
+                key={`${item.type}-${item.id}`}
+                item={item}
+                busyId={busyId}
+                onApprove={(it) => setApproveTarget(it)}
+                onReject={(it) => setRejectTarget(it)}
+              />
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       {/* Approve modal */}

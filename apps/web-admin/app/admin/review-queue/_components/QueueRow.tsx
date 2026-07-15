@@ -1,7 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { SkillBadge, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
+import {
+  DataTableCell,
+  DataTableRow,
+  SkillBadge,
+  statusPillTone,
+  reviewStatusSemantic,
+} from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { t } from '@myclash/i18n';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -68,14 +74,14 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
   const isBusy = busyId === item.id;
 
   return (
-    <tr className="border-b border-border hover:bg-background align-top">
+    <DataTableRow>
       {/* Type badge */}
-      <td className="py-3 pr-4 whitespace-nowrap">
+      <DataTableCell className="whitespace-nowrap">
         <SkillBadge color={badge.color} label={badge.label} />
-      </td>
+      </DataTableCell>
 
       {/* Target */}
-      <td className="py-3 pr-4 max-w-[200px]">
+      <DataTableCell className="max-w-[200px]">
         {item.targetHref ? (
           <Link
             href={item.targetHref}
@@ -86,43 +92,43 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
         ) : (
           <span className="text-sm text-foreground-secondary break-words">{item.targetLabel}</span>
         )}
-      </td>
+      </DataTableCell>
 
       {/* Requester */}
-      <td className="py-3 pr-4 whitespace-nowrap text-sm text-foreground-secondary">
+      <DataTableCell className="whitespace-nowrap text-sm text-foreground-secondary">
         <p className="font-medium text-foreground-secondary">
           {item.requesterName ?? item.requesterEmail ?? t('admin.common.unknownUser')}
         </p>
         {item.requesterName && item.requesterEmail && (
           <p className="text-xs font-mono text-muted">{item.requesterEmail}</p>
         )}
-      </td>
+      </DataTableCell>
 
       {/* Age */}
-      <td className="py-3 pr-4 whitespace-nowrap text-sm text-muted">
+      <DataTableCell className="whitespace-nowrap text-sm text-muted">
         {relativeTime(item.createdAt)}
-      </td>
+      </DataTableCell>
 
       {/* Reason */}
-      <td className="py-3 pr-4 max-w-[180px] text-sm text-foreground-secondary">
+      <DataTableCell className="max-w-[180px] text-sm text-foreground-secondary">
         {truncatedReason ? (
           <span title={item.reason ?? undefined}>{truncatedReason}</span>
         ) : (
           <span className="text-muted">—</span>
         )}
-      </td>
+      </DataTableCell>
 
       {/* Status */}
-      <td className="py-3 pr-4 whitespace-nowrap">
+      <DataTableCell className="whitespace-nowrap">
         <span
           className={`${STATUS_PILL_BASE} ${statusPillTone(reviewStatusSemantic(item.status), 'light').className}`}
         >
           {statusLabel(item.status)}
         </span>
-      </td>
+      </DataTableCell>
 
       {/* Actions */}
-      <td className="py-3">
+      <DataTableCell>
         {item.status === 'pending' ? (
           <div className="flex gap-2">
             <button
@@ -163,7 +169,7 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
             )}
           </div>
         )}
-      </td>
-    </tr>
+      </DataTableCell>
+    </DataTableRow>
   );
 }
