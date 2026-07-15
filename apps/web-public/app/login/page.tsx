@@ -185,6 +185,14 @@ export default function PublicLoginPage() {
                 </div>
               </Link>
               <div>
+                <Image
+                  src="/brand/Login_logo.png"
+                  alt=""
+                  width={1423}
+                  height={1007}
+                  className="mx-auto mb-8 h-auto w-full max-w-md"
+                  priority
+                />
                 <h1 className="max-w-lg text-4xl font-black leading-tight">
                   {t('publicApp.login.title')}
                 </h1>
