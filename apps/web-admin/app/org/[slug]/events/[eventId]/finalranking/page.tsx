@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Final ranking — Route: /org/[slug]/events/[eventId]/finalranking
  *
@@ -23,6 +21,9 @@ import {
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+
+type Translator = (key: string, values?: Record<string, string | number>) => string;
 
 interface Tournament {
   id: string;
@@ -51,6 +52,7 @@ export default function FinalRankingPage() {
   const { slug, eventId } = params;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<string>(
@@ -158,17 +160,19 @@ export default function FinalRankingPage() {
     [bracket, poolEntries],
   );
 
-  const tournamentName = tournaments.find((t) => t.id === selectedTournament)?.name ?? 'Tournament';
+  const tournamentName =
+    tournaments.find((tour) => tour.id === selectedTournament)?.name ??
+    t('organizer.finalRanking.tournamentFallback');
   const exportRows = useMemo<ExportRow[]>(
     () =>
       ranking.map((entry) => ({
         rank: entry.place,
         fighter: entry.fighterName,
         club: entry.clubAbbrev ?? '',
-        result: resultLabel(entry, maxRound),
+        result: resultLabel(entry, maxRound, t),
         poolScore: entry.poolScore != null ? entry.poolScore.toFixed(2) : '',
       })),
-    [ranking, maxRound],
+    [ranking, maxRound, t],
   );
 
   function downloadCsv() {
@@ -189,7 +193,12 @@ export default function FinalRankingPage() {
     if (exportRows.length === 0) return;
     const w = window.open('', '_blank');
     if (!w) return;
-    w.document.write(rankingToPrintHtml(`${tournamentName} — Final ranking`, exportRows));
+    w.document.write(
+      rankingToPrintHtml(
+        t('organizer.finalRanking.printTitle', { name: tournamentName }),
+        exportRows,
+      ),
+    );
     w.document.close();
     w.focus();
     w.print();
@@ -210,16 +219,15 @@ export default function FinalRankingPage() {
               href={`/org/${slug}/events/${eventId}`}
               className="hover:text-foreground-secondary"
             >
-              Event
+              {t('organizer.finalRanking.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="font-medium text-foreground">Final ranking</span>
+            <span className="font-medium text-foreground">{t('organizer.finalRanking.title')}</span>
           </div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Final ranking</h1>
-          <p className="mt-1 text-sm text-muted">
-            Bracket placement — fighters eliminated in the same round are separated by their pool
-            score.
-          </p>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.finalRanking.title')}
+          </h1>
+          <p className="mt-1 text-sm text-muted">{t('organizer.finalRanking.subtitle')}</p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <button
@@ -228,7 +236,7 @@ export default function FinalRankingPage() {
             disabled={!canExport}
             className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Export CSV
+            {t('organizer.schedulePage.grid.exportCsv')}
           </button>
           <button
             type="button"
@@ -236,13 +244,16 @@ export default function FinalRankingPage() {
             disabled={!canExport}
             className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Print / PDF
+            {t('organizer.finalRanking.printPdf')}
           </button>
         </div>
       </div>
 
       {tournaments.length > 1 && (
-        <nav aria-label="Tournaments" className="mb-4 flex flex-wrap gap-1 border-b border-border">
+        <nav
+          aria-label={t('organizer.bracketPage.tournamentTabsLabel')}
+          className="mb-4 flex flex-wrap gap-1 border-b border-border"
+        >
           {tournaments.map((tour) => {
             const active = tour.id === selectedTournament;
             return (
@@ -267,26 +278,26 @@ export default function FinalRankingPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <p className="text-sm text-muted">{t('organizer.finalRanking.loading')}</p>
       ) : !bracket ? (
         <div className="rounded-xl border-2 border-dashed border-border py-16 text-center">
-          <p className="text-sm text-muted">No bracket for this tournament yet.</p>
+          <p className="text-sm text-muted">{t('organizer.finalRanking.noBracket')}</p>
         </div>
       ) : ranking.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-border py-16 text-center">
-          <p className="text-sm text-muted">
-            The final ranking appears once bracket matches are played.
-          </p>
+          <p className="text-sm text-muted">{t('organizer.finalRanking.emptyRanking')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-surface">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="w-16 px-4 py-2 text-center">Rank</th>
-                <th className="px-4 py-2">Fighter</th>
-                <th className="px-4 py-2">Result</th>
-                <th className="px-4 py-2 text-right">Pool score</th>
+                <th className="w-16 px-4 py-2 text-center">
+                  {t('organizer.finalRanking.colRank')}
+                </th>
+                <th className="px-4 py-2">{t('organizer.finalRanking.colFighter')}</th>
+                <th className="px-4 py-2">{t('organizer.finalRanking.colResult')}</th>
+                <th className="px-4 py-2 text-right">{t('organizer.finalRanking.colPoolScore')}</th>
               </tr>
             </thead>
             <tbody>
@@ -310,7 +321,7 @@ export default function FinalRankingPage() {
                     )}
                   </td>
                   <td className="px-4 py-2 text-foreground-secondary">
-                    {resultLabel(entry, maxRound)}
+                    {resultLabel(entry, maxRound, t)}
                   </td>
                   <td className="px-4 py-2 text-right font-mono tabular-nums text-foreground-secondary">
                     {entry.poolScore != null ? entry.poolScore.toFixed(2) : '—'}
@@ -344,28 +355,28 @@ function medalFor(place: number): string {
   return '';
 }
 
-function resultLabel(entry: FinalRankingEntry, maxRound: number): string {
+function resultLabel(entry: FinalRankingEntry, maxRound: number, t: Translator): string {
   switch (entry.resultKind) {
     case 'champion':
-      return 'Champion';
+      return t('organizer.finalRanking.resultChampion');
     case 'runnerUp':
-      return 'Runner-up';
+      return t('organizer.finalRanking.resultRunnerUp');
     case 'third':
-      return '3rd place';
+      return t('organizer.finalRanking.resultThird');
     case 'fourth':
-      return '4th place';
+      return t('organizer.finalRanking.resultFourth');
     case 'round':
-      return roundLabel(entry.eliminationRound ?? 0, maxRound);
+      return roundLabel(entry.eliminationRound ?? 0, maxRound, t);
     case 'pool':
-      return 'Pools';
+      return t('organizer.finalRanking.resultPools');
   }
 }
 
 /** Phase name for the round a fighter was eliminated in (deepest = Semi-finals). */
-function roundLabel(round: number, maxRound: number): string {
+function roundLabel(round: number, maxRound: number, t: Translator): string {
   const remaining = maxRound - round;
-  if (remaining <= 0) return 'Final';
-  if (remaining === 1) return 'Semi-finals';
-  if (remaining === 2) return 'Quarter-finals';
-  return `Round of ${1 << (remaining + 1)}`;
+  if (remaining <= 0) return t('organizer.finalRanking.roundFinal');
+  if (remaining === 1) return t('organizer.finalRanking.roundSemis');
+  if (remaining === 2) return t('organizer.finalRanking.roundQuarters');
+  return t('organizer.finalRanking.roundOfN', { n: 1 << (remaining + 1) });
 }

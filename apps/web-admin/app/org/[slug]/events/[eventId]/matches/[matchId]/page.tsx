@@ -1,5 +1,4 @@
 'use client';
-/* eslint-disable myclash/no-literal-string -- existing match detail page has not been i18n-baselined yet */
 
 /**
  * Match detail + exchange editor — T-705
@@ -108,21 +107,37 @@ interface PendingReviewResponse {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function exchangeLabel(ex: Exchange): string {
+type Translator = (key: string, values?: Record<string, string | number>) => string;
+
+function exchangeLabel(ex: Exchange, t: Translator): string {
+  const color =
+    ex.firstStrikerColor === 'red'
+      ? t('organizer.matchDetail.red')
+      : ex.firstStrikerColor === 'blue'
+        ? t('organizer.matchDetail.blue')
+        : '?';
   switch (ex.type) {
     case 'clean':
-      return `Clean hit — ${ex.firstStrikerColor ?? '?'} +${ex.firstStrikeValue ?? 0}`;
+      return t('organizer.matchDetail.exClean', { color, value: ex.firstStrikeValue ?? 0 });
     case 'afterblow': {
       // Show the NETTED score impact (0 for the defender in deductive mode), not
       // the raw button values — the raw afterblow stays in the data + exports.
       const strikerDelta = ex.firstStrikerColor === 'red' ? ex.redScoreDelta : ex.blueScoreDelta;
       const defenderDelta = ex.firstStrikerColor === 'red' ? ex.blueScoreDelta : ex.redScoreDelta;
-      return `Afterblow — ${ex.firstStrikerColor ?? '?'} +${strikerDelta} / afterblow +${defenderDelta}`;
+      return t('organizer.matchDetail.exAfterblow', {
+        color,
+        striker: strikerDelta,
+        defender: defenderDelta,
+      });
     }
     case 'double':
-      return 'Double';
+      return t('organizer.matchDetail.exDouble');
     case 'no_exchange':
-      return `No exchange${ex.noExchangeReason ? ` (${ex.noExchangeReason.replace('_', ' ')})` : ''}`;
+      return ex.noExchangeReason
+        ? t('organizer.matchDetail.exNoExchangeWithReason', {
+            reason: ex.noExchangeReason.replace('_', ' '),
+          })
+        : t('organizer.matchDetail.exNoExchange');
     default:
       return ex.type;
   }
@@ -226,7 +241,9 @@ export default function MatchDetailPage() {
 
       const body = (await res.json()) as PendingReviewResponse;
       if (body.pendingReview) {
-        setPendingNotice(`Correction request ${body.requestId ?? ''} submitted for review.`);
+        setPendingNotice(
+          t('organizer.matchDetail.correctionSubmitted', { id: body.requestId ?? '' }),
+        );
       } else {
         setPendingNotice(null);
       }
@@ -245,7 +262,7 @@ export default function MatchDetailPage() {
   async function handleRevert(exchangeId: string) {
     if (
       !(await confirm({
-        title: 'Restore this exchange? The score will be recomputed.',
+        title: t('organizer.matchDetail.restoreConfirm'),
         danger: true,
       }))
     )
@@ -259,7 +276,9 @@ export default function MatchDetailPage() {
     if (res.ok) {
       const body = (await res.json()) as PendingReviewResponse;
       if (body.pendingReview) {
-        setPendingNotice(`Correction request ${body.requestId ?? ''} submitted for review.`);
+        setPendingNotice(
+          t('organizer.matchDetail.correctionSubmitted', { id: body.requestId ?? '' }),
+        );
       } else {
         setPendingNotice(null);
       }
@@ -291,8 +310,7 @@ export default function MatchDetailPage() {
     if (!match) return;
     if (
       !(await confirm({
-        title:
-          'Re-open this match? The lice will be able to score again. The current scores and exchanges are preserved.',
+        title: t('organizer.matchDetail.reopenConfirm'),
         danger: true,
       }))
     ) {
@@ -360,11 +378,13 @@ export default function MatchDetailPage() {
         </Link>
         <span>/</span>
         <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          Event
+          {t('organizer.matchDetail.breadcrumbEvent')}
         </Link>
         <span>/</span>
         <span className="text-foreground font-medium">
-          {summary?.roundCode ?? match?.matchNumberLabel ?? 'Match'}
+          {summary?.roundCode ??
+            match?.matchNumberLabel ??
+            t('organizer.matchDetail.breadcrumbMatch')}
         </span>
       </div>
 
@@ -377,14 +397,22 @@ export default function MatchDetailPage() {
           <div>
             <h1 className="font-display font-bold text-2xl sm:text-3xl">
               {summary
-                ? `${summary.redName || '?'} vs ${summary.blueName || '?'}`
-                : `${match?.redFighterName ?? '?'} vs ${match?.blueFighterName ?? '?'}`}
+                ? t('organizer.schedulePage.grid.versus', {
+                    red: summary.redName || '?',
+                    blue: summary.blueName || '?',
+                  })
+                : t('organizer.schedulePage.grid.versus', {
+                    red: match?.redFighterName ?? '?',
+                    blue: match?.blueFighterName ?? '?',
+                  })}
             </h1>
             <p className="text-muted text-sm mt-0.5 font-mono">
               {summary?.roundCode ?? match?.matchNumberLabel ?? ''}
             </p>
             {match?.lockedAt && (
-              <p className="mt-1 text-sm font-medium text-warning">Locked for staff scoring</p>
+              <p className="mt-1 text-sm font-medium text-warning">
+                {t('organizer.matchDetail.lockedBanner')}
+              </p>
             )}
           </div>
           <div className="text-right">
@@ -395,7 +423,10 @@ export default function MatchDetailPage() {
             </p>
             {summary?.bestOf != null && summary.bestOf > 1 && (
               <p className="mt-0.5 text-xs font-semibold text-muted tabular-nums">
-                {`Best of ${summary.bestOf} · Round ${summary.currentRound ?? 1} · Rounds `}
+                {t('organizer.matchDetail.bestOfLine', {
+                  bestOf: summary.bestOf,
+                  round: summary.currentRound ?? 1,
+                })}{' '}
                 <span className="text-red-600">{summary.redRoundWins ?? 0}</span>
                 <span className="mx-1">–</span>
                 <span className="text-blue-600">{summary.blueRoundWins ?? 0}</span>
@@ -407,7 +438,9 @@ export default function MatchDetailPage() {
                 onClick={() => void handleLockToggle()}
                 className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-border"
               >
-                {match?.lockedAt ? 'Unlock match' : 'Lock match'}
+                {match?.lockedAt
+                  ? t('organizer.matchDetail.unlockMatch')
+                  : t('organizer.matchDetail.lockMatch')}
               </button>
               {/* Re-open lets the organizer reverse a mistaken End match
                   from the scoring app. Only relevant when the match is
@@ -420,7 +453,7 @@ export default function MatchDetailPage() {
                   onClick={() => void handleReopen()}
                   className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning hover:border-warning hover:bg-warning/20"
                 >
-                  ↻ Re-open match
+                  {t('organizer.matchDetail.reopenMatch')}
                 </button>
               )}
             </div>
@@ -437,7 +470,7 @@ export default function MatchDetailPage() {
       {match && (
         <section className="mb-6 rounded-xl border border-danger/30 bg-danger/10 p-4">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-danger">
-            Record forfeit
+            {t('organizer.bracketPage.forfeitTitle')}
           </h2>
           <div className="grid gap-3 md:grid-cols-4">
             <select
@@ -445,9 +478,13 @@ export default function MatchDetailPage() {
               onChange={(event) => setForfeitSide(event.target.value as 'red' | 'blue')}
               className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
-              <option value="red">{match.redFighterName ?? match.red_fighter_name ?? 'Red'}</option>
+              <option value="red">
+                {match.redFighterName ?? match.red_fighter_name ?? t('organizer.matchDetail.red')}
+              </option>
               <option value="blue">
-                {match.blueFighterName ?? match.blue_fighter_name ?? 'Blue'}
+                {match.blueFighterName ??
+                  match.blue_fighter_name ??
+                  t('organizer.matchDetail.blue')}
               </option>
             </select>
             <select
@@ -455,11 +492,17 @@ export default function MatchDetailPage() {
               onChange={(event) => setForfeitReason(event.target.value)}
               className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
-              <option value="injury">Injury</option>
-              <option value="voluntary">Voluntary</option>
-              <option value="black_card_1">Black card</option>
-              <option value="black_card_2">Second black card</option>
-              <option value="conduct_violation">Conduct violation</option>
+              <option value="injury">{t('organizer.bracketPage.forfeitReasonInjury')}</option>
+              <option value="voluntary">{t('organizer.bracketPage.forfeitReasonVoluntary')}</option>
+              <option value="black_card_1">
+                {t('organizer.bracketPage.forfeitReasonBlackCard1')}
+              </option>
+              <option value="black_card_2">
+                {t('organizer.bracketPage.forfeitReasonBlackCard2')}
+              </option>
+              <option value="conduct_violation">
+                {t('organizer.bracketPage.forfeitReasonConduct')}
+              </option>
             </select>
             {['injury', 'voluntary', 'black_card_1'].includes(forfeitReason) && (
               <label className="flex items-center gap-2 text-sm text-danger">
@@ -468,7 +511,7 @@ export default function MatchDetailPage() {
                   checked={forfeitCanContinue}
                   onChange={(event) => setForfeitCanContinue(event.target.checked)}
                 />
-                Can continue
+                {t('organizer.matchDetail.canContinue')}
               </label>
             )}
             <button
@@ -477,7 +520,9 @@ export default function MatchDetailPage() {
               disabled={forfeitSaving}
               className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground disabled:opacity-50"
             >
-              {forfeitSaving ? 'Recording...' : 'Record forfeit'}
+              {forfeitSaving
+                ? t('organizer.matchDetail.recording')
+                : t('organizer.bracketPage.forfeitTitle')}
             </button>
           </div>
         </section>
@@ -487,11 +532,11 @@ export default function MatchDetailPage() {
         {/* ── Exchange list ── */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-            Exchanges ({exchanges.length})
+            {t('organizer.matchDetail.exchangesHeading', { count: exchanges.length })}
           </h2>
 
           {exchanges.length === 0 ? (
-            <p className="text-muted text-sm">No exchanges recorded.</p>
+            <p className="text-muted text-sm">{t('organizer.matchDetail.noExchanges')}</p>
           ) : (
             <div className="flex flex-col gap-2">
               {exchanges.map((ex) => (
@@ -514,26 +559,36 @@ export default function MatchDetailPage() {
                             ex.voided ? 'line-through text-muted' : 'text-foreground',
                           ].join(' ')}
                         >
-                          {exchangeLabel(ex)}
+                          {exchangeLabel(ex, t)}
                         </span>
                         {ex.voided && (
                           <span className="text-xs bg-danger/10 text-danger px-1.5 py-0.5 rounded font-medium">
-                            VOIDED
+                            {t('organizer.matchDetail.voidedBadge')}
                           </span>
                         )}
                       </div>
                       {ex.voided && ex.voidedReason && (
-                        <p className="text-xs text-muted mt-0.5 ml-8">Reason: {ex.voidedReason}</p>
+                        <p className="text-xs text-muted mt-0.5 ml-8">
+                          {t('organizer.matchDetail.voidReasonLine', { reason: ex.voidedReason })}
+                        </p>
                       )}
                       <p className="text-xs text-muted mt-0.5 ml-8">
                         {new Date(ex.occurredAt).toLocaleTimeString('fr-FR')}
                         {(ex.redScoreDelta !== 0 || ex.blueScoreDelta !== 0) && (
                           <span className="ml-2">
                             {ex.redScoreDelta > 0 && (
-                              <span className="text-red-500">R+{ex.redScoreDelta} </span>
+                              <span className="text-red-500">
+                                {t('organizer.matchDetail.redDelta', {
+                                  delta: ex.redScoreDelta,
+                                })}{' '}
+                              </span>
                             )}
                             {ex.blueScoreDelta > 0 && (
-                              <span className="text-blue-500">B+{ex.blueScoreDelta}</span>
+                              <span className="text-blue-500">
+                                {t('organizer.matchDetail.blueDelta', {
+                                  delta: ex.blueScoreDelta,
+                                })}
+                              </span>
                             )}
                           </span>
                         )}
@@ -551,14 +606,14 @@ export default function MatchDetailPage() {
                           }}
                           className="text-xs text-danger hover:underline"
                         >
-                          Void
+                          {t('organizer.matchDetail.voidAction')}
                         </button>
                       ) : (
                         <button
                           onClick={() => void handleRevert(ex.id)}
                           className="text-xs text-success hover:underline"
                         >
-                          Restore
+                          {t('organizer.matchDetail.restoreAction')}
                         </button>
                       )}
                     </div>
@@ -572,11 +627,11 @@ export default function MatchDetailPage() {
         {/* ── Audit log ── */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-            Audit log
+            {t('organizer.matchDetail.auditHeading')}
           </h2>
 
           {auditLog.length === 0 ? (
-            <p className="text-muted text-sm">No audit entries yet.</p>
+            <p className="text-muted text-sm">{t('organizer.matchDetail.noAudit')}</p>
           ) : (
             <div className="flex flex-col gap-2">
               {auditLog.map((entry) => (
@@ -590,7 +645,7 @@ export default function MatchDetailPage() {
                     </span>
                   </div>
                   <p className="text-muted">
-                    by{' '}
+                    {t('organizer.matchDetail.byLabel')}{' '}
                     <span className="font-medium text-foreground-secondary">
                       {entry.actorDisplayName ?? '—'}
                     </span>
@@ -616,19 +671,19 @@ export default function MatchDetailPage() {
         <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
             <h2 className="font-display font-semibold text-lg sm:text-xl mb-1">
-              Void exchange #{voidTarget.sequence}
+              {t('organizer.matchDetail.voidModalTitle', { seq: voidTarget.sequence })}
             </h2>
-            <p className="text-sm text-muted mb-4">{exchangeLabel(voidTarget)}</p>
+            <p className="text-sm text-muted mb-4">{exchangeLabel(voidTarget, t)}</p>
 
             <div>
               <label className="block text-sm font-medium text-foreground-secondary mb-1">
-                Reason * (required)
+                {t('organizer.matchDetail.voidReasonLabel')}
               </label>
               <textarea
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
                 rows={3}
-                placeholder="e.g. Scorekeeper entry error, referee correction…"
+                placeholder={t('organizer.matchDetail.voidReasonPlaceholder')}
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
               />
             </div>
@@ -644,14 +699,16 @@ export default function MatchDetailPage() {
                 onClick={() => setVoidTarget(null)}
                 className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
               >
-                Cancel
+                {t('organizer.matchDetail.cancel')}
               </button>
               <button
                 onClick={() => void handleVoid()}
                 disabled={voidSaving || !voidReason.trim()}
                 className="bg-danger hover:bg-danger-hover disabled:opacity-50 text-danger-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
-                {voidSaving ? 'Voiding…' : 'Void exchange'}
+                {voidSaving
+                  ? t('organizer.matchDetail.voiding')
+                  : t('organizer.matchDetail.voidExchange')}
               </button>
             </div>
           </div>
