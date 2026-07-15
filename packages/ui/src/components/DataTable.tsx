@@ -1,25 +1,24 @@
 import * as React from 'react';
 
 /**
- * DataTable — light-mode tables for admin.myclash.fr.
+ * DataTable — the shared admin list table (Tournament Manual aesthetic).
  *
- * Tournament Manual aesthetic:
- *   • Plain `border-b border-slate-200` under the header — no header fill.
- *   • Hairline `border-b border-slate-100` row separators.
- *   • Hover lift on rows: `hover:bg-slate-50/60` with `transition-colors`.
- *   • Header text in small caps, slate-500, tight tracking.
- *   • Body text in slate-700.
+ *   • Plain `border-b border-border` under the header — no header fill.
+ *   • Hairline row separators, hover lift (`hover:bg-background`).
+ *   • Header text in small caps, muted, tight tracking.
+ *   • Body text in foreground-secondary.
  *   • Wrapped in `overflow-x-auto` for mobile.
  *
- * Compose with <DataTableHead>, <DataTableRow>, <DataTableCell>.
- * Codes/slugs go through <code className="font-mono"> inside a cell.
+ * Fully tokenized (surface/border/muted/foreground-secondary) so it themes
+ * correctly. Compose with <DataTableHead>, <DataTableRow>, <DataTableCell>.
+ * Codes/slugs go through a `mono` cell.
  */
 export interface DataTableProps extends React.TableHTMLAttributes<HTMLTableElement> {
   children: React.ReactNode;
 }
 
 export const DataTable: React.FC<DataTableProps> = ({ children, className = '', ...props }) => (
-  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+  <div className="overflow-x-auto rounded-lg border border-border bg-surface">
     <table className={['w-full border-collapse text-sm', className].join(' ')} {...props}>
       {children}
     </table>
@@ -33,7 +32,7 @@ export const DataTableHead: React.FC<{ children: React.ReactNode; className?: st
   <thead>
     <tr
       className={[
-        'border-b border-slate-200 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500',
+        'border-b border-border text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-muted',
         className,
       ].join(' ')}
     >
@@ -53,7 +52,7 @@ export const DataTableRow: React.FC<DataTableRowProps> = ({
 }) => (
   <tr
     className={[
-      'border-b border-slate-100 transition-colors last:border-b-0 hover:bg-slate-50/60',
+      'border-b border-border/60 transition-colors last:border-b-0 hover:bg-background',
       className,
     ].join(' ')}
     {...props}
@@ -77,11 +76,13 @@ export const DataTableCell: React.FC<DataTableCellProps> = ({
   ...props
 }) => {
   const baseClasses =
-    as === 'th' ? 'px-5 py-3 font-semibold text-slate-500' : 'px-5 py-4 text-slate-700 align-top';
+    as === 'th'
+      ? 'px-5 py-3 font-semibold text-muted'
+      : 'px-5 py-4 align-top text-foreground-secondary';
   const Tag = as;
   return (
     <Tag
-      className={[baseClasses, mono ? 'font-mono text-xs text-slate-500' : '', className].join(' ')}
+      className={[baseClasses, mono ? 'font-mono text-xs text-muted' : '', className].join(' ')}
       {...props}
     >
       {children}
