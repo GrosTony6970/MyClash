@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { defaultLocale, t } from '@myclash/i18n';
 import { formatCountryName } from '@myclash/ui';
+import { useI18n } from '@/i18n/I18nProvider';
 import { partitionAndFilterEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
 import { formatDateRange } from './format-date-range';
@@ -132,9 +133,10 @@ function SectionHeader({ id, title, count }: { id: string; title: string; count:
 }
 
 function OrganiserEyebrow({ event }: { event: PublicEvent }) {
+  const { locale } = useI18n();
   const orgName = event.organizations?.name;
   const orgLogo = event.organizations?.logo_url;
-  const dateRange = formatDateRange(event);
+  const dateRange = formatDateRange(event, locale);
   if (!orgName && !orgLogo && !dateRange) return null;
   return (
     <div className="flex items-center gap-2 text-xs text-foreground-secondary">

@@ -5,6 +5,7 @@ import nextPlugin from '@next/eslint-plugin-next';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
+import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -20,6 +21,7 @@ export default tseslint.config(
       myclash: {
         rules: {
           'no-literal-string': noLiteralStringRule,
+          'no-literal-locale': noLiteralLocaleRule,
         },
       },
     },
@@ -37,6 +39,7 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-element-interactions': 'off',
       'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
+      'myclash/no-literal-locale': 'error',
     },
     languageOptions: {
       parserOptions: {

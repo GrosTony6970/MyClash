@@ -14,7 +14,8 @@
  */
 
 import { SkillBadge, tintTextClassFor } from '@myclash/ui';
-import { t } from '@myclash/i18n';
+import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
 import { groupPoolsByStart } from './pool-sections';
 import { refereeRoleLabel } from './referee-display';
 
@@ -80,6 +81,8 @@ interface Props {
    * original 1/2-column layout.
    */
   wide?: boolean;
+  /** Active UI locale — drives the section date/time + labels. */
+  locale: Locale;
 }
 
 function statusDot(status: string): string {
@@ -94,18 +97,20 @@ function statusLabel(status: string): string {
   return status;
 }
 
-// Day + time for the section header. fr-FR to match the public site's
-// other schedule surfaces (my-schedule) — 24h times, French weekday/month.
-function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
+// Day + time for the section header, in the active UI locale (24h times).
+function formatDay(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleDateString(localeToBcp47(locale), {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+function formatTime(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleTimeString(localeToBcp47(locale), {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export function PoolsCompositionView({
@@ -116,7 +121,9 @@ export function PoolsCompositionView({
   ringPoolIds,
   refereeRowKeys,
   wide = false,
+  locale,
 }: Props) {
+  const t = createTranslator(getMessages(locale));
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-foreground';
   const ringIds = new Set(ringPoolIds ?? []);
   const refRowKeys = new Set(refereeRowKeys ?? []);
@@ -142,7 +149,7 @@ export function PoolsCompositionView({
           <header className="flex items-center gap-3">
             <h3 className={`text-xs font-semibold uppercase tracking-wider ${titleClass}`}>
               {section.startAt
-                ? `${formatDay(section.startAt)} · ${formatTime(section.startAt)}`
+                ? `${formatDay(section.startAt, locale)} · ${formatTime(section.startAt, locale)}`
                 : t('publicApp.tournament.pools.notScheduled')}
             </h3>
             <span aria-hidden="true" className="h-px flex-1 bg-border" />

@@ -61,11 +61,12 @@ export function detectConflicts(matches: ScheduleMatchForConflict[]): Conflict[]
           matchA: a.matchNumberLabel,
           matchB: b.matchNumberLabel,
           personName: nameByRegistration.get(shared[0]!) ?? 'Unknown fighter',
-          time: new Date(a.scheduledAt!).toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          }),
+          // Locale-free 24h HH:MM (identical in every locale) so this pure util
+          // needn't take a locale through its ~17 call sites.
+          time: (() => {
+            const d = new Date(a.scheduledAt!);
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          })(),
         });
       }
     }

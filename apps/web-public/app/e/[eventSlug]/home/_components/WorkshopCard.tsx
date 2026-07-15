@@ -1,24 +1,28 @@
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
-import { formatInZone } from '@myclash/time';
+import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { accentClassFor } from '@myclash/ui';
 import type { PublicWorkshop } from '../_lib/public-event-data';
 
 /**
  * One workshop card — shared by the event home and the /workshops list. Shows
- * the session start AND end time.
+ * the session start AND end time. Server component; takes the resolved locale.
  */
 export function WorkshopCard({
   workshop: w,
   eventSlug,
   tz,
+  locale,
   className,
 }: {
   workshop: PublicWorkshop;
   eventSlug: string;
   tz: string;
+  locale: Locale;
   className?: string;
 }) {
+  const t = createTranslator(getMessages(locale));
+  const tag = localeToBcp47(locale);
   // The sessions embed is unordered — pick the earliest started one (mirrors
   // buildWorkshopEntries) rather than relying on array position.
   const session =
@@ -75,16 +79,21 @@ export function WorkshopCard({
       <div className="mt-3 flex items-center justify-between text-xs">
         <span className="text-muted">
           {session?.startsAt &&
-            formatInZone(session.startsAt, tz, {
-              weekday: 'short',
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            formatInZone(
+              session.startsAt,
+              tz,
+              {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              },
+              tag,
+            )}
           {session?.startsAt &&
             session.endsAt &&
-            ` – ${formatInZone(session.endsAt, tz, { hour: '2-digit', minute: '2-digit' })}`}
+            ` – ${formatInZone(session.endsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}`}
         </span>
         <span className="font-semibold text-accent group-hover:text-accent-hover">→</span>
       </div>

@@ -10,6 +10,7 @@ import { t as tr } from '@myclash/i18n';
 import { getApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
+import { resolveServerLocale } from '@/i18n/server-locale';
 import { loadTournamentSchedule } from './_lib/schedule-grid-data';
 import { TournamentScheduleGrid } from './_components/TournamentScheduleGrid';
 
@@ -25,6 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function TournamentSchedulePage({ params }: Props) {
   const { eventSlug } = await params;
   const apiUrl = getApiUrl();
+  const locale = await resolveServerLocale();
   const [event, schedule] = await Promise.all([
     fetchEventInfo(eventSlug, apiUrl),
     loadTournamentSchedule(eventSlug, apiUrl),
@@ -37,7 +39,7 @@ export default async function TournamentSchedulePage({ params }: Props) {
         label={tr('publicApp.eventHome.backToHome')}
         className="mb-1"
       />
-      {event && <EventHeader event={event} />}
+      {event && <EventHeader event={event} locale={locale} />}
       <section>
         <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.schedule.viewTournamentSchedule')}

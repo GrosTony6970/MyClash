@@ -1,24 +1,28 @@
 import Link from 'next/link';
-import { t as tr } from '@myclash/i18n';
-import { formatInZone } from '@myclash/time';
+import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { StatusBadge, accentClassFor, tournamentStatusSemantic } from '@myclash/ui';
 import { type Tournament } from '../_lib/public-event-data';
 
 /**
  * One tournament card — shared by the event home and the /tournaments full list.
- * Shows the first-pool start date+time when scheduled.
+ * Shows the first-pool start date+time when scheduled. Server component rendered
+ * in server contexts; takes the resolved locale as a prop.
  */
 export function TournamentCard({
   tournament: t,
   eventSlug,
   tz,
+  locale,
   className,
 }: {
   tournament: Tournament;
   eventSlug: string;
   tz: string;
+  locale: Locale;
   className?: string;
 }) {
+  const tr = createTranslator(getMessages(locale));
   return (
     <Link
       href={`/e/${eventSlug}/t/${encodeURIComponent(t.slug)}`}
@@ -49,13 +53,18 @@ export function TournamentCard({
             <span className="font-medium text-foreground-secondary">
               {tr('publicApp.eventHome.tournament.firstPool')}:
             </span>{' '}
-            {formatInZone(t.scheduledStart, tz, {
-              weekday: 'short',
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {formatInZone(
+              t.scheduledStart,
+              tz,
+              {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              },
+              localeToBcp47(locale),
+            )}
           </p>
         )}
       </div>

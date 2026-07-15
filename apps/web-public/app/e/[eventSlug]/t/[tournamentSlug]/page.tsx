@@ -13,6 +13,7 @@
 
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
+import { resolveServerLocale } from '@/i18n/server-locale';
 import { BackLink } from '@/components/BackLink';
 import { MedalPodium } from '@myclash/ui';
 import { t } from '@myclash/i18n';
@@ -97,6 +98,7 @@ async function fetchTournamentData(
 export default async function TournamentPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getApiUrl();
+  const locale = await resolveServerLocale();
 
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
 
@@ -294,6 +296,7 @@ export default async function TournamentPage({ params }: Props) {
                 }))}
                 accentColor={accentColor}
                 colorToken={tournamentColor}
+                locale={locale}
               />
             ),
           },

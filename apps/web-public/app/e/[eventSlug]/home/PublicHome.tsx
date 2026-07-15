@@ -8,9 +8,10 @@
  */
 
 import Link from 'next/link';
-import { t as tr } from '@myclash/i18n';
-import { formatInZone } from '@myclash/time';
+import { createTranslator, getMessages } from '@myclash/i18n';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { BackLink } from '@/components/BackLink';
+import { resolveServerLocale } from '@/i18n/server-locale';
 import { EventBackLink } from './_components/EventBackLink';
 import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
 import { TournamentCard } from './_components/TournamentCard';
@@ -39,6 +40,9 @@ const CARD_SCROLL_2 =
 const SCROLL_ITEM = 'min-w-[80%] shrink-0 snap-start sm:min-w-0';
 
 export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: Props) {
+  const locale = await resolveServerLocale();
+  const tr = createTranslator(getMessages(locale));
+  const tag = localeToBcp47(locale);
   const event = await fetchEventInfo(eventSlug, apiUrl);
   const [highlights, tournaments, participantsCounts, venues, workshops] = await Promise.all([
     fetchHighlights(eventSlug, apiUrl),
@@ -88,7 +92,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
         <EventBackLink />
       )}
 
-      {event && <EventHeader event={event} />}
+      {event && <EventHeader event={event} locale={locale} />}
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
@@ -149,6 +153,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                 tournament={t}
                 eventSlug={eventSlug}
                 tz={tz}
+                locale={locale}
                 className={SCROLL_ITEM}
               />
             ))}
@@ -178,6 +183,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                 workshop={w}
                 eventSlug={eventSlug}
                 tz={tz}
+                locale={locale}
                 className={SCROLL_ITEM}
               />
             ))}
@@ -203,7 +209,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {firstPoolStart
-                      ? `${tr('publicApp.eventHome.tournament.firstPool')}: ${formatInZone(firstPoolStart, tz, dateTimeFmt)}`
+                      ? `${tr('publicApp.eventHome.tournament.firstPool')}: ${formatInZone(firstPoolStart, tz, dateTimeFmt, tag)}`
                       : tr('publicApp.eventHome.schedule.notScheduled')}
                   </p>
                 </div>
@@ -224,7 +230,7 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {wsFirstStart
-                      ? `${formatInZone(wsFirstStart, tz, dateTimeFmt)}${wsLastEnd ? ` → ${formatInZone(wsLastEnd, tz, dateTimeFmt)}` : ''}`
+                      ? `${formatInZone(wsFirstStart, tz, dateTimeFmt, tag)}${wsLastEnd ? ` → ${formatInZone(wsLastEnd, tz, dateTimeFmt, tag)}` : ''}`
                       : tr('publicApp.eventHome.schedule.notScheduled')}
                   </p>
                 </div>
@@ -364,11 +370,16 @@ export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: P
                   </div>
                   {m.scheduledAt && (
                     <span className="rounded-md bg-border px-2 py-1 font-mono text-xs text-foreground-secondary">
-                      {formatInZone(m.scheduledAt, tz, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })}
+                      {formatInZone(
+                        m.scheduledAt,
+                        tz,
+                        {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        },
+                        tag,
+                      )}
                     </span>
                   )}
                 </div>

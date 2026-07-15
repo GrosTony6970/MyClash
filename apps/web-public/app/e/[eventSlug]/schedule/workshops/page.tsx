@@ -8,6 +8,7 @@ import { t as tr } from '@myclash/i18n';
 import { getApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
+import { resolveServerLocale } from '@/i18n/server-locale';
 import { fetchWorkshops } from '../../home/_lib/public-event-data';
 import { buildWorkshopEntries } from '../../home/_lib/schedule-entries';
 import { ScheduleAgenda } from '../../home/_components/ScheduleAgenda';
@@ -24,6 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function WorkshopSchedulePage({ params }: Props) {
   const { eventSlug } = await params;
   const apiUrl = getApiUrl();
+  const locale = await resolveServerLocale();
   const event = await fetchEventInfo(eventSlug, apiUrl);
   const workshops = await fetchWorkshops(eventSlug, apiUrl);
   const entries = buildWorkshopEntries(workshops, eventSlug);
@@ -36,7 +38,7 @@ export default async function WorkshopSchedulePage({ params }: Props) {
         label={tr('publicApp.eventHome.backToHome')}
         className="mb-1"
       />
-      {event && <EventHeader event={event} />}
+      {event && <EventHeader event={event} locale={locale} />}
       <section>
         <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.schedule.viewWorkshopSchedule')}
@@ -44,6 +46,7 @@ export default async function WorkshopSchedulePage({ params }: Props) {
         <ScheduleAgenda
           entries={entries}
           tz={tz}
+          locale={locale}
           emptyLabel={tr('publicApp.eventHome.schedule.notScheduled')}
         />
       </section>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { formatInZone } from '@myclash/time';
+import { type Locale } from '@myclash/i18n';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { accentClassFor } from '@myclash/ui';
 import { groupByDay, type ScheduleEntry } from '../_lib/schedule-entries';
 
@@ -10,12 +11,15 @@ import { groupByDay, type ScheduleEntry } from '../_lib/schedule-entries';
 export function ScheduleAgenda({
   entries,
   tz,
+  locale,
   emptyLabel,
 }: {
   entries: ScheduleEntry[];
   tz: string;
+  locale: Locale;
   emptyLabel: string;
 }) {
+  const tag = localeToBcp47(locale);
   const days = groupByDay(entries, tz);
   if (days.length === 0) {
     return <p className="text-sm text-muted">{emptyLabel}</p>;
@@ -25,7 +29,12 @@ export function ScheduleAgenda({
       {days.map((day) => (
         <div key={day.dayKey}>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-            {formatInZone(day.repStart, tz, { weekday: 'long', day: 'numeric', month: 'long' })}
+            {formatInZone(
+              day.repStart,
+              tz,
+              { weekday: 'long', day: 'numeric', month: 'long' },
+              tag,
+            )}
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {day.entries.map((entry) => (
@@ -40,9 +49,9 @@ export function ScheduleAgenda({
                 />
                 <div className="min-w-0 flex-1">
                   <p className="font-mono text-xs font-semibold text-foreground-secondary">
-                    {formatInZone(entry.startsAt, tz, { hour: '2-digit', minute: '2-digit' })}
+                    {formatInZone(entry.startsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}
                     {entry.endsAt &&
-                      `–${formatInZone(entry.endsAt, tz, { hour: '2-digit', minute: '2-digit' })}`}
+                      `–${formatInZone(entry.endsAt, tz, { hour: '2-digit', minute: '2-digit' }, tag)}`}
                   </p>
                   <p className="truncate font-display text-sm font-semibold text-foreground">
                     {entry.title}

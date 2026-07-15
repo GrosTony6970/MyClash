@@ -9,7 +9,8 @@
  * Presentational + a colocated `fetchEventInfo` loader. No hooks, so it renders
  * in both server (PublicHome) and client (workshop detail) components.
  */
-import { defaultLocale, t } from '@myclash/i18n';
+import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
 
 export interface EventInfo {
@@ -28,23 +29,27 @@ export interface EventInfo {
   organizationLogoUrl: string | null;
 }
 
-function formatEventPlace(event: Pick<EventInfo, 'city' | 'country'>): string | null {
-  const countryName = formatCountryName(event.country, defaultLocale);
+function formatEventPlace(
+  event: Pick<EventInfo, 'city' | 'country'>,
+  locale: Locale,
+): string | null {
+  const countryName = formatCountryName(event.country, locale);
   const parts = [event.city, countryName].filter((v): v is string => Boolean(v));
   return parts.length === 0 ? null : parts.join(', ');
 }
 
-function formatDateRange(start: string, end: string): string {
+function formatDateRange(start: string, end: string, locale: Locale): string {
   const s = new Date(start);
   const e = new Date(end);
+  const tag = localeToBcp47(locale);
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
   if (s.getFullYear() !== e.getFullYear()) {
-    return `${s.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })} – ${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
+    return `${s.toLocaleDateString(tag, { ...opts, year: 'numeric' })} – ${e.toLocaleDateString(tag, { ...opts, year: 'numeric' })}`;
   }
   if (s.getMonth() !== e.getMonth()) {
-    return `${s.toLocaleDateString('fr-FR', opts)} – ${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
+    return `${s.toLocaleDateString(tag, opts)} – ${e.toLocaleDateString(tag, { ...opts, year: 'numeric' })}`;
   }
-  return `${s.getDate()}–${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
+  return `${s.getDate()}–${e.toLocaleDateString(tag, { ...opts, year: 'numeric' })}`;
 }
 
 export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventInfo | null> {
@@ -89,8 +94,12 @@ export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise
   }
 }
 
-export function EventHeader({ event }: { event: EventInfo }) {
-  const place = formatEventPlace(event);
+export function EventHeader({ event, locale }: { event: EventInfo; locale: Locale }) {
+  // Pure translator from the passed locale — EventHeader renders in both server
+  // (event pages) and client (workshop detail) contexts, so it can use neither
+  // the async server `t` nor the useI18n() hook.
+  const t = createTranslator(getMessages(locale));
+  const place = formatEventPlace(event, locale);
   return (
     <>
       {event.heroImageUrl && (
@@ -123,7 +132,7 @@ export function EventHeader({ event }: { event: EventInfo }) {
             )}
             {place ? <p className="text-sm text-muted">{place}</p> : null}
             <p className="mt-0.5 text-sm text-muted">
-              {formatDateRange(event.startDate, event.endDate)}
+              {formatDateRange(event.startDate, event.endDate, locale)}
             </p>
 
             {event.status === 'running' && (

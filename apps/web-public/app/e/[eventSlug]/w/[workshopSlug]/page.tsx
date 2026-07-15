@@ -198,7 +198,7 @@ export default function WorkshopDetailPage() {
       </div>
 
       {/* Shared event identity band — matches the event home page. */}
-      {eventInfo && <EventHeader event={eventInfo} />}
+      {eventInfo && <EventHeader event={eventInfo} locale={locale} />}
 
       {/* Workshop content — readable column with a left color band when set. */}
       <section className={`relative max-w-3xl ${workshop.color ? 'pl-4' : ''}`}>

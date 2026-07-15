@@ -7,7 +7,9 @@
 
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
 import { EventBackLink } from './_components/EventBackLink';
+import { resolveServerLocale } from '@/i18n/server-locale';
 
 interface Match {
   id: string;
@@ -61,6 +63,7 @@ async function fetchEventBranding(
 }
 
 export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
+  const tag = localeToBcp47(await resolveServerLocale());
   const [matches, branding] = await Promise.all([
     fetchMyMatches(eventSlug, apiUrl),
     fetchEventBranding(eventSlug, apiUrl),
@@ -108,7 +111,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
             </p>
             {nextMatch.scheduledAt && (
               <p className="mt-1 text-sm text-muted">
-                {new Date(nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
+                {new Date(nextMatch.scheduledAt).toLocaleTimeString(tag, {
                   hour: '2-digit',
                   minute: '2-digit',
                   hour12: false,
@@ -163,7 +166,7 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
                   </div>
                   {m.scheduledAt && (
                     <span className="rounded-md bg-border px-2 py-1 text-xs font-mono text-foreground-secondary">
-                      {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
+                      {new Date(m.scheduledAt).toLocaleTimeString(tag, {
                         hour: '2-digit',
                         minute: '2-digit',
                         hour12: false,

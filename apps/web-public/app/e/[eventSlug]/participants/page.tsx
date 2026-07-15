@@ -1,7 +1,9 @@
 import { BackLink } from '@/components/BackLink';
-import { defaultLocale, t } from '@myclash/i18n';
+import { defaultLocale, t, type Locale } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
+import { resolveServerLocale } from '@/i18n/server-locale';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
 import type { ParticipantLike } from './_components/filter-participants';
 
@@ -63,15 +65,16 @@ async function fetchParticipants(eventSlug: string): Promise<ParticipantLike[]> 
   }
 }
 
-function formatDateRange(start: string, end: string): string {
+function formatDateRange(start: string, end: string, locale: Locale): string {
   if (!start || !end) return '';
   const s = new Date(start);
   const e = new Date(end);
+  const tag = localeToBcp47(locale);
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
   if (s.getFullYear() !== e.getFullYear()) {
-    return `${s.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })} – ${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
+    return `${s.toLocaleDateString(tag, { ...opts, year: 'numeric' })} – ${e.toLocaleDateString(tag, { ...opts, year: 'numeric' })}`;
   }
-  return `${s.getDate()}–${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
+  return `${s.getDate()}–${e.toLocaleDateString(tag, { ...opts, year: 'numeric' })}`;
 }
 
 export async function generateMetadata({
@@ -97,6 +100,7 @@ export default async function ParticipantsPage({
   params: Promise<{ eventSlug: string }>;
 }) {
   const { eventSlug } = await params;
+  const locale = await resolveServerLocale();
   const [event, participants] = await Promise.all([
     fetchEventInfo(eventSlug),
     fetchParticipants(eventSlug),
@@ -140,7 +144,9 @@ export default async function ParticipantsPage({
               const place = formatEventPlace(event);
               return place ? <p className="text-sm text-muted">{place}</p> : null;
             })()}
-            <p className="text-sm text-muted">{formatDateRange(event.startDate, event.endDate)}</p>
+            <p className="text-sm text-muted">
+              {formatDateRange(event.startDate, event.endDate, locale)}
+            </p>
             <BackLink
               href={`/e/${eventSlug}/home`}
               label={t('publicApp.tournament.backToEventHome')}

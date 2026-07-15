@@ -6,7 +6,9 @@
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
+import { t, type Locale } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
+import { resolveServerLocale } from '@/i18n/server-locale';
 import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 import { RatingHistorySection } from './_components/RatingHistorySection';
 import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
@@ -283,9 +285,9 @@ async function fetchRefereeStats(slug: string, apiUrl: string): Promise<RefereeS
   }
 }
 
-function formatDate(date: string | null): string {
+function formatDate(date: string | null, locale: Locale): string {
   if (!date) return t('common.unknown');
-  return new Date(date).toLocaleDateString('en-GB');
+  return new Date(date).toLocaleDateString(localeToBcp47(locale));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -296,6 +298,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function FighterPage({ params }: Props) {
   const { slug } = await params;
   const apiUrl = getApiUrl();
+  const locale = await resolveServerLocale();
   const [fighter, career, refereeStats] = await Promise.all([
     fetchFighter(slug, apiUrl),
     fetchCareer(slug, apiUrl),
@@ -493,7 +496,7 @@ export default async function FighterPage({ params }: Props) {
                   {registration.eventName}
                 </Link>
                 <p className="text-xs text-muted">
-                  {registration.tournamentName} · {formatDate(registration.eventStartDate)}
+                  {registration.tournamentName} · {formatDate(registration.eventStartDate, locale)}
                 </p>
               </li>
             ))}
@@ -507,7 +510,7 @@ export default async function FighterPage({ params }: Props) {
                 >
                   {event.eventName}
                 </Link>
-                <p className="text-xs text-muted">{formatDate(event.startDate)}</p>
+                <p className="text-xs text-muted">{formatDate(event.startDate, locale)}</p>
               </li>
             ))}
           </CareerList>

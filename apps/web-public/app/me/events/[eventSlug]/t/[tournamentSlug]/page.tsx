@@ -42,7 +42,7 @@ function BackIcon() {
 
 export default function PersonalTournamentPage() {
   const { eventSlug, tournamentSlug } = useParams<{ eventSlug: string; tournamentSlug: string }>();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { events, loading } = useMyEvents();
   const [data, setData] = useState<TournamentData | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -163,6 +163,7 @@ export default function PersonalTournamentPage() {
                     ringPoolIds={self.ringPoolIds}
                     refereeRowKeys={self.refereeRowKeys}
                     wide
+                    locale={locale}
                   />
                 </>
               ),
