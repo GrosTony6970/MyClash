@@ -151,7 +151,7 @@ export default function EventStaffPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-8">
+    <main className="mx-auto max-w-[110rem] p-8">
       <Button variant="back" size="sm" asChild>
         <Link href={`/org/${slug}/events/${eventId}`}>← {t('organizer.staff.backToEvent')}</Link>
       </Button>

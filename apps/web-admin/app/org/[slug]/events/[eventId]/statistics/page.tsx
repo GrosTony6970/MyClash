@@ -40,7 +40,7 @@ export default function EventStatisticsPage() {
   const loading = data === null && error === null;
 
   return (
-    <main className="mx-auto max-w-7xl p-6 lg:p-8">
+    <main className="mx-auto max-w-[110rem] p-6 lg:p-8">
       <header className="mb-6">
         <h1 className="font-display text-2xl font-medium tracking-tight text-foreground">
           {t('organizer.eventStats.title')}

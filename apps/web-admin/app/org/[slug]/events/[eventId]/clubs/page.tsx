@@ -44,7 +44,7 @@ export default function EventClubsPage() {
   const { isReadOnly } = useEventStatus(eventId);
 
   return (
-    <main className="mx-auto max-w-7xl p-6 lg:p-8">
+    <main className="mx-auto max-w-[110rem] p-6 lg:p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-muted">
         <Link href={`/org/${slug}`} className="hover:text-info">
           {slug}

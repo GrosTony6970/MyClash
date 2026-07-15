@@ -226,7 +226,7 @@ export default function OrgLeaguesPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <header className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.leagues.eyebrow')}

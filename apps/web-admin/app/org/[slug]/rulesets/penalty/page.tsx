@@ -173,7 +173,7 @@ export default function OrgPenaltyRulesetsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <div className="mb-6">
         <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
           {t('admin.penaltyRulesets.title')}

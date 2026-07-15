@@ -232,7 +232,7 @@ export default function EventTournamentsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-6 lg:p-8">
+    <main className="mx-auto max-w-[110rem] p-6 lg:p-8">
       {(loading || tournaments.length > 0) && (
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

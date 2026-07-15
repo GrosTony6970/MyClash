@@ -546,7 +546,7 @@ export default function AdminFightersPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl">

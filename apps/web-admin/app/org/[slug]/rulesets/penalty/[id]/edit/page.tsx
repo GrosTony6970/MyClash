@@ -106,7 +106,7 @@ export default function OrgEditPenaltyRulesetPage() {
   }, [params.id, t]);
 
   return (
-    <main className="max-w-7xl p-8">
+    <main className="max-w-[110rem] p-8">
       <div className="mb-2 text-sm">
         <Link href={`/org/${slugForLink}/rulesets/penalty`} className="text-muted hover:underline">
           {t('admin.rulesets.backToList')}

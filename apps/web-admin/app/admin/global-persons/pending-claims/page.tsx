@@ -109,7 +109,7 @@ export default function PendingClaimsPage() {
   }
 
   return (
-    <main className="p-8 max-w-7xl">
+    <main className="p-8 max-w-[110rem]">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">

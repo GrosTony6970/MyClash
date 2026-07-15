@@ -178,7 +178,7 @@ export default function CompensationPage() {
   };
 
   return (
-    <main className="mx-auto p-8 max-w-7xl">
+    <main className="mx-auto p-8 max-w-[110rem]">
       <CompensationTopNav
         active="referees"
         basePath={`/org/${slug}/events/${eventId}/compensation`}

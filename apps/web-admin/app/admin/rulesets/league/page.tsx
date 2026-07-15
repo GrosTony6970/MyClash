@@ -8,7 +8,7 @@ import { LeagueScoringSystemsTable } from './_components/LeagueScoringSystemsTab
 export default function LeagueScoringSystemsListPage() {
   const { t } = useI18n();
   return (
-    <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Rulesets"
         title={t('admin.rulesets.league.title')}

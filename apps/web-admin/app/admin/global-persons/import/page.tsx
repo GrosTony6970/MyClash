@@ -189,7 +189,7 @@ export default function GlobalPersonsImportPage() {
   const totalImported = (report?.created ?? 0) + (report?.updated ?? 0);
 
   return (
-    <main className="p-8 max-w-7xl">
+    <main className="p-8 max-w-[110rem]">
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">
         {t('admin.globalPersonsImport.title')}
       </h1>

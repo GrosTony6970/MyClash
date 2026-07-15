@@ -498,7 +498,7 @@ export default function PoolsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-[110rem] px-6 py-8 lg:px-8">
       <nav
         aria-label={t('organizer.pools.page.sectionsAria')}
         className="mb-6 flex gap-1 border-b border-border"

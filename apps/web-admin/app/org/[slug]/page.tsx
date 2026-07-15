@@ -216,7 +216,7 @@ export default function OrgDashboardPage() {
   ];
 
   return (
-    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('organizer.shell.eyebrow')}
         title={orgName}

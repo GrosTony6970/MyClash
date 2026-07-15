@@ -13,7 +13,7 @@ export default function AdminLogPage() {
   const [tab, setTab] = useState<LogTab>('audit');
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">{t('admin.log.title')}</h1>
       <SegmentedTabs<LogTab>
         tabs={[

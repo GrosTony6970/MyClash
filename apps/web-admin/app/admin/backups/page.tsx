@@ -398,7 +398,7 @@ export default function AdminBackupsPage() {
   };
 
   return (
-    <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl">

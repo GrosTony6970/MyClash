@@ -533,7 +533,7 @@ export default function OrgEventsListPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-accent">

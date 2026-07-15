@@ -175,7 +175,7 @@ export default function OrgVenuesPage() {
   };
 
   return (
-    <main className="mx-auto max-w-7xl p-8">
+    <main className="mx-auto max-w-[110rem] p-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl">

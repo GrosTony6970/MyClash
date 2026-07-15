@@ -211,7 +211,7 @@ export default function FinalRankingPage() {
   const canExport = !loading && ranking.length > 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6">
+    <main className="mx-auto max-w-[110rem] px-4 py-6">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-muted">

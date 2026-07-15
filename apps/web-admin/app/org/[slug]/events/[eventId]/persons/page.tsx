@@ -931,7 +931,7 @@ export default function ParticipantsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-8">
+    <main className="mx-auto max-w-[110rem] p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-muted mb-1">

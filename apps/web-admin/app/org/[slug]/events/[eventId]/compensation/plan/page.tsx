@@ -246,7 +246,7 @@ export default function OrgCompensationPlansPage() {
   const orgPlans = plans.filter((p) => !p.builtIn && p.organizationId === orgId);
 
   return (
-    <main className="mx-auto p-8 max-w-7xl">
+    <main className="mx-auto p-8 max-w-[110rem]">
       <CompensationTopNav active="plan" basePath={`/org/${slug}/events/${eventId}/compensation`} />
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">
         {t('organizer.compensationSettings.title')}

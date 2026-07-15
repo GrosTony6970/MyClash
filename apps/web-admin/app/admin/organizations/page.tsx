@@ -298,7 +298,7 @@ export default function AdminOrganizationsPage() {
   } = useSortableList(orgs, getOrgSortValue);
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.organizations.eyebrow')}
         title={t('admin.organizations.title')}
