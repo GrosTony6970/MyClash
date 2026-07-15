@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -199,27 +198,26 @@ export default function SignupPage() {
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl font-bold mb-4">
-            {done.type === 'magic_link' ? 'Check your email' : 'Verify your email'}
+            {done.type === 'magic_link'
+              ? t('auth.signup.doneMagicTitle')
+              : t('auth.signup.doneVerifyTitle')}
           </h1>
           {done.type === 'magic_link' ? (
             <p className="text-foreground-secondary">
-              We sent a signup link to <strong>{email}</strong>. Click it to activate your account
-              and access your organization dashboard.
+              {t('auth.signup.doneMagicPrefix')} <strong>{email}</strong>.{' '}
+              {t('auth.signup.doneMagicSuffix')}
             </p>
           ) : (
             <>
-              <p className="text-foreground-secondary">
-                Your account has been created. Please verify your email address before creating
-                events.
-              </p>
+              <p className="text-foreground-secondary">{t('auth.signup.doneVerifyCreated')}</p>
               <p className="mt-3 text-foreground-secondary">
-                We sent a verification link to <strong>{email}</strong>.
+                {t('auth.signup.doneVerifyPrefix')} <strong>{email}</strong>.
               </p>
               <a
                 href={`/org/${done.orgSlug}`}
                 className="mt-6 inline-block text-accent hover:underline text-sm"
               >
-                Go to your dashboard →
+                {t('auth.signup.goToDashboard')}
               </a>
             </>
           )}
@@ -233,9 +231,9 @@ export default function SignupPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold mb-1">Create your organizer account</h1>
+        <h1 className="text-2xl font-bold mb-1">{t('auth.signup.title')}</h1>
         <p className="text-muted text-sm mb-6">
-          Step {step} of 2 — {step === 1 ? 'Your account' : 'Your organization'}
+          {step === 1 ? t('auth.signup.step1Label') : t('auth.signup.step2Label')}
         </p>
 
         {/* ── Step 1: Account ── */}
@@ -243,7 +241,7 @@ export default function SignupPage() {
           <form onSubmit={handleStep1} className="flex flex-col gap-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1">
-                Email
+                {t('auth.signup.emailLabel')}
               </label>
               <input
                 id="email"
@@ -252,14 +250,14 @@ export default function SignupPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={t('auth.login.emailPlaceholder')}
                 className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 
             <div>
               <label htmlFor="displayName" className="block text-sm font-medium mb-1">
-                Display name
+                {t('auth.signup.displayNameLabel')}
               </label>
               <input
                 id="displayName"
@@ -267,7 +265,7 @@ export default function SignupPage() {
                 required={method !== 'google'}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Jean Dupont"
+                placeholder={t('auth.signup.displayNamePlaceholder')}
                 className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
@@ -282,7 +280,7 @@ export default function SignupPage() {
                     : 'bg-surface text-foreground-secondary border-border hover:border-accent'
                 }`}
               >
-                Magic link
+                {t('auth.signup.methodMagicLink')}
               </button>
               <button
                 type="button"
@@ -293,7 +291,7 @@ export default function SignupPage() {
                     : 'bg-surface text-foreground-secondary border-border hover:border-accent'
                 }`}
               >
-                Password
+                {t('auth.signup.methodPassword')}
               </button>
               <button
                 type="button"
@@ -312,7 +310,7 @@ export default function SignupPage() {
               <>
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium mb-1">
-                    Password
+                    {t('auth.signup.passwordLabel')}
                   </label>
                   <input
                     id="password"
@@ -321,13 +319,13 @@ export default function SignupPage() {
                     minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 8 characters"
+                    placeholder={t('auth.signup.passwordPlaceholder')}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <div>
                   <label htmlFor="passwordConfirm" className="block text-sm font-medium mb-1">
-                    Confirm password
+                    {t('auth.signup.passwordConfirmLabel')}
                   </label>
                   <input
                     id="passwordConfirm"
@@ -335,7 +333,7 @@ export default function SignupPage() {
                     required
                     value={passwordConfirm}
                     onChange={(e) => setPasswordConfirm(e.target.value)}
-                    placeholder="Repeat password"
+                    placeholder={t('auth.signup.passwordConfirmPlaceholder')}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
@@ -352,13 +350,13 @@ export default function SignupPage() {
               type="submit"
               className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors"
             >
-              Continue →
+              {t('auth.signup.continue')}
             </button>
 
             <p className="text-center text-sm text-muted">
-              Already have an account?{' '}
+              {t('auth.signup.alreadyHaveAccount')}{' '}
               <a href="/login" className="text-accent hover:underline">
-                Log in
+                {t('auth.signup.logIn')}
               </a>
             </p>
           </form>
@@ -379,7 +377,7 @@ export default function SignupPage() {
           >
             <div>
               <label htmlFor="orgName" className="block text-sm font-medium mb-1">
-                Organization name
+                {t('auth.signup.orgNameLabel')}
               </label>
               <input
                 id="orgName"
@@ -390,31 +388,35 @@ export default function SignupPage() {
                   setOrgName(e.target.value);
                   setOrgSlug(slugify(e.target.value));
                 }}
-                placeholder="Lyon AMHE"
+                placeholder={t('auth.signup.orgNamePlaceholder')}
                 className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
-              <p className="text-xs text-muted mt-1">
-                This is the public name people will see when browsing your events. You can change it
-                later in settings.
-              </p>
+              <p className="text-xs text-muted mt-1">{t('auth.signup.orgNameHint')}</p>
             </div>
 
             <div>
               <label htmlFor="orgSlug" className="block text-sm font-medium mb-1">
-                URL slug
-                {slugStatus.checking && <span className="ml-2 text-xs text-muted">Checking…</span>}
+                {t('auth.signup.slugLabel')}
+                {slugStatus.checking && (
+                  <span className="ml-2 text-xs text-muted">{t('auth.signup.slugChecking')}</span>
+                )}
                 {!slugStatus.checking && slugStatus.available === true && (
-                  <span className="ml-2 text-xs text-success">✓ Available</span>
+                  <span className="ml-2 text-xs text-success">
+                    {t('auth.signup.slugAvailable')}
+                  </span>
                 )}
                 {!slugStatus.checking && slugStatus.available === false && (
                   <span className="ml-2 text-xs text-danger">
-                    ✗ {slugStatus.reason === 'reserved' ? 'Reserved' : 'Already taken'}
+                    ✗{' '}
+                    {slugStatus.reason === 'reserved'
+                      ? t('auth.signup.slugReserved')
+                      : t('auth.signup.slugTaken')}
                   </span>
                 )}
               </label>
               <div className="flex items-center border border-border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-accent">
                 <span className="px-3 py-2 bg-background text-muted text-sm border-r border-border select-none">
-                  admin.myclash.fr/org/
+                  {'admin.myclash.fr/org/'}
                 </span>
                 <input
                   id="orgSlug"
@@ -424,13 +426,11 @@ export default function SignupPage() {
                   onChange={(e) =>
                     setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
                   }
-                  placeholder="lyon-amhe"
+                  placeholder={t('auth.signup.slugPlaceholder')}
                   className="flex-1 px-3 py-2 text-sm focus:outline-none"
                 />
               </div>
-              <p className="text-xs text-muted mt-1">
-                Lowercase letters, digits, and hyphens only.
-              </p>
+              <p className="text-xs text-muted mt-1">{t('auth.signup.slugHint')}</p>
             </div>
 
             {error && (
@@ -448,7 +448,7 @@ export default function SignupPage() {
                 }}
                 className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-border text-foreground-secondary hover:border-muted transition-colors"
               >
-                ← Back
+                {t('auth.signup.back')}
               </button>
               <button
                 type="submit"
@@ -459,8 +459,8 @@ export default function SignupPage() {
                 {method === 'google'
                   ? t('auth.oauth.continueWithGoogle')
                   : loading
-                    ? 'Creating…'
-                    : 'Create account'}
+                    ? t('auth.signup.creating')
+                    : t('auth.signup.createAccount')}
               </button>
             </div>
           </form>

@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * BlockGridView — the unified, editable schedule board. Pool / bracket-round
  * blocks are placed by start time on a lice-column time grid; a run fanned
@@ -18,6 +16,7 @@
 
 import { useRef, useState } from 'react';
 import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
 import { blockTint } from './block-tint';
@@ -146,6 +145,7 @@ export function BlockGridView({
   dragOverLiceId,
   onDragOverLice,
 }: Props) {
+  const { t } = useI18n();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [timeResize, setTimeResize] = useState<TimeResize | null>(null);
   const [startResize, setStartResize] = useState<StartResize | null>(null);
@@ -170,7 +170,7 @@ export function BlockGridView({
   const [dragging, setDragging] = useState(false);
 
   if (lices.length === 0) {
-    return <p className="text-sm text-muted">No lices configured for this event.</p>;
+    return <p className="text-sm text-muted">{t('organizer.schedulePage.blockGrid.noLices')}</p>;
   }
 
   const liceIndexById = new Map(lices.map((l, i) => [l.id, i]));
@@ -390,7 +390,7 @@ export function BlockGridView({
                 ...(tint ?? {}),
               }}
             >
-              {g.venueName ?? 'No venue'}
+              {g.venueName ?? t('organizer.schedulePage.blockGrid.noVenue')}
             </div>
           );
         })}
@@ -405,7 +405,7 @@ export function BlockGridView({
             height: LICE_HEADER_HEIGHT_PX,
           }}
         >
-          Time
+          {t('organizer.schedulePage.blockGrid.timeAxis')}
         </div>
         {lices.map((lice, idx) => {
           const d = drift.get(lice.id);
@@ -425,7 +425,7 @@ export function BlockGridView({
               {util > 0 ? (
                 <span
                   className="absolute right-1 top-0.5 text-[9px] font-medium text-muted"
-                  title={`${util}% of the day's grid scheduled on this lice`}
+                  title={t('organizer.schedulePage.blockGrid.utilizationTitle', { pct: util })}
                 >
                   {util}%
                 </span>
@@ -437,23 +437,29 @@ export function BlockGridView({
                 <span className="flex items-center gap-1">
                   <span
                     className={`text-[10px] font-semibold ${late ? 'text-danger' : 'text-success'}`}
-                    title={`Based on ${d.basisLabel}`}
+                    title={t('organizer.schedulePage.blockGrid.driftBasisTitle', {
+                      basis: d.basisLabel,
+                    })}
                   >
-                    {late ? `▲ ${d.driftMin}m late` : `▼ ${-d.driftMin}m ahead`}
+                    {late
+                      ? t('organizer.schedulePage.blockGrid.driftLate', { min: d.driftMin })
+                      : t('organizer.schedulePage.blockGrid.driftAhead', { min: -d.driftMin })}
                   </span>
                   {late ? (
                     <button
                       type="button"
                       onClick={() => onShiftLice(lice.id, d.driftMin)}
                       className="rounded border border-danger/30 px-1 text-[10px] font-medium text-danger hover:bg-danger/10"
-                      title="Push this lice's upcoming matches by the delay"
+                      title={t('organizer.schedulePage.blockGrid.pushLiceTitle')}
                     >
                       +{d.driftMin}
                     </button>
                   ) : null}
                 </span>
               ) : d ? (
-                <span className="text-[10px] font-medium text-success">on time</span>
+                <span className="text-[10px] font-medium text-success">
+                  {t('organizer.schedulePage.blockGrid.onTime')}
+                </span>
               ) : null}
             </div>
           );
@@ -594,7 +600,7 @@ export function BlockGridView({
               <div className="absolute right-1 top-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100">
                 <button
                   type="button"
-                  aria-label={`Edit ${brk.label}`}
+                  aria-label={t('organizer.schedulePage.blockGrid.editAria', { label: brk.label })}
                   onClick={() => onEditBreak(brk)}
                   className="rounded bg-surface/70 px-1 text-[11px] leading-none text-foreground-secondary hover:bg-surface"
                 >
@@ -602,8 +608,10 @@ export function BlockGridView({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Delete ${brk.label}`}
-                  title="Delete this block"
+                  aria-label={t('organizer.schedulePage.blockGrid.deleteAria', {
+                    label: brk.label,
+                  })}
+                  title={t('organizer.schedulePage.blockGrid.deleteBreakTitle')}
                   onClick={() => onDeleteBreak(brk)}
                   className="rounded bg-surface/70 px-1 text-[11px] leading-none text-danger hover:bg-danger/10"
                 >
@@ -612,7 +620,9 @@ export function BlockGridView({
               </div>
               <div
                 role="separator"
-                aria-label={`Resize start of ${brk.label}`}
+                aria-label={t('organizer.schedulePage.blockGrid.resizeStartAria', {
+                  label: brk.label,
+                })}
                 onPointerDown={(ev) =>
                   beginStartResize(
                     ev,
@@ -624,7 +634,7 @@ export function BlockGridView({
               />
               <div
                 role="separator"
-                aria-label={`Resize ${brk.label}`}
+                aria-label={t('organizer.schedulePage.blockGrid.resizeAria', { label: brk.label })}
                 onPointerDown={(ev) =>
                   beginTimeResize(
                     ev,
@@ -692,7 +702,11 @@ export function BlockGridView({
                 setGhost(null);
                 onBlockDragEnd();
               }}
-              title={`${block.tournamentName ?? ''} · ${block.label} · ${block.matchCount} matches`}
+              title={t('organizer.schedulePage.blockGrid.blockTitle', {
+                tournament: block.tournamentName ?? '',
+                label: block.label,
+                count: block.matchCount,
+              })}
               className={[
                 'group relative m-px flex cursor-grab flex-col overflow-hidden rounded-md border pl-2.5 pr-1.5 py-1 transition-opacity active:cursor-grabbing',
                 tone,
@@ -720,14 +734,19 @@ export function BlockGridView({
               <span className="truncate text-sm font-bold leading-tight">{block.label}</span>
               {showSubLine ? (
                 <span className="truncate text-xs font-medium opacity-80">
-                  {block.matchCount} fights · {formatSlotTime(startSlot)}–
-                  {formatSlotTime(baseEndSlot)}
+                  {t('organizer.schedulePage.blockGrid.fightsAndTime', {
+                    count: block.matchCount,
+                    start: formatSlotTime(startSlot),
+                    end: formatSlotTime(baseEndSlot),
+                  })}
                 </span>
               ) : null}
               <div className="absolute right-0.5 top-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100">
                 <button
                   type="button"
-                  aria-label={`Edit ${block.label}`}
+                  aria-label={t('organizer.schedulePage.blockGrid.editAria', {
+                    label: block.label,
+                  })}
                   onClick={(e) => {
                     e.stopPropagation();
                     onEditBlock(block);
@@ -738,8 +757,10 @@ export function BlockGridView({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Unschedule ${block.label}`}
-                  title="Unschedule — return these matches to the Unscheduled list"
+                  aria-label={t('organizer.schedulePage.blockGrid.unscheduleAria', {
+                    label: block.label,
+                  })}
+                  title={t('organizer.schedulePage.blockGrid.unscheduleTitle')}
                   onClick={(e) => {
                     e.stopPropagation();
                     onDeleteBlock(block);
@@ -752,7 +773,9 @@ export function BlockGridView({
               {/* top edge — resize START (re-time the run) */}
               <div
                 role="separator"
-                aria-label={`Resize start of ${block.label}`}
+                aria-label={t('organizer.schedulePage.blockGrid.resizeStartAria', {
+                  label: block.label,
+                })}
                 onPointerDown={(ev) =>
                   beginStartResize(
                     ev,
@@ -765,7 +788,9 @@ export function BlockGridView({
               {/* bottom edge — resize TIME */}
               <div
                 role="separator"
-                aria-label={`Resize time of ${block.label}`}
+                aria-label={t('organizer.schedulePage.blockGrid.resizeTimeAria', {
+                  label: block.label,
+                })}
                 onPointerDown={(ev) =>
                   beginTimeResize(
                     ev,
@@ -778,7 +803,9 @@ export function BlockGridView({
               {/* right edge — resize LICE span */}
               <div
                 role="separator"
-                aria-label={`Resize lices of ${block.label}`}
+                aria-label={t('organizer.schedulePage.blockGrid.resizeLicesAria', {
+                  label: block.label,
+                })}
                 onPointerDown={(ev) => beginLiceResize(ev, block)}
                 className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-col-resize bg-transparent hover:bg-black/20"
               />

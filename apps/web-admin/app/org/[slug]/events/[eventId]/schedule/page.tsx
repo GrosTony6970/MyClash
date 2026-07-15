@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -45,13 +43,17 @@ export default function SchedulePage() {
           </Link>
           <span>/</span>
           <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-            Event
+            {t('organizer.schedulePage.breadcrumbEvent')}
           </Link>
           <span>/</span>
-          <span className="text-foreground font-medium">Schedule</span>
+          <span className="text-foreground font-medium">
+            {t('organizer.schedulePage.breadcrumbSchedule')}
+          </span>
         </div>
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Schedule</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.schedulePage.title')}
+          </h1>
           <div className="flex items-center gap-2">
             <Link
               href={`/org/${slug}/events/${eventId}/ai-assistant?type=schedule_grid`}
@@ -73,8 +75,11 @@ export default function SchedulePage() {
             className="flex items-start gap-3 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success"
           >
             <span className="font-semibold">
-              ✓ {t('organizer.schedulePage.generateToastTitle')} {generateToast.matchesScheduled}{' '}
-              matches, {generateToast.workshopSessionsCreated} workshops
+              ✓{' '}
+              {t('organizer.schedulePage.generateToastSummary', {
+                matches: generateToast.matchesScheduled,
+                workshops: generateToast.workshopSessionsCreated,
+              })}
             </span>
             {generateToast.blockDiagnostics && generateToast.blockDiagnostics.length > 0 && (
               <button
@@ -112,7 +117,11 @@ export default function SchedulePage() {
                     </span>{' '}
                     <span className="font-medium">{d.blockLabel}</span>
                     {' — '}
-                    {d.scheduledMatches}/{d.fetchedMatches} scheduled on {d.licesAvailable} lice
+                    {t('organizer.schedulePage.generateToastBlockLine', {
+                      scheduled: d.scheduledMatches,
+                      fetched: d.fetchedMatches,
+                      lices: d.licesAvailable,
+                    })}
                   </li>
                 );
               })}

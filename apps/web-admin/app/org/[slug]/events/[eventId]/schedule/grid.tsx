@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -535,19 +533,31 @@ export function ScheduleGrid({
           }
         }
         if (!licesRes.ok) {
-          setFetchError(`Lices: ${await bodyMessage(licesRes)}`);
+          setFetchError(
+            t('organizer.schedulePage.grid.fetchLices', { message: await bodyMessage(licesRes) }),
+          );
           return;
         }
         if (!schedRes.ok) {
-          setFetchError(`Schedule: ${await bodyMessage(schedRes)}`);
+          setFetchError(
+            t('organizer.schedulePage.grid.fetchSchedule', {
+              message: await bodyMessage(schedRes),
+            }),
+          );
           return;
         }
         if (!eventRes.ok) {
-          setFetchError(`Event: ${await bodyMessage(eventRes)}`);
+          setFetchError(
+            t('organizer.schedulePage.grid.fetchEvent', { message: await bodyMessage(eventRes) }),
+          );
           return;
         }
         if (!programmeRes.ok) {
-          setFetchError(`Programme: ${await bodyMessage(programmeRes)}`);
+          setFetchError(
+            t('organizer.schedulePage.grid.fetchProgramme', {
+              message: await bodyMessage(programmeRes),
+            }),
+          );
           return;
         }
         setFetchError(null);
@@ -1534,7 +1544,7 @@ export function ScheduleGrid({
         body: JSON.stringify({
           dayIndex,
           blockType: 'break',
-          label: draft.label || 'Break',
+          label: draft.label || t('organizer.schedulePage.grid.breakDefaultLabel'),
           startTime: draft.startHHMM,
           endTime: draft.endHHMM,
           colorHex: draft.colorHex || null,
@@ -1664,7 +1674,10 @@ export function ScheduleGrid({
           ),
           m.roundCode || m.matchNumberLabel,
           m.tournamentName ?? '',
-          `${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`,
+          t('organizer.schedulePage.grid.versus', {
+            red: m.redFighterName ?? '?',
+            blue: m.blueFighterName ?? '?',
+          }),
         ],
       }))
       .sort(
@@ -1678,13 +1691,24 @@ export function ScheduleGrid({
       .join('');
     const w = window.open('', '_blank');
     if (!w) return;
+    const printTitle = esc(t('organizer.schedulePage.grid.printTitle'));
+    const headers = [
+      t('organizer.schedulePage.grid.printColDay'),
+      t('organizer.schedulePage.grid.printColLice'),
+      t('organizer.schedulePage.grid.printColStart'),
+      t('organizer.schedulePage.grid.printColRound'),
+      t('organizer.schedulePage.grid.printColTournament'),
+      t('organizer.schedulePage.grid.printColMatch'),
+    ]
+      .map((h) => `<th>${esc(h)}</th>`)
+      .join('');
     w.document.write(
-      `<!doctype html><html><head><title>Schedule</title><style>` +
+      `<!doctype html><html><head><title>${printTitle}</title><style>` +
         `body{font-family:system-ui,sans-serif;padding:24px;color:#111}` +
         `h1{font-size:18px}table{border-collapse:collapse;width:100%;font-size:12px}` +
         `th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f4f6}` +
-        `</style></head><body><h1>Schedule</h1><table><thead><tr>` +
-        `<th>Day</th><th>Lice</th><th>Start</th><th>Round</th><th>Tournament</th><th>Match</th>` +
+        `</style></head><body><h1>${printTitle}</h1><table><thead><tr>` +
+        headers +
         `</tr></thead><tbody>${body}</tbody></table></body></html>`,
     );
     w.document.close();
@@ -1917,7 +1941,12 @@ export function ScheduleGrid({
                     single ? 'cursor-default' : '',
                   ].join(' ')}
                 >
-                  {single ? formatDayLabel(day) : `Jour ${idx + 1} · ${formatDayLabel(day)}`}
+                  {single
+                    ? formatDayLabel(day)
+                    : t('organizer.schedulePage.grid.dayTab', {
+                        n: idx + 1,
+                        date: formatDayLabel(day),
+                      })}
                 </button>
               );
             })}
@@ -1928,19 +1957,19 @@ export function ScheduleGrid({
               type="button"
               onClick={() => void undo()}
               disabled={undoStack.length === 0}
-              title="Undo (Ctrl+Z)"
+              title={t('organizer.schedulePage.grid.undoTitle')}
               className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-40"
             >
-              ↶ Undo
+              {t('organizer.schedulePage.grid.undo')}
             </button>
             <button
               type="button"
               onClick={() => void redo()}
               disabled={redoStack.length === 0}
-              title="Redo (Ctrl+Shift+Z)"
+              title={t('organizer.schedulePage.grid.redoTitle')}
               className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-40"
             >
-              ↷ Redo
+              {t('organizer.schedulePage.grid.redo')}
             </button>
             {/* Clear active day — Slice 3. Disables when the active day has
                 nothing to clear, opens a confirm modal otherwise. */}
@@ -1950,7 +1979,9 @@ export function ScheduleGrid({
               disabled={clearingDay || scheduledOnActiveDay.length === 0}
               className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50 disabled:hover:bg-transparent"
             >
-              Clear day ({scheduledOnActiveDay.length})
+              {t('organizer.schedulePage.grid.clearDayButton', {
+                count: scheduledOnActiveDay.length,
+              })}
             </button>
             {/* Slice C: spawn a new lice. Toggles an inline form below
                 the toolbar; submit POSTs to /events/:id/lices and the
@@ -1960,7 +1991,7 @@ export function ScheduleGrid({
               onClick={() => setShowAddLice((v) => !v)}
               className="rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
             >
-              + Add lice
+              {t('organizer.schedulePage.grid.addLice')}
             </button>
           </div>
         </div>
@@ -1969,12 +2000,14 @@ export function ScheduleGrid({
       {showAddLice && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs">
           <label className="flex items-center gap-1.5">
-            <span className="text-foreground-secondary">Name</span>
+            <span className="text-foreground-secondary">
+              {t('organizer.schedulePage.editPopover.nameLabel')}
+            </span>
             <input
               type="text"
               value={newLiceName}
               onChange={(e) => setNewLiceName(e.target.value)}
-              placeholder="Lice 4"
+              placeholder={t('organizer.schedulePage.grid.newLicePlaceholder')}
               maxLength={50}
               className="rounded-md border border-border px-2 py-1 text-xs"
               // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus on the inline new-lice name field
@@ -1982,7 +2015,9 @@ export function ScheduleGrid({
             />
           </label>
           <label className="flex items-center gap-1.5">
-            <span className="text-foreground-secondary">Colour</span>
+            <span className="text-foreground-secondary">
+              {t('organizer.schedulePage.editPopover.colorLabel')}
+            </span>
             <input
               type="color"
               value={newLiceColor}
@@ -1996,7 +2031,9 @@ export function ScheduleGrid({
             disabled={addLiceBusy || !newLiceName.trim()}
             className="rounded-md bg-strong px-3 py-1 text-xs font-semibold text-strong-foreground hover:bg-strong-hover disabled:opacity-50"
           >
-            {addLiceBusy ? 'Adding…' : 'Add'}
+            {addLiceBusy
+              ? t('organizer.schedulePage.grid.adding')
+              : t('organizer.schedulePage.grid.add')}
           </button>
           <button
             type="button"
@@ -2007,7 +2044,7 @@ export function ScheduleGrid({
             }}
             className="rounded-md border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:bg-border"
           >
-            Cancel
+            {t('organizer.schedulePage.editPopover.cancel')}
           </button>
           {addLiceError && <span className="text-danger">{addLiceError}</span>}
         </div>
@@ -2018,7 +2055,9 @@ export function ScheduleGrid({
           role="alert"
           className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3"
         >
-          <span className="font-bold text-danger">Schedule failed to load:</span>
+          <span className="font-bold text-danger">
+            {t('organizer.schedulePage.grid.loadFailedPrefix')}
+          </span>
           <span className="text-danger">{fetchError}</span>
           <button
             type="button"
@@ -2032,7 +2071,9 @@ export function ScheduleGrid({
 
       {autoDistributeError && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3">
-          <span className="font-bold text-danger">Auto-distribute failed:</span>
+          <span className="font-bold text-danger">
+            {t('organizer.schedulePage.grid.autoDistributeFailedPrefix')}
+          </span>
           <span className="text-danger">{autoDistributeError}</span>
           <button
             type="button"
@@ -2047,13 +2088,19 @@ export function ScheduleGrid({
       {conflicts.length > 0 && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-6 text-sm">
           <p className="font-bold text-danger mb-1">
-            ⚠ {conflicts.length} scheduling conflict{conflicts.length !== 1 ? 's' : ''}
+            {conflicts.length === 1
+              ? t('organizer.schedulePage.grid.conflictCountSingular', {
+                  count: conflicts.length,
+                })
+              : t('organizer.schedulePage.grid.conflictCountPlural', { count: conflicts.length })}
           </p>
           <ul className="list-disc list-inside text-danger space-y-0.5">
             {conflicts.map((c, i) => (
               <li key={i}>
-                <strong>{c.personName}</strong> is in both <em>{c.matchA}</em> and{' '}
-                <em>{c.matchB}</em> at {c.time}
+                <strong>{c.personName}</strong>{' '}
+                {t('organizer.schedulePage.grid.conflictSegIsInBoth')} <em>{c.matchA}</em>{' '}
+                {t('organizer.schedulePage.grid.conflictSegAnd')} <em>{c.matchB}</em>{' '}
+                {t('organizer.schedulePage.grid.conflictSegAt')} {c.time}
               </li>
             ))}
           </ul>
@@ -2063,14 +2110,19 @@ export function ScheduleGrid({
       {dayOverlaps.length > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-2 mb-4 text-sm">
           <p className="font-semibold text-warning">
-            ⚠ {dayOverlaps.length} block overlap{dayOverlaps.length !== 1 ? 's' : ''} on a lice —
-            adjust the times or lices.
+            {dayOverlaps.length === 1
+              ? t('organizer.schedulePage.grid.overlapCountSingular', {
+                  count: dayOverlaps.length,
+                })
+              : t('organizer.schedulePage.grid.overlapCountPlural', { count: dayOverlaps.length })}
           </p>
         </div>
       )}
 
       <div className="mb-3 flex items-center gap-1.5">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted">View</span>
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted">
+          {t('organizer.schedulePage.grid.viewLabel')}
+        </span>
         {(['blocks', 'grid'] as const).map((mode) => (
           <button
             key={mode}
@@ -2083,7 +2135,9 @@ export function ScheduleGrid({
                 : 'border-border bg-surface text-foreground-secondary hover:border-muted',
             ].join(' ')}
           >
-            {mode === 'blocks' ? 'Blocks' : 'Detailed grid'}
+            {mode === 'blocks'
+              ? t('organizer.schedulePage.grid.viewBlocks')
+              : t('organizer.schedulePage.grid.viewDetailed')}
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1.5">
@@ -2092,14 +2146,14 @@ export function ScheduleGrid({
             onClick={exportCsv}
             className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
-            Export CSV
+            {t('organizer.schedulePage.grid.exportCsv')}
           </button>
           <button
             type="button"
             onClick={printSchedule}
             className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
-            Print
+            {t('organizer.schedulePage.grid.print')}
           </button>
         </div>
       </div>
@@ -2121,7 +2175,7 @@ export function ScheduleGrid({
             <div
               role="separator"
               aria-orientation="vertical"
-              aria-label="Drag to resize the panel"
+              aria-label={t('organizer.schedulePage.grid.panelResizeAria')}
               onPointerDown={beginPanelResize}
               className="absolute -right-1 top-0 z-20 hidden h-full w-2 cursor-col-resize touch-none bg-transparent hover:bg-accent/30 lg:block"
             />
@@ -2129,13 +2183,19 @@ export function ScheduleGrid({
           <div className="mb-2 flex items-center justify-between gap-2">
             {!panelCollapsed && (
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                Unscheduled ({unscheduled.length})
+                {t('organizer.schedulePage.grid.unscheduledHeading', {
+                  count: unscheduled.length,
+                })}
               </h2>
             )}
             <button
               type="button"
               aria-expanded={!panelCollapsed}
-              aria-label={panelCollapsed ? 'Expand panel' : 'Collapse panel'}
+              aria-label={
+                panelCollapsed
+                  ? t('organizer.schedulePage.grid.expandPanel')
+                  : t('organizer.schedulePage.grid.collapsePanel')
+              }
               onClick={() => setPanelCollapsed((v) => !v)}
               className="rounded-md border border-border px-2 py-0.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
             >
@@ -2150,7 +2210,7 @@ export function ScheduleGrid({
                   onClick={() => void scheduleSelected()}
                   className="mb-2 w-full rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
                 >
-                  Schedule selected ({tickedKeys.size})
+                  {t('organizer.schedulePage.grid.scheduleSelected', { count: tickedKeys.size })}
                 </button>
               )}
               <div
@@ -2191,7 +2251,7 @@ export function ScheduleGrid({
               >
                 {unscheduled.length === 0 ? (
                   <p className="px-1 py-2 text-xs italic text-muted">
-                    All matches placed on the grid.
+                    {t('organizer.schedulePage.grid.allPlaced')}
                   </p>
                 ) : (
                   <>
@@ -2215,7 +2275,9 @@ export function ScheduleGrid({
                             dragPool.current = null;
                           }}
                           className="cursor-grab rounded-md border-2 border-dashed border-border bg-border px-2 py-1.5 text-xs hover:border-muted hover:bg-background"
-                          title={`Tick to select, or drag onto a cell — ${pool.matchIds.length} matches`}
+                          title={t('organizer.schedulePage.grid.groupChipTitle', {
+                            count: pool.matchIds.length,
+                          })}
                         >
                           <div className="flex items-start gap-1.5">
                             <input
@@ -2224,14 +2286,19 @@ export function ScheduleGrid({
                               checked={tickedKeys.has(`pool:${pool.poolId}`)}
                               onClick={(e) => e.stopPropagation()}
                               onChange={() => toggleTicked(`pool:${pool.poolId}`)}
-                              aria-label={`Select ${pool.poolName}`}
+                              aria-label={t('organizer.schedulePage.grid.selectAria', {
+                                label: pool.poolName,
+                              })}
                             />
                             <div className="min-w-0">
                               <div className="font-bold text-foreground truncate">
                                 {pool.poolName}
                               </div>
                               <div className="text-[10px] text-foreground-secondary truncate">
-                                {pool.tournamentName ?? ''} · {pool.matchIds.length} matches
+                                {t('organizer.schedulePage.grid.groupChipSub', {
+                                  tournament: pool.tournamentName ?? '',
+                                  count: pool.matchIds.length,
+                                })}
                               </div>
                             </div>
                           </div>
@@ -2258,7 +2325,9 @@ export function ScheduleGrid({
                             dragBracketRound.current = null;
                           }}
                           className="cursor-grab rounded-md border-2 border-dashed border-amber-400 bg-amber-50 px-2 py-1.5 text-xs hover:border-amber-500 hover:bg-amber-100"
-                          title={`Tick to select, or drag onto a cell — ${round.matchIds.length} matches`}
+                          title={t('organizer.schedulePage.grid.groupChipTitle', {
+                            count: round.matchIds.length,
+                          })}
                         >
                           <div className="flex items-start gap-1.5">
                             <input
@@ -2267,12 +2336,17 @@ export function ScheduleGrid({
                               checked={tickedKeys.has(`round:${round.key}`)}
                               onClick={(e) => e.stopPropagation()}
                               onChange={() => toggleTicked(`round:${round.key}`)}
-                              aria-label={`Select ${round.label}`}
+                              aria-label={t('organizer.schedulePage.grid.selectAria', {
+                                label: round.label,
+                              })}
                             />
                             <div className="min-w-0">
                               <div className="font-bold text-amber-900 truncate">{round.label}</div>
                               <div className="text-[10px] text-amber-700 truncate">
-                                {round.tournamentName ?? ''} · {round.matchIds.length} matches
+                                {t('organizer.schedulePage.grid.groupChipSub', {
+                                  tournament: round.tournamentName ?? '',
+                                  count: round.matchIds.length,
+                                })}
                               </div>
                             </div>
                           </div>
@@ -2309,9 +2383,9 @@ export function ScheduleGrid({
         {/* Day grid — lice as columns, time as rows. Columns flex to fill the canvas. */}
         <div className="flex-1 min-w-0 overflow-x-auto">
           {lices.length === 0 ? (
-            <p className="text-muted text-sm">No Lices configured for this event.</p>
+            <p className="text-muted text-sm">{t('organizer.schedulePage.blockGrid.noLices')}</p>
           ) : !activeDay ? (
-            <p className="text-muted text-sm">No event date available.</p>
+            <p className="text-muted text-sm">{t('organizer.schedulePage.grid.noEventDate')}</p>
           ) : viewMode === 'blocks' ? (
             <>
               {/* Legend (click a tournament to focus) + conflict count + zoom. */}
@@ -2343,37 +2417,51 @@ export function ScheduleGrid({
                     onClick={() => setFocusedTournament(null)}
                     className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
                   >
-                    Clear focus
+                    {t('organizer.schedulePage.grid.clearFocus')}
                   </button>
                 )}
                 {conflicts.length > 0 && (
                   <span className="rounded-full border border-danger/30 bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
-                    ⚠ {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
+                    {conflicts.length === 1
+                      ? t('organizer.schedulePage.grid.conflictBadgeSingular', {
+                          count: conflicts.length,
+                        })
+                      : t('organizer.schedulePage.grid.conflictBadgePlural', {
+                          count: conflicts.length,
+                        })}
                   </span>
                 )}
                 {venueFilterOptions.venues.length + (venueFilterOptions.hasNoVenue ? 1 : 0) > 1 && (
                   <label className="flex items-center gap-1 text-muted">
-                    <span className="text-[11px] font-medium">Hall</span>
+                    <span className="text-[11px] font-medium">
+                      {t('organizer.schedulePage.grid.hallLabel')}
+                    </span>
                     <select
                       value={venueFilter}
                       onChange={(e) => setVenueFilter(e.target.value)}
                       className="rounded border border-border px-1.5 py-0.5 text-[11px]"
                     >
-                      <option value="all">All halls</option>
+                      <option value="all">{t('organizer.schedulePage.grid.allHalls')}</option>
                       {venueFilterOptions.venues.map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.name}
                         </option>
                       ))}
-                      {venueFilterOptions.hasNoVenue && <option value="none">No venue</option>}
+                      {venueFilterOptions.hasNoVenue && (
+                        <option value="none">
+                          {t('organizer.schedulePage.blockGrid.noVenue')}
+                        </option>
+                      )}
                     </select>
                   </label>
                 )}
                 <div className="ml-auto flex items-center gap-1 text-muted">
-                  <span className="text-[11px] font-medium">Zoom</span>
+                  <span className="text-[11px] font-medium">
+                    {t('organizer.schedulePage.grid.zoomLabel')}
+                  </span>
                   <button
                     type="button"
-                    aria-label="Zoom out"
+                    aria-label={t('organizer.schedulePage.grid.zoomOut')}
                     onClick={() => setSlotHeightPx((h) => zoomToSlotHeight(h - 4))}
                     className="rounded border border-border px-1.5 leading-none hover:bg-background"
                   >
@@ -2381,7 +2469,7 @@ export function ScheduleGrid({
                   </button>
                   <button
                     type="button"
-                    aria-label="Zoom in"
+                    aria-label={t('organizer.schedulePage.grid.zoomIn')}
                     onClick={() => setSlotHeightPx((h) => zoomToSlotHeight(h + 4))}
                     className="rounded border border-border px-1.5 leading-none hover:bg-background"
                   >
@@ -2486,7 +2574,7 @@ export function ScheduleGrid({
                       height: VENUE_HEADER_HEIGHT_PX,
                     }}
                   >
-                    No venue
+                    {t('organizer.schedulePage.blockGrid.noVenue')}
                   </div>
                 );
               })}
@@ -2621,7 +2709,7 @@ export function ScheduleGrid({
                       gridRow: `${rowFor(slot)} / span ${span}`, // base slot+3 (venue+lice+1-based) plus reserved pool-header rows
                       margin: '1px',
                     }}
-                    title={`${m.roundCode || m.matchNumberLabel} · Ctrl/⌘-click to open scoring${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
+                    title={`${m.roundCode || m.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${t('organizer.schedulePage.grid.versus', { red: m.redFighterName ?? '?', blue: m.blueFighterName ?? '?' })}`}
                   >
                     <span className="truncate">{m.roundCode || m.matchNumberLabel}</span>
                   </div>
@@ -2691,7 +2779,15 @@ export function ScheduleGrid({
                           setPendingRunClear(group);
                         }
                       }}
-                      title={`${group.label}${group.tournamentName ? ` - ${group.tournamentName}` : ''} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move · click to clear`}
+                      title={`${group.label}${group.tournamentName ? ` - ${group.tournamentName}` : ''} ${
+                        group.matchCount === 1
+                          ? t('organizer.schedulePage.grid.runHeaderHintSingular', {
+                              count: group.matchCount,
+                            })
+                          : t('organizer.schedulePage.grid.runHeaderHintPlural', {
+                              count: group.matchCount,
+                            })
+                      }`}
                       className={[
                         'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-3 py-2 text-sm font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
                         accentClassFor(group.tournamentColor),
@@ -2744,7 +2840,11 @@ export function ScheduleGrid({
                       dragBlock.current = null;
                     }}
                     aria-label={b.label}
-                    title={`${b.startTime} – ${b.endTime} · ${b.label} · drag to move (cascade-shifts later matches)`}
+                    title={t('organizer.schedulePage.grid.blockBarTitle', {
+                      start: b.startTime,
+                      end: b.endTime,
+                      label: b.label,
+                    })}
                     className={[
                       'relative pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing',
                       b.blockType === 'break'
@@ -2775,8 +2875,10 @@ export function ScheduleGrid({
                         e.stopPropagation();
                         setPendingBlockDelete(b);
                       }}
-                      aria-label={`Delete ${b.label}`}
-                      title={`Delete ${b.label}`}
+                      aria-label={t('organizer.schedulePage.blockGrid.deleteAria', {
+                        label: b.label,
+                      })}
+                      title={t('organizer.schedulePage.blockGrid.deleteAria', { label: b.label })}
                       className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-muted hover:bg-surface hover:text-foreground transition-colors"
                     >
                       <svg
@@ -2802,7 +2904,9 @@ export function ScheduleGrid({
                       while the operator is resizing. */}
                     <div
                       role="separator"
-                      aria-label={`Resize ${b.label}`}
+                      aria-label={t('organizer.schedulePage.blockGrid.resizeAria', {
+                        label: b.label,
+                      })}
                       draggable={false}
                       onPointerDown={(ev) => beginBlockResize(ev, b)}
                       className="absolute inset-x-0 bottom-0 z-30 h-1 cursor-row-resize bg-transparent hover:bg-muted/40"
@@ -2838,7 +2942,9 @@ export function ScheduleGrid({
           key={editingBreak ? `brk-${editingBreak.id}` : `blk-${editingBlock?.key ?? ''}`}
           open
           mode={editingBreak ? 'break' : 'block'}
-          title={editingBreak ? `Edit ${editingBreak.label}` : `Edit ${editingBlock?.label ?? ''}`}
+          title={t('organizer.schedulePage.blockGrid.editAria', {
+            label: editingBreak ? editingBreak.label : (editingBlock?.label ?? ''),
+          })}
           initial={
             editingBreak
               ? {
@@ -2875,7 +2981,7 @@ export function ScheduleGrid({
         <BlockEditPopover
           open
           mode="break"
-          title="Add break"
+          title={t('organizer.schedulePage.grid.addBreakTitle')}
           initial={creatingBreak}
           lices={lices}
           busy={blockEditBusy}
@@ -2889,11 +2995,17 @@ export function ScheduleGrid({
         open={pendingClear}
         onConfirm={() => void clearActiveDay()}
         onCancel={() => setPendingClear(false)}
-        title="Clear day?"
-        description={`This will unschedule ${scheduledOnActiveDay.length} match${
-          scheduledOnActiveDay.length === 1 ? '' : 'es'
-        } on ${activeDay ? formatDayLabel(activeDay) : 'this day'} and move them back to the Unscheduled list. Matches on other days are not affected.`}
-        confirmLabel="Clear day"
+        title={t('organizer.schedulePage.grid.clearDayTitle')}
+        description={t(
+          scheduledOnActiveDay.length === 1
+            ? 'organizer.schedulePage.grid.clearDayDescSingular'
+            : 'organizer.schedulePage.grid.clearDayDescPlural',
+          {
+            count: scheduledOnActiveDay.length,
+            day: activeDay ? formatDayLabel(activeDay) : t('organizer.schedulePage.grid.thisDay'),
+          },
+        )}
+        confirmLabel={t('organizer.schedulePage.grid.clearDayConfirm')}
         danger
         busy={clearingDay}
       />
@@ -2903,15 +3015,28 @@ export function ScheduleGrid({
         open={pendingRunClear !== null}
         onConfirm={() => pendingRunClear && void clearRun(pendingRunClear)}
         onCancel={() => setPendingRunClear(null)}
-        title={pendingRunClear ? `Clear ${pendingRunClear.label}?` : ''}
-        description={
+        title={
           pendingRunClear
-            ? `This will unschedule ${pendingRunClear.matchCount} match${
-                pendingRunClear.matchCount === 1 ? '' : 'es'
-              } from ${pendingRunClear.label}${pendingRunClear.tournamentName ? ` (${pendingRunClear.tournamentName})` : ''} on ${activeDay ? formatDayLabel(activeDay) : 'this day'}. Other matches are not affected.`
+            ? t('organizer.schedulePage.grid.clearRunTitle', { label: pendingRunClear.label })
             : ''
         }
-        confirmLabel="Clear"
+        description={
+          pendingRunClear
+            ? t(
+                pendingRunClear.matchCount === 1
+                  ? 'organizer.schedulePage.grid.clearRunDescSingular'
+                  : 'organizer.schedulePage.grid.clearRunDescPlural',
+                {
+                  count: pendingRunClear.matchCount,
+                  label: `${pendingRunClear.label}${pendingRunClear.tournamentName ? ` (${pendingRunClear.tournamentName})` : ''}`,
+                  day: activeDay
+                    ? formatDayLabel(activeDay)
+                    : t('organizer.schedulePage.grid.thisDay'),
+                },
+              )
+            : ''
+        }
+        confirmLabel={t('organizer.schedulePage.grid.clearConfirm')}
         danger
         busy={clearingRun}
       />
@@ -2921,13 +3046,26 @@ export function ScheduleGrid({
         open={pendingBlockDelete !== null}
         onConfirm={() => pendingBlockDelete && void deleteBlock(pendingBlockDelete.id)}
         onCancel={() => setPendingBlockDelete(null)}
-        title={pendingBlockDelete ? `Delete "${pendingBlockDelete.label}"?` : ''}
-        description={
+        title={
           pendingBlockDelete
-            ? `Remove the ${pendingBlockDelete.blockType} block (${pendingBlockDelete.startTime} – ${pendingBlockDelete.endTime}) from the programme. Matches scheduled inside this window will be unscheduled and reappear in the Unscheduled sidebar — matches outside the window keep their existing slot.`
+            ? t('organizer.schedulePage.grid.deleteBlockTitle', {
+                label: pendingBlockDelete.label,
+              })
             : ''
         }
-        confirmLabel="Delete block"
+        description={
+          pendingBlockDelete
+            ? t('organizer.schedulePage.grid.deleteBlockDesc', {
+                type:
+                  pendingBlockDelete.blockType === 'break'
+                    ? t('organizer.schedulePage.grid.blockTypeBreak')
+                    : t('organizer.schedulePage.grid.blockTypeAdmin'),
+                start: pendingBlockDelete.startTime,
+                end: pendingBlockDelete.endTime,
+              })
+            : ''
+        }
+        confirmLabel={t('organizer.schedulePage.grid.deleteBlockConfirm')}
         danger
         busy={deletingBlockId !== null}
       />
@@ -2941,21 +3079,24 @@ export function ScheduleGrid({
         >
           <span>
             {lastUndo.kind === 'unschedule'
-              ? `Unscheduled ${lastUndo.matches.length} match${
-                  lastUndo.matches.length === 1 ? '' : 'es'
-                } from ${lastUndo.label}`
-              : `Deleted "${lastUndo.label}"`}
+              ? t(
+                  lastUndo.matches.length === 1
+                    ? 'organizer.schedulePage.grid.undoUnscheduledSingular'
+                    : 'organizer.schedulePage.grid.undoUnscheduledPlural',
+                  { count: lastUndo.matches.length, label: lastUndo.label },
+                )
+              : t('organizer.schedulePage.grid.undoDeleted', { label: lastUndo.label })}
           </span>
           <button
             type="button"
             onClick={() => void performUndo()}
             className="rounded bg-white/15 px-2 py-1 font-semibold text-strong-foreground hover:bg-white/25"
           >
-            Undo
+            {t('organizer.schedulePage.grid.undoAction')}
           </button>
           <button
             type="button"
-            aria-label="Dismiss"
+            aria-label={t('organizer.schedulePage.grid.dismiss')}
             onClick={() => setLastUndo(null)}
             className="text-strong-foreground/70 hover:text-strong-foreground"
           >
@@ -2980,6 +3121,7 @@ function MatchChip({
   saving: boolean;
   onDragStart: () => void;
 }) {
+  const { t } = useI18n();
   const isBracket = match.phaseType !== null && match.phaseType !== 'pool';
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- draggable match card; onClick is a modifier-gated (ctrl/meta) shortcut, not the primary affordance
@@ -2991,7 +3133,7 @@ function MatchChip({
         e.preventDefault();
         openMatchScoring(slug, eventId, match.id);
       }}
-      title={`${match.roundCode || match.matchNumberLabel} · Ctrl/⌘-click to open scoring`}
+      title={`${match.roundCode || match.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}`}
       className={[
         'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-surface hover:border-muted transition-colors',
         isBracket ? 'border-amber-300' : 'border-border',
@@ -3004,12 +3146,15 @@ function MatchChip({
         </p>
         {isBracket && (
           <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] text-amber-800">
-            Bracket
+            {t('organizer.schedulePage.grid.bracketBadge')}
           </span>
         )}
       </div>
       <p className="text-muted truncate">
-        {match.redFighterName ?? '?'} vs {match.blueFighterName ?? '?'}
+        {t('organizer.schedulePage.grid.versus', {
+          red: match.redFighterName ?? '?',
+          blue: match.blueFighterName ?? '?',
+        })}
       </p>
     </div>
   );

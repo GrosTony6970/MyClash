@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BlockWarning,
@@ -286,10 +284,9 @@ export function ProgrammePlanner({
    */
   async function confirmAndReset() {
     const ok = await confirm({
-      title: 'Reset the schedule?',
-      description:
-        'This clears every programme block AND removes every match from the lice grid. The tournaments, pools, and brackets themselves stay — only their schedule is erased.',
-      confirmLabel: 'Reset everything',
+      title: t('organizer.schedulePage.planner.resetConfirmTitle'),
+      description: t('organizer.schedulePage.planner.resetConfirmDescription'),
+      confirmLabel: t('organizer.schedulePage.planner.resetConfirmLabel'),
       danger: true,
     });
     if (ok) await resetSchedule();
@@ -320,10 +317,9 @@ export function ProgrammePlanner({
 
   async function confirmAndGenerate() {
     const ok = await confirm({
-      title: 'Generate schedule?',
-      description:
-        'This will assign match start times and lices based on the saved programme. Existing scheduled matches will be overwritten.',
-      confirmLabel: 'Generate',
+      title: t('organizer.schedulePage.planner.generateConfirmTitle'),
+      description: t('organizer.schedulePage.planner.generateConfirmDescription'),
+      confirmLabel: t('organizer.schedulePage.planner.generateConfirmLabel'),
     });
     if (ok) await generate();
   }
@@ -489,24 +485,26 @@ export function ProgrammePlanner({
           grid behind. Stacking matches the operator's workflow: set
           knobs once, edit blocks 90 % of the time. */}
       <aside className="space-y-3 rounded-xl border border-border bg-surface p-4 text-sm">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Configuration</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('organizer.schedulePage.planner.configTitle')}
+        </h2>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {(
             [
-              ['Day start', 'dayStartTime', 'time'],
-              ['Day end', 'dayEndTime', 'time'],
-              ['Parallel lices', 'parallelLiceCount', 'number'],
-              ['Match duration (min)', 'matchDurationMinutes', 'number'],
-              ['Match gap (sec)', 'matchGapSeconds', 'number'],
-              ['Min rest / fighter (min)', 'minRestMinutes', 'number'],
-              ['Break between sessions (min)', 'breakBetweenSessionsMinutes', 'number'],
-              ['Midday break start', 'middayBreakStart', 'time'],
-              ['Midday break end', 'middayBreakEnd', 'time'],
-              ['Registration (min)', 'registrationDurationMinutes', 'number'],
-              ['Gear check (min)', 'gearCheckDurationMinutes', 'number'],
-              ['Referee meeting (min)', 'refereeMeetingDurationMinutes', 'number'],
+              ['dayStart', 'dayStartTime', 'time'],
+              ['dayEnd', 'dayEndTime', 'time'],
+              ['parallelLices', 'parallelLiceCount', 'number'],
+              ['matchDuration', 'matchDurationMinutes', 'number'],
+              ['matchGap', 'matchGapSeconds', 'number'],
+              ['minRest', 'minRestMinutes', 'number'],
+              ['breakBetweenSessions', 'breakBetweenSessionsMinutes', 'number'],
+              ['middayBreakStart', 'middayBreakStart', 'time'],
+              ['middayBreakEnd', 'middayBreakEnd', 'time'],
+              ['registration', 'registrationDurationMinutes', 'number'],
+              ['gearCheck', 'gearCheckDurationMinutes', 'number'],
+              ['refereeMeeting', 'refereeMeetingDurationMinutes', 'number'],
             ] as [string, keyof SuggestConfig, string][]
-          ).map(([label, key, type]) => {
+          ).map(([labelKey, key, type]) => {
             // Slice A of the schedule overhaul: 'time' fields use a
             // custom HH:MM text input instead of <input type="time">.
             // Native time pickers defer to the user's browser/OS
@@ -517,7 +515,9 @@ export function ProgrammePlanner({
             const isTime = type === 'time';
             return (
               <label key={key} className="flex flex-col gap-1">
-                <span className="text-xs text-muted">{label}</span>
+                <span className="text-xs text-muted">
+                  {t(`organizer.schedulePage.planner.config.${labelKey}`)}
+                </span>
                 <input
                   type={isTime ? 'text' : type}
                   inputMode={isTime ? 'numeric' : undefined}
@@ -543,7 +543,9 @@ export function ProgrammePlanner({
           disabled={suggesting}
           className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
         >
-          {suggesting ? 'Generating…' : `✦ ${generateScheduleLabel ?? 'Generate schedule'}`}
+          {suggesting
+            ? t('organizer.schedulePage.planner.generating')
+            : `✦ ${generateScheduleLabel ?? t('organizer.schedulePage.generateScheduleAction')}`}
         </button>
       </aside>
 
@@ -565,13 +567,12 @@ export function ProgrammePlanner({
             ].join(' ')}
           >
             <div className="font-semibold">
-              Generated {generateResult.matchesScheduled} matches.
+              {t('organizer.schedulePage.planner.generatedCount', {
+                count: generateResult.matchesScheduled,
+              })}
             </div>
             {generateResult.matchesScheduled === 0 && (
-              <div className="mt-1">
-                Nothing landed on the grid. Per-block status below — fix the flagged blocks and try
-                again.
-              </div>
+              <div className="mt-1">{t('organizer.schedulePage.planner.generatedNothing')}</div>
             )}
             {generateResult.blockDiagnostics && generateResult.blockDiagnostics.length > 0 && (
               <ul className="mt-2 space-y-0.5 text-xs">
@@ -586,9 +587,13 @@ export function ProgrammePlanner({
                       </span>{' '}
                       <span className="font-medium">{d.blockLabel}</span>
                       {' — '}
-                      {d.scheduledMatches}/{d.fetchedMatches} scheduled on {d.licesAvailable} lice
-                      {empty && ' · no matches in this competition — has the draw run?'}
-                      {noLices && !empty && ' · block requested 0 lices'}
+                      {t('organizer.schedulePage.generateToastBlockLine', {
+                        scheduled: d.scheduledMatches,
+                        fetched: d.fetchedMatches,
+                        lices: d.licesAvailable,
+                      })}
+                      {empty && t('organizer.schedulePage.planner.diagNoMatches')}
+                      {noLices && !empty && t('organizer.schedulePage.planner.diagNoLices')}
                     </li>
                   );
                 })}
@@ -611,7 +616,7 @@ export function ProgrammePlanner({
                     : 'text-foreground-secondary hover:bg-border',
                 ].join(' ')}
               >
-                Day {i + 1}
+                {t('organizer.schedulePage.planner.dayTab', { n: i + 1 })}
               </button>
             ))}
           </div>
@@ -620,7 +625,7 @@ export function ProgrammePlanner({
         {/* Block list */}
         {dayBlocks.length === 0 ? (
           <div className="bg-info/10 border border-info/30 text-info rounded-lg px-4 py-3 text-sm mb-4">
-            No blocks for this day. Use Generate schedule or add blocks manually.
+            {t('organizer.schedulePage.planner.noBlocksForDay')}
           </div>
         ) : (
           <div className="flex flex-col gap-1.5 mb-2">
@@ -655,7 +660,7 @@ export function ProgrammePlanner({
           onClick={addBlock}
           className="mb-4 inline-flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:border-muted hover:text-foreground"
         >
-          + Add block
+          {t('organizer.schedulePage.planner.addBlock')}
         </button>
 
         {/* Day multi-select — which days Generate (re)builds. Only shown
@@ -663,7 +668,7 @@ export function ProgrammePlanner({
         {distinctDays.length > 1 && (
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Generate days
+              {t('organizer.schedulePage.planner.generateDays')}
             </span>
             {distinctDays.map((d) => {
               const checked = !skipDays.has(d);
@@ -684,7 +689,7 @@ export function ProgrammePlanner({
                       })
                     }
                   />
-                  Day {d + 1}
+                  {t('organizer.schedulePage.planner.dayTab', { n: d + 1 })}
                 </label>
               );
             })}
@@ -698,7 +703,9 @@ export function ProgrammePlanner({
             disabled={saving || blocks.length === 0}
             className="border border-border rounded-md px-4 py-2 text-sm font-medium hover:bg-background disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save programme'}
+            {saving
+              ? t('organizer.schedulePage.planner.saving')
+              : t('organizer.schedulePage.planner.saveProgramme')}
           </button>
           <button
             onClick={() => void confirmAndGenerate()}
@@ -706,15 +713,19 @@ export function ProgrammePlanner({
             disabled={generating || blocks.length === 0}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
           >
-            {generating ? 'Generating…' : `${generateGridLabel ?? 'Generate Grid'} →`}
+            {generating
+              ? t('organizer.schedulePage.planner.generating')
+              : `${generateGridLabel ?? t('organizer.schedulePage.generateGridAction')} →`}
           </button>
           <button
             onClick={() => void confirmAndReset()}
             disabled={resetting}
             className="ml-auto rounded-md border border-danger/30 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
-            title="Wipe the programme + clear every scheduled match"
+            title={t('organizer.schedulePage.planner.resetTitle')}
           >
-            {resetting ? 'Resetting…' : 'Reset schedule'}
+            {resetting
+              ? t('organizer.schedulePage.planner.resetting')
+              : t('organizer.schedulePage.planner.resetSchedule')}
           </button>
         </div>
       </div>
@@ -749,6 +760,7 @@ function BlockRow({
   onApplyWarning: () => void;
   onDismissWarning: () => void;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const tint = blockTint(block.colorHex);
 
@@ -807,14 +819,16 @@ function BlockRow({
         {/* Lice badge */}
         {block.liceCount > 0 && (
           <span className="text-xs bg-surface border border-border rounded-full px-2 py-0.5 text-muted flex-shrink-0">
-            {block.liceCount} lice{block.liceCount !== 1 ? 's' : ''}
+            {block.liceCount === 1
+              ? t('organizer.schedulePage.planner.liceCountSingular', { count: block.liceCount })
+              : t('organizer.schedulePage.planner.liceCountPlural', { count: block.liceCount })}
           </span>
         )}
 
         {/* Warning badge */}
         {warning && (
           <span className="text-xs bg-warning/10 border border-warning/30 text-warning rounded-full px-2 py-0.5 flex-shrink-0">
-            ⚠ +{warning.overflowMinutes}min
+            {t('organizer.schedulePage.planner.overflowBadge', { min: warning.overflowMinutes })}
           </span>
         )}
 
@@ -835,10 +849,10 @@ function BlockRow({
         <div className="px-10 pb-2 flex items-center gap-3 text-xs text-warning">
           <span>{warning.message}.</span>
           <button onClick={onApplyWarning} className="underline hover:no-underline">
-            Suggest fit ({warning.suggestedEndTime})
+            {t('organizer.schedulePage.planner.suggestFit', { time: warning.suggestedEndTime })}
           </button>
           <button onClick={onDismissWarning} className="text-muted hover:text-foreground-secondary">
-            Override
+            {t('organizer.schedulePage.planner.override')}
           </button>
         </div>
       )}
@@ -849,7 +863,7 @@ function BlockRow({
           {block.blockType === 'competition' && (
             <>
               <label className="flex flex-col gap-0.5">
-                <span className="text-muted">Lices</span>
+                <span className="text-muted">{t('organizer.schedulePage.planner.licesLabel')}</span>
                 <input
                   type="number"
                   min={1}
@@ -859,7 +873,9 @@ function BlockRow({
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className="text-muted">Match duration (min)</span>
+                <span className="text-muted">
+                  {t('organizer.schedulePage.planner.config.matchDuration')}
+                </span>
                 <input
                   type="number"
                   min={1}
@@ -869,7 +885,9 @@ function BlockRow({
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className="text-muted">Match gap (sec)</span>
+                <span className="text-muted">
+                  {t('organizer.schedulePage.planner.config.matchGap')}
+                </span>
                 <input
                   type="number"
                   min={0}
@@ -879,7 +897,9 @@ function BlockRow({
                 />
               </label>
               <label className="flex flex-col gap-0.5">
-                <span className="text-muted">Min rest / fighter (min)</span>
+                <span className="text-muted">
+                  {t('organizer.schedulePage.planner.config.minRest')}
+                </span>
                 <input
                   type="number"
                   min={0}
@@ -891,7 +911,7 @@ function BlockRow({
             </>
           )}
           <label className="flex flex-col gap-0.5 col-span-2">
-            <span className="text-muted">Label</span>
+            <span className="text-muted">{t('organizer.schedulePage.planner.labelLabel')}</span>
             <input
               type="text"
               value={block.label}
@@ -902,20 +922,22 @@ function BlockRow({
           {block.blockType !== 'competition' && (
             <div className="col-span-2 flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <span className="text-muted">Color</span>
+                <span className="text-muted">
+                  {t('organizer.schedulePage.editPopover.colorLabel')}
+                </span>
                 {block.colorHex ? (
                   <button
                     onClick={() => onChange({ colorHex: null })}
                     className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
                   >
-                    Default
+                    {t('organizer.schedulePage.editPopover.colorDefault')}
                   </button>
                 ) : null}
               </div>
               <ColorSwatchPicker
                 value={block.colorHex ?? ''}
                 onChange={(hex) => onChange({ colorHex: hex })}
-                ariaLabel="Block color"
+                ariaLabel={t('organizer.schedulePage.editPopover.colorAriaLabel')}
               />
             </div>
           )}

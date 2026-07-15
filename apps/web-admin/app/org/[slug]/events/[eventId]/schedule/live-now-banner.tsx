@@ -1,8 +1,7 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 import { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface LiveMatch {
   id: string;
@@ -26,17 +25,16 @@ interface LiveState {
   lices: LiveLiceState[];
 }
 
-function timeRemaining(endTime: string): string {
+function minutesRemaining(endTime: string): number {
   const now = new Date();
   const [h, m] = endTime.split(':').map(Number);
   const end = new Date(now);
   end.setHours(h ?? 0, m ?? 0, 0, 0);
-  const diffMin = Math.round((end.getTime() - now.getTime()) / 60_000);
-  if (diffMin <= 0) return 'ending';
-  return `${diffMin} min left`;
+  return Math.round((end.getTime() - now.getTime()) / 60_000);
 }
 
 export function LiveNowBanner({ eventId }: { eventId: string }) {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [state, setState] = useState<LiveState | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -71,8 +69,12 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
   if (!hasActivity && !state.nextBlock) return null;
 
   const blockLabel =
-    state.currentBlock?.label ?? (state.nextBlock ? `Next: ${state.nextBlock.label}` : null);
+    state.currentBlock?.label ??
+    (state.nextBlock
+      ? t('organizer.schedulePage.liveBanner.nextBlock', { label: state.nextBlock.label })
+      : null);
   const anyRunning = state.lices.some((l) => l.runningMatch !== null);
+  const remaining = state.currentBlock ? minutesRemaining(state.currentBlock.endTime) : null;
 
   return (
     <div className="bg-surface border border-border rounded-xl mb-4 overflow-hidden shadow-sm">
@@ -85,12 +87,16 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
           {anyRunning && (
             <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              LIVE
+              {t('organizer.schedulePage.liveBanner.live')}
             </span>
           )}
           {blockLabel && <span className="text-sm font-medium text-foreground">{blockLabel}</span>}
-          {state.currentBlock && (
-            <span className="text-xs text-muted">{timeRemaining(state.currentBlock.endTime)}</span>
+          {remaining !== null && (
+            <span className="text-xs text-muted">
+              {remaining <= 0
+                ? t('organizer.schedulePage.liveBanner.ending')
+                : t('organizer.schedulePage.liveBanner.minLeft', { min: remaining })}
+            </span>
           )}
         </div>
         <svg
@@ -118,18 +124,25 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                     {ls.runningMatch.matchNumberLabel}
                   </span>
                   <span className="text-muted truncate">
-                    {ls.runningMatch.redFighterName ?? '?'} vs{' '}
-                    {ls.runningMatch.blueFighterName ?? '?'}
+                    {t('organizer.schedulePage.liveBanner.versus', {
+                      red: ls.runningMatch.redFighterName ?? '?',
+                      blue: ls.runningMatch.blueFighterName ?? '?',
+                    })}
                   </span>
                 </div>
               ) : ls.nextMatch ? (
                 <div className="flex items-center gap-2 min-w-0 text-muted">
-                  <span className="flex-shrink-0 text-xs">Next:</span>
+                  <span className="flex-shrink-0 text-xs">
+                    {t('organizer.schedulePage.liveBanner.nextShort')}
+                  </span>
                   <span className="font-medium text-foreground-secondary flex-shrink-0">
                     {ls.nextMatch.matchNumberLabel}
                   </span>
                   <span className="truncate">
-                    {ls.nextMatch.redFighterName ?? '?'} vs {ls.nextMatch.blueFighterName ?? '?'}
+                    {t('organizer.schedulePage.liveBanner.versus', {
+                      red: ls.nextMatch.redFighterName ?? '?',
+                      blue: ls.nextMatch.blueFighterName ?? '?',
+                    })}
                   </span>
                   {ls.nextMatch.scheduledAt && (
                     <span className="flex-shrink-0 text-xs ml-auto">

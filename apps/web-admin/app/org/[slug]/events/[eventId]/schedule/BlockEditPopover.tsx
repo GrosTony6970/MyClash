@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * BlockEditPopover — a centered modal to edit a schedule block's name, time
  * and (for pool/bracket blocks) lice span. The parent owns open state and
@@ -15,6 +13,7 @@
 
 import { useState } from 'react';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 export interface BlockEditDraft {
   label: string;
@@ -50,6 +49,7 @@ export function BlockEditPopover({
   onCancel,
   onSave,
 }: Props) {
+  const { t } = useI18n();
   const [label, setLabel] = useState(initial.label);
   const [startHHMM, setStartHHMM] = useState(initial.startHHMM);
   const [endHHMM, setEndHHMM] = useState(initial.endHHMM);
@@ -86,7 +86,9 @@ export function BlockEditPopover({
         <div className="space-y-3">
           {mode === 'break' ? (
             <label className="flex flex-col gap-1 text-xs">
-              <span className="font-semibold text-muted">Name</span>
+              <span className="font-semibold text-muted">
+                {t('organizer.schedulePage.editPopover.nameLabel')}
+              </span>
               <input
                 type="text"
                 value={label}
@@ -100,7 +102,9 @@ export function BlockEditPopover({
 
           <div className="flex gap-2">
             <label className="flex flex-1 flex-col gap-1 text-xs">
-              <span className="font-semibold text-muted">Start</span>
+              <span className="font-semibold text-muted">
+                {t('organizer.schedulePage.editPopover.startLabel')}
+              </span>
               <input
                 type="text"
                 inputMode="numeric"
@@ -114,7 +118,9 @@ export function BlockEditPopover({
             </label>
             {mode === 'break' ? (
               <label className="flex flex-1 flex-col gap-1 text-xs">
-                <span className="font-semibold text-muted">End</span>
+                <span className="font-semibold text-muted">
+                  {t('organizer.schedulePage.editPopover.endLabel')}
+                </span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -132,24 +138,32 @@ export function BlockEditPopover({
           {mode === 'break' ? (
             <div className="flex flex-col gap-1 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-muted">Color</span>
+                <span className="font-semibold text-muted">
+                  {t('organizer.schedulePage.editPopover.colorLabel')}
+                </span>
                 {colorHex ? (
                   <button
                     type="button"
                     onClick={() => setColorHex('')}
                     className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
                   >
-                    Default
+                    {t('organizer.schedulePage.editPopover.colorDefault')}
                   </button>
                 ) : null}
               </div>
-              <ColorSwatchPicker value={colorHex} onChange={setColorHex} ariaLabel="Block color" />
+              <ColorSwatchPicker
+                value={colorHex}
+                onChange={setColorHex}
+                ariaLabel={t('organizer.schedulePage.editPopover.colorAriaLabel')}
+              />
             </div>
           ) : null}
 
           {mode === 'block' ? (
             <fieldset className="flex flex-col gap-1 text-xs">
-              <span className="font-semibold text-muted">Lices</span>
+              <span className="font-semibold text-muted">
+                {t('organizer.schedulePage.editPopover.licesLabel')}
+              </span>
               <div className="flex flex-wrap gap-2">
                 {lices.map((l) => (
                   <label
@@ -177,7 +191,7 @@ export function BlockEditPopover({
             onClick={onCancel}
             className="rounded border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
-            Cancel
+            {t('organizer.schedulePage.editPopover.cancel')}
           </button>
           <button
             type="button"
@@ -185,7 +199,7 @@ export function BlockEditPopover({
             onClick={() => onSave({ label, startHHMM, endHHMM, liceIds, colorHex })}
             className="rounded bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
           >
-            Save
+            {t('organizer.schedulePage.editPopover.save')}
           </button>
         </div>
       </div>
