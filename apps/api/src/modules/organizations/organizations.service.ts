@@ -4,8 +4,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
+// silently injects undefined (see matches/di-wiring.regression.test.ts).
+import { UserDirectoryService } from '../user-directory/user-directory.service';
 import type {
   AddMemberDto,
   CreateOrganizationDto,
@@ -24,7 +28,12 @@ export interface OrgLogoUpload {
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    // Optional so direct `new OrganizationsService(supabase)` in tests still
+    // works; provided by OrganizationsModule (imports UserDirectoryModule).
+    @Optional() private readonly userDirectory?: UserDirectoryService,
+  ) {}
 
   // ── List (super admin) ───────────────────────────────────────────────────────
 
@@ -55,7 +64,7 @@ export class OrganizationsService {
   async getBySlug(slug: string) {
     const { data, error } = await this.supabase.service
       .from('organizations')
-      .select('id, name, slug, status, logo_url, brand_color')
+      .select('id, name, slug, status, logo_url, brand_color, contact_email')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -238,19 +247,57 @@ export class OrganizationsService {
     }
   }
 
-  // ── Add member ───────────────────────────────────────────────────────────────
+  // ── Members ──────────────────────────────────────────────────────────────────
+
+  /** Members with resolved display names (never raw UUIDs) — org admin+. */
+  async listMembers(orgId: string, requestingUserId: string) {
+    await this.assertOrgRole(orgId, requestingUserId, 'admin');
+
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .select('user_id, role, created_at')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const rows = (data ?? []) as Array<{ user_id: string; role: string; created_at: string }>;
+    const resolved =
+      (await this.userDirectory?.resolveUsers(rows.map((row) => row.user_id))) ??
+      new Map<string, { name: string | null; email: string | null }>();
+    return rows.map((row) => ({
+      userId: row.user_id,
+      role: row.role,
+      createdAt: row.created_at,
+      name: resolved.get(row.user_id)?.name ?? null,
+      email: resolved.get(row.user_id)?.email ?? null,
+    }));
+  }
 
   async addMember(orgId: string, dto: AddMemberDto, requestingUserId: string) {
     await this.assertOrgRole(orgId, requestingUserId, 'owner');
+
+    // Owner-friendly path: resolve an existing account by email — owners
+    // don't know their teammates' UUIDs (and the UI never shows raw ids).
+    let userId = dto.userId ?? null;
+    if (!userId) {
+      if (!dto.email) throw new BadRequestException('Provide userId or email');
+      userId = await this.findUserIdByEmail(dto.email);
+      if (!userId) {
+        throw new NotFoundException(
+          `No MyClash account found for ${dto.email}. Ask them to sign up first.`,
+        );
+      }
+    }
+
     // Super-admins are platform-scoped; they must not appear in any org's
     // member list. Mirror check in AdminUsersService.addOrgMembership.
-    await this.assertNotSuperAdmin(dto.userId);
+    await this.assertNotSuperAdmin(userId);
 
     const { data, error } = await this.supabase.service
       .from('organization_members')
       .upsert({
         organization_id: orgId,
-        user_id: dto.userId,
+        user_id: userId,
         role: dto.role,
       })
       .select('*')
@@ -258,6 +305,52 @@ export class OrganizationsService {
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  /** Remove a member — owner only; the owner row itself is untouchable. */
+  async removeMember(orgId: string, targetUserId: string, requestingUserId: string) {
+    await this.assertOrgRole(orgId, requestingUserId, 'owner');
+
+    const { data: target } = await this.supabase.service
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', orgId)
+      .eq('user_id', targetUserId)
+      .maybeSingle();
+    if (!target) throw new NotFoundException('Member not found in this organization');
+    if ((target as { role: string }).role === 'owner') {
+      throw new BadRequestException(
+        'The owner cannot be removed — reassign ownership first (super admin).',
+      );
+    }
+
+    const { error } = await this.supabase.service
+      .from('organization_members')
+      .delete()
+      .eq('organization_id', orgId)
+      .eq('user_id', targetUserId);
+    if (error) throw new BadRequestException(error.message);
+    return { removed: true };
+  }
+
+  /** Paged GoTrue admin scan — same approach as admin-organizations. */
+  private async findUserIdByEmail(email: string): Promise<string | null> {
+    const target = email.trim().toLowerCase();
+    let page = 1;
+    const perPage = 1000;
+    while (page <= 10) {
+      const response = await this.supabase.listAuthAdminUsers(page, perPage);
+      if (!response.ok || !response.data) {
+        throw new BadRequestException('Could not look up accounts by email');
+      }
+      const user = response.data.users.find(
+        (candidate) => candidate.email?.toLowerCase() === target,
+      );
+      if (user) return user.id;
+      if (response.data.users.length < perPage) return null;
+      page += 1;
+    }
+    return null;
   }
 
   /** Throws if `userId` holds the platform-level super-admin role. */

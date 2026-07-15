@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -136,10 +137,19 @@ export class OrganizationsController {
   // (`POST :id/approve` was removed — it duplicated the consumed
   // `PATCH admin/organizations/:id/approve` super-admin route.)
 
+  /** GET /api/v1/organizations/:id/members — org admin+ */
+  @Get(':id/members')
+  @ApiOperation({ summary: 'List organization members with resolved names (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async listMembers(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.orgs.listMembers(id, userId);
+  }
+
   /** POST /api/v1/organizations/:id/members — owner only */
   @Post(':id/members')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Add member to organization (owner)' })
+  @ApiOperation({ summary: 'Add member to organization by userId or email (owner)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async addMember(
     @Param('id', ParseUUIDPipe) id: string,
@@ -148,5 +158,20 @@ export class OrganizationsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.orgs.addMember(id, dto, userId);
+  }
+
+  /** DELETE /api/v1/organizations/:id/members/:userId — owner only */
+  @Delete(':id/members/:userId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove member from organization (owner; owner row protected)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
+  async removeMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.orgs.removeMember(id, targetUserId, userId);
   }
 }

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getApiUrl, getPublicApiUrl } from '@/lib/api-url';
 
 interface League {
   id: string;
@@ -58,6 +58,27 @@ async function fetchStandings(apiUrl: string, leagueId: string): Promise<Standin
   }
 }
 
+interface MemberEvent {
+  id: string;
+  name: string;
+  slug: string;
+  startDate: string;
+  endDate: string | null;
+  organization: { id: string; name: string };
+}
+
+async function fetchMemberEvents(apiUrl: string, leagueId: string): Promise<MemberEvent[]> {
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/leagues/${leagueId}/member-events`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as MemberEvent[];
+  } catch {
+    return [];
+  }
+}
+
 function initialsFor(name: string | null | undefined): string {
   const value = (name ?? '').trim();
   if (!value) return '··';
@@ -92,7 +113,10 @@ export default async function PublicLeagueStandingsPage({
   const apiUrl = getApiUrl();
   const league = await fetchLeague(apiUrl, slug);
   if (!league) notFound();
-  const standings = await fetchStandings(apiUrl, league.id);
+  const [standings, memberEvents] = await Promise.all([
+    fetchStandings(apiUrl, league.id),
+    fetchMemberEvents(apiUrl, league.id),
+  ]);
   const columns = standings?.columns ?? [];
   const rows = standings?.rows ?? [];
 
@@ -130,8 +154,49 @@ export default async function PublicLeagueStandingsPage({
               {league.description}
             </p>
           )}
+          {rows.length > 0 && (
+            <p className="mt-3 flex flex-wrap gap-4 text-sm">
+              {/* getPublicApiUrl: these hrefs land in HTML — the SSR-side
+                  getApiUrl() would leak the docker-internal host here. */}
+              <a
+                href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.csv`}
+                className="font-semibold text-red-700 hover:text-red-800"
+              >
+                {t('publicApp.leagues.downloadReport')}
+              </a>
+              <a
+                href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.print.html`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-red-700 hover:text-red-800"
+              >
+                {t('publicApp.leagues.printableReport')}
+              </a>
+            </p>
+          )}
         </div>
       </section>
+
+      {memberEvents.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="font-display font-semibold text-lg sm:text-xl text-slate-900">
+            {t('publicApp.leagues.memberEventsTitle')}
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {memberEvents.map((event) => (
+              <li key={event.id}>
+                <Link
+                  href={`/e/${event.slug}`}
+                  className="inline-flex flex-col rounded-lg border border-stone-200 bg-white px-4 py-2 shadow-sm transition-colors hover:border-red-400"
+                >
+                  <span className="text-sm font-semibold text-slate-900">{event.name}</span>
+                  <span className="text-xs text-slate-500">{event.organization.name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">

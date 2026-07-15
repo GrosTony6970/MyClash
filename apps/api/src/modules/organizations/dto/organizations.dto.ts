@@ -31,7 +31,10 @@ export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema
 
 const addMemberSchema = z
   .object({
-    userId: z.uuid(),
+    // Exactly one of userId / email (the service validates the pairing):
+    // owners add teammates by email — they never see raw account ids.
+    userId: z.uuid().optional(),
+    email: z.email().optional(),
     role: z.enum(['admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead', 'read_only']),
   })
   .strict();

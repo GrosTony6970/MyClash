@@ -38,3 +38,13 @@ export function getApiUrl(): string {
   }
   return trimmed(process.env['NEXT_PUBLIC_API_URL']) ?? 'http://localhost:4000';
 }
+
+/**
+ * Browser-reachable API base URL, safe on BOTH sides. Use this for URLs that
+ * end up in rendered HTML (`<a href>`, `<img src>`) from server components —
+ * `getApiUrl()` would leak the docker-internal `http://api:4000` host into
+ * the page there (the SSR client-URL-leak gotcha).
+ */
+export function getPublicApiUrl(): string {
+  return trimmed(process.env['NEXT_PUBLIC_API_URL']) ?? 'http://localhost:4000';
+}

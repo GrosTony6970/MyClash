@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
-import { useConfirm } from '@myclash/ui';
+import { useConfirm, useToast } from '@myclash/ui';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -136,8 +136,28 @@ const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 export default function EditLeaguePage() {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
+  const toast = useToast();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
+  const [recomputing, setRecomputing] = useState(false);
+
+  // Manual standings recompute — the endpoint existed with no UI, so drifted
+  // standings could only be fixed by waiting for automatic triggers.
+  async function recomputeRankings() {
+    setRecomputing(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/recompute`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(t('admin.adminLeagues.recomputeFailed'));
+      toast.success(t('admin.adminLeagues.recomputeDone'));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('admin.adminLeagues.recomputeFailed'));
+    } finally {
+      setRecomputing(false);
+    }
+  }
   const searchParams = useSearchParams();
   const justCreated = searchParams.get('created') === '1';
 
@@ -1323,6 +1343,41 @@ export default function EditLeaguePage() {
       {/* Pending requests (tournament-attach + org-join) */}
       <section className="mb-6">
         <LeagueRequestsPanel leagueId={leagueId} />
+      </section>
+
+      {/* Exports + maintenance — surfaces the final-report and recompute
+          endpoints that previously had no UI anywhere. */}
+      <section className="mb-6 rounded-lg border border-border bg-surface p-4">
+        <h2 className="font-display font-semibold text-lg text-foreground">
+          {t('admin.adminLeagues.exportsTitle')}
+        </h2>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <a
+            href={`${apiUrl}/api/v1/leagues/${leagueId}/final-report.csv`}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground"
+          >
+            {t('admin.adminLeagues.downloadReportCsv')}
+          </a>
+          <a
+            href={`${apiUrl}/api/v1/leagues/${leagueId}/final-report.print.html`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground"
+          >
+            {t('admin.adminLeagues.printableReport')}
+          </a>
+          <button
+            type="button"
+            onClick={() => void recomputeRankings()}
+            disabled={recomputing}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground disabled:opacity-50"
+          >
+            {recomputing
+              ? t('admin.adminLeagues.recomputing')
+              : t('admin.adminLeagues.recomputeButton')}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.recomputeHint')}</p>
       </section>
       {confirmDialog}
     </main>

@@ -28,6 +28,10 @@ const orgNavItems = [
   // leagues this org administers. `exact: false` so per-league sub-routes
   // (`/org/{slug}/leagues/{leagueId}`) keep the entry highlighted.
   { href: 'leagues', labelKey: 'organizer.shell.nav.leagues', badge: 'L' },
+  // Org profile + members self-service (name/logo/contact, add/remove
+  // members) — before this entry only super-admins could edit an org.
+  // pickActiveHref longest-match keeps it distinct from settings/ai.
+  { href: 'settings', labelKey: 'organizer.shell.nav.orgSettings', badge: 'OS' },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
   // Compensation is unified under each event (Compensation plan + Referee
   // compensation tabs); no standalone org-settings entry.
