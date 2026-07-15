@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * CSV import wizard — T-703 / T-1208
  * Steps: Upload → Preview (with conflict cards) → Commit → Done
@@ -10,7 +8,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
+import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import type {
   CsvImportReport,
   ImportDecision,
@@ -81,11 +79,11 @@ function SectionAccordion({
   );
 }
 
-const CONFIDENCE_LABELS: Record<string, string> = {
-  exact_abv: 'abbreviation match',
-  high: 'name match',
-  medium: 'fuzzy match',
-  new: 'new club',
+const CONFIDENCE_LABEL_KEYS: Record<string, string> = {
+  exact_abv: 'organizer.personsImport.confidenceExactAbv',
+  high: 'organizer.personsImport.confidenceHigh',
+  medium: 'organizer.personsImport.confidenceMedium',
+  new: 'organizer.personsImport.confidenceNew',
 };
 
 const CONFIDENCE_COLORS: Record<string, string> = {
@@ -104,32 +102,39 @@ function ConflictCard({
   decision: 'link' | 'create_new';
   onDecide: (rowIndex: number, action: 'link' | 'create_new') => void;
 }) {
+  const { t } = useI18n();
   const match = row.globalPersonMatch!;
   return (
     <div className="border border-warning/30 bg-warning/10 rounded-lg p-4 text-sm">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
           <p className="font-semibold text-foreground">
-            Row {row.index + 1}: {row.givenName} {row.familyName}
+            {t('organizer.personsImport.rowPrefix', { n: row.index + 1 })} {row.givenName}{' '}
+            {row.familyName}
           </p>
           {row.email && <p className="text-muted text-xs">{row.email}</p>}
           {row.clubResolution && (
             <p className="text-xs mt-0.5">
-              Club: <span className="font-medium">{row.clubResolution.resolvedName}</span>
+              {t('organizer.personsImport.clubPrefix')}{' '}
+              <span className="font-medium">{row.clubResolution.resolvedName}</span>
               {row.clubResolution.abbreviation && (
                 <span className="ml-1 text-muted">({row.clubResolution.abbreviation})</span>
               )}
               <span
                 className={`ml-2 px-1.5 py-0.5 rounded text-xs ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-border text-foreground-secondary'}`}
               >
-                {CONFIDENCE_LABELS[row.clubResolution.confidence] ?? row.clubResolution.confidence}
+                {CONFIDENCE_LABEL_KEYS[row.clubResolution.confidence]
+                  ? t(CONFIDENCE_LABEL_KEYS[row.clubResolution.confidence]!)
+                  : row.clubResolution.confidence}
               </span>
             </p>
           )}
         </div>
       </div>
       <div className="bg-surface border border-warning/30 rounded-md p-2 mb-3 text-xs">
-        <p className="text-warning font-medium mb-1">Global profile found:</p>
+        <p className="text-warning font-medium mb-1">
+          {t('organizer.personsImport.globalProfileFound')}
+        </p>
         <p className="font-semibold text-foreground">{match.displayName}</p>
         {(match.clubName || match.abbreviation) && (
           <p className="text-muted">
@@ -151,7 +156,9 @@ function ConflictCard({
               className="accent-accent"
             />
             <span className={decision === action ? 'font-medium text-foreground' : 'text-muted'}>
-              {action === 'link' ? 'Link to existing profile' : 'Create new profile'}
+              {action === 'link'
+                ? t('organizer.personsImport.decisionLink')
+                : t('organizer.personsImport.decisionCreate')}
             </span>
           </label>
         ))}
@@ -165,6 +172,7 @@ export default function CsvImportPage() {
   const { slug, eventId } = params;
   const router = useRouter();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -276,12 +284,16 @@ export default function CsvImportPage() {
           href={`/org/${slug}/events/${eventId}/persons`}
           className="hover:text-foreground-secondary"
         >
-          Persons
+          {t('organizer.personsImport.breadcrumbPersons')}
         </Link>
         <span>/</span>
-        <span className="text-foreground font-medium">CSV import</span>
+        <span className="text-foreground font-medium">
+          {t('organizer.personsImport.breadcrumbCsvImport')}
+        </span>
       </div>
-      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">Import persons from CSV</h1>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
+        {t('organizer.personsImport.title')}
+      </h1>
 
       {/* Step indicator */}
       <div className="flex items-center gap-4 mb-8 text-sm">
@@ -300,7 +312,11 @@ export default function CsvImportPage() {
               {i + 1}
             </div>
             <span className={step === s ? 'font-semibold text-foreground' : 'text-muted'}>
-              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'upload'
+                ? t('organizer.personsImport.stepUpload')
+                : s === 'preview'
+                  ? t('organizer.personsImport.stepPreview')
+                  : t('organizer.personsImport.stepDone')}
             </span>
             {i < 2 && <div className="w-8 h-px bg-border" />}
           </div>
@@ -317,9 +333,11 @@ export default function CsvImportPage() {
       {step === 'upload' && (
         <div className="flex flex-col gap-4">
           <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
-            <p className="text-muted text-sm mb-1">CSV columns (email optional):</p>
+            <p className="text-muted text-sm mb-1">
+              {t('organizer.personsImport.csvColumnsLabel')}
+            </p>
             <p className="font-mono text-xs text-muted mb-3">
-              given_name, family_name, email, club, club_abv, club_city, hema_ratings_id
+              {'given_name, family_name, email, club, club_abv, club_city, hema_ratings_id'}
             </p>
             <input
               ref={fileRef}
@@ -333,11 +351,12 @@ export default function CsvImportPage() {
               onClick={() => fileRef.current?.click()}
               className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
             >
-              Choose CSV file
+              {t('organizer.personsImport.chooseFile')}
             </button>
             {file && (
               <p className="text-sm text-foreground-secondary mt-2">
-                Selected: <strong>{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
+                {t('organizer.personsImport.selectedLabel')} <strong>{file.name}</strong>{' '}
+                {t('organizer.personsImport.sizeKb', { size: (file.size / 1024).toFixed(1) })}
               </p>
             )}
           </div>
@@ -348,7 +367,9 @@ export default function CsvImportPage() {
             disabled={!file || uploading}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
           >
-            {uploading ? 'Validating…' : 'Validate →'}
+            {uploading
+              ? t('organizer.personsImport.validating')
+              : t('organizer.personsImport.validate')}
           </button>
         </div>
       )}
@@ -397,21 +418,26 @@ export default function CsvImportPage() {
               <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
                 <div className="flex flex-wrap items-center gap-3 text-foreground-secondary">
                   <span>
-                    <strong>{preview.rows.length}</strong> rows
+                    <strong>{preview.rows.length}</strong> {t('organizer.personsImport.rowsChip')}
                   </span>
                   <span className="text-success">
-                    <strong>{willCreate}</strong> will create
+                    <strong>{willCreate}</strong> {t('organizer.personsImport.willCreateChip')}
                   </span>
                   <span className="text-info">
-                    <strong>{willLink}</strong> will link
+                    <strong>{willLink}</strong> {t('organizer.personsImport.willLinkChip')}
                   </span>
                   <span className="text-danger">
-                    <strong>{invalidRows.length}</strong> invalid
+                    <strong>{invalidRows.length}</strong> {t('organizer.personsImport.invalidChip')}
                   </span>
                   {preview.newClubs.length > 0 && (
                     <span className="text-info">
-                      + {preview.newClubs.length} new club
-                      {preview.newClubs.length !== 1 ? 's' : ''}
+                      {preview.newClubs.length === 1
+                        ? t('organizer.personsImport.newClubsChipSingular', {
+                            count: preview.newClubs.length,
+                          })
+                        : t('organizer.personsImport.newClubsChipPlural', {
+                            count: preview.newClubs.length,
+                          })}
                     </span>
                   )}
                 </div>
@@ -424,7 +450,8 @@ export default function CsvImportPage() {
                         disabled={notYetLinkedCount === 0}
                         className="rounded-md border border-info/30 bg-info/10 px-2.5 py-1 text-xs font-semibold text-info hover:bg-info/20 disabled:opacity-50"
                       >
-                        Link all suggested{notYetLinkedCount > 0 ? ` (${notYetLinkedCount})` : ''}
+                        {t('organizer.personsImport.linkAllSuggested')}
+                        {notYetLinkedCount > 0 ? ` (${notYetLinkedCount})` : ''}
                       </button>
                       <button
                         type="button"
@@ -432,7 +459,7 @@ export default function CsvImportPage() {
                         disabled={notYetCreateNewCount === 0}
                         className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
                       >
-                        Create all as new
+                        {t('organizer.personsImport.createAllAsNew')}
                         {notYetCreateNewCount > 0 ? ` (${notYetCreateNewCount})` : ''}
                       </button>
                     </>
@@ -443,7 +470,7 @@ export default function CsvImportPage() {
                     disabled={uploading}
                     className="text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
                   >
-                    Cancel
+                    {t('organizer.personsImport.cancel')}
                   </button>
                   <button
                     type="button"
@@ -452,7 +479,11 @@ export default function CsvImportPage() {
                     disabled={uploading || willCreate + willLink === 0}
                     className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
                   >
-                    {uploading ? 'Importing…' : `Import ${willCreate + willLink} persons`}
+                    {uploading
+                      ? t('organizer.personsImport.importing')
+                      : t('organizer.personsImport.importButton', {
+                          count: willCreate + willLink,
+                        })}
                   </button>
                 </div>
               </div>
@@ -461,7 +492,7 @@ export default function CsvImportPage() {
               {preview.newClubs.length > 0 && (
                 <div className="rounded-lg border border-info/30 bg-info/10 p-3 text-sm">
                   <p className="mb-1 font-medium text-info">
-                    New clubs will be created (unverified):
+                    {t('organizer.personsImport.newClubsCallout')}
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {preview.newClubs.map((c) => (
@@ -475,7 +506,7 @@ export default function CsvImportPage() {
 
               {/* Will create — clean rows (no global match). */}
               <SectionAccordion
-                title="Will create"
+                title={t('organizer.personsImport.sectionWillCreate')}
                 count={cleanRows.length}
                 tone="green"
                 defaultOpen={cleanRows.length <= 10}
@@ -487,7 +518,9 @@ export default function CsvImportPage() {
                       className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-success/30 bg-success/5 px-3 py-1.5 text-xs"
                     >
                       <span>
-                        <span className="font-mono text-success">Row {row.index + 1}:</span>{' '}
+                        <span className="font-mono text-success">
+                          {t('organizer.personsImport.rowPrefix', { n: row.index + 1 })}
+                        </span>{' '}
                         <span className="font-medium text-foreground">
                           {row.givenName} {row.familyName}
                         </span>
@@ -504,8 +537,9 @@ export default function CsvImportPage() {
                           <span
                             className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-border text-foreground-secondary'}`}
                           >
-                            {CONFIDENCE_LABELS[row.clubResolution.confidence] ??
-                              row.clubResolution.confidence}
+                            {CONFIDENCE_LABEL_KEYS[row.clubResolution.confidence]
+                              ? t(CONFIDENCE_LABEL_KEYS[row.clubResolution.confidence]!)
+                              : row.clubResolution.confidence}
                           </span>
                         </span>
                       )}
@@ -517,7 +551,7 @@ export default function CsvImportPage() {
               {/* Duplicates — conflict rows; ConflictCard radios let
                   the operator change link vs create_new per row. */}
               <SectionAccordion
-                title="Duplicates (need a decision)"
+                title={t('organizer.personsImport.sectionDuplicates')}
                 count={conflictRows.length}
                 tone="amber"
                 defaultOpen={conflictRows.length <= 10}
@@ -536,7 +570,7 @@ export default function CsvImportPage() {
 
               {/* Invalid — auto-skipped on import. */}
               <SectionAccordion
-                title="Invalid (will skip)"
+                title={t('organizer.personsImport.sectionInvalid')}
                 count={invalidRows.length}
                 tone="red"
                 defaultOpen={invalidRows.length <= 10}
@@ -547,7 +581,9 @@ export default function CsvImportPage() {
                       key={r.index}
                       className="rounded border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs"
                     >
-                      <span className="font-mono text-danger">Row {r.index + 1}:</span>{' '}
+                      <span className="font-mono text-danger">
+                        {t('organizer.personsImport.rowPrefix', { n: r.index + 1 })}
+                      </span>{' '}
                       {r.invalidReason}
                     </div>
                   ))}
@@ -561,16 +597,22 @@ export default function CsvImportPage() {
       {step === 'done' && report && (
         <div className="text-center py-8">
           <p className="text-4xl mb-3">✅</p>
-          <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">Import complete</h2>
+          <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
+            {t('organizer.personsImport.doneTitle')}
+          </h2>
           <p className="text-muted text-sm mb-6">
-            {report.created} created · {report.updated} updated · {report.duplicates.length} skipped
-            · {report.invalid.length} invalid
+            {t('organizer.personsImport.doneSummary', {
+              created: report.created,
+              updated: report.updated,
+              skipped: report.duplicates.length,
+              invalid: report.invalid.length,
+            })}
           </p>
           <button
             onClick={() => router.push(`/org/${slug}/events/${eventId}/persons`)}
             className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
           >
-            Back to roster
+            {t('organizer.personsImport.backToRoster')}
           </button>
         </div>
       )}

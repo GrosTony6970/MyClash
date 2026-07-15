@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Super-admin queue for global-person claim requests submitted from
  * /me when the target profile has no email on file (the §8 fallback
@@ -114,16 +112,15 @@ export default function PendingClaimsPage() {
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">
-            Profile claim requests
+            {t('admin.pendingClaims.title')}
           </h1>
           <p className="text-muted text-sm">
-            Public users asking to claim a global profile that has no email on file. Approve to set{' '}
-            <code>claimed_by_user_id</code> + backfill the email; reject with a reason to leave the
-            profile unclaimed.
+            {t('admin.pendingClaims.subtitlePrefix')} <code>claimed_by_user_id</code>{' '}
+            {t('admin.pendingClaims.subtitleSuffix')}
           </p>
         </div>
         <Link href="/admin/global-persons/import" className="text-sm text-info hover:underline">
-          ← Global persons
+          {t('admin.pendingClaims.backToGlobalPersons')}
         </Link>
       </div>
 
@@ -134,19 +131,19 @@ export default function PendingClaimsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <p className="text-sm text-muted">{t('admin.pendingClaims.loading')}</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-muted">No pending requests.</p>
+        <p className="text-sm text-muted">{t('admin.pendingClaims.empty')}</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-surface">
           <table className="min-w-full text-sm">
             <thead className="bg-background border-b border-border text-left text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="px-3 py-2">Requester</th>
-                <th className="px-3 py-2">Profile</th>
-                <th className="px-3 py-2">Club</th>
-                <th className="px-3 py-2">Requested</th>
-                <th className="px-3 py-2 text-right">Action</th>
+                <th className="px-3 py-2">{t('admin.pendingClaims.colRequester')}</th>
+                <th className="px-3 py-2">{t('admin.pendingClaims.colProfile')}</th>
+                <th className="px-3 py-2">{t('admin.pendingClaims.colClub')}</th>
+                <th className="px-3 py-2">{t('admin.pendingClaims.colRequested')}</th>
+                <th className="px-3 py-2 text-right">{t('admin.pendingClaims.colAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -165,7 +162,9 @@ export default function PendingClaimsPage() {
                           {[
                             row.globalPerson.countryCode,
                             row.globalPerson.hemaRatingsId
-                              ? `HEMA #${row.globalPerson.hemaRatingsId}`
+                              ? t('admin.pendingClaims.hemaIdShort', {
+                                  id: row.globalPerson.hemaRatingsId,
+                                })
                               : null,
                           ]
                             .filter(Boolean)
@@ -173,7 +172,9 @@ export default function PendingClaimsPage() {
                         </div>
                       </div>
                     ) : (
-                      <span className="text-xs text-muted italic">missing profile</span>
+                      <span className="text-xs text-muted italic">
+                        {t('admin.pendingClaims.missingProfile')}
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs text-foreground-secondary">
@@ -188,7 +189,7 @@ export default function PendingClaimsPage() {
                         <input
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="Rejection reason"
+                          placeholder={t('admin.pendingClaims.rejectReasonPlaceholder')}
                           className="w-56 border border-border rounded px-2 py-1 text-xs"
                         />
                         <div className="flex gap-2">
@@ -198,7 +199,7 @@ export default function PendingClaimsPage() {
                             disabled={busyId === row.id || !rejectReason.trim()}
                             className="rounded bg-danger hover:bg-danger-hover disabled:opacity-50 text-danger-foreground text-xs font-bold px-3 py-1"
                           >
-                            Confirm reject
+                            {t('admin.pendingClaims.confirmReject')}
                           </button>
                           <button
                             type="button"
@@ -208,7 +209,7 @@ export default function PendingClaimsPage() {
                             }}
                             className="rounded border border-border text-xs px-3 py-1"
                           >
-                            Cancel
+                            {t('admin.pendingClaims.cancel')}
                           </button>
                         </div>
                       </div>
@@ -220,7 +221,7 @@ export default function PendingClaimsPage() {
                           disabled={busyId === row.id}
                           className="rounded bg-success hover:bg-success-hover disabled:opacity-50 text-success-foreground text-xs font-bold px-3 py-1"
                         >
-                          Approve
+                          {t('admin.pendingClaims.approve')}
                         </button>
                         <button
                           type="button"
@@ -228,7 +229,7 @@ export default function PendingClaimsPage() {
                           disabled={busyId === row.id}
                           className="rounded border border-border text-foreground-secondary text-xs font-bold px-3 py-1 hover:bg-background"
                         >
-                          Reject
+                          {t('admin.pendingClaims.reject')}
                         </button>
                       </div>
                     )}

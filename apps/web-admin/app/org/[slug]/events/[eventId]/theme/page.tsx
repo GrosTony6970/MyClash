@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string -- branding editor predates i18n */
 'use client';
 
 /**
@@ -190,13 +189,12 @@ export default function BrandingEditorPage() {
             {eventName}
           </Link>
           <span>/</span>
-          <span className="font-medium text-foreground">Branding</span>
+          <span className="font-medium text-foreground">{t('organizer.branding.title')}</span>
         </div>
-        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">Branding</h1>
-        <p className="mt-1 text-sm text-muted">
-          Per-event identity: logo and hero image. Page colors + typography come from the unified
-          MyClash design tokens and apply across both the organiser and public apps.
-        </p>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+          {t('organizer.branding.title')}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{t('organizer.branding.subtitle')}</p>
       </div>
 
       {error && (
@@ -206,7 +204,7 @@ export default function BrandingEditorPage() {
       )}
       {searchParams.get('logoUpload') === 'failed' && (
         <div className="mb-6 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Logo upload failed during event creation. Upload it again here.
+          {t('organizer.branding.logoUploadFailedBanner')}
         </div>
       )}
 
@@ -214,14 +212,18 @@ export default function BrandingEditorPage() {
         {/* ── Logo ─────────────────────────────────────────────────────── */}
         <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-            Event logo
+            {t('organizer.branding.logoSection')}
           </h2>
           <div className="flex items-start gap-5">
             <button
               type="button"
               onClick={() => logoInputRef.current?.click()}
               disabled={uploadingLogo}
-              aria-label={logoUrl ? 'Replace event logo' : 'Upload event logo'}
+              aria-label={
+                logoUrl
+                  ? t('organizer.branding.replaceLogoAria')
+                  : t('organizer.branding.uploadLogoAria')
+              }
               className="group h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {logoUrl ? (
@@ -251,11 +253,13 @@ export default function BrandingEditorPage() {
                 disabled={uploadingLogo}
                 className="w-fit rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {uploadingLogo ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
+                {uploadingLogo
+                  ? t('organizer.branding.uploading')
+                  : logoUrl
+                    ? t('organizer.branding.replaceLogo')
+                    : t('organizer.branding.uploadLogo')}
               </button>
-              <p className="text-xs text-muted">
-                Square crop, ideally 256×256 or larger. PNG, JPEG, or WebP up to 10 MB.
-              </p>
+              <p className="text-xs text-muted">{t('organizer.branding.logoHint')}</p>
             </div>
           </div>
         </section>
@@ -263,18 +267,22 @@ export default function BrandingEditorPage() {
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-            Hero image
+            {t('organizer.branding.heroSection')}
           </h2>
           <p className="mb-3 text-xs text-muted">
-            Shown at the top of <code className="font-mono">/e/&lt;slug&gt;/home</code> for
-            spectators. Landscape image, ideally 1920 × 800 (or wider). PNG, JPEG, or WebP up to 10
-            MB.
+            {t('organizer.branding.heroHintPrefix')}{' '}
+            <code className="font-mono">/e/&lt;slug&gt;/home</code>{' '}
+            {t('organizer.branding.heroHintSuffix')}
           </p>
           <button
             type="button"
             onClick={() => heroInputRef.current?.click()}
             disabled={uploadingHero}
-            aria-label={heroImageUrl ? 'Replace hero image' : 'Upload hero image'}
+            aria-label={
+              heroImageUrl
+                ? t('organizer.branding.replaceHeroAria')
+                : t('organizer.branding.uploadHeroAria')
+            }
             className="group block aspect-[3/1] w-full overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {heroImageUrl ? (
@@ -282,7 +290,9 @@ export default function BrandingEditorPage() {
               <img src={heroImageUrl} alt="" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-sm font-medium text-muted group-hover:text-foreground-secondary">
-                {uploadingHero ? 'Uploading…' : 'Click to upload a hero image'}
+                {uploadingHero
+                  ? t('organizer.branding.uploading')
+                  : t('organizer.branding.clickToUploadHero')}
               </div>
             )}
           </button>
@@ -304,7 +314,11 @@ export default function BrandingEditorPage() {
               disabled={uploadingHero}
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {uploadingHero ? 'Uploading…' : heroImageUrl ? 'Replace hero' : 'Upload hero'}
+              {uploadingHero
+                ? t('organizer.branding.uploading')
+                : heroImageUrl
+                  ? t('organizer.branding.replaceHero')
+                  : t('organizer.branding.uploadHero')}
             </button>
           </div>
         </section>
@@ -312,10 +326,10 @@ export default function BrandingEditorPage() {
         {/* ── Preview ──────────────────────────────────────────────────── */}
         <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
           <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
-            Preview
+            {t('organizer.branding.previewSection')}
           </h2>
           <p className="mb-3 text-xs text-muted">
-            How the logo and hero appear at the top of{' '}
+            {t('organizer.branding.previewHintPrefix')}{' '}
             <code className="font-mono">/e/&lt;slug&gt;/home</code>.
           </p>
           <div className="overflow-hidden rounded-xl border border-border">
@@ -329,7 +343,7 @@ export default function BrandingEditorPage() {
               />
             ) : (
               <div className="flex aspect-[16/7] max-h-48 w-full items-center justify-center border-b border-dashed border-border bg-background text-xs font-medium text-muted">
-                Hero image preview
+                {t('organizer.branding.heroPreviewPlaceholder')}
               </div>
             )}
             <div className="flex items-center gap-4 p-4">
@@ -348,7 +362,7 @@ export default function BrandingEditorPage() {
               )}
               <div className="min-w-0">
                 <p className="font-display text-xl font-bold text-foreground">
-                  {eventName || 'Event name'}
+                  {eventName || t('organizer.branding.eventNameFallback')}
                 </p>
                 {previewMeta && <p className="mt-0.5 truncate text-sm text-muted">{previewMeta}</p>}
               </div>

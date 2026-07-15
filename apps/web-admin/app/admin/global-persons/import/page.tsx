@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Super admin: bulk import global persons from CSV.
  * Steps: Upload → Review (edit + per-row action) → Done
@@ -192,10 +190,10 @@ export default function GlobalPersonsImportPage() {
 
   return (
     <main className="p-8 max-w-7xl">
-      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">Import Global Profiles</h1>
-      <p className="text-muted text-sm mb-6">
-        Bulk-create or update global profiles from a CSV file. Review each row before committing.
-      </p>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">
+        {t('admin.globalPersonsImport.title')}
+      </h1>
+      <p className="text-muted text-sm mb-6">{t('admin.globalPersonsImport.subtitle')}</p>
 
       {error && (
         <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-4 text-sm">
@@ -206,33 +204,25 @@ export default function GlobalPersonsImportPage() {
       {step === 'upload' && (
         <div className="flex flex-col gap-5 max-w-2xl">
           <div className="bg-background border border-border rounded-lg p-4 text-sm">
-            <p className="font-medium text-foreground-secondary mb-2">Expected CSV columns:</p>
+            <p className="font-medium text-foreground-secondary mb-2">
+              {t('admin.globalPersonsImport.csvColumnsLabel')}
+            </p>
             <p className="font-mono text-xs text-muted mb-3">
-              given_name, family_name, display_name, club, club_abv, club_city, hema_ratings_id,
-              email, date_of_birth, is_fighter, is_referee, is_workshop_participant
+              {'given_name, family_name, display_name, club, club_abv, club_city, ' +
+                'hema_ratings_id, email, date_of_birth, is_fighter, is_referee, ' +
+                'is_workshop_participant'}
             </p>
-            <p className="text-xs text-muted mb-3">
-              <span className="font-semibold">email</span> and{' '}
-              <span className="font-semibold">date_of_birth</span> are optional.{' '}
-              <span className="font-semibold">date_of_birth</span> must be{' '}
-              <span className="font-mono">DD/MM/YYYY</span> (ISO{' '}
-              <span className="font-mono">YYYY-MM-DD</span> also accepted for legacy uploads). When
-              a row resolves to an existing global profile, email and DOB are <em>only</em> written
-              if the existing row has them unset — no overwrite.
-            </p>
+            <p className="text-xs text-muted mb-3">{t('admin.globalPersonsImport.dobHint')}</p>
             <p className="text-xs text-muted mb-3">
               <a
                 href="/csv-samples/global-persons.csv"
                 download
                 className="text-info hover:underline font-medium"
               >
-                Download sample CSV
+                {t('admin.globalPersonsImport.downloadSample')}
               </a>
             </p>
-            <p className="text-xs text-muted">
-              The next step will show every parsed row plus duplicates with the existing profile,
-              and let you edit each field before commit.
-            </p>
+            <p className="text-xs text-muted">{t('admin.globalPersonsImport.nextStepHint')}</p>
           </div>
 
           <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
@@ -248,11 +238,12 @@ export default function GlobalPersonsImportPage() {
               onClick={() => fileRef.current?.click()}
               className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
             >
-              Choose CSV file
+              {t('organizer.personsImport.chooseFile')}
             </button>
             {file && (
               <p className="text-sm text-foreground-secondary mt-2">
-                <strong>{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
+                <strong>{file.name}</strong>{' '}
+                {t('organizer.personsImport.sizeKb', { size: (file.size / 1024).toFixed(1) })}
               </p>
             )}
           </div>
@@ -263,7 +254,9 @@ export default function GlobalPersonsImportPage() {
             disabled={!file || busy}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
           >
-            {busy ? 'Reading…' : 'Preview →'}
+            {busy
+              ? t('admin.globalPersonsImport.reading')
+              : t('admin.globalPersonsImport.previewButton')}
           </button>
         </div>
       )}
@@ -277,21 +270,25 @@ export default function GlobalPersonsImportPage() {
           <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
             <div className="flex flex-wrap gap-4 text-foreground-secondary">
               <span>
-                <strong>{preview.summary.total}</strong> rows
+                <strong>{preview.summary.total}</strong> {t('organizer.personsImport.rowsChip')}
               </span>
               <span className="text-success">
-                <strong>{preview.summary.ok}</strong> ok
+                <strong>{preview.summary.ok}</strong> {t('admin.globalPersonsImport.okChip')}
               </span>
               <span className="text-warning">
-                <strong>{preview.summary.duplicate}</strong> duplicate
+                <strong>{preview.summary.duplicate}</strong>{' '}
+                {t('admin.globalPersonsImport.duplicateChip')}
               </span>
               <span className="text-danger">
-                <strong>{preview.summary.invalid}</strong> invalid
+                <strong>{preview.summary.invalid}</strong>{' '}
+                {t('organizer.personsImport.invalidChip')}
               </span>
               <span className="text-muted">
-                | will create <strong>{decisionSummary.create_new}</strong>, overwrite{' '}
-                <strong>{decisionSummary.overwrite}</strong>, skip{' '}
-                <strong>{decisionSummary.skip}</strong>
+                {t('admin.globalPersonsImport.summaryWillCreate')}{' '}
+                <strong>{decisionSummary.create_new}</strong>
+                {t('admin.globalPersonsImport.summaryOverwrite')}{' '}
+                <strong>{decisionSummary.overwrite}</strong>
+                {t('admin.globalPersonsImport.summarySkip')} <strong>{decisionSummary.skip}</strong>
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -300,14 +297,14 @@ export default function GlobalPersonsImportPage() {
                 onClick={skipAllInvalid}
                 className="text-xs border border-border px-2 py-1 rounded hover:bg-surface"
               >
-                Skip all invalid
+                {t('admin.globalPersonsImport.skipAllInvalid')}
               </button>
               <button
                 type="button"
                 onClick={skipAllDuplicates}
                 className="text-xs border border-border px-2 py-1 rounded hover:bg-surface"
               >
-                Skip all duplicates
+                {t('admin.globalPersonsImport.skipAllDuplicates')}
               </button>
               <button
                 type="button"
@@ -315,7 +312,7 @@ export default function GlobalPersonsImportPage() {
                 disabled={busy}
                 className="text-sm text-muted hover:text-foreground-secondary disabled:opacity-50"
               >
-                Cancel
+                {t('organizer.personsImport.cancel')}
               </button>
               <button
                 type="button"
@@ -324,8 +321,10 @@ export default function GlobalPersonsImportPage() {
                 className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {busy
-                  ? 'Importing…'
-                  : `Commit (${decisionSummary.create_new + decisionSummary.overwrite})`}
+                  ? t('organizer.personsImport.importing')
+                  : t('admin.globalPersonsImport.commitButton', {
+                      count: decisionSummary.create_new + decisionSummary.overwrite,
+                    })}
               </button>
             </div>
           </div>
@@ -334,17 +333,17 @@ export default function GlobalPersonsImportPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-background border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="px-3 py-2">Row</th>
-                  <th className="px-3 py-2">Action</th>
-                  <th className="px-3 py-2">Given name</th>
-                  <th className="px-3 py-2">Family name</th>
-                  <th className="px-3 py-2">Display name</th>
-                  <th className="px-3 py-2">Club</th>
-                  <th className="px-3 py-2">HEMA ID</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">DOB</th>
-                  <th className="px-3 py-2">Roles</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colRow')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colAction')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colGivenName')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colFamilyName')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colDisplayName')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colClub')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colHemaId')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colEmail')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colDob')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colRoles')}</th>
+                  <th className="px-3 py-2">{t('admin.globalPersonsImport.colStatus')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -363,7 +362,9 @@ export default function GlobalPersonsImportPage() {
                       <td className="px-3 py-2 font-mono text-xs text-muted">#{row.index}</td>
                       <td className="px-3 py-2">
                         {row.status === 'invalid' ? (
-                          <span className="text-xs text-muted italic">skip</span>
+                          <span className="text-xs text-muted italic">
+                            {t('admin.globalPersonsImport.skipLower')}
+                          </span>
                         ) : (
                           <select
                             value={row.action}
@@ -372,9 +373,17 @@ export default function GlobalPersonsImportPage() {
                             }
                             className="border border-border rounded px-2 py-1 text-xs"
                           >
-                            <option value="skip">Skip</option>
-                            <option value="create_new">Create new</option>
-                            {row.duplicate && <option value="overwrite">Overwrite</option>}
+                            <option value="skip">
+                              {t('admin.globalPersonsImport.actionSkip')}
+                            </option>
+                            <option value="create_new">
+                              {t('admin.globalPersonsImport.actionCreateNew')}
+                            </option>
+                            {row.duplicate && (
+                              <option value="overwrite">
+                                {t('admin.globalPersonsImport.actionOverwrite')}
+                              </option>
+                            )}
                           </select>
                         )}
                       </td>
@@ -408,7 +417,7 @@ export default function GlobalPersonsImportPage() {
                           onChange={(e) =>
                             updateRowField(row.index, 'clubLabel', e.target.value || null)
                           }
-                          placeholder="Club"
+                          placeholder={t('admin.globalPersonsImport.clubPlaceholder')}
                           className="w-32 border border-border rounded px-2 py-1 text-xs mb-1"
                           disabled={row.action === 'skip'}
                         />
@@ -417,7 +426,7 @@ export default function GlobalPersonsImportPage() {
                           onChange={(e) =>
                             updateRowField(row.index, 'clubAbbreviation', e.target.value || null)
                           }
-                          placeholder="Abv"
+                          placeholder={t('admin.globalPersonsImport.abvPlaceholder')}
                           className="w-32 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
@@ -439,7 +448,7 @@ export default function GlobalPersonsImportPage() {
                           onChange={(e) =>
                             updateRowField(row.index, 'email', e.target.value || null)
                           }
-                          placeholder="optional"
+                          placeholder={t('admin.globalPersonsImport.optionalPlaceholder')}
                           className="w-40 border border-border rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
@@ -512,12 +521,17 @@ export default function GlobalPersonsImportPage() {
                       <td className="px-3 py-2 text-xs">
                         {row.status === 'invalid' && (
                           <span className="text-danger">
-                            Invalid: {row.reasons.join(', ') || 'unknown'}
+                            {t('admin.globalPersonsImport.invalidLine', {
+                              reasons:
+                                row.reasons.join(', ') ||
+                                t('admin.globalPersonsImport.reasonsUnknown'),
+                            })}
                           </span>
                         )}
                         {row.status === 'duplicate' && row.duplicate && (
                           <span className="text-warning">
-                            Duplicate of <strong>{row.duplicate.displayName}</strong>
+                            {t('admin.globalPersonsImport.duplicateOfPrefix')}{' '}
+                            <strong>{row.duplicate.displayName}</strong>
                           </span>
                         )}
                         {row.status === 'ok' && <span className="text-success">OK</span>}
@@ -537,20 +551,23 @@ export default function GlobalPersonsImportPage() {
             <div className="text-center py-6 mb-6">
               <p className="text-4xl mb-3">✅</p>
               <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                Import complete
+                {t('organizer.personsImport.doneTitle')}
               </h2>
               <p className="text-sm text-muted">
-                Imported {report.created} new, updated {report.updated}.
+                {t('admin.globalPersonsImport.doneSummary', {
+                  created: report.created,
+                  updated: report.updated,
+                })}
               </p>
             </div>
           ) : (
             <div className="text-center py-6 mb-6 rounded-lg border border-warning/30 bg-warning/10">
               <p className="text-4xl mb-3">⚠️</p>
               <h2 className="font-display font-semibold text-lg sm:text-xl mb-2 text-warning">
-                Nothing was imported.
+                {t('admin.globalPersonsImport.nothingImportedTitle')}
               </h2>
               <p className="text-sm text-warning">
-                No rows were created or updated. See per-row reasons below.
+                {t('admin.globalPersonsImport.nothingImportedBody')}
               </p>
             </div>
           )}
@@ -558,22 +575,22 @@ export default function GlobalPersonsImportPage() {
           <div className="grid grid-cols-4 gap-3 mb-5">
             {[
               {
-                label: 'Created',
+                label: t('admin.globalPersonsImport.statCreated'),
                 value: report.created,
                 color: 'text-success bg-success/10 border-success/30',
               },
               {
-                label: 'Updated',
+                label: t('admin.globalPersonsImport.statUpdated'),
                 value: report.updated,
                 color: 'text-info bg-info/10 border-info/30',
               },
               {
-                label: 'Skipped',
+                label: t('admin.globalPersonsImport.statSkipped'),
                 value: report.skipped,
                 color: 'text-foreground-secondary bg-background border-border',
               },
               {
-                label: 'Failed',
+                label: t('admin.globalPersonsImport.statFailed'),
                 value: report.failed.length,
                 color: 'text-danger bg-danger/10 border-danger/30',
               },
@@ -587,11 +604,13 @@ export default function GlobalPersonsImportPage() {
 
           {report.failed.length > 0 && (
             <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-sm mb-5">
-              <p className="font-medium text-danger mb-2">Failed rows:</p>
+              <p className="font-medium text-danger mb-2">
+                {t('admin.globalPersonsImport.failedRows')}
+              </p>
               <ul className="space-y-0.5 text-xs text-danger list-disc list-inside">
                 {report.failed.map((f) => (
                   <li key={f.index}>
-                    Row #{f.index}: {f.reason}
+                    {t('organizer.personsImport.rowPrefix', { n: f.index })} {f.reason}
                   </li>
                 ))}
               </ul>
@@ -601,7 +620,9 @@ export default function GlobalPersonsImportPage() {
           {report.newClubs.length > 0 && (
             <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm mb-5">
               <p className="font-medium text-warning mb-1">
-                New unverified clubs created ({report.newClubs.length}):
+                {t('admin.globalPersonsImport.newClubsCreated', {
+                  count: report.newClubs.length,
+                })}
               </p>
               <div className="flex flex-wrap gap-1">
                 {report.newClubs.map((c) => (
@@ -611,9 +632,9 @@ export default function GlobalPersonsImportPage() {
                 ))}
               </div>
               <p className="text-xs text-warning mt-2">
-                Review and verify these clubs in the{' '}
+                {t('admin.globalPersonsImport.reviewClubsPrefix')}{' '}
                 <Link href="/admin/clubs" className="underline">
-                  Clubs admin
+                  {t('admin.globalPersonsImport.clubsAdminLink')}
                 </Link>
                 .
               </p>
@@ -626,7 +647,7 @@ export default function GlobalPersonsImportPage() {
               onClick={reset}
               className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm"
             >
-              Import another file
+              {t('admin.globalPersonsImport.importAnother')}
             </button>
           </div>
         </div>
