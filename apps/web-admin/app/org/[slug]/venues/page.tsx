@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { t } from '@myclash/i18n';
-import { useConfirm } from '@myclash/ui';
+import { Modal, useConfirm } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
@@ -573,25 +573,34 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-      onClick={(ev) => {
-        if (ev.target === ev.currentTarget && !saving) onClose();
-      }}
-      onKeyDown={(ev) => {
-        if (ev.key === 'Escape' && !saving) onClose();
-      }}
+    <Modal
+      open
+      onClose={onClose}
+      busy={saving}
+      size="md"
+      title={isEdit ? t('organizer.venues.editVenueTitle') : t('organizer.venues.newVenueTitle')}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+          >
+            {t('organizer.venues.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={saving || !name.trim()}
+            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
+          >
+            {saving ? t('organizer.venues.saving') : t('organizer.venues.save')}
+          </button>
+        </>
+      }
     >
-      <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-surface p-5 shadow-xl">
-        <header>
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-            {isEdit ? t('organizer.venues.editVenueTitle') : t('organizer.venues.newVenueTitle')}
-          </h2>
-        </header>
-
+      <div className="flex flex-col gap-4">
         <label className="grid gap-1 text-sm font-medium">
           {t('organizer.venues.name')}
           <input
@@ -747,26 +756,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
         </div>
 
         {error && <p className="text-sm text-danger">{error}</p>}
-
-        <footer className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
-          >
-            {t('organizer.venues.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving || !name.trim()}
-            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
-          >
-            {saving ? t('organizer.venues.saving') : t('organizer.venues.save')}
-          </button>
-        </footer>
       </div>
-    </div>
+    </Modal>
   );
 }

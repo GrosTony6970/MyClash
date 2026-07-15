@@ -23,6 +23,7 @@ import {
 import { eachDay } from '@myclash/schedule-core';
 import { formatInZone, zonedDay, localeToBcp47 } from '@myclash/time';
 import {
+  Modal,
   TournamentColorDot,
   accentClassFor,
   useConfirm,
@@ -1001,549 +1002,455 @@ export default function WorkshopsAdminPage() {
       )}
 
       {/* Create modal */}
-      {showCreate && (
-        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-              {editingId
-                ? t('organizer.workshopsPage.editWorkshop')
-                : t('organizer.workshopsPage.newWorkshopTitle')}
-            </h2>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.titleLabel')}
-                </label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => {
-                    const title = e.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      title,
-                      slug: nextSlugFromName(f.slug, f.title, title),
-                    }));
-                  }}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.slugLabel')}
-                </label>
-                <input
-                  type="text"
-                  value={form.slug}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
-                    }))
-                  }
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.weaponLabel')}
-                </label>
+      <Modal
+        open={showCreate}
+        onClose={closeModal}
+        busy={formSaving}
+        size="md"
+        title={
+          editingId
+            ? t('organizer.workshopsPage.editWorkshop')
+            : t('organizer.workshopsPage.newWorkshopTitle')
+        }
+        footer={
+          <>
+            <button onClick={closeModal} className="text-sm text-muted px-4 py-2">
+              {t('organizer.schedulePage.editPopover.cancel')}
+            </button>
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={formSaving}
+              className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm"
+            >
+              {formSaving
+                ? t('organizer.schedulePage.planner.saving')
+                : editingId
+                  ? t('organizer.schedulePage.editPopover.save')
+                  : t('organizer.workshopsPage.create')}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.titleLabel')}
+            </label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => {
+                const title = e.target.value;
+                setForm((f) => ({
+                  ...f,
+                  title,
+                  slug: nextSlugFromName(f.slug, f.title, title),
+                }));
+              }}
+              className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.slugLabel')}
+            </label>
+            <input
+              type="text"
+              value={form.slug}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                }))
+              }
+              className="w-full border border-border rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.weaponLabel')}
+            </label>
+            <select
+              value={form.weapon}
+              onChange={(e) => setForm((f) => ({ ...f, weapon: e.target.value }))}
+              aria-label={t('organizer.workshopsPage.weaponLabel')}
+              className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="">—</option>
+              {/* Union an edited workshop's stored weapon even if it's no
+                      longer an active catalog entry, so it stays selected. */}
+              {(form.weapon && !weaponOptions.includes(form.weapon)
+                ? [form.weapon, ...weaponOptions]
+                : weaponOptions
+              ).map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.workshopsPage.categoryLabel')}
+              </label>
+              <input
+                type="text"
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                placeholder={t('organizer.workshopsPage.categoryPlaceholder')}
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.workshopsPage.levelLabel')}
+              </label>
+              <input
+                type="text"
+                value={form.level}
+                onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
+                placeholder={t('organizer.workshopsPage.levelPlaceholder')}
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.workshopsPage.languageLabel')}
+              </label>
+              <select
+                value={form.language}
+                onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="fr">FR</option>
+                <option value="en">EN</option>
+                <option value="de">DE</option>
+                <option value="es">ES</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.workshopsPage.capacityLabel')}
+              </label>
+              <input
+                type="number"
+                value={form.capacity}
+                min={1}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, capacity: parseInt(e.target.value) || 1 }))
+                }
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.workshopsPage.durationLabel')}
+              </label>
+              <input
+                type="number"
+                value={form.durationMinutes}
+                min={1}
+                placeholder={t('organizer.workshopsPage.durationPlaceholder')}
+                onChange={(e) => onTimingChange('durationMinutes', e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          </div>
+
+          {/* Optional scheduling — Day + Start + End auto-complete via Duration */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.workshopsPage.dayOptionalLabel')}
+              </label>
+              {eventDays.length > 0 ? (
                 <select
-                  value={form.weapon}
-                  onChange={(e) => setForm((f) => ({ ...f, weapon: e.target.value }))}
-                  aria-label={t('organizer.workshopsPage.weaponLabel')}
+                  value={form.day}
+                  onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   <option value="">—</option>
-                  {/* Union an edited workshop's stored weapon even if it's no
-                      longer an active catalog entry, so it stays selected. */}
-                  {(form.weapon && !weaponOptions.includes(form.weapon)
-                    ? [form.weapon, ...weaponOptions]
-                    : weaponOptions
-                  ).map((w) => (
-                    <option key={w} value={w}>
-                      {w}
+                  {eventDays.map((d) => (
+                    <option key={d} value={d}>
+                      {new Date(`${d}T00:00:00Z`).toLocaleDateString(localeToBcp47(locale), {
+                        weekday: 'short',
+                        day: '2-digit',
+                        month: 'short',
+                        timeZone: 'UTC',
+                      })}
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.categoryLabel')}
-                  </label>
-                  <input
-                    type="text"
-                    value={form.category}
-                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                    placeholder={t('organizer.workshopsPage.categoryPlaceholder')}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.levelLabel')}
-                  </label>
-                  <input
-                    type="text"
-                    value={form.level}
-                    onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
-                    placeholder={t('organizer.workshopsPage.levelPlaceholder')}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.languageLabel')}
-                  </label>
-                  <select
-                    value={form.language}
-                    onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    <option value="fr">FR</option>
-                    <option value="en">EN</option>
-                    <option value="de">DE</option>
-                    <option value="es">ES</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.capacityLabel')}
-                  </label>
-                  <input
-                    type="number"
-                    value={form.capacity}
-                    min={1}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, capacity: parseInt(e.target.value) || 1 }))
-                    }
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.durationLabel')}
-                  </label>
-                  <input
-                    type="number"
-                    value={form.durationMinutes}
-                    min={1}
-                    placeholder={t('organizer.workshopsPage.durationPlaceholder')}
-                    onChange={(e) => onTimingChange('durationMinutes', e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-              </div>
-
-              {/* Optional scheduling — Day + Start + End auto-complete via Duration */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.dayOptionalLabel')}
-                  </label>
-                  {eventDays.length > 0 ? (
-                    <select
-                      value={form.day}
-                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
-                      <option value="">—</option>
-                      {eventDays.map((d) => (
-                        <option key={d} value={d}>
-                          {new Date(`${d}T00:00:00Z`).toLocaleDateString(localeToBcp47(locale), {
-                            weekday: 'short',
-                            day: '2-digit',
-                            month: 'short',
-                            timeZone: 'UTC',
-                          })}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="date"
-                      value={form.day}
-                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.schedulePage.editPopover.startLabel')}
-                  </label>
-                  <Time24Input
-                    value={form.start}
-                    onChange={(v) => onTimingChange('start', v)}
-                    aria-label={t('organizer.workshopsPage.startTimeAria')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.schedulePage.editPopover.endLabel')}
-                  </label>
-                  <Time24Input
-                    value={form.end}
-                    onChange={(v) => onTimingChange('end', v)}
-                    aria-label={t('organizer.workshopsPage.endTimeAria')}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.statusLabel')}
-                </label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              ) : (
+                <input
+                  type="date"
+                  value={form.day}
+                  onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="draft">{t('organizer.workshopsPage.statusDraft')}</option>
-                  <option value="published">{t('organizer.workshopsPage.statusPublished')}</option>
-                  <option value="running">{t('organizer.workshopsPage.statusRunning')}</option>
-                  <option value="completed">{t('organizer.workshopsPage.statusCompleted')}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.instructorsLabel')}
-                </label>
-                {eventInstructors.length === 0 ? (
-                  <p className="text-xs text-warning">
-                    {t('organizer.workshopsPage.noInstructors')}
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-border rounded-lg p-2">
-                    {eventInstructors.map((ins) => (
-                      <label key={ins.personId} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={form.instructorIds.includes(ins.personId)}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              instructorIds: e.target.checked
-                                ? [...f.instructorIds, ins.personId]
-                                : f.instructorIds.filter((id) => id !== ins.personId),
-                            }))
-                          }
-                          className="rounded"
-                        />
-                        {ins.displayName}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.defaultVenueLabel')}
-                </label>
-                <select
-                  value={form.venueId}
-                  onChange={(e) => setForm((f) => ({ ...f, venueId: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="">{t('organizer.workshopsPage.noDefaultVenue')}</option>
-                  {venues.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-                {venues.length === 0 && (
-                  <p className="mt-1 text-xs text-warning">
-                    {t('organizer.workshopsPage.noOrgVenues', { slug })}
-                  </p>
-                )}
-              </div>
-              <WorkshopLogoField
-                existingUrl={existingLogoUrl}
-                previewUrl={logoPreview}
-                maxBytes={WORKSHOP_LOGO_MAX_BYTES}
-                disabled={formSaving}
-                onStage={stageLogo}
-                onClear={clearLogo}
-              />
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.schedulePage.editPopover.colorLabel')}
-                </label>
-                <div className="flex items-center gap-2">
-                  <TournamentColorDot color={form.color || null} size="md" />
-                  <select
-                    value={form.color}
-                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-                    className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    <option value="">{t('organizer.workshopsPage.noColor')}</option>
-                    {TOURNAMENT_COLORS.map((c) => (
-                      <option key={c} value={c}>
-                        {c.charAt(0).toUpperCase() + c.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p className="mt-1 text-xs text-muted">{t('organizer.workshopsPage.colorHint')}</p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.workshopsPage.descriptionLabel')}
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  rows={3}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
                 />
-              </div>
+              )}
             </div>
-            {formError && <p className="text-sm text-danger mt-2">{formError}</p>}
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={closeModal} className="text-sm text-muted px-4 py-2">
-                {t('organizer.schedulePage.editPopover.cancel')}
-              </button>
-              <button
-                onClick={() => void handleSubmit()}
-                disabled={formSaving}
-                className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm"
-              >
-                {formSaving
-                  ? t('organizer.schedulePage.planner.saving')
-                  : editingId
-                    ? t('organizer.schedulePage.editPopover.save')
-                    : t('organizer.workshopsPage.create')}
-              </button>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.schedulePage.editPopover.startLabel')}
+              </label>
+              <Time24Input
+                value={form.start}
+                onChange={(v) => onTimingChange('start', v)}
+                aria-label={t('organizer.workshopsPage.startTimeAria')}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.schedulePage.editPopover.endLabel')}
+              </label>
+              <Time24Input
+                value={form.end}
+                onChange={(v) => onTimingChange('end', v)}
+                aria-label={t('organizer.workshopsPage.endTimeAria')}
+              />
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Roster modal */}
-      {rosterSession && (
-        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-semibold text-lg sm:text-xl">
-                {t('organizer.workshopsPage.rosterTitle')}
-              </h2>
-              <button
-                onClick={() => setRosterSession(null)}
-                className="text-muted hover:text-foreground-secondary text-xl"
-              >
-                ×
-              </button>
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.statusLabel')}
+            </label>
+            <select
+              value={form.status}
+              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="draft">{t('organizer.workshopsPage.statusDraft')}</option>
+              <option value="published">{t('organizer.workshopsPage.statusPublished')}</option>
+              <option value="running">{t('organizer.workshopsPage.statusRunning')}</option>
+              <option value="completed">{t('organizer.workshopsPage.statusCompleted')}</option>
+            </select>
+          </div>
 
-            {rosterLoading ? (
-              <p className="text-muted text-sm">{t('organizer.workshopsPage.loading')}</p>
-            ) : roster.length === 0 ? (
-              <p className="text-muted text-sm">{t('organizer.workshopsPage.noEnrollments')}</p>
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.instructorsLabel')}
+            </label>
+            {eventInstructors.length === 0 ? (
+              <p className="text-xs text-warning">{t('organizer.workshopsPage.noInstructors')}</p>
             ) : (
-              <div className="flex flex-col gap-2">
-                {roster.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between border border-border rounded-lg px-3 py-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {entry.persons
-                          ? `${entry.persons.givenName} ${entry.persons.familyName}`
-                          : t('organizer.workshopsPage.unknownPerson')}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span
-                          className={[
-                            'text-xs px-1.5 py-0.5 rounded font-medium',
-                            entry.status === 'confirmed'
-                              ? 'bg-success/10 text-success'
-                              : 'bg-warning/10 text-warning',
-                          ].join(' ')}
-                        >
-                          {entry.status === 'waitlisted'
-                            ? t('organizer.workshopsPage.waitlistBadge', {
-                                position: entry.waitlistPosition,
-                              })
-                            : t('organizer.workshopsPage.confirmedBadge')}
-                        </span>
-                        {entry.global_person_id ? (
-                          <span className="text-xs text-success font-medium">
-                            {t('organizer.workshopsPage.linked')}
-                          </span>
-                        ) : linkingEnrollmentId === entry.id ? (
-                          <div className="relative">
-                            <input
-                              type="search"
-                              value={gpSearch}
-                              onChange={(e) => setGpSearch(e.target.value)}
-                              placeholder={t(
-                                'organizer.workshopsPage.searchGlobalPersonPlaceholder',
-                              )}
-                              className="border border-border rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-accent"
-                            />
-                            {gpResults.length > 0 && (
-                              <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded shadow text-xs max-h-28 overflow-y-auto z-10 w-48">
-                                {gpResults.map((gp) => (
-                                  <button
-                                    key={gp.id}
-                                    onClick={() =>
-                                      void linkEnrollmentToGlobalPerson(entry.id, gp.id)
-                                    }
-                                    className="block w-full text-left px-2 py-1 hover:bg-background border-b border-border last:border-0"
-                                  >
-                                    {gp.display_name}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            <button
-                              onClick={() => {
-                                setLinkingEnrollmentId(null);
-                                setGpSearch('');
-                                setGpResults([]);
-                              }}
-                              className="ml-1 text-xs text-muted"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setLinkingEnrollmentId(entry.id)}
-                            className="text-xs text-warning hover:text-warning-hover"
-                          >
-                            {t('organizer.workshopsPage.link')}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {entry.status === 'waitlisted' && entry.persons && (
-                        <button
-                          onClick={() => void handlePromote(rosterSession, entry.persons!.id)}
-                          className="text-xs text-success hover:underline"
-                        >
-                          {t('organizer.workshopsPage.promote')}
-                        </button>
-                      )}
-                      {entry.persons && (
-                        <button
-                          onClick={() => void handleRemove(rosterSession, entry.persons!.id)}
-                          className="text-xs text-danger hover:underline"
-                        >
-                          {t('organizer.workshopsPage.remove')}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-border rounded-lg p-2">
+                {eventInstructors.map((ins) => (
+                  <label key={ins.personId} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.instructorIds.includes(ins.personId)}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          instructorIds: e.target.checked
+                            ? [...f.instructorIds, ins.personId]
+                            : f.instructorIds.filter((id) => id !== ins.personId),
+                        }))
+                      }
+                      className="rounded"
+                    />
+                    {ins.displayName}
+                  </label>
                 ))}
               </div>
             )}
           </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.defaultVenueLabel')}
+            </label>
+            <select
+              value={form.venueId}
+              onChange={(e) => setForm((f) => ({ ...f, venueId: e.target.value }))}
+              className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="">{t('organizer.workshopsPage.noDefaultVenue')}</option>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+            {venues.length === 0 && (
+              <p className="mt-1 text-xs text-warning">
+                {t('organizer.workshopsPage.noOrgVenues', { slug })}
+              </p>
+            )}
+          </div>
+          <WorkshopLogoField
+            existingUrl={existingLogoUrl}
+            previewUrl={logoPreview}
+            maxBytes={WORKSHOP_LOGO_MAX_BYTES}
+            disabled={formSaving}
+            onStage={stageLogo}
+            onClear={clearLogo}
+          />
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.schedulePage.editPopover.colorLabel')}
+            </label>
+            <div className="flex items-center gap-2">
+              <TournamentColorDot color={form.color || null} size="md" />
+              <select
+                value={form.color}
+                onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">{t('organizer.workshopsPage.noColor')}</option>
+                {TOURNAMENT_COLORS.map((c) => (
+                  <option key={c} value={c}>
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-muted">{t('organizer.workshopsPage.colorHint')}</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground-secondary mb-1">
+              {t('organizer.workshopsPage.descriptionLabel')}
+            </label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              rows={3}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+            />
+          </div>
         </div>
+        {formError && <p className="text-sm text-danger mt-2">{formError}</p>}
+      </Modal>
+
+      {/* Roster modal */}
+      {rosterSession && (
+        <Modal
+          open
+          onClose={() => setRosterSession(null)}
+          size="md"
+          title={t('organizer.workshopsPage.rosterTitle')}
+        >
+          {rosterLoading ? (
+            <p className="text-muted text-sm">{t('organizer.workshopsPage.loading')}</p>
+          ) : roster.length === 0 ? (
+            <p className="text-muted text-sm">{t('organizer.workshopsPage.noEnrollments')}</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {roster.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between border border-border rounded-lg px-3 py-2 text-sm"
+                >
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {entry.persons
+                        ? `${entry.persons.givenName} ${entry.persons.familyName}`
+                        : t('organizer.workshopsPage.unknownPerson')}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span
+                        className={[
+                          'text-xs px-1.5 py-0.5 rounded font-medium',
+                          entry.status === 'confirmed'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-warning/10 text-warning',
+                        ].join(' ')}
+                      >
+                        {entry.status === 'waitlisted'
+                          ? t('organizer.workshopsPage.waitlistBadge', {
+                              position: entry.waitlistPosition,
+                            })
+                          : t('organizer.workshopsPage.confirmedBadge')}
+                      </span>
+                      {entry.global_person_id ? (
+                        <span className="text-xs text-success font-medium">
+                          {t('organizer.workshopsPage.linked')}
+                        </span>
+                      ) : linkingEnrollmentId === entry.id ? (
+                        <div className="relative">
+                          <input
+                            type="search"
+                            value={gpSearch}
+                            onChange={(e) => setGpSearch(e.target.value)}
+                            placeholder={t('organizer.workshopsPage.searchGlobalPersonPlaceholder')}
+                            className="border border-border rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-accent"
+                          />
+                          {gpResults.length > 0 && (
+                            <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded shadow text-xs max-h-28 overflow-y-auto z-10 w-48">
+                              {gpResults.map((gp) => (
+                                <button
+                                  key={gp.id}
+                                  onClick={() => void linkEnrollmentToGlobalPerson(entry.id, gp.id)}
+                                  className="block w-full text-left px-2 py-1 hover:bg-background border-b border-border last:border-0"
+                                >
+                                  {gp.display_name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              setLinkingEnrollmentId(null);
+                              setGpSearch('');
+                              setGpResults([]);
+                            }}
+                            className="ml-1 text-xs text-muted"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setLinkingEnrollmentId(entry.id)}
+                          className="text-xs text-warning hover:text-warning-hover"
+                        >
+                          {t('organizer.workshopsPage.link')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {entry.status === 'waitlisted' && entry.persons && (
+                      <button
+                        onClick={() => void handlePromote(rosterSession, entry.persons!.id)}
+                        className="text-xs text-success hover:underline"
+                      >
+                        {t('organizer.workshopsPage.promote')}
+                      </button>
+                    )}
+                    {entry.persons && (
+                      <button
+                        onClick={() => void handleRemove(rosterSession, entry.persons!.id)}
+                        className="text-xs text-danger hover:underline"
+                      >
+                        {t('organizer.workshopsPage.remove')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
       )}
 
       {/* Break editor modal */}
       {breakModal && (
-        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-              {'id' in breakModal
-                ? t('organizer.workshopsPage.editBreak')
-                : t('organizer.workshopsPage.newBreak')}
-            </h2>
-            <div className="flex flex-col gap-3">
-              {eventDays.length > 1 && (
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.workshopsPage.dayLabel')}
-                  </label>
-                  <select
-                    value={breakForm.dayIndex}
-                    onChange={(e) =>
-                      setBreakForm((f) => ({ ...f, dayIndex: Number(e.target.value) }))
-                    }
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    {eventDays.map((d, i) => (
-                      <option key={d} value={i}>
-                        {t('organizer.schedulePage.planner.dayTab', { n: i + 1 })}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.schedulePage.editPopover.startLabel')}
-                  </label>
-                  <Time24Input
-                    value={breakForm.startTime}
-                    onChange={(v) => setBreakForm((f) => ({ ...f, startTime: v }))}
-                    aria-label={t('organizer.workshopsPage.breakStartAria')}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('organizer.schedulePage.editPopover.endLabel')}
-                  </label>
-                  <Time24Input
-                    value={breakForm.endTime}
-                    onChange={(v) => setBreakForm((f) => ({ ...f, endTime: v }))}
-                    aria-label={t('organizer.workshopsPage.breakEndAria')}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.schedulePage.planner.labelLabel')}
-                </label>
-                <input
-                  type="text"
-                  value={breakForm.label}
-                  placeholder={t('organizer.workshopsPage.breakLabelPlaceholder')}
-                  onChange={(e) => setBreakForm((f) => ({ ...f, label: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('organizer.schedulePage.editPopover.colorLabel')}
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {['', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'].map(
-                    (c) => (
-                      <button
-                        key={c || 'none'}
-                        type="button"
-                        aria-label={
-                          c
-                            ? t('organizer.workshopsPage.colorAria', { hex: c })
-                            : t('organizer.workshopsPage.noColor')
-                        }
-                        onClick={() => setBreakForm((f) => ({ ...f, color: c }))}
-                        className={[
-                          'flex h-6 w-6 items-center justify-center rounded-full border text-[10px]',
-                          breakForm.color === c ? 'ring-2 ring-foreground ring-offset-1' : '',
-                          c ? '' : 'bg-surface text-muted',
-                        ].join(' ')}
-                        style={c ? { backgroundColor: c, borderColor: c } : undefined}
-                      >
-                        {c ? '' : '∅'}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-4">
+        <Modal
+          open
+          onClose={() => setBreakModal(null)}
+          size="sm"
+          title={
+            'id' in breakModal
+              ? t('organizer.workshopsPage.editBreak')
+              : t('organizer.workshopsPage.newBreak')
+          }
+          footer={
+            <div className="flex w-full items-center justify-between gap-3">
               {'id' in breakModal ? (
                 <button
                   onClick={() => void deleteBreak()}
@@ -1569,8 +1476,92 @@ export default function WorkshopsAdminPage() {
                 </button>
               </div>
             </div>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            {eventDays.length > 1 && (
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('organizer.workshopsPage.dayLabel')}
+                </label>
+                <select
+                  value={breakForm.dayIndex}
+                  onChange={(e) =>
+                    setBreakForm((f) => ({ ...f, dayIndex: Number(e.target.value) }))
+                  }
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  {eventDays.map((d, i) => (
+                    <option key={d} value={i}>
+                      {t('organizer.schedulePage.planner.dayTab', { n: i + 1 })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('organizer.schedulePage.editPopover.startLabel')}
+                </label>
+                <Time24Input
+                  value={breakForm.startTime}
+                  onChange={(v) => setBreakForm((f) => ({ ...f, startTime: v }))}
+                  aria-label={t('organizer.workshopsPage.breakStartAria')}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('organizer.schedulePage.editPopover.endLabel')}
+                </label>
+                <Time24Input
+                  value={breakForm.endTime}
+                  onChange={(v) => setBreakForm((f) => ({ ...f, endTime: v }))}
+                  aria-label={t('organizer.workshopsPage.breakEndAria')}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.schedulePage.planner.labelLabel')}
+              </label>
+              <input
+                type="text"
+                value={breakForm.label}
+                placeholder={t('organizer.workshopsPage.breakLabelPlaceholder')}
+                onChange={(e) => setBreakForm((f) => ({ ...f, label: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('organizer.schedulePage.editPopover.colorLabel')}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {['', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'].map((c) => (
+                  <button
+                    key={c || 'none'}
+                    type="button"
+                    aria-label={
+                      c
+                        ? t('organizer.workshopsPage.colorAria', { hex: c })
+                        : t('organizer.workshopsPage.noColor')
+                    }
+                    onClick={() => setBreakForm((f) => ({ ...f, color: c }))}
+                    className={[
+                      'flex h-6 w-6 items-center justify-center rounded-full border text-[10px]',
+                      breakForm.color === c ? 'ring-2 ring-foreground ring-offset-1' : '',
+                      c ? '' : 'bg-surface text-muted',
+                    ].join(' ')}
+                    style={c ? { backgroundColor: c, borderColor: c } : undefined}
+                  >
+                    {c ? '' : '∅'}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </Modal>
       )}
       {confirmDialog}
     </main>

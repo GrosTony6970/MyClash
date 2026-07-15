@@ -21,7 +21,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SkillBadge, useToast } from '@myclash/ui';
+import { Modal, SkillBadge, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 
 const PHASE_TYPES = ['pool', 'bracket', 'finals'] as const;
@@ -523,32 +523,15 @@ function DestructiveConfirmDialog({
   saving,
 }: DestructiveConfirmProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-surface p-5 shadow-xl">
-        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-          {t('organizer.staffing.conflict.title')}
-        </h2>
-        <p className="mt-2 text-sm text-foreground-secondary">
-          {t('organizer.staffing.conflict.body', { count: affected.length })}
-        </p>
-        <ul className="mt-3 max-h-48 overflow-y-auto rounded border border-border bg-background p-3 text-xs text-foreground-secondary">
-          {affected.map((a) => (
-            <li
-              key={a.id}
-              className="flex justify-between gap-2 border-b border-border py-1 last:border-0"
-            >
-              <span className="font-semibold">
-                {a.role ?? '—'}
-                <span className="font-normal text-muted">
-                  {' · '}
-                  {a.poolName ?? a.matchLabel ?? '—'}
-                </span>
-              </span>
-              <span className="text-muted">{a.reason}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-5 flex justify-end gap-2">
+    <Modal
+      open
+      onClose={onCancel}
+      busy={saving}
+      size="lg"
+      title={t('organizer.staffing.conflict.title')}
+      description={t('organizer.staffing.conflict.body', { count: affected.length })}
+      footer={
+        <>
           <button
             type="button"
             onClick={onCancel}
@@ -567,9 +550,27 @@ function DestructiveConfirmDialog({
               ? t('organizer.staffing.saving')
               : t('organizer.staffing.conflict.confirm', { count: affected.length })}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <ul className="mt-3 max-h-48 overflow-y-auto rounded border border-border bg-background p-3 text-xs text-foreground-secondary">
+        {affected.map((a) => (
+          <li
+            key={a.id}
+            className="flex justify-between gap-2 border-b border-border py-1 last:border-0"
+          >
+            <span className="font-semibold">
+              {a.role ?? '—'}
+              <span className="font-normal text-muted">
+                {' · '}
+                {a.poolName ?? a.matchLabel ?? '—'}
+              </span>
+            </span>
+            <span className="text-muted">{a.reason}</span>
+          </li>
+        ))}
+      </ul>
+    </Modal>
   );
 }
 

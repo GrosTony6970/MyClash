@@ -1,6 +1,6 @@
 'use client';
 
-import { RowActionButton } from '@myclash/ui';
+import { Modal, RowActionButton } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -279,20 +279,15 @@ export default function ExchangeEditRequestsPage() {
       )}
 
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
-            <h2 className="font-display font-semibold text-lg sm:text-xl">
-              {t('admin.adminDesignReq.rejectModalTitle')}
-            </h2>
-            <p className="mt-1 text-sm text-muted">{typeLabel(rejectTarget.request_type)}</p>
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              rows={4}
-              placeholder={t('admin.adminDesignReq.rejectReasonPlaceholder')}
-              className="mt-4 w-full resize-none rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            <div className="mt-4 flex justify-end gap-2">
+        <Modal
+          open
+          onClose={() => setRejectTarget(null)}
+          busy={busyId === rejectTarget.id}
+          size="md"
+          title={t('admin.adminDesignReq.rejectModalTitle')}
+          description={typeLabel(rejectTarget.request_type)}
+          footer={
+            <>
               <button
                 onClick={() => setRejectTarget(null)}
                 className="px-4 py-2 text-sm text-muted hover:text-foreground-secondary"
@@ -306,9 +301,17 @@ export default function ExchangeEditRequestsPage() {
               >
                 {t('admin.adminDesignReq.rejectConfirm')}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <textarea
+            value={rejectReason}
+            onChange={(event) => setRejectReason(event.target.value)}
+            rows={4}
+            placeholder={t('admin.adminDesignReq.rejectReasonPlaceholder')}
+            className="mt-4 w-full resize-none rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+        </Modal>
       )}
     </main>
   );

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
-import { Button } from '@myclash/ui';
+import { Button, Modal } from '@myclash/ui';
 
 /**
  * Load an image element from an object/data URL. `crossOrigin` is set so the
@@ -58,8 +58,7 @@ interface AvatarCropperProps {
 /**
  * Modal cropper: round 1:1 framing with zoom + drag-to-reposition. On save it
  * hands a cropped square JPEG blob to the parent, which performs the upload.
- * No generic Modal exists in @myclash/ui, so this renders its own tokenized
- * overlay (mirrors the ConfirmDialog/PromptDialog surface styling).
+ * Built on the shared @myclash/ui Modal (focus-trap + Escape + a11y chrome).
  */
 export function AvatarCropper({ imageSrc, busy, onCancel, onSave, t }: AvatarCropperProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
@@ -77,48 +76,14 @@ export function AvatarCropper({ imageSrc, busy, onCancel, onSave, t }: AvatarCro
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('publicApp.fighterProfile.photoCropTitle')}
-    >
-      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-4 text-foreground shadow-2xl">
-        <h2 className="mb-3 font-display text-lg font-semibold text-foreground">
-          {t('publicApp.fighterProfile.photoCropTitle')}
-        </h2>
-
-        <div className="relative h-72 w-full overflow-hidden rounded-lg bg-black">
-          <Cropper
-            image={imageSrc}
-            crop={crop}
-            zoom={zoom}
-            aspect={1}
-            cropShape="round"
-            showGrid={false}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropComplete}
-          />
-        </div>
-
-        <label className="mt-4 block text-sm">
-          <span className="text-foreground-secondary">
-            {t('publicApp.fighterProfile.photoZoom')}
-          </span>
-          <input
-            type="range"
-            min={1}
-            max={3}
-            step={0.01}
-            value={zoom}
-            aria-label={t('publicApp.fighterProfile.photoZoom')}
-            onChange={(event) => setZoom(Number(event.target.value))}
-            className="mt-1 w-full accent-accent"
-          />
-        </label>
-
-        <div className="mt-4 flex items-center justify-end gap-3">
+    <Modal
+      open
+      onClose={onCancel}
+      busy={busy}
+      size="md"
+      title={t('publicApp.fighterProfile.photoCropTitle')}
+      footer={
+        <>
           <Button variant="secondary" size="sm" onClick={onCancel} disabled={busy}>
             {t('publicApp.fighterProfile.photoCropCancel')}
           </Button>
@@ -131,8 +96,36 @@ export function AvatarCropper({ imageSrc, busy, onCancel, onSave, t }: AvatarCro
           >
             {t('publicApp.fighterProfile.photoCropSave')}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="relative h-72 w-full overflow-hidden rounded-lg bg-black">
+        <Cropper
+          image={imageSrc}
+          crop={crop}
+          zoom={zoom}
+          aspect={1}
+          cropShape="round"
+          showGrid={false}
+          onCropChange={setCrop}
+          onZoomChange={setZoom}
+          onCropComplete={onCropComplete}
+        />
       </div>
-    </div>
+
+      <label className="mt-4 block text-sm">
+        <span className="text-foreground-secondary">{t('publicApp.fighterProfile.photoZoom')}</span>
+        <input
+          type="range"
+          min={1}
+          max={3}
+          step={0.01}
+          value={zoom}
+          aria-label={t('publicApp.fighterProfile.photoZoom')}
+          onChange={(event) => setZoom(Number(event.target.value))}
+          className="mt-1 w-full accent-accent"
+        />
+      </label>
+    </Modal>
   );
 }

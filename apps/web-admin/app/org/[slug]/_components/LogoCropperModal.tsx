@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
+import { Modal } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { computeMinZoom, type Size } from './logo-cropper-zoom';
 
@@ -70,28 +71,37 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('organizer.dashboard.brand.cropper.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-      onClick={(ev) => {
-        if (ev.target === ev.currentTarget && !saving) onCancel();
-      }}
-      onKeyDown={(ev) => {
-        if (ev.key === 'Escape' && !saving) onCancel();
-      }}
+    <Modal
+      open
+      onClose={onCancel}
+      busy={saving}
+      size="md"
+      title={t('organizer.dashboard.brand.cropper.title')}
+      description={t('organizer.dashboard.brand.cropper.instructions')}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            {t('organizer.dashboard.brand.cropper.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving || !croppedAreaPixels}
+            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving
+              ? t('organizer.dashboard.brand.cropper.saving')
+              : t('organizer.dashboard.brand.cropper.save')}
+          </button>
+        </>
+      }
     >
-      <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl bg-surface p-5 shadow-xl">
-        <header>
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-            {t('organizer.dashboard.brand.cropper.title')}
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            {t('organizer.dashboard.brand.cropper.instructions')}
-          </p>
-        </header>
-
+      <div className="flex flex-col gap-4">
         <div className="relative h-80 w-full overflow-hidden rounded-lg bg-strong">
           {imageSrc && (
             <Cropper
@@ -141,29 +151,8 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
             </button>
           </div>
         </div>
-
-        <footer className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={saving}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50"
-          >
-            {t('organizer.dashboard.brand.cropper.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving || !croppedAreaPixels}
-            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving
-              ? t('organizer.dashboard.brand.cropper.saving')
-              : t('organizer.dashboard.brand.cropper.save')}
-          </button>
-        </footer>
       </div>
-    </div>
+    </Modal>
   );
 }
 

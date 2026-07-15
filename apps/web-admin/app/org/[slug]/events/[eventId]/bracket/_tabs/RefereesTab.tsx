@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
+import { Modal } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
 import {
@@ -507,37 +508,35 @@ function CandidatePicker({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-xl rounded-lg bg-surface p-5 shadow-xl">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-              {pool.name} - {slot.displayName ?? slot.role}
-            </h2>
-            <p className="text-sm text-muted">{pool.tournamentName}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-sm text-muted hover:text-foreground"
-          >
-            {t('organizer.bracketPage.refereesCancel')}
-          </button>
-        </div>
-        <div className="max-h-96 space-y-3 overflow-y-auto">
-          <CandidateGroup
-            title={t('organizer.bracketPage.refereesPickerRecommended')}
-            candidates={slot.candidates.recommended}
-            onSelect={(c) => onAssign(c.userId)}
-          />
-          <CandidateGroup
-            title={t('organizer.bracketPage.refereesPickerBlocked')}
-            candidates={slot.candidates.blocked.map((c) => ({ ...c, blockedReasons: c.reasons }))}
-            disabled
-          />
-        </div>
+    <Modal
+      open
+      onClose={onCancel}
+      size="lg"
+      title={`${pool.name} - ${slot.displayName ?? slot.role}`}
+      description={pool.tournamentName}
+      footer={
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-muted hover:text-foreground"
+        >
+          {t('organizer.bracketPage.refereesCancel')}
+        </button>
+      }
+    >
+      <div className="max-h-96 space-y-3 overflow-y-auto">
+        <CandidateGroup
+          title={t('organizer.bracketPage.refereesPickerRecommended')}
+          candidates={slot.candidates.recommended}
+          onSelect={(c) => onAssign(c.userId)}
+        />
+        <CandidateGroup
+          title={t('organizer.bracketPage.refereesPickerBlocked')}
+          candidates={slot.candidates.blocked.map((c) => ({ ...c, blockedReasons: c.reasons }))}
+          disabled
+        />
       </div>
-    </div>
+    </Modal>
   );
 }
 

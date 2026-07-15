@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ConfirmDialog,
+  Modal,
   SkillBadge,
   TournamentColorDot,
   fuzzyMatch,
@@ -1514,538 +1515,359 @@ export default function ParticipantsPage() {
             />
           )}
 
-          {showAdd && (
-            <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-                  {t('admin.orgPersons.addParticipantTitle')}
-                </h2>
+          <Modal
+            open={showAdd}
+            onClose={closeAddModal}
+            busy={addSaving}
+            size="md"
+            title={t('admin.orgPersons.addParticipantTitle')}
+            footer={
+              <>
+                <button
+                  onClick={closeAddModal}
+                  className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
+                >
+                  {t('admin.orgPersons.cancel')}
+                </button>
+                <button
+                  onClick={() => void handleAdd()}
+                  data-testid="persons-add-submit"
+                  disabled={addSaving}
+                  className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                >
+                  {addSaving
+                    ? t('admin.orgPersons.adding')
+                    : t('admin.orgPersons.addParticipantTitle')}
+                </button>
+              </>
+            }
+          >
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                {t('admin.orgPersons.searchGlobalProfiles')}
+              </label>
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(e) => {
+                  setGlobalSearch(e.target.value);
+                  setSelectedGlobalId(null);
+                }}
+                placeholder={t('admin.orgPersons.searchNamePlaceholder')}
+                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+              {globalSuggestions.length > 0 && !selectedGlobalId && (
+                <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
+                  {globalSuggestions.map((g) => {
+                    const alreadyAdded = existingGlobalIds.has(g.id);
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        disabled={alreadyAdded}
+                        onClick={() => {
+                          if (alreadyAdded) return;
+                          setSelectedGlobalId(g.id);
+                          setGlobalSearch(g.displayName);
+                          setGlobalSuggestions([]);
+                          setAddForm((f) => ({
+                            ...f,
+                            givenName: g.givenName,
+                            familyName: g.familyName,
+                            hemaRatingsId: g.hemaRatingsId ?? '',
+                          }));
+                          if (g.clubLabel) {
+                            setSelectedClubId(g.clubId);
+                            setSelectedClubLabel(g.clubLabel);
+                            setClubSearch(g.clubLabel);
+                            setClubSuggestions([]);
+                          }
+                        }}
+                        className={
+                          alreadyAdded
+                            ? 'w-full text-left px-3 py-2 text-sm bg-background text-muted border-b border-border last:border-0 cursor-not-allowed'
+                            : 'w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0'
+                        }
+                      >
+                        <span className="font-medium">{g.displayName}</span>
+                        {g.clubLabel && (
+                          <span className="text-muted ml-2 text-xs">{g.clubLabel}</span>
+                        )}
+                        {alreadyAdded && (
+                          <span className="ml-2 text-xs italic text-muted">
+                            {t('admin.orgPersons.alreadyInEvent')}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedGlobalId && (
+                <p className="text-xs text-success mt-1">
+                  {t('admin.orgPersons.linkedToGlobalProfile')}{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      setSelectedGlobalId(null);
+                      setGlobalSearch('');
+                    }}
+                  >
+                    {t('admin.orgPersons.clear')}
+                  </button>
+                </p>
+              )}
+            </div>
 
-                <div className="mb-4">
+            <hr className="my-3 border-border" />
+
+            <p className="mb-3 text-sm font-semibold text-foreground-secondary">
+              {t('admin.orgPersons.orCreateManually')}
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('admin.orgPersons.searchGlobalProfiles')}
+                    {t('admin.orgPersons.givenName')}
                   </label>
                   <input
-                    type="search"
-                    value={globalSearch}
-                    onChange={(e) => {
-                      setGlobalSearch(e.target.value);
-                      setSelectedGlobalId(null);
-                    }}
-                    placeholder={t('admin.orgPersons.searchNamePlaceholder')}
+                    type="text"
+                    data-testid="person-given-name"
+                    value={addForm.givenName}
+                    onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
-                  {globalSuggestions.length > 0 && !selectedGlobalId && (
-                    <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
-                      {globalSuggestions.map((g) => {
-                        const alreadyAdded = existingGlobalIds.has(g.id);
-                        return (
-                          <button
-                            key={g.id}
-                            type="button"
-                            disabled={alreadyAdded}
-                            onClick={() => {
-                              if (alreadyAdded) return;
-                              setSelectedGlobalId(g.id);
-                              setGlobalSearch(g.displayName);
-                              setGlobalSuggestions([]);
-                              setAddForm((f) => ({
-                                ...f,
-                                givenName: g.givenName,
-                                familyName: g.familyName,
-                                hemaRatingsId: g.hemaRatingsId ?? '',
-                              }));
-                              if (g.clubLabel) {
-                                setSelectedClubId(g.clubId);
-                                setSelectedClubLabel(g.clubLabel);
-                                setClubSearch(g.clubLabel);
-                                setClubSuggestions([]);
-                              }
-                            }}
-                            className={
-                              alreadyAdded
-                                ? 'w-full text-left px-3 py-2 text-sm bg-background text-muted border-b border-border last:border-0 cursor-not-allowed'
-                                : 'w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0'
-                            }
-                          >
-                            <span className="font-medium">{g.displayName}</span>
-                            {g.clubLabel && (
-                              <span className="text-muted ml-2 text-xs">{g.clubLabel}</span>
-                            )}
-                            {alreadyAdded && (
-                              <span className="ml-2 text-xs italic text-muted">
-                                {t('admin.orgPersons.alreadyInEvent')}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {selectedGlobalId && (
-                    <p className="text-xs text-success mt-1">
-                      {t('admin.orgPersons.linkedToGlobalProfile')}{' '}
-                      <button
-                        type="button"
-                        className="underline"
-                        onClick={() => {
-                          setSelectedGlobalId(null);
-                          setGlobalSearch('');
-                        }}
-                      >
-                        {t('admin.orgPersons.clear')}
-                      </button>
-                    </p>
-                  )}
                 </div>
-
-                <hr className="my-3 border-border" />
-
-                <p className="mb-3 text-sm font-semibold text-foreground-secondary">
-                  {t('admin.orgPersons.orCreateManually')}
-                </p>
-
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        {t('admin.orgPersons.givenName')}
-                      </label>
-                      <input
-                        type="text"
-                        data-testid="person-given-name"
-                        value={addForm.givenName}
-                        onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
-                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        {t('admin.orgPersons.familyName')}
-                      </label>
-                      <input
-                        type="text"
-                        data-testid="person-family-name"
-                        value={addForm.familyName}
-                        onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
-                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.email')}
-                    </label>
-                    <input
-                      type="email"
-                      value={addForm.email}
-                      onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.club')}
-                    </label>
-                    <input
-                      type="search"
-                      value={clubSearch}
-                      onChange={(e) => {
-                        setClubSearch(e.target.value);
-                        setSelectedClubId(null);
-                        setSelectedClubLabel('');
-                        setNewClubName(null);
-                      }}
-                      placeholder={t('admin.orgPersons.clubSearchPlaceholder')}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                    {!selectedClubId &&
-                      !newClubName &&
-                      (() => {
-                        const rows = computeClubPickerRows(
-                          clubSearch,
-                          clubSuggestions as ClubPickerSuggestion[],
-                        );
-                        if (rows.length === 0) return null;
-                        return (
-                          <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
-                            {rows.map((row, idx) =>
-                              row.kind === 'existing' ? (
-                                <button
-                                  key={`existing-${row.club.id}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedClubId(row.club.id);
-                                    setSelectedClubLabel(row.club.name);
-                                    setClubSearch(row.club.name);
-                                    setClubSuggestions([]);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
-                                >
-                                  <span className="font-medium">{row.club.name}</span>
-                                  {row.club.abbreviation && (
-                                    <span className="text-muted ml-2 text-xs">
-                                      {row.club.abbreviation}
-                                    </span>
-                                  )}
-                                </button>
-                              ) : (
-                                <button
-                                  key={`create-${idx}`}
-                                  type="button"
-                                  data-testid="new-club-create-row"
-                                  onClick={() => {
-                                    setNewClubName(row.name);
-                                    setSelectedClubId(null);
-                                    setSelectedClubLabel('');
-                                    setClubSuggestions([]);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 border-b border-border last:border-0 font-medium"
-                                >
-                                  {t('admin.orgPersons.createNewClub', { name: row.name })}
-                                </button>
-                              ),
-                            )}
-                          </div>
-                        );
-                      })()}
-                    {selectedClubId && (
-                      <p className="text-xs text-success mt-1">
-                        {selectedClubLabel}{' '}
-                        <button
-                          type="button"
-                          className="underline"
-                          onClick={() => {
-                            setSelectedClubId(null);
-                            setSelectedClubLabel('');
-                            setClubSearch('');
-                          }}
-                        >
-                          {t('admin.orgPersons.clear')}
-                        </button>
-                      </p>
-                    )}
-                    {newClubName && (
-                      <p className="text-xs text-success mt-1" data-testid="new-club-chip">
-                        {t('admin.orgPersons.newClubPrefix')}{' '}
-                        <span className="font-medium">{newClubName}</span>{' '}
-                        {t('admin.orgPersons.newClubSuffix')}{' '}
-                        <button
-                          type="button"
-                          className="underline"
-                          onClick={() => {
-                            setNewClubName(null);
-                            setClubSearch('');
-                          }}
-                        >
-                          {t('admin.orgPersons.clear')}
-                        </button>
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.hemaRatingsIdOptional')}
-                    </label>
-                    <input
-                      type="text"
-                      value={addForm.hemaRatingsId}
-                      onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
-                      placeholder={t('admin.orgPersons.hemaRatingsIdPlaceholder')}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-
-                  <HemaRatingsSuggest
-                    apiUrl={apiUrl}
-                    personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
-                    selectedId={addForm.hemaRatingsId}
-                    onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.familyName')}
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="person-family-name"
+                    value={addForm.familyName}
+                    onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.seedOptional')}
-                    </label>
-                    <input
-                      type="number"
-                      value={addForm.seed}
-                      onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
-                      min="1"
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-
-                  <label className="mt-3 inline-flex items-center gap-2 text-sm text-foreground-secondary">
-                    <input
-                      type="checkbox"
-                      checked={addForm.isReferee}
-                      disabled={isReadOnly}
-                      onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
-                    />
-                    {t('organizer.persons.addAsReferee')}
-                  </label>
-
-                  <label className="inline-flex items-center gap-2 text-sm text-foreground-secondary">
-                    <input
-                      type="checkbox"
-                      checked={addForm.isInstructor}
-                      disabled={isReadOnly}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, isInstructor: e.target.checked }))
-                      }
-                    />
-                    {t('organizer.persons.addAsInstructor')}
-                  </label>
-
-                  {tournaments.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-foreground-secondary mb-2">
-                        {t('admin.orgPersons.registerInTournaments')}
-                      </label>
-                      <div className="flex flex-col gap-1.5">
-                        {tournaments.map((tour) => (
-                          <label
-                            key={tour.id}
-                            className="flex items-center gap-2 text-sm cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTournaments.has(tour.id)}
-                              onChange={() =>
-                                setSelectedTournaments((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(tour.id)) next.delete(tour.id);
-                                  else next.add(tour.id);
-                                  return next;
-                                })
-                              }
-                              className="rounded"
-                            />
-                            {tour.name}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {addError && (
-                  <p className="text-sm text-danger mt-3" role="alert">
-                    {addError}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 mt-5">
-                  <button
-                    onClick={closeAddModal}
-                    className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
-                  >
-                    {t('admin.orgPersons.cancel')}
-                  </button>
-                  <button
-                    onClick={() => void handleAdd()}
-                    data-testid="persons-add-submit"
-                    disabled={addSaving}
-                    className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
-                  >
-                    {addSaving
-                      ? t('admin.orgPersons.adding')
-                      : t('admin.orgPersons.addParticipantTitle')}
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
 
-          {editPerson && (
-            <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
-                <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-                  {t('admin.orgPersons.editParticipantTitle')}
-                </h2>
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        {t('admin.orgPersons.givenName')}
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.givenName}
-                        onChange={(e) => setEditForm((f) => ({ ...f, givenName: e.target.value }))}
-                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                        {t('admin.orgPersons.familyName')}
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.familyName}
-                        onChange={(e) => setEditForm((f) => ({ ...f, familyName: e.target.value }))}
-                        className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.email')}
-                    </label>
-                    <input
-                      type="email"
-                      value={editForm.email}
-                      onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.club')}
-                    </label>
-                    <input
-                      type="search"
-                      value={editClubSearch}
-                      onChange={(e) => {
-                        setEditClubSearch(e.target.value);
-                        setEditClubId(null);
-                        setEditClubLabel('');
-                      }}
-                      placeholder={t('admin.orgPersons.searchClubPlaceholder')}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                    {editClubSuggestions.length > 0 && !editClubId && (
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('admin.orgPersons.email')}
+                </label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('admin.orgPersons.club')}
+                </label>
+                <input
+                  type="search"
+                  value={clubSearch}
+                  onChange={(e) => {
+                    setClubSearch(e.target.value);
+                    setSelectedClubId(null);
+                    setSelectedClubLabel('');
+                    setNewClubName(null);
+                  }}
+                  placeholder={t('admin.orgPersons.clubSearchPlaceholder')}
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                {!selectedClubId &&
+                  !newClubName &&
+                  (() => {
+                    const rows = computeClubPickerRows(
+                      clubSearch,
+                      clubSuggestions as ClubPickerSuggestion[],
+                    );
+                    if (rows.length === 0) return null;
+                    return (
                       <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
-                        {editClubSuggestions.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              setEditClubId(c.id);
-                              setEditClubLabel(c.name);
-                              setEditClubSearch(c.name);
-                              setEditClubSuggestions([]);
-                            }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
-                          >
-                            <span className="font-medium">{c.name}</span>
-                            {c.abbreviation && (
-                              <span className="text-muted ml-2 text-xs">{c.abbreviation}</span>
-                            )}
-                          </button>
-                        ))}
+                        {rows.map((row, idx) =>
+                          row.kind === 'existing' ? (
+                            <button
+                              key={`existing-${row.club.id}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedClubId(row.club.id);
+                                setSelectedClubLabel(row.club.name);
+                                setClubSearch(row.club.name);
+                                setClubSuggestions([]);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
+                            >
+                              <span className="font-medium">{row.club.name}</span>
+                              {row.club.abbreviation && (
+                                <span className="text-muted ml-2 text-xs">
+                                  {row.club.abbreviation}
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              key={`create-${idx}`}
+                              type="button"
+                              data-testid="new-club-create-row"
+                              onClick={() => {
+                                setNewClubName(row.name);
+                                setSelectedClubId(null);
+                                setSelectedClubLabel('');
+                                setClubSuggestions([]);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 border-b border-border last:border-0 font-medium"
+                            >
+                              {t('admin.orgPersons.createNewClub', { name: row.name })}
+                            </button>
+                          ),
+                        )}
                       </div>
-                    )}
-                    {editClubId && (
-                      <p className="text-xs text-success mt-1">
-                        {editClubLabel}{' '}
-                        <button
-                          type="button"
-                          className="underline"
-                          onClick={() => {
-                            setEditClubId(null);
-                            setEditClubLabel('');
-                            setEditClubSearch('');
-                          }}
-                        >
-                          {t('admin.orgPersons.clear')}
-                        </button>
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                      {t('admin.orgPersons.hemaRatingsId')}
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.hemaRatingsId}
-                      onChange={(e) =>
-                        setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))
-                      }
-                      placeholder={t('admin.orgPersons.hemaRatingsIdShortPlaceholder')}
-                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-                  {/* R6: referee checkbox is always enabled. Unclaimed persons
-                  get a person_id-keyed event_referees row; once they claim,
-                  the row auto-flips to user_id-keyed. */}
-                  <div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={editForm.isReferee}
-                        onChange={(e) =>
-                          setEditForm((f) => ({ ...f, isReferee: e.target.checked }))
-                        }
-                        className="rounded"
-                      />
-                      <span className="text-foreground-secondary">
-                        {t('organizer.persons.addAsReferee')}
-                      </span>
-                    </label>
-                    {!editPerson.claimedByUserId && editForm.isReferee && (
-                      <p className="text-xs text-muted mt-1">
-                        {t('organizer.persons.refereeUnclaimedHint')}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={editForm.isInstructor}
-                        onChange={(e) =>
-                          setEditForm((f) => ({ ...f, isInstructor: e.target.checked }))
-                        }
-                        className="rounded"
-                      />
-                      <span className="text-foreground-secondary">
-                        {t('organizer.persons.addAsInstructor')}
-                      </span>
-                    </label>
-                  </div>
-                  {tournaments.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-foreground-secondary mb-2">
-                        {t('admin.orgPersons.tournaments')}
-                      </label>
-                      <div className="flex flex-col gap-1.5">
-                        {tournaments.map((tour) => (
-                          <label
-                            key={tour.id}
-                            className="flex items-center gap-2 text-sm cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editSelectedTournaments.has(tour.id)}
-                              onChange={() =>
-                                setEditSelectedTournaments((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(tour.id)) next.delete(tour.id);
-                                  else next.add(tour.id);
-                                  return next;
-                                })
-                              }
-                              className="rounded"
-                            />
-                            {tour.name}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {editError && (
-                  <p className="text-sm text-danger mt-3" role="alert">
-                    {editError}
+                    );
+                  })()}
+                {selectedClubId && (
+                  <p className="text-xs text-success mt-1">
+                    {selectedClubLabel}{' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setSelectedClubId(null);
+                        setSelectedClubLabel('');
+                        setClubSearch('');
+                      }}
+                    >
+                      {t('admin.orgPersons.clear')}
+                    </button>
                   </p>
                 )}
-                <div className="flex justify-end gap-2 mt-5">
+                {newClubName && (
+                  <p className="text-xs text-success mt-1" data-testid="new-club-chip">
+                    {t('admin.orgPersons.newClubPrefix')}{' '}
+                    <span className="font-medium">{newClubName}</span>{' '}
+                    {t('admin.orgPersons.newClubSuffix')}{' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setNewClubName(null);
+                        setClubSearch('');
+                      }}
+                    >
+                      {t('admin.orgPersons.clear')}
+                    </button>
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('admin.orgPersons.hemaRatingsIdOptional')}
+                </label>
+                <input
+                  type="text"
+                  value={addForm.hemaRatingsId}
+                  onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                  placeholder={t('admin.orgPersons.hemaRatingsIdPlaceholder')}
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <HemaRatingsSuggest
+                apiUrl={apiUrl}
+                personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
+                selectedId={addForm.hemaRatingsId}
+                onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
+              />
+
+              <div>
+                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                  {t('admin.orgPersons.seedOptional')}
+                </label>
+                <input
+                  type="number"
+                  value={addForm.seed}
+                  onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
+                  min="1"
+                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <label className="mt-3 inline-flex items-center gap-2 text-sm text-foreground-secondary">
+                <input
+                  type="checkbox"
+                  checked={addForm.isReferee}
+                  disabled={isReadOnly}
+                  onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
+                />
+                {t('organizer.persons.addAsReferee')}
+              </label>
+
+              <label className="inline-flex items-center gap-2 text-sm text-foreground-secondary">
+                <input
+                  type="checkbox"
+                  checked={addForm.isInstructor}
+                  disabled={isReadOnly}
+                  onChange={(e) => setAddForm((f) => ({ ...f, isInstructor: e.target.checked }))}
+                />
+                {t('organizer.persons.addAsInstructor')}
+              </label>
+
+              {tournaments.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-2">
+                    {t('admin.orgPersons.registerInTournaments')}
+                  </label>
+                  <div className="flex flex-col gap-1.5">
+                    {tournaments.map((tour) => (
+                      <label
+                        key={tour.id}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTournaments.has(tour.id)}
+                          onChange={() =>
+                            setSelectedTournaments((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(tour.id)) next.delete(tour.id);
+                              else next.add(tour.id);
+                              return next;
+                            })
+                          }
+                          className="rounded"
+                        />
+                        {tour.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {addError && (
+              <p className="text-sm text-danger mt-3" role="alert">
+                {addError}
+              </p>
+            )}
+          </Modal>
+
+          {editPerson && (
+            <Modal
+              open
+              onClose={() => setEditPerson(null)}
+              busy={editSaving}
+              size="md"
+              title={t('admin.orgPersons.editParticipantTitle')}
+              footer={
+                <>
                   <button
                     onClick={() => setEditPerson(null)}
                     className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
@@ -2059,9 +1881,184 @@ export default function ParticipantsPage() {
                   >
                     {editSaving ? t('admin.orgPersons.saving') : t('admin.orgPersons.saveChanges')}
                   </button>
+                </>
+              }
+            >
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      {t('admin.orgPersons.givenName')}
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.givenName}
+                      onChange={(e) => setEditForm((f) => ({ ...f, givenName: e.target.value }))}
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      {t('admin.orgPersons.familyName')}
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.familyName}
+                      onChange={(e) => setEditForm((f) => ({ ...f, familyName: e.target.value }))}
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.email')}
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.club')}
+                  </label>
+                  <input
+                    type="search"
+                    value={editClubSearch}
+                    onChange={(e) => {
+                      setEditClubSearch(e.target.value);
+                      setEditClubId(null);
+                      setEditClubLabel('');
+                    }}
+                    placeholder={t('admin.orgPersons.searchClubPlaceholder')}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  {editClubSuggestions.length > 0 && !editClubId && (
+                    <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
+                      {editClubSuggestions.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setEditClubId(c.id);
+                            setEditClubLabel(c.name);
+                            setEditClubSearch(c.name);
+                            setEditClubSuggestions([]);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
+                        >
+                          <span className="font-medium">{c.name}</span>
+                          {c.abbreviation && (
+                            <span className="text-muted ml-2 text-xs">{c.abbreviation}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {editClubId && (
+                    <p className="text-xs text-success mt-1">
+                      {editClubLabel}{' '}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          setEditClubId(null);
+                          setEditClubLabel('');
+                          setEditClubSearch('');
+                        }}
+                      >
+                        {t('admin.orgPersons.clear')}
+                      </button>
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.hemaRatingsId')}
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.hemaRatingsId}
+                    onChange={(e) => setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                    placeholder={t('admin.orgPersons.hemaRatingsIdShortPlaceholder')}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                {/* R6: referee checkbox is always enabled. Unclaimed persons
+                  get a person_id-keyed event_referees row; once they claim,
+                  the row auto-flips to user_id-keyed. */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isReferee}
+                      onChange={(e) => setEditForm((f) => ({ ...f, isReferee: e.target.checked }))}
+                      className="rounded"
+                    />
+                    <span className="text-foreground-secondary">
+                      {t('organizer.persons.addAsReferee')}
+                    </span>
+                  </label>
+                  {!editPerson.claimedByUserId && editForm.isReferee && (
+                    <p className="text-xs text-muted mt-1">
+                      {t('organizer.persons.refereeUnclaimedHint')}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isInstructor}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, isInstructor: e.target.checked }))
+                      }
+                      className="rounded"
+                    />
+                    <span className="text-foreground-secondary">
+                      {t('organizer.persons.addAsInstructor')}
+                    </span>
+                  </label>
+                </div>
+                {tournaments.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-2">
+                      {t('admin.orgPersons.tournaments')}
+                    </label>
+                    <div className="flex flex-col gap-1.5">
+                      {tournaments.map((tour) => (
+                        <label
+                          key={tour.id}
+                          className="flex items-center gap-2 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editSelectedTournaments.has(tour.id)}
+                            onChange={() =>
+                              setEditSelectedTournaments((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(tour.id)) next.delete(tour.id);
+                                else next.add(tour.id);
+                                return next;
+                              })
+                            }
+                            className="rounded"
+                          />
+                          {tour.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+              {editError && (
+                <p className="text-sm text-danger mt-3" role="alert">
+                  {editError}
+                </p>
+              )}
+            </Modal>
           )}
         </>
       )}

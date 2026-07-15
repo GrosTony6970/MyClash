@@ -19,6 +19,7 @@
 import {
   Button,
   CountryCombobox,
+  Modal,
   SortableHeader,
   Switch,
   formatCountryName,
@@ -857,18 +858,30 @@ export default function OrgEventsListPage() {
       </section>
 
       {editing && form && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <form
-            onSubmit={(event) => void saveEdit(event)}
-            className="w-full max-w-2xl rounded-lg bg-surface p-6 shadow-2xl"
-          >
-            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-              {t('organizer.events.editTitle')}
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              {t('organizer.events.slugReadOnly', { slug: editing.slug })}
-            </p>
-
+        <Modal
+          open
+          onClose={closeEdit}
+          busy={busyId === editing.id}
+          size="lg"
+          title={t('organizer.events.editTitle')}
+          description={t('organizer.events.slugReadOnly', { slug: editing.slug })}
+          footer={
+            <>
+              <Button type="button" variant="cancel" onClick={closeEdit}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="submit"
+                form="edit-event-form"
+                variant="primary"
+                loading={busyId === editing.id}
+              >
+                {t('organizer.events.save')}
+              </Button>
+            </>
+          }
+        >
+          <form id="edit-event-form" onSubmit={(event) => void saveEdit(event)}>
             {/* Logo edit block — staged. Picking a file shows a local
                 preview only; the actual upload runs from saveEdit
                 alongside the field PATCH. Remove flags the slot for
@@ -1067,28 +1080,19 @@ export default function OrgEventsListPage() {
                 </div>
               )}
             </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Button type="button" variant="cancel" onClick={closeEdit}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" variant="primary" loading={busyId === editing.id}>
-                {t('organizer.events.save')}
-              </Button>
-            </div>
           </form>
-        </div>
+        </Modal>
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl">
-            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-              {t('organizer.events.deleteTitle')}
-            </h2>
-            <p className="mt-2 text-sm text-foreground-secondary">
-              {t('organizer.events.deleteWarning', { name: confirmDelete.name })}
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
+        <Modal
+          open
+          onClose={() => setConfirmDelete(null)}
+          busy={busyId === confirmDelete.id}
+          size="md"
+          title={t('organizer.events.deleteTitle')}
+          footer={
+            <>
               <Button type="button" variant="cancel" onClick={() => setConfirmDelete(null)}>
                 {t('common.cancel')}
               </Button>
@@ -1100,9 +1104,13 @@ export default function OrgEventsListPage() {
               >
                 {t('organizer.events.confirmHardDelete')}
               </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <p className="text-sm text-foreground-secondary">
+            {t('organizer.events.deleteWarning', { name: confirmDelete.name })}
+          </p>
+        </Modal>
       )}
 
       {deletionTarget && (

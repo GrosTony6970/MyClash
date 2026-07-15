@@ -17,6 +17,7 @@ import Link from 'next/link';
 import {
   ConfirmDialog,
   HelpTooltip,
+  Modal,
   RowActionButton,
   TournamentColorDot,
   useToast,
@@ -667,33 +668,35 @@ export default function PoolsPage() {
             )}
 
             {/* Force regenerate confirmation */}
-            {showForceConfirm && (
-              <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-                <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
-                  <p className="text-4xl mb-3">⚠️</p>
-                  <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                    {t('organizer.pools.page.regenerateConfirmTitle')}
-                  </h2>
-                  <p className="text-muted text-sm mb-5">
-                    {t('organizer.pools.page.regenerateConfirmBody')}
-                  </p>
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      onClick={() => setShowForceConfirm(false)}
-                      className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
-                    >
-                      {t('organizer.pools.page.cancel')}
-                    </button>
-                    <button
-                      onClick={() => void generate(true)}
-                      className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
-                    >
-                      {t('organizer.pools.page.regenerateConfirmYes')}
-                    </button>
-                  </div>
-                </div>
+            <Modal
+              open={showForceConfirm}
+              onClose={() => setShowForceConfirm(false)}
+              size="sm"
+              title={t('organizer.pools.page.regenerateConfirmTitle')}
+              footer={
+                <>
+                  <button
+                    onClick={() => setShowForceConfirm(false)}
+                    className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
+                  >
+                    {t('organizer.pools.page.cancel')}
+                  </button>
+                  <button
+                    onClick={() => void generate(true)}
+                    className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
+                  >
+                    {t('organizer.pools.page.regenerateConfirmYes')}
+                  </button>
+                </>
+              }
+            >
+              <div className="text-center">
+                <p className="text-4xl mb-3">⚠️</p>
+                <p className="text-muted text-sm">
+                  {t('organizer.pools.page.regenerateConfirmBody')}
+                </p>
               </div>
-            )}
+            </Modal>
 
             {/* Pool cards with drag-drop — one pool per row, full width of
                 the left column. Stacks vertically so each pool's fighter

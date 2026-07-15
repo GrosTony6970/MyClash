@@ -11,6 +11,7 @@ import Link from 'next/link';
 import {
   BracketView,
   MedalPodium,
+  Modal,
   TournamentColorDot,
   fuzzyMatch,
   type BracketSlotData,
@@ -1369,97 +1370,78 @@ export default function BracketPage() {
         )}
 
         {/* Auto-populate "no pool phase → registration seed" confirm */}
-        {showSeedFallbackConfirm && (
-          <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
-              <p className="text-4xl mb-3">⚠️</p>
-              <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                {t('organizer.bracket.autoPopulateNoPoolsTitle')}
-              </h2>
-              <p className="text-foreground-secondary text-sm mb-5">
-                {t('organizer.bracket.autoPopulateNoPoolsBody')}
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowSeedFallbackConfirm(false)}
-                  className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
-                >
-                  {t('organizer.bracket.autoPopulateNoPoolsCancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSeedFallbackConfirm(false);
-                    void populateBracket();
-                  }}
-                  className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-foreground font-semibold rounded-lg text-sm"
-                >
-                  {t('organizer.bracket.autoPopulateNoPoolsConfirm')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          open={showSeedFallbackConfirm}
+          onClose={() => setShowSeedFallbackConfirm(false)}
+          size="sm"
+          title={t('organizer.bracket.autoPopulateNoPoolsTitle')}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowSeedFallbackConfirm(false)}
+                className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
+              >
+                {t('organizer.bracket.autoPopulateNoPoolsCancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSeedFallbackConfirm(false);
+                  void populateBracket();
+                }}
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-foreground font-semibold rounded-lg text-sm"
+              >
+                {t('organizer.bracket.autoPopulateNoPoolsConfirm')}
+              </button>
+            </>
+          }
+        >
+          <p className="text-4xl mb-3">⚠️</p>
+          <p className="text-foreground-secondary text-sm mb-5">
+            {t('organizer.bracket.autoPopulateNoPoolsBody')}
+          </p>
+        </Modal>
 
         {/* Force confirm modal */}
-        {showForceConfirm && (
-          <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
-              <p className="text-4xl mb-3">⚠️</p>
-              <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                {t('organizer.bracketPage.regenerateConfirmTitle')}
-              </h2>
-              <p className="text-muted text-sm mb-5">
-                {t('organizer.bracketPage.regenerateConfirmBody')}
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => setShowForceConfirm(false)}
-                  className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
-                >
-                  {t('organizer.bracketPage.cancel')}
-                </button>
-                <button
-                  onClick={() => void generate(true)}
-                  className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
-                >
-                  {t('organizer.bracketPage.regenerateConfirmYes')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          open={showForceConfirm}
+          onClose={() => setShowForceConfirm(false)}
+          size="sm"
+          title={t('organizer.bracketPage.regenerateConfirmTitle')}
+          footer={
+            <>
+              <button
+                onClick={() => setShowForceConfirm(false)}
+                className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
+              >
+                {t('organizer.bracketPage.cancel')}
+              </button>
+              <button
+                onClick={() => void generate(true)}
+                className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
+              >
+                {t('organizer.bracketPage.regenerateConfirmYes')}
+              </button>
+            </>
+          }
+        >
+          <p className="text-4xl mb-3">⚠️</p>
+          <p className="text-muted text-sm mb-5">
+            {t('organizer.bracketPage.regenerateConfirmBody')}
+          </p>
+        </Modal>
 
         {/* Delete confirm modal — distinct from regenerate: leaves no bracket behind. */}
-        {showDeleteConfirm && bracket && (
-          <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
-              <p className="text-4xl mb-3 text-center">🗑️</p>
-              <h2 className="font-display font-semibold text-lg sm:text-xl mb-2 text-center">
-                {t('organizer.bracketPage.deleteConfirmTitle')}
-              </h2>
-              <p className="text-foreground-secondary text-sm mb-4 text-center">
-                {t('organizer.bracketPage.deleteConfirmBody')}
-              </p>
-              <ul className="text-sm text-foreground-secondary mb-5 space-y-1 mx-auto max-w-[240px]">
-                <li className="flex justify-between">
-                  <span>{t('organizer.bracketPage.deleteRowSlots')}</span>
-                  <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>{t('organizer.bracketPage.deleteRowMatches')}</span>
-                  <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
-                </li>
-                <li className="flex justify-between text-muted">
-                  <span>{t('organizer.bracketPage.deleteRowReferees')}</span>
-                  <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
-                </li>
-              </ul>
-              <p className="text-xs text-muted mb-5 text-center">
-                {t('organizer.bracketPage.deleteConfirmHint')}
-              </p>
-              <div className="flex gap-3">
+        {bracket && (
+          <Modal
+            open={showDeleteConfirm}
+            onClose={() => setShowDeleteConfirm(false)}
+            busy={deleting}
+            size="sm"
+            title={t('organizer.bracketPage.deleteConfirmTitle')}
+            footer={
+              <>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={deleting}
@@ -1476,9 +1458,31 @@ export default function BracketPage() {
                     ? t('organizer.bracketPage.deleting')
                     : t('organizer.bracketPage.deleteButton')}
                 </button>
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          >
+            <p className="text-4xl mb-3 text-center">🗑️</p>
+            <p className="text-foreground-secondary text-sm mb-4 text-center">
+              {t('organizer.bracketPage.deleteConfirmBody')}
+            </p>
+            <ul className="text-sm text-foreground-secondary mb-5 space-y-1 mx-auto max-w-[240px]">
+              <li className="flex justify-between">
+                <span>{t('organizer.bracketPage.deleteRowSlots')}</span>
+                <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
+              </li>
+              <li className="flex justify-between">
+                <span>{t('organizer.bracketPage.deleteRowMatches')}</span>
+                <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
+              </li>
+              <li className="flex justify-between text-muted">
+                <span>{t('organizer.bracketPage.deleteRowReferees')}</span>
+                <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
+              </li>
+            </ul>
+            <p className="text-xs text-muted mb-5 text-center">
+              {t('organizer.bracketPage.deleteConfirmHint')}
+            </p>
+          </Modal>
         )}
 
         {/* Override modal — searchable registration picker. Two panes,
@@ -1487,219 +1491,18 @@ export default function BracketPage() {
             registration id; "Clear" sends an explicit null so the
             backend wipes the assignment. */}
         {overrideModal && (
-          <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-              <h2 className="font-display font-semibold text-lg sm:text-xl mb-3">
-                {t('organizer.bracket.overrideModal.title')}
-              </h2>
-              <input
-                type="text"
-                value={pickerFilter}
-                onChange={(e) => setPickerFilter(e.target.value)}
-                placeholder={t('organizer.bracket.overrideModal.filterPlaceholder')}
-                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-2 ring-accent"
-              />
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {(['A', 'B'] as const).map((side) => {
-                  const currentId = side === 'A' ? overrideModal.regAId : overrideModal.regBId;
-                  const sideLabel =
-                    side === 'A'
-                      ? t('organizer.bracket.overrideModal.sideA')
-                      : t('organizer.bracket.overrideModal.sideB');
-                  const setSide = (value: string | null) =>
-                    setOverrideModal({
-                      ...overrideModal,
-                      ...(side === 'A' ? { regAId: value } : { regBId: value }),
-                    });
-                  return (
-                    <div
-                      key={side}
-                      className="flex flex-col rounded-lg border border-border bg-background"
-                    >
-                      <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                        {sideLabel}
-                      </div>
-                      <div className="max-h-48 overflow-y-auto">
-                        {filteredRegistrations.length === 0 ? (
-                          <p className="px-3 py-3 text-xs italic text-muted">
-                            {t('organizer.bracket.overrideModal.empty')}
-                          </p>
-                        ) : (
-                          filteredRegistrations.map((reg) => {
-                            const active = currentId === reg.id;
-                            return (
-                              <button
-                                key={reg.id}
-                                type="button"
-                                onClick={() => setSide(reg.id)}
-                                className={[
-                                  'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition-colors border-b border-border last:border-b-0',
-                                  active
-                                    ? 'bg-accent/10 text-accent font-semibold'
-                                    : 'text-foreground-secondary hover:bg-surface',
-                                ].join(' ')}
-                              >
-                                <span className="truncate">{reg.displayName}</span>
-                                {reg.bibNumber !== null && (
-                                  <span className="shrink-0 rounded bg-border px-1 py-px text-[10px] text-foreground-secondary">
-                                    #{reg.bibNumber}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSide(null)}
-                        className={[
-                          'border-t border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-surface',
-                          currentId === null ? 'bg-accent/10 text-accent' : '',
-                        ].join(' ')}
-                      >
-                        {t('organizer.bracket.overrideModal.clear')}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              {overrideModal.matchId && (
-                <div className="mb-4 space-y-2 border-t border-border pt-3">
-                  <label className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-semibold text-foreground-secondary">
-                      {t('organizer.bracket.overrideModal.liceLabel')}
-                    </span>
-                    <select
-                      value={overrideModal.liceId ?? ''}
-                      onChange={(e) =>
-                        setOverrideModal({ ...overrideModal, liceId: e.target.value || null })
-                      }
-                      className="rounded-md border border-border px-2 py-1 text-sm"
-                    >
-                      <option value="">{t('organizer.bracket.overrideModal.liceNone')}</option>
-                      {lices.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {editMatchRoleSlots.map((rs) => {
-                    const current = rs.assignment?.personId ?? null;
-                    const value = Object.prototype.hasOwnProperty.call(
-                      overrideModal.roleChanges,
-                      rs.role,
-                    )
-                      ? (overrideModal.roleChanges[rs.role] ?? '')
-                      : (current ?? '');
-                    const options = [...rs.candidates.recommended, ...rs.candidates.warning];
-                    const currentMissing =
-                      current !== null && !options.some((c) => c.personId === current);
-                    return (
-                      <label
-                        key={rs.role}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <span className="font-semibold text-foreground-secondary">
-                          {rs.displayName ?? roleLabel(rs.role)}
-                        </span>
-                        <select
-                          value={value}
-                          onChange={(e) =>
-                            setOverrideModal({
-                              ...overrideModal,
-                              roleChanges: {
-                                ...overrideModal.roleChanges,
-                                [rs.role]: e.target.value || null,
-                              },
-                            })
-                          }
-                          className="rounded-md border border-border px-2 py-1 text-sm"
-                        >
-                          <option value="">
-                            {t('organizer.bracket.overrideModal.refereeNone')}
-                          </option>
-                          {currentMissing && rs.assignment && (
-                            <option value={current ?? ''}>{rs.assignment.displayName}</option>
-                          )}
-                          {options.map((c) =>
-                            c.personId ? (
-                              <option key={c.personId} value={c.personId}>
-                                {c.displayName}
-                              </option>
-                            ) : null,
-                          )}
-                        </select>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-              {canForfeit && editSlot && (
-                <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-danger">
-                    {t('organizer.bracketPage.forfeitTitle')}
-                  </p>
-                  <div className="mb-2 space-y-1.5">
-                    {(['red', 'blue'] as const).map((side) => {
-                      const name =
-                        side === 'red' ? editSlot.redFighterName : editSlot.blueFighterName;
-                      const active = forfeitSide === side;
-                      return (
-                        <button
-                          key={side}
-                          type="button"
-                          onClick={() => setForfeitSide(side)}
-                          className={[
-                            'w-full rounded-md border px-3 py-1.5 text-left text-sm transition-colors',
-                            active
-                              ? 'border-danger bg-surface text-danger'
-                              : 'border-border bg-surface hover:border-border',
-                          ].join(' ')}
-                        >
-                          <span className="font-semibold">
-                            {side === 'red'
-                              ? t('organizer.bracketPage.forfeitRed')
-                              : t('organizer.bracketPage.forfeitBlue')}
-                          </span>
-                          <span className="ml-2 text-foreground-secondary">— {name ?? '?'}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <select
-                    value={forfeitReason}
-                    onChange={(e) => setForfeitReason(e.target.value as ForfeitReason)}
-                    className="mb-2 w-full rounded-md border border-border px-2 py-1 text-sm"
-                  >
-                    <option value="voluntary">
-                      {t('organizer.bracketPage.forfeitReasonVoluntary')}
-                    </option>
-                    <option value="injury">{t('organizer.bracketPage.forfeitReasonInjury')}</option>
-                    <option value="black_card_1">
-                      {t('organizer.bracketPage.forfeitReasonBlackCard1')}
-                    </option>
-                    <option value="black_card_2">
-                      {t('organizer.bracketPage.forfeitReasonBlackCard2')}
-                    </option>
-                    <option value="conduct_violation">
-                      {t('organizer.bracketPage.forfeitReasonConduct')}
-                    </option>
-                  </select>
-                  {forfeitError && <p className="mb-2 text-xs text-danger">{forfeitError}</p>}
-                  <button
-                    type="button"
-                    onClick={() => void submitForfeit()}
-                    disabled={forfeitBusy || !forfeitSide}
-                    className="w-full rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
-                  >
-                    {forfeitBusy ? '…' : t('organizer.bracketPage.forfeitTitle')}
-                  </button>
-                </div>
-              )}
-              {overrideError && <p className="text-danger text-sm mb-3">{overrideError}</p>}
-              <div className="flex gap-3">
+          <Modal
+            open
+            onClose={() => {
+              setOverrideModal(null);
+              setPickerFilter('');
+              resetForfeitDraft();
+            }}
+            busy={overriding}
+            size="lg"
+            title={t('organizer.bracket.overrideModal.title')}
+            footer={
+              <>
                 <button
                   onClick={() => {
                     setOverrideModal(null);
@@ -1717,57 +1520,267 @@ export default function BracketPage() {
                 >
                   {overriding ? t('organizer.bracketPage.saving') : t('organizer.bracketPage.save')}
                 </button>
-              </div>
+              </>
+            }
+          >
+            <input
+              type="text"
+              value={pickerFilter}
+              onChange={(e) => setPickerFilter(e.target.value)}
+              placeholder={t('organizer.bracket.overrideModal.filterPlaceholder')}
+              className="w-full border border-border rounded-lg px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-2 ring-accent"
+            />
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {(['A', 'B'] as const).map((side) => {
+                const currentId = side === 'A' ? overrideModal.regAId : overrideModal.regBId;
+                const sideLabel =
+                  side === 'A'
+                    ? t('organizer.bracket.overrideModal.sideA')
+                    : t('organizer.bracket.overrideModal.sideB');
+                const setSide = (value: string | null) =>
+                  setOverrideModal({
+                    ...overrideModal,
+                    ...(side === 'A' ? { regAId: value } : { regBId: value }),
+                  });
+                return (
+                  <div
+                    key={side}
+                    className="flex flex-col rounded-lg border border-border bg-background"
+                  >
+                    <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                      {sideLabel}
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {filteredRegistrations.length === 0 ? (
+                        <p className="px-3 py-3 text-xs italic text-muted">
+                          {t('organizer.bracket.overrideModal.empty')}
+                        </p>
+                      ) : (
+                        filteredRegistrations.map((reg) => {
+                          const active = currentId === reg.id;
+                          return (
+                            <button
+                              key={reg.id}
+                              type="button"
+                              onClick={() => setSide(reg.id)}
+                              className={[
+                                'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition-colors border-b border-border last:border-b-0',
+                                active
+                                  ? 'bg-accent/10 text-accent font-semibold'
+                                  : 'text-foreground-secondary hover:bg-surface',
+                              ].join(' ')}
+                            >
+                              <span className="truncate">{reg.displayName}</span>
+                              {reg.bibNumber !== null && (
+                                <span className="shrink-0 rounded bg-border px-1 py-px text-[10px] text-foreground-secondary">
+                                  #{reg.bibNumber}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSide(null)}
+                      className={[
+                        'border-t border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-surface',
+                        currentId === null ? 'bg-accent/10 text-accent' : '',
+                      ].join(' ')}
+                    >
+                      {t('organizer.bracket.overrideModal.clear')}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+            {overrideModal.matchId && (
+              <div className="mb-4 space-y-2 border-t border-border pt-3">
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-foreground-secondary">
+                    {t('organizer.bracket.overrideModal.liceLabel')}
+                  </span>
+                  <select
+                    value={overrideModal.liceId ?? ''}
+                    onChange={(e) =>
+                      setOverrideModal({ ...overrideModal, liceId: e.target.value || null })
+                    }
+                    className="rounded-md border border-border px-2 py-1 text-sm"
+                  >
+                    <option value="">{t('organizer.bracket.overrideModal.liceNone')}</option>
+                    {lices.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {editMatchRoleSlots.map((rs) => {
+                  const current = rs.assignment?.personId ?? null;
+                  const value = Object.prototype.hasOwnProperty.call(
+                    overrideModal.roleChanges,
+                    rs.role,
+                  )
+                    ? (overrideModal.roleChanges[rs.role] ?? '')
+                    : (current ?? '');
+                  const options = [...rs.candidates.recommended, ...rs.candidates.warning];
+                  const currentMissing =
+                    current !== null && !options.some((c) => c.personId === current);
+                  return (
+                    <label
+                      key={rs.role}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="font-semibold text-foreground-secondary">
+                        {rs.displayName ?? roleLabel(rs.role)}
+                      </span>
+                      <select
+                        value={value}
+                        onChange={(e) =>
+                          setOverrideModal({
+                            ...overrideModal,
+                            roleChanges: {
+                              ...overrideModal.roleChanges,
+                              [rs.role]: e.target.value || null,
+                            },
+                          })
+                        }
+                        className="rounded-md border border-border px-2 py-1 text-sm"
+                      >
+                        <option value="">{t('organizer.bracket.overrideModal.refereeNone')}</option>
+                        {currentMissing && rs.assignment && (
+                          <option value={current ?? ''}>{rs.assignment.displayName}</option>
+                        )}
+                        {options.map((c) =>
+                          c.personId ? (
+                            <option key={c.personId} value={c.personId}>
+                              {c.displayName}
+                            </option>
+                          ) : null,
+                        )}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            {canForfeit && editSlot && (
+              <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-danger">
+                  {t('organizer.bracketPage.forfeitTitle')}
+                </p>
+                <div className="mb-2 space-y-1.5">
+                  {(['red', 'blue'] as const).map((side) => {
+                    const name =
+                      side === 'red' ? editSlot.redFighterName : editSlot.blueFighterName;
+                    const active = forfeitSide === side;
+                    return (
+                      <button
+                        key={side}
+                        type="button"
+                        onClick={() => setForfeitSide(side)}
+                        className={[
+                          'w-full rounded-md border px-3 py-1.5 text-left text-sm transition-colors',
+                          active
+                            ? 'border-danger bg-surface text-danger'
+                            : 'border-border bg-surface hover:border-border',
+                        ].join(' ')}
+                      >
+                        <span className="font-semibold">
+                          {side === 'red'
+                            ? t('organizer.bracketPage.forfeitRed')
+                            : t('organizer.bracketPage.forfeitBlue')}
+                        </span>
+                        <span className="ml-2 text-foreground-secondary">— {name ?? '?'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <select
+                  value={forfeitReason}
+                  onChange={(e) => setForfeitReason(e.target.value as ForfeitReason)}
+                  className="mb-2 w-full rounded-md border border-border px-2 py-1 text-sm"
+                >
+                  <option value="voluntary">
+                    {t('organizer.bracketPage.forfeitReasonVoluntary')}
+                  </option>
+                  <option value="injury">{t('organizer.bracketPage.forfeitReasonInjury')}</option>
+                  <option value="black_card_1">
+                    {t('organizer.bracketPage.forfeitReasonBlackCard1')}
+                  </option>
+                  <option value="black_card_2">
+                    {t('organizer.bracketPage.forfeitReasonBlackCard2')}
+                  </option>
+                  <option value="conduct_violation">
+                    {t('organizer.bracketPage.forfeitReasonConduct')}
+                  </option>
+                </select>
+                {forfeitError && <p className="mb-2 text-xs text-danger">{forfeitError}</p>}
+                <button
+                  type="button"
+                  onClick={() => void submitForfeit()}
+                  disabled={forfeitBusy || !forfeitSide}
+                  className="w-full rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
+                >
+                  {forfeitBusy ? '…' : t('organizer.bracketPage.forfeitTitle')}
+                </button>
+              </div>
+            )}
+            {overrideError && <p className="text-danger text-sm mb-3">{overrideError}</p>}
+          </Modal>
         )}
 
         {/* Re-seed modal */}
-        {reseedOpen && (
-          <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
-              <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                {t('organizer.phaseVisibility.reseedTitle')}
-              </h2>
-              <p className="text-sm text-muted mb-4">{t('organizer.phaseVisibility.reseedHint')}</p>
-              <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                {t('organizer.phaseVisibility.reseedStrategyLabel')}
-              </label>
-              <select
-                value={reseedStrategy}
-                onChange={(e) => setReseedStrategy(e.target.value as SeedingStrategy)}
-                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent mb-4"
+        <Modal
+          open={reseedOpen}
+          onClose={() => {
+            setReseedOpen(false);
+            setReseedError(null);
+          }}
+          busy={reseedRunning}
+          size="md"
+          title={t('organizer.phaseVisibility.reseedTitle')}
+          description={t('organizer.phaseVisibility.reseedHint')}
+          footer={
+            <>
+              <button
+                onClick={() => {
+                  setReseedOpen(false);
+                  setReseedError(null);
+                }}
+                className="flex-1 px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
               >
-                {SEEDING_STRATEGIES.map((s) => (
-                  <option key={s} value={s} disabled={s !== 'snake'}>
-                    {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
-                  </option>
-                ))}
-              </select>
-              {reseedError && <p className="text-danger text-sm mb-3">{reseedError}</p>}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setReseedOpen(false);
-                    setReseedError(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
-                >
-                  {t('organizer.bracketPage.cancel')}
-                </button>
-                <button
-                  onClick={() => void submitReseed()}
-                  disabled={reseedRunning || r1HasStartedMatch}
-                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold rounded-lg text-sm"
-                >
-                  {reseedRunning
-                    ? t('organizer.phaseVisibility.reseedApplying')
-                    : t('organizer.phaseVisibility.reseedApply')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+                {t('organizer.bracketPage.cancel')}
+              </button>
+              <button
+                onClick={() => void submitReseed()}
+                disabled={reseedRunning || r1HasStartedMatch}
+                className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold rounded-lg text-sm"
+              >
+                {reseedRunning
+                  ? t('organizer.phaseVisibility.reseedApplying')
+                  : t('organizer.phaseVisibility.reseedApply')}
+              </button>
+            </>
+          }
+        >
+          <label className="block text-xs font-medium text-foreground-secondary mb-1">
+            {t('organizer.phaseVisibility.reseedStrategyLabel')}
+          </label>
+          <select
+            value={reseedStrategy}
+            onChange={(e) => setReseedStrategy(e.target.value as SeedingStrategy)}
+            className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent mb-4"
+          >
+            {SEEDING_STRATEGIES.map((s) => (
+              <option key={s} value={s} disabled={s !== 'snake'}>
+                {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
+              </option>
+            ))}
+          </select>
+          {reseedError && <p className="text-danger text-sm mb-3">{reseedError}</p>}
+        </Modal>
 
         {/* Bracket preview */}
         {bracket && (

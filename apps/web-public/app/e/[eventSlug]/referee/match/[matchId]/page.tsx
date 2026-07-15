@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { Modal } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -311,91 +312,88 @@ export default function RefereeMatchPage() {
       </div>
 
       {/* Warning modal */}
-      {showWarning && (
-        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4">
-          <div className="bg-surface border border-border rounded-xl w-full max-w-md p-5">
-            <h2 className="text-lg font-bold text-foreground mb-4">
-              {t('publicApp.refereePublic.issueWarning')}
-            </h2>
-
-            {/* Target */}
-            <div className="mb-4">
-              <p className="text-xs text-muted mb-2">
-                {t('publicApp.refereePublic.targetFighter')}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {(['red', 'blue'] as const).map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setWarningTarget(color)}
-                    className={[
-                      'py-2 rounded-lg font-semibold text-sm border-2 transition-colors',
-                      warningTarget === color
-                        ? color === 'red'
-                          ? 'border-corner-red bg-corner-red/10 text-corner-red'
-                          : 'border-corner-blue bg-corner-blue/10 text-corner-blue'
-                        : 'border-border text-muted',
-                    ].join(' ')}
-                  >
-                    {color === 'red'
-                      ? (match.redFighterName ?? t('publicApp.refereePublic.cornerRed'))
-                      : (match.blueFighterName ?? t('publicApp.refereePublic.cornerBlue'))}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Reason */}
-            <div className="mb-4">
-              <p className="text-xs text-muted mb-2">{t('publicApp.refereePublic.reason')}</p>
-              <div className="flex flex-col gap-1.5">
-                {WARNING_REASON_IDS.map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => setWarningReason(id)}
-                    className={[
-                      'text-left px-3 py-2 rounded-lg text-sm border transition-colors',
-                      warningReason === id
-                        ? 'border-warning bg-warning/10 text-warning'
-                        : 'border-border text-muted',
-                    ].join(' ')}
-                  >
-                    {warningReasonLabels[id]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Note */}
-            <div className="mb-4">
-              <p className="text-xs text-muted mb-1">{t('publicApp.refereePublic.noteOptional')}</p>
-              <input
-                type="text"
-                value={warningNote}
-                onChange={(e) => setWarningNote(e.target.value)}
-                placeholder={t('publicApp.refereePublic.notePlaceholder')}
-                className="w-full bg-surface border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
-
-            <div className="flex gap-2">
+      <Modal
+        open={showWarning}
+        onClose={() => setShowWarning(false)}
+        busy={acting}
+        size="md"
+        title={t('publicApp.refereePublic.issueWarning')}
+        footer={
+          <div className="flex w-full gap-2">
+            <button
+              onClick={() => setShowWarning(false)}
+              className="flex-1 py-2 rounded-lg border border-border text-muted text-sm"
+            >
+              {t('actions.cancel')}
+            </button>
+            <button
+              onClick={() => void issueWarning()}
+              disabled={acting}
+              className="flex-1 py-2 rounded-lg bg-warning hover:bg-warning-hover text-warning-foreground font-semibold text-sm disabled:opacity-50"
+            >
+              {acting ? '…' : t('publicApp.refereePublic.issueWarning')}
+            </button>
+          </div>
+        }
+      >
+        {/* Target */}
+        <div className="mb-4">
+          <p className="text-xs text-muted mb-2">{t('publicApp.refereePublic.targetFighter')}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['red', 'blue'] as const).map((color) => (
               <button
-                onClick={() => setShowWarning(false)}
-                className="flex-1 py-2 rounded-lg border border-border text-muted text-sm"
+                key={color}
+                onClick={() => setWarningTarget(color)}
+                className={[
+                  'py-2 rounded-lg font-semibold text-sm border-2 transition-colors',
+                  warningTarget === color
+                    ? color === 'red'
+                      ? 'border-corner-red bg-corner-red/10 text-corner-red'
+                      : 'border-corner-blue bg-corner-blue/10 text-corner-blue'
+                    : 'border-border text-muted',
+                ].join(' ')}
               >
-                {t('actions.cancel')}
+                {color === 'red'
+                  ? (match.redFighterName ?? t('publicApp.refereePublic.cornerRed'))
+                  : (match.blueFighterName ?? t('publicApp.refereePublic.cornerBlue'))}
               </button>
-              <button
-                onClick={() => void issueWarning()}
-                disabled={acting}
-                className="flex-1 py-2 rounded-lg bg-warning hover:bg-warning-hover text-warning-foreground font-semibold text-sm disabled:opacity-50"
-              >
-                {acting ? '…' : t('publicApp.refereePublic.issueWarning')}
-              </button>
-            </div>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* Reason */}
+        <div className="mb-4">
+          <p className="text-xs text-muted mb-2">{t('publicApp.refereePublic.reason')}</p>
+          <div className="flex flex-col gap-1.5">
+            {WARNING_REASON_IDS.map((id) => (
+              <button
+                key={id}
+                onClick={() => setWarningReason(id)}
+                className={[
+                  'text-left px-3 py-2 rounded-lg text-sm border transition-colors',
+                  warningReason === id
+                    ? 'border-warning bg-warning/10 text-warning'
+                    : 'border-border text-muted',
+                ].join(' ')}
+              >
+                {warningReasonLabels[id]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Note */}
+        <div className="mb-4">
+          <p className="text-xs text-muted mb-1">{t('publicApp.refereePublic.noteOptional')}</p>
+          <input
+            type="text"
+            value={warningNote}
+            onChange={(e) => setWarningNote(e.target.value)}
+            placeholder={t('publicApp.refereePublic.notePlaceholder')}
+            className="w-full bg-surface border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+      </Modal>
     </main>
   );
 }

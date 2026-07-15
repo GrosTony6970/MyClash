@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { Modal } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type BackupLocation = 'local' | 's3' | 'upload';
@@ -895,35 +896,15 @@ function DeleteAllDialog({
   const { t } = useI18n();
   const tokenMatches = token === DELETE_ALL_TOKEN;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-all-title"
-        className="w-full max-w-lg rounded-lg bg-surface p-5 shadow-xl"
-      >
-        <h2
-          id="delete-all-title"
-          className="font-display font-semibold text-lg sm:text-xl text-danger"
-        >
-          {t('admin.backups.deleteAllConfirmTitle')}
-        </h2>
-        <p className="mt-3 text-sm leading-6 text-foreground-secondary">
-          {t('admin.backups.deleteAllConfirmBody')}
-        </p>
-        <label className="mt-4 grid gap-1 text-sm font-semibold text-foreground-secondary">
-          {t('admin.backups.deleteAllConfirmTokenLabel')}
-          <input
-            type="text"
-            value={token}
-            onChange={(event) => onTokenChange(event.target.value)}
-            placeholder={t('admin.backups.deleteAllConfirmTokenPlaceholder')}
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus on the destructive-confirm token input in modal
-            autoFocus
-            className="rounded-md border border-border px-3 py-2 font-mono text-sm"
-          />
-        </label>
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <Modal
+      open
+      onClose={onCancel}
+      busy={busy}
+      size="md"
+      title={t('admin.backups.deleteAllConfirmTitle')}
+      description={t('admin.backups.deleteAllConfirmBody')}
+      footer={
+        <>
           <button
             type="button"
             onClick={onCancel}
@@ -940,9 +921,20 @@ function DeleteAllDialog({
           >
             {t('admin.backups.deleteAllButton')}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
+        {t('admin.backups.deleteAllConfirmTokenLabel')}
+        <input
+          type="text"
+          value={token}
+          onChange={(event) => onTokenChange(event.target.value)}
+          placeholder={t('admin.backups.deleteAllConfirmTokenPlaceholder')}
+          className="rounded-md border border-border px-3 py-2 font-mono text-sm"
+        />
+      </label>
+    </Modal>
   );
 }
 
@@ -1172,31 +1164,14 @@ function ConfirmDialog({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="backup-confirm-title"
-        className="w-full max-w-lg rounded-lg bg-surface p-5 shadow-xl"
-      >
-        <h2
-          id="backup-confirm-title"
-          className="font-display font-semibold text-lg sm:text-xl text-foreground"
-        >
-          {title}
-        </h2>
-        <p className="mt-3 text-sm leading-6 text-foreground-secondary">{body}</p>
-        {bullets && bullets.length > 0 && (
-          <div className="mt-3 rounded-md border border-danger/30 bg-danger/10 p-3">
-            {bulletsTitle && <p className="text-sm font-semibold text-danger">{bulletsTitle}</p>}
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground-secondary">
-              {bullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <Modal
+      open
+      onClose={onCancel}
+      busy={busy}
+      size="md"
+      title={title}
+      footer={
+        <>
           <button
             type="button"
             onClick={onCancel}
@@ -1213,8 +1188,20 @@ function ConfirmDialog({
           >
             {dangerLabel}
           </button>
+        </>
+      }
+    >
+      <p className="text-sm leading-6 text-foreground-secondary">{body}</p>
+      {bullets && bullets.length > 0 && (
+        <div className="mt-3 rounded-md border border-danger/30 bg-danger/10 p-3">
+          {bulletsTitle && <p className="text-sm font-semibold text-danger">{bulletsTitle}</p>}
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground-secondary">
+            {bullets.map((bullet) => (
+              <li key={bullet}>{bullet}</li>
+            ))}
+          </ul>
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }

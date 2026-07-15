@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
+import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
@@ -255,11 +255,6 @@ function SkillModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    nameInputRef.current?.focus();
-  }, []);
 
   async function handleSave() {
     if (!name.trim()) {
@@ -359,88 +354,18 @@ function SkillModal({
   }
 
   return (
-    /* backdrop */
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop, dismiss-on-click; the dialog provides keyboard-accessible controls
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
-        <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-          {mode === 'add'
-            ? t('organizer.refereesPage.addCustomSkill')
-            : t('organizer.refereesPage.editSkill')}
-        </h2>
-
-        {error && (
-          <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground-secondary mb-1">
-              {t('organizer.refereesPage.skillName')}
-            </label>
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={name}
-              disabled={isSystem}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={60}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:bg-background disabled:text-muted"
-              placeholder={t('organizer.refereesPage.skillNamePlaceholder')}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground-secondary mb-1">
-              {t('organizer.refereesPage.skillColor')}
-            </label>
-            <select
-              value={color}
-              disabled={isSystem}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:bg-background disabled:text-muted"
-            >
-              {COLOR_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c.charAt(0).toUpperCase() + c.slice(1)}
-                </option>
-              ))}
-            </select>
-            <div className="mt-1">
-              <SkillBadge
-                color={color}
-                label={name || t('organizer.refereesPage.preview')}
-                size="sm"
-              />
-            </div>
-          </div>
-
-          {/* R4: optional free-text description. Editable on both system
-              and custom skills — surfaces as a tooltip + subtitle in
-              the catalog. */}
-          <div>
-            <label className="block text-sm font-medium text-foreground-secondary mb-1">
-              {t('organizer.refereesPage.skillDescription')}
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
-              rows={3}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent"
-              placeholder={t('organizer.refereesPage.skillDescriptionPlaceholder')}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between mt-6">
+    <Modal
+      open
+      onClose={onClose}
+      busy={saving || deleting}
+      size="md"
+      title={
+        mode === 'add'
+          ? t('organizer.refereesPage.addCustomSkill')
+          : t('organizer.refereesPage.editSkill')
+      }
+      footer={
+        <div className="flex w-full items-center justify-between gap-3">
           <div>
             {mode === 'edit' && (
               <button
@@ -471,8 +396,73 @@ function SkillModal({
             </button>
           </div>
         </div>
+      }
+    >
+      {error && (
+        <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground-secondary mb-1">
+            {t('organizer.refereesPage.skillName')}
+          </label>
+          <input
+            type="text"
+            value={name}
+            disabled={isSystem}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:bg-background disabled:text-muted"
+            placeholder={t('organizer.refereesPage.skillNamePlaceholder')}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground-secondary mb-1">
+            {t('organizer.refereesPage.skillColor')}
+          </label>
+          <select
+            value={color}
+            disabled={isSystem}
+            onChange={(e) => setColor(e.target.value)}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent disabled:bg-background disabled:text-muted"
+          >
+            {COLOR_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c.charAt(0).toUpperCase() + c.slice(1)}
+              </option>
+            ))}
+          </select>
+          <div className="mt-1">
+            <SkillBadge
+              color={color}
+              label={name || t('organizer.refereesPage.preview')}
+              size="sm"
+            />
+          </div>
+        </div>
+
+        {/* R4: optional free-text description. Editable on both system
+            and custom skills — surfaces as a tooltip + subtitle in
+            the catalog. */}
+        <div>
+          <label className="block text-sm font-medium text-foreground-secondary mb-1">
+            {t('organizer.refereesPage.skillDescription')}
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={500}
+            rows={3}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ring-accent"
+            placeholder={t('organizer.refereesPage.skillDescriptionPlaceholder')}
+          />
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1560,48 +1550,46 @@ function AssignmentsTab({
       )}
 
       {picker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-xl rounded-lg bg-surface p-5 shadow-xl">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-                  {picker.pool.name} -{' '}
-                  {picker.slot.displayName ?? roleLabel(picker.slot.role, skillNameById)}
-                </h2>
-                <p className="text-sm text-muted">{picker.pool.tournamentName}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPicker(null)}
-                className="text-sm text-muted hover:text-foreground"
-              >
-                {t('organizer.refereesPage.cancel')}
-              </button>
-            </div>
-
-            <div className="max-h-96 space-y-4 overflow-y-auto">
-              <CandidateGroup
-                title={t('organizer.refereesPage.recommendedCandidates')}
-                candidates={picker.slot.candidates.recommended}
-                onSelect={(candidate) =>
-                  void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
-                }
-              />
-              <CandidateGroup
-                title={t('organizer.refereesPage.warningCandidates')}
-                candidates={picker.slot.candidates.warning}
-                onSelect={(candidate) =>
-                  void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
-                }
-              />
-              <CandidateGroup
-                title={t('organizer.refereesPage.blockedCandidates')}
-                candidates={picker.slot.candidates.blocked}
-                disabled
-              />
-            </div>
+        <Modal
+          open
+          onClose={() => setPicker(null)}
+          size="lg"
+          title={`${picker.pool.name} - ${
+            picker.slot.displayName ?? roleLabel(picker.slot.role, skillNameById)
+          }`}
+          description={picker.pool.tournamentName}
+          footer={
+            <button
+              type="button"
+              onClick={() => setPicker(null)}
+              className="text-sm text-muted hover:text-foreground"
+            >
+              {t('organizer.refereesPage.cancel')}
+            </button>
+          }
+        >
+          <div className="space-y-4">
+            <CandidateGroup
+              title={t('organizer.refereesPage.recommendedCandidates')}
+              candidates={picker.slot.candidates.recommended}
+              onSelect={(candidate) =>
+                void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
+              }
+            />
+            <CandidateGroup
+              title={t('organizer.refereesPage.warningCandidates')}
+              candidates={picker.slot.candidates.warning}
+              onSelect={(candidate) =>
+                void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
+              }
+            />
+            <CandidateGroup
+              title={t('organizer.refereesPage.blockedCandidates')}
+              candidates={picker.slot.candidates.blocked}
+              disabled
+            />
           </div>
-        </div>
+        </Modal>
       )}
 
       <ConfirmDialog

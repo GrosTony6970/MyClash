@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react';
+import { Modal } from '@myclash/ui';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
@@ -56,136 +57,19 @@ export function BlockEditPopover({
   const [liceIds, setLiceIds] = useState<string[]>(initial.liceIds);
   const [colorHex, setColorHex] = useState(initial.colorHex);
 
-  // The parent gives this popover a `key` per target, so each edit remounts
-  // with fresh state — no re-seed effect needed.
-  if (!open) return null;
-
   function toggleLice(id: string) {
     setLiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-      role="presentation"
-      onClick={onCancel}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-      }}
-    >
-      <div
-        className="w-full max-w-sm rounded-xl border border-border bg-surface p-4 shadow-xl"
-        role="presentation"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <h3 className="mb-3 font-display font-semibold text-lg sm:text-xl text-foreground">
-          {title}
-        </h3>
-
-        <div className="space-y-3">
-          {mode === 'break' ? (
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="font-semibold text-muted">
-                {t('organizer.schedulePage.editPopover.nameLabel')}
-              </span>
-              <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                className="rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-            </label>
-          ) : (
-            <p className="text-sm font-semibold text-foreground-secondary">{label}</p>
-          )}
-
-          <div className="flex gap-2">
-            <label className="flex flex-1 flex-col gap-1 text-xs">
-              <span className="font-semibold text-muted">
-                {t('organizer.schedulePage.editPopover.startLabel')}
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern={HHMM_PATTERN}
-                placeholder="HH:MM"
-                maxLength={5}
-                value={startHHMM}
-                onChange={(e) => setStartHHMM(e.target.value)}
-                className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-            </label>
-            {mode === 'break' ? (
-              <label className="flex flex-1 flex-col gap-1 text-xs">
-                <span className="font-semibold text-muted">
-                  {t('organizer.schedulePage.editPopover.endLabel')}
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern={HHMM_PATTERN}
-                  placeholder="HH:MM"
-                  maxLength={5}
-                  value={endHHMM}
-                  onChange={(e) => setEndHHMM(e.target.value)}
-                  className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-              </label>
-            ) : null}
-          </div>
-
-          {mode === 'break' ? (
-            <div className="flex flex-col gap-1 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-muted">
-                  {t('organizer.schedulePage.editPopover.colorLabel')}
-                </span>
-                {colorHex ? (
-                  <button
-                    type="button"
-                    onClick={() => setColorHex('')}
-                    className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
-                  >
-                    {t('organizer.schedulePage.editPopover.colorDefault')}
-                  </button>
-                ) : null}
-              </div>
-              <ColorSwatchPicker
-                value={colorHex}
-                onChange={setColorHex}
-                ariaLabel={t('organizer.schedulePage.editPopover.colorAriaLabel')}
-              />
-            </div>
-          ) : null}
-
-          {mode === 'block' ? (
-            <fieldset className="flex flex-col gap-1 text-xs">
-              <span className="font-semibold text-muted">
-                {t('organizer.schedulePage.editPopover.licesLabel')}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {lices.map((l) => (
-                  <label
-                    key={l.id}
-                    className="flex items-center gap-1 text-sm text-foreground-secondary"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={liceIds.includes(l.id)}
-                      onChange={() => toggleLice(l.id)}
-                    />
-                    {l.name}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
-
-          {error ? <p className="text-xs text-danger">{error}</p> : null}
-        </div>
-
-        <div className="mt-4 flex justify-end gap-2">
+    <Modal
+      open={open}
+      onClose={onCancel}
+      busy={busy}
+      size="sm"
+      title={title}
+      footer={
+        <>
           <button
             type="button"
             onClick={onCancel}
@@ -201,8 +85,110 @@ export function BlockEditPopover({
           >
             {t('organizer.schedulePage.editPopover.save')}
           </button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {mode === 'break' ? (
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="font-semibold text-muted">
+              {t('organizer.schedulePage.editPopover.nameLabel')}
+            </span>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className="rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </label>
+        ) : (
+          <p className="text-sm font-semibold text-foreground-secondary">{label}</p>
+        )}
+
+        <div className="flex gap-2">
+          <label className="flex flex-1 flex-col gap-1 text-xs">
+            <span className="font-semibold text-muted">
+              {t('organizer.schedulePage.editPopover.startLabel')}
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern={HHMM_PATTERN}
+              placeholder="HH:MM"
+              maxLength={5}
+              value={startHHMM}
+              onChange={(e) => setStartHHMM(e.target.value)}
+              className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </label>
+          {mode === 'break' ? (
+            <label className="flex flex-1 flex-col gap-1 text-xs">
+              <span className="font-semibold text-muted">
+                {t('organizer.schedulePage.editPopover.endLabel')}
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern={HHMM_PATTERN}
+                placeholder="HH:MM"
+                maxLength={5}
+                value={endHHMM}
+                onChange={(e) => setEndHHMM(e.target.value)}
+                className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          ) : null}
         </div>
+
+        {mode === 'break' ? (
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-muted">
+                {t('organizer.schedulePage.editPopover.colorLabel')}
+              </span>
+              {colorHex ? (
+                <button
+                  type="button"
+                  onClick={() => setColorHex('')}
+                  className="text-[11px] font-medium text-muted hover:text-foreground-secondary"
+                >
+                  {t('organizer.schedulePage.editPopover.colorDefault')}
+                </button>
+              ) : null}
+            </div>
+            <ColorSwatchPicker
+              value={colorHex}
+              onChange={setColorHex}
+              ariaLabel={t('organizer.schedulePage.editPopover.colorAriaLabel')}
+            />
+          </div>
+        ) : null}
+
+        {mode === 'block' ? (
+          <fieldset className="flex flex-col gap-1 text-xs">
+            <span className="font-semibold text-muted">
+              {t('organizer.schedulePage.editPopover.licesLabel')}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {lices.map((l) => (
+                <label
+                  key={l.id}
+                  className="flex items-center gap-1 text-sm text-foreground-secondary"
+                >
+                  <input
+                    type="checkbox"
+                    checked={liceIds.includes(l.id)}
+                    onChange={() => toggleLice(l.id)}
+                  />
+                  {l.name}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
+
+        {error ? <p className="text-xs text-danger">{error}</p> : null}
       </div>
-    </div>
+    </Modal>
   );
 }

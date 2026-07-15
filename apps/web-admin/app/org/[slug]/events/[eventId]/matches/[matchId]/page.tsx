@@ -13,7 +13,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useConfirm, useToast } from '@myclash/ui';
+import { Modal, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 
@@ -669,33 +669,15 @@ export default function MatchDetailPage() {
 
       {/* Void modal */}
       {voidTarget && (
-        <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="font-display font-semibold text-lg sm:text-xl mb-1">
-              {t('organizer.matchDetail.voidModalTitle', { seq: voidTarget.sequence })}
-            </h2>
-            <p className="text-sm text-muted mb-4">{exchangeLabel(voidTarget, t)}</p>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground-secondary mb-1">
-                {t('organizer.matchDetail.voidReasonLabel')}
-              </label>
-              <textarea
-                value={voidReason}
-                onChange={(e) => setVoidReason(e.target.value)}
-                rows={3}
-                placeholder={t('organizer.matchDetail.voidReasonPlaceholder')}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-              />
-            </div>
-
-            {voidError && (
-              <p className="text-sm text-danger mt-2" role="alert">
-                {voidError}
-              </p>
-            )}
-
-            <div className="flex justify-end gap-2 mt-4">
+        <Modal
+          open
+          onClose={() => setVoidTarget(null)}
+          busy={voidSaving}
+          size="sm"
+          title={t('organizer.matchDetail.voidModalTitle', { seq: voidTarget.sequence })}
+          description={exchangeLabel(voidTarget, t)}
+          footer={
+            <>
               <button
                 onClick={() => setVoidTarget(null)}
                 className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
@@ -711,9 +693,28 @@ export default function MatchDetailPage() {
                   ? t('organizer.matchDetail.voiding')
                   : t('organizer.matchDetail.voidExchange')}
               </button>
-            </div>
+            </>
+          }
+        >
+          <div>
+            <label className="block text-sm font-medium text-foreground-secondary mb-1">
+              {t('organizer.matchDetail.voidReasonLabel')}
+            </label>
+            <textarea
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              rows={3}
+              placeholder={t('organizer.matchDetail.voidReasonPlaceholder')}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+            />
           </div>
-        </div>
+
+          {voidError && (
+            <p className="text-sm text-danger mt-2" role="alert">
+              {voidError}
+            </p>
+          )}
+        </Modal>
       )}
       {confirmDialog}
     </main>

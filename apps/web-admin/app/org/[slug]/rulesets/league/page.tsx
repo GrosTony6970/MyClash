@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { AdminPageHeader, RowActionButton } from '@myclash/ui';
+import { AdminPageHeader, Modal, RowActionButton } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { ScoringSystemPreview } from '../../../../admin/rulesets/league/_components/ScoringSystemPreview';
@@ -57,16 +57,6 @@ export default function OrgLeagueScoringSystemsPage() {
       cancelled = true;
     };
   }, [t]);
-
-  // Escape closes the view modal (keyboard-accessible dismissal).
-  useEffect(() => {
-    if (!viewRow) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setViewRow(null);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [viewRow]);
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-8">
@@ -160,36 +150,26 @@ export default function OrgLeagueScoringSystemsPage() {
       )}
 
       {viewRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-surface p-5 shadow-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-                {viewRow.name}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setViewRow(null)}
-                aria-label={t('actions.close')}
-                className="text-2xl leading-none text-muted hover:text-foreground-secondary"
-              >
-                ×
-              </button>
-            </div>
-            <ScoringSystemPreview
-              name={viewRow.name}
-              code={viewRow.code}
-              version={viewRow.version}
-              description={viewRow.description}
-              pointsByRank={viewRow.points_by_rank}
-              tieBreakers={viewRow.tie_breakers}
-            />
-            <div className="mt-4 flex justify-end">
-              <RowActionButton variant="neutral" onClick={() => setViewRow(null)}>
-                {t('actions.close')}
-              </RowActionButton>
-            </div>
-          </div>
-        </div>
+        <Modal
+          open
+          onClose={() => setViewRow(null)}
+          size="lg"
+          title={viewRow.name}
+          footer={
+            <RowActionButton variant="neutral" onClick={() => setViewRow(null)}>
+              {t('actions.close')}
+            </RowActionButton>
+          }
+        >
+          <ScoringSystemPreview
+            name={viewRow.name}
+            code={viewRow.code}
+            version={viewRow.version}
+            description={viewRow.description}
+            pointsByRank={viewRow.points_by_rank}
+            tieBreakers={viewRow.tie_breakers}
+          />
+        </Modal>
       )}
     </main>
   );

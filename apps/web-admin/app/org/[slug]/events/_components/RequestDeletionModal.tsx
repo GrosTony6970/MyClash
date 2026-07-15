@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useToast } from '@myclash/ui';
+import { Modal, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface Props {
@@ -94,77 +94,19 @@ export function RequestDeletionModal({
   }
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop: click-outside to close; Escape handling is the dialog's job
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
-        <h2 className="font-display font-semibold text-lg sm:text-xl mb-1">
-          {targetType === 'event'
-            ? t('organizer.deletionRequest.requestDeletionModalTitleEvent')
-            : t('organizer.deletionRequest.requestDeletionModalTitleTournament')}
-        </h2>
-        <p className="text-sm text-muted mb-4">{targetLabel}</p>
-
-        {/* Irreversible-consequence callout — always shown. */}
-        <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-          {t('organizer.deletionRequest.permanentDeleteWarning')}
-        </div>
-
-        {willArchive && (
-          <div className="mb-3 text-xs text-warning bg-warning/10 border border-warning/30 rounded px-3 py-2">
-            {t('organizer.deletionRequest.autoArchiveNotice')}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-            {error}
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-foreground-secondary mb-1">
-            {t('organizer.deletionRequest.requestDeletionModalReason')}
-          </label>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            <span className="text-xs text-muted self-center">
-              {t('organizer.deletionRequest.reasonPresetsLabel')}
-            </span>
-            {presets.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => setReason(preset)}
-                className="text-xs rounded-full border border-border px-2.5 py-1 text-foreground-secondary hover:bg-background"
-              >
-                {preset}
-              </button>
-            ))}
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={5}
-            maxLength={500}
-            placeholder={t('organizer.deletionRequest.requestDeletionModalReasonPlaceholder')}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-          />
-          <div className="flex justify-between mt-1">
-            <span className={`text-xs ${reasonLen < 10 ? 'text-danger' : 'text-muted'}`}>
-              {reasonLen < 10 ? `${10 - reasonLen} more characters required` : ''}
-            </span>
-            <span className={`text-xs ${reasonLen > 500 ? 'text-danger' : 'text-muted'}`}>
-              {reasonLen} / 500
-            </span>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-5">
+    <Modal
+      open
+      onClose={onClose}
+      busy={submitting}
+      size="md"
+      title={
+        targetType === 'event'
+          ? t('organizer.deletionRequest.requestDeletionModalTitleEvent')
+          : t('organizer.deletionRequest.requestDeletionModalTitleTournament')
+      }
+      description={targetLabel}
+      footer={
+        <>
           <button
             onClick={onClose}
             disabled={submitting}
@@ -179,8 +121,63 @@ export function RequestDeletionModal({
           >
             {submitting ? t('common.saving') : t('organizer.deletionRequest.requestDeletionSubmit')}
           </button>
+        </>
+      }
+    >
+      {/* Irreversible-consequence callout — always shown. */}
+      <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
+        {t('organizer.deletionRequest.permanentDeleteWarning')}
+      </div>
+
+      {willArchive && (
+        <div className="mb-3 text-xs text-warning bg-warning/10 border border-warning/30 rounded px-3 py-2">
+          {t('organizer.deletionRequest.autoArchiveNotice')}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-medium text-foreground-secondary mb-1">
+          {t('organizer.deletionRequest.requestDeletionModalReason')}
+        </label>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          <span className="text-xs text-muted self-center">
+            {t('organizer.deletionRequest.reasonPresetsLabel')}
+          </span>
+          {presets.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setReason(preset)}
+              className="text-xs rounded-full border border-border px-2.5 py-1 text-foreground-secondary hover:bg-background"
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={5}
+          maxLength={500}
+          placeholder={t('organizer.deletionRequest.requestDeletionModalReasonPlaceholder')}
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+        />
+        <div className="flex justify-between mt-1">
+          <span className={`text-xs ${reasonLen < 10 ? 'text-danger' : 'text-muted'}`}>
+            {reasonLen < 10 ? `${10 - reasonLen} more characters required` : ''}
+          </span>
+          <span className={`text-xs ${reasonLen > 500 ? 'text-danger' : 'text-muted'}`}>
+            {reasonLen} / 500
+          </span>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

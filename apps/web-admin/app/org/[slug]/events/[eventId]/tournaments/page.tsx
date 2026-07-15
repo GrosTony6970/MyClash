@@ -1,6 +1,12 @@
 'use client';
 
-import { Button, TournamentColorDot, statusPillTone, tournamentStatusSemantic } from '@myclash/ui';
+import {
+  Button,
+  Modal,
+  TournamentColorDot,
+  statusPillTone,
+  tournamentStatusSemantic,
+} from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -470,15 +476,14 @@ export default function EventTournamentsPage() {
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl">
-            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-              {t('organizer.tournaments.deleteTitle')}
-            </h2>
-            <p className="mt-2 text-sm text-foreground-secondary">
-              {t('organizer.tournaments.deleteWarning', { name: confirmDelete.name })}
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
+        <Modal
+          open
+          onClose={() => setConfirmDelete(null)}
+          busy={busyId === confirmDelete.id}
+          size="md"
+          title={t('organizer.tournaments.deleteTitle')}
+          footer={
+            <>
               <Button type="button" variant="cancel" onClick={() => setConfirmDelete(null)}>
                 {t('common.cancel')}
               </Button>
@@ -490,9 +495,13 @@ export default function EventTournamentsPage() {
               >
                 {t('organizer.tournaments.confirmHardDelete')}
               </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <p className="mt-2 text-sm text-foreground-secondary">
+            {t('organizer.tournaments.deleteWarning', { name: confirmDelete.name })}
+          </p>
+        </Modal>
       )}
 
       {deletionRequestTarget && (

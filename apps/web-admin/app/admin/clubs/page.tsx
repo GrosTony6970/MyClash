@@ -6,6 +6,7 @@ import {
   AdminPageHeader,
   BulkActionBar,
   ConfirmDialog,
+  Modal,
   RowActionButton,
   SortableHeader,
   fuzzyMatch,
@@ -235,15 +236,6 @@ export default function AdminClubsPage() {
       if (editPreviewUrlRef.current) URL.revokeObjectURL(editPreviewUrlRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    if (!lightboxClub) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setLightboxClub(null);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxClub]);
 
   // ── Live fuzzy filter + locale-aware sort ───────────────────────────────
   // Order matters: filter first (cheap rejection on the haystack), then sort.
@@ -1294,85 +1286,73 @@ export default function AdminClubsPage() {
       )}
 
       {lightboxClub && (
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop; dismiss via Esc/close button, keyboard not required on overlay
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-          onClick={() => {
-            if (!lightboxBusy) setLightboxClub(null);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
+        <Modal
+          open
+          onClose={() => setLightboxClub(null)}
+          busy={lightboxBusy}
+          size="md"
+          title={t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
+          footer={
+            <button
+              type="button"
+              onClick={() => setLightboxClub(null)}
+              disabled={lightboxBusy}
+              className="text-sm text-muted hover:text-foreground disabled:opacity-50"
+            >
+              {t('actions.close')}
+            </button>
+          }
         >
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper to keep clicks inside the dialog from closing it; no keyboard handler needed */}
-          <div
-            className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-                {t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setLightboxClub(null)}
-                disabled={lightboxBusy}
-                className="text-sm text-muted hover:text-foreground disabled:opacity-50"
-              >
-                {t('actions.close')}
-              </button>
-            </div>
-            <div className="mb-5 flex items-center justify-center rounded-md border border-border bg-background p-4">
-              {lightboxClub.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={lightboxClub.logo_url}
-                  alt={lightboxClub.name}
-                  style={{
-                    maxWidth: LIGHTBOX_PREVIEW_SIZE,
-                    maxHeight: LIGHTBOX_PREVIEW_SIZE,
-                  }}
-                  className="rounded-md bg-surface object-contain"
-                />
-              ) : (
-                <div
-                  style={{ width: LIGHTBOX_PREVIEW_SIZE, height: LIGHTBOX_PREVIEW_SIZE }}
-                  className="flex items-center justify-center rounded-full bg-background text-3xl font-semibold text-muted"
-                  aria-label={t('admin.clubs.logoInitialsAlt', { club: lightboxClub.name })}
-                >
-                  {initialsFor(lightboxClub)}
-                </div>
-              )}
-            </div>
-            <label className="block text-xs font-medium text-foreground-secondary">
-              {lightboxClub.logo_url
-                ? t('admin.clubs.logoReplace')
-                : t('admin.clubs.logoUploadAction')}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                disabled={lightboxBusy}
-                onChange={(e) => {
-                  const file = e.target.files?.[0] ?? null;
-                  if (file && lightboxClub) void replaceLogoFromLightbox(lightboxClub, file);
-                  e.target.value = '';
+          <div className="mb-5 flex items-center justify-center rounded-md border border-border bg-background p-4">
+            {lightboxClub.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={lightboxClub.logo_url}
+                alt={lightboxClub.name}
+                style={{
+                  maxWidth: LIGHTBOX_PREVIEW_SIZE,
+                  maxHeight: LIGHTBOX_PREVIEW_SIZE,
                 }}
-                className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background disabled:opacity-50"
+                className="rounded-md bg-surface object-contain"
               />
-              <span className="mt-1 block text-[11px] text-muted">{t('admin.clubs.logoHelp')}</span>
-            </label>
-            {lightboxClub.logo_url && (
-              <button
-                type="button"
-                onClick={() => void removeLogoFromLightbox(lightboxClub)}
-                disabled={lightboxBusy}
-                className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
+            ) : (
+              <div
+                style={{ width: LIGHTBOX_PREVIEW_SIZE, height: LIGHTBOX_PREVIEW_SIZE }}
+                className="flex items-center justify-center rounded-full bg-background text-3xl font-semibold text-muted"
+                aria-label={t('admin.clubs.logoInitialsAlt', { club: lightboxClub.name })}
               >
-                {t('admin.clubs.logoRemove')}
-              </button>
+                {initialsFor(lightboxClub)}
+              </div>
             )}
           </div>
-        </div>
+          <label className="block text-xs font-medium text-foreground-secondary">
+            {lightboxClub.logo_url
+              ? t('admin.clubs.logoReplace')
+              : t('admin.clubs.logoUploadAction')}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              disabled={lightboxBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                if (file && lightboxClub) void replaceLogoFromLightbox(lightboxClub, file);
+                e.target.value = '';
+              }}
+              className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background disabled:opacity-50"
+            />
+            <span className="mt-1 block text-[11px] text-muted">{t('admin.clubs.logoHelp')}</span>
+          </label>
+          {lightboxClub.logo_url && (
+            <button
+              type="button"
+              onClick={() => void removeLogoFromLightbox(lightboxClub)}
+              disabled={lightboxBusy}
+              className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
+            >
+              {t('admin.clubs.logoRemove')}
+            </button>
+          )}
+        </Modal>
       )}
 
       <ConfirmDialog
@@ -1393,217 +1373,187 @@ export default function AdminClubsPage() {
       />
 
       {/* Bulk-edit modal — applies city / country across the selected clubs */}
-      {showBulkEditModal && (
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop; dismiss via Esc/close button, keyboard not required on overlay
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !bulkBusy) setShowBulkEditModal(false);
-          }}
-        >
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-2xl">
-            <h2 className="font-display font-semibold text-lg sm:text-xl tracking-tight text-foreground">
-              {t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
-            </h2>
-            <p className="mt-2 text-xs text-muted">{t('admin.clubs.bulkEditEmptyHint')}</p>
-            <label className="mt-4 block text-xs font-medium text-foreground-secondary">
-              {t('admin.clubs.bulkEditCityLabel')}
-              <input
-                value={bulkEditCity}
-                onChange={(e) => setBulkEditCity(e.target.value)}
-                maxLength={100}
-                placeholder={t('admin.clubs.bulkEditEmptyHint')}
-                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-            </label>
-            <label className="mt-3 block text-xs font-medium text-foreground-secondary">
-              {t('admin.clubs.bulkEditCountryLabel')}
-              <input
-                value={bulkEditCountry}
-                onChange={(e) => setBulkEditCountry(e.target.value)}
-                maxLength={100}
-                placeholder={t('admin.clubs.bulkEditEmptyHint')}
-                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-            </label>
-            <label className="mt-3 block text-xs font-medium text-foreground-secondary">
-              {t('admin.clubs.bulkEditStatusLabel')}
-              <select
-                value={bulkEditStatus}
-                onChange={(e) =>
-                  setBulkEditStatus(e.target.value as 'no_change' | 'verified' | 'unverified')
-                }
-                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              >
-                <option value="no_change">{t('admin.clubs.bulkEditStatusNoChange')}</option>
-                <option value="verified">{t('admin.clubs.bulkEditStatusVerified')}</option>
-                <option value="unverified">{t('admin.clubs.bulkEditStatusUnverified')}</option>
-              </select>
-            </label>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={bulkBusy}
-                onClick={() => {
-                  setShowBulkEditModal(false);
-                  setBulkEditStatus('no_change');
-                }}
-                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
-              >
-                {t('actions.cancel')}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  bulkBusy ||
-                  (!bulkEditCity.trim() &&
-                    !bulkEditCountry.trim() &&
-                    bulkEditStatus === 'no_change')
-                }
-                onClick={() => void runBulkEdit()}
-                className="rounded-md bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
-              >
-                {t('admin.clubs.bulkEditConfirm', { count: String(selection.count) })}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showBulkEditModal}
+        onClose={() => setShowBulkEditModal(false)}
+        busy={bulkBusy}
+        size="md"
+        title={t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
+        description={t('admin.clubs.bulkEditEmptyHint')}
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => {
+                setShowBulkEditModal(false);
+                setBulkEditStatus('no_change');
+              }}
+              className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
+            >
+              {t('actions.cancel')}
+            </button>
+            <button
+              type="button"
+              disabled={
+                bulkBusy ||
+                (!bulkEditCity.trim() && !bulkEditCountry.trim() && bulkEditStatus === 'no_change')
+              }
+              onClick={() => void runBulkEdit()}
+              className="rounded-md bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
+            >
+              {t('admin.clubs.bulkEditConfirm', { count: String(selection.count) })}
+            </button>
+          </>
+        }
+      >
+        <label className="mt-4 block text-xs font-medium text-foreground-secondary">
+          {t('admin.clubs.bulkEditCityLabel')}
+          <input
+            value={bulkEditCity}
+            onChange={(e) => setBulkEditCity(e.target.value)}
+            maxLength={100}
+            placeholder={t('admin.clubs.bulkEditEmptyHint')}
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+        </label>
+        <label className="mt-3 block text-xs font-medium text-foreground-secondary">
+          {t('admin.clubs.bulkEditCountryLabel')}
+          <input
+            value={bulkEditCountry}
+            onChange={(e) => setBulkEditCountry(e.target.value)}
+            maxLength={100}
+            placeholder={t('admin.clubs.bulkEditEmptyHint')}
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+        </label>
+        <label className="mt-3 block text-xs font-medium text-foreground-secondary">
+          {t('admin.clubs.bulkEditStatusLabel')}
+          <select
+            value={bulkEditStatus}
+            onChange={(e) =>
+              setBulkEditStatus(e.target.value as 'no_change' | 'verified' | 'unverified')
+            }
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+          >
+            <option value="no_change">{t('admin.clubs.bulkEditStatusNoChange')}</option>
+            <option value="verified">{t('admin.clubs.bulkEditStatusVerified')}</option>
+            <option value="unverified">{t('admin.clubs.bulkEditStatusUnverified')}</option>
+          </select>
+        </label>
+      </Modal>
 
       {/* Create-club modal — opens from the +Create CTA in the page header */}
-      {showCreateModal && (
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop; dismiss via Esc/close button, keyboard not required on overlay
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('admin.clubs.createTitle')}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !creating) setShowCreateModal(false);
-          }}
-        >
-          <div className="w-full max-w-2xl rounded-lg border border-border bg-surface p-6 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-display font-semibold text-lg sm:text-xl tracking-tight text-foreground">
-                  {t('admin.clubs.createTitle')}
-                </h2>
-                <p className="mt-1 text-xs text-muted">{t('admin.clubs.createDescription')}</p>
-              </div>
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        busy={creating}
+        size="lg"
+        title={t('admin.clubs.createTitle')}
+        description={t('admin.clubs.createDescription')}
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => setShowCreateModal(false)}
+              className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
+            >
+              {t('actions.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void createClubFromModal()}
+              disabled={creating || !createState.name.trim()}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-50"
+            >
+              {creating ? t('admin.clubs.creating') : t('admin.clubs.create')}
+            </button>
+          </>
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-xs font-medium text-foreground-secondary">
+            {t('admin.clubs.name')} *
+            <input
+              value={createState.name}
+              onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </label>
+          <label className="text-xs font-medium text-foreground-secondary">
+            {t('admin.clubs.abbreviation')}
+            <input
+              value={createState.abbreviation}
+              onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
+              maxLength={20}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </label>
+          <label className="text-xs font-medium text-foreground-secondary">
+            {t('admin.clubs.city')}
+            <input
+              value={createState.city}
+              onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </label>
+          <label className="text-xs font-medium text-foreground-secondary">
+            {t('admin.clubs.country')}
+            <input
+              value={createState.country_code}
+              onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
+              maxLength={100}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </label>
+          <label className="text-xs font-medium text-foreground-secondary">
+            {t('admin.clubs.website')}
+            <input
+              value={createState.website}
+              onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </label>
+          <label className="text-xs font-medium text-foreground-secondary">
+            {t('admin.clubs.logoUrl')}
+            <input
+              value={createState.logoUrl}
+              onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </label>
+          <label className="text-xs font-medium text-foreground-secondary md:col-span-2">
+            {t('admin.clubs.logoUpload')}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+              className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+            <span className="mt-1 block text-[11px] font-normal text-muted">
+              {t('admin.clubs.logoHelp')}
+            </span>
+          </label>
+          {logoPreviewUrl && (
+            <div className="flex items-center gap-3 rounded-md border border-border bg-background p-3 md:col-span-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoPreviewUrl}
+                alt={t('admin.clubs.logoPreviewAlt')}
+                className="h-12 w-12 rounded-md border border-border bg-surface object-contain"
+              />
               <button
                 type="button"
-                disabled={creating}
-                onClick={() => setShowCreateModal(false)}
-                className="text-sm text-muted hover:text-foreground disabled:opacity-50"
+                onClick={() => handleLogoFile(null)}
+                className="text-xs font-semibold text-foreground-secondary hover:text-foreground"
               >
-                {t('actions.close')}
+                {t('actions.clear')}
               </button>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-medium text-foreground-secondary">
-                {t('admin.clubs.name')} *
-                <input
-                  value={createState.name}
-                  onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
-              <label className="text-xs font-medium text-foreground-secondary">
-                {t('admin.clubs.abbreviation')}
-                <input
-                  value={createState.abbreviation}
-                  onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
-                  maxLength={20}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
-              <label className="text-xs font-medium text-foreground-secondary">
-                {t('admin.clubs.city')}
-                <input
-                  value={createState.city}
-                  onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
-              <label className="text-xs font-medium text-foreground-secondary">
-                {t('admin.clubs.country')}
-                <input
-                  value={createState.country_code}
-                  onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
-                  maxLength={100}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
-              <label className="text-xs font-medium text-foreground-secondary">
-                {t('admin.clubs.website')}
-                <input
-                  value={createState.website}
-                  onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
-              <label className="text-xs font-medium text-foreground-secondary">
-                {t('admin.clubs.logoUrl')}
-                <input
-                  value={createState.logoUrl}
-                  onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
-              <label className="text-xs font-medium text-foreground-secondary md:col-span-2">
-                {t('admin.clubs.logoUpload')}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
-                  className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground-secondary hover:file:bg-background focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-                <span className="mt-1 block text-[11px] font-normal text-muted">
-                  {t('admin.clubs.logoHelp')}
-                </span>
-              </label>
-              {logoPreviewUrl && (
-                <div className="flex items-center gap-3 rounded-md border border-border bg-background p-3 md:col-span-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={logoPreviewUrl}
-                    alt={t('admin.clubs.logoPreviewAlt')}
-                    className="h-12 w-12 rounded-md border border-border bg-surface object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleLogoFile(null)}
-                    className="text-xs font-semibold text-foreground-secondary hover:text-foreground"
-                  >
-                    {t('actions.clear')}
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={creating}
-                onClick={() => setShowCreateModal(false)}
-                className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
-              >
-                {t('actions.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={() => void createClubFromModal()}
-                disabled={creating || !createState.name.trim()}
-                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-50"
-              >
-                {creating ? t('admin.clubs.creating') : t('admin.clubs.create')}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
 
       {confirmDialog}
     </main>

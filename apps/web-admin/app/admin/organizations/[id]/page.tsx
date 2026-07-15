@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useConfirm, useToast, StatusBadge } from '@myclash/ui';
+import { Modal, useConfirm, useToast, StatusBadge } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
@@ -566,269 +566,257 @@ export default function AdminOrgDetailPage({ params }: Props) {
       </section>
 
       {pickerMode ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={
+        <Modal
+          open
+          onClose={closePicker}
+          busy={actionLoading}
+          size="lg"
+          title={
             pickerMode === 'reassign'
               ? hasOwner
                 ? t('admin.organizations.detail.selectOwnerTitle')
                 : t('admin.organizations.detail.assignOwnerTitle')
               : t('admin.organizations.detail.addMemberTitle')
           }
+          description={
+            pickerMode === 'reassign'
+              ? hasOwner
+                ? t('admin.organizations.detail.selectOwnerDescription')
+                : t('admin.organizations.detail.assignOwnerDescription')
+              : t('admin.organizations.detail.addMemberDescription')
+          }
+          footer={
+            <button
+              type="button"
+              onClick={closePicker}
+              className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
+            >
+              {t('actions.cancel')}
+            </button>
+          }
         >
-          <div className="w-full max-w-2xl rounded-lg border border-border bg-surface shadow-xl">
-            <div className="border-b border-border p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-                    {pickerMode === 'reassign'
-                      ? hasOwner
-                        ? t('admin.organizations.detail.selectOwnerTitle')
-                        : t('admin.organizations.detail.assignOwnerTitle')
-                      : t('admin.organizations.detail.addMemberTitle')}
-                  </h2>
-                  <p className="mt-1 text-sm text-foreground-secondary">
-                    {pickerMode === 'reassign'
-                      ? hasOwner
-                        ? t('admin.organizations.detail.selectOwnerDescription')
-                        : t('admin.organizations.detail.assignOwnerDescription')
-                      : t('admin.organizations.detail.addMemberDescription')}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={closePicker}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
-                >
-                  {t('actions.cancel')}
-                </button>
-              </div>
-              {pickerMode === 'addMember' ? (
-                <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
-                  {t('admin.organizations.detail.addMemberRole')}
-                  <select
-                    value={addRole}
-                    onChange={(e) => setAddRole(e.target.value as AddableRole)}
-                    className="mt-1 block rounded-md border border-border px-3 py-2 text-sm"
-                  >
-                    {ADDABLE_ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              {pickerMode === 'reassign' ? (
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAssignMode('existing')}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                      assignMode === 'existing'
-                        ? 'bg-strong text-strong-foreground'
-                        : 'border border-border bg-surface text-foreground-secondary hover:bg-background'
-                    }`}
-                  >
-                    {t('admin.organizations.detail.assignModeExistingUser')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssignMode('new')}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                      assignMode === 'new'
-                        ? 'bg-strong text-strong-foreground'
-                        : 'border border-border bg-surface text-foreground-secondary hover:bg-background'
-                    }`}
-                  >
-                    {t('admin.organizations.detail.assignModeNewAccount')}
-                  </button>
-                </div>
-              ) : null}
-              {pickerMode === 'reassign' && assignMode === 'existing' ? (
-                <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
-                  {t('admin.organizations.detail.memberSearch')}
-                  <input
-                    type="search"
-                    value={pickerSearch}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setPickerSearch(value);
-                      void loadPlatformAccounts(value);
-                    }}
-                    placeholder={t('admin.organizations.detail.reassignSearchPlaceholder')}
-                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </label>
-              ) : pickerMode === 'addMember' ? (
-                <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
-                  {t('admin.organizations.detail.memberSearch')}
-                  <input
-                    type="search"
-                    value={pickerSearch}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setPickerSearch(value);
-                      void loadPlatformAccounts(value);
-                    }}
-                    placeholder={t('admin.organizations.detail.promoteSearchPlaceholder')}
-                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </label>
-              ) : null}
+          {pickerMode === 'addMember' ? (
+            <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
+              {t('admin.organizations.detail.addMemberRole')}
+              <select
+                value={addRole}
+                onChange={(e) => setAddRole(e.target.value as AddableRole)}
+                className="mt-1 block rounded-md border border-border px-3 py-2 text-sm"
+              >
+                {ADDABLE_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {pickerMode === 'reassign' ? (
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAssignMode('existing')}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                  assignMode === 'existing'
+                    ? 'bg-strong text-strong-foreground'
+                    : 'border border-border bg-surface text-foreground-secondary hover:bg-background'
+                }`}
+              >
+                {t('admin.organizations.detail.assignModeExistingUser')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignMode('new')}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                  assignMode === 'new'
+                    ? 'bg-strong text-strong-foreground'
+                    : 'border border-border bg-surface text-foreground-secondary hover:bg-background'
+                }`}
+              >
+                {t('admin.organizations.detail.assignModeNewAccount')}
+              </button>
             </div>
+          ) : null}
+          {pickerMode === 'reassign' && assignMode === 'existing' ? (
+            <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
+              {t('admin.organizations.detail.memberSearch')}
+              <input
+                type="search"
+                value={pickerSearch}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setPickerSearch(value);
+                  void loadPlatformAccounts(value);
+                }}
+                placeholder={t('admin.organizations.detail.reassignSearchPlaceholder')}
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </label>
+          ) : pickerMode === 'addMember' ? (
+            <label className="mt-4 block text-sm font-semibold text-foreground-secondary">
+              {t('admin.organizations.detail.memberSearch')}
+              <input
+                type="search"
+                value={pickerSearch}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setPickerSearch(value);
+                  void loadPlatformAccounts(value);
+                }}
+                placeholder={t('admin.organizations.detail.promoteSearchPlaceholder')}
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </label>
+          ) : null}
 
-            <div className="max-h-[60vh] overflow-y-auto p-3">
-              {pickerMode === 'reassign' && assignMode === 'new' ? (
-                <form
-                  onSubmit={(event) => {
-                    void handleAssignByEmail(event);
-                  }}
-                  className="space-y-3 p-3"
-                >
-                  <label className="block text-sm font-semibold text-foreground-secondary">
-                    {t('admin.organizations.detail.assignNewAccountEmail')}
-                    <input
-                      required
-                      type="email"
-                      value={assignEmail}
-                      onChange={(e) => setAssignEmail(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </label>
-                  <label className="block text-sm font-semibold text-foreground-secondary">
-                    {t('admin.organizations.detail.assignNewAccountDisplayName')}
-                    <input
-                      minLength={2}
-                      maxLength={100}
-                      value={assignDisplayName}
-                      onChange={(e) => setAssignDisplayName(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </label>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={actionLoading}
-                      className="rounded-md bg-info px-4 py-2 text-sm font-semibold text-white hover:bg-info/90 disabled:opacity-60"
-                    >
-                      {actionLoading
-                        ? t('admin.organizations.detail.assignNewAccountSubmitting')
-                        : t('admin.organizations.detail.assignNewAccountSubmit')}
-                    </button>
-                  </div>
-                </form>
-              ) : null}
+          <div className="max-h-[60vh] overflow-y-auto p-3">
+            {pickerMode === 'reassign' && assignMode === 'new' ? (
+              <form
+                onSubmit={(event) => {
+                  void handleAssignByEmail(event);
+                }}
+                className="space-y-3 p-3"
+              >
+                <label className="block text-sm font-semibold text-foreground-secondary">
+                  {t('admin.organizations.detail.assignNewAccountEmail')}
+                  <input
+                    required
+                    type="email"
+                    value={assignEmail}
+                    onChange={(e) => setAssignEmail(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </label>
+                <label className="block text-sm font-semibold text-foreground-secondary">
+                  {t('admin.organizations.detail.assignNewAccountDisplayName')}
+                  <input
+                    minLength={2}
+                    maxLength={100}
+                    value={assignDisplayName}
+                    onChange={(e) => setAssignDisplayName(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </label>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="rounded-md bg-info px-4 py-2 text-sm font-semibold text-white hover:bg-info/90 disabled:opacity-60"
+                  >
+                    {actionLoading
+                      ? t('admin.organizations.detail.assignNewAccountSubmitting')
+                      : t('admin.organizations.detail.assignNewAccountSubmit')}
+                  </button>
+                </div>
+              </form>
+            ) : null}
 
-              {(pickerMode === 'addMember' ||
-                (pickerMode === 'reassign' && assignMode === 'existing')) &&
-              platformLoading ? (
-                <p className="p-4 text-sm text-muted">
-                  {t('admin.organizations.detail.accountSearchLoading')}
-                </p>
-              ) : null}
-              {(pickerMode === 'addMember' ||
-                (pickerMode === 'reassign' && assignMode === 'existing')) &&
-              platformError ? (
-                <p className="p-4 text-sm text-danger">{platformError}</p>
-              ) : null}
+            {(pickerMode === 'addMember' ||
+              (pickerMode === 'reassign' && assignMode === 'existing')) &&
+            platformLoading ? (
+              <p className="p-4 text-sm text-muted">
+                {t('admin.organizations.detail.accountSearchLoading')}
+              </p>
+            ) : null}
+            {(pickerMode === 'addMember' ||
+              (pickerMode === 'reassign' && assignMode === 'existing')) &&
+            platformError ? (
+              <p className="p-4 text-sm text-danger">{platformError}</p>
+            ) : null}
 
-              <div className="space-y-2">
-                {pickerMode === 'reassign' && assignMode === 'existing'
-                  ? // Merge org members with platform accounts (dedup by user_id) so
-                    // the operator can pick from either. Members come first.
-                    [
-                      ...filteredMembers.map((m) => ({
-                        id: m.user_id,
-                        email: m.email,
-                        display_name: m.display_name,
-                        username: m.username,
-                        isMember: true,
-                        role: m.role,
+            <div className="space-y-2">
+              {pickerMode === 'reassign' && assignMode === 'existing'
+                ? // Merge org members with platform accounts (dedup by user_id) so
+                  // the operator can pick from either. Members come first.
+                  [
+                    ...filteredMembers.map((m) => ({
+                      id: m.user_id,
+                      email: m.email,
+                      display_name: m.display_name,
+                      username: m.username,
+                      isMember: true,
+                      role: m.role,
+                    })),
+                    ...platformAccounts
+                      .filter((a) => !org.members.some((m) => m.user_id === a.id))
+                      .map((a) => ({
+                        id: a.id,
+                        email: a.email ?? null,
+                        display_name: a.display_name ?? null,
+                        username: a.email ?? a.id,
+                        isMember: false,
+                        role: null as string | null,
                       })),
-                      ...platformAccounts
-                        .filter((a) => !org.members.some((m) => m.user_id === a.id))
-                        .map((a) => ({
-                          id: a.id,
-                          email: a.email ?? null,
-                          display_name: a.display_name ?? null,
-                          username: a.email ?? a.id,
-                          isMember: false,
-                          role: null as string | null,
-                        })),
-                    ].map((row) => {
-                      const isCurrentOwner = row.role === 'owner';
-                      const label = row.display_name?.trim() || row.email || row.username || row.id;
-                      return (
-                        <button
-                          key={row.id}
-                          type="button"
-                          disabled={actionLoading || isCurrentOwner}
-                          onClick={() => {
-                            void handlePickExistingUser(row.id, label);
-                          }}
-                          className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <span className="block font-semibold text-foreground">
-                            {label}
-                            {isCurrentOwner ? (
-                              <span className="ml-2 rounded bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gold">
-                                {t('admin.adminMisc.ownerBadge')}
-                              </span>
-                            ) : row.isMember ? (
-                              <span className="ml-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
-                                {row.role}
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="mt-1 block text-sm text-foreground-secondary">
-                            {row.email || t('admin.users.noEmail')}
-                          </span>
-                        </button>
-                      );
-                    })
-                  : pickerMode === 'addMember'
-                    ? platformAccounts
-                        .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
-                        .map((account) => {
-                          const isSuperAdmin = account.is_super_admin === true;
-                          return (
-                            <button
-                              key={account.id}
-                              type="button"
-                              disabled={actionLoading || isSuperAdmin}
-                              onClick={() => {
-                                if (isSuperAdmin) return;
-                                void handleAddMember(account);
-                              }}
-                              title={
-                                isSuperAdmin
-                                  ? 'Super-admin — cannot belong to an organization.'
-                                  : undefined
-                              }
-                              className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <span className="block font-semibold text-foreground">
-                                {accountLabel(account)}
-                                {isSuperAdmin && (
-                                  <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
-                                    {t('admin.adminMisc.superAdminBadge')}
-                                  </span>
-                                )}
-                              </span>
-                              <span className="mt-1 block text-sm text-foreground-secondary">
-                                {account.email || t('admin.users.noEmail')}
-                              </span>
-                            </button>
-                          );
-                        })
-                    : null}
-              </div>
+                  ].map((row) => {
+                    const isCurrentOwner = row.role === 'owner';
+                    const label = row.display_name?.trim() || row.email || row.username || row.id;
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        disabled={actionLoading || isCurrentOwner}
+                        onClick={() => {
+                          void handlePickExistingUser(row.id, label);
+                        }}
+                        className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="block font-semibold text-foreground">
+                          {label}
+                          {isCurrentOwner ? (
+                            <span className="ml-2 rounded bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gold">
+                              {t('admin.adminMisc.ownerBadge')}
+                            </span>
+                          ) : row.isMember ? (
+                            <span className="ml-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
+                              {row.role}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-1 block text-sm text-foreground-secondary">
+                          {row.email || t('admin.users.noEmail')}
+                        </span>
+                      </button>
+                    );
+                  })
+                : pickerMode === 'addMember'
+                  ? platformAccounts
+                      .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
+                      .map((account) => {
+                        const isSuperAdmin = account.is_super_admin === true;
+                        return (
+                          <button
+                            key={account.id}
+                            type="button"
+                            disabled={actionLoading || isSuperAdmin}
+                            onClick={() => {
+                              if (isSuperAdmin) return;
+                              void handleAddMember(account);
+                            }}
+                            title={
+                              isSuperAdmin
+                                ? 'Super-admin — cannot belong to an organization.'
+                                : undefined
+                            }
+                            className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <span className="block font-semibold text-foreground">
+                              {accountLabel(account)}
+                              {isSuperAdmin && (
+                                <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
+                                  {t('admin.adminMisc.superAdminBadge')}
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-1 block text-sm text-foreground-secondary">
+                              {account.email || t('admin.users.noEmail')}
+                            </span>
+                          </button>
+                        );
+                      })
+                  : null}
             </div>
           </div>
-        </div>
+        </Modal>
       ) : null}
       {confirmDialog}
     </main>
