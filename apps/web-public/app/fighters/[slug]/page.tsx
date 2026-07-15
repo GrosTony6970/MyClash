@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from 'next';
-import { getApiUrl } from '@/lib/api-url';
+import { getApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
@@ -495,7 +495,9 @@ export default async function FighterPage({ params }: Props) {
         />
       </section>
 
-      {fighter.hemaRatingsId && <RatingHistorySection slug={fighter.slug} apiUrl={getApiUrl()} />}
+      {fighter.hemaRatingsId && (
+        <RatingHistorySection slug={fighter.slug} apiUrl={getPublicApiUrl()} />
+      )}
 
       {career && (
         <section className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -629,12 +631,12 @@ export default async function FighterPage({ params }: Props) {
               );
             })}
           </div>
-          <MatchHistoryTrigger slug={fighter.slug} apiUrl={getApiUrl()} />
+          <MatchHistoryTrigger slug={fighter.slug} apiUrl={getPublicApiUrl()} />
         </section>
       ) : (
         <div className="py-12 text-center">
           <p className="text-sm text-muted">{t('publicApp.fighterProfile.noMatchHistory')}</p>
-          <MatchHistoryTrigger slug={fighter.slug} apiUrl={getApiUrl()} />
+          <MatchHistoryTrigger slug={fighter.slug} apiUrl={getPublicApiUrl()} />
         </div>
       )}
     </main>
