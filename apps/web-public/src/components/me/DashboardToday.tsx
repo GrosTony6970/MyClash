@@ -123,6 +123,11 @@ export function DashboardToday() {
                         {t('publicApp.me.events.roleReferee')}
                       </span>
                     )}
+                    {e.roles.isInstructor && (
+                      <span className="rounded-full bg-instructor/15 px-2 py-0.5 text-[10px] font-bold text-instructor">
+                        {t('publicApp.me.events.roleInstructor')}
+                      </span>
+                    )}
                   </span>
                 </span>
                 <svg

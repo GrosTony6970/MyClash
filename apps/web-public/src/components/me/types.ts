@@ -114,7 +114,12 @@ export interface MyEventRefereeOf {
 
 export interface MyEvent {
   event: MyEventInfo;
-  roles: { isCompetitor: boolean; isReferee: boolean; isWorkshopParticipant: boolean };
+  roles: {
+    isCompetitor: boolean;
+    isReferee: boolean;
+    isWorkshopParticipant: boolean;
+    isInstructor: boolean;
+  };
   tournaments: MyEventTournament[];
   refereeOf: MyEventRefereeOf[];
   counts: { matches: number; refereeSlots: number; workshops: number };

@@ -76,6 +76,11 @@ function EventCard({ myEvent }: { myEvent: MyEvent }) {
               {t('publicApp.me.events.roleReferee')}
             </span>
           )}
+          {roles.isInstructor && (
+            <span className="rounded-full bg-instructor/15 px-2 py-0.5 text-[11px] font-bold text-instructor">
+              {t('publicApp.me.events.roleInstructor')}
+            </span>
+          )}
         </span>
         {countParts && <span className="mt-1 block text-xs text-muted">{countParts}</span>}
       </span>

@@ -67,7 +67,12 @@ export interface MyEventRefereeOf {
 
 export interface MyEvent {
   event: MyEventInfo;
-  roles: { isCompetitor: boolean; isReferee: boolean; isWorkshopParticipant: boolean };
+  roles: {
+    isCompetitor: boolean;
+    isReferee: boolean;
+    isWorkshopParticipant: boolean;
+    isInstructor: boolean;
+  };
   tournaments: MyEventTournament[];
   refereeOf: MyEventRefereeOf[];
   counts: { matches: number; refereeSlots: number; workshops: number };
@@ -275,9 +280,10 @@ export class MeEventsService {
 
     const personIds = claimedPersons.map((p) => p.id);
 
-    const [refAssignments, workshopEvents, registrations] = await Promise.all([
+    const [refAssignments, workshopEvents, instructorEvents, registrations] = await Promise.all([
       this.fetchRefereeAssignments(globalPersonId),
       this.fetchWorkshopEventIds(personIds),
+      this.fetchInstructorEventIds(globalPersonId),
       this.fetchRegistrations(personIds),
     ]);
 
@@ -289,7 +295,12 @@ export class MeEventsService {
       if (!entry) {
         entry = {
           event: info,
-          roles: { isCompetitor: false, isReferee: false, isWorkshopParticipant: false },
+          roles: {
+            isCompetitor: false,
+            isReferee: false,
+            isWorkshopParticipant: false,
+            isInstructor: false,
+          },
           tournaments: [],
           refereeOf: [],
           counts: { matches: 0, refereeSlots: 0, workshops: 0 },
@@ -325,6 +336,11 @@ export class MeEventsService {
       if (!entry) continue;
       entry.roles.isWorkshopParticipant = true;
       entry.counts.workshops += 1;
+    }
+    for (const info of instructorEvents.values()) {
+      const entry = ensure(info);
+      if (!entry) continue;
+      entry.roles.isInstructor = true;
     }
 
     // Tournaments for every touched event + the user's registration flags.
@@ -645,6 +661,48 @@ export class MeEventsService {
       const event = workshop ? this.mapEvent(one(workshop['events'])) : null;
       if (event) map.set(event.id, event);
     }
+    return map;
+  }
+
+  /**
+   * Events where the user is an instructor — union of the event-scoped roster
+   * (event_instructors) and workshop leads (workshop_instructors → workshops →
+   * events), both keyed on global_persons.id. Mirrors the two instructor
+   * sources surfaced by the /me instructor dashboard and the public roster.
+   * Test events are dropped via mapEvent.
+   */
+  private async fetchInstructorEventIds(
+    globalPersonId: string | null,
+  ): Promise<Map<string, MyEventInfo | null>> {
+    const map = new Map<string, MyEventInfo | null>();
+    if (!globalPersonId) return map;
+
+    const [rosterRes, workshopRes] = await Promise.all([
+      this.supabase.service
+        .from('event_instructors')
+        .select('events ( id, slug, name, start_date, end_date, status, timezone, is_test_event )')
+        .eq('person_id', globalPersonId),
+      this.supabase.service
+        .from('workshop_instructors')
+        .select(
+          'workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ) )',
+        )
+        .eq('global_person_id', globalPersonId),
+    ]);
+
+    const rosterRows = Array.isArray(rosterRes.data) ? (rosterRes.data as Row[]) : [];
+    for (const r of rosterRows) {
+      const event = this.mapEvent(one(r['events']));
+      if (event) map.set(event.id, event);
+    }
+
+    const workshopRows = Array.isArray(workshopRes.data) ? (workshopRes.data as Row[]) : [];
+    for (const r of workshopRows) {
+      const workshop = one(r['workshops']);
+      const event = workshop ? this.mapEvent(one(workshop['events'])) : null;
+      if (event) map.set(event.id, event);
+    }
+
     return map;
   }
 
