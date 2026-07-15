@@ -117,7 +117,7 @@
 - **Files**: `apps/web-admin/app/login/**`, `apps/web-public/app/e/[eventSlug]/claim/**`, `apps/api/src/modules/auth/**`.
 - **AC**:
   - Organizer login at `/login` (admin app) → magic link to email → click → JWT cookie set, lands on org dashboard.
-  - Person claim at `/e/<eventSlug>/claim?personId=...` (public app) → magic link to person.email → click → `persons.claim_status` becomes `'claimed'`, `claimed_by_user_id` set.
+  - Person claim at `/e/<eventSlug>/claim?personId=...` (public app; linked from the "This is me" CTA on `/e/<eventSlug>/people/<personId>`) → magic link to person.email → click → `persons.claim_status` becomes `'claimed'`, `claimed_by_user_id` set.
   - Magic link emails go through Resend (or other SMTP from O-006).
   - API `/api/v1/me` returns either `{ type: 'claimed', user, person? }` or `{ type: 'guest', person }` or `{ type: 'anonymous' }`.
   - Rate limiting on magic link requests: 3 per hour per email + 10 per hour per IP.

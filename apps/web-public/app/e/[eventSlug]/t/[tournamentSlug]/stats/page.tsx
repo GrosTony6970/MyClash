@@ -157,12 +157,12 @@ export default async function StatsPage({ params }: Props) {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📊</p>
-          <h1 className="font-display text-2xl font-bold text-white sm:text-3xl mb-2">
+          <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl mb-2">
             {t('publicApp.tournamentStats.unavailable')}
           </h1>
           <Link
             href={`/e/${eventSlug}/t/${tournamentSlug}`}
-            className="text-sm text-gray-400 hover:underline"
+            className="text-sm text-muted hover:underline"
           >
             ← {t('publicApp.tournamentStats.backToTournament')}
           </Link>
@@ -199,7 +199,7 @@ export default async function StatsPage({ params }: Props) {
         <div>
           <Link
             href={`/e/${eventSlug}/t/${tournamentSlug}`}
-            className="text-sm text-gray-400 hover:text-gray-200 mb-1 inline-block"
+            className="text-sm text-muted hover:text-foreground mb-1 inline-block"
           >
             ← {t('publicApp.tournamentStats.tournament')}
           </Link>
@@ -230,12 +230,9 @@ export default async function StatsPage({ params }: Props) {
               value: `${overview.doublesCount} (${overview.doublesPercent}%)`,
             },
           ].map(({ label, value }) => (
-            <div
-              key={label}
-              className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center"
-            >
-              <p className="text-2xl font-black text-white">{value}</p>
-              <p className="text-xs text-gray-500 mt-0.5 uppercase tracking-wide">{label}</p>
+            <div key={label} className="bg-surface border border-border rounded-xl p-4 text-center">
+              <p className="text-2xl font-black text-foreground">{value}</p>
+              <p className="text-xs text-muted mt-0.5 uppercase tracking-wide">{label}</p>
             </div>
           ))}
         </div>
@@ -250,7 +247,7 @@ export default async function StatsPage({ params }: Props) {
           >
             {t('publicApp.tournamentStats.exchangeDistribution')}
           </h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
               {[
                 {
@@ -276,7 +273,7 @@ export default async function StatsPage({ params }: Props) {
                 />
               ))}
             </div>
-            <div className="flex gap-4 text-xs text-gray-400">
+            <div className="flex gap-4 text-xs text-muted">
               <span>
                 <span className="inline-block w-2 h-2 rounded-full bg-green-700 mr-1" />
                 {t('publicApp.tournamentStats.exchangeClean')} {pct(totalClean, totalEx)}
@@ -307,23 +304,23 @@ export default async function StatsPage({ params }: Props) {
             {overview.topFighters.map((f, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3"
+                className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3"
               >
-                <span className="text-gray-600 font-bold w-5 text-right text-sm">{i + 1}</span>
+                <span className="text-muted font-bold w-5 text-right text-sm">{i + 1}</span>
                 <div className="flex-1">
-                  <p className="font-semibold text-white text-sm">{f.name}</p>
-                  {f.club && <p className="text-xs text-gray-500">{f.club}</p>}
+                  <p className="font-semibold text-foreground text-sm">{f.name}</p>
+                  {f.club && <p className="text-xs text-muted">{f.club}</p>}
                 </div>
                 <div className="text-right">
-                  <p className="font-mono font-bold text-white">{fmtRatio(f.hitRatio)}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="font-mono font-bold text-foreground">{fmtRatio(f.hitRatio)}</p>
+                  <p className="text-xs text-muted">
                     {f.blowsGiven}↑ {f.blowsReceived}↓
                   </p>
                 </div>
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-600 mt-2">
+          <p className="text-xs text-muted mt-2">
             {t('publicApp.tournamentStats.topFightersCaption')}
           </p>
         </section>
@@ -338,21 +335,21 @@ export default async function StatsPage({ params }: Props) {
           >
             {t('publicApp.tournamentStats.deepTargetsTitle')}
           </h2>
-          <p className="text-xs text-gray-600 mb-3">
+          <p className="text-xs text-muted mb-3">
             {t('publicApp.tournamentStats.deepTargetsCaption', { points: targets.maxValue ?? 0 })}
           </p>
           <div className="flex flex-col gap-2">
             {targets.hunters.map((h, i) => (
               <div
                 key={h.personId}
-                className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3"
+                className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3"
               >
-                <span className="text-gray-600 font-bold w-5 text-right text-sm">{i + 1}</span>
+                <span className="text-muted font-bold w-5 text-right text-sm">{i + 1}</span>
                 <div className="flex-1">
-                  <p className="font-semibold text-white text-sm">{h.name}</p>
-                  {h.club && <p className="text-xs text-gray-500">{h.club}</p>}
+                  <p className="font-semibold text-foreground text-sm">{h.name}</p>
+                  {h.club && <p className="text-xs text-muted">{h.club}</p>}
                 </div>
-                <p className="font-mono font-bold text-white">{h.cleanHits}</p>
+                <p className="font-mono font-bold text-foreground">{h.cleanHits}</p>
               </div>
             ))}
           </div>
@@ -368,7 +365,7 @@ export default async function StatsPage({ params }: Props) {
           >
             {t('publicApp.tournamentStats.pointDistributionTitle')}
           </h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
               {targets.distribution.map((d, i) => (
                 <div
@@ -378,7 +375,7 @@ export default async function StatsPage({ params }: Props) {
                 />
               ))}
             </div>
-            <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+            <div className="flex flex-wrap gap-4 text-xs text-muted">
               {targets.distribution.map((d, i) => (
                 <span key={d.value}>
                   <span
@@ -405,7 +402,7 @@ export default async function StatsPage({ params }: Props) {
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
-                <tr className="border-b border-gray-800 text-gray-500">
+                <tr className="border-b border-border text-muted">
                   <th className="text-left py-2 pr-3 font-medium">
                     {t('publicApp.tournamentStats.colFighter')}
                   </th>
@@ -416,63 +413,63 @@ export default async function StatsPage({ params }: Props) {
                     {t('publicApp.tournamentStats.colDoubles')}
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-green-500"
+                    className="text-center py-2 px-1.5 font-medium text-green-700"
                     title={t('publicApp.tournamentStats.colClean1GivenTitle')}
                   >
                     ✓1
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-orange-400"
+                    className="text-center py-2 px-1.5 font-medium text-orange-600"
                     title={t('publicApp.tournamentStats.colAfterblow1GivenTitle')}
                   >
                     ✓1-1
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-green-500"
+                    className="text-center py-2 px-1.5 font-medium text-green-700"
                     title={t('publicApp.tournamentStats.colClean2GivenTitle')}
                   >
                     ✓2
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-orange-400"
+                    className="text-center py-2 px-1.5 font-medium text-orange-600"
                     title={t('publicApp.tournamentStats.colAfterblow2GivenTitle')}
                   >
                     ✓2-1
                   </th>
                   {hasV3 && (
                     <>
-                      <th className="text-center py-2 px-1.5 font-medium text-green-500">✓3</th>
-                      <th className="text-center py-2 px-1.5 font-medium text-orange-400">✓3-1</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-green-700">✓3</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-orange-600">✓3-1</th>
                     </>
                   )}
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-red-400"
+                    className="text-center py-2 px-1.5 font-medium text-red-600"
                     title={t('publicApp.tournamentStats.colClean1ReceivedTitle')}
                   >
                     ✗1
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-red-300"
+                    className="text-center py-2 px-1.5 font-medium text-red-400"
                     title={t('publicApp.tournamentStats.colAfterblow1ReceivedTitle')}
                   >
                     ✗1-1
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-red-400"
+                    className="text-center py-2 px-1.5 font-medium text-red-600"
                     title={t('publicApp.tournamentStats.colClean2ReceivedTitle')}
                   >
                     ✗2
                   </th>
                   <th
-                    className="text-center py-2 px-1.5 font-medium text-red-300"
+                    className="text-center py-2 px-1.5 font-medium text-red-400"
                     title={t('publicApp.tournamentStats.colAfterblow2ReceivedTitle')}
                   >
                     ✗2-1
                   </th>
                   {hasV3 && (
                     <>
-                      <th className="text-center py-2 px-1.5 font-medium text-red-400">✗3</th>
-                      <th className="text-center py-2 px-1.5 font-medium text-red-300">✗3-1</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-red-600">✗3</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-red-400">✗3-1</th>
                     </>
                   )}
                   <th
@@ -500,55 +497,55 @@ export default async function StatsPage({ params }: Props) {
                   <tr
                     key={f.registrationId}
                     className={[
-                      'border-b border-gray-900',
-                      idx === 0 ? 'text-white' : 'text-gray-300',
+                      'border-b border-border/60',
+                      idx === 0 ? 'font-medium text-foreground' : 'text-foreground',
                     ].join(' ')}
                   >
                     <td className="py-2 pr-3">
                       <p className="font-medium leading-tight">
                         {f.givenName} {f.familyName}
                       </p>
-                      {f.clubName && <p className="text-gray-600 text-xs">{f.clubName}</p>}
+                      {f.clubName && <p className="text-muted text-xs">{f.clubName}</p>}
                     </td>
                     <td className="text-center py-2 px-1.5">{fmt(f.doubles)}</td>
-                    <td className="text-center py-2 px-1.5 text-green-400">{fmt(f.hitsGiven1)}</td>
-                    <td className="text-center py-2 px-1.5 text-orange-300">
+                    <td className="text-center py-2 px-1.5 text-green-700">{fmt(f.hitsGiven1)}</td>
+                    <td className="text-center py-2 px-1.5 text-orange-600">
                       {fmt(f.afterblowGiven1)}
                     </td>
-                    <td className="text-center py-2 px-1.5 text-green-400">{fmt(f.hitsGiven2)}</td>
-                    <td className="text-center py-2 px-1.5 text-orange-300">
+                    <td className="text-center py-2 px-1.5 text-green-700">{fmt(f.hitsGiven2)}</td>
+                    <td className="text-center py-2 px-1.5 text-orange-600">
                       {fmt(f.afterblowGiven2)}
                     </td>
                     {hasV3 && (
                       <>
-                        <td className="text-center py-2 px-1.5 text-green-400">
+                        <td className="text-center py-2 px-1.5 text-green-700">
                           {fmt(f.hitsGiven3)}
                         </td>
-                        <td className="text-center py-2 px-1.5 text-orange-300">
+                        <td className="text-center py-2 px-1.5 text-orange-600">
                           {fmt(f.afterblowGiven3)}
                         </td>
                       </>
                     )}
-                    <td className="text-center py-2 px-1.5 text-red-400">{fmt(f.hitsReceived1)}</td>
+                    <td className="text-center py-2 px-1.5 text-red-600">{fmt(f.hitsReceived1)}</td>
                     <td
-                      className="text-center py-2 px-1.5 text-red-300"
+                      className="text-center py-2 px-1.5 text-red-400"
                       title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
                     >
                       {fmt(f.afterblowReceived1)}
                     </td>
-                    <td className="text-center py-2 px-1.5 text-red-400">{fmt(f.hitsReceived2)}</td>
+                    <td className="text-center py-2 px-1.5 text-red-600">{fmt(f.hitsReceived2)}</td>
                     <td
-                      className="text-center py-2 px-1.5 text-red-300"
+                      className="text-center py-2 px-1.5 text-red-400"
                       title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
                     >
                       {fmt(f.afterblowReceived2)}
                     </td>
                     {hasV3 && (
                       <>
-                        <td className="text-center py-2 px-1.5 text-red-400">
+                        <td className="text-center py-2 px-1.5 text-red-600">
                           {fmt(f.hitsReceived3)}
                         </td>
-                        <td className="text-center py-2 px-1.5 text-red-300">
+                        <td className="text-center py-2 px-1.5 text-red-400">
                           {fmt(f.afterblowReceived3)}
                         </td>
                       </>
@@ -567,7 +564,7 @@ export default async function StatsPage({ params }: Props) {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-gray-600 mt-2">
+          <p className="text-xs text-muted mt-2">
             {t('publicApp.tournamentStats.detailedStatsCaption')}
           </p>
         </section>
@@ -576,7 +573,7 @@ export default async function StatsPage({ params }: Props) {
       {fighters.length === 0 && (
         <div className="text-center py-16">
           <p className="text-4xl mb-3">📊</p>
-          <p className="text-gray-400 text-sm">{t('publicApp.tournamentStats.emptyState')}</p>
+          <p className="text-muted text-sm">{t('publicApp.tournamentStats.emptyState')}</p>
         </div>
       )}
     </main>

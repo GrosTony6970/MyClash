@@ -264,6 +264,10 @@ export default async function TournamentPage({ params }: Props) {
       <TournamentTabs
         defaultTab={defaultTab}
         colorToken={tournamentColor}
+        trailingLink={{
+          href: `/e/${eventSlug}/t/${tournamentSlug}/stats`,
+          label: t('publicApp.tournament.tabs.stats'),
+        }}
         tabs={[
           {
             key: 'participants',

@@ -61,6 +61,8 @@ export default function PersonProfilePage() {
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);
   const [loading, setLoading] = useState(true);
+  // "This is me" claim CTA — only for viewers without a full account session.
+  const [canClaim, setCanClaim] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function PersonProfilePage() {
           setFollowing(p.followState === 'following');
         }
         if (scheduleRes.ok) setSchedule((await scheduleRes.json()) as PersonSchedule);
+        setCanClaim(!document.cookie.includes('sb-access-token='));
       } catch {
         // Keep loading state
       } finally {
@@ -213,6 +216,18 @@ export default function PersonProfilePage() {
           </p>
         )}
       </div>
+
+      {/* "This is me" — entry point into the event-scoped claim flow (the
+          claim page's ?personId= URL previously had no producer at all). */}
+      {canClaim && (
+        <Link
+          href={`/e/${eventSlug}/claim?personId=${profile.id}&next=${encodeURIComponent(`/e/${eventSlug}`)}`}
+          className="mb-6 block rounded-xl border border-dashed border-gray-600 bg-gray-900 px-4 py-3 text-sm text-gray-300 transition-colors hover:border-gray-400"
+        >
+          <span className="font-semibold text-white">{t('publicApp.people.thisIsMeTitle')}</span>{' '}
+          {t('publicApp.people.thisIsMeHint')}
+        </Link>
+      )}
 
       {/* Live now */}
       {live.length > 0 && (

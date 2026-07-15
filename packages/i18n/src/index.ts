@@ -861,6 +861,8 @@ export const en = {
       searchPlaceholder: 'Search by name...',
       noParticipantsFound: 'No participants found for "{query}"',
       minSearchChars: 'Type at least 2 characters to search',
+      thisIsMeTitle: 'This is me!',
+      thisIsMeHint: 'Claim this profile to follow your schedule, results and notifications.',
     },
     notifications: {
       title: 'Notifications',
@@ -994,6 +996,7 @@ export const en = {
         podium: 'Podium',
         participants: 'Participants',
         finalRanking: 'Final Ranking',
+        stats: 'Statistics',
       },
       standings: {
         modeOverall: 'Overall',
@@ -6834,6 +6837,9 @@ export const fr = {
       searchPlaceholder: 'Chercher par nom...',
       noParticipantsFound: 'Aucun participant trouve pour "{query}"',
       minSearchChars: 'Saisissez au moins 2 caracteres pour chercher',
+      thisIsMeTitle: 'C est moi !',
+      thisIsMeHint:
+        'Revendiquez ce profil pour suivre votre planning, vos resultats et vos notifications.',
     },
     notifications: {
       title: 'Notifications',
@@ -6970,6 +6976,7 @@ export const fr = {
         podium: 'Podium',
         participants: 'Participants',
         finalRanking: 'Classement final',
+        stats: 'Statistiques',
       },
       standings: {
         modeOverall: 'Général',
