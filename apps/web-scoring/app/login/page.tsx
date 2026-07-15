@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
-import { getApiUrl } from '../../src/lib/api-url';
+import { api } from '../../src/lib/api';
 
 export default function ScoringLoginPage() {
   const { t } = useI18n();
@@ -17,29 +17,18 @@ export default function ScoringLoginPage() {
   const [loading, setLoading] = useState(false);
   const [staffLoading, setStaffLoading] = useState(false);
 
-  const apiUrl = getApiUrl();
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/magic-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email,
-          type: 'login',
-          redirectTo: '/lices',
-        }),
+      // ApiClientError carries the problem+json detail in its message.
+      await api.post('/api/v1/auth/magic-link', {
+        email,
+        type: 'login',
+        redirectTo: '/lices',
       });
-
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Request failed');
-      }
 
       setSubmitted(true);
     } catch (err) {
@@ -55,14 +44,7 @@ export default function ScoringLoginPage() {
     setStaffError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/staff-auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ eventSlugOrCode, username, pin }),
-      });
-
-      if (!res.ok) throw new Error('Staff login failed');
+      await api.post('/api/v1/staff-auth/login', { eventSlugOrCode, username, pin });
       window.location.href = '/lices';
     } catch {
       setStaffError(t('scoring.login.localLoginError'));

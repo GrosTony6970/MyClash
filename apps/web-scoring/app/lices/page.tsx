@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '../../src/i18n/I18nProvider';
-import { getApiUrl } from '../../src/lib/api-url';
+import { api } from '../../src/lib/api';
 
 interface LiceAssignment {
   liceId: string;
@@ -16,7 +16,6 @@ interface LiceAssignment {
 export default function LicePickerPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const apiUrl = getApiUrl();
 
   const [assignments, setAssignments] = useState<LiceAssignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,10 +27,7 @@ export default function LicePickerPage() {
   async function handleLogout() {
     setLoggingOut(true);
     try {
-      await fetch(`${apiUrl}/api/v1/staff-auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      await api.post('/api/v1/staff-auth/logout');
     } catch {
       // Network failure — still return to login; the cookie stays server-bound.
     }
@@ -41,33 +37,29 @@ export default function LicePickerPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const staffMeRes = await fetch(`${apiUrl}/api/v1/staff-auth/me`, {
-          credentials: 'include',
-        });
-
-        if (!staffMeRes.ok) {
-          const meRes = await fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' });
-          const me = (await meRes.json()) as { type: string };
-          if (me.type !== 'user') {
+        // Staff PIN session, or fall back to a full-user session.
+        try {
+          await api.get('/api/v1/staff-auth/me');
+        } catch {
+          const me = await api.get<{ type: string }>('/api/v1/me').catch(() => null);
+          if (me?.type !== 'user') {
             router.replace('/login');
             return;
           }
         }
 
-        const assignmentsRes = await fetch(`${apiUrl}/api/v1/staff/assigned-lices`, {
-          credentials: 'include',
-        });
-        if (!assignmentsRes.ok) {
-          router.replace('/login');
-          return;
-        }
-
-        const lices = (await assignmentsRes.json()) as Array<{
+        let lices: Array<{
           id: string;
           name: string;
           event?: { name?: string };
           currentMatch?: { id?: string; tournamentName?: string | null };
         }>;
+        try {
+          lices = await api.get('/api/v1/staff/assigned-lices');
+        } catch {
+          router.replace('/login');
+          return;
+        }
         setAssignments(
           lices.map((lice) => ({
             liceId: lice.id,
@@ -83,7 +75,7 @@ export default function LicePickerPage() {
         setLoading(false);
       }
     })();
-  }, [apiUrl, router, t]);
+  }, [router, t]);
 
   if (loading) {
     return (

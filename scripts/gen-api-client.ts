@@ -13,10 +13,14 @@
  *
  * Output:
  *   packages/api-client/src/generated/schema.ts  — OpenAPI types (openapi-typescript)
- *   packages/api-client/src/index.ts             — re-exports + typed fetch helper
  *
  * The generated schema.ts is committed to the repo so apps can import types
  * without needing a running API. Re-run this script whenever the API changes.
+ * (No running API available? `node apps/api/scripts/emit-openapi.cjs` emits
+ * the spec offline from a built dist/.)
+ *
+ * packages/api-client/src/index.ts (the fetch wrapper) is HAND-MAINTAINED —
+ * this script no longer overwrites it.
  */
 
 import { execSync } from 'node:child_process';
@@ -67,65 +71,8 @@ async function main() {
     process.exit(1);
   }
 
-  // 4. Write the index.ts with typed fetch helper
-  const indexContent = `/**
- * @myclash/api-client
- *
- * Auto-generated TypeScript API client.
- * Re-generate with: pnpm gen:api-client
- *
- * Usage:
- *   import { createApiClient } from '@myclash/api-client';
- *   const api = createApiClient('https://api.myclash.fr');
- *   const health = await api.get('/health');
- */
-
-export type { paths, components, operations } from './generated/schema';
-
-/**
- * Minimal typed fetch wrapper.
- * For full type-safety, use openapi-fetch (https://openapi-ts.dev/openapi-fetch/).
- */
-export function createApiClient(baseUrl: string, defaultHeaders?: Record<string, string>) {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...defaultHeaders,
-  };
-
-  return {
-    async get<T = unknown>(path: string, init?: RequestInit): Promise<T> {
-      const res = await fetch(\`\${baseUrl}\${path}\`, { ...init, method: 'GET', headers: { ...headers, ...init?.headers } });
-      if (!res.ok) throw new Error(\`GET \${path} failed: \${res.status}\`);
-      return res.json() as Promise<T>;
-    },
-    async post<T = unknown>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
-      const res = await fetch(\`\${baseUrl}\${path}\`, {
-        ...init, method: 'POST',
-        headers: { ...headers, ...init?.headers },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) throw new Error(\`POST \${path} failed: \${res.status}\`);
-      return res.json() as Promise<T>;
-    },
-    async patch<T = unknown>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
-      const res = await fetch(\`\${baseUrl}\${path}\`, {
-        ...init, method: 'PATCH',
-        headers: { ...headers, ...init?.headers },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) throw new Error(\`PATCH \${path} failed: \${res.status}\`);
-      return res.json() as Promise<T>;
-    },
-    async delete(path: string, init?: RequestInit): Promise<void> {
-      const res = await fetch(\`\${baseUrl}\${path}\`, { ...init, method: 'DELETE', headers: { ...headers, ...init?.headers } });
-      if (!res.ok) throw new Error(\`DELETE \${path} failed: \${res.status}\`);
-    },
-  };
-}
-`;
-
-  writeFileSync(resolve('packages/api-client/src/index.ts'), indexContent, 'utf-8');
-  ok('packages/api-client/src/index.ts updated');
+  // 4. index.ts is hand-maintained (cookie-auth + problem+json wrapper) —
+  //    only the generated schema is written by this script.
 
   console.log('\n\x1b[32m✓\x1b[0m API client generated successfully.');
   console.log('  Commit packages/api-client/src/generated/schema.ts to the repo.');

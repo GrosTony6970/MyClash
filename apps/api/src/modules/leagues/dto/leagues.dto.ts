@@ -1,6 +1,29 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import type { LeagueScoringConfig, LeagueTieBreaker } from '../league.types';
+
+// NOTE: these used to be `z.custom<LeagueScoringConfig>()` etc. (straight
+// @IsObject/@IsArray migrations). z.custom cannot be represented in JSON
+// Schema, so `cleanupOpenApiDoc()` threw at bootstrap and broke OpenAPI
+// emission (dev Swagger + `pnpm gen:api-client`). Modeled for real instead —
+// same accepted payloads, now serializable.
+
+const leagueTieBreakerSchema = z.enum([
+  'total_points',
+  'participation_count',
+  'medal_count',
+  'double_hit_average',
+]);
+
+/** JSON object keys arrive as strings — "rank" keys must be digit strings. */
+const customPointsByRankSchema = z.record(z.string().regex(/^\d+$/u), z.number());
+
+const leagueScoringConfigSchema = z.object({
+  // Open string: 'ffamhe_tf_2026' | 'custom' | any registry code (mig 0068).
+  scoringSystem: z.string(),
+  rankingDimensions: z.enum(['weapon', 'weapon_category']),
+  customPointsByRank: customPointsByRankSchema.optional(),
+  tieBreakers: z.array(leagueTieBreakerSchema),
+});
 
 const createLeagueSchema = z
   .object({
@@ -16,10 +39,9 @@ const createLeagueSchema = z
     ownerOrganizationId: z.uuid().optional(),
     scoringSystem: z.enum(['ffamhe_tf_2026', 'custom']).optional(),
     rankingDimensions: z.enum(['weapon', 'weapon_category']).optional(),
-    // Was @IsObject: any object keyed by rank → points.
-    customPointsByRank: z.custom<Record<number, number>>().optional(),
-    // Was @IsArray: list of tie-breaker descriptors.
-    tieBreakers: z.custom<LeagueTieBreaker[]>().optional(),
+    // Object keyed by rank → points (JSON keys are digit strings).
+    customPointsByRank: customPointsByRankSchema.optional(),
+    tieBreakers: z.array(leagueTieBreakerSchema).optional(),
   })
   .strict();
 export class CreateLeagueDto extends createZodDto(createLeagueSchema) {}
@@ -31,8 +53,8 @@ const updateLeagueSchema = z
     logoUrl: z.string().nullish(),
     status: z.enum(['draft', 'published', 'archived']).optional(),
     publicVisibility: z.boolean().optional(),
-    // Was @IsObject: full scoring configuration object.
-    scoringConfig: z.custom<LeagueScoringConfig>().optional(),
+    // Full scoring configuration object (unknown extra keys are stripped).
+    scoringConfig: leagueScoringConfigSchema.optional(),
   })
   .strict();
 export class UpdateLeagueDto extends createZodDto(updateLeagueSchema) {}
