@@ -14,6 +14,7 @@ import {
   BracketView,
   MedalPodium,
   TournamentColorDot,
+  fuzzyMatch,
   type BracketSlotData,
   type BracketConfig,
   type ColorToken,
@@ -479,9 +480,11 @@ export default function BracketPage() {
   }, [selectedTournament, apiUrl, bracketRefreshKey]);
 
   const filteredRegistrations = useMemo(() => {
-    const q = pickerFilter.trim().toLowerCase();
+    const q = pickerFilter.trim();
     if (!q) return pickerRegistrations;
-    return pickerRegistrations.filter((r) => r.displayName.toLowerCase().includes(q));
+    // fuzzyMatch = diacritic-insensitive, same behavior as standings/clubs
+    // search ("gaelle" finds "Gaëlle").
+    return pickerRegistrations.filter((r) => fuzzyMatch(q, r.displayName));
   }, [pickerRegistrations, pickerFilter]);
 
   // Event lices — for the per-fight lice pill + the edit-modal dropdown.

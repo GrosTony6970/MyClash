@@ -328,6 +328,10 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       HEMA_RATINGS_SYNC_ENABLED: ${HEMA_RATINGS_SYNC_ENABLED:-true}
+      # Comma-separated client IPs exempt from the global rate limit (bulk
+      # imports, demo population). Read by app.module.ts; without this
+      # passthrough a value in .env never reached the container.
+      THROTTLE_IP_WHITELIST: ${THROTTLE_IP_WHITELIST:-}
       OPS_RUNNER_URL: http://ops-runner:4075
       OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
       BACKUP_UPLOAD_MAX_BYTES: ${BACKUP_UPLOAD_MAX_BYTES:-1073741824}

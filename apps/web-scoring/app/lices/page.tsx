@@ -21,6 +21,22 @@ export default function LicePickerPage() {
   const [assignments, setAssignments] = useState<LiceAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // Shared scoring tablets rotate between staff at multi-day events — without
+  // an explicit logout the staff PIN session lived until cookie expiry.
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await fetch(`${apiUrl}/api/v1/staff-auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Network failure — still return to login; the cookie stays server-bound.
+    }
+    router.replace('/login');
+  }
 
   useEffect(() => {
     void (async () => {
@@ -106,9 +122,18 @@ export default function LicePickerPage() {
 
   return (
     <main className="min-h-screen p-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
-        <p className="text-gray-400 text-sm mt-1">{t('scoring.lice.selectLice')}</p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
+          <p className="text-gray-400 text-sm mt-1">{t('scoring.lice.selectLice')}</p>
+        </div>
+        <button
+          onClick={() => void handleLogout()}
+          disabled={loggingOut}
+          className="text-sm text-gray-400 hover:text-white underline disabled:opacity-50"
+        >
+          {t('scoring.lice.logout')}
+        </button>
       </header>
 
       <div className="grid gap-4 max-w-lg">

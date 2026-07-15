@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, SkillBadge, TournamentColorDot, useConfirm, useToast } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  SkillBadge,
+  TournamentColorDot,
+  fuzzyMatch,
+  useConfirm,
+  useToast,
+} from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
@@ -372,8 +379,8 @@ export default function ParticipantsPage() {
       list = list.filter((p) => ids.has(p.id));
     }
     if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((p) => `${p.givenName} ${p.familyName}`.toLowerCase().includes(q));
+      // Diacritic-insensitive, matching the standings/clubs search behavior.
+      list = list.filter((p) => fuzzyMatch(search, `${p.givenName} ${p.familyName}`));
     }
     if (clubFilter !== 'all' || refereeFilter !== 'all' || instructorFilter !== 'all') {
       list = list.filter((p) =>

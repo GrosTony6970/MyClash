@@ -257,6 +257,8 @@ services:
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
+      # See prod compose — without this passthrough the whitelist can't be set.
+      THROTTLE_IP_WHITELIST: ${THROTTLE_IP_WHITELIST:-}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -302,6 +304,10 @@ services:
       PORT: 3000
       TZ: ${TZ:-Europe/Paris}
       NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+      # SSR fetches must use the docker-internal host — the public hostname
+      # doesn't reliably hairpin from inside the network (opaque `fetch
+      # failed`). Mirrors the prod compose wiring.
+      API_URL_INTERNAL: http://api:4000
     depends_on:
       api: { condition: service_healthy }
     networks: [myclash-dev]

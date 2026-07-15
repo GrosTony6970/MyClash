@@ -204,6 +204,15 @@ export function PublicLeaguesSections({ leagues }: { leagues: PublicLeague[] }) 
           <LeaguesEmpty />
         )}
       </section>
+
+      <div className="text-right">
+        <Link
+          href="/leagues"
+          className="text-sm font-semibold text-red-700 transition-colors hover:text-red-800"
+        >
+          {t('publicApp.home.allLeaguesLink')} →
+        </Link>
+      </div>
     </div>
   );
 }

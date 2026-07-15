@@ -71,6 +71,14 @@ const navSections: readonly NavSection[] = [
         labelKey: 'admin.shell.nav.frozenResults',
         badge: 'FR',
       },
+      // Global-person claim queue (the /me "§8 fallback" when a profile has
+      // no email) — without this entry the queue was reachable only by URL
+      // and claims sat unreviewed.
+      {
+        href: '/admin/global-persons/pending-claims',
+        labelKey: 'admin.shell.nav.pendingClaims',
+        badge: 'PC',
+      },
     ],
   },
   {

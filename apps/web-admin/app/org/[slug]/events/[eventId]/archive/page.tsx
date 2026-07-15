@@ -254,8 +254,32 @@ export default function OrganizerArchivePage() {
               >
                 {t('organizer.archive.downloadRankings')}
               </a>
+              <a
+                href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/results.csv`}
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
+              >
+                {t('organizer.archive.downloadResults')}
+              </a>
             </>
           )}
+          <a
+            href={`${apiUrl}/api/v1/events/${eventId}/exports/fighters.csv`}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
+          >
+            {t('organizer.archive.downloadFighters')}
+          </a>
+          <a
+            href={`${apiUrl}/api/v1/events/${eventId}/exports/full.csv`}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
+          >
+            {t('organizer.archive.downloadFullCsv')}
+          </a>
+          <a
+            href={`${apiUrl}/api/v1/events/${eventId}/exports/full.json`}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
+          >
+            {t('organizer.archive.downloadFullJson')}
+          </a>
         </div>
       </section>
 

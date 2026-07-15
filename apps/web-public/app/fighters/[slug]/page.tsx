@@ -348,14 +348,19 @@ export default async function FighterPage({ params }: Props) {
             {fighter.displayName}
           </h1>
           {fighter.alias && <p className="text-sm italic text-muted">{fighter.alias}</p>}
-          {fighter.clubName && (
-            <Link
-              href={`/clubs/${fighter.clubSlug ?? ''}`}
-              className="block text-sm text-muted transition-colors hover:text-foreground"
-            >
-              {fighter.clubName}
-            </Link>
-          )}
+          {fighter.clubName &&
+            (fighter.clubSlug ? (
+              <Link
+                href={`/clubs/${fighter.clubSlug}`}
+                className="block text-sm text-muted transition-colors hover:text-foreground"
+              >
+                {fighter.clubName}
+              </Link>
+            ) : (
+              // Free-text club label without a linked club row — no /clubs/
+              // page exists for it, so render plain text instead of a 404 link.
+              <p className="text-sm text-muted">{fighter.clubName}</p>
+            ))}
           {fighter.practicingSinceYear && (
             <p className="mt-1 text-xs text-muted">
               {t('publicApp.fighterProfile.practicingSinceLabel', {

@@ -2462,7 +2462,7 @@ export function ScheduleGrid({
                   return (
                     <a
                       key={`${group.venueId}-${groupIndex}`}
-                      href={`/org/${slug}/events/${eventId}/venues`}
+                      href={`/org/${slug}/venues`}
                       className="sticky top-0 z-30 border-b border-l border-l-border px-2 flex items-center justify-center text-sm font-semibold truncate hover:brightness-95"
                       style={{
                         gridColumn: `${startCol} / span ${group.span}`,
