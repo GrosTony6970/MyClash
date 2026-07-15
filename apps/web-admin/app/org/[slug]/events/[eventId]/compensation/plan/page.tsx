@@ -4,32 +4,34 @@ import { t } from '@myclash/i18n';
 import { useConfirm } from '@myclash/ui';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import type { CompensationPlan, RefereeRole, CompensationPhase } from '@myclash/types';
+import type { CompensationPlan, CompensationPhase } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../../src/components/CompensationTopNav';
 
-const ROLES: { id: RefereeRole }[] = [
-  { id: 'arbitre_declarant' },
-  { id: 'arbitre_assesseur' },
-  { id: 'arbitre_table' },
-];
+/** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */
+interface RefereeSkill {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  sortOrder: number;
+}
 
 const PHASES: { id: CompensationPhase }[] = [{ id: 'pool' }, { id: 'bracket' }, { id: 'finals' }];
 
 type RatesGrid = Record<string, Record<string, string>>;
 
-function makeDefaultGrid(): RatesGrid {
+function makeDefaultGrid(skills: RefereeSkill[]): RatesGrid {
   const g: RatesGrid = {};
-  for (const r of ROLES) {
-    g[r.id] = {};
+  for (const s of skills) {
+    g[s.id] = {};
     for (const p of PHASES) {
-      g[r.id]![p.id] = '0';
+      g[s.id]![p.id] = '0';
     }
   }
   return g;
 }
 
-function planToGrid(plan: CompensationPlan): RatesGrid {
-  const g = makeDefaultGrid();
+function planToGrid(plan: CompensationPlan, skills: RefereeSkill[]): RatesGrid {
+  const g = makeDefaultGrid(skills);
   for (const rr of plan.roleRates) {
     g[rr.refereeRole] ??= {};
     g[rr.refereeRole]![rr.compensationPhase] = String(rr.tokensPerMatch);
@@ -60,8 +62,9 @@ export default function OrgCompensationPlansPage() {
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [plans, setPlans] = useState<CompensationPlan[]>([]);
+  const [skills, setSkills] = useState<RefereeSkill[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [ratesGrid, setRatesGrid] = useState<RatesGrid>(makeDefaultGrid());
+  const [ratesGrid, setRatesGrid] = useState<RatesGrid>({});
   const [tierRows, setTierRows] = useState<TierRow[]>([
     { minTokens: '0', maxTokens: '', amount: '0' },
   ]);
@@ -113,9 +116,34 @@ export default function OrgCompensationPlansPage() {
     return () => controller.abort();
   }, [slug, apiUrl]);
 
+  // Referee-skills catalog for this event (3 system skills + custom ones) — the
+  // source of the role rows, replacing the old hardcoded 3-role list.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        setSkills((await res.json()) as RefereeSkill[]);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  const skillNameById: Record<string, string> = {};
+  const skillOrderById: Record<string, number> = {};
+  for (const s of skills) {
+    skillNameById[s.id] = s.name;
+    skillOrderById[s.id] = s.sortOrder;
+  }
+
   function expandPlan(plan: CompensationPlan) {
     setExpandedId(plan.id);
-    setRatesGrid(planToGrid(plan));
+    setRatesGrid(planToGrid(plan, skills));
     setTierRows(
       planToTierRows(plan).length > 0
         ? planToTierRows(plan)
@@ -184,13 +212,24 @@ export default function OrgCompensationPlansPage() {
     setSavingRates(true);
     setSaveError(null);
     try {
-      const rates = ROLES.flatMap((r) =>
+      const knownIds = new Set(skills.map((s) => s.id));
+      const gridRates = skills.flatMap((s) =>
         PHASES.map((p) => ({
-          refereeRole: r.id,
+          refereeRole: s.id,
           compensationPhase: p.id,
-          tokensPerMatch: parseFloat(ratesGrid[r.id]?.[p.id] ?? '0') || 0,
+          tokensPerMatch: parseFloat(ratesGrid[s.id]?.[p.id] ?? '0') || 0,
         })),
       );
+      // This plan may be reused across events; upsert is delete-then-insert, so
+      // preserve any rates set for a skill not in the current event's catalog.
+      const preserved = (plans.find((p) => p.id === planId)?.roleRates ?? [])
+        .filter((rr) => !knownIds.has(rr.refereeRole))
+        .map((rr) => ({
+          refereeRole: rr.refereeRole,
+          compensationPhase: rr.compensationPhase,
+          tokensPerMatch: rr.tokensPerMatch,
+        }));
+      const rates = [...gridRates, ...preserved];
       const res = await fetch(`${apiUrl}/api/v1/compensation-plans/${planId}/role-rates`, {
         method: 'PUT',
         credentials: 'include',
@@ -289,7 +328,13 @@ export default function OrgCompensationPlansPage() {
                     {expandedId === plan.id ? t('actions.close') : t('actions.view')}
                   </button>
                 </div>
-                {expandedId === plan.id && <PlanDetails plan={plan} readonly />}
+                {expandedId === plan.id && (
+                  <PlanDetails
+                    plan={plan}
+                    skillNameById={skillNameById}
+                    skillOrderById={skillOrderById}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -428,26 +473,26 @@ export default function OrgCompensationPlansPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {ROLES.map((r) => (
-                            <tr key={r.id}>
+                          {skills.map((s) => (
+                            <tr key={s.id}>
                               <td className="text-xs text-foreground-secondary pr-4 py-1">
-                                {t(`organizer.compensationSettings.roles.${r.id}`)}
+                                {s.name}
                               </td>
                               {PHASES.map((p) => (
                                 <td key={p.id} className="px-2 py-1">
                                   <input
                                     aria-label={t('organizer.compensationSettings.rateInputLabel', {
-                                      role: t(`organizer.compensationSettings.roles.${r.id}`),
+                                      role: s.name,
                                       phase: t(`organizer.compensationSettings.phases.${p.id}`),
                                     })}
                                     type="number"
                                     min="0"
                                     step="0.5"
-                                    value={ratesGrid[r.id]?.[p.id] ?? '0'}
+                                    value={ratesGrid[s.id]?.[p.id] ?? '0'}
                                     onChange={(e) =>
                                       setRatesGrid((prev) => ({
                                         ...prev,
-                                        [r.id]: { ...prev[r.id], [p.id]: e.target.value },
+                                        [s.id]: { ...prev[s.id], [p.id]: e.target.value },
                                       }))
                                     }
                                     className="border border-border rounded px-2 py-1 text-sm w-16 text-center focus:outline-none focus:ring-1 focus:ring-accent"
@@ -583,8 +628,21 @@ export default function OrgCompensationPlansPage() {
   );
 }
 
-function PlanDetails({ plan }: { plan: CompensationPlan; readonly: true }) {
+function PlanDetails({
+  plan,
+  skillNameById,
+  skillOrderById,
+}: {
+  plan: CompensationPlan;
+  skillNameById: Record<string, string>;
+  skillOrderById: Record<string, number>;
+}) {
   const sortedTiers = [...plan.tiers].sort((a, b) => a.minTokens - b.minTokens);
+  // Show only the roles this (read-only, built-in) plan actually defines,
+  // labeled by catalog name and ordered by the skill's sort order.
+  const roleIds = [...new Set(plan.roleRates.map((rr) => rr.refereeRole))].sort(
+    (a, b) => (skillOrderById[a] ?? 999) - (skillOrderById[b] ?? 999) || a.localeCompare(b),
+  );
   return (
     <div className="border-t border-border px-4 py-4 text-sm">
       <div className="grid grid-cols-2 gap-6">
@@ -607,14 +665,14 @@ function PlanDetails({ plan }: { plan: CompensationPlan; readonly: true }) {
               </tr>
             </thead>
             <tbody>
-              {ROLES.map((r) => (
-                <tr key={r.id}>
+              {roleIds.map((roleId) => (
+                <tr key={roleId}>
                   <td className="text-foreground-secondary pr-3 py-0.5">
-                    {t(`organizer.compensationSettings.roles.${r.id}`)}
+                    {skillNameById[roleId] ?? roleId}
                   </td>
                   {PHASES.map((p) => {
                     const rr = plan.roleRates.find(
-                      (x) => x.refereeRole === r.id && x.compensationPhase === p.id,
+                      (x) => x.refereeRole === roleId && x.compensationPhase === p.id,
                     );
                     return (
                       <td

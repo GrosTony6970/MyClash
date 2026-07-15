@@ -8,18 +8,19 @@ import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
-
-const ROLE_LABEL_KEYS: Record<string, string> = {
-  arbitre_declarant: 'organizer.eventCompensation.roles.arbitre_declarant',
-  arbitre_assesseur: 'organizer.eventCompensation.roles.arbitre_assesseur',
-  arbitre_table: 'organizer.eventCompensation.roles.arbitre_table',
-};
+import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
   pool: 'organizer.eventCompensation.phases.pool',
   bracket: 'organizer.eventCompensation.phases.bracket',
   finals: 'organizer.eventCompensation.phases.finals',
 };
+
+/** A referee_skills catalog entry, used to label breakdown rows by skill name. */
+interface RefereeSkill {
+  id: string;
+  name: string;
+}
 
 interface PlanOption {
   id: string;
@@ -30,6 +31,19 @@ interface EventSettings {
   planId: string;
   planName: string;
   maxCompensationAmount: number | null;
+  minCompensationAmount: number | null;
+}
+
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'plan'
+  );
 }
 
 export default function CompensationPage() {
@@ -45,6 +59,8 @@ export default function CompensationPage() {
 
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [maxCap, setMaxCap] = useState('');
+  const [minCap, setMinCap] = useState('');
+  const [skills, setSkills] = useState<RefereeSkill[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,10 +89,29 @@ export default function CompensationPage() {
             setSettings(data);
             setSelectedPlanId(data.planId);
             setMaxCap(data.maxCompensationAmount?.toString() ?? '');
+            setMinCap(data.minCompensationAmount?.toString() ?? '');
           }
         }
       })
       .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  // Referee-skills catalog for this event — labels breakdown rows by skill name
+  // (a role is a referee_skills.id, incl. custom skills) instead of a raw ID.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        setSkills((await res.json()) as RefereeSkill[]);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -118,6 +153,7 @@ export default function CompensationPage() {
         body: JSON.stringify({
           planId: selectedPlanId,
           maxCompensationAmount: maxCap ? parseFloat(maxCap) : null,
+          minCompensationAmount: minCap ? parseFloat(minCap) : null,
         }),
       });
       if (!res.ok) {
@@ -177,6 +213,40 @@ export default function CompensationPage() {
     return total > 0 ? total.toFixed(1) : '—';
   };
 
+  const skillNameById: Record<string, string> = {};
+  for (const s of skills) skillNameById[s.id] = s.name;
+
+  function downloadCsv() {
+    if (!report || report.referees.length === 0) return;
+    // BOM so Excel reads accented names as UTF-8.
+    const blob = new Blob(['﻿', compensationToCsv(report)], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `compensation-${slugify(report.planName)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printReport() {
+    if (!report || report.referees.length === 0) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(
+      compensationToPrintHtml(
+        t('organizer.eventCompensation.exportTitle', { plan: report.planName }),
+        report,
+      ),
+    );
+    w.document.close();
+    w.focus();
+    w.print();
+  }
+
+  const canExport = !!report && report.referees.length > 0;
+
   return (
     <main className="mx-auto p-8 max-w-[110rem]">
       <CompensationTopNav
@@ -228,6 +298,22 @@ export default function CompensationPage() {
           </div>
           <div>
             <span className="block text-xs text-muted mb-1">
+              {t('organizer.eventCompensation.minAmount')}
+            </span>
+            <input
+              id="event-compensation-min"
+              aria-label={t('organizer.eventCompensation.minAmount')}
+              type="number"
+              min="0"
+              step="0.01"
+              value={minCap}
+              onChange={(e) => setMinCap(e.target.value)}
+              placeholder={t('organizer.eventCompensation.noMinimum')}
+              className="border border-border rounded-md px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+          <div>
+            <span className="block text-xs text-muted mb-1">
               {t('organizer.eventCompensation.maxCap')}
             </span>
             <input
@@ -270,6 +356,13 @@ export default function CompensationPage() {
           <p className="text-sm text-muted">
             {t('organizer.eventCompensation.planLabel')}{' '}
             <span className="font-medium text-foreground-secondary">{settings.planName}</span>
+            {settings.minCompensationAmount !== null && (
+              <span className="ml-2 text-muted">
+                {t('organizer.eventCompensation.minLabel', {
+                  amount: settings.minCompensationAmount,
+                })}
+              </span>
+            )}
             {settings.maxCompensationAmount !== null && (
               <span className="ml-2 text-muted">
                 {t('organizer.eventCompensation.capLabel', {
@@ -278,13 +371,31 @@ export default function CompensationPage() {
               </span>
             )}
           </p>
-          <button
-            onClick={() => void loadReport()}
-            disabled={loadingReport}
-            className="text-sm text-accent hover:underline disabled:opacity-50"
-          >
-            {loadingReport ? t('common.loading') : t('organizer.eventCompensation.refresh')}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={downloadCsv}
+              disabled={!canExport}
+              className="text-sm text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t('organizer.eventCompensation.exportCsv')}
+            </button>
+            <button
+              type="button"
+              onClick={printReport}
+              disabled={!canExport}
+              className="text-sm text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t('organizer.eventCompensation.exportPdf')}
+            </button>
+            <button
+              onClick={() => void loadReport()}
+              disabled={loadingReport}
+              className="text-sm text-accent hover:underline disabled:opacity-50"
+            >
+              {loadingReport ? t('common.loading') : t('organizer.eventCompensation.refresh')}
+            </button>
+          </div>
         </div>
       )}
 
@@ -387,13 +498,12 @@ export default function CompensationPage() {
                           </thead>
                           <tbody>
                             {referee.breakdown.map((line, i) => {
-                              const roleLabelKey = ROLE_LABEL_KEYS[line.role];
                               const phaseLabelKey = PHASE_LABEL_KEYS[line.phase];
 
                               return (
                                 <tr key={i} className="text-foreground-secondary">
                                   <td className="py-0.5">
-                                    {roleLabelKey ? t(roleLabelKey) : line.role}
+                                    {skillNameById[line.role] ?? line.role}
                                   </td>
                                   <td className="py-0.5">
                                     {phaseLabelKey ? t(phaseLabelKey) : line.phase}

@@ -1,4 +1,10 @@
-export type RefereeRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
+/**
+ * A referee_skills.id — the three system skills ('arbitre_declarant',
+ * 'arbitre_assesseur', 'arbitre_table') plus any per-event custom skill
+ * ('custom-…'). Compensation role rates are keyed by this so the plan can
+ * carry a rate for every catalog skill an event uses.
+ */
+export type RefereeRole = string;
 export type CompensationPhase = 'pool' | 'bracket' | 'finals';
 
 export interface CompensationRoleRate {
@@ -32,6 +38,7 @@ export interface CompensationEventSettings {
   planId: string;
   planName: string;
   maxCompensationAmount: number | null;
+  minCompensationAmount: number | null;
 }
 
 export interface CompensationBreakdownLine {
@@ -56,6 +63,7 @@ export interface CompensationReport {
   planId: string;
   planName: string;
   maxCap: number | null;
+  minFloor: number | null;
   referees: RefereeCompensation[];
   grandTotal: number;
 }

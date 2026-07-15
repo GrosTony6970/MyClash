@@ -22,7 +22,9 @@ export class UpdatePlanDto extends createZodDto(updatePlanSchema) {}
 // Nested element schema for UpsertRoleRatesDto.rates. Not whitelisted
 // (no .strict()) to match prior @ValidateNested element behavior.
 const roleRateEntrySchema = z.object({
-  refereeRole: z.enum(['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table']),
+  // A referee_skills.id (system 'arbitre_*' or per-event 'custom-…'). No enum:
+  // custom skills are dynamic, and computeReport tolerates an unknown role.
+  refereeRole: z.string().min(1).max(100),
   compensationPhase: z.enum(['pool', 'bracket', 'finals']),
   tokensPerMatch: z.number().min(0),
 });
@@ -56,6 +58,7 @@ const upsertEventSettingsSchema = z
   .object({
     planId: z.uuid(),
     maxCompensationAmount: z.number().min(0).nullish(),
+    minCompensationAmount: z.number().min(0).nullish(),
   })
   .strict();
 export class UpsertEventSettingsDto extends createZodDto(upsertEventSettingsSchema) {}

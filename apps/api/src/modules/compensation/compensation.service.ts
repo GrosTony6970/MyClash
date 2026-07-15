@@ -22,6 +22,22 @@ import type {
 
 const FINALS_LABEL_RE = /FINAL|^F$|GOLD|BRONZE|3RD/i;
 
+/**
+ * Clamp a resolved tier amount to the event's optional cap and floor. The floor
+ * is applied last, so a referee who worked is guaranteed the minimum even when
+ * it exceeds the cap.
+ */
+export function clampCompensationAmount(
+  amount: number,
+  cap: number | null,
+  floor: number | null,
+): number {
+  let result = amount;
+  if (cap !== null && result > cap) result = cap;
+  if (floor !== null && result < floor) result = floor;
+  return result;
+}
+
 @Injectable()
 export class CompensationService {
   constructor(private readonly supabase: SupabaseService) {}
@@ -182,6 +198,7 @@ export class CompensationService {
       planId: r['plan_id'] as string,
       planName: planRecord?.['name'] ?? '',
       maxCompensationAmount: r['max_compensation_amount'] as number | null,
+      minCompensationAmount: r['min_compensation_amount'] as number | null,
     };
   }
 
@@ -194,6 +211,7 @@ export class CompensationService {
         event_id: eventId,
         plan_id: dto.planId,
         max_compensation_amount: dto.maxCompensationAmount ?? null,
+        min_compensation_amount: dto.minCompensationAmount ?? null,
         updated_at: new Date().toISOString(),
       })
       .select('*, referee_compensation_plans(name)')
@@ -207,6 +225,7 @@ export class CompensationService {
       planId: r['plan_id'] as string,
       planName: planRecord?.['name'] ?? '',
       maxCompensationAmount: r['max_compensation_amount'] as number | null,
+      minCompensationAmount: r['min_compensation_amount'] as number | null,
     };
   }
 
@@ -218,6 +237,7 @@ export class CompensationService {
 
     const plan = await this.getPlanWithDetails(settings.planId);
     const cap = settings.maxCompensationAmount;
+    const floor = settings.minCompensationAmount;
 
     // Build rate lookup: role → phase → tokensPerMatch
     const rateMap = new Map<string, number>();
@@ -236,7 +256,14 @@ export class CompensationService {
 
     if (assignErr) throw new BadRequestException(assignErr.message);
     if (!assignments || assignments.length === 0) {
-      return { planId: plan.id, planName: plan.name, maxCap: cap, referees: [], grandTotal: 0 };
+      return {
+        planId: plan.id,
+        planName: plan.name,
+        maxCap: cap,
+        minFloor: floor,
+        referees: [],
+        grandTotal: 0,
+      };
     }
 
     // Accumulator: person_id → role → phase → { matchCount, tokensPerMatch }
@@ -428,8 +455,10 @@ export class CompensationService {
         }
       }
 
-      let amountOwed = this.resolveTier(totalTokens, tiers);
-      if (cap !== null && amountOwed > cap) amountOwed = cap;
+      // Tier amount clamped to the event's floor/cap. Floor last → the minimum
+      // is guaranteed for anyone who refereed (every person in `acc` has ≥1
+      // counted match); if floor > cap, the floor wins.
+      const amountOwed = clampCompensationAmount(this.resolveTier(totalTokens, tiers), cap, floor);
 
       const claimedUserId = personToUser.get(personId) ?? null;
       const payment = claimedUserId ? paymentMap.get(claimedUserId) : undefined;
@@ -450,6 +479,7 @@ export class CompensationService {
       planId: plan.id,
       planName: plan.name,
       maxCap: cap,
+      minFloor: floor,
       referees,
       grandTotal,
     };
