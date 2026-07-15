@@ -561,7 +561,9 @@ export default function ParticipantsPage() {
       }
       if (failedTournaments.length > 0) {
         toast.warning(
-          `Created participant, but failed to register in: ${failedTournaments.join(', ')}.`,
+          t('admin.orgPersons.toastCreatedRegisterFailed', {
+            list: failedTournaments.join(', '),
+          }),
         );
       } else if (selectedTournaments.size > 0 && fullPending.length === 0) {
         toast.success(
@@ -683,9 +685,7 @@ export default function ParticipantsPage() {
         }
       }
       if (failed.length > 0) {
-        toast.warning(
-          `Saved profile, but failed to update tournament assignments for: ${failed.join(', ')}.`,
-        );
+        toast.warning(t('admin.orgPersons.toastSavedAssignFailed', { list: failed.join(', ') }));
       } else if ((toAdd.length > 0 || toRemove.length > 0) && fullPending.length === 0) {
         toast.success(t('admin.orgPersons.toastProfileUpdated'));
       }
@@ -806,7 +806,9 @@ export default function ParticipantsPage() {
       }
     }
     if (erroredNames.length > 0) {
-      toast.warning(`Could not register: ${erroredNames.join(', ')}.`);
+      toast.warning(
+        t('admin.orgPersons.toastRegisterFailedFor', { list: erroredNames.join(', ') }),
+      );
     }
     if (fullPending.length > 0) setWaitlistPrompt(fullPending);
     setSelected(new Set());
@@ -1498,9 +1500,14 @@ export default function ParticipantsPage() {
                     t('admin.orgPersons.toastRemovedParticipants', { count: succeeded.length }),
                   );
                 } else if (succeeded.length > 0 && skipped.length > 0) {
-                  toast.warning(`Removed ${succeeded.length} · Skipped: ${skippedDetails}`);
+                  toast.warning(
+                    t('admin.orgPersons.toastRemovedSkipped', {
+                      count: succeeded.length,
+                      skipped: skippedDetails,
+                    }),
+                  );
                 } else if (succeeded.length === 0 && skipped.length > 0) {
-                  toast.warning(`Skipped: ${skippedDetails}`);
+                  toast.warning(t('admin.orgPersons.toastSkipped', { skipped: skippedDetails }));
                 }
                 refresh();
               }}

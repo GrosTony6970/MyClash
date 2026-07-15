@@ -15,7 +15,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '../i18n/I18nProvider';
 import type { SyncState, SyncStatus } from '../offline/sync';
+
+type TranslateFn = ReturnType<typeof useI18n>['t'];
 
 export interface SyncStatusProps {
   /** Current sync state from SyncEngine.subscribe(). */
@@ -36,28 +39,32 @@ interface StatusConfig {
   pulse: boolean;
 }
 
-function getConfig(status: SyncStatus, pendingCount: number): StatusConfig {
+function getConfig(status: SyncStatus, pendingCount: number, t: TranslateFn): StatusConfig {
   switch (status) {
     case 'idle':
       return {
-        label: 'Online',
-        sublabel: pendingCount > 0 ? `${pendingCount} synced` : undefined,
+        label: t('scoring.sync.online'),
+        sublabel:
+          pendingCount > 0 ? t('scoring.sync.syncedCount', { count: pendingCount }) : undefined,
         dot: 'bg-success',
         bar: 'bg-success/25',
         pulse: false,
       };
     case 'syncing':
       return {
-        label: 'Syncing…',
-        sublabel: `${pendingCount} pending`,
+        label: t('scoring.sync.syncing'),
+        sublabel: t('scoring.sync.pendingCount', { count: pendingCount }),
         dot: 'bg-warning',
         bar: 'bg-warning/25',
         pulse: true,
       };
     case 'offline':
       return {
-        label: 'Offline',
-        sublabel: pendingCount > 0 ? `${pendingCount} queued locally` : 'No connection',
+        label: t('scoring.sync.offline'),
+        sublabel:
+          pendingCount > 0
+            ? t('scoring.sync.queuedCount', { count: pendingCount })
+            : t('scoring.sync.noConnection'),
         dot: 'bg-danger',
         bar: 'bg-danger/25',
         pulse: true,
@@ -66,8 +73,9 @@ function getConfig(status: SyncStatus, pendingCount: number): StatusConfig {
       // Raw orange ON PURPOSE: 4-state categorical set (green/yellow/red/orange);
       // mapping to warning would collide with the syncing state.
       return {
-        label: 'Sync error',
-        sublabel: pendingCount > 0 ? `${pendingCount} not synced` : undefined,
+        label: t('scoring.sync.error'),
+        sublabel:
+          pendingCount > 0 ? t('scoring.sync.notSyncedCount', { count: pendingCount }) : undefined,
         dot: 'bg-orange-400',
         bar: 'bg-orange-950',
         pulse: false,
@@ -78,6 +86,7 @@ function getConfig(status: SyncStatus, pendingCount: number): StatusConfig {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusProps) {
+  const { t } = useI18n();
   // Track network online/offline independently of sync state
   const [networkOnline, setNetworkOnline] = useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -98,7 +107,7 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
   const effectiveStatus: SyncStatus = !networkOnline ? 'offline' : (syncState?.status ?? 'idle');
 
   const pendingCount = syncState?.pendingCount ?? 0;
-  const config = getConfig(effectiveStatus, pendingCount);
+  const config = getConfig(effectiveStatus, pendingCount, t);
   const isError = effectiveStatus === 'error';
   const isOffline = effectiveStatus === 'offline';
 
@@ -145,7 +154,7 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
             onClick={onRetry}
             className="text-xs font-bold underline text-foreground/90 hover:text-foreground ml-4"
           >
-            Retry
+            {t('scoring.sync.retry')}
           </button>
         )}
       </div>
@@ -153,7 +162,7 @@ export function SyncStatus({ syncState, onRetry, compact = false }: SyncStatusPr
       {/* Expanded error message */}
       {isError && syncState?.lastError && (
         <p className="text-xs text-foreground/70 mt-1 pl-4">
-          {syncState.lastError} — contact admin if issue persists.
+          {t('scoring.sync.contactAdmin', { error: syncState.lastError })}
         </p>
       )}
     </div>
