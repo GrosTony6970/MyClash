@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { AdminPageHeader, Modal, RowActionButton } from '@myclash/ui';
+import {
+  AdminPageHeader,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  Modal,
+  RowActionButton,
+} from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { ScoringSystemPreview } from '../../../../admin/rulesets/league/_components/ScoringSystemPreview';
@@ -76,77 +84,71 @@ export default function OrgLeagueScoringSystemsPage() {
       {loading ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.name')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.code')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.version')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.source')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.league.columns.points')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.league.columns.tieBreakers')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const ranks = Object.keys(row.points_by_rank)
-                  .map(Number)
-                  .filter((n) => Number.isInteger(n) && n > 0)
-                  .sort((a, b) => a - b);
-                return (
-                  <tr key={row.id} className="border-b border-border hover:bg-background">
-                    <td className="px-4 py-2">
-                      <div className="font-semibold text-foreground">{row.name}</div>
-                      {row.description && (
-                        <div className="mt-0.5 line-clamp-2 text-xs text-muted">
-                          {row.description}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-foreground-secondary">
-                      {row.code}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs font-bold text-foreground-secondary">
-                      {row.version}
-                    </td>
-                    <td className="px-4 py-2">
-                      {row.is_builtin ? (
-                        <span className="rounded bg-success/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-success">
-                          {t('admin.rulesets.shared.badges.builtin')}
-                        </span>
-                      ) : (
-                        <span className="rounded bg-background px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
-                          {t('admin.rulesets.shared.badges.custom')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-foreground-secondary">
-                      {ranks.length > 0
-                        ? ranks.map((r) => row.points_by_rank[String(r)]).join(' / ')
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-foreground-secondary">
-                      {row.tie_breakers.length > 0
-                        ? row.tie_breakers
-                            .map((tb) => t(`admin.rulesets.league.form.tieBreakerLabels.${tb}`))
-                            .join(' · ')
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <RowActionButton variant="neutral" onClick={() => setViewRow(row)}>
-                          {t('admin.rulesets.viewAction')}
-                        </RowActionButton>
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.league.columns.points')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.league.columns.tieBreakers')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {rows.map((row) => {
+              const ranks = Object.keys(row.points_by_rank)
+                .map(Number)
+                .filter((n) => Number.isInteger(n) && n > 0)
+                .sort((a, b) => a - b);
+              return (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
+                    <div className="font-semibold text-foreground">{row.name}</div>
+                    {row.description && (
+                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
+                        {row.description}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell mono>{row.code}</DataTableCell>
+                  <DataTableCell mono className="font-bold">
+                    {row.version}
+                  </DataTableCell>
+                  <DataTableCell>
+                    {row.is_builtin ? (
+                      <span className="rounded bg-success/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-success">
+                        {t('admin.rulesets.shared.badges.builtin')}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-background px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
+                        {t('admin.rulesets.shared.badges.custom')}
+                      </span>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell mono>
+                    {ranks.length > 0
+                      ? ranks.map((r) => row.points_by_rank[String(r)]).join(' / ')
+                      : '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-foreground-secondary">
+                    {row.tie_breakers.length > 0
+                      ? row.tie_breakers
+                          .map((tb) => t(`admin.rulesets.league.form.tieBreakerLabels.${tb}`))
+                          .join(' · ')
+                      : '—'}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <RowActionButton variant="neutral" onClick={() => setViewRow(row)}>
+                        {t('admin.rulesets.viewAction')}
+                      </RowActionButton>
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       {viewRow && (

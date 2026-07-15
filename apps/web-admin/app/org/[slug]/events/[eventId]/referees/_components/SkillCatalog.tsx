@@ -20,7 +20,14 @@
  */
 
 import { useMemo, useState } from 'react';
-import { SkillBadge, tintBgClassFor } from '@myclash/ui';
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  SkillBadge,
+  tintBgClassFor,
+} from '@myclash/ui';
 import { t } from '@myclash/i18n';
 
 export interface RefereeSkill {
@@ -141,144 +148,140 @@ export function SkillCatalog({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full text-sm border-collapse">
-          <thead className="bg-background text-left text-xs uppercase tracking-wide text-muted">
-            <tr>
-              {onReorder && <th className="w-8 px-2 py-2"></th>}
-              <th className="px-4 py-2">{t('organizer.refereesPage.catalogColColor')}</th>
-              <th className="px-4 py-2">{t('organizer.refereesPage.catalogColName')}</th>
-              <th className="px-4 py-2 text-center">
-                {t('organizer.refereesPage.catalogColCount')}
-              </th>
-              <th className="px-4 py-2 text-right">
-                {t('organizer.refereesPage.catalogColActions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {skills.map((skill) => (
-              <tr
-                key={skill.id}
-                className={[
-                  'border-t border-border hover:bg-background cursor-pointer',
-                  dragId === skill.id ? 'opacity-50' : '',
-                  skill.isHidden ? 'bg-background text-muted' : '',
-                ].join(' ')}
-                onClick={() => setDrillSkillId(skill.id)}
-                onDragOver={handleDragOver}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  handleDrop(skill.id);
-                }}
-              >
-                {onReorder && (
-                  <td
-                    className="px-2 py-3 text-center text-muted cursor-grab active:cursor-grabbing select-none"
-                    draggable={!isReadOnly}
-                    onDragStart={() => handleDragStart(skill.id)}
-                    onDragEnd={() => setDragId(null)}
-                    onClick={(e) => e.stopPropagation()}
-                    title={t('organizer.refereesPage.catalogDragHandle')}
-                  >
-                    ⋮⋮
-                  </td>
-                )}
-                <td className="px-4 py-3">
-                  <span
-                    className={[
-                      'inline-block h-5 w-5 rounded-full border border-border',
-                      tintBgClassFor(skill.color),
-                    ].join(' ')}
-                    aria-hidden="true"
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    {/* R4: description doubles as a tooltip on hover via
-                        the wrapping span. */}
-                    <span title={skill.description || undefined}>
-                      <SkillBadge color={skill.color} label={skill.name} />
+      <DataTable>
+        <DataTableHead>
+          {onReorder && <DataTableCell as="th" className="w-8" />}
+          <DataTableCell as="th">{t('organizer.refereesPage.catalogColColor')}</DataTableCell>
+          <DataTableCell as="th">{t('organizer.refereesPage.catalogColName')}</DataTableCell>
+          <DataTableCell as="th" className="text-center">
+            {t('organizer.refereesPage.catalogColCount')}
+          </DataTableCell>
+          <DataTableCell as="th" className="text-right">
+            {t('organizer.refereesPage.catalogColActions')}
+          </DataTableCell>
+        </DataTableHead>
+        <tbody>
+          {skills.map((skill) => (
+            <DataTableRow
+              key={skill.id}
+              className={[
+                'cursor-pointer',
+                dragId === skill.id ? 'opacity-50' : '',
+                skill.isHidden ? 'bg-background text-muted' : '',
+              ].join(' ')}
+              onClick={() => setDrillSkillId(skill.id)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleDrop(skill.id);
+              }}
+            >
+              {onReorder && (
+                <DataTableCell
+                  className="text-center text-muted cursor-grab active:cursor-grabbing select-none"
+                  draggable={!isReadOnly}
+                  onDragStart={() => handleDragStart(skill.id)}
+                  onDragEnd={() => setDragId(null)}
+                  onClick={(e) => e.stopPropagation()}
+                  title={t('organizer.refereesPage.catalogDragHandle')}
+                >
+                  ⋮⋮
+                </DataTableCell>
+              )}
+              <DataTableCell>
+                <span
+                  className={[
+                    'inline-block h-5 w-5 rounded-full border border-border',
+                    tintBgClassFor(skill.color),
+                  ].join(' ')}
+                  aria-hidden="true"
+                />
+              </DataTableCell>
+              <DataTableCell>
+                <div className="flex items-center gap-2">
+                  {/* R4: description doubles as a tooltip on hover via
+                      the wrapping span. */}
+                  <span title={skill.description || undefined}>
+                    <SkillBadge color={skill.color} label={skill.name} />
+                  </span>
+                  {skill.isSystem && (
+                    <span className="rounded bg-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-secondary">
+                      {t('organizer.refereesPage.catalogSystemPill')}
                     </span>
-                    {skill.isSystem && (
-                      <span className="rounded bg-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-secondary">
-                        {t('organizer.refereesPage.catalogSystemPill')}
-                      </span>
-                    )}
-                  </div>
-                  {skill.description && (
-                    <p
-                      className="mt-0.5 truncate text-xs italic text-muted"
-                      title={skill.description}
-                    >
-                      {skill.description}
-                    </p>
                   )}
-                </td>
-                <td className="px-4 py-3 text-center font-semibold text-foreground-secondary tabular-nums">
-                  {countsBySkill.get(skill.id) ?? 0}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper, not an interactive control (buttons inside are focusable) */}
-                  <div
-                    className="inline-flex gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                    role="group"
+                </div>
+                {skill.description && (
+                  <p
+                    className="mt-0.5 truncate text-xs italic text-muted"
+                    title={skill.description}
                   >
-                    {!skill.isSystem && (
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => onEditSkill(skill)}
-                        className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={
-                          isReadOnly
-                            ? t('organizer.deletionRequest.archivedReadOnly')
-                            : t('organizer.refereesPage.editSkill')
-                        }
-                      >
-                        ✎ {t('organizer.refereesPage.catalogEditAction')}
-                      </button>
-                    )}
-                    {!skill.isSystem && (
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => onDeleteSkill(skill)}
-                        className="text-xs text-danger hover:text-danger-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={
-                          isReadOnly
-                            ? t('organizer.deletionRequest.archivedReadOnly')
-                            : t('organizer.refereesPage.catalogDeleteAction')
-                        }
-                      >
-                        🗑 {t('organizer.refereesPage.catalogDeleteAction')}
-                      </button>
-                    )}
-                    {onToggleVisibility && (
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => void onToggleVisibility(skill, !skill.isHidden)}
-                        className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={
-                          skill.isHidden
-                            ? t('organizer.refereesPage.catalogShowAction')
-                            : t('organizer.refereesPage.catalogHideAction')
-                        }
-                      >
-                        {skill.isHidden
-                          ? `👁 ${t('organizer.refereesPage.catalogShowAction')}`
-                          : `🚫 ${t('organizer.refereesPage.catalogHideAction')}`}
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    {skill.description}
+                  </p>
+                )}
+              </DataTableCell>
+              <DataTableCell className="text-center font-semibold text-foreground-secondary tabular-nums">
+                {countsBySkill.get(skill.id) ?? 0}
+              </DataTableCell>
+              <DataTableCell className="text-right">
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper, not an interactive control (buttons inside are focusable) */}
+                <div
+                  className="inline-flex gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                  role="group"
+                >
+                  {!skill.isSystem && (
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => onEditSkill(skill)}
+                      className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={
+                        isReadOnly
+                          ? t('organizer.deletionRequest.archivedReadOnly')
+                          : t('organizer.refereesPage.editSkill')
+                      }
+                    >
+                      ✎ {t('organizer.refereesPage.catalogEditAction')}
+                    </button>
+                  )}
+                  {!skill.isSystem && (
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => onDeleteSkill(skill)}
+                      className="text-xs text-danger hover:text-danger-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={
+                        isReadOnly
+                          ? t('organizer.deletionRequest.archivedReadOnly')
+                          : t('organizer.refereesPage.catalogDeleteAction')
+                      }
+                    >
+                      🗑 {t('organizer.refereesPage.catalogDeleteAction')}
+                    </button>
+                  )}
+                  {onToggleVisibility && (
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => void onToggleVisibility(skill, !skill.isHidden)}
+                      className="text-xs text-foreground-secondary hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={
+                        skill.isHidden
+                          ? t('organizer.refereesPage.catalogShowAction')
+                          : t('organizer.refereesPage.catalogHideAction')
+                      }
+                    >
+                      {skill.isHidden
+                        ? `👁 ${t('organizer.refereesPage.catalogShowAction')}`
+                        : `🚫 ${t('organizer.refereesPage.catalogHideAction')}`}
+                    </button>
+                  )}
+                </div>
+              </DataTableCell>
+            </DataTableRow>
+          ))}
+        </tbody>
+      </DataTable>
 
       {drillSkill && (
         <SkillDrillDownDrawer

@@ -2,6 +2,10 @@
 
 import {
   Button,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   Modal,
   TournamentColorDot,
   statusPillTone,
@@ -283,9 +287,7 @@ export default function EventTournamentsPage() {
 
       <section
         className={
-          tournaments.length > 0 || loading
-            ? 'overflow-hidden rounded-lg border border-border bg-surface shadow-sm'
-            : ''
+          loading ? 'overflow-hidden rounded-lg border border-border bg-surface shadow-sm' : ''
         }
       >
         {loading && (
@@ -313,159 +315,151 @@ export default function EventTournamentsPage() {
         )}
 
         {!loading && tournaments.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="bg-background text-left text-xs font-bold uppercase tracking-[0.14em] text-muted">
-                <tr>
-                  <th className="px-4 py-3">{t('organizer.tournaments.table.tournament')}</th>
-                  <th className="px-4 py-3">{t('organizer.tournaments.table.weapon')}</th>
-                  <th className="px-4 py-3">{t('organizer.tournaments.table.venues')}</th>
-                  <th className="px-4 py-3 text-center">
-                    {t('organizer.tournaments.table.registered')}
-                  </th>
-                  <th className="px-4 py-3">{t('organizer.tournaments.table.status')}</th>
-                  <th className="px-4 py-3">{t('organizer.tournaments.table.actions')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {tournaments.map((tournament) => (
-                  <tr key={tournament.id} className="align-top">
-                    <td className="px-4 py-4">
-                      <span
-                        className={[
-                          'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold',
-                          pillClassFor(tournament.color),
-                        ].join(' ')}
-                      >
-                        <TournamentColorDot color={tournament.color} />
-                        {tournament.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-foreground-secondary">
-                      {tournament.weapon ?? '-'}
-                    </td>
-                    <td className="px-4 py-4 text-foreground-secondary">
-                      {tournament.phaseVenues.pool || tournament.phaseVenues.bracket ? (
-                        <div className="flex flex-col gap-0.5 text-xs">
-                          {tournament.phaseVenues.pool && (
-                            <span>
-                              {t('organizer.tournaments.venuesEditor.poolsAt', {
-                                venue: tournament.phaseVenues.pool.name,
-                              })}
-                            </span>
-                          )}
-                          {tournament.phaseVenues.bracket && (
-                            <span>
-                              {t('organizer.tournaments.venuesEditor.bracketAt', {
-                                venue: tournament.phaseVenues.bracket.name,
-                              })}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono text-sm tabular-nums text-foreground-secondary">
-                      {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
-                    </td>
-                    <td className="px-4 py-4">
-                      <select
-                        value={tournament.status}
-                        onChange={(event) => void changeStatus(tournament, event.target.value)}
-                        disabled={isReadOnly || busyId === tournament.id}
-                        aria-label={t('organizer.tournaments.status')}
-                        className={[
-                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
-                          statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
-                            .className,
-                        ].join(' ')}
-                      >
-                        {['draft', 'published', 'running', 'completed', 'archived'].map(
-                          (status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ),
+          <DataTable className="min-w-full">
+            <DataTableHead>
+              <DataTableCell as="th">{t('organizer.tournaments.table.tournament')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.tournaments.table.weapon')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.tournaments.table.venues')}</DataTableCell>
+              <DataTableCell as="th" className="text-center">
+                {t('organizer.tournaments.table.registered')}
+              </DataTableCell>
+              <DataTableCell as="th">{t('organizer.tournaments.table.status')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.tournaments.table.actions')}</DataTableCell>
+            </DataTableHead>
+            <tbody>
+              {tournaments.map((tournament) => (
+                <DataTableRow key={tournament.id}>
+                  <DataTableCell>
+                    <span
+                      className={[
+                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold',
+                        pillClassFor(tournament.color),
+                      ].join(' ')}
+                    >
+                      <TournamentColorDot color={tournament.color} />
+                      {tournament.name}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {tournament.weapon ?? '-'}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {tournament.phaseVenues.pool || tournament.phaseVenues.bracket ? (
+                      <div className="flex flex-col gap-0.5 text-xs">
+                        {tournament.phaseVenues.pool && (
+                          <span>
+                            {t('organizer.tournaments.venuesEditor.poolsAt', {
+                              venue: tournament.phaseVenues.pool.name,
+                            })}
+                          </span>
                         )}
-                      </select>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings#basics`}
-                          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
-                        >
-                          {t('organizer.tournaments.edit')}
-                        </Link>
-                        {(() => {
-                          if (tournament.status !== 'draft') return null;
-                          const wizardStep = computeWizardStep({
-                            id: tournament.id,
-                            name: tournament.name,
-                            slug: tournament.slug,
-                            ruleset_code: tournament.ruleset_code,
-                            ruleset_version: tournament.ruleset_version,
-                            scoring_config_json: tournament.scoring_config_json,
-                            ruleset_config: tournament.ruleset_config,
-                            lock_config_json: tournament.lock_config_json,
-                            status: tournament.status,
-                          });
-                          if (wizardStep === null) return null;
-                          return (
-                            <>
-                              <Link
-                                href={`/org/${slug}/events/${eventId}/tournaments/new?id=${tournament.id}&step=${wizardStep}`}
-                                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
-                              >
-                                {t('organizer.tournaments.list.resumeSetup')}
-                              </Link>
-                              <span className="text-xs text-muted">
-                                {t('admin.orgTournaments.draftStep', { step: wizardStep })}
-                              </span>
-                            </>
-                          );
-                        })()}
+                        {tournament.phaseVenues.bracket && (
+                          <span>
+                            {t('organizer.tournaments.venuesEditor.bracketAt', {
+                              venue: tournament.phaseVenues.bracket.name,
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      '-'
+                    )}
+                  </DataTableCell>
+                  <DataTableCell className="text-center font-mono text-sm tabular-nums text-foreground-secondary">
+                    {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <select
+                      value={tournament.status}
+                      onChange={(event) => void changeStatus(tournament, event.target.value)}
+                      disabled={isReadOnly || busyId === tournament.id}
+                      aria-label={t('organizer.tournaments.status')}
+                      className={[
+                        'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+                        statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
+                          .className,
+                      ].join(' ')}
+                    >
+                      {['draft', 'published', 'running', 'completed', 'archived'].map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings#basics`}
+                        className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
+                      >
+                        {t('organizer.tournaments.edit')}
+                      </Link>
+                      {(() => {
+                        if (tournament.status !== 'draft') return null;
+                        const wizardStep = computeWizardStep({
+                          id: tournament.id,
+                          name: tournament.name,
+                          slug: tournament.slug,
+                          ruleset_code: tournament.ruleset_code,
+                          ruleset_version: tournament.ruleset_version,
+                          scoring_config_json: tournament.scoring_config_json,
+                          ruleset_config: tournament.ruleset_config,
+                          lock_config_json: tournament.lock_config_json,
+                          status: tournament.status,
+                        });
+                        if (wizardStep === null) return null;
+                        return (
+                          <>
+                            <Link
+                              href={`/org/${slug}/events/${eventId}/tournaments/new?id=${tournament.id}&step=${wizardStep}`}
+                              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
+                            >
+                              {t('organizer.tournaments.list.resumeSetup')}
+                            </Link>
+                            <span className="text-xs text-muted">
+                              {t('admin.orgTournaments.draftStep', { step: wizardStep })}
+                            </span>
+                          </>
+                        );
+                      })()}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="cancel"
+                        disabled={
+                          busyId === tournament.id || tournament.status === 'archived' || isReadOnly
+                        }
+                        onClick={() => void archiveTournament(tournament)}
+                      >
+                        {t('organizer.tournaments.archive')}
+                      </Button>
+                      {isArchived ? (
                         <Button
                           type="button"
                           size="sm"
-                          variant="cancel"
-                          disabled={
-                            busyId === tournament.id ||
-                            tournament.status === 'archived' ||
-                            isReadOnly
-                          }
-                          onClick={() => void archiveTournament(tournament)}
+                          variant="danger"
+                          onClick={() => setDeletionRequestTarget(tournament)}
                         >
-                          {t('organizer.tournaments.archive')}
+                          {t('organizer.deletionRequest.requestDeletion')}
                         </Button>
-                        {isArchived ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            onClick={() => setDeletionRequestTarget(tournament)}
-                          >
-                            {t('organizer.deletionRequest.requestDeletion')}
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            disabled={busyId === tournament.id}
-                            onClick={() => setConfirmDelete(tournament)}
-                          >
-                            {t('organizer.tournaments.hardDelete')}
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          disabled={busyId === tournament.id}
+                          onClick={() => setConfirmDelete(tournament)}
+                        >
+                          {t('organizer.tournaments.hardDelete')}
+                        </Button>
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </tbody>
+          </DataTable>
         )}
       </section>
 

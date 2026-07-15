@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AdminPageHeader,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   PromptDialog,
   RowActionButton,
   useToast,
@@ -172,66 +176,62 @@ export default function AdminWeaponsPage() {
       ) : weapons.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.weapons.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="w-full text-left">
-            <thead className="bg-background text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3 font-semibold">{t('admin.weapons.nameHeader')}</th>
-                <th className="px-4 py-3 font-semibold">{t('admin.weapons.slugHeader')}</th>
-                <th className="px-4 py-3 font-semibold">{t('admin.weapons.statusHeader')}</th>
-                <th className="px-4 py-3 font-semibold">{t('admin.weapons.usageHeader')}</th>
-                <th className="px-4 py-3 text-right font-semibold">
-                  {t('admin.weapons.actionsHeader')}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {weapons.map((w) => (
-                <tr key={w.id} className="text-sm text-foreground">
-                  <td className="px-4 py-3 font-medium">{w.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted">{w.slug}</td>
-                  <td className="px-4 py-3">
-                    {w.active ? (
-                      <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
-                        {t('admin.weapons.active')}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-muted/15 px-2 py-0.5 text-xs font-semibold text-muted">
-                        {t('admin.weapons.inactive')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{w.usageCount}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <RowActionButton
-                        variant="edit"
-                        disabled={actionBusy}
-                        onClick={() => setRenameTarget(w)}
-                      >
-                        {t('admin.weapons.rename')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant={w.active ? 'warning' : 'success'}
-                        disabled={actionBusy}
-                        onClick={() => void toggleActive(w)}
-                      >
-                        {w.active ? t('admin.weapons.deactivate') : t('admin.weapons.activate')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant="danger"
-                        disabled={actionBusy}
-                        onClick={() => setDeleteTarget(w)}
-                      >
-                        {t('admin.weapons.delete')}
-                      </RowActionButton>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.weapons.nameHeader')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.weapons.slugHeader')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.weapons.statusHeader')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.weapons.usageHeader')}</DataTableCell>
+            <DataTableCell as="th" className="text-right">
+              {t('admin.weapons.actionsHeader')}
+            </DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {weapons.map((w) => (
+              <DataTableRow key={w.id}>
+                <DataTableCell className="font-medium text-foreground">{w.name}</DataTableCell>
+                <DataTableCell mono>{w.slug}</DataTableCell>
+                <DataTableCell>
+                  {w.active ? (
+                    <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                      {t('admin.weapons.active')}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-muted/15 px-2 py-0.5 text-xs font-semibold text-muted">
+                      {t('admin.weapons.inactive')}
+                    </span>
+                  )}
+                </DataTableCell>
+                <DataTableCell className="tabular-nums">{w.usageCount}</DataTableCell>
+                <DataTableCell>
+                  <div className="flex justify-end gap-2">
+                    <RowActionButton
+                      variant="edit"
+                      disabled={actionBusy}
+                      onClick={() => setRenameTarget(w)}
+                    >
+                      {t('admin.weapons.rename')}
+                    </RowActionButton>
+                    <RowActionButton
+                      variant={w.active ? 'warning' : 'success'}
+                      disabled={actionBusy}
+                      onClick={() => void toggleActive(w)}
+                    >
+                      {w.active ? t('admin.weapons.deactivate') : t('admin.weapons.activate')}
+                    </RowActionButton>
+                    <RowActionButton
+                      variant="danger"
+                      disabled={actionBusy}
+                      onClick={() => setDeleteTarget(w)}
+                    >
+                      {t('admin.weapons.delete')}
+                    </RowActionButton>
+                  </div>
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       <PromptDialog

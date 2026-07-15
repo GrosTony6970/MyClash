@@ -23,6 +23,10 @@ import {
 import { eachDay } from '@myclash/schedule-core';
 import { formatInZone, zonedDay, localeToBcp47 } from '@myclash/time';
 import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   Modal,
   TournamentColorDot,
   accentClassFor,
@@ -870,135 +874,129 @@ export default function WorkshopsAdminPage() {
           <p className="text-muted text-sm">{t('organizer.workshopsPage.empty')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colName')}</th>
-                <th className="py-2 pr-4 font-medium">
-                  {t('organizer.workshopsPage.colCategory')}
-                </th>
-                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colLevel')}</th>
-                <th className="py-2 pr-4 font-medium">
-                  {t('organizer.workshopsPage.colCapacity')}
-                </th>
-                <th className="py-2 pr-4 font-medium">
-                  {t('organizer.workshopsPage.colDuration')}
-                </th>
-                <th className="py-2 pr-4 font-medium">
-                  {t('organizer.workshopsPage.colStartEnd')}
-                </th>
-                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colVenue')}</th>
-                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colStatus')}</th>
-                <th className="py-2 font-medium">{t('organizer.workshopsPage.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {workshops.map((w) => {
-                const session = w.sessions[0] ?? null;
-                const venueLabel = session?.venue?.name ?? w.venue?.name ?? null;
-                const areaLabel = session?.area?.name ?? null;
-                const venueArea = venueLabel
-                  ? areaLabel
-                    ? `${venueLabel} · ${areaLabel}`
-                    : venueLabel
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colName')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colCategory')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colLevel')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colCapacity')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colDuration')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colStartEnd')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colVenue')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colStatus')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.workshopsPage.colActions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {workshops.map((w) => {
+              const session = w.sessions[0] ?? null;
+              const venueLabel = session?.venue?.name ?? w.venue?.name ?? null;
+              const areaLabel = session?.area?.name ?? null;
+              const venueArea = venueLabel
+                ? areaLabel
+                  ? `${venueLabel} · ${areaLabel}`
+                  : venueLabel
+                : '—';
+              const timeRange =
+                session && session.startsAt
+                  ? `${formatInZone(
+                      session.startsAt,
+                      eventTz,
+                      {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      },
+                      localeToBcp47(locale),
+                    )}${
+                      session.endsAt
+                        ? ` – ${formatInZone(
+                            session.endsAt,
+                            eventTz,
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            },
+                            localeToBcp47(locale),
+                          )}`
+                        : ''
+                    }`
                   : '—';
-                const timeRange =
-                  session && session.startsAt
-                    ? `${formatInZone(
-                        session.startsAt,
-                        eventTz,
-                        {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        },
-                        localeToBcp47(locale),
-                      )}${
-                        session.endsAt
-                          ? ` – ${formatInZone(
-                              session.endsAt,
-                              eventTz,
-                              {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              },
-                              localeToBcp47(locale),
-                            )}`
-                          : ''
-                      }`
-                    : '—';
-                return (
-                  <tr key={w.id} className="border-b border-border hover:bg-background">
-                    <td className="relative py-2 pl-3 pr-4">
-                      {w.color ? (
-                        <span
-                          aria-hidden="true"
-                          className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
-                        />
-                      ) : null}
-                      <p className="font-medium text-foreground">{w.title}</p>
-                      {w.instructors.length > 0 && (
-                        <p className="text-xs text-muted">
-                          {w.instructors.map((i) => i.displayName).join(', ')}
-                        </p>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4 text-foreground-secondary">{w.category ?? '—'}</td>
-                    <td className="py-2 pr-4 text-foreground-secondary">{w.level ?? '—'}</td>
-                    <td className="py-2 pr-4 text-foreground-secondary">{w.capacity ?? '—'}</td>
-                    <td className="py-2 pr-4 text-foreground-secondary">
-                      {w.durationMinutes != null
-                        ? t('organizer.workshopsPage.board.minutesShort', {
-                            min: w.durationMinutes,
-                          })
-                        : '—'}
-                    </td>
-                    <td className="py-2 pr-4 text-foreground-secondary">{timeRange}</td>
-                    <td className="py-2 pr-4 text-foreground-secondary">{venueArea}</td>
-                    <td className="py-2 pr-4">
-                      <select
-                        value={w.status}
-                        onChange={(e) => void changeStatus(w, e.target.value)}
-                        aria-label={t('organizer.workshopsPage.statusAria')}
-                        className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                          statusPillTone(workshopStatusSemantic(w.status), 'light').className
-                        }`}
+              return (
+                <DataTableRow key={w.id}>
+                  <DataTableCell className="relative">
+                    {w.color ? (
+                      <span
+                        aria-hidden="true"
+                        className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
+                      />
+                    ) : null}
+                    <p className="font-medium text-foreground">{w.title}</p>
+                    {w.instructors.length > 0 && (
+                      <p className="text-xs text-muted">
+                        {w.instructors.map((i) => i.displayName).join(', ')}
+                      </p>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {w.category ?? '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {w.level ?? '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {w.capacity ?? '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {w.durationMinutes != null
+                      ? t('organizer.workshopsPage.board.minutesShort', {
+                          min: w.durationMinutes,
+                        })
+                      : '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">{timeRange}</DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">{venueArea}</DataTableCell>
+                  <DataTableCell>
+                    <select
+                      value={w.status}
+                      onChange={(e) => void changeStatus(w, e.target.value)}
+                      aria-label={t('organizer.workshopsPage.statusAria')}
+                      className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                        statusPillTone(workshopStatusSemantic(w.status), 'light').className
+                      }`}
+                    >
+                      {['draft', 'published', 'running', 'completed'].map((s) => (
+                        <option key={s} value={s}>
+                          {STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : s}
+                        </option>
+                      ))}
+                    </select>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(w)}
+                        className="text-xs font-semibold text-accent hover:text-accent-hover"
                       >
-                        {['draft', 'published', 'running', 'completed'].map((s) => (
-                          <option key={s} value={s}>
-                            {STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : s}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-2">
-                      <div className="flex gap-3">
+                        {t('organizer.workshopsPage.edit')}
+                      </button>
+                      {session && (
                         <button
-                          type="button"
-                          onClick={() => openEdit(w)}
-                          className="text-xs font-semibold text-accent hover:text-accent-hover"
+                          onClick={() => void openRoster(session.id)}
+                          className="text-xs text-info hover:underline"
                         >
-                          {t('organizer.workshopsPage.edit')}
+                          {t('organizer.workshopsPage.roster')}
                         </button>
-                        {session && (
-                          <button
-                            onClick={() => void openRoster(session.id)}
-                            className="text-xs text-info hover:underline"
-                          >
-                            {t('organizer.workshopsPage.roster')}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       {/* Create modal */}

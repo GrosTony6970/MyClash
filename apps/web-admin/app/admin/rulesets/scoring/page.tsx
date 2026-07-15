@@ -6,6 +6,10 @@ import {
   AdminPageHeader,
   BulkActionBar,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   PromptDialog,
   RowActionButton,
   rowActionClasses,
@@ -384,92 +388,82 @@ export default function AdminRulesetsPage() {
         ) : submissions.length === 0 ? (
           <p className="text-sm text-muted">{t('admin.rulesets.submissionsEmpty')}</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="w-10 px-4 py-3">
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th" className="w-10">
+                <input
+                  type="checkbox"
+                  aria-label={t('admin.rulesets.selectAll')}
+                  checked={submissions.length > 0 && submissions.every((s) => selection.has(s.id))}
+                  onChange={() => selection.toggleAll(submissions.map((s) => s.id))}
+                  className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
+                />
+              </DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colRuleset')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colPackage')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colSubmittedBy')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colStatus')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colCreated')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+            </DataTableHead>
+            <tbody>
+              {submissions.map((row) => (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
                     <input
                       type="checkbox"
-                      aria-label={t('admin.rulesets.selectAll')}
-                      checked={
-                        submissions.length > 0 && submissions.every((s) => selection.has(s.id))
-                      }
-                      onChange={() => selection.toggleAll(submissions.map((s) => s.id))}
+                      aria-label={t('admin.rulesets.selectRow')}
+                      checked={selection.has(row.id)}
+                      onChange={() => selection.toggle(row.id)}
                       className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
                     />
-                  </th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colRuleset')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colPackage')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colSubmittedBy')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colStatus')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colCreated')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {submissions.map((row) => (
-                  <tr key={row.id} className="border-b border-border hover:bg-background">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label={t('admin.rulesets.selectRow')}
-                        checked={selection.has(row.id)}
-                        onChange={() => selection.toggle(row.id)}
-                        className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{row.display_name}</p>
-                      <p className="font-mono text-xs text-muted">
-                        {row.code}@{row.version}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted">
-                      {row.package_ref ?? '-'}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted">
-                      {row.submitted_by_user_id ?? '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                          row.status === 'approved'
-                            ? 'bg-success/10 text-success'
-                            : row.status === 'rejected'
-                              ? 'bg-danger/10 text-danger'
-                              : 'bg-warning/10 text-warning'
-                        }`}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <p className="font-medium">{row.display_name}</p>
+                    <p className="font-mono text-xs text-muted">
+                      {row.code}@{row.version}
+                    </p>
+                  </DataTableCell>
+                  <DataTableCell mono>{row.package_ref ?? '-'}</DataTableCell>
+                  <DataTableCell mono>{row.submitted_by_user_id ?? '-'}</DataTableCell>
+                  <DataTableCell>
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                        row.status === 'approved'
+                          ? 'bg-success/10 text-success'
+                          : row.status === 'rejected'
+                            ? 'bg-danger/10 text-danger'
+                            : 'bg-warning/10 text-warning'
+                      }`}
+                    >
+                      {row.status}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell className="text-muted">
+                    {new Date(row.created_at).toLocaleDateString(localeToBcp47(locale))}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex gap-2">
+                      <RowActionButton
+                        variant="success"
+                        onClick={() => void approveSubmission(row.id)}
+                        disabled={row.status === 'approved'}
                       >
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted">
-                      {new Date(row.created_at).toLocaleDateString(localeToBcp47(locale))}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <RowActionButton
-                          variant="success"
-                          onClick={() => void approveSubmission(row.id)}
-                          disabled={row.status === 'approved'}
-                        >
-                          {t('admin.rulesets.approveAction')}
-                        </RowActionButton>
-                        <RowActionButton
-                          variant="danger"
-                          onClick={() => setRejectTarget(row.id)}
-                          disabled={row.status === 'rejected'}
-                        >
-                          {t('admin.rulesets.rejectAction')}
-                        </RowActionButton>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {t('admin.rulesets.approveAction')}
+                      </RowActionButton>
+                      <RowActionButton
+                        variant="danger"
+                        onClick={() => setRejectTarget(row.id)}
+                        disabled={row.status === 'rejected'}
+                      >
+                        {t('admin.rulesets.rejectAction')}
+                      </RowActionButton>
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </tbody>
+          </DataTable>
         )}
       </section>
 
@@ -493,137 +487,133 @@ export default function AdminRulesetsPage() {
         ) : curated.length === 0 ? (
           <p className="text-sm text-muted">{t('admin.rulesets.curatedEmpty')}</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.source')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colStatus')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colDefault')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {curated.map((row) => (
-                  <tr key={row.id} className="border-b border-border hover:bg-background">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">{row.name}</p>
-                      {row.description ? (
-                        <p className="mt-0.5 max-w-md text-xs text-muted">{row.description}</p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted">{row.code}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
-                        {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colStatus')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.colDefault')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+            </DataTableHead>
+            <tbody>
+              {curated.map((row) => (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
+                    <p className="font-medium text-foreground">{row.name}</p>
+                    {row.description ? (
+                      <p className="mt-0.5 max-w-md text-xs text-muted">{row.description}</p>
+                    ) : null}
+                  </DataTableCell>
+                  <DataTableCell mono>{row.code}</DataTableCell>
+                  <DataTableCell>
+                    <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
+                      {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <RulesetBadge
+                      variant={row.is_system ? 'builtin' : 'custom'}
+                      label={
+                        row.is_system
+                          ? t('admin.rulesets.shared.badges.builtin')
+                          : t('admin.rulesets.shared.badges.custom')
+                      }
+                    />
+                  </DataTableCell>
+                  <DataTableCell>
+                    <RulesetBadge
+                      variant={row.status === 'published' ? 'published' : 'draft'}
+                      label={
+                        row.status === 'published'
+                          ? t('admin.rulesets.shared.badges.published')
+                          : t('admin.rulesets.shared.badges.draft')
+                      }
+                    />
+                  </DataTableCell>
+                  <DataTableCell>
+                    {row.is_default ? (
                       <RulesetBadge
-                        variant={row.is_system ? 'builtin' : 'custom'}
-                        label={
-                          row.is_system
-                            ? t('admin.rulesets.shared.badges.builtin')
-                            : t('admin.rulesets.shared.badges.custom')
-                        }
+                        variant="default"
+                        label={t('admin.rulesets.shared.badges.default')}
                       />
-                    </td>
-                    <td className="px-4 py-3">
-                      <RulesetBadge
-                        variant={row.status === 'published' ? 'published' : 'draft'}
-                        label={
-                          row.status === 'published'
-                            ? t('admin.rulesets.shared.badges.published')
-                            : t('admin.rulesets.shared.badges.draft')
-                        }
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.is_default ? (
+                    ) : null}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap gap-2">
+                      {row.submitted_for_review_at && (
                         <RulesetBadge
-                          variant="default"
-                          label={t('admin.rulesets.shared.badges.default')}
+                          variant="pendingReview"
+                          label={t('admin.rulesets.submissionPending')}
                         />
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        {row.submitted_for_review_at && (
-                          <RulesetBadge
-                            variant="pendingReview"
-                            label={t('admin.rulesets.submissionPending')}
-                          />
-                        )}
-                        <Link
-                          href={`/admin/rulesets/scoring/${row.id}/edit`}
-                          className={rowActionClasses('edit')}
-                        >
-                          {row.is_system
-                            ? t('admin.rulesets.viewAction')
-                            : t('admin.rulesets.shared.actions.edit')}
-                        </Link>
-                        {/* R3: org-submitted rows show Approve/Reject actions. */}
-                        {row.submitted_for_review_at && (
-                          <>
-                            <RowActionButton
-                              variant="success"
-                              onClick={() => void performCuratedAction(row.id, 'approve-public')}
-                            >
-                              {t('admin.rulesets.approveForSharingAction')}
-                            </RowActionButton>
-                            <RowActionButton
-                              variant="danger"
-                              onClick={() => setRejectSubmissionTarget(row.id)}
-                            >
-                              {t('admin.rulesets.rejectAction')}
-                            </RowActionButton>
-                          </>
-                        )}
-                        <RowActionButton
-                          variant="neutral"
-                          onClick={() => void performCuratedAction(row.id, 'clone')}
-                        >
-                          {t('admin.rulesets.shared.actions.clone')}
-                        </RowActionButton>
-                        {!row.is_system && row.status !== 'published' ? (
+                      )}
+                      <Link
+                        href={`/admin/rulesets/scoring/${row.id}/edit`}
+                        className={rowActionClasses('edit')}
+                      >
+                        {row.is_system
+                          ? t('admin.rulesets.viewAction')
+                          : t('admin.rulesets.shared.actions.edit')}
+                      </Link>
+                      {/* R3: org-submitted rows show Approve/Reject actions. */}
+                      {row.submitted_for_review_at && (
+                        <>
                           <RowActionButton
                             variant="success"
-                            onClick={() => void performCuratedAction(row.id, 'publish')}
+                            onClick={() => void performCuratedAction(row.id, 'approve-public')}
                           >
-                            {t('admin.rulesets.publishAction')}
+                            {t('admin.rulesets.approveForSharingAction')}
                           </RowActionButton>
-                        ) : null}
-                        {!row.is_system && row.status === 'published' ? (
                           <RowActionButton
-                            variant="warning"
-                            onClick={() => void performCuratedAction(row.id, 'unpublish')}
+                            variant="danger"
+                            onClick={() => setRejectSubmissionTarget(row.id)}
                           >
-                            {t('admin.rulesets.unpublishAction')}
+                            {t('admin.rulesets.rejectAction')}
                           </RowActionButton>
-                        ) : null}
-                        {row.status === 'published' && !row.is_default ? (
-                          <RowActionButton
-                            variant="neutral"
-                            onClick={() => void performCuratedAction(row.id, 'set-default')}
-                          >
-                            {t('admin.rulesets.setDefaultAction')}
-                          </RowActionButton>
-                        ) : null}
-                        {!row.is_system ? (
-                          <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                            {t('admin.rulesets.shared.actions.delete')}
-                          </RowActionButton>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        </>
+                      )}
+                      <RowActionButton
+                        variant="neutral"
+                        onClick={() => void performCuratedAction(row.id, 'clone')}
+                      >
+                        {t('admin.rulesets.shared.actions.clone')}
+                      </RowActionButton>
+                      {!row.is_system && row.status !== 'published' ? (
+                        <RowActionButton
+                          variant="success"
+                          onClick={() => void performCuratedAction(row.id, 'publish')}
+                        >
+                          {t('admin.rulesets.publishAction')}
+                        </RowActionButton>
+                      ) : null}
+                      {!row.is_system && row.status === 'published' ? (
+                        <RowActionButton
+                          variant="warning"
+                          onClick={() => void performCuratedAction(row.id, 'unpublish')}
+                        >
+                          {t('admin.rulesets.unpublishAction')}
+                        </RowActionButton>
+                      ) : null}
+                      {row.status === 'published' && !row.is_default ? (
+                        <RowActionButton
+                          variant="neutral"
+                          onClick={() => void performCuratedAction(row.id, 'set-default')}
+                        >
+                          {t('admin.rulesets.setDefaultAction')}
+                        </RowActionButton>
+                      ) : null}
+                      {!row.is_system ? (
+                        <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
+                          {t('admin.rulesets.shared.actions.delete')}
+                        </RowActionButton>
+                      ) : null}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </tbody>
+          </DataTable>
         )}
       </section>
 

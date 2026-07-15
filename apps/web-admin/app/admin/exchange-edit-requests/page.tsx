@@ -1,6 +1,13 @@
 'use client';
 
-import { Modal, RowActionButton } from '@myclash/ui';
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  Modal,
+  RowActionButton,
+} from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -181,101 +188,94 @@ export default function ExchangeEditRequestsPage() {
       {items.length === 0 && !loading ? (
         <p className="text-muted text-sm">{t('admin.adminDesignReq.emptyState')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4">{t('admin.adminDesignReq.colCreated')}</th>
-                <th className="py-2 pr-4">{t('admin.adminDesignReq.colRequest')}</th>
-                <th className="py-2 pr-4">{t('admin.adminDesignReq.colRequester')}</th>
-                <th className="py-2 pr-4">{t('admin.adminDesignReq.colEventMatchExchange')}</th>
-                <th className="py-2 pr-4">{t('admin.adminDesignReq.colReason')}</th>
-                <th className="py-2 pr-4">{t('admin.adminDesignReq.colReview')}</th>
-                <th className="py-2">{t('admin.adminDesignReq.colPayload')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((request) => (
-                <tr
-                  key={request.id}
-                  className="border-b border-border hover:bg-background align-top"
-                >
-                  <td className="py-3 pr-4 whitespace-nowrap text-foreground-secondary">
-                    {new Date(request.created_at).toLocaleString(localeToBcp47(locale))}
-                  </td>
-                  <td className="py-3 pr-4">
-                    <p className="font-semibold text-foreground">
-                      {typeLabel(request.request_type)}
-                    </p>
-                    <span className="mt-1 inline-block rounded bg-background px-2 py-1 font-mono text-xs">
-                      {request.status}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-4 text-xs text-foreground-secondary">
-                    <p className="font-medium">
-                      {request.requesterName ??
-                        request.requesterEmail ??
-                        t('admin.common.unknownUser')}
-                    </p>
-                    {request.requesterName && request.requesterEmail && (
-                      <p className="font-mono text-muted">{request.requesterEmail}</p>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4 font-mono text-xs text-muted">
-                    <p>{request.event_id}</p>
-                    <p>{request.match_id}</p>
-                    <p>{request.exchange_id}</p>
-                  </td>
-                  <td className="py-3 pr-4 max-w-xs text-foreground-secondary">{request.reason}</td>
-                  <td className="py-3 pr-4">
-                    {request.status === 'pending' ? (
-                      <div className="flex gap-2">
-                        <RowActionButton
-                          variant="success"
-                          onClick={() => void approve(request.id)}
-                          disabled={busyId === request.id}
-                        >
-                          {t('admin.adminDesignReq.approve')}
-                        </RowActionButton>
-                        <RowActionButton
-                          variant="danger"
-                          onClick={() => {
-                            setRejectTarget(request);
-                            setRejectReason('');
-                          }}
-                          disabled={busyId === request.id}
-                        >
-                          {t('admin.adminDesignReq.reject')}
-                        </RowActionButton>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted">
-                        <p>
-                          {request.reviewed_at
-                            ? new Date(request.reviewed_at).toLocaleString(localeToBcp47(locale))
-                            : '-'}
-                        </p>
-                        <p>
-                          {request.reviewedByName ??
-                            request.reviewedByEmail ??
-                            (request.reviewed_by_user_id ? t('admin.common.unknownUser') : '-')}
-                        </p>
-                        {request.rejection_reason && (
-                          <p className="mt-1">{request.rejection_reason}</p>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3">
-                    <pre className="max-w-sm whitespace-pre-wrap break-words text-xs text-muted">
-                      {payloadPreview(request.requested_payload)}
-                    </pre>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable className="min-w-[1180px]">
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colCreated')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colRequest')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colRequester')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colEventMatchExchange')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colReason')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colReview')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminDesignReq.colPayload')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {items.map((request) => (
+              <DataTableRow key={request.id}>
+                <DataTableCell className="whitespace-nowrap text-foreground-secondary">
+                  {new Date(request.created_at).toLocaleString(localeToBcp47(locale))}
+                </DataTableCell>
+                <DataTableCell>
+                  <p className="font-semibold text-foreground">{typeLabel(request.request_type)}</p>
+                  <span className="mt-1 inline-block rounded bg-background px-2 py-1 font-mono text-xs">
+                    {request.status}
+                  </span>
+                </DataTableCell>
+                <DataTableCell className="text-xs text-foreground-secondary">
+                  <p className="font-medium">
+                    {request.requesterName ??
+                      request.requesterEmail ??
+                      t('admin.common.unknownUser')}
+                  </p>
+                  {request.requesterName && request.requesterEmail && (
+                    <p className="font-mono text-muted">{request.requesterEmail}</p>
+                  )}
+                </DataTableCell>
+                <DataTableCell mono>
+                  <p>{request.event_id}</p>
+                  <p>{request.match_id}</p>
+                  <p>{request.exchange_id}</p>
+                </DataTableCell>
+                <DataTableCell className="max-w-xs text-foreground-secondary">
+                  {request.reason}
+                </DataTableCell>
+                <DataTableCell>
+                  {request.status === 'pending' ? (
+                    <div className="flex gap-2">
+                      <RowActionButton
+                        variant="success"
+                        onClick={() => void approve(request.id)}
+                        disabled={busyId === request.id}
+                      >
+                        {t('admin.adminDesignReq.approve')}
+                      </RowActionButton>
+                      <RowActionButton
+                        variant="danger"
+                        onClick={() => {
+                          setRejectTarget(request);
+                          setRejectReason('');
+                        }}
+                        disabled={busyId === request.id}
+                      >
+                        {t('admin.adminDesignReq.reject')}
+                      </RowActionButton>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted">
+                      <p>
+                        {request.reviewed_at
+                          ? new Date(request.reviewed_at).toLocaleString(localeToBcp47(locale))
+                          : '-'}
+                      </p>
+                      <p>
+                        {request.reviewedByName ??
+                          request.reviewedByEmail ??
+                          (request.reviewed_by_user_id ? t('admin.common.unknownUser') : '-')}
+                      </p>
+                      {request.rejection_reason && (
+                        <p className="mt-1">{request.rejection_reason}</p>
+                      )}
+                    </div>
+                  )}
+                </DataTableCell>
+                <DataTableCell>
+                  <pre className="max-w-sm whitespace-pre-wrap break-words text-xs text-muted">
+                    {payloadPreview(request.requested_payload)}
+                  </pre>
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       {rejectTarget && (

@@ -1,5 +1,7 @@
 'use client';
 
+import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
+
 export interface UsageBucket {
   key: string;
   /** Human-readable name for id-keyed buckets (event/org); rendered as label ?? key. */
@@ -49,26 +51,28 @@ function Breakdown({
       <p className="border-b border-border px-3 py-2 text-sm font-semibold text-foreground">
         {title}
       </p>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-muted">
-            <th className="px-3 py-1.5 font-medium">{t('admin.aiSettings.colName')}</th>
-            <th className="px-3 py-1.5 text-right font-medium">{t('admin.aiSettings.colCost')}</th>
-            <th className="px-3 py-1.5 text-right font-medium">{t('admin.aiSettings.colCalls')}</th>
-          </tr>
-        </thead>
+      <DataTable>
+        <DataTableHead>
+          <DataTableCell as="th">{t('admin.aiSettings.colName')}</DataTableCell>
+          <DataTableCell as="th" className="text-right">
+            {t('admin.aiSettings.colCost')}
+          </DataTableCell>
+          <DataTableCell as="th" className="text-right">
+            {t('admin.aiSettings.colCalls')}
+          </DataTableCell>
+        </DataTableHead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.key} className="border-t border-border">
-              <td className="max-w-0 truncate px-3 py-1.5 text-foreground" title={r.label ?? r.key}>
+            <DataTableRow key={r.key}>
+              <DataTableCell className="max-w-0 truncate text-foreground" title={r.label ?? r.key}>
                 {r.label ?? r.key}
-              </td>
-              <td className="px-3 py-1.5 text-right text-foreground-secondary">{eur(r.costEur)}</td>
-              <td className="px-3 py-1.5 text-right text-foreground-secondary">{r.calls}</td>
-            </tr>
+              </DataTableCell>
+              <DataTableCell className="text-right">{eur(r.costEur)}</DataTableCell>
+              <DataTableCell className="text-right">{r.calls}</DataTableCell>
+            </DataTableRow>
           ))}
         </tbody>
-      </table>
+      </DataTable>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { localeToBcp47 } from '@myclash/time';
+import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -268,62 +269,58 @@ export function AuditLogPanel() {
       {response.items.length === 0 && !loading ? (
         <p className="text-muted text-sm">{t('admin.auditLog.empty')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4">{t('admin.auditLog.columns.created')}</th>
-                <th className="py-2 pr-4">{t('admin.auditLog.columns.actor')}</th>
-                <th className="py-2 pr-4">{t('admin.auditLog.columns.action')}</th>
-                <th className="py-2 pr-4">{t('admin.auditLog.columns.entity')}</th>
-                <th className="py-2">{t('admin.auditLog.columns.payload')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {response.items.map((entry) => (
-                <tr key={entry.id} className="border-b border-border hover:bg-background align-top">
-                  <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
-                    {new Date(entry.created_at).toLocaleString(localeToBcp47(locale))}
-                  </td>
-                  <td className="py-2 pr-4 text-xs text-foreground-secondary">
-                    {entry.actor_user_id ? (
-                      <p className="font-medium">
-                        {entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser')}
-                      </p>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                    {entry.actorName && entry.actorEmail && (
-                      <p className="font-mono text-muted">{entry.actorEmail}</p>
-                    )}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <span className="rounded bg-background px-2 py-1 font-mono text-xs">
-                      {entry.action}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-4">
-                    <p className="font-medium">{entry.entity_type}</p>
-                    {entry.entityLabel && (
-                      <p className="text-sm text-foreground-secondary">{entry.entityLabel}</p>
-                    )}
-                    <p
-                      className="font-mono text-xs text-muted max-w-[220px] truncate"
-                      title={entry.entity_id ?? ''}
-                    >
-                      {entry.entity_id}
+        <DataTable className="min-w-[1100px]">
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.auditLog.columns.created')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.auditLog.columns.actor')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.auditLog.columns.action')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.auditLog.columns.entity')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.auditLog.columns.payload')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {response.items.map((entry) => (
+              <DataTableRow key={entry.id}>
+                <DataTableCell className="whitespace-nowrap text-foreground-secondary">
+                  {new Date(entry.created_at).toLocaleString(localeToBcp47(locale))}
+                </DataTableCell>
+                <DataTableCell className="text-xs text-foreground-secondary">
+                  {entry.actor_user_id ? (
+                    <p className="font-medium">
+                      {entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser')}
                     </p>
-                  </td>
-                  <td className="py-2">
-                    <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
-                      {payloadPreview(entry.payload_json)}
-                    </pre>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    <span className="text-muted">—</span>
+                  )}
+                  {entry.actorName && entry.actorEmail && (
+                    <p className="font-mono text-muted">{entry.actorEmail}</p>
+                  )}
+                </DataTableCell>
+                <DataTableCell>
+                  <span className="rounded bg-background px-2 py-1 font-mono text-xs">
+                    {entry.action}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <p className="font-medium">{entry.entity_type}</p>
+                  {entry.entityLabel && (
+                    <p className="text-sm text-foreground-secondary">{entry.entityLabel}</p>
+                  )}
+                  <p
+                    className="font-mono text-xs text-muted max-w-[220px] truncate"
+                    title={entry.entity_id ?? ''}
+                  >
+                    {entry.entity_id}
+                  </p>
+                </DataTableCell>
+                <DataTableCell>
+                  <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
+                    {payloadPreview(entry.payload_json)}
+                  </pre>
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
     </>
   );

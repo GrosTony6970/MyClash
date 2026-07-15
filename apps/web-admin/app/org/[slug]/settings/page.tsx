@@ -11,7 +11,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useConfirm, useToast } from '@myclash/ui';
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  useConfirm,
+  useToast,
+} from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface OrgMember {
@@ -155,31 +162,29 @@ export default function OrgMembersPage() {
           <p className="text-sm text-muted">{t('organizer.orgSettings.membersForbidden')}</p>
         ) : (
           <>
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
-                  <th scope="col" className="py-2 pr-3">
-                    {t('organizer.orgSettings.colMember')}
-                  </th>
-                  <th scope="col" className="py-2 pr-3">
-                    {t('organizer.orgSettings.colRole')}
-                  </th>
-                  <th scope="col" className="py-2 pr-3 text-right">
-                    {t('organizer.orgSettings.colActions')}
-                  </th>
-                </tr>
-              </thead>
+            <DataTable>
+              <DataTableHead>
+                <DataTableCell as="th" scope="col">
+                  {t('organizer.orgSettings.colMember')}
+                </DataTableCell>
+                <DataTableCell as="th" scope="col">
+                  {t('organizer.orgSettings.colRole')}
+                </DataTableCell>
+                <DataTableCell as="th" scope="col" className="text-right">
+                  {t('organizer.orgSettings.colActions')}
+                </DataTableCell>
+              </DataTableHead>
               <tbody>
                 {(members ?? []).map((m) => (
-                  <tr key={m.userId} className="border-b border-border/60">
-                    <td className="py-2 pr-3">
+                  <DataTableRow key={m.userId}>
+                    <DataTableCell>
                       <p className="font-medium text-foreground">
                         {m.name ?? m.email ?? t('organizer.orgSettings.unknownUser')}
                       </p>
                       {m.name && m.email && <p className="text-xs text-muted">{m.email}</p>}
-                    </td>
-                    <td className="py-2 pr-3 text-foreground">{m.role}</td>
-                    <td className="py-2 pr-3 text-right">
+                    </DataTableCell>
+                    <DataTableCell className="text-foreground">{m.role}</DataTableCell>
+                    <DataTableCell className="text-right">
                       {m.role !== 'owner' && (
                         <button
                           type="button"
@@ -189,11 +194,11 @@ export default function OrgMembersPage() {
                           {t('organizer.orgSettings.remove')}
                         </button>
                       )}
-                    </td>
-                  </tr>
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
 
             <form
               onSubmit={(e) => void addMember(e)}

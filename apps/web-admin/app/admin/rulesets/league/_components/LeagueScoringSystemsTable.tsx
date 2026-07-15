@@ -5,6 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BulkActionBar,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   RowActionButton,
   rowActionClasses,
   useSelection,
@@ -192,150 +196,142 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-        <table className="w-full min-w-[920px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-              {showCheckboxCol && (
-                <th className="w-10 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label={t('admin.rulesets.league.bulk.selectAllAria')}
-                    checked={
-                      deletableIds.length > 0 && deletableIds.every((id) => selection.has(id))
-                    }
-                    onChange={() => selection.toggleAll(deletableIds)}
-                    className="h-4 w-4 rounded border-border text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                  />
-                </th>
-              )}
-              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.source')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.league.columns.points')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.league.columns.tieBreakers')}</th>
-              {showActionsCol && (
-                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
-              )}
+      <DataTable className="min-w-[920px]">
+        <DataTableHead>
+          {showCheckboxCol && (
+            <DataTableCell as="th" className="w-10">
+              <input
+                type="checkbox"
+                aria-label={t('admin.rulesets.league.bulk.selectAllAria')}
+                checked={deletableIds.length > 0 && deletableIds.every((id) => selection.has(id))}
+                onChange={() => selection.toggleAll(deletableIds)}
+                className="h-4 w-4 rounded border-border text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              />
+            </DataTableCell>
+          )}
+          <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.rulesets.league.columns.points')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.rulesets.league.columns.tieBreakers')}</DataTableCell>
+          {showActionsCol && (
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+          )}
+        </DataTableHead>
+        <tbody>
+          {loading && (
+            <tr>
+              <td colSpan={colCount} className="py-8 text-center text-sm text-muted">
+                {t('admin.rulesets.league.loadingState')}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={colCount} className="py-8 text-center text-sm text-muted">
-                  {t('admin.rulesets.league.loadingState')}
-                </td>
-              </tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={colCount} className="py-12 text-center text-sm text-muted">
-                  {t('admin.rulesets.league.emptyState')}
-                </td>
-              </tr>
-            )}
-            {rows.map((row) => {
-              const editable = !row.is_archived;
-              return (
-                <tr key={row.id} className="border-b border-border hover:bg-background">
-                  {showCheckboxCol && (
-                    <td className="w-10 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label={t('admin.rulesets.league.bulk.selectRowAria')}
-                        checked={selection.has(row.id)}
-                        onChange={() => selection.toggle(row.id)}
-                        className="h-4 w-4 rounded border-border text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                      />
-                    </td>
+          )}
+          {!loading && rows.length === 0 && (
+            <tr>
+              <td colSpan={colCount} className="py-12 text-center text-sm text-muted">
+                {t('admin.rulesets.league.emptyState')}
+              </td>
+            </tr>
+          )}
+          {rows.map((row) => {
+            const editable = !row.is_archived;
+            return (
+              <DataTableRow key={row.id}>
+                {showCheckboxCol && (
+                  <DataTableCell className="w-10">
+                    <input
+                      type="checkbox"
+                      aria-label={t('admin.rulesets.league.bulk.selectRowAria')}
+                      checked={selection.has(row.id)}
+                      onChange={() => selection.toggle(row.id)}
+                      className="h-4 w-4 rounded border-border text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                    />
+                  </DataTableCell>
+                )}
+                <DataTableCell>
+                  <p className="font-medium text-foreground">{row.name}</p>
+                  {row.description && (
+                    <p className="mt-0.5 text-xs text-muted">{row.description}</p>
                   )}
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-foreground">{row.name}</p>
-                    {row.description && (
-                      <p className="mt-0.5 text-xs text-muted">{row.description}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-foreground-secondary">
-                    {row.code}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
-                      {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-1">
+                </DataTableCell>
+                <DataTableCell mono>{row.code}</DataTableCell>
+                <DataTableCell>
+                  <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
+                    {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <RulesetBadge
+                      variant={row.is_builtin ? 'builtin' : 'custom'}
+                      label={
+                        row.is_builtin
+                          ? t('admin.rulesets.shared.badges.builtin')
+                          : t('admin.rulesets.shared.badges.custom')
+                      }
+                    />
+                    {row.is_default && (
                       <RulesetBadge
-                        variant={row.is_builtin ? 'builtin' : 'custom'}
-                        label={
-                          row.is_builtin
-                            ? t('admin.rulesets.shared.badges.builtin')
-                            : t('admin.rulesets.shared.badges.custom')
-                        }
+                        variant="default"
+                        label={t('admin.rulesets.shared.badges.default')}
                       />
-                      {row.is_default && (
-                        <RulesetBadge
-                          variant="default"
-                          label={t('admin.rulesets.shared.badges.default')}
-                        />
+                    )}
+                  </div>
+                </DataTableCell>
+                <DataTableCell className="text-foreground-secondary">
+                  {[1, 8, 16]
+                    .map((r) => {
+                      const v = pickPoints(row.points_by_rank, r);
+                      return v === null ? '—' : String(v);
+                    })
+                    .join(' / ')}
+                </DataTableCell>
+                <DataTableCell className="text-xs text-foreground-secondary">
+                  {row.tie_breakers.length === 0 ? '—' : row.tie_breakers.join(' → ')}
+                </DataTableCell>
+                {showActionsCol && (
+                  <DataTableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {editable && (
+                        <Link
+                          href={`/admin/rulesets/league/${row.id}/edit`}
+                          className={rowActionClasses('edit')}
+                        >
+                          {t('admin.rulesets.shared.actions.edit')}
+                        </Link>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-foreground-secondary">
-                    {[1, 8, 16]
-                      .map((r) => {
-                        const v = pickPoints(row.points_by_rank, r);
-                        return v === null ? '—' : String(v);
-                      })
-                      .join(' / ')}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-foreground-secondary">
-                    {row.tie_breakers.length === 0 ? '—' : row.tie_breakers.join(' → ')}
-                  </td>
-                  {showActionsCol && (
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {editable && (
-                          <Link
-                            href={`/admin/rulesets/league/${row.id}/edit`}
-                            className={rowActionClasses('edit')}
-                          >
-                            {t('admin.rulesets.shared.actions.edit')}
-                          </Link>
-                        )}
+                      <RowActionButton
+                        variant="neutral"
+                        onClick={() => void doClone(row)}
+                        disabled={busyId === row.id}
+                      >
+                        {t('admin.rulesets.shared.actions.clone')}
+                      </RowActionButton>
+                      {!row.is_default && (
                         <RowActionButton
                           variant="neutral"
-                          onClick={() => void doClone(row)}
+                          onClick={() => void doSetDefault(row)}
                           disabled={busyId === row.id}
                         >
-                          {t('admin.rulesets.shared.actions.clone')}
+                          {t('admin.rulesets.shared.actions.setDefault')}
                         </RowActionButton>
-                        {!row.is_default && (
-                          <RowActionButton
-                            variant="neutral"
-                            onClick={() => void doSetDefault(row)}
-                            disabled={busyId === row.id}
-                          >
-                            {t('admin.rulesets.shared.actions.setDefault')}
-                          </RowActionButton>
-                        )}
-                        <RowActionButton
-                          variant="danger"
-                          onClick={() => setPendingDelete(row)}
-                          disabled={busyId === row.id}
-                        >
-                          {t('admin.rulesets.shared.actions.delete')}
-                        </RowActionButton>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                      )}
+                      <RowActionButton
+                        variant="danger"
+                        onClick={() => setPendingDelete(row)}
+                        disabled={busyId === row.id}
+                      >
+                        {t('admin.rulesets.shared.actions.delete')}
+                      </RowActionButton>
+                    </div>
+                  </DataTableCell>
+                )}
+              </DataTableRow>
+            );
+          })}
+        </tbody>
+      </DataTable>
 
       {!readOnly && (
         <BulkActionBar

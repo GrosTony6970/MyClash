@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AdminPageHeader,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   PromptDialog,
   RowActionButton,
   rowActionClasses,
@@ -317,98 +321,90 @@ export default function AdminPenaltyRulesetsPage() {
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.penaltyRulesets.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.source')}</th>
-                <th className="px-4 py-3">{t('admin.penaltyRulesets.colScope')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-border hover:bg-background">
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-foreground">{row.name}</div>
-                    {row.description && (
-                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
-                        {row.description}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-foreground-secondary">
-                    {row.code}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
-                      {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <RulesetBadge
-                      variant={row.built_in ? 'builtin' : 'custom'}
-                      label={
-                        row.built_in
-                          ? t('admin.rulesets.shared.badges.builtin')
-                          : t('admin.rulesets.shared.badges.custom')
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-xs text-foreground-secondary">
-                    {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {row.public_visibility_request_status === 'pending' && (
-                        <span
-                          title={row.public_visibility_request_reason ?? undefined}
-                          className="inline-flex"
-                        >
-                          <RulesetBadge
-                            variant="pendingReview"
-                            label={t('admin.rulesets.submissionPending')}
-                          />
-                        </span>
-                      )}
-                      <Link
-                        href={`/admin/rulesets/penalty/${row.id}/edit`}
-                        className={rowActionClasses('edit')}
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.penaltyRulesets.colScope')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {rows.map((row) => (
+              <DataTableRow key={row.id}>
+                <DataTableCell>
+                  <div className="font-semibold text-foreground">{row.name}</div>
+                  {row.description && (
+                    <div className="mt-0.5 line-clamp-2 text-xs text-muted">{row.description}</div>
+                  )}
+                </DataTableCell>
+                <DataTableCell mono>{row.code}</DataTableCell>
+                <DataTableCell>
+                  <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
+                    {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <RulesetBadge
+                    variant={row.built_in ? 'builtin' : 'custom'}
+                    label={
+                      row.built_in
+                        ? t('admin.rulesets.shared.badges.builtin')
+                        : t('admin.rulesets.shared.badges.custom')
+                    }
+                  />
+                </DataTableCell>
+                <DataTableCell className="text-xs text-foreground-secondary">
+                  {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
+                </DataTableCell>
+                <DataTableCell>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {row.public_visibility_request_status === 'pending' && (
+                      <span
+                        title={row.public_visibility_request_reason ?? undefined}
+                        className="inline-flex"
                       >
-                        {t('admin.rulesets.shared.actions.edit')}
-                      </Link>
-                      {/* R3: org-submitted sharing requests show Approve / Reject actions. */}
-                      {row.public_visibility_request_status === 'pending' && (
-                        <>
-                          <RowActionButton
-                            variant="success"
-                            onClick={() => void approveSharing(row.id)}
-                          >
-                            {t('admin.rulesets.approveForSharingAction')}
-                          </RowActionButton>
-                          <RowActionButton
-                            variant="danger"
-                            onClick={() => setRejectShareTarget(row.id)}
-                          >
-                            {t('admin.rulesets.rejectAction')}
-                          </RowActionButton>
-                        </>
-                      )}
-                      {!row.built_in && (
-                        <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                          {t('admin.rulesets.shared.actions.delete')}
+                        <RulesetBadge
+                          variant="pendingReview"
+                          label={t('admin.rulesets.submissionPending')}
+                        />
+                      </span>
+                    )}
+                    <Link
+                      href={`/admin/rulesets/penalty/${row.id}/edit`}
+                      className={rowActionClasses('edit')}
+                    >
+                      {t('admin.rulesets.shared.actions.edit')}
+                    </Link>
+                    {/* R3: org-submitted sharing requests show Approve / Reject actions. */}
+                    {row.public_visibility_request_status === 'pending' && (
+                      <>
+                        <RowActionButton
+                          variant="success"
+                          onClick={() => void approveSharing(row.id)}
+                        >
+                          {t('admin.rulesets.approveForSharingAction')}
                         </RowActionButton>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        <RowActionButton
+                          variant="danger"
+                          onClick={() => setRejectShareTarget(row.id)}
+                        >
+                          {t('admin.rulesets.rejectAction')}
+                        </RowActionButton>
+                      </>
+                    )}
+                    {!row.built_in && (
+                      <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
+                        {t('admin.rulesets.shared.actions.delete')}
+                      </RowActionButton>
+                    )}
+                  </div>
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       <ConfirmDialog

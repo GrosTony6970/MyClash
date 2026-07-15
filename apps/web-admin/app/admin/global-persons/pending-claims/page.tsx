@@ -8,6 +8,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface GlobalPersonPreview {
@@ -135,110 +136,108 @@ export default function PendingClaimsPage() {
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.pendingClaims.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="min-w-full text-sm">
-            <thead className="bg-background border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-3 py-2">{t('admin.pendingClaims.colRequester')}</th>
-                <th className="px-3 py-2">{t('admin.pendingClaims.colProfile')}</th>
-                <th className="px-3 py-2">{t('admin.pendingClaims.colClub')}</th>
-                <th className="px-3 py-2">{t('admin.pendingClaims.colRequested')}</th>
-                <th className="px-3 py-2 text-right">{t('admin.pendingClaims.colAction')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-border align-top">
-                  <td className="px-3 py-2">
-                    <div className="font-mono text-xs text-foreground-secondary">
-                      {row.requesterEmail ?? row.userId}
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.pendingClaims.colRequester')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.pendingClaims.colProfile')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.pendingClaims.colClub')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.pendingClaims.colRequested')}</DataTableCell>
+            <DataTableCell as="th" className="text-right">
+              {t('admin.pendingClaims.colAction')}
+            </DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {rows.map((row) => (
+              <DataTableRow key={row.id}>
+                <DataTableCell>
+                  <div className="font-mono text-xs text-foreground-secondary">
+                    {row.requesterEmail ?? row.userId}
+                  </div>
+                </DataTableCell>
+                <DataTableCell>
+                  {row.globalPerson ? (
+                    <div>
+                      <div className="font-semibold">{row.globalPerson.displayName}</div>
+                      <div className="text-xs text-muted">
+                        {[
+                          row.globalPerson.countryCode,
+                          row.globalPerson.hemaRatingsId
+                            ? t('admin.pendingClaims.hemaIdShort', {
+                                id: row.globalPerson.hemaRatingsId,
+                              })
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.globalPerson ? (
-                      <div>
-                        <div className="font-semibold">{row.globalPerson.displayName}</div>
-                        <div className="text-xs text-muted">
-                          {[
-                            row.globalPerson.countryCode,
-                            row.globalPerson.hemaRatingsId
-                              ? t('admin.pendingClaims.hemaIdShort', {
-                                  id: row.globalPerson.hemaRatingsId,
-                                })
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ') || '—'}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted italic">
-                        {t('admin.pendingClaims.missingProfile')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-foreground-secondary">
-                    {row.globalPerson?.clubLabel ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted">
-                    {new Date(row.requestedAt).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {rejectingId === row.id ? (
-                      <div className="flex flex-col gap-2 items-end">
-                        <input
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder={t('admin.pendingClaims.rejectReasonPlaceholder')}
-                          className="w-56 border border-border rounded px-2 py-1 text-xs"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void reject(row.id)}
-                            disabled={busyId === row.id || !rejectReason.trim()}
-                            className="rounded bg-danger hover:bg-danger-hover disabled:opacity-50 text-danger-foreground text-xs font-bold px-3 py-1"
-                          >
-                            {t('admin.pendingClaims.confirmReject')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRejectingId(null);
-                              setRejectReason('');
-                            }}
-                            className="rounded border border-border text-xs px-3 py-1"
-                          >
-                            {t('admin.pendingClaims.cancel')}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 justify-end">
+                  ) : (
+                    <span className="text-xs text-muted italic">
+                      {t('admin.pendingClaims.missingProfile')}
+                    </span>
+                  )}
+                </DataTableCell>
+                <DataTableCell className="text-xs text-foreground-secondary">
+                  {row.globalPerson?.clubLabel ?? '—'}
+                </DataTableCell>
+                <DataTableCell className="text-xs text-muted">
+                  {new Date(row.requestedAt).toLocaleString()}
+                </DataTableCell>
+                <DataTableCell className="text-right">
+                  {rejectingId === row.id ? (
+                    <div className="flex flex-col gap-2 items-end">
+                      <input
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder={t('admin.pendingClaims.rejectReasonPlaceholder')}
+                        className="w-56 border border-border rounded px-2 py-1 text-xs"
+                      />
+                      <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => void approve(row.id)}
-                          disabled={busyId === row.id}
-                          className="rounded bg-success hover:bg-success-hover disabled:opacity-50 text-success-foreground text-xs font-bold px-3 py-1"
+                          onClick={() => void reject(row.id)}
+                          disabled={busyId === row.id || !rejectReason.trim()}
+                          className="rounded bg-danger hover:bg-danger-hover disabled:opacity-50 text-danger-foreground text-xs font-bold px-3 py-1"
                         >
-                          {t('admin.pendingClaims.approve')}
+                          {t('admin.pendingClaims.confirmReject')}
                         </button>
                         <button
                           type="button"
-                          onClick={() => setRejectingId(row.id)}
-                          disabled={busyId === row.id}
-                          className="rounded border border-border text-foreground-secondary text-xs font-bold px-3 py-1 hover:bg-background"
+                          onClick={() => {
+                            setRejectingId(null);
+                            setRejectReason('');
+                          }}
+                          className="rounded border border-border text-xs px-3 py-1"
                         >
-                          {t('admin.pendingClaims.reject')}
+                          {t('admin.pendingClaims.cancel')}
                         </button>
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void approve(row.id)}
+                        disabled={busyId === row.id}
+                        className="rounded bg-success hover:bg-success-hover disabled:opacity-50 text-success-foreground text-xs font-bold px-3 py-1"
+                      >
+                        {t('admin.pendingClaims.approve')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRejectingId(row.id)}
+                        disabled={busyId === row.id}
+                        className="rounded border border-border text-foreground-secondary text-xs font-bold px-3 py-1 hover:bg-background"
+                      >
+                        {t('admin.pendingClaims.reject')}
+                      </button>
+                    </div>
+                  )}
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
     </main>
   );

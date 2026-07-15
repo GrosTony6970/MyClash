@@ -6,6 +6,10 @@ import {
   AdminPageHeader,
   Button,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   RowActionButton,
   SortableHeader,
   rowActionClasses,
@@ -633,139 +637,139 @@ export default function AdminOrganizationsPage() {
       ) : orgs.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.organizations.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border bg-surface shadow-sm">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4 pl-4">
-                  <SortableHeader
-                    label={t('admin.organizations.table.name')}
-                    columnKey="name"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="py-2 pr-4">{t('admin.organizations.table.owner')}</th>
-                <th className="py-2 pr-4 text-center">{t('admin.organizations.table.members')}</th>
-                <th className="py-2 pr-4 text-center">{t('admin.organizations.table.events')}</th>
-                <th className="py-2 pr-4">
-                  <SortableHeader
-                    label={t('admin.organizations.table.status')}
-                    columnKey="status"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="py-2 pr-4">
-                  <SortableHeader
-                    label={t('admin.organizations.table.created')}
-                    columnKey="created"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="py-2">{t('admin.organizations.table.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleOrgs.map((org) => (
-                <tr key={org.id} className="border-b border-border hover:bg-background">
-                  <td className="py-2 pr-4 pl-4">
-                    <Link
-                      href={`/admin/organizations/${org.id}`}
-                      className="font-medium text-accent hover:underline"
-                    >
-                      {org.name}
-                    </Link>
-                    <span className="ml-2 font-mono text-xs text-muted">{org.slug}</span>
-                  </td>
-                  <td className="py-2 pr-4 text-foreground-secondary">
-                    {org.owner_username || org.owner_email ? (
-                      <>
-                        <div className="font-medium text-foreground-secondary">
-                          {org.owner_username ?? org.owner_email}
-                        </div>
-                        {org.owner_email && org.owner_email !== org.owner_username ? (
-                          <div className="text-xs text-muted">{org.owner_email}</div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className="text-xs italic text-muted">
-                        {t('admin.organizations.create.noOwnerColumn')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-4 text-center text-foreground-secondary tabular-nums">
-                    {org.member_count}
-                  </td>
-                  <td className="py-2 pr-4 text-center text-foreground-secondary tabular-nums">
-                    {org.event_count}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <StatusBadge variant={org.status === 'active' ? 'active' : 'suspended'}>
-                      {t(`admin.organizations.status.${org.status}`)}
-                    </StatusBadge>
-                  </td>
-                  <td className="py-2 pr-4 text-muted">
-                    {new Date(org.created_at).toLocaleDateString(localeToBcp47(locale))}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/admin/organizations/${org.id}/edit`}
-                        className={rowActionClasses('edit')}
-                      >
-                        {t('admin.organizations.actions.edit')}
-                      </Link>
-                      {org.status === 'active' && !org.is_protected ? (
-                        <RowActionButton
-                          variant="warning"
-                          onClick={() => {
-                            requestAction(org.id, 'suspend');
-                          }}
-                        >
-                          {t('admin.organizations.actions.suspend')}
-                        </RowActionButton>
-                      ) : org.status === 'suspended' ? (
-                        <RowActionButton
-                          variant="success"
-                          onClick={() => {
-                            requestAction(org.id, 'approve');
-                          }}
-                        >
-                          {t('admin.organizations.actions.approve')}
-                        </RowActionButton>
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.organizations.table.name')}
+                columnKey="name"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.organizations.table.owner')}</DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('admin.organizations.table.members')}
+            </DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('admin.organizations.table.events')}
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.organizations.table.status')}
+                columnKey="status"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.organizations.table.created')}
+                columnKey="created"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.organizations.table.actions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {visibleOrgs.map((org) => (
+              <DataTableRow key={org.id}>
+                <DataTableCell>
+                  <Link
+                    href={`/admin/organizations/${org.id}`}
+                    className="font-medium text-accent hover:underline"
+                  >
+                    {org.name}
+                  </Link>
+                  <span className="ml-2 font-mono text-xs text-muted">{org.slug}</span>
+                </DataTableCell>
+                <DataTableCell className="text-foreground-secondary">
+                  {org.owner_username || org.owner_email ? (
+                    <>
+                      <div className="font-medium text-foreground-secondary">
+                        {org.owner_username ?? org.owner_email}
+                      </div>
+                      {org.owner_email && org.owner_email !== org.owner_username ? (
+                        <div className="text-xs text-muted">{org.owner_email}</div>
                       ) : null}
-                      {org.is_protected ? (
-                        <span className="inline-flex items-center px-2.5 text-xs font-medium text-muted">
-                          {t('admin.organizations.actions.protected')}
-                        </span>
-                      ) : (
-                        <RowActionButton
-                          variant="danger"
-                          onClick={() => {
-                            requestAction(org.id, 'delete');
-                          }}
-                        >
-                          {t('admin.organizations.actions.delete')}
-                        </RowActionButton>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </>
+                  ) : (
+                    <span className="text-xs italic text-muted">
+                      {t('admin.organizations.create.noOwnerColumn')}
+                    </span>
+                  )}
+                </DataTableCell>
+                <DataTableCell className="text-center text-foreground-secondary tabular-nums">
+                  {org.member_count}
+                </DataTableCell>
+                <DataTableCell className="text-center text-foreground-secondary tabular-nums">
+                  {org.event_count}
+                </DataTableCell>
+                <DataTableCell>
+                  <StatusBadge variant={org.status === 'active' ? 'active' : 'suspended'}>
+                    {t(`admin.organizations.status.${org.status}`)}
+                  </StatusBadge>
+                </DataTableCell>
+                <DataTableCell className="text-muted">
+                  {new Date(org.created_at).toLocaleDateString(localeToBcp47(locale))}
+                </DataTableCell>
+                <DataTableCell>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/admin/organizations/${org.id}/edit`}
+                      className={rowActionClasses('edit')}
+                    >
+                      {t('admin.organizations.actions.edit')}
+                    </Link>
+                    {org.status === 'active' && !org.is_protected ? (
+                      <RowActionButton
+                        variant="warning"
+                        onClick={() => {
+                          requestAction(org.id, 'suspend');
+                        }}
+                      >
+                        {t('admin.organizations.actions.suspend')}
+                      </RowActionButton>
+                    ) : org.status === 'suspended' ? (
+                      <RowActionButton
+                        variant="success"
+                        onClick={() => {
+                          requestAction(org.id, 'approve');
+                        }}
+                      >
+                        {t('admin.organizations.actions.approve')}
+                      </RowActionButton>
+                    ) : null}
+                    {org.is_protected ? (
+                      <span className="inline-flex items-center px-2.5 text-xs font-medium text-muted">
+                        {t('admin.organizations.actions.protected')}
+                      </span>
+                    ) : (
+                      <RowActionButton
+                        variant="danger"
+                        onClick={() => {
+                          requestAction(org.id, 'delete');
+                        }}
+                      >
+                        {t('admin.organizations.actions.delete')}
+                      </RowActionButton>
+                    )}
+                  </div>
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       <ConfirmDialog

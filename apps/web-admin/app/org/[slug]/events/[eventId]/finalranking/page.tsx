@@ -13,6 +13,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   TournamentColorDot,
   computeFinalRanking,
   type FinalRankingEntry,
@@ -288,49 +292,44 @@ export default function FinalRankingPage() {
           <p className="text-sm text-muted">{t('organizer.finalRanking.emptyRanking')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="w-16 px-4 py-2 text-center">
-                  {t('organizer.finalRanking.colRank')}
-                </th>
-                <th className="px-4 py-2">{t('organizer.finalRanking.colFighter')}</th>
-                <th className="px-4 py-2">{t('organizer.finalRanking.colResult')}</th>
-                <th className="px-4 py-2 text-right">{t('organizer.finalRanking.colPoolScore')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranking.map((entry) => (
-                <tr
-                  key={entry.registrationId}
-                  className="border-b border-border last:border-0 hover:bg-background"
-                >
-                  <td className="px-4 py-2 text-center font-mono tabular-nums">
-                    <span className="inline-flex items-center gap-1 font-semibold text-foreground">
-                      {medalFor(entry.place)}
-                      {entry.place}
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th" className="w-16 text-center">
+              {t('organizer.finalRanking.colRank')}
+            </DataTableCell>
+            <DataTableCell as="th">{t('organizer.finalRanking.colFighter')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.finalRanking.colResult')}</DataTableCell>
+            <DataTableCell as="th" className="text-right">
+              {t('organizer.finalRanking.colPoolScore')}
+            </DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {ranking.map((entry) => (
+              <DataTableRow key={entry.registrationId}>
+                <DataTableCell className="text-center font-mono tabular-nums">
+                  <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                    {medalFor(entry.place)}
+                    {entry.place}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <span className="font-medium text-foreground">{entry.fighterName}</span>
+                  {entry.clubAbbrev && (
+                    <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
+                      {entry.clubAbbrev}
                     </span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className="font-medium text-foreground">{entry.fighterName}</span>
-                    {entry.clubAbbrev && (
-                      <span className="ml-2 rounded bg-border px-1.5 py-0.5 text-xs text-foreground-secondary">
-                        {entry.clubAbbrev}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-foreground-secondary">
-                    {resultLabel(entry, maxRound, t)}
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums text-foreground-secondary">
-                    {entry.poolScore != null ? entry.poolScore.toFixed(2) : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  )}
+                </DataTableCell>
+                <DataTableCell className="text-foreground-secondary">
+                  {resultLabel(entry, maxRound, t)}
+                </DataTableCell>
+                <DataTableCell className="text-right font-mono tabular-nums text-foreground-secondary">
+                  {entry.poolScore != null ? entry.poolScore.toFixed(2) : '—'}
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
     </main>
   );

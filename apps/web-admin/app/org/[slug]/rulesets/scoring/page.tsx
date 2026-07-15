@@ -3,7 +3,16 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ConfirmDialog, RowActionButton, rowActionClasses, useToast } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  RowActionButton,
+  rowActionClasses,
+  useToast,
+} from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
@@ -225,111 +234,102 @@ export default function OrgScoringRulesetsPage() {
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.rulesets.curatedEmpty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.name')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.code')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.version')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.source')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colSubmission')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const isMine = row.owner_organization_id === orgId;
-                const source = rowSource(row);
-                const submissionBadge = rowSubmissionBadge(row);
-                const canSubmit = isMine && !row.public_visibility && !row.submitted_for_review_at;
-                const actions = rulesetRowActions({ builtIn: row.is_system, mine: isMine });
-                return (
-                  <tr key={row.id} className="border-b border-border">
-                    <td className="px-4 py-2">
-                      <div className="font-semibold text-foreground">{row.name}</div>
-                      {row.description && (
-                        <div className="mt-0.5 line-clamp-2 text-xs text-muted">
-                          {row.description}
-                        </div>
-                      )}
-                      {row.rejected_reason && (
-                        <div className="mt-1 rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
-                          {t('admin.rulesets.rejectedReasonLabel')}: {row.rejected_reason}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-foreground-secondary">
-                      {row.code}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs font-bold text-foreground-secondary">
-                      {row.version}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${source.className}`}
-                      >
-                        {source.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      {submissionBadge ? (
-                        <span
-                          className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${submissionBadge.className}`}
-                        >
-                          {submissionBadge.label}
-                        </span>
-                      ) : (
-                        <span className="text-xs italic text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        {actions.view && (
-                          <Link
-                            href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
-                            className={rowActionClasses('neutral')}
-                          >
-                            {t('admin.rulesets.viewAction')}
-                          </Link>
-                        )}
-                        {actions.edit && (
-                          <Link
-                            href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
-                            className={rowActionClasses('edit')}
-                          >
-                            {t('admin.rulesets.shared.actions.edit')}
-                          </Link>
-                        )}
-                        {actions.clone && (
-                          <Link
-                            href={`/org/${slugForLink}/rulesets/scoring/new?cloneFrom=${row.id}`}
-                            className={rowActionClasses('neutral')}
-                          >
-                            {t('admin.rulesets.shared.actions.clone')}
-                          </Link>
-                        )}
-                        {canSubmit && (
-                          <RowActionButton
-                            variant="success"
-                            onClick={() => setSubmitTarget(row.id)}
-                          >
-                            {t('admin.rulesets.submitForReviewAction')}
-                          </RowActionButton>
-                        )}
-                        {actions.delete && (
-                          <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                            {t('admin.rulesets.shared.actions.delete')}
-                          </RowActionButton>
-                        )}
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.colSubmission')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {rows.map((row) => {
+              const isMine = row.owner_organization_id === orgId;
+              const source = rowSource(row);
+              const submissionBadge = rowSubmissionBadge(row);
+              const canSubmit = isMine && !row.public_visibility && !row.submitted_for_review_at;
+              const actions = rulesetRowActions({ builtIn: row.is_system, mine: isMine });
+              return (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
+                    <div className="font-semibold text-foreground">{row.name}</div>
+                    {row.description && (
+                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
+                        {row.description}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                    {row.rejected_reason && (
+                      <div className="mt-1 rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
+                        {t('admin.rulesets.rejectedReasonLabel')}: {row.rejected_reason}
+                      </div>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell mono>{row.code}</DataTableCell>
+                  <DataTableCell mono className="font-bold">
+                    {row.version}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${source.className}`}
+                    >
+                      {source.label}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    {submissionBadge ? (
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${submissionBadge.className}`}
+                      >
+                        {submissionBadge.label}
+                      </span>
+                    ) : (
+                      <span className="text-xs italic text-muted">—</span>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap gap-2">
+                      {actions.view && (
+                        <Link
+                          href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
+                          className={rowActionClasses('neutral')}
+                        >
+                          {t('admin.rulesets.viewAction')}
+                        </Link>
+                      )}
+                      {actions.edit && (
+                        <Link
+                          href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
+                          className={rowActionClasses('edit')}
+                        >
+                          {t('admin.rulesets.shared.actions.edit')}
+                        </Link>
+                      )}
+                      {actions.clone && (
+                        <Link
+                          href={`/org/${slugForLink}/rulesets/scoring/new?cloneFrom=${row.id}`}
+                          className={rowActionClasses('neutral')}
+                        >
+                          {t('admin.rulesets.shared.actions.clone')}
+                        </Link>
+                      )}
+                      {canSubmit && (
+                        <RowActionButton variant="success" onClick={() => setSubmitTarget(row.id)}>
+                          {t('admin.rulesets.submitForReviewAction')}
+                        </RowActionButton>
+                      )}
+                      {actions.delete && (
+                        <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
+                          {t('admin.rulesets.shared.actions.delete')}
+                        </RowActionButton>
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       <ConfirmDialog

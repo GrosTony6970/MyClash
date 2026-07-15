@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { localeToBcp47 } from '@myclash/time';
+import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type PlatformLogCategory =
@@ -288,71 +289,64 @@ export function PlatformLogPanel() {
       {response.items.length === 0 && !loading ? (
         <p className="text-muted text-sm">{t('admin.platformLog.empty')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4">{t('admin.platformLog.columns.occurred')}</th>
-                <th className="py-2 pr-4">{t('admin.platformLog.columns.category')}</th>
-                <th className="py-2 pr-4">{t('admin.platformLog.columns.severity')}</th>
-                <th className="py-2 pr-4">{t('admin.platformLog.columns.event')}</th>
-                <th className="py-2 pr-4">{t('admin.platformLog.columns.detail')}</th>
-                <th className="py-2">{t('admin.platformLog.columns.actor')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {response.items.map((entry) => {
-                const eventLabel = entry.title ?? t(`admin.platformLog.category.${entry.category}`);
-                return (
-                  <tr
-                    key={entry.id}
-                    className="border-b border-border hover:bg-background align-top"
-                  >
-                    <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
-                      {new Date(entry.occurredAt).toLocaleString(localeToBcp47(locale))}
-                    </td>
-                    <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
-                      {t(`admin.platformLog.category.${entry.category}`)}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <span
-                        className={`inline-block rounded px-2 py-1 text-xs font-medium ${SEVERITY_PILL[entry.severity]}`}
-                      >
-                        {t(`admin.platformLog.severity.${entry.severity}`)}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4">
-                      {entry.href ? (
-                        <Link href={entry.href} className="font-medium text-accent hover:underline">
-                          {eventLabel}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">{eventLabel}</span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
-                        {entry.detail ?? '—'}
-                      </pre>
-                    </td>
-                    <td className="py-2 text-xs text-foreground-secondary">
-                      {entry.actorUserId ? (
-                        <p className="font-medium">
-                          {entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser')}
-                        </p>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                      {entry.actorName && entry.actorEmail && (
-                        <p className="font-mono text-muted">{entry.actorEmail}</p>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable className="min-w-[1000px]">
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.platformLog.columns.occurred')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.platformLog.columns.category')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.platformLog.columns.severity')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.platformLog.columns.event')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.platformLog.columns.detail')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.platformLog.columns.actor')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {response.items.map((entry) => {
+              const eventLabel = entry.title ?? t(`admin.platformLog.category.${entry.category}`);
+              return (
+                <DataTableRow key={entry.id}>
+                  <DataTableCell className="whitespace-nowrap text-foreground-secondary">
+                    {new Date(entry.occurredAt).toLocaleString(localeToBcp47(locale))}
+                  </DataTableCell>
+                  <DataTableCell className="whitespace-nowrap text-foreground-secondary">
+                    {t(`admin.platformLog.category.${entry.category}`)}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <span
+                      className={`inline-block rounded px-2 py-1 text-xs font-medium ${SEVERITY_PILL[entry.severity]}`}
+                    >
+                      {t(`admin.platformLog.severity.${entry.severity}`)}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    {entry.href ? (
+                      <Link href={entry.href} className="font-medium text-accent hover:underline">
+                        {eventLabel}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{eventLabel}</span>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
+                      {entry.detail ?? '—'}
+                    </pre>
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-foreground-secondary">
+                    {entry.actorUserId ? (
+                      <p className="font-medium">
+                        {entry.actorName ?? entry.actorEmail ?? t('admin.common.unknownUser')}
+                      </p>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                    {entry.actorName && entry.actorEmail && (
+                      <p className="font-mono text-muted">{entry.actorEmail}</p>
+                    )}
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
     </>
   );

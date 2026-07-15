@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { t } from '@myclash/i18n';
-import { Modal, useConfirm } from '@myclash/ui';
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  Modal,
+  useConfirm,
+} from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
@@ -205,23 +212,27 @@ export default function OrgVenuesPage() {
       ) : venues.length === 0 ? (
         <p className="text-sm text-muted">{t('organizer.venues.empty')}</p>
       ) : (
-        <table className="w-full max-w-4xl border-collapse">
-          <thead>
-            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted">
-              <th className="py-2 pr-3">{t('organizer.venues.name')}</th>
-              <th className="py-2 pr-3">{t('organizer.venues.address')}</th>
-              <th className="py-2 pr-3">{t('organizer.venues.hosts')}</th>
-              <th className="py-2 pr-3 text-center">{t('organizer.venues.areas')}</th>
-              <th className="py-2 pr-3">{t('organizer.venues.eventsColumn')}</th>
-              <th className="py-2 pr-3 text-right">{t('organizer.venues.actions')}</th>
-            </tr>
-          </thead>
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('organizer.venues.name')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.venues.address')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.venues.hosts')}</DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('organizer.venues.areas')}
+            </DataTableCell>
+            <DataTableCell as="th">{t('organizer.venues.eventsColumn')}</DataTableCell>
+            <DataTableCell as="th" className="text-right">
+              {t('organizer.venues.actions')}
+            </DataTableCell>
+          </DataTableHead>
           <tbody>
             {venues.map((v) => (
-              <tr key={v.id} className="border-b border-border text-sm">
-                <td className="py-3 pr-3 font-medium text-foreground">{v.name}</td>
-                <td className="py-3 pr-3 text-foreground-secondary">{v.address ?? '—'}</td>
-                <td className="py-3 pr-3">
+              <DataTableRow key={v.id}>
+                <DataTableCell className="font-medium text-foreground">{v.name}</DataTableCell>
+                <DataTableCell className="text-foreground-secondary">
+                  {v.address ?? '—'}
+                </DataTableCell>
+                <DataTableCell>
                   <div className="flex flex-wrap gap-1">
                     {v.hosts_tournament && (
                       <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-semibold text-info">
@@ -234,11 +245,11 @@ export default function OrgVenuesPage() {
                       </span>
                     )}
                   </div>
-                </td>
-                <td className="py-3 pr-3 text-center text-foreground-secondary tabular-nums">
+                </DataTableCell>
+                <DataTableCell className="text-center text-foreground-secondary tabular-nums">
                   {v.venue_areas?.length ?? 0}
-                </td>
-                <td className="py-3 pr-3">
+                </DataTableCell>
+                <DataTableCell>
                   {v.events && v.events.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {v.events.map((ev) => (
@@ -253,8 +264,8 @@ export default function OrgVenuesPage() {
                   ) : (
                     <span className="text-muted">—</span>
                   )}
-                </td>
-                <td className="py-3 pr-3 text-right">
+                </DataTableCell>
+                <DataTableCell className="text-right">
                   <button
                     type="button"
                     onClick={() => {
@@ -272,11 +283,11 @@ export default function OrgVenuesPage() {
                   >
                     {t('organizer.venues.delete')}
                   </button>
-                </td>
-              </tr>
+                </DataTableCell>
+              </DataTableRow>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       )}
 
       {creating && orgId && (

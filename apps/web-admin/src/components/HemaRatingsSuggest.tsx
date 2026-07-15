@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 
 export interface HemaRatingsSuggestion {
@@ -113,42 +114,37 @@ export function HemaRatingsSuggest({
       ) : null}
 
       {suggestions.length > 0 ? (
-        <div className="overflow-hidden rounded-md border border-border bg-surface">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border bg-background text-xs font-semibold uppercase tracking-wider text-muted">
-                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colName')}</th>
-                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colClub')}</th>
-                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colCountry')}</th>
-                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colId')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {suggestions.map((suggestion) => {
-                const active = suggestion.id === selectedId;
-                return (
-                  <tr
-                    key={suggestion.id}
-                    onClick={() => handleSelect(suggestion)}
-                    className={[
-                      'cursor-pointer border-b border-border transition-colors last:border-b-0',
-                      active
-                        ? 'bg-accent/10 text-foreground'
-                        : 'hover:bg-background text-foreground-secondary',
-                    ].join(' ')}
-                  >
-                    <td className="px-2 py-1.5 font-medium">{suggestion.name}</td>
-                    <td className="px-2 py-1.5 text-xs text-muted">{suggestion.club || '—'}</td>
-                    <td className="px-2 py-1.5 text-xs text-muted">
-                      {suggestion.nationality || '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-muted">#{suggestion.id}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('organizer.persons.hemaFinder.colName')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.persons.hemaFinder.colClub')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.persons.hemaFinder.colCountry')}</DataTableCell>
+            <DataTableCell as="th">{t('organizer.persons.hemaFinder.colId')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {suggestions.map((suggestion) => {
+              const active = suggestion.id === selectedId;
+              return (
+                <DataTableRow
+                  key={suggestion.id}
+                  onClick={() => handleSelect(suggestion)}
+                  className={['cursor-pointer', active ? 'bg-accent/10 text-foreground' : ''].join(
+                    ' ',
+                  )}
+                >
+                  <DataTableCell className="font-medium">{suggestion.name}</DataTableCell>
+                  <DataTableCell className="text-xs text-muted">
+                    {suggestion.club || '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-muted">
+                    {suggestion.nationality || '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-muted">#{suggestion.id}</DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       ) : null}
     </div>
   );

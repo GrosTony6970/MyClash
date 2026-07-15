@@ -3,7 +3,16 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ConfirmDialog, RowActionButton, rowActionClasses, useToast } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  RowActionButton,
+  rowActionClasses,
+  useToast,
+} from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
@@ -197,117 +206,111 @@ export default function OrgPenaltyRulesetsPage() {
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.penaltyRulesets.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.name')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.code')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.version')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.source')}</th>
-                <th className="px-4 py-2">{t('admin.penaltyRulesets.colScope')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const actions = rulesetRowActions({
-                  builtIn: row.built_in,
-                  mine: row.owner_organization_id === orgId,
-                });
-                return (
-                  <tr key={row.id} className="border-b border-border hover:bg-background">
-                    <td className="px-4 py-2">
-                      <div className="font-semibold text-foreground">{row.name}</div>
-                      {row.description && (
-                        <div className="mt-0.5 line-clamp-2 text-xs text-muted">
-                          {row.description}
-                        </div>
+        <DataTable>
+          <DataTableHead>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.penaltyRulesets.colScope')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {rows.map((row) => {
+              const actions = rulesetRowActions({
+                builtIn: row.built_in,
+                mine: row.owner_organization_id === orgId,
+              });
+              return (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
+                    <div className="font-semibold text-foreground">{row.name}</div>
+                    {row.description && (
+                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
+                        {row.description}
+                      </div>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell mono>{row.code}</DataTableCell>
+                  <DataTableCell mono className="font-bold">
+                    {row.version}
+                  </DataTableCell>
+                  <DataTableCell>
+                    {row.built_in ? (
+                      <span className="rounded bg-success/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-success">
+                        {t('admin.rulesets.shared.badges.builtin')}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-background px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
+                        {t('admin.rulesets.shared.badges.custom')}
+                      </span>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-foreground-secondary">
+                    {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(() => {
+                        const badge = sharingBadge(row);
+                        return badge ? (
+                          <span
+                            className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${badge.className}`}
+                            title={row.public_visibility_request_reason ?? undefined}
+                          >
+                            {badge.label}
+                          </span>
+                        ) : null;
+                      })()}
+                      {actions.view && (
+                        <Link
+                          href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
+                          className={rowActionClasses('neutral')}
+                        >
+                          {t('admin.rulesets.viewAction')}
+                        </Link>
                       )}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-foreground-secondary">
-                      {row.code}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs font-bold text-foreground-secondary">
-                      {row.version}
-                    </td>
-                    <td className="px-4 py-2">
-                      {row.built_in ? (
-                        <span className="rounded bg-success/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-success">
-                          {t('admin.rulesets.shared.badges.builtin')}
-                        </span>
-                      ) : (
-                        <span className="rounded bg-background px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
-                          {t('admin.rulesets.shared.badges.custom')}
-                        </span>
+                      {actions.edit && (
+                        <Link
+                          href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
+                          className={rowActionClasses('edit')}
+                        >
+                          {t('admin.rulesets.shared.actions.edit')}
+                        </Link>
                       )}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-foreground-secondary">
-                      {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {(() => {
-                          const badge = sharingBadge(row);
-                          return badge ? (
-                            <span
-                              className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${badge.className}`}
-                              title={row.public_visibility_request_reason ?? undefined}
-                            >
-                              {badge.label}
-                            </span>
-                          ) : null;
-                        })()}
-                        {actions.view && (
-                          <Link
-                            href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
-                            className={rowActionClasses('neutral')}
+                      {actions.clone && (
+                        <Link
+                          href={`/org/${slugForLink}/rulesets/penalty/new?cloneFrom=${row.id}`}
+                          className={rowActionClasses('neutral')}
+                        >
+                          {t('admin.rulesets.shared.actions.clone')}
+                        </Link>
+                      )}
+                      {/* R3: Submit for sharing — only on org-owned rows
+                        that aren't already public and aren't pending review. */}
+                      {!row.built_in &&
+                        row.owner_organization_id === orgId &&
+                        !row.public_visibility &&
+                        row.public_visibility_request_status !== 'pending' && (
+                          <RowActionButton
+                            variant="success"
+                            onClick={() => setSubmitShareTarget(row.id)}
                           >
-                            {t('admin.rulesets.viewAction')}
-                          </Link>
-                        )}
-                        {actions.edit && (
-                          <Link
-                            href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
-                            className={rowActionClasses('edit')}
-                          >
-                            {t('admin.rulesets.shared.actions.edit')}
-                          </Link>
-                        )}
-                        {actions.clone && (
-                          <Link
-                            href={`/org/${slugForLink}/rulesets/penalty/new?cloneFrom=${row.id}`}
-                            className={rowActionClasses('neutral')}
-                          >
-                            {t('admin.rulesets.shared.actions.clone')}
-                          </Link>
-                        )}
-                        {/* R3: Submit for sharing — only on org-owned rows
-                          that aren't already public and aren't pending review. */}
-                        {!row.built_in &&
-                          row.owner_organization_id === orgId &&
-                          !row.public_visibility &&
-                          row.public_visibility_request_status !== 'pending' && (
-                            <RowActionButton
-                              variant="success"
-                              onClick={() => setSubmitShareTarget(row.id)}
-                            >
-                              {t('admin.rulesets.submitForReviewAction')}
-                            </RowActionButton>
-                          )}
-                        {actions.delete && (
-                          <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                            {t('admin.rulesets.shared.actions.delete')}
+                            {t('admin.rulesets.submitForReviewAction')}
                           </RowActionButton>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {actions.delete && (
+                        <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
+                          {t('admin.rulesets.shared.actions.delete')}
+                        </RowActionButton>
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       <ConfirmDialog

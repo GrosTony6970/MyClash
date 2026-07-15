@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Modal, useConfirm, useToast, StatusBadge } from '@myclash/ui';
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  Modal,
+  useConfirm,
+  useToast,
+  StatusBadge,
+} from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
@@ -475,25 +484,23 @@ export default function AdminOrgDetailPage({ params }: Props) {
         {org.members.length === 0 ? (
           <p className="text-sm text-muted">{t('admin.organizations.detail.noMembers')}</p>
         ) : (
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="py-2 pr-4">{t('admin.organizations.detail.user')}</th>
-                <th className="py-2 pr-4">{t('admin.organizations.detail.role')}</th>
-                <th className="py-2 pr-4">{t('admin.organizations.detail.joined')}</th>
-                <th className="py-2">{t('admin.organizations.detail.actions')}</th>
-              </tr>
-            </thead>
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th">{t('admin.organizations.detail.user')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.organizations.detail.role')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.organizations.detail.joined')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.organizations.detail.actions')}</DataTableCell>
+            </DataTableHead>
             <tbody>
               {org.members.map((member) => (
-                <tr key={member.user_id} className="border-b border-border">
-                  <td className="py-2 pr-4">
+                <DataTableRow key={member.user_id}>
+                  <DataTableCell>
                     <div className="font-medium text-foreground-secondary">{member.username}</div>
                     {member.email && member.email !== member.username ? (
                       <div className="text-xs text-muted">{member.email}</div>
                     ) : null}
-                  </td>
-                  <td className="py-2 pr-4">
+                  </DataTableCell>
+                  <DataTableCell>
                     {member.role === 'owner' ? (
                       <span className="inline-block rounded bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
                         {member.role}
@@ -512,11 +519,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         ))}
                       </select>
                     )}
-                  </td>
-                  <td className="py-2 pr-4 text-muted">
+                  </DataTableCell>
+                  <DataTableCell className="text-muted">
                     {new Date(member.joined_at).toLocaleDateString(localeToBcp47(locale))}
-                  </td>
-                  <td className="py-2">
+                  </DataTableCell>
+                  <DataTableCell>
                     {member.role !== 'owner' ? (
                       <button
                         type="button"
@@ -527,11 +534,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         {t('admin.organizations.detail.removeMember')}
                       </button>
                     ) : null}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         )}
       </section>
 

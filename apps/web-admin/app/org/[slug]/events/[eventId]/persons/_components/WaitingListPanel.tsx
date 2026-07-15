@@ -1,7 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useConfirm, useToast } from '@myclash/ui';
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  useConfirm,
+  useToast,
+} from '@myclash/ui';
 import { formatRosterName } from '../roster-name';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 
@@ -204,55 +211,52 @@ function WaitingListTable({
   }
 
   return (
-    <table className="w-full text-sm border-collapse">
-      <thead>
-        <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
-          <th scope="col" className="py-2 pr-3 w-12">
-            {t('admin.orgPersons.colPos')}
-          </th>
-          <th scope="col" className="py-2 pr-3">
-            {t('admin.orgPersons.colName')}
-          </th>
-          <th scope="col" className="py-2 pr-3">
-            {t('admin.orgPersons.colClub')}
-          </th>
-          <th scope="col" className="py-2 pr-3 text-right">
-            {t('admin.orgPersons.colActions')}
-          </th>
-        </tr>
-      </thead>
+    <DataTable>
+      <DataTableHead>
+        <DataTableCell as="th" scope="col" className="w-12">
+          {t('admin.orgPersons.colPos')}
+        </DataTableCell>
+        <DataTableCell as="th" scope="col">
+          {t('admin.orgPersons.colName')}
+        </DataTableCell>
+        <DataTableCell as="th" scope="col">
+          {t('admin.orgPersons.colClub')}
+        </DataTableCell>
+        <DataTableCell as="th" scope="col" className="text-right">
+          {t('admin.orgPersons.colActions')}
+        </DataTableCell>
+      </DataTableHead>
       <tbody>
         {rows.map((reg) => {
           const person = personById.get(reg.personId);
           const dragging = dragId === reg.id;
           return (
-            <tr
+            <DataTableRow
               key={reg.id}
               draggable
               onDragStart={() => setDragId(reg.id)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(reg)}
-              className={[
-                'border-b border-border last:border-0',
-                dragging ? 'opacity-40' : 'hover:bg-background',
-              ].join(' ')}
+              className={dragging ? 'opacity-40' : ''}
             >
-              <td className="py-2 pr-3 text-foreground-secondary cursor-grab">
+              <DataTableCell className="text-foreground-secondary cursor-grab">
                 <span className="mr-1 text-muted" aria-hidden="true">
                   ⋮⋮
                 </span>
                 {reg.waitlistPosition}
-              </td>
-              <td className="py-2 pr-3 font-medium text-foreground">
+              </DataTableCell>
+              <DataTableCell className="font-medium text-foreground">
                 {person
                   ? formatRosterName({
                       familyName: person.familyName,
                       givenName: person.givenName,
                     })
                   : reg.personId}
-              </td>
-              <td className="py-2 pr-3 text-foreground-secondary">{person?.clubLabel ?? '—'}</td>
-              <td className="py-2 pr-3 text-right">
+              </DataTableCell>
+              <DataTableCell className="text-foreground-secondary">
+                {person?.clubLabel ?? '—'}
+              </DataTableCell>
+              <DataTableCell className="text-right">
                 <button
                   type="button"
                   onClick={() => onPromote(reg)}
@@ -267,11 +271,11 @@ function WaitingListTable({
                 >
                   {t('admin.orgPersons.remove')}
                 </button>
-              </td>
-            </tr>
+              </DataTableCell>
+            </DataTableRow>
           );
         })}
       </tbody>
-    </table>
+    </DataTable>
   );
 }

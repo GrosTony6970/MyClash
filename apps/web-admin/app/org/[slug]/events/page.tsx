@@ -19,6 +19,10 @@
 import {
   Button,
   CountryCombobox,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   Modal,
   SortableHeader,
   Switch,
@@ -561,7 +565,7 @@ export default function OrgEventsListPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
+      <section>
         {loading && (
           <div className="flex items-center gap-2 px-5 py-8 text-sm text-muted">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-accent" />
@@ -587,273 +591,268 @@ export default function OrgEventsListPage() {
         )}
 
         {!loading && events.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="bg-background text-left text-xs font-bold uppercase tracking-[0.14em] text-muted">
-                <tr>
-                  <th className="px-4 py-3">{t('organizer.events.table.logo')}</th>
-                  <th className="px-4 py-3">
-                    <SortableHeader
-                      label={t('organizer.events.table.event')}
-                      columnKey="name"
-                      currentKey={sortKey}
-                      direction={sortKey === 'name' ? sortDir : null}
-                      onToggle={toggleSort}
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortableHeader
-                      label={t('organizer.events.table.created')}
-                      columnKey="createdAt"
-                      currentKey={sortKey}
-                      direction={sortKey === 'createdAt' ? sortDir : null}
-                      onToggle={toggleSort}
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortableHeader
-                      label={t('organizer.events.table.createdBy')}
-                      columnKey="createdBy"
-                      currentKey={sortKey}
-                      direction={sortKey === 'createdBy' ? sortDir : null}
-                      onToggle={toggleSort}
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-center">
-                    <SortableHeader
-                      label={t('organizer.events.table.tournaments')}
-                      columnKey="tournamentCount"
-                      currentKey={sortKey}
-                      direction={sortKey === 'tournamentCount' ? sortDir : null}
-                      onToggle={toggleSort}
-                      align="center"
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-center">
-                    <SortableHeader
-                      label={t('organizer.events.table.participants')}
-                      columnKey="participantCount"
-                      currentKey={sortKey}
-                      direction={sortKey === 'participantCount' ? sortDir : null}
-                      onToggle={toggleSort}
-                      align="center"
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortableHeader
-                      label={t('organizer.events.table.startDate')}
-                      columnKey="startDate"
-                      currentKey={sortKey}
-                      direction={sortKey === 'startDate' ? sortDir : null}
-                      onToggle={toggleSort}
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortableHeader
-                      label={t('organizer.events.table.endDate')}
-                      columnKey="endDate"
-                      currentKey={sortKey}
-                      direction={sortKey === 'endDate' ? sortDir : null}
-                      onToggle={toggleSort}
-                    />
-                  </th>
-                  <th className="px-4 py-3">
-                    <SortableHeader
-                      label={t('organizer.events.table.visibility')}
-                      columnKey="visibility"
-                      currentKey={sortKey}
-                      direction={sortKey === 'visibility' ? sortDir : null}
-                      onToggle={toggleSort}
-                    />
-                  </th>
-                  <th className="px-4 py-3">{t('organizer.events.table.actions')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {sortedEvents.map((event) => (
-                  <tr key={event.id} className="align-top">
-                    <td className="px-4 py-4">
-                      <Link
-                        href={`/org/${slug}/events/${event.id}`}
-                        className="block h-10 w-10 overflow-hidden rounded-md border border-border bg-background"
-                        aria-label={event.name}
-                      >
-                        {event.logoUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={event.logoUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wider text-muted">
-                            {event.name.slice(0, 2)}
-                          </div>
-                        )}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-4">
-                      <Link
-                        href={`/org/${slug}/events/${event.id}`}
-                        className="font-semibold text-foreground hover:text-accent"
-                      >
-                        {event.name}
-                      </Link>
-                      {event.isTestEvent && (
-                        <span className="ml-2 inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning align-middle">
-                          {t('organizer.events.testBadge')}
-                        </span>
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th">{t('organizer.events.table.logo')}</DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('organizer.events.table.event')}
+                  columnKey="name"
+                  currentKey={sortKey}
+                  direction={sortKey === 'name' ? sortDir : null}
+                  onToggle={toggleSort}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('organizer.events.table.created')}
+                  columnKey="createdAt"
+                  currentKey={sortKey}
+                  direction={sortKey === 'createdAt' ? sortDir : null}
+                  onToggle={toggleSort}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('organizer.events.table.createdBy')}
+                  columnKey="createdBy"
+                  currentKey={sortKey}
+                  direction={sortKey === 'createdBy' ? sortDir : null}
+                  onToggle={toggleSort}
+                />
+              </DataTableCell>
+              <DataTableCell as="th" className="text-center">
+                <SortableHeader
+                  label={t('organizer.events.table.tournaments')}
+                  columnKey="tournamentCount"
+                  currentKey={sortKey}
+                  direction={sortKey === 'tournamentCount' ? sortDir : null}
+                  onToggle={toggleSort}
+                  align="center"
+                />
+              </DataTableCell>
+              <DataTableCell as="th" className="text-center">
+                <SortableHeader
+                  label={t('organizer.events.table.participants')}
+                  columnKey="participantCount"
+                  currentKey={sortKey}
+                  direction={sortKey === 'participantCount' ? sortDir : null}
+                  onToggle={toggleSort}
+                  align="center"
+                />
+              </DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('organizer.events.table.startDate')}
+                  columnKey="startDate"
+                  currentKey={sortKey}
+                  direction={sortKey === 'startDate' ? sortDir : null}
+                  onToggle={toggleSort}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('organizer.events.table.endDate')}
+                  columnKey="endDate"
+                  currentKey={sortKey}
+                  direction={sortKey === 'endDate' ? sortDir : null}
+                  onToggle={toggleSort}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('organizer.events.table.visibility')}
+                  columnKey="visibility"
+                  currentKey={sortKey}
+                  direction={sortKey === 'visibility' ? sortDir : null}
+                  onToggle={toggleSort}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">{t('organizer.events.table.actions')}</DataTableCell>
+            </DataTableHead>
+            <tbody>
+              {sortedEvents.map((event) => (
+                <DataTableRow key={event.id}>
+                  <DataTableCell>
+                    <Link
+                      href={`/org/${slug}/events/${event.id}`}
+                      className="block h-10 w-10 overflow-hidden rounded-md border border-border bg-background"
+                      aria-label={event.name}
+                    >
+                      {event.logoUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={event.logoUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wider text-muted">
+                          {event.name.slice(0, 2)}
+                        </div>
                       )}
-                      <p className="mt-1 text-xs text-muted">
-                        {[event.city, formatCountryName(event.country, locale)]
-                          .filter(Boolean)
-                          .join(', ') || t('organizer.dashboard.noLocation')}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 text-foreground-secondary">
-                      {formatDate(event.createdAt, locale)}
-                    </td>
-                    <td className="px-4 py-4 text-foreground-secondary">
-                      {event.createdByUserName ?? '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono tabular-nums text-foreground-secondary">
-                      {event.tournamentCount}
-                    </td>
-                    <td className="px-4 py-4 text-center font-mono tabular-nums text-foreground-secondary">
-                      {event.participantCount}
-                    </td>
-                    <td className="px-4 py-4 text-foreground-secondary">
-                      {formatDate(event.startDate, locale)}
-                    </td>
-                    <td className="px-4 py-4 text-foreground-secondary">
-                      {formatDate(event.endDate, locale)}
-                    </td>
-                    <td className="px-4 py-4">
-                      {event.status === 'draft' ? (
+                    </Link>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <Link
+                      href={`/org/${slug}/events/${event.id}`}
+                      className="font-semibold text-foreground hover:text-accent"
+                    >
+                      {event.name}
+                    </Link>
+                    {event.isTestEvent && (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning align-middle">
+                        {t('organizer.events.testBadge')}
+                      </span>
+                    )}
+                    <p className="mt-1 text-xs text-muted">
+                      {[event.city, formatCountryName(event.country, locale)]
+                        .filter(Boolean)
+                        .join(', ') || t('organizer.dashboard.noLocation')}
+                    </p>
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {formatDate(event.createdAt, locale)}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {event.createdByUserName ?? '—'}
+                  </DataTableCell>
+                  <DataTableCell className="text-center font-mono tabular-nums text-foreground-secondary">
+                    {event.tournamentCount}
+                  </DataTableCell>
+                  <DataTableCell className="text-center font-mono tabular-nums text-foreground-secondary">
+                    {event.participantCount}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {formatDate(event.startDate, locale)}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {formatDate(event.endDate, locale)}
+                  </DataTableCell>
+                  <DataTableCell>
+                    {event.status === 'draft' ? (
+                      <button
+                        type="button"
+                        onClick={() => void toggleVisibility(event)}
+                        disabled={busyId === event.id}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-success-foreground shadow-sm transition-colors hover:bg-success-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                        title={t('organizer.events.setPublic')}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="h-3.5 w-3.5"
+                        >
+                          <path d="M3.105 3.105a.75.75 0 01.815-.16l13.5 5.25a.75.75 0 010 1.41l-13.5 5.25a.75.75 0 01-1-.927l1.4-4.673H9a.75.75 0 000-1.5H4.32l-1.4-4.673a.75.75 0 01.185-.977z" />
+                        </svg>
+                        {t('organizer.events.publishCta')}
+                      </button>
+                    ) : event.status === 'published' ? (
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={[
+                            'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                            statusPillTone(tournamentStatusSemantic('published'), 'light')
+                              .className,
+                          ].join(' ')}
+                        >
+                          {t('organizer.events.statuses.published') ?? 'published'}
+                        </span>
                         <button
                           type="button"
                           onClick={() => void toggleVisibility(event)}
                           disabled={busyId === event.id}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-success-foreground shadow-sm transition-colors hover:bg-success-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
-                          title={t('organizer.events.setPublic')}
+                          className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground-secondary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                          title={t('organizer.events.setDraft')}
                         >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            className="h-3.5 w-3.5"
-                          >
-                            <path d="M3.105 3.105a.75.75 0 01.815-.16l13.5 5.25a.75.75 0 010 1.41l-13.5 5.25a.75.75 0 01-1-.927l1.4-4.673H9a.75.75 0 000-1.5H4.32l-1.4-4.673a.75.75 0 01.185-.977z" />
-                          </svg>
-                          {t('organizer.events.publishCta')}
+                          {t('organizer.events.unpublish')}
                         </button>
-                      ) : event.status === 'published' ? (
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={[
-                              'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                              statusPillTone(tournamentStatusSemantic('published'), 'light')
-                                .className,
-                            ].join(' ')}
-                          >
-                            {t('organizer.events.statuses.published') ?? 'published'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => void toggleVisibility(event)}
-                            disabled={busyId === event.id}
-                            className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground-secondary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-                            title={t('organizer.events.setDraft')}
-                          >
-                            {t('organizer.events.unpublish')}
-                          </button>
-                        </div>
-                      ) : (
-                        <span
-                          className={[
-                            'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                            statusPillTone(tournamentStatusSemantic(event.status), 'light')
-                              .className,
-                          ].join(' ')}
-                        >
-                          {t(`organizer.events.statuses.${event.status}`) ?? event.status}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        <input
-                          ref={(el) => {
-                            logoInputs.current[event.id] = el;
-                          }}
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(ev: ChangeEvent<HTMLInputElement>) => {
-                            const file = ev.target.files?.[0];
-                            if (file) void uploadLogo(event.id, file);
-                            ev.target.value = '';
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="back"
-                          onClick={() => openEdit(event)}
-                        >
-                          {t('organizer.events.edit')}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="back"
-                          disabled={busyId === event.id}
-                          onClick={() => logoInputs.current[event.id]?.click()}
-                        >
-                          {t('organizer.events.uploadLogo')}
-                        </Button>
-                        {pendingDeletions.has(event.id) ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2.5 py-0.5 text-xs font-semibold text-warning">
-                              {t('organizer.events.deletionPending')}
-                            </span>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="back"
-                              disabled={busyId === event.id}
-                              onClick={() => void cancelDeletionRequest(event)}
-                            >
-                              {t('organizer.deletionRequest.cancelRequest')}
-                            </Button>
-                          </div>
-                        ) : !event.isTestEvent &&
-                          (event.status === 'archived' || event.hasRecordedResults) ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            disabled={busyId === event.id}
-                            onClick={() => setDeletionTarget(event)}
-                          >
-                            {t('organizer.deletionRequest.requestDeletion')}
-                          </Button>
-                        ) : (
-                          // Test events delete directly even with results — no
-                          // archive / deletion-request detour.
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            disabled={busyId === event.id}
-                            onClick={() => setConfirmDelete(event)}
-                          >
-                            {t('organizer.events.hardDelete')}
-                          </Button>
-                        )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ) : (
+                      <span
+                        className={[
+                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                          statusPillTone(tournamentStatusSemantic(event.status), 'light').className,
+                        ].join(' ')}
+                      >
+                        {t(`organizer.events.statuses.${event.status}`) ?? event.status}
+                      </span>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        ref={(el) => {
+                          logoInputs.current[event.id] = el;
+                        }}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(ev: ChangeEvent<HTMLInputElement>) => {
+                          const file = ev.target.files?.[0];
+                          if (file) void uploadLogo(event.id, file);
+                          ev.target.value = '';
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="back"
+                        onClick={() => openEdit(event)}
+                      >
+                        {t('organizer.events.edit')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="back"
+                        disabled={busyId === event.id}
+                        onClick={() => logoInputs.current[event.id]?.click()}
+                      >
+                        {t('organizer.events.uploadLogo')}
+                      </Button>
+                      {pendingDeletions.has(event.id) ? (
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2.5 py-0.5 text-xs font-semibold text-warning">
+                            {t('organizer.events.deletionPending')}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="back"
+                            disabled={busyId === event.id}
+                            onClick={() => void cancelDeletionRequest(event)}
+                          >
+                            {t('organizer.deletionRequest.cancelRequest')}
+                          </Button>
+                        </div>
+                      ) : !event.isTestEvent &&
+                        (event.status === 'archived' || event.hasRecordedResults) ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          disabled={busyId === event.id}
+                          onClick={() => setDeletionTarget(event)}
+                        >
+                          {t('organizer.deletionRequest.requestDeletion')}
+                        </Button>
+                      ) : (
+                        // Test events delete directly even with results — no
+                        // archive / deletion-request detour.
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          disabled={busyId === event.id}
+                          onClick={() => setConfirmDelete(event)}
+                        >
+                          {t('organizer.events.hardDelete')}
+                        </Button>
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </tbody>
+          </DataTable>
         )}
       </section>
 

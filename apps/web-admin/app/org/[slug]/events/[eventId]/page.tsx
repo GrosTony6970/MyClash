@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   TournamentColorDot,
   formatCountryName,
   statusPillTone,
@@ -553,21 +557,23 @@ export default function EventDetailPage() {
             {tournamentError}
           </div>
         )}
-        <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-background text-xs uppercase tracking-[0.14em] text-muted">
-              <tr>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.tournament')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.registered')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.assignedReferees')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colPools')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colBracket')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colElim')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colRuleset')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.status')}</th>
-                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.visibilityColumn')}</th>
-              </tr>
-            </thead>
+        <div className="mt-4">
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.tournament')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.registered')}</DataTableCell>
+              <DataTableCell as="th">
+                {t('organizer.eventHub.dashboard.assignedReferees')}
+              </DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colPools')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colBracket')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colElim')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colRuleset')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.status')}</DataTableCell>
+              <DataTableCell as="th">
+                {t('organizer.eventHub.dashboard.visibilityColumn')}
+              </DataTableCell>
+            </DataTableHead>
             <tbody>
               {(stats?.tournaments ?? []).length === 0 && (
                 <tr>
@@ -583,8 +589,8 @@ export default function EventDetailPage() {
                 const canToggleVisibility =
                   tournament.status === 'draft' || tournament.status === 'published';
                 return (
-                  <tr key={tournament.id} className="border-t border-border">
-                    <td className="px-4 py-3 font-semibold text-foreground">
+                  <DataTableRow key={tournament.id}>
+                    <DataTableCell className="font-semibold text-foreground">
                       <Link
                         href={settingsHref}
                         className="inline-flex items-center gap-1.5 hover:text-accent hover:underline"
@@ -592,49 +598,49 @@ export default function EventDetailPage() {
                         <TournamentColorDot color={tournament.color} />
                         {tournament.name}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3">
+                    </DataTableCell>
+                    <DataTableCell>
                       <Link
                         href={`/org/${slug}/events/${eventId}/persons`}
                         className={cellLinkClass}
                       >
                         {formatCountOfMax(tournament.fighterCount, tournament.maxParticipants)}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3">
+                    </DataTableCell>
+                    <DataTableCell>
                       <Link
                         href={`/org/${slug}/events/${eventId}/referees`}
                         className={cellLinkClass}
                       >
                         {tournament.assignedRefereeCount}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3">
+                    </DataTableCell>
+                    <DataTableCell>
                       <Link href={`/org/${slug}/events/${eventId}/pools`} className={cellLinkClass}>
                         {tournament.poolCount ?? 0}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3">
+                    </DataTableCell>
+                    <DataTableCell>
                       <Link
                         href={`/org/${slug}/events/${eventId}/bracket`}
                         className={cellLinkClass}
                       >
                         {tournament.bracketSize ?? '—'}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted">
+                    </DataTableCell>
+                    <DataTableCell className="text-muted">
                       {tournament.eliminationType === 'single_elim'
                         ? t('organizer.eventHub.dashboard.elimSingle')
                         : tournament.eliminationType === 'double_elim'
                           ? t('organizer.eventHub.dashboard.elimDouble')
                           : '—'}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted">
+                    </DataTableCell>
+                    <DataTableCell mono>
                       <Link href={settingsHref} className="hover:text-accent hover:underline">
                         {tournament.rulesetCode ?? '—'}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3">
+                    </DataTableCell>
+                    <DataTableCell>
                       <select
                         aria-label={t('organizer.eventHub.dashboard.status')}
                         value={tournament.status}
@@ -652,8 +658,8 @@ export default function EventDetailPage() {
                           ),
                         )}
                       </select>
-                    </td>
-                    <td className="px-4 py-3">
+                    </DataTableCell>
+                    <DataTableCell>
                       <button
                         type="button"
                         aria-label={
@@ -695,12 +701,12 @@ export default function EventDetailPage() {
                             : (t(`organizer.events.statuses.${tournament.status}`) ??
                               tournament.status)}
                       </button>
-                    </td>
-                  </tr>
+                    </DataTableCell>
+                  </DataTableRow>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       </section>
 
