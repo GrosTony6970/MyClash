@@ -45,7 +45,59 @@ export default function AdminPenaltyRulesetsPage() {
   const [rejectShareTarget, setRejectShareTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // CSV import (POST /penalty-rulesets/import-csv existed with no UI —
+  // bulk-loading a catalogue like FFAMHE required a script until now).
+  const [showImport, setShowImport] = useState(false);
+  const [importForm, setImportForm] = useState({
+    code: '',
+    version: '1',
+    name: '',
+    accumulationScope: 'tournament' as 'match' | 'phase' | 'tournament',
+    csv: '',
+    fileName: '',
+  });
+  const [importing, setImporting] = useState(false);
+
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  async function submitImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!importForm.csv || !importForm.code.trim() || !importForm.name.trim()) return;
+    setImporting(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/import-csv`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: importForm.code.trim(),
+          version: importForm.version.trim() || '1',
+          name: importForm.name.trim(),
+          accumulationScope: importForm.accumulationScope,
+          csv: importForm.csv,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? t('admin.penaltyRulesets.importFailed'));
+      }
+      toast.success(t('admin.penaltyRulesets.importSuccess', { name: importForm.name.trim() }));
+      setShowImport(false);
+      setImportForm({
+        code: '',
+        version: '1',
+        name: '',
+        accumulationScope: 'tournament',
+        csv: '',
+        fileName: '',
+      });
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('admin.penaltyRulesets.importFailed'));
+    } finally {
+      setImporting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -157,15 +209,108 @@ export default function AdminPenaltyRulesetsPage() {
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
           {t('admin.penaltyRulesets.curatedTitle')}
         </h2>
-        <CreateRulesetCta
-          href="/admin/rulesets/penalty/new"
-          label={t('admin.penaltyRulesets.createButton')}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowImport((v) => !v)}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground hover:border-muted"
+          >
+            {t('admin.penaltyRulesets.importButton')}
+          </button>
+          <CreateRulesetCta
+            href="/admin/rulesets/penalty/new"
+            label={t('admin.penaltyRulesets.createButton')}
+          />
+        </div>
       </div>
+
+      {showImport && (
+        <form
+          onSubmit={(e) => void submitImport(e)}
+          className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+        >
+          <p className="text-sm text-muted">{t('admin.penaltyRulesets.importHint')}</p>
+          <div className="flex flex-wrap gap-3">
+            <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+              {t('admin.penaltyRulesets.importName')}
+              <input
+                type="text"
+                value={importForm.name}
+                onChange={(e) => setImportForm((f) => ({ ...f, name: e.target.value }))}
+                required
+                className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+              {t('admin.penaltyRulesets.importCode')}
+              <input
+                type="text"
+                value={importForm.code}
+                onChange={(e) => setImportForm((f) => ({ ...f, code: e.target.value }))}
+                required
+                className="rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground"
+              />
+            </label>
+            <label className="flex w-24 flex-col gap-1 text-sm font-medium text-foreground">
+              {t('admin.penaltyRulesets.importVersion')}
+              <input
+                type="text"
+                value={importForm.version}
+                onChange={(e) => setImportForm((f) => ({ ...f, version: e.target.value }))}
+                className="rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+              {t('admin.penaltyRulesets.colScope')}
+              <select
+                value={importForm.accumulationScope}
+                onChange={(e) =>
+                  setImportForm((f) => ({
+                    ...f,
+                    accumulationScope: e.target.value as 'match' | 'phase' | 'tournament',
+                  }))
+                }
+                className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+              >
+                <option value="match">{t('admin.penaltyRulesets.scope.match')}</option>
+                <option value="phase">{t('admin.penaltyRulesets.scope.phase')}</option>
+                <option value="tournament">{t('admin.penaltyRulesets.scope.tournament')}</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              aria-label={t('admin.penaltyRulesets.importFile')}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                void file.text().then((text) => {
+                  setImportForm((f) => ({ ...f, csv: text, fileName: file.name }));
+                });
+              }}
+              className="text-sm text-foreground-secondary"
+            />
+            {importForm.fileName && (
+              <span className="text-xs text-muted">{importForm.fileName}</span>
+            )}
+            <button
+              type="submit"
+              disabled={importing || !importForm.csv || !importForm.code.trim()}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-50"
+            >
+              {importing
+                ? t('admin.penaltyRulesets.importing')
+                : t('admin.penaltyRulesets.importSubmit')}
+            </button>
+          </div>
+        </form>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>

@@ -52,6 +52,9 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.finalRanking',
         badge: 'FR',
       },
+      // Second-black-card disqualification review queue (write-only state
+      // machine before this page existed — the DQ rule never enforced).
+      { href: 'penalties', labelKey: 'organizer.eventHub.sections.penalties', badge: 'PE' },
       { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
       { href: 'statistics', labelKey: 'organizer.eventHub.sections.statistics', badge: 'STA' },
     ],
