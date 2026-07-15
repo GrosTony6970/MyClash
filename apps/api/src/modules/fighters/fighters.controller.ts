@@ -37,14 +37,12 @@ import {
   CreateFighterDto,
   CreateGlobalPersonDto,
   FighterQueryDto,
-  FighterRolesDto,
   GlobalPersonQueryDto,
   ImportCommitDto,
   LinkEnrollmentDto,
   LinkQualificationDto,
   MergeFightersDto,
   PromoteFighterDto,
-  RefereeProfileDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
   UpdateGlobalPersonDto,
@@ -381,34 +379,9 @@ export class GlobalPersonsController {
     return this.fighters.commitGlobalPersonsImport(dto.decisions);
   }
 
-  /** PATCH /api/v1/global-persons/:id/roles */
-  @Patch(':id/roles')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Set role flags on a global person (organizer+)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async setRoles(@Param('id', ParseUUIDPipe) id: string, @Body() dto: FighterRolesDto) {
-    return this.fighters.setRoles(id, dto);
-  }
-
-  /** GET /api/v1/global-persons/:id/referee-profile */
-  @Get(':id/referee-profile')
-  @ApiOperation({ summary: 'Get referee profile for a global person' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getRefereeProfile(@Param('id', ParseUUIDPipe) id: string) {
-    return this.fighters.getRefereeProfile(id);
-  }
-
-  /** PATCH /api/v1/global-persons/:id/referee-profile */
-  @Patch(':id/referee-profile')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Upsert referee profile (organizer+ or claimed owner)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async upsertRefereeProfile(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: RefereeProfileDto,
-  ) {
-    return this.fighters.upsertRefereeProfile(id, dto);
-  }
+  // (`PATCH :id/roles` and `GET/PATCH :id/referee-profile` were removed — a
+  // half-shipped referee-profile editor with zero consumers; role edits flow
+  // through the generic `PATCH global-persons/:id` body instead.)
 
   /** PATCH /api/v1/global-persons/:id/link-referee-qualification */
   @Patch(':id/link-referee-qualification')

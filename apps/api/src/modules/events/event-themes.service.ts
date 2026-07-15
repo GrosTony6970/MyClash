@@ -10,12 +10,6 @@ interface EventRow {
   logo_url: string | null;
 }
 
-export interface ThemeLogoUpload {
-  buffer: Buffer;
-  filename: string;
-  mimetype: string;
-}
-
 @Injectable()
 export class EventThemesService {
   constructor(
@@ -78,20 +72,6 @@ export class EventThemesService {
     const { data, error } = await query.select('*').single();
     if (error) throw new BadRequestException(error.message);
     return this.toThemeResponse(data, eventLogoUrl);
-  }
-
-  /**
-   * @deprecated Thin shim — delegates to the canonical
-   * `EventsService.uploadLogo` so the storage path AND the
-   * `events.logo_url` column are written together. Prefer
-   * `POST /api/v1/events/:eventId/logo` directly.
-   */
-  async uploadLogo(
-    eventId: string,
-    file: ThemeLogoUpload,
-    userId: string,
-  ): Promise<{ url: string }> {
-    return this.events.uploadLogo(eventId, userId, file);
   }
 
   private async getEvent(eventId: string): Promise<EventRow> {

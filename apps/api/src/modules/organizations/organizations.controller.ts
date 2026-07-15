@@ -133,15 +133,8 @@ export class OrganizationsController {
     });
   }
 
-  /** POST /api/v1/organizations/:id/approve — super admin only */
-  @Post(':id/approve')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(SuperAdminGuard)
-  @ApiOperation({ summary: 'Approve organization (super admin)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async approve(@Param('id', ParseUUIDPipe) id: string) {
-    return this.orgs.approve(id);
-  }
+  // (`POST :id/approve` was removed — it duplicated the consumed
+  // `PATCH admin/organizations/:id/approve` super-admin route.)
 
   /** POST /api/v1/organizations/:id/members — owner only */
   @Post(':id/members')

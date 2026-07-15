@@ -169,16 +169,6 @@ const updateGlobalPersonSchema = z
   .strict();
 export class UpdateGlobalPersonDto extends createZodDto(updateGlobalPersonSchema) {}
 
-const fighterRolesSchema = z
-  .object({
-    isFighter: z.boolean().optional(),
-    isReferee: z.boolean().optional(),
-    isWorkshopParticipant: z.boolean().optional(),
-    isInstructor: z.boolean().optional(),
-  })
-  .strict();
-export class FighterRolesDto extends createZodDto(fighterRolesSchema) {}
-
 const globalPersonQuerySchema = z
   .object({
     q: z.string().max(100).optional(),
@@ -186,14 +176,6 @@ const globalPersonQuerySchema = z
   })
   .strict();
 export class GlobalPersonQueryDto extends createZodDto(globalPersonQuerySchema) {}
-
-const refereeProfileSchema = z
-  .object({
-    certifications: z.array(z.object({}).loose()).optional(),
-    notes: z.string().max(2000).optional(),
-  })
-  .strict();
-export class RefereeProfileDto extends createZodDto(refereeProfileSchema) {}
 
 const linkQualificationSchema = z.object({ qualificationId: z.uuid() }).strict();
 export class LinkQualificationDto extends createZodDto(linkQualificationSchema) {}

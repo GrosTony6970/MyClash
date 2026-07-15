@@ -46,6 +46,3 @@ const reassignOwnerSchema = z
   })
   .strict();
 export class ReassignOwnerDto extends createZodDto(reassignOwnerSchema) {}
-
-const promoteSuperAdminSchema = z.object({ userId: z.uuid() }).strict();
-export class PromoteSuperAdminDto extends createZodDto(promoteSuperAdminSchema) {}

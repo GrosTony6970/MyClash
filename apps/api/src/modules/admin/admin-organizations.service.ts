@@ -14,7 +14,6 @@ import { UserDirectoryService } from '../user-directory/user-directory.service';
 import type {
   CreateOrganizationDto,
   ListOrgsQueryDto,
-  PromoteSuperAdminDto,
   ReassignOwnerDto,
 } from './dto/admin-organizations.dto';
 
@@ -447,24 +446,6 @@ export class AdminOrganizationsService {
       if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;
       this.logger.error(`Failed to delete org ${id}: ${String(err)}`);
       throw new BadRequestException('Failed to delete organization');
-    }
-  }
-
-  // ── Promote to super_admin ───────────────────────────────────────────────
-
-  async promoteSuperAdmin(dto: PromoteSuperAdminDto, actorUserId: string): Promise<void> {
-    try {
-      const { error } = await this.supabase.service
-        .from('platform_roles')
-        .upsert({ user_id: dto.userId, role: 'super_admin' });
-
-      if (error) throw error;
-
-      await this.writeAuditLog(actorUserId, 'user.promote_super_admin', 'user', dto.userId, {});
-      this.logger.log(`User ${dto.userId} promoted to super_admin by ${actorUserId}`);
-    } catch (err) {
-      this.logger.error(`Failed to promote ${dto.userId}: ${String(err)}`);
-      throw new BadRequestException('Failed to promote user');
     }
   }
 

@@ -10,17 +10,8 @@ import {
   Patch,
   Post,
   Query,
-  Req,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
-import type { FastifyRequest } from 'fastify';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RegistrationsService } from './registrations.service';
 import { AssignmentsService } from './assignments.service';
 import { CreateRegistrationDto, UpdateRegistrationStatusDto } from './dto/registrations.dto';
@@ -96,39 +87,9 @@ export class RegistrationsController {
     return this.registrations.addToWaitlist(tournamentId, dto);
   }
 
-  /**
-   * POST /api/v1/tournaments/:tournamentId/registrations/import
-   * CSV bulk import. Columns: email, bib_number (optional).
-   */
-  @Post('tournaments/:tournamentId/registrations/import')
-  @HttpCode(HttpStatus.OK)
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
-  })
-  @ApiOperation({ summary: 'Bulk import registrations from CSV' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async importCsv(
-    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
-    @Req() req: FastifyRequest,
-  ) {
-    let buffer: Buffer | null = null;
-    try {
-      const data = await (
-        req as FastifyRequest & {
-          file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
-        }
-      ).file();
-      if (data) buffer = await data.toBuffer();
-    } catch {
-      /* no file */
-    }
-
-    if (!buffer) {
-      return { created: 0, skipped: 0, errors: ['No file uploaded'] };
-    }
-    return this.registrations.importCsv(tournamentId, buffer);
-  }
+  // (`POST tournaments/:tournamentId/registrations/import` was removed —
+  // superseded by the persons importer, `events/:eventId/persons/import`,
+  // which is what the CSV-import UI calls.)
 
   /**
    * PATCH /api/v1/registrations/:id/status

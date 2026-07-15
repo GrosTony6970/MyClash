@@ -122,17 +122,6 @@ describe('OrganizationsService', () => {
     });
   });
 
-  describe('approve', () => {
-    it('sets status to active', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.single.mockResolvedValue({ data: { id: 'org-1', status: 'active' }, error: null });
-      fromMock.mockReturnValue(chain);
-
-      const result = await service.approve('org-1');
-      expect((result as { status: string }).status).toBe('active');
-    });
-  });
-
   describe('assertOrgRole', () => {
     it('throws ForbiddenException when user is not a member', async () => {
       const chain = makeChain({ data: null, error: null });

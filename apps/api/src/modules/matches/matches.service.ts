@@ -826,21 +826,6 @@ export class MatchesService {
     return result;
   }
 
-  async clearLastExchange(matchId: string, dto: VoidExchangeDto, context?: MatchActor) {
-    await this.assertMatchUnlocked(matchId, context);
-    const { data: exchange, error } = await this.supabase.service
-      .from('exchanges')
-      .select('id, match_id, voided')
-      .eq('match_id', matchId)
-      .eq('voided', false)
-      .order('sequence', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!exchange) throw new NotFoundException('No exchange to clear');
-    return this.voidExchange((exchange as { id: string }).id, dto, context);
-  }
-
   async editExchange(exchangeId: string, dto: EditExchangeDto, context?: MatchActor) {
     const { data: original, error: fetchError } = await this.supabase.service
       .from('exchanges')

@@ -99,9 +99,6 @@ const adjustClockSchema = z
   .strict();
 export class AdjustClockDto extends createZodDto(adjustClockSchema) {}
 
-const lockMatchSchema = z.object({ reason: z.string().optional() }).strict();
-export class LockMatchDto extends createZodDto(lockMatchSchema) {}
-
 const updateMatchSchema = z
   .object({
     liceId: z.uuid().nullish(),

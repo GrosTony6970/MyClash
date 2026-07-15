@@ -8,14 +8,8 @@ export type { CardProps } from './components/Card';
 export { Pill } from './components/Pill';
 export type { PillProps, PillVariant } from './components/Pill';
 
-export { ShieldBg, ShieldIcon } from './components/ShieldBg';
-export type { ShieldBgProps } from './components/ShieldBg';
-
 export { GoogleIcon } from './components/GoogleIcon';
 export type { GoogleIconProps } from './components/GoogleIcon';
-
-export { ScoreDisplay } from './components/ScoreDisplay';
-export type { ScoreDisplayProps } from './components/ScoreDisplay';
 
 export { Badge } from './components/Badge';
 export type { BadgeProps, BadgeVariant } from './components/Badge';
@@ -40,9 +34,6 @@ export type { RatingHistoryChartProps, RatingHistoryPoint } from './components/R
 
 export { EmptyState } from './components/EmptyState';
 export type { EmptyStateProps } from './components/EmptyState';
-
-export { PageHeader } from './components/PageHeader';
-export type { PageHeaderProps } from './components/PageHeader';
 
 export { BracketView } from './components/BracketView';
 export type {
@@ -114,9 +105,6 @@ export type { ConfirmDialogProps } from './components/ConfirmDialog';
 export { useConfirm } from './components/useConfirm';
 export type { ConfirmOptions } from './components/useConfirm';
 
-export { Drawer } from './components/Drawer';
-export type { DrawerProps } from './components/Drawer';
-
 export { PromptDialog, usePrompt } from './components/PromptDialog';
 export type { PromptDialogProps, PromptOptions } from './components/PromptDialog';
 
@@ -158,9 +146,6 @@ export { fuzzyMatch, normalizeForSearch } from './utils/fuzzy-match';
 
 export { CountryCombobox } from './components/CountryCombobox';
 export type { CountryComboboxProps } from './components/CountryCombobox';
-
-export { WeaponCombobox } from './components/WeaponCombobox';
-export type { WeaponComboboxProps } from './components/WeaponCombobox';
 
 export { ClubCombobox } from './components/ClubCombobox';
 export type { ClubComboboxProps, ClubOption, ClubValue } from './components/ClubCombobox';

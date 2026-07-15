@@ -27,11 +27,8 @@ export class HemaRatingsController {
     return this.hemaRatings.search(query.q, limit);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get enriched HEMA Ratings fighter profile' })
-  async getProfile(@Param('id') id: string) {
-    return this.hemaRatings.getProfile(id);
-  }
+  // (`GET :id` was removed — no frontend consumed it; the service-level
+  // getProfile stays for fighters.service enrichment.)
 
   /**
    * Background sync of a single HEMA Ratings ID. Called by the

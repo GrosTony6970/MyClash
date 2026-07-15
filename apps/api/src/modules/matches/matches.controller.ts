@@ -29,7 +29,6 @@ import {
   CreateMatchForfeitDto,
   CreateMatchDto,
   EditExchangeDto,
-  LockMatchDto,
   ResetMatchDto,
   UpdateMatchDto,
   UpdateMatchStatusDto,
@@ -177,17 +176,8 @@ export class MatchesController {
     return this.forfeits.voidForfeit(id, actor);
   }
 
-  @Post('matches/:id/lock')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Lock match scoring (organizer+)' })
-  async lockMatch(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: LockMatchDto,
-    @Req() req: FastifyRequest,
-  ) {
-    const actor = await this.staff.authorizeMatchOrganizer(req, id);
-    return this.matches.lockMatch(id, dto.reason, actor);
-  }
+  // (`POST matches/:id/lock` was removed — no UI called it; locking happens
+  // via the auto-lock service, which calls MatchesService.lockMatch directly.)
 
   @Post('matches/:id/unlock')
   @HttpCode(HttpStatus.OK)
@@ -290,17 +280,8 @@ export class MatchesController {
     return result;
   }
 
-  @Post('matches/:id/exchanges/clear-last')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Clear the latest non-voided exchange (scorekeeper+)' })
-  async clearLastExchange(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: VoidExchangeDto,
-    @Req() req: FastifyRequest,
-  ) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
-    return this.matches.clearLastExchange(id, dto, actor);
-  }
+  // (`POST matches/:id/exchanges/clear-last` was removed — the scoring pad's
+  // clear-last button voids the specific latest row via `exchanges/:id/void`.)
 
   @Patch('exchanges/:id/edit')
   @ApiOperation({ summary: 'Edit an exchange by voiding and replacing it (scorekeeper+)' })

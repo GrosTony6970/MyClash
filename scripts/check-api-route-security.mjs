@@ -55,7 +55,6 @@ const inventory = {
   'apps/api/src/modules/phases/bracket-slots.controller.ts': 'mixed',
   'apps/api/src/modules/phases/conflict-check.controller.ts': 'organizer',
   'apps/api/src/modules/phases/phases.controller.ts': 'mixed',
-  'apps/api/src/modules/phases/pool-populator.controller.ts': 'organizer',
   'apps/api/src/modules/programme/programme.controller.ts': 'mixed',
   'apps/api/src/modules/referees/auto-assign.controller.ts': 'organizer',
   'apps/api/src/modules/referees/qualifications.controller.ts': 'organizer',

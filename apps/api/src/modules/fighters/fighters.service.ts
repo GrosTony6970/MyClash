@@ -19,11 +19,9 @@ import type {
   CreateFighterDto,
   CreateGlobalPersonDto,
   FighterQueryDto,
-  FighterRolesDto,
   GlobalPersonQueryDto,
   ImportDecisionDto,
   PromoteFighterDto,
-  RefereeProfileDto,
   UpdateGlobalPersonDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
@@ -2200,65 +2198,6 @@ export class FightersService {
         { global_person_id: globalPersonId },
         { onConflict: 'global_person_id', ignoreDuplicates: true },
       );
-  }
-
-  async setRoles(id: string, dto: FighterRolesDto) {
-    const updates: Record<string, unknown> = {};
-    if (dto.isFighter !== undefined) updates['is_fighter'] = dto.isFighter;
-    if (dto.isReferee !== undefined) updates['is_referee'] = dto.isReferee;
-    if (dto.isWorkshopParticipant !== undefined)
-      updates['is_workshop_participant'] = dto.isWorkshopParticipant;
-    if (dto.isInstructor !== undefined) updates['is_instructor'] = dto.isInstructor;
-    updates['updated_at'] = new Date().toISOString();
-
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .update(updates)
-      .eq('id', id)
-      .select('*')
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Global person ${id} not found`);
-
-    if (dto.isReferee === true) {
-      await this.supabase.service
-        .from('referee_profiles')
-        .upsert(
-          { global_person_id: id },
-          { onConflict: 'global_person_id', ignoreDuplicates: true },
-        );
-    }
-
-    return data;
-  }
-
-  async getRefereeProfile(id: string) {
-    const { data, error } = await this.supabase.service
-      .from('referee_profiles')
-      .select('*')
-      .eq('global_person_id', id)
-      .maybeSingle();
-
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`No referee profile for global person ${id}`);
-    return data;
-  }
-
-  async upsertRefereeProfile(id: string, dto: RefereeProfileDto) {
-    const { data, error } = await this.supabase.service
-      .from('referee_profiles')
-      .upsert({
-        global_person_id: id,
-        certifications: dto.certifications ?? [],
-        notes: dto.notes ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-    return data;
   }
 
   async linkRefereeQualification(qualificationId: string, globalPersonId: string) {

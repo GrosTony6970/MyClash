@@ -4,23 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
-import { detectCsvDelimiter } from '../persons/csv-import.service';
 import {
   REGISTRATION_STATUS_TRANSITIONS,
   type CreateRegistrationDto,
 } from './dto/registrations.dto';
-
-// Mirrors the DB CHECK from migration 0078 (registrations status set).
-const ALLOWED_IMPORT_STATUSES: readonly string[] = [
-  'registered',
-  'checked_in',
-  'withdrawn',
-  'disqualified',
-  'waitlist',
-];
 
 @Injectable()
 export class RegistrationsService {
@@ -239,126 +228,6 @@ export class RegistrationsService {
       throw new BadRequestException(error.message);
     }
     return data;
-  }
-
-  // ── CSV bulk import ──────────────────────────────────────────────────────────
-
-  async importCsv(tournamentId: string, buffer: Buffer) {
-    // Strip BOM
-    let content = buffer.toString('utf-8');
-    if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
-
-    const delimiter = detectCsvDelimiter(content);
-
-    let rows: Record<string, string>[];
-    try {
-      rows = parse(content, {
-        columns: true,
-        skip_empty_lines: true,
-        trim: true,
-        bom: true,
-        delimiter,
-      }) as Record<string, string>[];
-    } catch (err) {
-      throw new BadRequestException(`CSV parse error: ${String(err)}`);
-    }
-
-    const report = { created: 0, skipped: 0, errors: [] as string[] };
-
-    for (const [idx, row] of rows.entries()) {
-      const rowNum = idx + 2;
-      const normalized: Record<string, string> = {};
-      for (const [k, v] of Object.entries(row)) {
-        normalized[k.toLowerCase().trim()] = v ?? '';
-      }
-
-      const email = (normalized['email'] ?? '').trim().toLowerCase();
-      if (!email) {
-        report.errors.push(`Row ${rowNum}: missing email`);
-        continue;
-      }
-
-      // Look up person by email within the tournament's event
-      const { data: person } = await this.supabase.service
-        .from('persons')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (!person) {
-        report.errors.push(`Row ${rowNum}: no person found with email ${email}`);
-        continue;
-      }
-
-      const personId = (person as { id: string }).id;
-      const bibNumber = normalized['bib_number']
-        ? parseInt(normalized['bib_number'], 10)
-        : await this.nextBibNumber(tournamentId);
-
-      // Optional status — defaults to 'registered'; must be one of the allowed
-      // values (matches the DB CHECK from migration 0078).
-      const rawStatus = (normalized['status'] ?? '').trim().toLowerCase();
-      let status = 'registered';
-      if (rawStatus) {
-        if (!ALLOWED_IMPORT_STATUSES.includes(rawStatus)) {
-          report.errors.push(`Row ${rowNum}: invalid status "${rawStatus}"`);
-          continue;
-        }
-        status = rawStatus;
-      }
-
-      // Optional seed.
-      let seed: number | null = null;
-      const seedRaw = (normalized['seed'] ?? '').trim();
-      if (seedRaw) {
-        const parsed = Number.parseInt(seedRaw, 10);
-        if (Number.isNaN(parsed)) {
-          report.errors.push(`Row ${rowNum}: invalid seed "${seedRaw}"`);
-          continue;
-        }
-        seed = parsed;
-      }
-
-      // Optional waitlist_position. The DB CHECK requires it (>= 1) exactly when
-      // status='waitlist' and forbids it otherwise — enforce the same here.
-      let waitlistPosition: number | null = null;
-      const waitlistRaw = (normalized['waitlist_position'] ?? '').trim();
-      if (waitlistRaw) {
-        const parsed = Number.parseInt(waitlistRaw, 10);
-        if (Number.isNaN(parsed) || parsed < 1) {
-          report.errors.push(`Row ${rowNum}: invalid waitlist_position "${waitlistRaw}"`);
-          continue;
-        }
-        waitlistPosition = parsed;
-      }
-      if (status === 'waitlist' && waitlistPosition === null) {
-        report.errors.push(`Row ${rowNum}: status "waitlist" requires waitlist_position (>= 1)`);
-        continue;
-      }
-      if (status !== 'waitlist') waitlistPosition = null;
-
-      const { error } = await this.supabase.service.from('registrations').insert({
-        tournament_id: tournamentId,
-        person_id: personId,
-        bib_number: bibNumber,
-        seed,
-        status,
-        waitlist_position: waitlistPosition,
-      });
-
-      if (error) {
-        if (error.message.includes('unique')) {
-          report.skipped++;
-        } else {
-          report.errors.push(`Row ${rowNum}: ${error.message}`);
-        }
-        continue;
-      }
-
-      report.created++;
-    }
-
-    return report;
   }
 
   // ── Status transition ────────────────────────────────────────────────────────

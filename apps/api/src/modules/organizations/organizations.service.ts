@@ -238,21 +238,6 @@ export class OrganizationsService {
     }
   }
 
-  // ── Approve (super admin) ────────────────────────────────────────────────────
-
-  async approve(id: string) {
-    const { data, error } = await this.supabase.service
-      .from('organizations')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('*')
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Organization ${id} not found`);
-    return data;
-  }
-
   // ── Add member ───────────────────────────────────────────────────────────────
 
   async addMember(orgId: string, dto: AddMemberDto, requestingUserId: string) {

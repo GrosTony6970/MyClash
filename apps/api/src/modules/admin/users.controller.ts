@@ -159,12 +159,7 @@ export class UsersAdminController {
   }
 
   // ── Super admin role management ───────────────────────────────────────────
-
-  @Get('super-admins')
-  @ApiOperation({ summary: 'List all super admins (super admin)' })
-  async listSuperAdmins() {
-    return this.service.listSuperAdmins();
-  }
+  // (`GET super-admins` was removed — no UI consumed the listing.)
 
   @Post(':id/promote-super-admin')
   @HttpCode(HttpStatus.NO_CONTENT)

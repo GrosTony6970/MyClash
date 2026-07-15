@@ -719,43 +719,6 @@ describe('MatchesService', () => {
     });
   });
   describe('match correction operations', () => {
-    it('clearLastExchange voids the latest non-voided exchange', async () => {
-      const lockChain = makeChain({ data: null, error: null });
-      lockChain.maybeSingle.mockResolvedValue({
-        data: { id: 'match-1', locked_at: null },
-        error: null,
-      });
-      const latestChain = makeChain({ data: null, error: null });
-      latestChain.maybeSingle.mockResolvedValue({
-        data: { id: 'ex-2', match_id: 'match-1', voided: false },
-        error: null,
-      });
-      const fetchExchangeChain = makeChain({ data: null, error: null });
-      fetchExchangeChain.maybeSingle.mockResolvedValue({
-        data: { id: 'ex-2', match_id: 'match-1', voided: false },
-        error: null,
-      });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'ex-2', match_id: 'match-1', voided: true },
-        error: null,
-      });
-      fromMock
-        .mockReturnValueOnce(lockChain)
-        .mockReturnValueOnce(latestChain)
-        .mockReturnValueOnce(fetchExchangeChain)
-        .mockReturnValueOnce(updateChain);
-
-      await service.clearLastExchange('match-1', { reason: 'wrong call' });
-
-      expect(latestChain.order).toHaveBeenCalledWith('sequence', { ascending: false });
-      expect(updateChain.update).toHaveBeenCalledWith({
-        voided: true,
-        voided_reason: 'wrong call',
-      });
-      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('match-1');
-    });
-
     it('resetMatch requires the exact confirmation phrase', async () => {
       await expect(
         service.resetMatch('match-1', { confirmation: 'reset', reason: 'test' }),
@@ -787,16 +750,21 @@ describe('MatchesService', () => {
     });
 
     it('locked matches reject staff correction operations', async () => {
+      const exchangeChain = makeChain({ data: null, error: null });
+      exchangeChain.maybeSingle.mockResolvedValue({
+        data: { id: 'ex-1', match_id: 'match-1', voided: false },
+        error: null,
+      });
       const lockChain = makeChain({ data: null, error: null });
       lockChain.maybeSingle.mockResolvedValue({
         data: { id: 'match-1', locked_at: '2026-05-05T12:00:00.000Z' },
         error: null,
       });
-      fromMock.mockReturnValue(lockChain);
+      fromMock.mockReturnValueOnce(exchangeChain).mockReturnValue(lockChain);
 
-      await expect(
-        service.clearLastExchange('match-1', {}, { staffAccountId: 'staff-1' }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.voidExchange('ex-1', {}, { staffAccountId: 'staff-1' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

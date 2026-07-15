@@ -1,4 +1,3 @@
-import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventThemesService } from './event-themes.service';
 
@@ -83,32 +82,6 @@ describe('EventThemesService', () => {
     expect(themeUpdatePayload['hero_image_url']).toBe('https://example.com/hero.jpg');
   });
 
-  // ── Logo upload (shim) ─────────────────────────────────────────────────────
-
-  it('uploadLogo delegates to EventsService so events.logo_url is the writer of record', async () => {
-    const result = await service.uploadLogo(
-      'event-1',
-      { buffer: Buffer.from('png'), filename: 'logo.png', mimetype: 'image/png' },
-      'user-1',
-    );
-
-    expect(uploadLogoOnEvents).toHaveBeenCalledWith(
-      'event-1',
-      'user-1',
-      expect.objectContaining({ filename: 'logo.png', mimetype: 'image/png' }),
-    );
-    expect(result.url).toBe('https://app.example/storage/v1/logo.png');
-  });
-
-  it('uploadLogo propagates ForbiddenException from the canonical EventsService.uploadLogo', async () => {
-    uploadLogoOnEvents.mockRejectedValueOnce(new ForbiddenException('not a member'));
-
-    await expect(
-      service.uploadLogo(
-        'event-1',
-        { buffer: Buffer.from('png'), filename: 'logo.png', mimetype: 'image/png' },
-        'user-1',
-      ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
+  // (uploadLogo shim tests removed with the shim — logo uploads go through
+  // EventsService.uploadLogo via `POST events/:id/logo` directly.)
 });

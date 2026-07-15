@@ -9,7 +9,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -234,58 +233,10 @@ export class EventsController {
     return this.eventThemes.upsertTheme(eventId, dto, userId);
   }
 
-  /** PUT /api/v1/events/:eventId/theme */
-  @Put('events/:eventId/theme')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update event theme (org admin+)' })
-  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async patchTheme(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Body() dto: UpsertEventThemeDto,
-    @Req() req: FastifyRequest,
-  ) {
-    const userId = await getUserId(req, this.supabase);
-    return this.eventThemes.upsertTheme(eventId, dto, userId);
-  }
-
-  /** PUT /api/v1/events/:eventId/theme */
-  @Post('events/:eventId/theme/logo')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiBearerAuth()
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
-  })
-  @ApiOperation({ summary: 'Upload event theme logo (org admin+)' })
-  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async uploadThemeLogo(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Req() req: FastifyRequest,
-  ) {
-    const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          | {
-              filename: string;
-              mimetype: string;
-              toBuffer: () => Promise<Buffer>;
-            }
-          | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.eventThemes.uploadLogo(
-      eventId,
-      {
-        buffer,
-        filename: data?.filename ?? '',
-        mimetype: data?.mimetype ?? '',
-      },
-      userId,
-    );
-  }
+  // The legacy `PUT events/:eventId/theme` + `POST events/:eventId/theme/logo`
+  // handlers were removed — no frontend called them: theme writes go through
+  // `POST .../theme` and uploads through `events/:id/logo` + `events/:id/hero`
+  // (per-event colors were retired in migration 0086).
 
   /** POST /api/v1/events/:id/logo — events-list logo (separate from theme logo). */
   @Post('events/:id/logo')
@@ -491,22 +442,9 @@ export class EventsController {
     return this.events.unpublishTournament(id, userId);
   }
 
-  /** GET /api/v1/tournaments/:id/scoring-config — used by scoring app */
-  @Get('tournaments/:id/scoring-config')
-  @ApiOperation({ summary: 'Get tournament scoring config (afterblow mode + buttons)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getScoringConfig(@Param('id', ParseUUIDPipe) id: string) {
-    const { data } = await this.supabase.service
-      .from('tournaments')
-      .select('scoring_config_json')
-      .eq('id', id)
-      .maybeSingle();
-
-    const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
-    const { normalizeTournamentScoringConfig } = await import('./tournament-config.js');
-    const config = (data as { scoring_config_json?: unknown } | null)?.scoring_config_json;
-    return normalizeTournamentScoringConfig(config ?? DEFAULT_SCORING_CONFIG);
-  }
+  // `GET tournaments/:id/scoring-config` was removed — stale since the settings
+  // page rename (only reference was a next.config redirect); the scoring app
+  // reads `tournaments/:id/match-config` below.
 
   /** GET /api/v1/tournaments/:id/match-config — effective match and display config */
   @Get('tournaments/:id/match-config')

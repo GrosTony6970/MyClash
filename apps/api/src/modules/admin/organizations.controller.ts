@@ -19,7 +19,6 @@ import { AdminOrganizationsService } from './admin-organizations.service';
 import {
   CreateOrganizationDto,
   ListOrgsQueryDto,
-  PromoteSuperAdminDto,
   ReassignOwnerDto,
   UpdateOrganizationDto,
 } from './dto/admin-organizations.dto';
@@ -147,14 +146,8 @@ export class OrganizationsAdminController {
     return this.service.reassignOwner(id, dto, getActorId(req));
   }
 
-  /**
-   * POST /api/v1/admin/users/promote-super-admin
-   * Promote a user to super_admin platform role.
-   */
-  @Post('../users/promote-super-admin')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Promote user to super_admin (super admin)' })
-  async promoteSuperAdmin(@Body() dto: PromoteSuperAdminDto, @Req() req: FastifyRequest) {
-    await this.service.promoteSuperAdmin(dto, getActorId(req));
-  }
+  // The `@Post('../users/promote-super-admin')` alias was removed — it
+  // registered literally as `/admin/organizations/../users/promote-super-admin`
+  // (reads like path traversal, trips security scanners) and had zero
+  // consumers; the UI promotes via `POST admin/users/:id/promote-super-admin`.
 }
