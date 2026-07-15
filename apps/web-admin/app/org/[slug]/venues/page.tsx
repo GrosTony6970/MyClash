@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { t } from '@myclash/i18n';
 import { useConfirm } from '@myclash/ui';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface VenueArea {
   id: string;
@@ -40,13 +42,17 @@ interface OrgEventOption {
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 /** "22/05/2027" or "22/05/2027 - 23/05/2027"; '' when there are no dates. */
-function formatEventDateRange(startDate: string, endDate: string): string {
+function formatEventDateRange(startDate: string, endDate: string, locale: AppLocale): string {
   const fmt = (iso: string): string => {
     if (!iso) return '';
     const d = new Date(iso.includes('T') ? iso : `${iso}T00:00:00`);
     return Number.isNaN(d.getTime())
       ? ''
-      : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      : d.toLocaleDateString(localeToBcp47(locale), {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
   };
   const s = fmt(startDate);
   const e = fmt(endDate);
@@ -332,6 +338,7 @@ interface VenueFormModalProps {
 }
 
 function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormModalProps) {
+  const { locale } = useI18n();
   const isEdit = venue !== null;
   const [name, setName] = useState(venue?.name ?? '');
   const [address, setAddress] = useState(venue?.address ?? '');
@@ -719,7 +726,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
           ) : (
             <ul className="max-h-40 space-y-1 overflow-y-auto">
               {events.map((ev) => {
-                const range = formatEventDateRange(ev.startDate, ev.endDate);
+                const range = formatEventDateRange(ev.startDate, ev.endDate, locale);
                 return (
                   <li key={ev.id}>
                     <label className="flex items-center gap-2 rounded border border-border px-3 py-1 text-sm font-normal">

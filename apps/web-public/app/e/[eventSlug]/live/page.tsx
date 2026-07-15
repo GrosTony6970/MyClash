@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -33,9 +34,12 @@ function formatTime(hhmm: string): string {
   return hhmm.slice(0, 5);
 }
 
-function scheduledTime(iso: string | null): string {
+function scheduledTime(iso: string | null, locale: AppLocale): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(localeToBcp47(locale), {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function LiveBadge() {
@@ -49,7 +53,7 @@ function LiveBadge() {
 }
 
 function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const isLive = match.status === 'running';
   return (
     <div
@@ -63,7 +67,7 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
         {isLive ? (
           <LiveBadge />
         ) : match.scheduledAt ? (
-          <span className="text-xs text-muted">{scheduledTime(match.scheduledAt)}</span>
+          <span className="text-xs text-muted">{scheduledTime(match.scheduledAt, locale)}</span>
         ) : null}
       </div>
       <p className="text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
@@ -78,7 +82,7 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
 }
 
 export default function LivePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -308,7 +312,7 @@ export default function LivePage() {
                   </p>
                   {ls.nextMatch.scheduledAt && (
                     <p className="text-xs text-muted mt-1">
-                      {scheduledTime(ls.nextMatch.scheduledAt)}
+                      {scheduledTime(ls.nextMatch.scheduledAt, locale)}
                     </p>
                   )}
                 </div>

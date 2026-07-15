@@ -12,7 +12,9 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
@@ -489,16 +491,17 @@ function roleLabel(role: AssignmentRole, skillNameById?: Map<string, string>) {
   return role;
 }
 
-function formatTime(value: string | null) {
+function formatTime(value: string | null, locale: AppLocale) {
   if (!value) return t('organizer.refereesPage.unscheduled');
-  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat(localeToBcp47(locale), {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 
 /** Short day label for the by-timeslot header + day-filter pills. */
-function formatDayShort(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
+function formatDayShort(value: string, locale: AppLocale) {
+  return new Intl.DateTimeFormat(localeToBcp47(locale), {
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
@@ -639,6 +642,7 @@ function AssignmentsTab({
   /** Per-skill colour token for the chip tint (see assignment-chip-classes). */
   skillColorById: Map<string, string>;
 }) {
+  const { locale } = useI18n();
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -1271,7 +1275,8 @@ function AssignmentsTab({
             >
               <div className="flex items-baseline gap-3">
                 <span className="text-sm font-bold tabular-nums text-foreground">
-                  {formatDayShort(row.block.startTime)} · {formatTime(row.block.startTime)}
+                  {formatDayShort(row.block.startTime, locale)} ·{' '}
+                  {formatTime(row.block.startTime, locale)}
                 </span>
                 <div className="h-px flex-1 bg-border" />
               </div>
@@ -1511,7 +1516,7 @@ function AssignmentsTab({
                         : 'border-border bg-surface text-foreground-secondary hover:border-border',
                     ].join(' ')}
                   >
-                    {formatDayShort(iso)}
+                    {formatDayShort(iso, locale)}
                   </button>
                 ))}
               </div>
@@ -1664,6 +1669,7 @@ interface PersonResult {
 }
 
 export default function RefereesPage() {
+  const { locale } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -1819,7 +1825,7 @@ export default function RefereesPage() {
           while (cursor.getTime() <= end.getTime()) {
             days.push({
               index: idx,
-              label: cursor.toLocaleDateString(undefined, {
+              label: cursor.toLocaleDateString(localeToBcp47(locale), {
                 weekday: 'short',
                 day: 'numeric',
               }),
@@ -1834,7 +1840,7 @@ export default function RefereesPage() {
         if (err instanceof Error && err.name === 'AbortError') return;
       });
     return () => controller.abort();
-  }, [eventId, apiUrl]);
+  }, [eventId, apiUrl, locale]);
 
   // ── Fetch referees (enriched) + qual id map ─────────────────────────────────
 

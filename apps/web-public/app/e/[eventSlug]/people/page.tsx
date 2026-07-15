@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
+import { localeToBcp47 } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
@@ -32,7 +33,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function PeoplePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = getApiUrl();
@@ -139,7 +140,7 @@ export default function PeoplePage() {
                         <p className="text-xs text-muted">{p.nextEventLabel}</p>
                         {p.nextEventAt && (
                           <p className="text-xs text-muted">
-                            {new Date(p.nextEventAt).toLocaleTimeString('fr-FR', {
+                            {new Date(p.nextEventAt).toLocaleTimeString(localeToBcp47(locale), {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}

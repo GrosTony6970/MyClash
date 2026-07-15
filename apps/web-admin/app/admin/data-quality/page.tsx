@@ -1,8 +1,10 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type FindingStatus = 'open' | 'dismissed' | 'resolved';
 
@@ -43,6 +45,7 @@ const typeOptions = [
 ] as const;
 
 export default function AdminDataQualityPage() {
+  const { locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [scans, setScans] = useState<DataQualityScan[]>([]);
   const [findings, setFindings] = useState<DataQualityFinding[]>([]);
@@ -199,7 +202,7 @@ export default function AdminDataQualityPage() {
               })}
             </div>
             <div className="mt-2 text-xs text-muted">
-              {new Date(scan.started_at).toLocaleString('fr-FR')}
+              {new Date(scan.started_at).toLocaleString(localeToBcp47(locale))}
             </div>
           </article>
         ))}

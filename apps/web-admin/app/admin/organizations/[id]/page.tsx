@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useConfirm, useToast, StatusBadge } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface Member {
@@ -98,7 +99,7 @@ function accountLabel(account: PlatformAccount): string {
 }
 
 export default function AdminOrgDetailPage({ params }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
   const toast = useToast();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -396,7 +397,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
           { label: t('admin.organizations.table.events'), value: org.event_count },
           {
             label: t('admin.organizations.table.created'),
-            value: new Date(org.created_at).toLocaleDateString('fr-FR'),
+            value: new Date(org.created_at).toLocaleDateString(localeToBcp47(locale)),
           },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-lg border border-border p-4">
@@ -513,7 +514,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                     )}
                   </td>
                   <td className="py-2 pr-4 text-muted">
-                    {new Date(member.joined_at).toLocaleDateString('fr-FR')}
+                    {new Date(member.joined_at).toLocaleDateString(localeToBcp47(locale))}
                   </td>
                   <td className="py-2">
                     {member.role !== 'owner' ? (
@@ -548,7 +549,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                 className="flex items-start gap-3 border-b border-border pb-2 text-sm"
               >
                 <span className="mt-0.5 whitespace-nowrap text-xs text-muted">
-                  {new Date(entry.created_at).toLocaleString('fr-FR')}
+                  {new Date(entry.created_at).toLocaleString(localeToBcp47(locale))}
                 </span>
                 <span className="rounded bg-background px-1.5 py-0.5 font-mono text-xs text-foreground-secondary">
                   {entry.action}

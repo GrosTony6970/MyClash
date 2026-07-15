@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { useParams, useSearchParams } from 'next/navigation';
-import { formatInZone } from '@myclash/time';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { Button, GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
@@ -46,7 +46,7 @@ interface Workshop {
 }
 
 export default function WorkshopDetailPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string; workshopSlug: string }>();
   const searchParams = useSearchParams();
   const { eventSlug, workshopSlug } = params;
@@ -292,26 +292,41 @@ export default function WorkshopDetailPage() {
                     <div>
                       {session.startsAt && (
                         <p className="font-medium text-foreground">
-                          {formatInZone(session.startsAt, tz, {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                          })}
+                          {formatInZone(
+                            session.startsAt,
+                            tz,
+                            {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                            },
+                            localeToBcp47(locale),
+                          )}
                         </p>
                       )}
                       {(session.startsAt || session.endsAt || session.locationLabel) && (
                         <p className="text-sm text-muted">
                           {session.startsAt &&
-                            formatInZone(session.startsAt, tz, {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            formatInZone(
+                              session.startsAt,
+                              tz,
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                              localeToBcp47(locale),
+                            )}
                           {session.startsAt && session.endsAt && ' – '}
                           {session.endsAt &&
-                            formatInZone(session.endsAt, tz, {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            formatInZone(
+                              session.endsAt,
+                              tz,
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                              localeToBcp47(locale),
+                            )}
                           {session.locationLabel && ` · ${session.locationLabel}`}
                         </p>
                       )}

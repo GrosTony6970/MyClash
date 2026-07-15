@@ -13,6 +13,7 @@ import {
   useSortableList,
   useToast,
 } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useUrlState } from '../../../src/hooks/useUrlState';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -62,7 +63,7 @@ function slugify(value: string) {
 }
 
 export default function AdminOrganizationsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [orgs, setOrgs] = useState<OrgListItem[]>([]);
@@ -715,7 +716,7 @@ export default function AdminOrganizationsPage() {
                     </StatusBadge>
                   </td>
                   <td className="py-2 pr-4 text-muted">
-                    {new Date(org.created_at).toLocaleDateString('fr-FR')}
+                    {new Date(org.created_at).toLocaleDateString(localeToBcp47(locale))}
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">

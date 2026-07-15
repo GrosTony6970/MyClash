@@ -1,5 +1,6 @@
 'use client';
 
+import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -68,7 +69,7 @@ function payloadPreview(payload: unknown): string {
 }
 
 export function AuditLogPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [draftFilters, setDraftFilters] = useState<AuditFilters>(emptyFilters);
@@ -282,7 +283,7 @@ export function AuditLogPanel() {
               {response.items.map((entry) => (
                 <tr key={entry.id} className="border-b border-border hover:bg-background align-top">
                   <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
-                    {new Date(entry.created_at).toLocaleString('fr-FR')}
+                    {new Date(entry.created_at).toLocaleString(localeToBcp47(locale))}
                   </td>
                   <td className="py-2 pr-4 text-xs text-foreground-secondary">
                     {entry.actor_user_id ? (

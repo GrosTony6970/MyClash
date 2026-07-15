@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMatchClock } from '@myclash/ui';
-import { formatInZone } from '@myclash/time';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
@@ -77,7 +77,7 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const statusLabel: Record<MatchStatus, string> = {
     scheduled: t('scoring.liveMatch.status.scheduled'),
     running: t('scoring.liveMatch.status.running'),
@@ -105,12 +105,12 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
   };
 
   const fmtTime = (iso: string | null) =>
-    formatInZone(iso, summary.eventTimezone, {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    formatInZone(
+      iso,
+      summary.eventTimezone,
+      { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' },
+      localeToBcp47(locale),
+    );
 
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">

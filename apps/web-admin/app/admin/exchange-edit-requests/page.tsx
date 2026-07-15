@@ -1,6 +1,7 @@
 'use client';
 
 import { RowActionButton } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -36,7 +37,7 @@ function payloadPreview(payload: unknown): string {
 }
 
 export default function ExchangeEditRequestsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [status, setStatus] = useState<RequestStatus>('pending');
   const [items, setItems] = useState<ExchangeEditRequest[]>([]);
@@ -200,7 +201,7 @@ export default function ExchangeEditRequestsPage() {
                   className="border-b border-border hover:bg-background align-top"
                 >
                   <td className="py-3 pr-4 whitespace-nowrap text-foreground-secondary">
-                    {new Date(request.created_at).toLocaleString('fr-FR')}
+                    {new Date(request.created_at).toLocaleString(localeToBcp47(locale))}
                   </td>
                   <td className="py-3 pr-4">
                     <p className="font-semibold text-foreground">
@@ -251,7 +252,7 @@ export default function ExchangeEditRequestsPage() {
                       <div className="text-xs text-muted">
                         <p>
                           {request.reviewed_at
-                            ? new Date(request.reviewed_at).toLocaleString('fr-FR')
+                            ? new Date(request.reviewed_at).toLocaleString(localeToBcp47(locale))
                             : '-'}
                         </p>
                         <p>

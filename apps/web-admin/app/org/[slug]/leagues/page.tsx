@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { SegmentedTabs, useToast } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { LeagueAttachmentsSection } from './_components/LeagueAttachmentsSection';
 
@@ -61,7 +62,7 @@ function roleBadgeClass(role: string | null | undefined): string {
 }
 
 export default function OrgLeaguesPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ slug: string }>();
   const orgSlug = params.slug;
   const toast = useToast();
@@ -290,7 +291,9 @@ export default function OrgLeaguesPage() {
                           <>
                             {' · '}
                             {t('organizer.leagues.joinedAt', {
-                              date: new Date(league.joined_at).toLocaleDateString(),
+                              date: new Date(league.joined_at).toLocaleDateString(
+                                localeToBcp47(locale),
+                              ),
                             })}
                           </>
                         )}
@@ -394,7 +397,7 @@ export default function OrgLeaguesPage() {
                       </p>
                       <p className="text-xs text-muted">
                         {t('organizer.leagues.requestedAt', {
-                          date: new Date(r.requested_at).toLocaleDateString(),
+                          date: new Date(r.requested_at).toLocaleDateString(localeToBcp47(locale)),
                         })}
                         {r.message && <> · &ldquo;{r.message}&rdquo;</>}
                       </p>

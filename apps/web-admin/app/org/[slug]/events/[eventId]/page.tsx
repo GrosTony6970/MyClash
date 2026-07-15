@@ -9,6 +9,7 @@ import {
   statusPillTone,
   tournamentStatusSemantic,
 } from '@myclash/ui';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
@@ -77,9 +78,9 @@ function parseDate(value: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, locale: AppLocale): string {
   const date = parseDate(value);
-  return date ? date.toLocaleDateString('fr-FR') : '-';
+  return date ? date.toLocaleDateString(localeToBcp47(locale)) : '-';
 }
 
 function durationDays(start: string | null, end: string | null): number {
@@ -397,8 +398,8 @@ export default function EventDetailPage() {
                   .join(', ');
                 return place ? `${place} - ` : '';
               })()}
-              {formatDate(event.startDate)}
-              {event.startDate !== event.endDate ? ` - ${formatDate(event.endDate)}` : ''}
+              {formatDate(event.startDate, locale)}
+              {event.startDate !== event.endDate ? ` - ${formatDate(event.endDate, locale)}` : ''}
             </p>
           )}
         </div>
@@ -498,14 +499,14 @@ export default function EventDetailPage() {
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.startDate')}
-            value={formatDate(event?.startDate ?? null)}
+            value={formatDate(event?.startDate ?? null, locale)}
             detail={t('organizer.eventHub.dashboard.duration', {
               count: durationDays(event?.startDate ?? null, event?.endDate ?? null),
             })}
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.endDate')}
-            value={formatDate(event?.endDate ?? null)}
+            value={formatDate(event?.endDate ?? null, locale)}
             detail={liveState}
           />
           <MetricCard

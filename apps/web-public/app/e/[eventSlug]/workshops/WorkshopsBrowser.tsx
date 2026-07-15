@@ -11,7 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 import { fuzzyMatch } from '@myclash/ui';
-import { zonedDay, formatInZone } from '@myclash/time';
+import { zonedDay, formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import {
   WorkshopCard,
@@ -36,7 +36,7 @@ export function WorkshopsBrowser({
   eventSlug: string;
   timezone: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [query, setQuery] = useState('');
   const [day, setDay] = useState('');
   const [category, setCategory] = useState('');
@@ -114,11 +114,16 @@ export function WorkshopsBrowser({
               <option value="">{t('publicApp.workshops.allDays')}</option>
               {dayOptions.map(([key, rep]) => (
                 <option key={key} value={key}>
-                  {formatInZone(rep, timezone, {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}
+                  {formatInZone(
+                    rep,
+                    timezone,
+                    {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    },
+                    localeToBcp47(locale),
+                  )}
                 </option>
               ))}
             </select>

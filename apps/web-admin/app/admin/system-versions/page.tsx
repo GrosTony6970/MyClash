@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 /**
@@ -10,10 +11,10 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
  * parse as a date — e.g. when `deployedAt` is "unknown" because the deploy
  * manifest never ran.
  */
-function formatDeployDate(value: string): string {
+function formatDeployDate(value: string, locale: AppLocale): string {
   const ts = Date.parse(value);
   if (Number.isNaN(ts)) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(localeToBcp47(locale), {
     dateStyle: 'long',
     timeStyle: 'short',
   }).format(new Date(ts));
@@ -65,7 +66,7 @@ interface PendingAction {
 
 export default function AdminSystemVersionsPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
 
   const [versions, setVersions] = useState<SystemVersionsResponse | null>(null);
@@ -260,7 +261,7 @@ export default function AdminSystemVersionsPage() {
                             const isDeployDate =
                               group.key === 'deploy' && component.key === 'deployedAt';
                             const displayValue = isDeployDate
-                              ? formatDeployDate(component.version)
+                              ? formatDeployDate(component.version, locale)
                               : formatValue(component.version, t('admin.systemVersions.unknown'));
                             const componentLabel = translateWithFallback(
                               t,

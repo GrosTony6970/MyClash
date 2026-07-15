@@ -10,6 +10,7 @@ import {
   tintBorderClassFor,
   tintTextClassFor,
 } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
@@ -207,7 +208,7 @@ export function ScheduleGrid({
    *  nonces stay intact; the grid just places it. */
   configurePanel?: ReactNode;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [lices, setLices] = useState<Lice[]>([]);
@@ -1669,9 +1670,10 @@ export function ScheduleGrid({
         cells: [
           m.scheduledAt!.slice(0, 10),
           liceNameById.get(m.liceId!) ?? m.liceId!,
-          new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(
-            new Date(m.scheduledAt!),
-          ),
+          new Intl.DateTimeFormat(localeToBcp47(locale), {
+            hour: '2-digit',
+            minute: '2-digit',
+          }).format(new Date(m.scheduledAt!)),
           m.roundCode || m.matchNumberLabel,
           m.tournamentName ?? '',
           t('organizer.schedulePage.grid.versus', {

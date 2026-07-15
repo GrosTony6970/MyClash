@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface LiveMatch {
@@ -34,7 +35,7 @@ function minutesRemaining(endTime: string): number {
 }
 
 export function LiveNowBanner({ eventId }: { eventId: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [state, setState] = useState<LiveState | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -146,11 +147,14 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                   </span>
                   {ls.nextMatch.scheduledAt && (
                     <span className="flex-shrink-0 text-xs ml-auto">
-                      {new Date(ls.nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      })}
+                      {new Date(ls.nextMatch.scheduledAt).toLocaleTimeString(
+                        localeToBcp47(locale),
+                        {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        },
+                      )}
                     </span>
                   )}
                 </div>

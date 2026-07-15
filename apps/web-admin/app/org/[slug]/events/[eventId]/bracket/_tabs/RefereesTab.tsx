@@ -20,6 +20,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { useI18n } from '@/i18n/I18nProvider';
 import {
   SwapSuggestionsPanel,
   type SwapSuggestion,
@@ -423,6 +425,7 @@ function BracketMatchCard({
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
+  const { locale } = useI18n();
   // Unified match code. The server now returns pool.name in the
   // canonical LSW-B-QF-M1 / LSW-B-PI-M5 shape via formatRoundCode,
   // so this surface no longer needs its own "Quarter-final #2"
@@ -436,7 +439,7 @@ function BracketMatchCard({
           {pool.tournamentName ? `${pool.tournamentName} – ${roundLabel}` : roundLabel}
         </p>
         {pool.scheduledStart && (
-          <p className="text-xs text-muted">{formatHHMM(pool.scheduledStart)}</p>
+          <p className="text-xs text-muted">{formatHHMM(pool.scheduledStart, locale)}</p>
         )}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -589,9 +592,9 @@ function CandidateGroup({
   );
 }
 
-function formatHHMM(iso: string | null): string {
+function formatHHMM(iso: string | null, locale: AppLocale): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(localeToBcp47(locale), { hour: '2-digit', minute: '2-digit' });
 }

@@ -12,6 +12,7 @@ import {
   useSelection,
   useToast,
 } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
@@ -52,7 +53,7 @@ interface CustomRuleset {
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export default function AdminRulesetsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // ── Submissions section state ──────────────────────────────────────────
   const [submissions, setSubmissions] = useState<RulesetSubmission[]>([]);
@@ -444,7 +445,7 @@ export default function AdminRulesetsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted">
-                      {new Date(row.created_at).toLocaleDateString('fr-FR')}
+                      {new Date(row.created_at).toLocaleDateString(localeToBcp47(locale))}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">

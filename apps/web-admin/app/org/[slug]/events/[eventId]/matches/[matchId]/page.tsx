@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useConfirm, useToast } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ export default function MatchDetailPage() {
   }>();
   const { slug, eventId, matchId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
 
@@ -573,7 +574,7 @@ export default function MatchDetailPage() {
                         </p>
                       )}
                       <p className="text-xs text-muted mt-0.5 ml-8">
-                        {new Date(ex.occurredAt).toLocaleTimeString('fr-FR')}
+                        {new Date(ex.occurredAt).toLocaleTimeString(localeToBcp47(locale))}
                         {(ex.redScoreDelta !== 0 || ex.blueScoreDelta !== 0) && (
                           <span className="ml-2">
                             {ex.redScoreDelta > 0 && (
@@ -641,7 +642,7 @@ export default function MatchDetailPage() {
                       {entry.action}
                     </span>
                     <span className="text-muted">
-                      {new Date(entry.createdAt).toLocaleString('fr-FR')}
+                      {new Date(entry.createdAt).toLocaleString(localeToBcp47(locale))}
                     </span>
                   </div>
                   <p className="text-muted">

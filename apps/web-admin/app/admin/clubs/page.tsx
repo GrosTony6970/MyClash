@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import {
   AdminPageHeader,
   BulkActionBar,
@@ -14,6 +15,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface ClubRow {
   id: string;
@@ -29,11 +31,13 @@ interface ClubRow {
 }
 
 /** Locale-aware short date for the "Added" column. Returns "—" on missing/invalid. */
-function formatAddedDate(value: string | null): string {
+function formatAddedDate(value: string | null, locale: AppLocale): string {
   if (!value) return '—';
   const ts = Date.parse(value);
   if (Number.isNaN(ts)) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(ts));
+  return new Intl.DateTimeFormat(localeToBcp47(locale), { dateStyle: 'medium' }).format(
+    new Date(ts),
+  );
 }
 
 type BulkAction = 'verify' | 'unverify' | 'archive' | 'delete' | 'cleanup-delete';
@@ -94,6 +98,7 @@ function formatBlockers(blockers: unknown): string | null {
 }
 
 export default function AdminClubsPage() {
+  const { locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [query, setQuery] = useState('');
@@ -1171,7 +1176,7 @@ export default function AdminClubsPage() {
                     />
                   </td>
                   <td className="py-2 px-4 text-xs text-muted">
-                    {formatAddedDate(club.created_at)}
+                    {formatAddedDate(club.created_at, locale)}
                   </td>
                   <td className="py-2 px-4">
                     <span className="sr-only">{t('admin.clubs.status')}</span>
@@ -1225,7 +1230,7 @@ export default function AdminClubsPage() {
                     {club.country_code ?? t('common.none')}
                   </td>
                   <td className="py-2.5 px-4 text-xs text-muted">
-                    {formatAddedDate(club.created_at)}
+                    {formatAddedDate(club.created_at, locale)}
                   </td>
                   <td className="py-2.5 px-4">
                     {club.unverified === 'true' ? (

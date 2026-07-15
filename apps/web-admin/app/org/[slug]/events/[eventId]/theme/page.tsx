@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
@@ -30,7 +31,7 @@ export default function BrandingEditorPage() {
   const searchParams = useSearchParams();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
@@ -166,7 +167,11 @@ export default function BrandingEditorPage() {
     const dt = new Date(d.includes('T') ? d : `${d}T00:00:00`);
     return Number.isNaN(dt.getTime())
       ? null
-      : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+      : dt.toLocaleDateString(localeToBcp47(locale), {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
   };
   const previewPlace = [eventCity, eventCountry].filter(Boolean).join(', ') || null;
   const startLabel = fmtDate(eventStart);

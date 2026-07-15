@@ -28,6 +28,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { useI18n } from '@/i18n/I18nProvider';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
 import {
   SwapSuggestionsPanel,
@@ -108,6 +110,7 @@ interface Props {
 }
 
 export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
+  const { locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -360,7 +363,9 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 
       <PoolTimelineGrid pools={timelinePools} highlightTournamentId={tournamentId} />
 
-      {concurrentPools.length > 0 && <ConcurrentPoolsPanel pools={concurrentPools} />}
+      {concurrentPools.length > 0 && (
+        <ConcurrentPoolsPanel pools={concurrentPools} locale={locale} />
+      )}
 
       <section className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
@@ -412,7 +417,13 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 // PoolSlotCard moved to ../../referees/_components/PoolSlotCard.tsx so the
 // event-level Assignments tab's timeslot grid renders the same card.
 
-function ConcurrentPoolsPanel({ pools }: { pools: AssignmentBoardPool[] }) {
+function ConcurrentPoolsPanel({
+  pools,
+  locale,
+}: {
+  pools: AssignmentBoardPool[];
+  locale: AppLocale;
+}) {
   return (
     <section className="rounded-lg border border-warning/30 bg-warning/10 p-4">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-warning">
@@ -431,7 +442,9 @@ function ConcurrentPoolsPanel({ pools }: { pools: AssignmentBoardPool[] }) {
               <span className="font-semibold text-foreground">
                 {pool.tournamentName} · {pool.name}
                 {pool.scheduledStart && (
-                  <span className="ml-1 text-muted">({formatHHMM(pool.scheduledStart)})</span>
+                  <span className="ml-1 text-muted">
+                    ({formatHHMM(pool.scheduledStart, locale)})
+                  </span>
                 )}
               </span>
               <span className="text-foreground-secondary">
@@ -570,9 +583,9 @@ function CandidateGroup({
   );
 }
 
-function formatHHMM(iso: string | null): string {
+function formatHHMM(iso: string | null, locale: AppLocale): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(localeToBcp47(locale), { hour: '2-digit', minute: '2-digit' });
 }

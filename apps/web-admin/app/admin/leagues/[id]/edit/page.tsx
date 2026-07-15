@@ -8,6 +8,7 @@ import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useConfirm, useToast } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -134,7 +135,7 @@ const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
 export default function EditLeaguePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
   const toast = useToast();
   const params = useParams<{ id: string }>();
@@ -786,7 +787,7 @@ export default function EditLeaguePage() {
                   <option key={v.id} value={v.version}>
                     {t('admin.adminLeagues.versionOption', {
                       version: v.version,
-                      date: new Date(v.published_at).toLocaleDateString(),
+                      date: new Date(v.published_at).toLocaleDateString(localeToBcp47(locale)),
                     })}
                   </option>
                 ))}

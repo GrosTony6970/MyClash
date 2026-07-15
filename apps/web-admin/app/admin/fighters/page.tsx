@@ -3,6 +3,7 @@
 import { t } from '@myclash/i18n';
 import { getDateFormat } from '@myclash/types';
 import { Button, SortableHeader, useConfirm, useSortableList } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -1146,7 +1147,7 @@ export default function AdminFightersPage() {
                           {audit.payload_json.reason ?? '-'}
                         </td>
                         <td className="py-2 pr-4 text-muted">
-                          {new Date(audit.created_at).toLocaleDateString('fr-FR')}
+                          {new Date(audit.created_at).toLocaleDateString(localeToBcp47(locale))}
                         </td>
                         <td className="py-2">
                           <button

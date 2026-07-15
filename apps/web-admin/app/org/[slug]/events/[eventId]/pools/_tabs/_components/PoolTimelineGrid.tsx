@@ -20,7 +20,9 @@
 
 import { useMemo } from 'react';
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { groupPoolsByTimeslot } from '../../../referees/_components/group-pools-by-timeslot';
+import { useI18n } from '../../../../../../../../src/i18n/I18nProvider';
 
 export interface TimelinePool {
   id: string;
@@ -72,6 +74,7 @@ function breakBarClasses(kind: string): string {
 }
 
 export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolClick }: Props) {
+  const { locale } = useI18n();
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
   const unscheduledByLice = useMemo(() => [...unscheduled].sort(byLice), [unscheduled]);
   // Merge timeslot rows with break bars, ordered by start time.
@@ -116,10 +119,10 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
             <div key={row.block.startTime} className="flex items-start gap-3">
               <div className="w-20 shrink-0 pt-2 text-right">
                 <div className="text-[10px] leading-tight text-muted">
-                  {formatDay(row.block.startTime)}
+                  {formatDay(row.block.startTime, locale)}
                 </div>
                 <div className="text-xs font-semibold tabular-nums text-foreground-secondary">
-                  {formatHHMM(row.block.startTime)}
+                  {formatHHMM(row.block.startTime, locale)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -206,16 +209,20 @@ function PoolCard({
   );
 }
 
-function formatHHMM(iso: string): string {
+function formatHHMM(iso: string, locale: AppLocale): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(localeToBcp47(locale), { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Compact day label above the time so multi-day events are unambiguous,
  *  e.g. "sam. 21/06". Same 'fr-FR' locale as the time formatter. */
-function formatDay(iso: string): string {
+function formatDay(iso: string, locale: AppLocale): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString(localeToBcp47(locale), {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  });
 }

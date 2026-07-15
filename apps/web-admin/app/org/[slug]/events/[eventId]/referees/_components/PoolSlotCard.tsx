@@ -12,6 +12,8 @@
  */
 
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import { assignmentChipClasses } from './assignment-chip-classes';
 import { formatUnassignedReason } from './format-unassigned-reason';
 
@@ -75,6 +77,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
    *  column header already carries it. */
   showLice?: boolean;
 }) {
+  const { locale } = useI18n();
   // Most-important role first (slot 1 sits on top, then 2, then 3 …).
   const orderedSlots = [...pool.roleSlots].sort((a, b) => a.slotIndex - b.slotIndex);
   return (
@@ -86,8 +89,8 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
           </p>
           {pool.scheduledStart && (
             <p className="text-xs text-muted">
-              {formatHHMM(pool.scheduledStart)}
-              {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd)}`}
+              {formatHHMM(pool.scheduledStart, locale)}
+              {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd, locale)}`}
             </p>
           )}
           {showLice && liceName && (
@@ -222,8 +225,8 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
   );
 }
 
-function formatHHMM(iso: string): string {
+function formatHHMM(iso: string, locale: AppLocale): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(localeToBcp47(locale), { hour: '2-digit', minute: '2-digit' });
 }

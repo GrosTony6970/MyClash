@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type PlatformLogCategory =
@@ -87,7 +88,7 @@ function buildParams(filters: PlatformFilters, page?: number, perPage?: number):
 }
 
 export function PlatformLogPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [draftFilters, setDraftFilters] = useState<PlatformFilters>(emptyFilters);
@@ -308,7 +309,7 @@ export function PlatformLogPanel() {
                     className="border-b border-border hover:bg-background align-top"
                   >
                     <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
-                      {new Date(entry.occurredAt).toLocaleString('fr-FR')}
+                      {new Date(entry.occurredAt).toLocaleString(localeToBcp47(locale))}
                     </td>
                     <td className="py-2 pr-4 whitespace-nowrap text-foreground-secondary">
                       {t(`admin.platformLog.category.${entry.category}`)}

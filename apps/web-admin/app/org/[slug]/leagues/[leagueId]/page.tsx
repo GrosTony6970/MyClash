@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { ScoringSystemPreview } from '../../../../admin/rulesets/league/_components/ScoringSystemPreview';
@@ -97,7 +98,7 @@ function parseScoringRef(stored: string | null | undefined): {
 }
 
 export default function OrgLeagueManagePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
   const toast = useToast();
   const params = useParams<{ slug: string; leagueId: string }>();
@@ -637,7 +638,7 @@ export default function OrgLeagueManagePage() {
                     <option key={v.id} value={v.version}>
                       {t('admin.adminLeagues.versionOption', {
                         version: v.version,
-                        date: new Date(v.published_at).toLocaleDateString(),
+                        date: new Date(v.published_at).toLocaleDateString(localeToBcp47(locale)),
                       })}
                     </option>
                   ))}

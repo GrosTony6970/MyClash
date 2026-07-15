@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 
@@ -23,7 +24,7 @@ interface Props {
 
 export function ArchivedBanner({ eventId, eventName, updatedAt }: Props) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
 
   const [pendingRequest, setPendingRequest] = useState<DeletionRequest | null | undefined>(
@@ -86,13 +87,15 @@ export function ArchivedBanner({ eventId, eventName, updatedAt }: Props) {
     if (!raw) return null;
     const d = new Date(raw);
     if (isNaN(d.getTime())) return null;
-    return d.toLocaleDateString('fr-FR');
+    return d.toLocaleDateString(localeToBcp47(locale));
   })();
 
   if (pendingRequest) {
     const reqDate = (() => {
       const d = new Date(pendingRequest.createdAt);
-      return isNaN(d.getTime()) ? pendingRequest.createdAt : d.toLocaleDateString('fr-FR');
+      return isNaN(d.getTime())
+        ? pendingRequest.createdAt
+        : d.toLocaleDateString(localeToBcp47(locale));
     })();
     return (
       <div className="bg-orange-50 border-b border-orange-200 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">

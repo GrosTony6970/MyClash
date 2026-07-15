@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sideStyle, tintTextClassFor } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
-import { formatInZone } from '@myclash/time';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
@@ -105,7 +105,7 @@ export function PoolMatchesView({
   colorToken,
   highlightRegistrationId,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [sideColors, setSideColors] = useState<SideColors>(DEFAULT_SIDE_COLORS);
@@ -268,13 +268,18 @@ export function PoolMatchesView({
                 const start = poolScheduledStart(pool);
                 return start ? (
                   <span className="text-xs font-medium text-muted">
-                    {formatInZone(start, timezone, {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatInZone(
+                      start,
+                      timezone,
+                      {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      },
+                      localeToBcp47(locale),
+                    )}
                   </span>
                 ) : null;
               })()}

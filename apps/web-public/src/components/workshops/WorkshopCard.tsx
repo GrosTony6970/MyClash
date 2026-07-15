@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
-import { formatInZone, zonedDay } from '@myclash/time';
+import { formatInZone, localeToBcp47, zonedDay } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
 
 type TFn = ReturnType<typeof useI18n>['t'];
@@ -136,7 +136,7 @@ export function WorkshopCard({
   highlighted = false,
   showLocation = false,
 }: WorkshopCardProps): ReactNode {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const instructorNames = w.instructors.map((i) => i.displayName);
   const totalConfirmed = w.sessions.reduce((s, sess) => s + sess.confirmedCount, 0);
   const totalCapacity = w.sessions.reduce((s, sess) => s + (sess.capacity ?? 0), 0);
@@ -246,18 +246,28 @@ export function WorkshopCard({
           </div>
           {firstSession?.startsAt && (
             <p className="mt-3 text-xs font-medium text-muted">
-              {formatInZone(firstSession.startsAt, timezone, {
-                weekday: 'short',
-                day: 'numeric',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-              {firstSession.endsAt &&
-                `–${formatInZone(firstSession.endsAt, timezone, {
+              {formatInZone(
+                firstSession.startsAt,
+                timezone,
+                {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
                   hour: '2-digit',
                   minute: '2-digit',
-                })}`}
+                },
+                localeToBcp47(locale),
+              )}
+              {firstSession.endsAt &&
+                `–${formatInZone(
+                  firstSession.endsAt,
+                  timezone,
+                  {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  },
+                  localeToBcp47(locale),
+                )}`}
               {showLocation && location && <span className="text-muted"> · {location}</span>}
               {moreCount > 0 && (
                 <span className="text-muted">

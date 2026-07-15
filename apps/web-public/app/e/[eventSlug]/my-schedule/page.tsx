@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
@@ -71,16 +72,16 @@ function getTime(item: ScheduleItem): number {
   return t ? new Date(t).getTime() : Infinity;
 }
 
-function formatTime(iso: string | null, t: TranslateFn): string {
+function formatTime(iso: string | null, t: TranslateFn, locale: AppLocale): string {
   if (!iso) return t('publicApp.mySchedule.tbd');
-  return new Date(iso).toLocaleTimeString('fr-FR', {
+  return new Date(iso).toLocaleTimeString(localeToBcp47(locale), {
     hour: '2-digit',
     minute: '2-digit',
   });
 }
 
-function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
+function formatDay(iso: string, locale: AppLocale): string {
+  return new Date(iso).toLocaleDateString(localeToBcp47(locale), {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -130,7 +131,7 @@ function itemLabel(item: ScheduleItem, t: TranslateFn): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MySchedulePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = getApiUrl();
@@ -334,7 +335,10 @@ export default function MySchedulePage() {
               ].join(' ')}
               style={dayFilter === day ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
             >
-              {new Date(day).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })}
+              {new Date(day).toLocaleDateString(localeToBcp47(locale), {
+                weekday: 'short',
+                day: 'numeric',
+              })}
             </button>
           ))}
         </div>
@@ -357,7 +361,7 @@ export default function MySchedulePage() {
         <section key={day} className="mb-6">
           {day !== 'unscheduled' && (
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-              {formatDay(day)}
+              {formatDay(day, locale)}
             </h2>
           )}
           <div className="flex flex-col gap-2">
@@ -384,7 +388,7 @@ export default function MySchedulePage() {
                     <div className="flex-1">
                       {/* Time */}
                       <p className="text-xs text-muted mb-0.5">
-                        {formatTime(item.time, t)}
+                        {formatTime(item.time, t, locale)}
                         {item.kind === 'match' && item.data.liceName && (
                           <span className="ml-1">· {item.data.liceName}</span>
                         )}

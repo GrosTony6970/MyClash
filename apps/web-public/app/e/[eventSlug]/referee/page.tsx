@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
+import { localeToBcp47 } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
@@ -41,7 +42,7 @@ const STATUS_COLORS: Record<AssignmentStatus, string> = {
 };
 
 export default function RefereeDashboardPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = getApiUrl();
@@ -176,7 +177,7 @@ export default function RefereeDashboardPage() {
                       </div>
                       {m.scheduledAt && (
                         <p className="text-xs text-muted flex-shrink-0">
-                          {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
+                          {new Date(m.scheduledAt).toLocaleTimeString(localeToBcp47(locale), {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}

@@ -27,6 +27,7 @@ import {
   statusPillTone,
   tournamentStatusSemantic,
 } from '@myclash/ui';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
@@ -705,7 +706,7 @@ export default function OrgEventsListPage() {
                       </p>
                     </td>
                     <td className="px-4 py-4 text-foreground-secondary">
-                      {formatDate(event.createdAt)}
+                      {formatDate(event.createdAt, locale)}
                     </td>
                     <td className="px-4 py-4 text-foreground-secondary">
                       {event.createdByUserName ?? '—'}
@@ -717,10 +718,10 @@ export default function OrgEventsListPage() {
                       {event.participantCount}
                     </td>
                     <td className="px-4 py-4 text-foreground-secondary">
-                      {formatDate(event.startDate)}
+                      {formatDate(event.startDate, locale)}
                     </td>
                     <td className="px-4 py-4 text-foreground-secondary">
-                      {formatDate(event.endDate)}
+                      {formatDate(event.endDate, locale)}
                     </td>
                     <td className="px-4 py-4">
                       {event.status === 'draft' ? (
@@ -1121,9 +1122,13 @@ export default function OrgEventsListPage() {
   );
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale: AppLocale): string {
   if (!value) return '—';
   const date = new Date(value.includes('T') ? value : `${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return date.toLocaleDateString(localeToBcp47(locale), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }

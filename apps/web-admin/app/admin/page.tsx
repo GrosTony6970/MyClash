@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader, FoilMark, MetricCard, StatsGrid } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../src/i18n/I18nProvider';
 
 type DashboardStats = {
@@ -40,7 +41,7 @@ function formatNumber(value: number) {
 }
 
 export default function SuperAdminDashboardPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -220,7 +221,7 @@ export default function SuperAdminDashboardPage() {
           stats ? (
             <p className="text-xs font-semibold uppercase tracking-wider text-muted">
               {t('admin.dashboard.statsUpdated', {
-                date: new Date(stats.generatedAt).toLocaleString('fr-FR'),
+                date: new Date(stats.generatedAt).toLocaleString(localeToBcp47(locale)),
               })}
             </p>
           ) : null

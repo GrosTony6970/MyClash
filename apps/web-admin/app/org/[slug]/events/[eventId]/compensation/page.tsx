@@ -1,11 +1,13 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 const ROLE_LABEL_KEYS: Record<string, string> = {
   arbitre_declarant: 'organizer.eventCompensation.roles.arbitre_declarant',
@@ -31,6 +33,7 @@ interface EventSettings {
 }
 
 export default function CompensationPage() {
+  const { locale } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -412,7 +415,9 @@ export default function CompensationPage() {
                         {referee.paid && referee.paidAt && (
                           <p className="text-xs text-success mt-2">
                             {t('organizer.eventCompensation.paidOn', {
-                              date: new Date(referee.paidAt).toLocaleDateString('fr-FR'),
+                              date: new Date(referee.paidAt).toLocaleDateString(
+                                localeToBcp47(locale),
+                              ),
                             })}
                           </p>
                         )}

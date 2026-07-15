@@ -21,7 +21,7 @@ import {
   workshopSessionTimes,
 } from './workshop-session-times';
 import { eachDay } from '@myclash/schedule-core';
-import { formatInZone, zonedDay } from '@myclash/time';
+import { formatInZone, zonedDay, localeToBcp47 } from '@myclash/time';
 import {
   TournamentColorDot,
   accentClassFor,
@@ -129,7 +129,7 @@ export default function WorkshopsAdminPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { confirm, confirmDialog } = useConfirm();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,7 +259,12 @@ export default function WorkshopsAdminPage() {
   }
 
   function hhmmInZone(iso: string): string {
-    return formatInZone(iso, eventTz, { hour: '2-digit', minute: '2-digit', hour12: false });
+    return formatInZone(
+      iso,
+      eventTz,
+      { hour: '2-digit', minute: '2-digit', hour12: false },
+      localeToBcp47(locale),
+    );
   }
 
   function openCreate() {
@@ -899,18 +904,28 @@ export default function WorkshopsAdminPage() {
                   : '—';
                 const timeRange =
                   session && session.startsAt
-                    ? `${formatInZone(session.startsAt, eventTz, {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}${
+                    ? `${formatInZone(
+                        session.startsAt,
+                        eventTz,
+                        {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        },
+                        localeToBcp47(locale),
+                      )}${
                         session.endsAt
-                          ? ` – ${formatInZone(session.endsAt, eventTz, {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}`
+                          ? ` – ${formatInZone(
+                              session.endsAt,
+                              eventTz,
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                              localeToBcp47(locale),
+                            )}`
                           : ''
                       }`
                     : '—';
@@ -1138,7 +1153,7 @@ export default function WorkshopsAdminPage() {
                       <option value="">—</option>
                       {eventDays.map((d) => (
                         <option key={d} value={d}>
-                          {new Date(`${d}T00:00:00Z`).toLocaleDateString('fr-FR', {
+                          {new Date(`${d}T00:00:00Z`).toLocaleDateString(localeToBcp47(locale), {
                             weekday: 'short',
                             day: '2-digit',
                             month: 'short',

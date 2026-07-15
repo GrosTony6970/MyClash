@@ -8,6 +8,7 @@ import {
   type MaintenanceBannerSeverity,
 } from '@myclash/feature-flags';
 import { AdminPageHeader } from '@myclash/ui';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface FlagRow {
@@ -58,7 +59,7 @@ function buildTimeSimPayload(
 }
 
 export default function AdminFeatureFlagsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [rows, setRows] = useState<FlagRow[]>([]);
@@ -165,6 +166,7 @@ export default function AdminFeatureFlagsPage() {
                         busy={busyKey === def.key}
                         onSave={saveFlag}
                         t={t}
+                        locale={locale}
                       />
                     ))}
                   </ul>
@@ -183,6 +185,7 @@ export default function AdminFeatureFlagsPage() {
                     busy={busyKey === def.key}
                     onSave={saveFlag}
                     t={t}
+                    locale={locale}
                   />
                 ))}
               </ul>
@@ -203,9 +206,10 @@ interface FlagItemProps {
     body: { enabled: boolean; payloadJson?: Record<string, unknown> | null },
   ) => void | Promise<void>;
   t: (key: string, vars?: Record<string, string>) => string;
+  locale: AppLocale;
 }
 
-function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
+function FlagItem({ def, row, busy, onSave, t, locale }: FlagItemProps) {
   const enabled = row?.enabled ?? def.default;
   const hasBannerPayload = def.payload === 'maintenance_banner';
   const hasTimeSimPayload = def.payload === 'time_simulation';
@@ -242,7 +246,7 @@ function FlagItem({ def, row, busy, onSave, t }: FlagItemProps) {
           {row?.updated_at && (
             <p className="mt-1 text-xs text-muted">
               {t('admin.featureFlags.lastUpdated', {
-                date: new Date(row.updated_at).toLocaleString('fr-FR'),
+                date: new Date(row.updated_at).toLocaleString(localeToBcp47(locale)),
               })}
             </p>
           )}

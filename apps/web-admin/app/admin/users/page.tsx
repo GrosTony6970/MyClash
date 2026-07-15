@@ -13,6 +13,7 @@ import {
   useToast,
   type RowActionVariant,
 } from '@myclash/ui';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface UserOrgMembership {
@@ -51,8 +52,8 @@ function isDisabled(user: AdminUser): boolean {
   return Boolean(user.banned_until);
 }
 
-function formatDate(value: string | null | undefined, fallback: string) {
-  return value ? new Date(value).toLocaleDateString('fr-FR') : fallback;
+function formatDate(value: string | null | undefined, fallback: string, locale: AppLocale) {
+  return value ? new Date(value).toLocaleDateString(localeToBcp47(locale)) : fallback;
 }
 
 function getDisplayName(user: AdminUser, fallback: string): string {
@@ -110,7 +111,7 @@ function ActionButton({
 
 export default function AdminUsersPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -525,10 +526,10 @@ export default function AdminUsersPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-foreground-secondary">
-                      {formatDate(user.created_at, t('admin.users.missingDate'))}
+                      {formatDate(user.created_at, t('admin.users.missingDate'), locale)}
                     </td>
                     <td className="px-4 py-3 text-foreground-secondary">
-                      {formatDate(user.last_sign_in_at, t('admin.users.missingDate'))}
+                      {formatDate(user.last_sign_in_at, t('admin.users.missingDate'), locale)}
                     </td>
                     <td className="px-4 py-3">
                       <span

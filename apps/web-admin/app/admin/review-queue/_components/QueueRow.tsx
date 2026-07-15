@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { SkillBadge, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { t } from '@myclash/i18n';
+import { useI18n } from '@/i18n/I18nProvider';
 import type { ReviewQueueItem } from '../_types';
 
 // ── Type badge config ─────────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ export interface QueueRowProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
+  const { locale } = useI18n();
   const badge = TYPE_BADGE[item.type];
   const truncatedReason =
     item.reason && item.reason.length > 80 ? item.reason.slice(0, 80) + '…' : item.reason;
@@ -144,13 +147,15 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
                 {t('admin.reviewQueue.reviewedByOn', {
                   name:
                     item.reviewedByName ?? item.reviewedByEmail ?? t('admin.common.unknownUser'),
-                  date: new Date(item.reviewedAt).toLocaleDateString('fr-FR'),
+                  date: new Date(item.reviewedAt).toLocaleDateString(localeToBcp47(locale)),
                 })}
               </p>
             ) : item.status === 'cancelled' ? (
               <p>
                 {t('admin.adminRulesetsReview.cancelledOn', {
-                  date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('fr-FR') : '—',
+                  date: item.createdAt
+                    ? new Date(item.createdAt).toLocaleDateString(localeToBcp47(locale))
+                    : '—',
                 })}
               </p>
             ) : (

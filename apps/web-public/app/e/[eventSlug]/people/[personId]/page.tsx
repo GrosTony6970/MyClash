@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface PersonProfile {
@@ -53,7 +54,7 @@ interface PersonSchedule {
 }
 
 export default function PersonProfilePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string; personId: string }>();
   const { eventSlug, personId } = params;
   const apiUrl = getApiUrl();
@@ -330,7 +331,7 @@ export default function PersonProfilePage() {
                   </div>
                   {m.scheduledAt && (
                     <p className="text-xs text-muted">
-                      {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
+                      {new Date(m.scheduledAt).toLocaleTimeString(localeToBcp47(locale), {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
@@ -364,7 +365,7 @@ export default function PersonProfilePage() {
                 </div>
                 {s.scheduledAt && (
                   <p className="text-xs text-muted">
-                    {new Date(s.scheduledAt).toLocaleTimeString('fr-FR', {
+                    {new Date(s.scheduledAt).toLocaleTimeString(localeToBcp47(locale), {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}

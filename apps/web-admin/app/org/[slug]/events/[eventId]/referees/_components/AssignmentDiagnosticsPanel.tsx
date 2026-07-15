@@ -1,7 +1,9 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { localeToBcp47, type AppLocale } from '@myclash/time';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
+import { useI18n } from '@/i18n/I18nProvider';
 import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
 import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
@@ -84,9 +86,9 @@ function pickTheme(status: HealthStatus) {
   }
 }
 
-function hhmm(iso: string | null): string {
+function hhmm(iso: string | null, locale: AppLocale): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('fr-FR', {
+  return new Date(iso).toLocaleTimeString(localeToBcp47(locale), {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -110,6 +112,7 @@ export function AssignmentDiagnosticsPanel({
   onToggleRule?: (key: RuleKey, enabled: boolean) => void;
   togglesDisabled?: boolean;
 }) {
+  const { locale } = useI18n();
   const summary = summariseBoard(board);
   const roster = summariseRosterHealth(board, skillNameById);
   if (summary.totalSlots === 0) return null;
@@ -156,7 +159,7 @@ export function AssignmentDiagnosticsPanel({
             {conflicts.map((c, i) => (
               <li key={`${c.poolId}:${c.personId}:${i}`} className={`text-sm ${theme.item}`}>
                 <span className="font-medium">{c.personName}</span> — {label(c.role)} · {c.poolName}
-                {c.start && ` (${hhmm(c.start)})`}
+                {c.start && ` (${hhmm(c.start, locale)})`}
                 <span className={`block text-xs ${theme.sublabel}`}>
                   ↳{' '}
                   {c.kind === 'unavailable'
@@ -210,7 +213,7 @@ export function AssignmentDiagnosticsPanel({
           <ul className="space-y-1">
             {capacityWarnings.map((w, i) => (
               <li key={`${w.start}:${i}`} className={`text-sm ${theme.item}`}>
-                {hhmm(w.start)}–{hhmm(w.end)}:{' '}
+                {hhmm(w.start, locale)}–{hhmm(w.end, locale)}:{' '}
                 {t('organizer.refereesPage.conflict.capacityLine')
                   .replace('{lices}', String(w.liceCount))
                   .replace('{needed}', String(w.needed))

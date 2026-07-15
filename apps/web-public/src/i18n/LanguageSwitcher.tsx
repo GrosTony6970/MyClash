@@ -10,6 +10,13 @@ const LABEL_KEY: Record<Locale, string> = {
   fr: 'navigation.languageFrench',
 };
 
+// Module scope on purpose: writing document.cookie inside the component trips
+// the React Compiler ("this value cannot be modified"). One year, lax so the
+// cookie rides top-level navigations.
+function persistLocale(next: Locale) {
+  document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
+}
+
 /**
  * EN / FR language toggle. Persists the choice in the `mc_locale` cookie (one
  * year, lax) and refreshes so the server re-renders in the chosen locale — the
@@ -23,7 +30,7 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
 
   function choose(next: Locale) {
     if (next === locale || pending) return;
-    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
+    persistLocale(next);
     startTransition(() => router.refresh());
   }
 
