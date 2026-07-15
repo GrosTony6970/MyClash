@@ -93,3 +93,94 @@ export function formatInZone(
       : options;
   return dt.setLocale(locale).toLocaleString(opts);
 }
+
+// --- Locale-aware display helpers ---------------------------------------
+// The UI locale is the two-letter app locale ('en' | 'fr'); date formatting
+// needs a BCP-47 tag. Inlined here (not imported from @myclash/i18n) to keep
+// this package dependency-light — it is shared by the api too.
+
+/** The two-letter UI locale. Mirror of `Locale` in @myclash/i18n. */
+export type AppLocale = 'en' | 'fr';
+
+/**
+ * Map a UI locale to the BCP-47 tag used for date/number formatting. English
+ * uses `en-GB` (DD/MM, 24h) rather than `en-US` — MyClash is a European HEMA
+ * platform, so day-first + 24-hour reads correctly for both audiences.
+ */
+export function localeToBcp47(locale: AppLocale): string {
+  return locale === 'fr' ? 'fr-FR' : 'en-GB';
+}
+
+const DATE_OPTS: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+
+/**
+ * Format a UTC instant for display in the UI locale. Pass an event `tz` to
+ * anchor the wall-clock to the event timezone (schedule/event surfaces);
+ * omit it for plain timestamps shown in the viewer's local zone (admin lists,
+ * "created at"). Safe on bad input (returns '').
+ */
+export function formatDate(
+  iso: string | null | undefined,
+  locale: AppLocale,
+  options: Intl.DateTimeFormatOptions = DATE_OPTS,
+  tz?: string,
+): string {
+  return formatLocalized(iso, locale, options, tz);
+}
+
+/** Time-of-day in the UI locale (24-hour). See {@link formatDate} re: `tz`. */
+export function formatTime(
+  iso: string | null | undefined,
+  locale: AppLocale,
+  options: Intl.DateTimeFormatOptions = TIME_OPTS,
+  tz?: string,
+): string {
+  return formatLocalized(iso, locale, options, tz);
+}
+
+/** Date + time in the UI locale. See {@link formatDate} re: `tz`. */
+export function formatDateTime(
+  iso: string | null | undefined,
+  locale: AppLocale,
+  options: Intl.DateTimeFormatOptions = { ...DATE_OPTS, ...TIME_OPTS },
+  tz?: string,
+): string {
+  return formatLocalized(iso, locale, options, tz);
+}
+
+/**
+ * A start–end range in the UI locale, collapsing shared parts
+ * ("21–23 Jun 2027", "21 Jun – 3 Jul 2027"). Falls back to the single
+ * available endpoint when the other is missing/invalid.
+ */
+export function formatDateRange(
+  startIso: string | null | undefined,
+  endIso: string | null | undefined,
+  locale: AppLocale,
+  options: Intl.DateTimeFormatOptions = DATE_OPTS,
+  tz?: string,
+): string {
+  const start = formatLocalized(startIso, locale, options, tz);
+  const end = formatLocalized(endIso, locale, options, tz);
+  if (!start) return end;
+  if (!end || start === end) return start;
+  return `${start} – ${end}`;
+}
+
+function formatLocalized(
+  iso: string | null | undefined,
+  locale: AppLocale,
+  options: Intl.DateTimeFormatOptions,
+  tz?: string,
+): string {
+  if (!iso) return '';
+  const base = DateTime.fromISO(iso, { zone: 'utc' });
+  if (!base.isValid) return '';
+  const dt = tz ? base.setZone(tz) : base.toLocal();
+  const opts: Intl.DateTimeFormatOptions =
+    options.hour !== undefined && options.hour12 === undefined && options.hourCycle === undefined
+      ? { hour12: false, ...options }
+      : options;
+  return dt.setLocale(localeToBcp47(locale)).toLocaleString(opts);
+}

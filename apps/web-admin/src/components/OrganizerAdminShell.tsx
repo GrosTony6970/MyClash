@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
 import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
@@ -470,7 +471,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           )}
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-        <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+          <LanguageSwitcher className="px-3" />
+          {logoutAction}
+        </div>
       </aside>
 
       <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-background/90 backdrop-blur lg:left-72">
@@ -561,7 +565,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-            <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
+            <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+              <LanguageSwitcher className="px-3" />
+              {logoutAction}
+            </div>
           </div>
         </div>
       )}

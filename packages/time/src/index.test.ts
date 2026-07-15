@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   dayStartUtcIso,
+  formatDate,
+  formatDateRange,
   formatInZone,
+  formatTime,
+  localeToBcp47,
   minutesIntoDayInZone,
   utcToZonedParts,
   zonedDay,
@@ -86,5 +90,52 @@ describe('formatInZone', () => {
       'en-US',
     );
     expect(out).toMatch(/PM/);
+  });
+});
+
+describe('localeToBcp47', () => {
+  it('maps app locales to BCP-47 tags (en → en-GB, fr → fr-FR)', () => {
+    expect(localeToBcp47('en')).toBe('en-GB');
+    expect(localeToBcp47('fr')).toBe('fr-FR');
+  });
+});
+
+describe('locale-aware formatters', () => {
+  const iso = zonedToUtcIso('2027-06-21', '14:30', PARIS)!; // 12:30 UTC
+
+  it('formatDate renders month name in the UI locale (event tz)', () => {
+    expect(formatDate(iso, 'en', undefined, PARIS)).toBe('21 Jun 2027');
+    expect(formatDate(iso, 'fr', undefined, PARIS)).toMatch(/21 juin 2027/);
+  });
+
+  it('formatTime renders the event-zone wall clock in 24h', () => {
+    expect(formatTime(iso, 'en', undefined, PARIS)).toBe('14:30');
+    expect(formatTime(iso, 'fr', undefined, PARIS)).toBe('14:30');
+  });
+
+  it('formatTime without tz uses the viewer local zone (still 24h)', () => {
+    // No tz → host zone; just assert 24h HH:MM shape, no AM/PM.
+    expect(formatTime(iso, 'en')).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('formatDate returns empty string on bad input', () => {
+    expect(formatDate(null, 'en')).toBe('');
+    expect(formatDate('not-a-date', 'fr')).toBe('');
+  });
+
+  it('formatDateRange collapses a same-day range and joins distinct days', () => {
+    const startIso = zonedToUtcIso('2027-06-21', '09:00', PARIS)!;
+    const endIso = zonedToUtcIso('2027-06-23', '18:00', PARIS)!;
+    expect(formatDateRange(startIso, startIso, 'en', undefined, PARIS)).toBe('21 Jun 2027');
+    expect(formatDateRange(startIso, endIso, 'en', undefined, PARIS)).toBe(
+      '21 Jun 2027 – 23 Jun 2027',
+    );
+  });
+
+  it('formatDateRange falls back to whichever endpoint exists', () => {
+    const startIso = zonedToUtcIso('2027-06-21', '09:00', PARIS)!;
+    expect(formatDateRange(startIso, null, 'en', undefined, PARIS)).toBe('21 Jun 2027');
+    expect(formatDateRange(null, startIso, 'en', undefined, PARIS)).toBe('21 Jun 2027');
+    expect(formatDateRange(null, null, 'en')).toBe('');
   });
 });

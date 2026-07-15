@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
-import { defaultLocale, t } from '@myclash/i18n';
 import { MaintenanceBanner, ToastProvider } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
+import { getServerT, resolveServerLocale } from '../src/i18n/server-locale';
 import '../src/styles/globals.css';
 
 // Tournament Manual aesthetic — see plan: Fraunces (display, expressive serif),
@@ -30,14 +30,17 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: t('metadata.adminTitle'),
-  description: t('metadata.adminDescription'),
-  icons: {
-    icon: '/brand/Logomini_nobackground.png',
-    apple: '/brand/Logomini_nobackground.png',
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return {
+    title: t('metadata.adminTitle'),
+    description: t('metadata.adminDescription'),
+    icons: {
+      icon: '/brand/Logomini_nobackground.png',
+      apple: '/brand/Logomini_nobackground.png',
+    },
+  };
+}
 
 // Web-admin is fully auth-gated (super-admin + organizer routes + /login).
 // Static prerender produces an empty skeleton that the client immediately
@@ -47,14 +50,16 @@ export const metadata: Metadata = {
 // layout level so future pages don't need to opt out individually.
 export const dynamic = 'force-dynamic';
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await resolveServerLocale();
+  const t = await getServerT();
   return (
     <html
-      lang={defaultLocale}
+      lang={locale}
       className={`${fraunces.variable} ${geist.variable} ${jetbrainsMono.variable}`}
     >
       <body className="bg-background font-body text-foreground antialiased">
@@ -64,7 +69,7 @@ export default function RootLayout({
         >
           {t('navigation.skipToMainContent')}
         </a>
-        <I18nProvider>
+        <I18nProvider locale={locale}>
           <ToastProvider>
             <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
             {children}

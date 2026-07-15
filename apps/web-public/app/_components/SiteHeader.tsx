@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { getApiUrl } from '@/lib/api-url';
+import { LanguageSwitcher } from '@/i18n/LanguageSwitcher';
 
 type AuthState = 'unknown' | 'signed-out' | 'signed-in';
 
@@ -99,40 +100,44 @@ export function SiteHeader() {
           </div>
         </Link>
 
-        {authState === 'signed-out' && (
-          <Link
-            href="/login"
-            className="rounded-md bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            {t('publicApp.home.signIn')}
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher />
 
-        {authState === 'signed-in' && (
-          <div className="flex items-center gap-2">
+          {authState === 'signed-out' && (
             <Link
-              href="/me"
-              className="rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent"
+              href="/login"
+              className="rounded-md bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent"
             >
-              {displayName ?? t('publicApp.home.signedInFallback')}
+              {t('publicApp.home.signIn')}
             </Link>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              disabled={loggingOut}
-              aria-label={t('publicApp.personalShell.logout')}
-              className="rounded-md border border-border p-2 text-foreground-secondary transition hover:border-accent hover:text-accent disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                <path
-                  fillRule="evenodd"
-                  d="M3 4a1 1 0 0 1 1-1h7a1 1 0 1 1 0 2H5v10h6a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V4Zm10.293 3.293a1 1 0 0 1 1.414 0L17.414 10l-2.707 2.707a1 1 0 1 1-1.414-1.414L14.586 10H8a1 1 0 1 1 0-2h6.586l-1.293-1.293a1 1 0 0 1 0-1.414Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
+          )}
+
+          {authState === 'signed-in' && (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/me"
+                className="rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {displayName ?? t('publicApp.home.signedInFallback')}
+              </Link>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                disabled={loggingOut}
+                aria-label={t('publicApp.personalShell.logout')}
+                className="rounded-md border border-border p-2 text-foreground-secondary transition hover:border-accent hover:text-accent disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path
+                    fillRule="evenodd"
+                    d="M3 4a1 1 0 0 1 1-1h7a1 1 0 1 1 0 2H5v10h6a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V4Zm10.293 3.293a1 1 0 0 1 1.414 0L17.414 10l-2.707 2.707a1 1 0 1 1-1.414-1.414L14.586 10H8a1 1 0 1 1 0-2h6.586l-1.293-1.293a1 1 0 0 1 0-1.414Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

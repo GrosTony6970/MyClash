@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { LanguageSwitcher } from '../../src/i18n/LanguageSwitcher';
 import { api } from '../../src/lib/api';
 
 export default function ScoringLoginPage() {
@@ -80,6 +81,9 @@ export default function ScoringLoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
+        <div className="mb-4 flex justify-end">
+          <LanguageSwitcher />
+        </div>
         <div className="text-center mb-8">
           <Image
             src="/brand/Logomini_nobackground.png"

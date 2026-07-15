@@ -1,23 +1,26 @@
 import type { Metadata, Viewport } from 'next';
-import { defaultLocale, t } from '@myclash/i18n';
 import { MaintenanceBanner } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
+import { getServerT, resolveServerLocale } from '../src/i18n/server-locale';
 import '../src/styles/globals.css';
 
-export const metadata: Metadata = {
-  title: t('metadata.scoringTitle'),
-  description: t('metadata.scoringDescription'),
-  manifest: '/manifest.json',
-  icons: {
-    icon: '/brand/Logomini_nobackground.png',
-    apple: '/brand/Logomini_nobackground.png',
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return {
     title: t('metadata.scoringTitle'),
-  },
-};
+    description: t('metadata.scoringDescription'),
+    manifest: '/manifest.json',
+    icons: {
+      icon: '/brand/Logomini_nobackground.png',
+      apple: '/brand/Logomini_nobackground.png',
+    },
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: t('metadata.scoringTitle'),
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: '#c0392b',
@@ -27,9 +30,11 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await resolveServerLocale();
+  const t = await getServerT();
   return (
-    <html lang={defaultLocale}>
+    <html lang={locale}>
       <head>
         <link rel="apple-touch-icon" href="/brand/Logomini_nobackground.png" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -41,7 +46,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           {t('navigation.skipToMainContent')}
         </a>
-        <I18nProvider>
+        <I18nProvider locale={locale}>
           <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
           {children}
         </I18nProvider>
