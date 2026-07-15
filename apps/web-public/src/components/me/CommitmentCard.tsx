@@ -108,7 +108,7 @@ export function CommitmentCard({
         aria-hidden
       />
       <div className="flex min-w-[60px] flex-col items-start">
-        <span className="text-2xl font-extrabold leading-none tabular-nums">{timeLabel}</span>
+        <span className="text-xl font-extrabold leading-none tabular-nums">{timeLabel}</span>
         {place && (
           <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-foreground">
             <span className="text-accent">

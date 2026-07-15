@@ -12,6 +12,12 @@ export interface ScheduleMatch {
   isRed: boolean;
   poolName: string | null;
   tournamentName: string | null;
+  /** Tournament (competition) id — pairs with `phase` to key the scheduled
+   *  programme block, so the section header can show the block end (e.g. 11:30)
+   *  instead of the last match's start. Null when unresolved. */
+  tournamentId: string | null;
+  /** Coarse programme phase for block lookup: 'pool' or 'bracket'. Null unknown. */
+  phase: 'pool' | 'bracket' | null;
   liceName: string | null;
 }
 

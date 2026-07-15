@@ -55,6 +55,10 @@ export function ScheduleView({
   eventSlug,
   /** Non-commitment programme blocks (lunch, ceremonies…) shown as context. */
   programme,
+  /** Scheduled competition-block ends (epoch ms) keyed
+   *  `${tournamentId}:${phase}` — used as a fight group's end (the block
+   *  boundary) instead of the last match's start. */
+  phaseEndByKey,
   /** When set, render the "Updated HH:MM (· offline)" stale badge. */
   updatedAt,
   offline = false,
@@ -63,6 +67,7 @@ export function ScheduleView({
   timezone: string | null;
   eventSlug?: string;
   programme?: ProgrammeContextRow[];
+  phaseEndByKey?: Map<string, number>;
   updatedAt?: number | null;
   offline?: boolean;
 }): ReactNode {
@@ -244,7 +249,13 @@ export function ScheduleView({
   } {
     if (item.kind === 'fight') {
       const start = item.data.scheduledAt ? new Date(item.data.scheduledAt).getTime() : null;
-      return { pool: item.data.poolName, lice: item.data.liceName, start, end: start };
+      // Prefer the scheduled phase-block end (e.g. 11:30) over the last match's
+      // start; a match carries no duration, so the block boundary is the truth.
+      const blockEnd =
+        item.data.tournamentId && item.data.phase
+          ? (phaseEndByKey?.get(`${item.data.tournamentId}:${item.data.phase}`) ?? null)
+          : null;
+      return { pool: item.data.poolName, lice: item.data.liceName, start, end: blockEnd ?? start };
     }
     if (item.kind === 'referee') {
       return {
@@ -471,7 +482,7 @@ export function ScheduleView({
                           kindAccentClass(group.kind),
                         ].join(' ')}
                       />
-                      <span className="truncate text-xs font-bold text-foreground">
+                      <span className="truncate text-base font-bold text-foreground">
                         {group.title}
                       </span>
                       {group.kind === 'referee' && group.skillName && (
@@ -483,9 +494,7 @@ export function ScheduleView({
                       )}
                     </span>
                     {meta && (
-                      <span className="truncate pl-4 text-[11px] font-medium text-muted">
-                        {meta}
-                      </span>
+                      <span className="truncate pl-4 text-sm font-medium text-muted">{meta}</span>
                     )}
                   </span>
                 }
@@ -536,7 +545,7 @@ export function ScheduleView({
               headerClassName="mb-2 mt-1"
               bodyClassName="flex flex-col gap-3 pl-3 sm:pl-4"
               header={
-                <span className="truncate font-display text-lg font-bold text-foreground">
+                <span className="truncate font-display text-xl font-bold text-foreground">
                   {fmtDay(dayItems.find((i) => i.time)?.time ?? day)}
                 </span>
               }

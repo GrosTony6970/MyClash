@@ -22,6 +22,35 @@ function addDays(ymd: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Scheduled end (epoch ms) of every competition phase block, keyed
+ *  `${competitionId}:${competitionPhase}`. Lets the schedule show the block
+ *  boundary (e.g. 11:30, rounded up by the generator) as a group's end instead
+ *  of the last match's start. Same wall-clock→UTC path as `toContextRows`. */
+function phaseWindowsFrom(
+  blocks: ProgrammeBlock[],
+  startDate: string | null,
+  tz: string,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!startDate) return map;
+  const base = startDate.slice(0, 10);
+  for (const block of blocks) {
+    if (block.blockType !== 'competition' || !block.competitionId || !block.competitionPhase) {
+      continue;
+    }
+    const day = addDays(base, block.dayIndex);
+    const endIso = zonedToUtcIso(day, block.endTime, tz);
+    if (!endIso) continue;
+    const endMs = new Date(endIso).getTime();
+    if (Number.isNaN(endMs)) continue;
+    const key = `${block.competitionId}:${block.competitionPhase}`;
+    const prev = map.get(key);
+    // Keep the latest end if a phase is split across multiple blocks.
+    if (prev == null || endMs > prev) map.set(key, endMs);
+  }
+  return map;
+}
+
 function toContextRows(
   blocks: ProgrammeBlock[],
   startDate: string | null,
@@ -83,13 +112,16 @@ function ScheduleTab({
   const { schedule, loading, updatedAt, offline } = useMySchedule(eventId);
   const { blocks } = useProgramme(eventId);
   if (loading || !schedule) return <Skeleton className="h-40 w-full rounded-xl" />;
-  const programme = toContextRows(blocks, startDate, timezone ?? DEFAULT_TZ);
+  const tz = timezone ?? DEFAULT_TZ;
+  const programme = toContextRows(blocks, startDate, tz);
+  const phaseEndByKey = phaseWindowsFrom(blocks, startDate, tz);
   return (
     <ScheduleView
       schedule={schedule}
       timezone={timezone}
       eventSlug={slug}
       programme={programme}
+      phaseEndByKey={phaseEndByKey}
       updatedAt={updatedAt}
       offline={offline}
     />

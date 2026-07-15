@@ -30,6 +30,14 @@ export interface ScheduleMatch {
   isRed: boolean;
   poolName: string | null;
   tournamentName: string | null;
+  /** Tournament (competition) id — pairs with `phase` to key the scheduled
+   *  programme block, so the schedule can show the block end instead of the
+   *  last match's start. Null when the phase/tournament can't be resolved. */
+  tournamentId: string | null;
+  /** Coarse programme phase for block lookup: 'pool' for a pool phase, else
+   *  'bracket' (single/double elim, swiss). Mirrors the generated
+   *  `— Pools` / `— Bracket` programme blocks. Null when unknown. */
+  phase: 'pool' | 'bracket' | null;
   liceName: string | null;
 }
 
@@ -124,7 +132,7 @@ export class PublicScheduleService {
         red_registration_id, blue_registration_id,
         pools ( name ),
         lices ( name ),
-        phases ( visibility_status, tournaments ( name ) )
+        phases ( visibility_status, type, tournaments ( id, name ) )
       `,
       )
       .or(
@@ -142,9 +150,12 @@ export class PublicScheduleService {
       const lice = m['lices'] as { name: string } | null;
       const phase = m['phases'] as {
         visibility_status?: string | null;
-        tournaments: { name: string } | null;
+        type?: string | null;
+        tournaments: { id: string; name: string } | null;
       } | null;
       if (phase?.visibility_status !== 'published') return [];
+
+      const phaseType = phase?.type ?? null;
 
       return [
         {
@@ -158,6 +169,11 @@ export class PublicScheduleService {
           isRed,
           poolName: pool?.name ?? null,
           tournamentName: phase?.tournaments?.name ?? null,
+          tournamentId: phase?.tournaments?.id ?? null,
+          phase: (phaseType === 'pool' ? 'pool' : phaseType ? 'bracket' : null) as
+            | 'pool'
+            | 'bracket'
+            | null,
           liceName: lice?.name ?? null,
         },
       ];
