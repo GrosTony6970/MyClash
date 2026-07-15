@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * WorkshopScheduleBoard — the `#schedule` tab.
  *
@@ -32,6 +30,7 @@ import {
 } from '@myclash/schedule-core';
 import { minutesIntoDayInZone } from '@myclash/time';
 import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import {
   breakTimesFromSlots,
@@ -124,6 +123,7 @@ export function WorkshopScheduleBoard({
   onUpdateBreak,
   onDeleteBreak,
 }: Props) {
+  const { t } = useI18n();
   const [activeDay, setActiveDay] = useState<string>(days[0] ?? '');
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- keep activeDay valid when the days list changes; behaviour-preserving
@@ -453,12 +453,25 @@ export function WorkshopScheduleBoard({
       .join('');
     const w = window.open('', '_blank');
     if (!w) return;
+    const printTitle = esc(
+      t('organizer.workshopsPage.board.printTitle', { day: formatDayLabel(activeDay) }),
+    );
+    const headers = [
+      t('organizer.workshopsPage.board.printColTime'),
+      t('organizer.workshopsPage.board.printColVenue'),
+      t('organizer.workshopsPage.board.printColWorkshop'),
+      t('organizer.workshopsPage.board.printColInstructor'),
+      t('organizer.workshopsPage.board.printColCategoryLevel'),
+      t('organizer.workshopsPage.board.printColSlots'),
+    ]
+      .map((h) => `<th>${esc(h)}</th>`)
+      .join('');
     w.document.write(
-      `<!doctype html><html><head><title>Workshops — ${esc(formatDayLabel(activeDay))}</title>` +
+      `<!doctype html><html><head><title>${printTitle}</title>` +
         `<style>body{font-family:system-ui,sans-serif;padding:24px;color:#111}h1{font-size:18px}` +
         `table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f4f6}</style></head>` +
-        `<body><h1>Workshops — ${esc(formatDayLabel(activeDay))}</h1><table><thead><tr>` +
-        `<th>Time</th><th>Venue</th><th>Workshop</th><th>Instructor</th><th>Category · Level</th><th>Slots</th>` +
+        `<body><h1>${printTitle}</h1><table><thead><tr>` +
+        headers +
         `</tr></thead><tbody>${rows}</tbody></table></body></html>`,
     );
     w.document.close();
@@ -489,14 +502,16 @@ export function WorkshopScheduleBoard({
                   : 'bg-border text-foreground-secondary hover:bg-border',
               ].join(' ')}
             >
-              {`Jour ${i + 1} · ${formatDayLabel(d)}`}
+              {t('organizer.schedulePage.grid.dayTab', { n: i + 1, date: formatDayLabel(d) })}
             </button>
           ))}
         <div className="ml-auto flex items-center gap-1 text-muted">
-          <span className="text-[11px] font-medium">Zoom</span>
+          <span className="text-[11px] font-medium">
+            {t('organizer.schedulePage.grid.zoomLabel')}
+          </span>
           <button
             type="button"
-            aria-label="Zoom out"
+            aria-label={t('organizer.schedulePage.grid.zoomOut')}
             onClick={() => zoom(-4)}
             disabled={slotHeightPx <= SLOT_HEIGHT_MIN}
             className="rounded border border-border px-1.5 leading-none hover:bg-background disabled:opacity-40"
@@ -505,7 +520,7 @@ export function WorkshopScheduleBoard({
           </button>
           <button
             type="button"
-            aria-label="Zoom in"
+            aria-label={t('organizer.schedulePage.grid.zoomIn')}
             onClick={() => zoom(4)}
             disabled={slotHeightPx >= SLOT_HEIGHT_MAX}
             className="rounded border border-border px-1.5 leading-none hover:bg-background disabled:opacity-40"
@@ -517,14 +532,14 @@ export function WorkshopScheduleBoard({
             onClick={exportCsv}
             className="ml-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
-            Export CSV
+            {t('organizer.schedulePage.grid.exportCsv')}
           </button>
           <button
             type="button"
             onClick={printDay}
             className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
           >
-            Print
+            {t('organizer.schedulePage.grid.print')}
           </button>
         </div>
       </div>
@@ -541,11 +556,13 @@ export function WorkshopScheduleBoard({
           }}
         >
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-            Unscheduled
+            {t('organizer.workshopsPage.board.unscheduled')}
           </h3>
           <div className="flex flex-col gap-2">
             {drawer.length === 0 ? (
-              <p className="text-xs text-muted">All workshops are scheduled.</p>
+              <p className="text-xs text-muted">
+                {t('organizer.workshopsPage.board.allScheduled')}
+              </p>
             ) : (
               drawer.map((w) => (
                 <div
@@ -567,7 +584,11 @@ export function WorkshopScheduleBoard({
                   <span className="block truncate font-medium text-foreground">{w.title}</span>
                   <span className="text-xs text-muted">
                     {[w.category, w.level].filter(Boolean).join(' · ') ||
-                      (w.durationMinutes != null ? `${w.durationMinutes} min` : '—')}
+                      (w.durationMinutes != null
+                        ? t('organizer.workshopsPage.board.minutesShort', {
+                            min: w.durationMinutes,
+                          })
+                        : '—')}
                   </span>
                 </div>
               ))
@@ -579,18 +600,18 @@ export function WorkshopScheduleBoard({
               onClick={() => onAddBreak(dayIndex)}
               className="mt-3 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs font-semibold text-foreground-secondary hover:border-border hover:text-foreground"
             >
-              + Add block
+              {t('organizer.schedulePage.planner.addBlock')}
             </button>
           )}
 
           {/* Grid window config */}
           <div className="mt-4 rounded-lg border border-border p-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
-              Grid window
+              {t('organizer.workshopsPage.board.gridWindow')}
             </p>
             <div className="flex items-center gap-2 text-xs">
               <label className="flex items-center gap-1">
-                Start
+                {t('organizer.schedulePage.editPopover.startLabel')}
                 <select
                   value={startHour}
                   onChange={(e) => setWindow({ startHour: Number(e.target.value), endHour })}
@@ -604,7 +625,7 @@ export function WorkshopScheduleBoard({
                 </select>
               </label>
               <label className="flex items-center gap-1">
-                End
+                {t('organizer.schedulePage.editPopover.endLabel')}
                 <select
                   value={endHour}
                   onChange={(e) => setWindow({ startHour, endHour: Number(e.target.value) })}
@@ -624,9 +645,7 @@ export function WorkshopScheduleBoard({
         {/* Grid (RIGHT) */}
         <div ref={gridScrollRef} className="flex-1 overflow-x-auto">
           {columns.length === 0 ? (
-            <p className="text-sm text-warning">
-              No workshop-capable venues for this event yet. Add one from the Venues tab.
-            </p>
+            <p className="text-sm text-warning">{t('organizer.workshopsPage.board.noVenues')}</p>
           ) : (
             <div className="inline-flex flex-col">
               {/* Venue band row */}
@@ -738,7 +757,11 @@ export function WorkshopScheduleBoard({
                                 }
                               }}
                               title={
-                                conflict ? `${bl.title} — overlaps another workshop` : bl.title
+                                conflict
+                                  ? t('organizer.workshopsPage.board.overlapsTitle', {
+                                      title: bl.title,
+                                    })
+                                  : bl.title
                               }
                               className={[
                                 'group absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
@@ -751,7 +774,7 @@ export function WorkshopScheduleBoard({
                               {onUnschedule && (
                                 <button
                                   type="button"
-                                  aria-label="Unschedule"
+                                  aria-label={t('organizer.workshopsPage.board.unscheduleAria')}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onUnschedule(bl.sessionId);
@@ -861,14 +884,16 @@ export function WorkshopScheduleBoard({
                           }}
                           className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-muted/50"
                         />
-                        <span className="text-sm font-semibold">{b.label ?? 'Break'}</span>
+                        <span className="text-sm font-semibold">
+                          {b.label ?? t('organizer.schedulePage.grid.breakDefaultLabel')}
+                        </span>
                         <span className="ml-2 font-mono text-xs">
                           {slotToHHMM(startSlot, startHour)}–{slotToHHMM(endSlot, startHour)}
                         </span>
                         {onDeleteBreak && (
                           <button
                             type="button"
-                            aria-label="Delete block"
+                            aria-label={t('organizer.workshopsPage.board.deleteBlockAria')}
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -882,7 +907,7 @@ export function WorkshopScheduleBoard({
                         {onEditBreak && (
                           <button
                             type="button"
-                            aria-label="Edit block"
+                            aria-label={t('organizer.workshopsPage.board.editBlockAria')}
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -890,7 +915,7 @@ export function WorkshopScheduleBoard({
                             }}
                             className="absolute bottom-0.5 right-1 rounded px-1 text-[11px] leading-none text-muted opacity-0 hover:text-foreground group-hover:opacity-100"
                           >
-                            edit
+                            {t('organizer.workshopsPage.board.editShort')}
                           </button>
                         )}
                         {/* Bottom resize grip */}

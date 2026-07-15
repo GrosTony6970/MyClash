@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Workshop admin — T-804
  * Route: /org/[slug]/events/[eventId]/workshops
@@ -798,18 +796,22 @@ export default function WorkshopsAdminPage() {
               href={`/org/${slug}/events/${eventId}`}
               className="hover:text-foreground-secondary"
             >
-              Event
+              {t('organizer.workshopsPage.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">Workshops</span>
+            <span className="text-foreground font-medium">
+              {t('organizer.workshopsPage.breadcrumbWorkshops')}
+            </span>
           </div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Workshops</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.workshopsPage.title')}
+          </h1>
         </div>
         <button
           onClick={openCreate}
           className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
         >
-          + New workshop
+          {t('organizer.workshopsPage.newWorkshop')}
         </button>
       </div>
 
@@ -827,13 +829,15 @@ export default function WorkshopsAdminPage() {
                 : 'border-transparent text-muted hover:text-foreground-secondary',
             ].join(' ')}
           >
-            {tk === 'list' ? 'Workshop list' : 'Workshop schedule'}
+            {tk === 'list'
+              ? t('organizer.workshopsPage.tabList')
+              : t('organizer.workshopsPage.tabSchedule')}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-muted text-sm">Loading…</p>
+        <p className="text-muted text-sm">{t('organizer.workshopsPage.loading')}</p>
       ) : tab === 'schedule' ? (
         <WorkshopScheduleBoard
           workshops={workshops.map((w) => ({
@@ -857,22 +861,30 @@ export default function WorkshopsAdminPage() {
         />
       ) : workshops.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
-          <p className="text-muted text-sm">No workshops yet.</p>
+          <p className="text-muted text-sm">{t('organizer.workshopsPage.empty')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="py-2 pr-4 font-medium">Workshop name</th>
-                <th className="py-2 pr-4 font-medium">Category</th>
-                <th className="py-2 pr-4 font-medium">Level</th>
-                <th className="py-2 pr-4 font-medium">Capacity</th>
-                <th className="py-2 pr-4 font-medium">Duration</th>
-                <th className="py-2 pr-4 font-medium">Start / End</th>
-                <th className="py-2 pr-4 font-medium">Venue</th>
-                <th className="py-2 pr-4 font-medium">Status</th>
-                <th className="py-2 font-medium">Actions</th>
+                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colName')}</th>
+                <th className="py-2 pr-4 font-medium">
+                  {t('organizer.workshopsPage.colCategory')}
+                </th>
+                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colLevel')}</th>
+                <th className="py-2 pr-4 font-medium">
+                  {t('organizer.workshopsPage.colCapacity')}
+                </th>
+                <th className="py-2 pr-4 font-medium">
+                  {t('organizer.workshopsPage.colDuration')}
+                </th>
+                <th className="py-2 pr-4 font-medium">
+                  {t('organizer.workshopsPage.colStartEnd')}
+                </th>
+                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colVenue')}</th>
+                <th className="py-2 pr-4 font-medium">{t('organizer.workshopsPage.colStatus')}</th>
+                <th className="py-2 font-medium">{t('organizer.workshopsPage.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -922,7 +934,11 @@ export default function WorkshopsAdminPage() {
                     <td className="py-2 pr-4 text-foreground-secondary">{w.level ?? '—'}</td>
                     <td className="py-2 pr-4 text-foreground-secondary">{w.capacity ?? '—'}</td>
                     <td className="py-2 pr-4 text-foreground-secondary">
-                      {w.durationMinutes != null ? `${w.durationMinutes} min` : '—'}
+                      {w.durationMinutes != null
+                        ? t('organizer.workshopsPage.board.minutesShort', {
+                            min: w.durationMinutes,
+                          })
+                        : '—'}
                     </td>
                     <td className="py-2 pr-4 text-foreground-secondary">{timeRange}</td>
                     <td className="py-2 pr-4 text-foreground-secondary">{venueArea}</td>
@@ -930,14 +946,14 @@ export default function WorkshopsAdminPage() {
                       <select
                         value={w.status}
                         onChange={(e) => void changeStatus(w, e.target.value)}
-                        aria-label="Workshop status"
+                        aria-label={t('organizer.workshopsPage.statusAria')}
                         className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                           statusPillTone(workshopStatusSemantic(w.status), 'light').className
                         }`}
                       >
                         {['draft', 'published', 'running', 'completed'].map((s) => (
                           <option key={s} value={s}>
-                            {STATUS_PILL[s] ?? s}
+                            {STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : s}
                           </option>
                         ))}
                       </select>
@@ -949,14 +965,14 @@ export default function WorkshopsAdminPage() {
                           onClick={() => openEdit(w)}
                           className="text-xs font-semibold text-accent hover:text-accent-hover"
                         >
-                          Edit
+                          {t('organizer.workshopsPage.edit')}
                         </button>
                         {session && (
                           <button
                             onClick={() => void openRoster(session.id)}
                             className="text-xs text-info hover:underline"
                           >
-                            Roster
+                            {t('organizer.workshopsPage.roster')}
                           </button>
                         )}
                       </div>
@@ -974,12 +990,14 @@ export default function WorkshopsAdminPage() {
         <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-              {editingId ? 'Edit workshop' : 'New workshop'}
+              {editingId
+                ? t('organizer.workshopsPage.editWorkshop')
+                : t('organizer.workshopsPage.newWorkshopTitle')}
             </h2>
             <div className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Title *
+                  {t('organizer.workshopsPage.titleLabel')}
                 </label>
                 <input
                   type="text"
@@ -997,7 +1015,7 @@ export default function WorkshopsAdminPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Slug *
+                  {t('organizer.workshopsPage.slugLabel')}
                 </label>
                 <input
                   type="text"
@@ -1013,12 +1031,12 @@ export default function WorkshopsAdminPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Weapon
+                  {t('organizer.workshopsPage.weaponLabel')}
                 </label>
                 <select
                   value={form.weapon}
                   onChange={(e) => setForm((f) => ({ ...f, weapon: e.target.value }))}
-                  aria-label="Weapon"
+                  aria-label={t('organizer.workshopsPage.weaponLabel')}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   <option value="">—</option>
@@ -1037,25 +1055,25 @@ export default function WorkshopsAdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Category
+                    {t('organizer.workshopsPage.categoryLabel')}
                   </label>
                   <input
                     type="text"
                     value={form.category}
                     onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                    placeholder="Technique, Sparring…"
+                    placeholder={t('organizer.workshopsPage.categoryPlaceholder')}
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Level
+                    {t('organizer.workshopsPage.levelLabel')}
                   </label>
                   <input
                     type="text"
                     value={form.level}
                     onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
-                    placeholder="Beginner, Advanced…"
+                    placeholder={t('organizer.workshopsPage.levelPlaceholder')}
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
@@ -1063,7 +1081,7 @@ export default function WorkshopsAdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Language
+                    {t('organizer.workshopsPage.languageLabel')}
                   </label>
                   <select
                     value={form.language}
@@ -1078,7 +1096,7 @@ export default function WorkshopsAdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Capacity
+                    {t('organizer.workshopsPage.capacityLabel')}
                   </label>
                   <input
                     type="number"
@@ -1092,13 +1110,13 @@ export default function WorkshopsAdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Duration (min, optional)
+                    {t('organizer.workshopsPage.durationLabel')}
                   </label>
                   <input
                     type="number"
                     value={form.durationMinutes}
                     min={1}
-                    placeholder="e.g. 90"
+                    placeholder={t('organizer.workshopsPage.durationPlaceholder')}
                     onChange={(e) => onTimingChange('durationMinutes', e.target.value)}
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
@@ -1109,7 +1127,7 @@ export default function WorkshopsAdminPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Day (optional)
+                    {t('organizer.workshopsPage.dayOptionalLabel')}
                   </label>
                   {eventDays.length > 0 ? (
                     <select
@@ -1140,50 +1158,49 @@ export default function WorkshopsAdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Start
+                    {t('organizer.schedulePage.editPopover.startLabel')}
                   </label>
                   <Time24Input
                     value={form.start}
                     onChange={(v) => onTimingChange('start', v)}
-                    aria-label="Start time"
+                    aria-label={t('organizer.workshopsPage.startTimeAria')}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    End
+                    {t('organizer.schedulePage.editPopover.endLabel')}
                   </label>
                   <Time24Input
                     value={form.end}
                     onChange={(v) => onTimingChange('end', v)}
-                    aria-label="End time"
+                    aria-label={t('organizer.workshopsPage.endTimeAria')}
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Status
+                  {t('organizer.workshopsPage.statusLabel')}
                 </label>
                 <select
                   value={form.status}
                   onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="running">Running</option>
-                  <option value="completed">Completed</option>
+                  <option value="draft">{t('organizer.workshopsPage.statusDraft')}</option>
+                  <option value="published">{t('organizer.workshopsPage.statusPublished')}</option>
+                  <option value="running">{t('organizer.workshopsPage.statusRunning')}</option>
+                  <option value="completed">{t('organizer.workshopsPage.statusCompleted')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Instructors
+                  {t('organizer.workshopsPage.instructorsLabel')}
                 </label>
                 {eventInstructors.length === 0 ? (
                   <p className="text-xs text-warning">
-                    No instructors tagged yet. Tag participants as instructors on the Participants
-                    page.
+                    {t('organizer.workshopsPage.noInstructors')}
                   </p>
                 ) : (
                   <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-border rounded-lg p-2">
@@ -1210,14 +1227,14 @@ export default function WorkshopsAdminPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Default venue
+                  {t('organizer.workshopsPage.defaultVenueLabel')}
                 </label>
                 <select
                   value={form.venueId}
                   onChange={(e) => setForm((f) => ({ ...f, venueId: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
-                  <option value="">No default venue</option>
+                  <option value="">{t('organizer.workshopsPage.noDefaultVenue')}</option>
                   {venues.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
@@ -1226,7 +1243,7 @@ export default function WorkshopsAdminPage() {
                 </select>
                 {venues.length === 0 && (
                   <p className="mt-1 text-xs text-warning">
-                    No workshop-capable venues in this org yet. Add one from /org/{slug}/venues.
+                    {t('organizer.workshopsPage.noOrgVenues', { slug })}
                   </p>
                 )}
               </div>
@@ -1240,7 +1257,7 @@ export default function WorkshopsAdminPage() {
               />
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Color
+                  {t('organizer.schedulePage.editPopover.colorLabel')}
                 </label>
                 <div className="flex items-center gap-2">
                   <TournamentColorDot color={form.color || null} size="md" />
@@ -1249,7 +1266,7 @@ export default function WorkshopsAdminPage() {
                     onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
                     className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   >
-                    <option value="">No color</option>
+                    <option value="">{t('organizer.workshopsPage.noColor')}</option>
                     {TOURNAMENT_COLORS.map((c) => (
                       <option key={c} value={c}>
                         {c.charAt(0).toUpperCase() + c.slice(1)}
@@ -1257,13 +1274,11 @@ export default function WorkshopsAdminPage() {
                     ))}
                   </select>
                 </div>
-                <p className="mt-1 text-xs text-muted">
-                  Shown as a left band on the schedule and the public workshop cards.
-                </p>
+                <p className="mt-1 text-xs text-muted">{t('organizer.workshopsPage.colorHint')}</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Description
+                  {t('organizer.workshopsPage.descriptionLabel')}
                 </label>
                 <textarea
                   value={form.description}
@@ -1276,14 +1291,18 @@ export default function WorkshopsAdminPage() {
             {formError && <p className="text-sm text-danger mt-2">{formError}</p>}
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={closeModal} className="text-sm text-muted px-4 py-2">
-                Cancel
+                {t('organizer.schedulePage.editPopover.cancel')}
               </button>
               <button
                 onClick={() => void handleSubmit()}
                 disabled={formSaving}
                 className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm"
               >
-                {formSaving ? 'Saving…' : editingId ? 'Save' : 'Create'}
+                {formSaving
+                  ? t('organizer.schedulePage.planner.saving')
+                  : editingId
+                    ? t('organizer.schedulePage.editPopover.save')
+                    : t('organizer.workshopsPage.create')}
               </button>
             </div>
           </div>
@@ -1295,7 +1314,9 @@ export default function WorkshopsAdminPage() {
         <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-semibold text-lg sm:text-xl">Session roster</h2>
+              <h2 className="font-display font-semibold text-lg sm:text-xl">
+                {t('organizer.workshopsPage.rosterTitle')}
+              </h2>
               <button
                 onClick={() => setRosterSession(null)}
                 className="text-muted hover:text-foreground-secondary text-xl"
@@ -1305,9 +1326,9 @@ export default function WorkshopsAdminPage() {
             </div>
 
             {rosterLoading ? (
-              <p className="text-muted text-sm">Loading…</p>
+              <p className="text-muted text-sm">{t('organizer.workshopsPage.loading')}</p>
             ) : roster.length === 0 ? (
-              <p className="text-muted text-sm">No enrollments yet.</p>
+              <p className="text-muted text-sm">{t('organizer.workshopsPage.noEnrollments')}</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {roster.map((entry) => (
@@ -1319,7 +1340,7 @@ export default function WorkshopsAdminPage() {
                       <p className="font-medium text-foreground">
                         {entry.persons
                           ? `${entry.persons.givenName} ${entry.persons.familyName}`
-                          : 'Unknown'}
+                          : t('organizer.workshopsPage.unknownPerson')}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span
@@ -1331,18 +1352,24 @@ export default function WorkshopsAdminPage() {
                           ].join(' ')}
                         >
                           {entry.status === 'waitlisted'
-                            ? `Waitlist #${entry.waitlistPosition}`
-                            : 'Confirmed'}
+                            ? t('organizer.workshopsPage.waitlistBadge', {
+                                position: entry.waitlistPosition,
+                              })
+                            : t('organizer.workshopsPage.confirmedBadge')}
                         </span>
                         {entry.global_person_id ? (
-                          <span className="text-xs text-success font-medium">Linked</span>
+                          <span className="text-xs text-success font-medium">
+                            {t('organizer.workshopsPage.linked')}
+                          </span>
                         ) : linkingEnrollmentId === entry.id ? (
                           <div className="relative">
                             <input
                               type="search"
                               value={gpSearch}
                               onChange={(e) => setGpSearch(e.target.value)}
-                              placeholder="Search global person…"
+                              placeholder={t(
+                                'organizer.workshopsPage.searchGlobalPersonPlaceholder',
+                              )}
                               className="border border-border rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-accent"
                             />
                             {gpResults.length > 0 && (
@@ -1376,7 +1403,7 @@ export default function WorkshopsAdminPage() {
                             onClick={() => setLinkingEnrollmentId(entry.id)}
                             className="text-xs text-warning hover:text-warning-hover"
                           >
-                            Link
+                            {t('organizer.workshopsPage.link')}
                           </button>
                         )}
                       </div>
@@ -1387,7 +1414,7 @@ export default function WorkshopsAdminPage() {
                           onClick={() => void handlePromote(rosterSession, entry.persons!.id)}
                           className="text-xs text-success hover:underline"
                         >
-                          Promote
+                          {t('organizer.workshopsPage.promote')}
                         </button>
                       )}
                       {entry.persons && (
@@ -1395,7 +1422,7 @@ export default function WorkshopsAdminPage() {
                           onClick={() => void handleRemove(rosterSession, entry.persons!.id)}
                           className="text-xs text-danger hover:underline"
                         >
-                          Remove
+                          {t('organizer.workshopsPage.remove')}
                         </button>
                       )}
                     </div>
@@ -1412,13 +1439,15 @@ export default function WorkshopsAdminPage() {
         <div className="fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
             <h2 className="font-display font-semibold text-lg sm:text-xl mb-4">
-              {'id' in breakModal ? 'Edit break' : 'New break'}
+              {'id' in breakModal
+                ? t('organizer.workshopsPage.editBreak')
+                : t('organizer.workshopsPage.newBreak')}
             </h2>
             <div className="flex flex-col gap-3">
               {eventDays.length > 1 && (
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Day
+                    {t('organizer.workshopsPage.dayLabel')}
                   </label>
                   <select
                     value={breakForm.dayIndex}
@@ -1429,7 +1458,7 @@ export default function WorkshopsAdminPage() {
                   >
                     {eventDays.map((d, i) => (
                       <option key={d} value={i}>
-                        Jour {i + 1}
+                        {t('organizer.schedulePage.planner.dayTab', { n: i + 1 })}
                       </option>
                     ))}
                   </select>
@@ -1438,40 +1467,40 @@ export default function WorkshopsAdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    Start
+                    {t('organizer.schedulePage.editPopover.startLabel')}
                   </label>
                   <Time24Input
                     value={breakForm.startTime}
                     onChange={(v) => setBreakForm((f) => ({ ...f, startTime: v }))}
-                    aria-label="Break start time"
+                    aria-label={t('organizer.workshopsPage.breakStartAria')}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    End
+                    {t('organizer.schedulePage.editPopover.endLabel')}
                   </label>
                   <Time24Input
                     value={breakForm.endTime}
                     onChange={(v) => setBreakForm((f) => ({ ...f, endTime: v }))}
-                    aria-label="Break end time"
+                    aria-label={t('organizer.workshopsPage.breakEndAria')}
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Label
+                  {t('organizer.schedulePage.planner.labelLabel')}
                 </label>
                 <input
                   type="text"
                   value={breakForm.label}
-                  placeholder="Lunch, changeover…"
+                  placeholder={t('organizer.workshopsPage.breakLabelPlaceholder')}
                   onChange={(e) => setBreakForm((f) => ({ ...f, label: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Color
+                  {t('organizer.schedulePage.editPopover.colorLabel')}
                 </label>
                 <div className="flex flex-wrap gap-1.5">
                   {['', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'].map(
@@ -1479,7 +1508,11 @@ export default function WorkshopsAdminPage() {
                       <button
                         key={c || 'none'}
                         type="button"
-                        aria-label={c ? `Color ${c}` : 'No color'}
+                        aria-label={
+                          c
+                            ? t('organizer.workshopsPage.colorAria', { hex: c })
+                            : t('organizer.workshopsPage.noColor')
+                        }
                         onClick={() => setBreakForm((f) => ({ ...f, color: c }))}
                         className={[
                           'flex h-6 w-6 items-center justify-center rounded-full border text-[10px]',
@@ -1501,7 +1534,7 @@ export default function WorkshopsAdminPage() {
                   onClick={() => void deleteBreak()}
                   className="text-sm text-danger hover:underline"
                 >
-                  Delete
+                  {t('organizer.workshopsPage.delete')}
                 </button>
               ) : (
                 <span />
@@ -1511,13 +1544,13 @@ export default function WorkshopsAdminPage() {
                   onClick={() => setBreakModal(null)}
                   className="text-sm text-muted px-4 py-2"
                 >
-                  Cancel
+                  {t('organizer.schedulePage.editPopover.cancel')}
                 </button>
                 <button
                   onClick={() => void saveBreak()}
                   className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm"
                 >
-                  Save
+                  {t('organizer.schedulePage.editPopover.save')}
                 </button>
               </div>
             </div>
@@ -1529,11 +1562,11 @@ export default function WorkshopsAdminPage() {
   );
 }
 
-// Option labels for the status <select>; the pill colour comes from the
-// canonical workshopStatusSemantic → statusPillTone helper.
-const STATUS_PILL: Record<string, string> = {
-  draft: 'Draft',
-  published: 'Published',
-  running: 'Running',
-  completed: 'Completed',
+// i18n keys for the status <select> option labels; the pill colour comes from
+// the canonical workshopStatusSemantic → statusPillTone helper.
+const STATUS_KEYS: Record<string, string> = {
+  draft: 'organizer.workshopsPage.statusDraft',
+  published: 'organizer.workshopsPage.statusPublished',
+  running: 'organizer.workshopsPage.statusRunning',
+  completed: 'organizer.workshopsPage.statusCompleted',
 };

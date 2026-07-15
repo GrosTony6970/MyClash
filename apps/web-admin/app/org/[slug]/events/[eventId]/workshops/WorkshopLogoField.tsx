@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * WorkshopLogoField — logo control for the workshop create/edit modal.
  *
@@ -19,6 +17,7 @@
 import { useRef, useState } from 'react';
 import { validateLogoFile } from '../../../../../../src/lib/validate-logo-file';
 import { LogoCropperModal } from '../../../_components/LogoCropperModal';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface Props {
   /** Currently-saved logo URL (edit mode), or null. */
@@ -42,6 +41,7 @@ export function WorkshopLogoField({
   onStage,
   onClear,
 }: Props) {
+  const { t } = useI18n();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -59,8 +59,8 @@ export function WorkshopLogoField({
     if (!check.ok) {
       setError(
         check.errorKey === 'organizer.events.logoTooLarge'
-          ? 'Image must be 15 MB or smaller.'
-          : 'Use a PNG, JPEG, or WebP image.',
+          ? t('organizer.workshopsPage.logoField.logoTooLarge')
+          : t('organizer.workshopsPage.logoField.logoTypeInvalid'),
       );
       return;
     }
@@ -70,14 +70,24 @@ export function WorkshopLogoField({
 
   return (
     <div>
-      <label className="block text-xs font-medium text-foreground-secondary mb-1">Logo</label>
+      <label className="block text-xs font-medium text-foreground-secondary mb-1">
+        {t('organizer.workshopsPage.logoField.label')}
+      </label>
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={openPicker}
           disabled={disabled}
-          aria-label={shownUrl ? 'Replace logo' : 'Upload logo'}
-          title={shownUrl ? 'Replace logo' : 'Upload logo'}
+          aria-label={
+            shownUrl
+              ? t('organizer.workshopsPage.logoField.replaceAria')
+              : t('organizer.workshopsPage.logoField.uploadAria')
+          }
+          title={
+            shownUrl
+              ? t('organizer.workshopsPage.logoField.replaceAria')
+              : t('organizer.workshopsPage.logoField.uploadAria')
+          }
           className={[
             'group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-border bg-background',
             disabled
@@ -90,20 +100,19 @@ export function WorkshopLogoField({
             <img src={shownUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wider text-muted">
-              Logo
+              {t('organizer.workshopsPage.logoField.placeholder')}
             </div>
           )}
           {!disabled && (
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-strong/0 text-[10px] font-semibold uppercase tracking-wide text-strong-foreground opacity-0 transition-all group-hover:bg-strong/55 group-hover:opacity-100">
-              {shownUrl ? 'Replace' : 'Upload'}
+              {shownUrl
+                ? t('organizer.workshopsPage.logoField.replace')
+                : t('organizer.workshopsPage.logoField.upload')}
             </span>
           )}
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted">
-            Square image, PNG/JPEG/WebP, up to 15 MB. Shown next to the workshop name on the public
-            pages.
-          </p>
+          <p className="text-xs text-muted">{t('organizer.workshopsPage.logoField.hint')}</p>
           {shownUrl && !disabled && (
             <button
               type="button"
@@ -113,7 +122,7 @@ export function WorkshopLogoField({
               }}
               className="mt-1 text-xs font-medium text-danger hover:underline"
             >
-              Remove
+              {t('organizer.workshopsPage.logoField.remove')}
             </button>
           )}
           {error && (
