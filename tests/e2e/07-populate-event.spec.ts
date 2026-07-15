@@ -656,12 +656,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
   }
 
-  // Fill referee slots from the conflict-aware assignment board: the product's
-  // auto-assign engine does a bulk pass, then a deterministic top-up assigns each
-  // still-open slot from its board-computed `candidates.recommended` (already filtered
-  // for fighting / double-booking / qualification), re-reading the board each pass so
-  // freshly-used referees drop out. Called once per phase (pools, then bracket); the
-  // top-up only fills EMPTY slots, so a later pass never disturbs earlier assignments.
+  // Fill referee slots from the conflict-aware assignment board: fire the
+  // product's own Apply-auto-assign endpoint (referee-assignment-preview/apply —
+  // the exact one the referees page's Apply button uses) for the bulk pass, then a
+  // deterministic top-up assigns each still-open slot from its board-computed
+  // `candidates.recommended` (already filtered for fighting / double-booking /
+  // qualification), re-reading the board each pass so freshly-used referees drop
+  // out. Called once per phase (pools, then bracket); the top-up only fills EMPTY
+  // slots, so a later pass never disturbs earlier assignments.
   type BoardSlot = {
     role: string;
     assignment: unknown | null;
@@ -675,7 +677,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     };
   const fillReferees = async (label: string): Promise<void> => {
     await step(`auto-assign referees (${label})`, async () =>
-      reqOk(await post(`events/${eventId}/auto-assign-referees?dryRun=false`)),
+      reqOk(await post(`events/${eventId}/referee-assignment-preview/apply`)),
     );
     for (let pass = 0; pass < 20; pass++) {
       const board = await getBoard();

@@ -1,52 +1,30 @@
 /**
  * auto-assign.controller.ts — T-905
  *
- * POST /events/:eventId/auto-assign-referees?dryRun=true|false
  * POST /events/:eventId/lock-referee-assignments
+ * POST /events/:eventId/unlock-referee-assignments
+ *
+ * (The former `auto-assign-referees` shim was retired — it duplicated
+ * `referee-assignment-board/preview` + `referee-assignment-preview/apply`,
+ * which are what the referees page actually calls.)
  */
 
-import {
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Query,
-} from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { AssignmentBoardService } from './assignment-board.service';
 
 @ApiTags('referees')
 @Controller()
 export class AutoAssignController {
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly assignmentBoard: AssignmentBoardService,
     private readonly notifications: NotificationSchedulerService,
     private readonly followNotifications: FollowNotificationSchedulerService,
     private readonly notificationEvents: NotificationEventsService,
   ) {}
-
-  // ── Auto-assign ───────────────────────────────────────────────────────────────
-
-  @Post('events/:eventId/auto-assign-referees')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Auto-assign referees to pools (dry-run or persist)' })
-  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  @ApiQuery({ name: 'dryRun', required: false, type: Boolean })
-  async autoAssign(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Query('dryRun') dryRunParam?: string,
-  ): Promise<{ dryRun: boolean } & Record<string, unknown>> {
-    const dryRun = dryRunParam !== 'false';
-    if (dryRun) return { dryRun: true, ...(await this.assignmentBoard.preview(eventId)) };
-    return { dryRun: false, ...(await this.assignmentBoard.applyPreview(eventId)) };
-  }
 
   // ── Lock assignments ──────────────────────────────────────────────────────────
 
