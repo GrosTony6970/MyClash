@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Pool & bracket management — T-704
  * Route: /org/[slug]/events/[eventId]/pools
@@ -500,7 +498,10 @@ export default function PoolsPage() {
 
   return (
     <main className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-8">
-      <nav aria-label="Pools sections" className="mb-6 flex gap-1 border-b border-border">
+      <nav
+        aria-label={t('organizer.pools.page.sectionsAria')}
+        className="mb-6 flex gap-1 border-b border-border"
+      >
         {TABS.map((tab) => {
           const disabled =
             (tab.key === 'matches' && !poolPhaseId) ||
@@ -570,7 +571,7 @@ export default function PoolsPage() {
           href={`/org/${slug}/events/${eventId}/bracket`}
           className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >
-          Bracket →
+          {t('organizer.pools.page.toBracket')}
         </Link>
       </div>
 
@@ -627,21 +628,24 @@ export default function PoolsPage() {
               >
                 <p className="font-bold mb-1">
                   {conflicts.hasConfirmedConflicts
-                    ? '⛔ Fighter/referee conflicts detected (hard constraint)'
-                    : '⚠ Potential fighter/referee conflicts'}
+                    ? t('organizer.pools.page.conflictsConfirmedTitle')
+                    : t('organizer.pools.page.conflictsPotentialTitle')}
                 </p>
                 <ul className="list-disc list-inside space-y-0.5">
                   {conflicts.conflicts.map((c, i) => (
                     <li key={i}>
-                      <strong>{c.personName}</strong> fights in <em>{c.fightingMatchLabel}</em> and
-                      referees <em>{c.refereeingMatchLabel}</em>
-                      {!c.confirmed && ' (unscheduled — potential conflict)'}
+                      <strong>{c.personName}</strong>{' '}
+                      {t('organizer.pools.page.conflictSegFightsIn')}{' '}
+                      <em>{c.fightingMatchLabel}</em>{' '}
+                      {t('organizer.pools.page.conflictSegAndReferees')}{' '}
+                      <em>{c.refereeingMatchLabel}</em>
+                      {!c.confirmed && <> {t('organizer.pools.page.conflictSegUnscheduled')}</>}
                     </li>
                   ))}
                 </ul>
                 {conflicts.hasConfirmedConflicts && (
                   <p className="mt-2 font-medium">
-                    Reassign referees before publishing this event.
+                    {t('organizer.pools.page.conflictsReassignHint')}
                   </p>
                 )}
               </div>
@@ -651,7 +655,7 @@ export default function PoolsPage() {
               <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
                 <strong className="font-semibold">{lockBanner}</strong>
                 <span className="ml-2 text-warning">
-                  Clear scores in the matches view to unlock the pool.
+                  {t('organizer.pools.page.lockBannerHint')}
                 </span>
               </div>
             )}
@@ -668,23 +672,23 @@ export default function PoolsPage() {
                 <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
                   <p className="text-4xl mb-3">⚠️</p>
                   <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                    Regenerate pools?
+                    {t('organizer.pools.page.regenerateConfirmTitle')}
                   </h2>
                   <p className="text-muted text-sm mb-5">
-                    Existing pools and all their matches will be deleted. This cannot be undone.
+                    {t('organizer.pools.page.regenerateConfirmBody')}
                   </p>
                   <div className="flex gap-3 justify-center">
                     <button
                       onClick={() => setShowForceConfirm(false)}
                       className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
                     >
-                      Cancel
+                      {t('organizer.pools.page.cancel')}
                     </button>
                     <button
                       onClick={() => void generate(true)}
                       className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
                     >
-                      Yes, regenerate
+                      {t('organizer.pools.page.regenerateConfirmYes')}
                     </button>
                   </div>
                 </div>
@@ -727,35 +731,43 @@ export default function PoolsPage() {
                               onClick={() => void saveRename(pool.id)}
                               className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
                             >
-                              Save
+                              {t('organizer.pools.page.save')}
                             </button>
                             <button
                               type="button"
                               onClick={() => setRenamingPoolId(null)}
                               className="rounded-md px-3 py-1 text-xs text-muted hover:text-foreground-secondary"
                             >
-                              Cancel
+                              {t('organizer.pools.page.cancel')}
                             </button>
                           </div>
                         ) : (
                           <button
                             type="button"
                             onClick={() => void startRename(pool)}
-                            title="Rename pool"
+                            title={t('organizer.pools.page.renameTitle')}
                             className="self-start font-bold text-foreground hover:text-accent hover:underline decoration-dotted"
                           >
                             {pool.name}
                           </button>
                         )}
-                        <span className="text-xs text-muted">{pool.members.length} fighters</span>
+                        <span className="text-xs text-muted">
+                          {pool.members.length === 1
+                            ? t('organizer.pools.page.fightersCountSingular', {
+                                count: pool.members.length,
+                              })
+                            : t('organizer.pools.page.fightersCountPlural', {
+                                count: pool.members.length,
+                              })}
+                        </span>
                       </div>
                       <RowActionButton
                         variant="danger"
                         onClick={() => setPendingDeletePoolId(pool.id)}
                         disabled={lifecycleBusy || renamingPoolId === pool.id}
-                        title="Delete this pool"
+                        title={t('organizer.pools.page.deletePoolTitle')}
                       >
-                        Delete
+                        {t('organizer.pools.page.delete')}
                       </RowActionButton>
                     </div>
                     {/* Inline chip layout — fighters flow left-to-right and
@@ -786,7 +798,7 @@ export default function PoolsPage() {
                           {m.hemaWeightedRating !== null && (
                             <span
                               className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-bold text-gold"
-                              title="HEMA weighted rating"
+                              title={t('organizer.pools.page.hemaRatingTitle')}
                             >
                               {m.hemaWeightedRating.toFixed(1)}
                             </span>
@@ -798,7 +810,7 @@ export default function PoolsPage() {
                             type="button"
                             disabled={editBusy}
                             onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
-                            title="Move to unassigned"
+                            title={t('organizer.pools.page.moveToUnassignedTitle')}
                             className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
                           >
                             ×
@@ -806,7 +818,9 @@ export default function PoolsPage() {
                         </div>
                       ))}
                       {pool.members.length === 0 && (
-                        <p className="text-xs text-muted italic">Drop fighters here.</p>
+                        <p className="text-xs text-muted italic">
+                          {t('organizer.pools.page.dropFightersHere')}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -816,9 +830,7 @@ export default function PoolsPage() {
 
             {!pools && !generating && (
               <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
-                <p className="text-muted text-sm">
-                  No pools generated yet. Configure and click Generate.
-                </p>
+                <p className="text-muted text-sm">{t('organizer.pools.page.emptyPools')}</p>
               </div>
             )}
           </div>
@@ -828,16 +840,18 @@ export default function PoolsPage() {
             {/* Basic config: sizing mode + count/size stepper */}
             <div>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-                Pool configuration
+                {t('organizer.pools.page.configTitle')}
               </h2>
 
               {/* Mode toggle */}
               <div className="mb-3">
-                <p className="text-xs font-medium text-foreground-secondary mb-2">Sizing</p>
+                <p className="text-xs font-medium text-foreground-secondary mb-2">
+                  {t('organizer.pools.page.sizingLabel')}
+                </p>
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => setMode('targetSize')}
-                    title="Aim for this many fighters in each pool; pool count is derived."
+                    title={t('organizer.pools.page.modeTargetSizeTitle')}
                     className={[
                       'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-left',
                       mode === 'targetSize'
@@ -845,11 +859,11 @@ export default function PoolsPage() {
                         : 'bg-surface text-foreground-secondary border-border',
                     ].join(' ')}
                   >
-                    Auto · target size per pool
+                    {t('organizer.pools.page.modeTargetSize')}
                   </button>
                   <button
                     onClick={() => setMode('poolCount')}
-                    title="Choose the exact number of pools. Fighters are distributed evenly."
+                    title={t('organizer.pools.page.modePoolCountTitle')}
                     className={[
                       'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-left',
                       mode === 'poolCount'
@@ -857,7 +871,7 @@ export default function PoolsPage() {
                         : 'bg-surface text-foreground-secondary border-border',
                     ].join(' ')}
                   >
-                    Manual · choose pool count
+                    {t('organizer.pools.page.modePoolCount')}
                   </button>
                 </div>
               </div>
@@ -865,7 +879,9 @@ export default function PoolsPage() {
               {/* Value stepper */}
               <div>
                 <p className="text-xs font-medium text-foreground-secondary mb-2">
-                  {mode === 'targetSize' ? 'Fighters per pool' : 'Number of pools'}
+                  {mode === 'targetSize'
+                    ? t('organizer.pools.page.fightersPerPool')
+                    : t('organizer.pools.page.numberOfPools')}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -904,10 +920,20 @@ export default function PoolsPage() {
                         ? Math.max(1, poolCount)
                         : Math.max(1, Math.ceil((fighters || 1) / Math.max(1, targetSize)));
                     if (fighters === 0) {
-                      return `Will generate ${count} empty pool${count > 1 ? 's' : ''} — add fighters later.`;
+                      return t(
+                        count > 1
+                          ? 'organizer.pools.page.previewEmptyPlural'
+                          : 'organizer.pools.page.previewEmptySingular',
+                        { count },
+                      );
                     }
                     const avg = Math.round(fighters / count);
-                    return `Will generate ${count} pool${count > 1 ? 's' : ''} of ~${avg} fighter${avg === 1 ? '' : 's'} (${fighters} total).`;
+                    return t(
+                      count > 1
+                        ? 'organizer.pools.page.previewPoolsPlural'
+                        : 'organizer.pools.page.previewPoolsSingular',
+                      { count, avg, total: fighters },
+                    );
                   })()}
                 </p>
               )}
@@ -952,12 +978,12 @@ export default function PoolsPage() {
                 className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {generating
-                  ? 'Generating…'
+                  ? t('organizer.pools.page.generating')
                   : existingPhase
-                    ? 'Regenerate'
+                    ? t('organizer.pools.page.regenerate')
                     : unassigned.length === 0
-                      ? 'Generate empty pools'
-                      : 'Generate pools'}
+                      ? t('organizer.pools.page.generateEmpty')
+                      : t('organizer.pools.page.generateButton')}
               </button>
               <button
                 type="button"
@@ -965,7 +991,7 @@ export default function PoolsPage() {
                 disabled={lifecycleBusy || !selectedTournament}
                 className="w-full rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50 transition-colors"
               >
-                + Add empty pool
+                {t('organizer.pools.page.addEmptyPool')}
               </button>
               <button
                 type="button"
@@ -973,14 +999,14 @@ export default function PoolsPage() {
                 disabled={lifecycleBusy || !existingPhase || !selectedTournament}
                 className="w-full rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50 transition-colors"
               >
-                Delete all pools
+                {t('organizer.pools.page.deleteAllButton')}
               </button>
               {existingPhase && (
                 <Link
                   href={`/org/${slug}/events/${eventId}/referees#assignments`}
                   className="block w-full rounded-lg border border-border bg-surface px-4 py-2 text-center text-sm font-semibold text-foreground-secondary hover:bg-background transition-colors"
                 >
-                  Assign referees
+                  {t('organizer.pools.page.assignReferees')}
                 </Link>
               )}
             </div>
@@ -1003,14 +1029,13 @@ export default function PoolsPage() {
               >
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Unassigned
+                    {t('organizer.pools.page.unassignedTitle')}
                   </h3>
                   <span className="text-xs text-muted">{unassigned.length}</span>
                 </div>
                 {unassigned.length === 0 ? (
                   <p className="text-xs text-muted italic">
-                    All registered fighters are in a pool. Drag a fighter here to remove them from
-                    their pool.
+                    {t('organizer.pools.page.unassignedEmpty')}
                   </p>
                 ) : (
                   <div className="flex max-h-[40vh] flex-col gap-1.5 overflow-y-auto">
@@ -1036,7 +1061,7 @@ export default function PoolsPage() {
                         {u.hemaWeightedRating !== null && (
                           <span
                             className="ml-1 rounded-full bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold shrink-0"
-                            title="HEMA weighted rating"
+                            title={t('organizer.pools.page.hemaRatingTitle')}
                           >
                             {u.hemaWeightedRating.toFixed(1)}
                           </span>
@@ -1070,13 +1095,16 @@ export default function PoolsPage() {
 
       <ConfirmDialog
         open={pendingDeletePoolId !== null}
-        title="Delete pool"
+        title={t('organizer.pools.page.deletePoolConfirmTitle')}
         description={(() => {
           const p = (pools ?? []).find((x) => x.id === pendingDeletePoolId);
-          if (!p) return 'Delete this pool? Its matches will be removed.';
-          return `Delete ${p.name}? Its ${p.members.length} member(s) will be unassigned and any scheduled matches will be removed.`;
+          if (!p) return t('organizer.pools.page.deletePoolFallbackDesc');
+          return t('organizer.pools.page.deletePoolDesc', {
+            name: p.name,
+            count: p.members.length,
+          });
         })()}
-        confirmLabel="Delete pool"
+        confirmLabel={t('organizer.pools.page.deletePoolConfirmTitle')}
         danger
         busy={lifecycleBusy}
         onCancel={() => setPendingDeletePoolId(null)}
@@ -1085,9 +1113,9 @@ export default function PoolsPage() {
 
       <ConfirmDialog
         open={pendingDeleteAll}
-        title="Delete all pools"
-        description="Drop the entire pool layout for this tournament. Every pool, every member assignment, and every scheduled match in this phase will be removed."
-        confirmLabel="Delete all"
+        title={t('organizer.pools.page.deleteAllButton')}
+        description={t('organizer.pools.page.deleteAllDesc')}
+        confirmLabel={t('organizer.pools.page.deleteAllConfirm')}
         danger
         busy={lifecycleBusy}
         onCancel={() => setPendingDeleteAll(false)}

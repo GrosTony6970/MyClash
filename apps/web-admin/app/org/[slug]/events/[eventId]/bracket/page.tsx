@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Bracket management — T-704 / auto-advance
  * Route: /org/[slug]/events/[eventId]/bracket
@@ -969,12 +967,16 @@ export default function BracketPage() {
               href={`/org/${slug}/events/${eventId}`}
               className="hover:text-foreground-secondary"
             >
-              Event
+              {t('organizer.bracketPage.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">Bracket</span>
+            <span className="text-foreground font-medium">
+              {t('organizer.bracketPage.breadcrumbBracket')}
+            </span>
           </div>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl">Bracket management</h1>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl">
+            {t('organizer.bracketPage.title')}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -987,13 +989,16 @@ export default function BracketPage() {
             href={`/org/${slug}/events/${eventId}/pools`}
             className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
-            ← Pools
+            {t('organizer.bracketPage.backToPools')}
           </Link>
         </div>
       </div>
 
       {/* R5: tab nav */}
-      <nav aria-label="Bracket sections" className="mb-6 flex gap-1 border-b border-border">
+      <nav
+        aria-label={t('organizer.bracketPage.sectionsAria')}
+        className="mb-6 flex gap-1 border-b border-border"
+      >
         {BRACKET_TABS.map((tab) => {
           const disabled = tab.key === 'referees' && !selectedTournament;
           return (
@@ -1055,7 +1060,7 @@ export default function BracketPage() {
             </div>
             {bracket?.autoAdvance === false && (
               <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">
-                Manual mode
+                {t('organizer.bracketPage.manualMode')}
               </span>
             )}
           </div>
@@ -1098,25 +1103,25 @@ export default function BracketPage() {
         {!existingBracket && (
           <div className="bg-background border border-border rounded-xl p-5 mb-6">
             <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground-secondary mb-4">
-              Bracket configuration
+              {t('organizer.bracketPage.configTitle')}
             </h2>
             <div className="flex flex-wrap gap-6 items-end">
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Format
+                  {t('organizer.bracketPage.formatLabel')}
                 </label>
                 <select
                   value={phaseType}
                   onChange={(e) => setPhaseType(e.target.value as 'single_elim' | 'double_elim')}
                   className="border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent"
                 >
-                  <option value="single_elim">Single elimination</option>
-                  <option value="double_elim">Double elimination</option>
+                  <option value="single_elim">{t('organizer.bracketPage.formatSingle')}</option>
+                  <option value="double_elim">{t('organizer.bracketPage.formatDouble')}</option>
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Qualify count (top N from pools)
+                  {t('organizer.bracketPage.qualifyCountLabel')}
                 </label>
                 <input
                   type="number"
@@ -1124,19 +1129,19 @@ export default function BracketPage() {
                   onChange={(e) =>
                     setQualifyCount(e.target.value === '' ? '' : parseInt(e.target.value))
                   }
-                  placeholder="Auto"
+                  placeholder={t('organizer.bracketPage.autoPlaceholder')}
                   min="2"
                   className="w-24 border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent"
                 />
                 <p className="mt-1 max-w-xs text-xs text-muted">
                   {phaseType === 'single_elim'
-                    ? `Auto uses play-ins for non-power-of-two counts. Main bracket size is capped at ${MAX_BRACKET_SIZE}.`
-                    : `Double elimination bracket size is capped at ${MAX_BRACKET_SIZE}.`}
+                    ? t('organizer.bracketPage.qualifyHintSingle', { max: MAX_BRACKET_SIZE })
+                    : t('organizer.bracketPage.qualifyHintDouble', { max: MAX_BRACKET_SIZE })}
                 </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  Bracket size override (power of 2, max {MAX_BRACKET_SIZE})
+                  {t('organizer.bracketPage.sizeOverrideLabel', { max: MAX_BRACKET_SIZE })}
                 </label>
                 <select
                   value={bracketSize}
@@ -1149,7 +1154,7 @@ export default function BracketPage() {
                   }}
                   className="border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent"
                 >
-                  <option value="">Auto</option>
+                  <option value="">{t('organizer.bracketPage.autoOption')}</option>
                   {BRACKET_SIZE_OPTIONS.map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -1188,7 +1193,9 @@ export default function BracketPage() {
                     onChange={(e) => setGrandFinalReset(e.target.checked)}
                     className="rounded"
                   />
-                  <span className="text-foreground-secondary">Grand final reset</span>
+                  <span className="text-foreground-secondary">
+                    {t('organizer.bracketPage.grandFinalReset')}
+                  </span>
                 </label>
               )}
               <button
@@ -1196,7 +1203,9 @@ export default function BracketPage() {
                 disabled={generating || !selectedTournament}
                 className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
-                {generating ? 'Generating…' : 'Generate bracket'}
+                {generating
+                  ? t('organizer.bracketPage.generating')
+                  : t('organizer.bracketPage.generateButton')}
               </button>
             </div>
           </div>
@@ -1256,14 +1265,14 @@ export default function BracketPage() {
                 disabled={generating || deleting}
                 className="ml-auto rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground-secondary disabled:opacity-50"
               >
-                Regenerate bracket
+                {t('organizer.bracketPage.regenerateButton')}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={generating || deleting}
                 className="rounded-lg border border-danger/30 bg-surface hover:bg-danger/10 px-3 py-2 text-sm font-semibold text-danger disabled:opacity-50"
               >
-                Delete bracket
+                {t('organizer.bracketPage.deleteButton')}
               </button>
             </div>
 
@@ -1399,23 +1408,23 @@ export default function BracketPage() {
             <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
               <p className="text-4xl mb-3">⚠️</p>
               <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-                Regenerate bracket?
+                {t('organizer.bracketPage.regenerateConfirmTitle')}
               </h2>
               <p className="text-muted text-sm mb-5">
-                The existing bracket and all its match slots will be deleted.
+                {t('organizer.bracketPage.regenerateConfirmBody')}
               </p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => setShowForceConfirm(false)}
                   className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
                 >
-                  Cancel
+                  {t('organizer.bracketPage.cancel')}
                 </button>
                 <button
                   onClick={() => void generate(true)}
                   className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
                 >
-                  Yes, regenerate
+                  {t('organizer.bracketPage.regenerateConfirmYes')}
                 </button>
               </div>
             </div>
@@ -1428,27 +1437,27 @@ export default function BracketPage() {
             <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-6">
               <p className="text-4xl mb-3 text-center">🗑️</p>
               <h2 className="font-display font-semibold text-lg sm:text-xl mb-2 text-center">
-                Delete this bracket?
+                {t('organizer.bracketPage.deleteConfirmTitle')}
               </h2>
               <p className="text-foreground-secondary text-sm mb-4 text-center">
-                This will permanently remove:
+                {t('organizer.bracketPage.deleteConfirmBody')}
               </p>
               <ul className="text-sm text-foreground-secondary mb-5 space-y-1 mx-auto max-w-[240px]">
                 <li className="flex justify-between">
-                  <span>Bracket slots</span>
+                  <span>{t('organizer.bracketPage.deleteRowSlots')}</span>
                   <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>Match records</span>
+                  <span>{t('organizer.bracketPage.deleteRowMatches')}</span>
                   <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
                 </li>
                 <li className="flex justify-between text-muted">
-                  <span>Referee assignments</span>
-                  <span className="font-mono">cascaded</span>
+                  <span>{t('organizer.bracketPage.deleteRowReferees')}</span>
+                  <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
                 </li>
               </ul>
               <p className="text-xs text-muted mb-5 text-center">
-                You can re-create the bracket later from the registered fighters.
+                {t('organizer.bracketPage.deleteConfirmHint')}
               </p>
               <div className="flex gap-3">
                 <button
@@ -1456,14 +1465,16 @@ export default function BracketPage() {
                   disabled={deleting}
                   className="flex-1 px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background disabled:opacity-50"
                 >
-                  Cancel
+                  {t('organizer.bracketPage.cancel')}
                 </button>
                 <button
                   onClick={() => void deleteBracket()}
                   disabled={deleting}
                   className="flex-1 px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm disabled:opacity-50"
                 >
-                  {deleting ? 'Deleting…' : 'Delete bracket'}
+                  {deleting
+                    ? t('organizer.bracketPage.deleting')
+                    : t('organizer.bracketPage.deleteButton')}
                 </button>
               </div>
             </div>
@@ -1628,7 +1639,7 @@ export default function BracketPage() {
               {canForfeit && editSlot && (
                 <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-danger">
-                    Record forfeit
+                    {t('organizer.bracketPage.forfeitTitle')}
                   </p>
                   <div className="mb-2 space-y-1.5">
                     {(['red', 'blue'] as const).map((side) => {
@@ -1648,7 +1659,9 @@ export default function BracketPage() {
                           ].join(' ')}
                         >
                           <span className="font-semibold">
-                            {side === 'red' ? 'Red' : 'Blue'} forfeits
+                            {side === 'red'
+                              ? t('organizer.bracketPage.forfeitRed')
+                              : t('organizer.bracketPage.forfeitBlue')}
                           </span>
                           <span className="ml-2 text-foreground-secondary">— {name ?? '?'}</span>
                         </button>
@@ -1660,11 +1673,19 @@ export default function BracketPage() {
                     onChange={(e) => setForfeitReason(e.target.value as ForfeitReason)}
                     className="mb-2 w-full rounded-md border border-border px-2 py-1 text-sm"
                   >
-                    <option value="voluntary">Voluntary</option>
-                    <option value="injury">Injury</option>
-                    <option value="black_card_1">Black card (single)</option>
-                    <option value="black_card_2">Black card (two)</option>
-                    <option value="conduct_violation">Conduct violation</option>
+                    <option value="voluntary">
+                      {t('organizer.bracketPage.forfeitReasonVoluntary')}
+                    </option>
+                    <option value="injury">{t('organizer.bracketPage.forfeitReasonInjury')}</option>
+                    <option value="black_card_1">
+                      {t('organizer.bracketPage.forfeitReasonBlackCard1')}
+                    </option>
+                    <option value="black_card_2">
+                      {t('organizer.bracketPage.forfeitReasonBlackCard2')}
+                    </option>
+                    <option value="conduct_violation">
+                      {t('organizer.bracketPage.forfeitReasonConduct')}
+                    </option>
                   </select>
                   {forfeitError && <p className="mb-2 text-xs text-danger">{forfeitError}</p>}
                   <button
@@ -1673,7 +1694,7 @@ export default function BracketPage() {
                     disabled={forfeitBusy || !forfeitSide}
                     className="w-full rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
                   >
-                    {forfeitBusy ? '…' : 'Record forfeit'}
+                    {forfeitBusy ? '…' : t('organizer.bracketPage.forfeitTitle')}
                   </button>
                 </div>
               )}
@@ -1687,14 +1708,14 @@ export default function BracketPage() {
                   }}
                   className="flex-1 px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
                 >
-                  Cancel
+                  {t('organizer.bracketPage.cancel')}
                 </button>
                 <button
                   onClick={() => void submitOverride()}
                   disabled={overriding}
                   className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold rounded-lg text-sm"
                 >
-                  {overriding ? 'Saving…' : 'Save'}
+                  {overriding ? t('organizer.bracketPage.saving') : t('organizer.bracketPage.save')}
                 </button>
               </div>
             </div>
@@ -1732,7 +1753,7 @@ export default function BracketPage() {
                   }}
                   className="flex-1 px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
                 >
-                  Cancel
+                  {t('organizer.bracketPage.cancel')}
                 </button>
                 <button
                   onClick={() => void submitReseed()}
@@ -1752,11 +1773,11 @@ export default function BracketPage() {
         {bracket && (
           <div>
             <div className="flex flex-wrap items-center gap-4 mb-4 text-sm text-muted">
-              <span>{bracket.bracketSize}-slot main bracket</span>
+              <span>{t('organizer.bracketPage.summarySlots', { count: bracket.bracketSize })}</span>
               <span>·</span>
-              <span>{bracket.rounds} rounds</span>
+              <span>{t('organizer.bracketPage.summaryRounds', { count: bracket.rounds })}</span>
               <span>·</span>
-              <span>{bracket.byeCount} byes</span>
+              <span>{t('organizer.bracketPage.summaryByes', { count: bracket.byeCount })}</span>
               {bracket.hasPlayInRound && (
                 <>
                   <span>·</span>
@@ -1768,17 +1789,19 @@ export default function BracketPage() {
                 </>
               )}
               <span>·</span>
-              <span>{bracket.totalSlots} match slots</span>
+              <span>
+                {t('organizer.bracketPage.summaryMatchSlots', { count: bracket.totalSlots })}
+              </span>
               {bracket.phaseType === 'double_elim' && (
                 <>
                   <span>·</span>
-                  <span className="text-info">Double elim</span>
+                  <span className="text-info">{t('organizer.bracketPage.summaryDoubleElim')}</span>
                 </>
               )}
               {bronzeMatch && (
                 <>
                   <span>·</span>
-                  <span className="text-gold">Bronze match</span>
+                  <span className="text-gold">{t('organizer.bracketPage.summaryBronzeMatch')}</span>
                 </>
               )}
             </div>
@@ -1861,18 +1884,17 @@ export default function BracketPage() {
               🏆
             </div>
             <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground mb-1">
-              No bracket created yet
+              {t('organizer.bracketPage.emptyTitle')}
             </h3>
             <p className="text-muted text-sm mb-5 max-w-md mx-auto">
-              Configure the bracket above (phase type, size, and seeding), then click Generate to
-              lock in the matchups for the registered fighters.
+              {t('organizer.bracketPage.emptyBody')}
             </p>
             <button
               onClick={() => void generate(false)}
               disabled={generating || !selectedTournament}
               className="inline-flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-50 px-4 py-2 text-sm font-semibold text-accent-foreground"
             >
-              Generate bracket
+              {t('organizer.bracketPage.generateButton')}
             </button>
           </div>
         )}
