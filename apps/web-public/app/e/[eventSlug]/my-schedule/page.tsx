@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
@@ -139,9 +140,19 @@ export default function MySchedulePage() {
   const [dayFilter, setDayFilter] = useState<string>('all');
   const [focusMode, setFocusMode] = useState(true);
   const [days, setDays] = useState<string[]>([]);
+  // Guest sessions get a persistent banner: claim upgrade + end-session.
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/me`, { credentials: 'include', signal: controller.signal })
+      .then(async (res) => {
+        if (res.ok) {
+          const me = (await res.json()) as { type?: string };
+          setIsGuest(me.type === 'guest');
+        }
+      })
+      .catch(() => undefined);
     fetch(`${apiUrl}/api/v1/events/${eventSlug}/my-schedule`, {
       credentials: 'include',
       signal: controller.signal,
@@ -260,6 +271,35 @@ export default function MySchedulePage() {
           {focusMode ? t('publicApp.mySchedule.showAll') : t('publicApp.mySchedule.focusOnMe')}
         </button>
       </div>
+
+      {/* Guest-session banner: this device follows the event without an
+          account — offer the permanent upgrade (claim) + explicit logout
+          (DELETE /guest-sessions/me, previously unreachable from any UI). */}
+      {isGuest && (
+        <div className="mb-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+          <p>{t('publicApp.mySchedule.guestBanner')}</p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            <Link
+              href={`/e/${eventSlug}/claim?personId=${schedule.personId}&next=${encodeURIComponent(`/e/${eventSlug}`)}`}
+              className="font-semibold underline hover:no-underline"
+            >
+              {t('publicApp.mySchedule.guestClaimLink')}
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                void fetch(`${apiUrl}/api/v1/guest-sessions/me`, {
+                  method: 'DELETE',
+                  credentials: 'include',
+                }).finally(() => window.location.assign(`/e/${eventSlug}/home`));
+              }}
+              className="text-gray-500 underline hover:no-underline"
+            >
+              {t('publicApp.mySchedule.guestEndSession')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Day filter */}
       {days.length > 1 && (

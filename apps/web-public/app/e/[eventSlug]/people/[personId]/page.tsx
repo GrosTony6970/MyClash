@@ -61,8 +61,12 @@ export default function PersonProfilePage() {
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);
   const [loading, setLoading] = useState(true);
-  // "This is me" claim CTA — only for viewers without a full account session.
-  const [canClaim, setCanClaim] = useState(false);
+  // Viewer identity drives the "This is me" card: anonymous viewers get
+  // claim + guest quick-access, guests get the claim upgrade, claimed users
+  // get nothing. Defaults to 'claimed' so the card never flashes for
+  // signed-in users while /me resolves.
+  const [viewerType, setViewerType] = useState<'anonymous' | 'guest' | 'claimed'>('claimed');
+  const [guestLoading, setGuestLoading] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -70,13 +74,14 @@ export default function PersonProfilePage() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileRes, scheduleRes] = await Promise.all([
+        const [profileRes, scheduleRes, meRes] = await Promise.all([
           fetch(`${apiUrl}/api/v1/events/${eventSlug}/persons/${personId}`, {
             credentials: 'include',
           }),
           fetch(`${apiUrl}/api/v1/events/${eventSlug}/people/${personId}/schedule`, {
             credentials: 'include',
           }),
+          fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' }),
         ]);
 
         if (profileRes.ok) {
@@ -85,7 +90,12 @@ export default function PersonProfilePage() {
           setFollowing(p.followState === 'following');
         }
         if (scheduleRes.ok) setSchedule((await scheduleRes.json()) as PersonSchedule);
-        setCanClaim(!document.cookie.includes('sb-access-token='));
+        if (meRes.ok) {
+          const me = (await meRes.json()) as { type?: string };
+          setViewerType(
+            me.type === 'guest' ? 'guest' : me.type === 'anonymous' ? 'anonymous' : 'claimed',
+          );
+        }
       } catch {
         // Keep loading state
       } finally {
@@ -137,6 +147,34 @@ export default function PersonProfilePage() {
       setFollowLoading(false);
     }
   }, [following, eventSlug, personId, apiUrl, t]);
+
+  // Guest quick-access: participant picks themselves from the roster — the
+  // API mints a guest_sessions row + mc_guest httpOnly cookie, unlocking
+  // follows/my-schedule/workshops without an account. This flow was fully
+  // built server-side but had NO entry point in any UI.
+  const handleGuestAccess = useCallback(async () => {
+    setGuestLoading(true);
+    try {
+      const evRes = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
+        cache: 'no-store',
+      });
+      if (!evRes.ok) throw new Error('event');
+      const ev = (await evRes.json()) as { id: string };
+      const res = await fetch(`${apiUrl}/api/v1/events/${ev.id}/guest-sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ person_id: personId }),
+      });
+      if (!res.ok) throw new Error('guest');
+      // Land on the (now guest-aware) personal event schedule.
+      window.location.assign(`/e/${eventSlug}/my-schedule`);
+    } catch {
+      setToast(t('publicApp.people.guestAccessError'));
+      setTimeout(() => setToast(null), 4000);
+      setGuestLoading(false);
+    }
+  }, [apiUrl, eventSlug, personId, t]);
 
   if (loading) {
     return (
@@ -217,16 +255,36 @@ export default function PersonProfilePage() {
         )}
       </div>
 
-      {/* "This is me" — entry point into the event-scoped claim flow (the
-          claim page's ?personId= URL previously had no producer at all). */}
-      {canClaim && (
-        <Link
-          href={`/e/${eventSlug}/claim?personId=${profile.id}&next=${encodeURIComponent(`/e/${eventSlug}`)}`}
-          className="mb-6 block rounded-xl border border-dashed border-gray-600 bg-gray-900 px-4 py-3 text-sm text-gray-300 transition-colors hover:border-gray-400"
-        >
-          <span className="font-semibold text-white">{t('publicApp.people.thisIsMeTitle')}</span>{' '}
-          {t('publicApp.people.thisIsMeHint')}
-        </Link>
+      {/* "This is me" — entry points into the event-scoped claim flow (the
+          claim page's ?personId= URL previously had no producer) and the
+          guest-session quick access (previously unreachable server flow).
+          Guests see only the claim upgrade; claimed users see nothing. */}
+      {viewerType !== 'claimed' && (
+        <div className="mb-6 rounded-xl border border-dashed border-gray-600 bg-gray-900 px-4 py-3">
+          <p className="text-sm text-gray-300">
+            <span className="font-semibold text-white">{t('publicApp.people.thisIsMeTitle')}</span>{' '}
+            {t('publicApp.people.thisIsMeHint')}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`/e/${eventSlug}/claim?personId=${profile.id}&next=${encodeURIComponent(`/e/${eventSlug}`)}`}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white"
+              style={{ backgroundColor: 'var(--event-primary, #c0392b)' }}
+            >
+              {t('publicApp.people.claimButton')}
+            </Link>
+            {viewerType === 'anonymous' && (
+              <button
+                type="button"
+                onClick={() => void handleGuestAccess()}
+                disabled={guestLoading}
+                className="rounded-lg border border-gray-600 px-3 py-1.5 text-sm font-semibold text-gray-200 transition-colors hover:border-gray-400 disabled:opacity-50"
+              >
+                {t('publicApp.people.guestAccessButton')}
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Live now */}
