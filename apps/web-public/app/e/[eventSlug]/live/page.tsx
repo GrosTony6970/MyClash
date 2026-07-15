@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface LiveMatch {
@@ -125,32 +125,19 @@ export default function LivePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventSlug]);
 
-  // Realtime: re-fetch when any match on the event's lices changes
-  useEffect(() => {
-    if (!state?.lices.length) return;
-    const liceIds = state.lices.map((l) => l.lice.id);
-
-    const channels = liceIds.map((liceId) =>
-      supabase
-        .channel(`live-lice-${liceId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'matches',
-            filter: `lice_id=eq.${liceId}`,
-          },
-          () => void fetchState(),
-        )
-        .subscribe(),
-    );
-
-    return () => {
-      channels.forEach((ch) => void supabase.removeChannel(ch));
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.lices.map((l) => l.lice.id).join(',')]);
+  // Realtime: re-fetch when any match on the event's lices changes.
+  // Flag-aware (disable_realtime kill-switch) + one channel with an in.()
+  // filter instead of the previous one-channel-per-lice fan-out.
+  const liceIds = (state?.lices ?? []).map((l) => l.lice.id);
+  useRealtimeWithFallback({
+    channelName: `live-lices-${eventSlug}`,
+    table: 'matches',
+    filter: `lice_id=in.(${liceIds.join(',')})`,
+    event: 'UPDATE',
+    enabled: liceIds.length > 0,
+    onEvent: () => void fetchState(),
+    onFallbackPoll: () => void fetchState(),
+  });
 
   if (loading) {
     return (

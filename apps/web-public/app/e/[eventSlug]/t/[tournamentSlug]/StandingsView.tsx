@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
-import { supabase } from '@/lib/supabase';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
 import { SelfRowFocus } from './SelfRowFocus';
@@ -149,29 +149,18 @@ export function StandingsView({
   // their own subscriptions for the by-pool view; this hook drives
   // refetch for the overall table only.
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
-  useEffect(() => {
-    const poolIds = pools.map((p) => p.id);
-    if (poolIds.length === 0) return;
-    const channel = supabase
-      .channel(`pool-standings-overall-${tournamentId}`)
-      .on(
-        'postgres_changes',
-        {
-          // `matches` (not `exchanges`): every exchange recomputes the match
-          // score row, and exchanges has no pool_id — an invalid filter column
-          // errors the channel join and standings never live-refresh.
-          event: '*',
-          schema: 'public',
-          table: 'matches',
-          filter: `pool_id=in.(${poolIds.join(',')})`,
-        },
-        refresh,
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [tournamentId, pools, refresh]);
+  // `matches` (not `exchanges`): every exchange recomputes the match score
+  // row, and exchanges has no pool_id — an invalid filter column errors the
+  // channel join and standings never live-refresh. Flag-aware (kill-switch).
+  const poolIds = pools.map((p) => p.id);
+  useRealtimeWithFallback({
+    channelName: `pool-standings-overall-${tournamentId}`,
+    table: 'matches',
+    filter: `pool_id=in.(${poolIds.join(',')})`,
+    enabled: poolIds.length > 0,
+    onEvent: refresh,
+    onFallbackPoll: refresh,
+  });
 
   function selectMode(next: Mode) {
     // Writing the hash fires `hashchange`, which the useSyncExternalStore

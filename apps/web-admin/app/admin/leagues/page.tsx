@@ -106,7 +106,7 @@ export default function AdminLeaguesPage() {
         throw new Error(body.message ?? t('admin.common.deleteFailed'));
       }
       setLeagues((prev) => prev.filter((l) => l.id !== league.id));
-      toast.success(`Deleted "${league.name}"`);
+      toast.success(t('admin.adminLeagues.toastDeleted', { name: league.name }));
       setPendingDelete(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('admin.common.deleteFailed');

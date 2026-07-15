@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMatchClock } from '@myclash/ui';
 import { formatInZone } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { showReconnecting } from './show-reconnecting';
@@ -406,6 +407,8 @@ export function MatchLiveView({
   const [penalties, setPenalties] = useState<MatchPenaltyRow[]>(initialPenalties);
   const [connected, setConnected] = useState(true);
   const wasDisconnected = useRef(false);
+  // disable_realtime kill-switch — when on, the effect below degrades to polling.
+  const realtimeDisabled = useRealtimeDisabled();
 
   // A finished match is static — no realtime channel needed.
   const isFinal = initialMatch.status === 'completed' || initialMatch.status === 'voided';
@@ -430,6 +433,16 @@ export function MatchLiveView({
   useEffect(() => {
     // Finished matches don't stream — skip the channel entirely (no banner).
     if (isFinal) return;
+
+    // disable_realtime kill-switch: no websocket at all; degrade to a 30s
+    // refresh poll. The reconnecting banner is derived from the flag at
+    // render time (connected && !realtimeDisabled) — no setState needed here.
+    if (realtimeDisabled) {
+      const timer = window.setInterval(() => void refresh(), 30_000);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() kicks off the poll fetch; intentional on flag flip.
+      void refresh();
+      return () => window.clearInterval(timer);
+    }
 
     const channel = supabase
       .channel(`match:${matchId}:live`)
@@ -505,7 +518,7 @@ export function MatchLiveView({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [matchId, refresh, isFinal]);
+  }, [matchId, refresh, isFinal, realtimeDisabled]);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
@@ -519,8 +532,9 @@ export function MatchLiveView({
         className="mb-4"
       />
 
-      {/* Connection indicator — only for a live match that lost its channel. */}
-      {showReconnecting(connected, match.status) && (
+      {/* Connection indicator — live match without a healthy channel (WS
+          dropped, or realtime disabled by the kill-switch → 30s polling). */}
+      {showReconnecting(connected && !realtimeDisabled, match.status) && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-yellow-50 px-4 py-2 text-sm text-yellow-700">
           <span className="h-2 w-2 rounded-full bg-yellow-400" />
           {t('scoring.liveMatch.reconnecting')}

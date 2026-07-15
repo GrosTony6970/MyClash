@@ -77,14 +77,14 @@ export function WaitingListPanel({
       if (res.status === 409) {
         const body = (await res.json().catch(() => null)) as { reason?: string } | null;
         if (body?.reason === 'tournament_full') {
-          if (await confirm({ title: 'Tournament is full. Promote anyway and exceed the cap?' })) {
+          if (await confirm({ title: translate('admin.orgPersons.confirmWaitlistPromoteFull') })) {
             return promote(reg, true);
           }
           return;
         }
       }
       if (!res.ok) throw new Error(translate('admin.common.promoteFailed'));
-      toast.success('Promoted from waitlist');
+      toast.success(translate('admin.orgPersons.toastWaitlistPromoted'));
       onChange();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
@@ -92,14 +92,17 @@ export function WaitingListPanel({
   }
 
   async function remove(reg: WaitlistRegistration) {
-    if (!(await confirm({ title: 'Remove this person from the waitlist?', danger: true }))) return;
+    if (
+      !(await confirm({ title: translate('admin.orgPersons.confirmWaitlistRemove'), danger: true }))
+    )
+      return;
     try {
       const res = await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
       if (!res.ok) throw new Error(translate('admin.common.removeFailed'));
-      toast.success('Removed from waitlist');
+      toast.success(translate('admin.orgPersons.toastWaitlistRemoved'));
       onChange();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));

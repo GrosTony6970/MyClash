@@ -594,7 +594,8 @@ export default function WorkshopsAdminPage() {
   }
 
   async function handleRemove(sessionId: string, _personId: string) {
-    if (!(await confirm({ title: 'Remove this enrollment?', danger: true }))) return;
+    if (!(await confirm({ title: t('admin.common.confirmRemoveEnrollment'), danger: true })))
+      return;
     await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/enroll`, {
       method: 'DELETE',
       credentials: 'include',

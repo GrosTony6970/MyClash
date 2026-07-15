@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { defaultLocale, t } from '@myclash/i18n';
+import { ToastProvider } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { MaybeSiteHeader } from './_components/MaybeSiteHeader';
 import { RuntimeBanner } from './_components/RuntimeBanner';
@@ -57,10 +58,12 @@ export default function RootLayout({
           {t('navigation.skipToMainContent')}
         </a>
         <I18nProvider>
-          <RuntimeBanner />
-          <MaybeSiteHeader />
-          {children}
-          <SimulatedTimeBadge />
+          <ToastProvider>
+            <RuntimeBanner />
+            <MaybeSiteHeader />
+            {children}
+            <SimulatedTimeBadge />
+          </ToastProvider>
         </I18nProvider>
       </body>
     </html>

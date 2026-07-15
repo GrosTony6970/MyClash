@@ -9,8 +9,8 @@
  * AC: Pool standings update live (within 1s of exchange entry).
  */
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState } from 'react';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import type { StandingRow } from './page';
@@ -66,29 +66,14 @@ export function StandingsTable({
   // `matches` (updated on every exchange-driven score recompute), NOT to
   // `exchanges` — exchanges has no pool_id column, and an invalid filter
   // column errors the whole channel join (standings never live-refresh).
-  useEffect(() => {
-    const channel = supabase
-      .channel(`pool-standings-${poolId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'matches',
-          filter: `pool_id=eq.${poolId}`,
-        },
-        () => {
-          // Match score changed → re-fetch standings
-          void refresh();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poolId]);
+  // Flag-aware: honors the disable_realtime kill-switch + polls on WS loss.
+  useRealtimeWithFallback({
+    channelName: `pool-standings-${poolId}`,
+    table: 'matches',
+    filter: `pool_id=eq.${poolId}`,
+    onEvent: () => void refresh(),
+    onFallbackPoll: () => void refresh(),
+  });
 
   return (
     <div

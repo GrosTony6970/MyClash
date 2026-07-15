@@ -564,7 +564,12 @@ export default function ParticipantsPage() {
           `Created participant, but failed to register in: ${failedTournaments.join(', ')}.`,
         );
       } else if (selectedTournaments.size > 0 && fullPending.length === 0) {
-        toast.success(`Added ${personName} to ${selectedTournaments.size} tournament(s).`);
+        toast.success(
+          t('admin.orgPersons.toastAddedToTournaments', {
+            name: personName,
+            count: selectedTournaments.size,
+          }),
+        );
       }
       if (fullPending.length > 0) setWaitlistPrompt(fullPending);
       closeAddModal();
@@ -682,7 +687,7 @@ export default function ParticipantsPage() {
           `Saved profile, but failed to update tournament assignments for: ${failed.join(', ')}.`,
         );
       } else if ((toAdd.length > 0 || toRemove.length > 0) && fullPending.length === 0) {
-        toast.success('Profile and tournament assignments updated.');
+        toast.success(t('admin.orgPersons.toastProfileUpdated'));
       }
       if (fullPending.length > 0) setWaitlistPrompt(fullPending);
 
@@ -741,7 +746,8 @@ export default function ParticipantsPage() {
 
   async function handleBulkCheckIn() {
     if (selected.size === 0 || activeTab === 'all') return;
-    if (!(await confirm({ title: `Check in ${selected.size} participant(s)?` }))) return;
+    if (!(await confirm({ title: t('admin.orgPersons.confirmCheckIn', { count: selected.size }) })))
+      return;
     setBulkLoading(true);
     for (const personId of selected) {
       const reg = (registrationsByPersonId.get(personId) ?? []).find(
@@ -1488,7 +1494,9 @@ export default function ParticipantsPage() {
                 setSelected(new Set());
                 const skippedDetails = skipped.map((s) => `${s.name}: ${s.reason}`).join(' · ');
                 if (succeeded.length > 0 && skipped.length === 0) {
-                  toast.success(`Removed ${succeeded.length} participant(s).`);
+                  toast.success(
+                    t('admin.orgPersons.toastRemovedParticipants', { count: succeeded.length }),
+                  );
                 } else if (succeeded.length > 0 && skipped.length > 0) {
                   toast.warning(`Removed ${succeeded.length} · Skipped: ${skippedDetails}`);
                 } else if (succeeded.length === 0 && skipped.length > 0) {

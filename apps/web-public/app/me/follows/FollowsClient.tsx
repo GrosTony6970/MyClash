@@ -3,7 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Avatar, EmptyState, Switch, formatCountryName, useNow } from '@myclash/ui';
+import {
+  Avatar,
+  EmptyState,
+  Switch,
+  formatCountryName,
+  useConfirm,
+  useNow,
+  useToast,
+} from '@myclash/ui';
 import { flagEmoji } from '@/lib/flag';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -47,6 +55,8 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
   const { t, locale } = useI18n();
   const apiUrl = useMemo(() => getApiUrl(), []);
   const now = useNow(apiUrl);
+  const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
   const [follows, setFollows] = useState<PersonFollowing[]>([]);
   const [status, setStatus] = useState<Status>('loading');
 
@@ -104,11 +114,22 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
       });
       if (!res.ok) throw new Error('patch');
     } catch {
+      // Roll back the optimistic update AND say so — a toggle that silently
+      // undoes itself reads as a broken switch.
       setFollows((prev) => prev.map((f) => patch(f, !value)));
+      toast.error(t('publicApp.me.follows.updateFailed'));
     }
   }
 
   async function unfollow(follow: PersonFollowing) {
+    if (
+      !(await confirm({
+        title: t('publicApp.me.follows.unfollowConfirm', { name: follow.displayName }),
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     const previous = follows;
     setFollows((prev) => prev.filter((f) => f.globalPersonId !== follow.globalPersonId));
     try {
@@ -119,6 +140,7 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
       if (!res.ok) throw new Error('delete');
     } catch {
       setFollows(previous);
+      toast.error(t('publicApp.me.follows.unfollowFailed'));
     }
   }
 
@@ -247,7 +269,12 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
 
   // Embedded inside the People hub (the hub supplies the page chrome + header).
   if (embedded) {
-    return <div className="flex flex-col gap-3">{body}</div>;
+    return (
+      <div className="flex flex-col gap-3">
+        {body}
+        {confirmDialog}
+      </div>
+    );
   }
 
   return (
@@ -263,6 +290,7 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
           <p className="mt-2 text-sm leading-6 text-muted">{t('publicApp.me.follows.subtitle')}</p>
         </header>
         {body}
+        {confirmDialog}
       </div>
     </main>
   );

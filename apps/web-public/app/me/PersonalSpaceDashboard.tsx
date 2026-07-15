@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { formatLocalizedDate } from '@myclash/types';
+import { useToast } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { DashboardToday } from '@/components/me/DashboardToday';
 
@@ -53,9 +54,33 @@ function roleEnabled(profile: Record<string, unknown> | null, key: string) {
 
 export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
   const { t, locale } = useI18n();
+  const toast = useToast();
   const [data, setData] = useState<PersonalSpaceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // Success feedback for flows that land here with a marker param:
+  // claim-confirm redirects to /me?claimed=1, reset-password to
+  // /me?password_reset=1. These were written but never read — the user got
+  // zero confirmation. window APIs (not useSearchParams) on purpose: the
+  // repo's React Compiler setup bails out on useSearchParams.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const claimed = params.get('claimed') === '1';
+    const passwordReset = params.get('password_reset') === '1';
+    if (!claimed && !passwordReset) return;
+    if (claimed) toast.success(t('publicApp.me.claimedSuccess'));
+    if (passwordReset) toast.success(t('publicApp.me.passwordResetSuccess'));
+    params.delete('claimed');
+    params.delete('password_reset');
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot on mount
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();

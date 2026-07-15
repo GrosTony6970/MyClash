@@ -19,7 +19,7 @@ import {
   type BracketSlotData,
   type PodiumData,
 } from '@myclash/ui';
-import { supabase } from '@/lib/supabase';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { refereeRoleLabel } from './referee-display';
@@ -105,31 +105,16 @@ export function BracketLive({
     }
   }
 
-  useEffect(() => {
-    const slotIds = initialSlots.map((s) => s.id);
-    if (slotIds.length === 0) return;
-
-    const channel = supabase
-      .channel(`bracket-${tournamentSlug}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'matches',
-          filter: `bracket_slot_id=in.(${slotIds.join(',')})`,
-        },
-        () => {
-          void refresh();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentSlug]);
+  // Flag-aware (disable_realtime kill-switch) + polling fallback on WS loss.
+  const slotIds = initialSlots.map((s) => s.id);
+  useRealtimeWithFallback({
+    channelName: `bracket-${tournamentSlug}`,
+    table: 'matches',
+    filter: `bracket_slot_id=in.(${slotIds.join(',')})`,
+    enabled: slotIds.length > 0,
+    onEvent: () => void refresh(),
+    onFallbackPoll: () => void refresh(),
+  });
 
   // Personal space only (highlightRegistrationId / refereeSelfKeys are set on the
   // /me view, never on the public /e page): the bracket slot to scroll into view.

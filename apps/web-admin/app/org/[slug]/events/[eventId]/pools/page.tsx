@@ -307,7 +307,7 @@ export default function PoolsPage() {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         throw new Error(body?.message ?? t('admin.common.couldNotDeletePool'));
       }
-      toast.success('Pool deleted.');
+      toast.success(t('admin.common.poolDeletedToast'));
       setPendingDeletePoolId(null);
       if (selectedTournament) await loadPools(selectedTournament);
     } catch (err) {
@@ -332,7 +332,7 @@ export default function PoolsPage() {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         throw new Error(body?.message ?? t('admin.common.couldNotClearPoolLayout'));
       }
-      toast.success('All pools deleted.');
+      toast.success(t('admin.common.allPoolsDeletedToast'));
       setPendingDeleteAll(false);
       setExistingPhase(false);
       await loadPools(selectedTournament);
@@ -360,7 +360,7 @@ export default function PoolsPage() {
         throw new Error(body?.message ?? t('admin.common.couldNotAddEmptyPool'));
       }
       const created = (await res.json()) as { id: string; name: string; sortOrder: number };
-      toast.success(`${created.name} added.`);
+      toast.success(t('admin.common.poolAddedToast', { name: created.name }));
       setExistingPhase(true);
       await loadPools(selectedTournament);
     } catch (err) {

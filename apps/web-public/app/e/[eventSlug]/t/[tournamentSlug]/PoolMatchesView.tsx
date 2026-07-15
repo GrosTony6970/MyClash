@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { sideStyle, tintTextClassFor } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
 import { formatInZone } from '@myclash/time';
-import { supabase } from '@/lib/supabase';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { naturalCompare } from './pool-matches-sort';
@@ -170,30 +170,19 @@ export function PoolMatchesView({
   // Realtime: any exchange on this tournament's pool matches
   // triggers a refetch. We subscribe by pool ids so the channel
   // doesn't drift across tournaments.
-  useEffect(() => {
-    const poolIds = pools.map((p) => p.poolId);
-    if (poolIds.length === 0) return;
-    const channel = supabase
-      .channel(`pool-matches-${tournamentSlug}`)
-      .on(
-        'postgres_changes',
-        {
-          // Single binding on `matches`: every exchange recomputes the match
-          // score row, so this fires per hit. The old extra binding on
-          // `exchanges` filtered by pool_id — a column exchanges doesn't have —
-          // which errored the WHOLE channel and killed this binding too.
-          event: '*',
-          schema: 'public',
-          table: 'matches',
-          filter: `pool_id=in.(${poolIds.join(',')})`,
-        },
-        refresh,
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [pools, tournamentSlug, refresh]);
+  // Single binding on `matches`: every exchange recomputes the match score
+  // row, so this fires per hit. The old extra binding on `exchanges` filtered
+  // by pool_id — a column exchanges doesn't have — errored the WHOLE channel
+  // and killed this binding too. Flag-aware (disable_realtime kill-switch).
+  const poolIds = pools.map((p) => p.poolId);
+  useRealtimeWithFallback({
+    channelName: `pool-matches-${tournamentSlug}`,
+    table: 'matches',
+    filter: `pool_id=in.(${poolIds.join(',')})`,
+    enabled: poolIds.length > 0,
+    onEvent: refresh,
+    onFallbackPoll: refresh,
+  });
 
   // A click from the Pool List tab changes the hash — update the focus.
   useEffect(() => {
