@@ -5,6 +5,7 @@ import { formatInZone } from '@myclash/time';
 import { getApiUrl } from '@/lib/api-url';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@/i18n/I18nProvider';
+import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
 
 // ── Wire shapes (mirror MeEventsService.getInstructorWorkshops) ─────────────────
 
@@ -25,12 +26,18 @@ interface InstructorWorkshop {
   id: string;
   slug: string;
   title: string;
+  shortDescription: string | null;
   descriptionMd: string | null;
+  category: string | null;
   weapon: string | null;
   level: string | null;
   language: string | null;
+  color: string | null;
+  coverImageUrl: string | null;
   capacity: number | null;
+  durationMinutes: number | null;
   sessions: InstructorSession[];
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
 
 interface InstructorGroup {
@@ -166,82 +173,80 @@ function WorkshopManageCard({
   });
   const [panel, setPanel] = useState<'none' | 'edit' | 'notify' | 'feedback'>('none');
 
-  const chips = [fields.weapon, fields.level, fields.language].filter((v) => v.trim());
+  // Reflect local instructor edits live on the shared card; empty → null so the
+  // card falls back to shortDescription and hides blank tag pills.
+  const cardWorkshop: WorkshopListItem = {
+    ...workshop,
+    weapon: fields.weapon || null,
+    level: fields.level || null,
+    language: fields.language || null,
+    descriptionMd: fields.descriptionMd || null,
+  };
 
   return (
-    <article className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="font-display text-lg font-semibold text-foreground">{workshop.title}</h3>
-          {chips.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {chips.map((c) => (
-                <span
-                  key={c}
-                  className="rounded bg-background px-1.5 py-0.5 text-xs font-medium text-muted"
-                >
-                  {c}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPanel(panel === 'edit' ? 'none' : 'edit')}
-            className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-          >
-            {t('publicApp.me.instructor.edit')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPanel(panel === 'notify' ? 'none' : 'notify')}
-            className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-          >
-            {t('publicApp.me.instructor.notify')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPanel(panel === 'feedback' ? 'none' : 'feedback')}
-            className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
-          >
-            {t('publicApp.me.instructor.feedback')}
-          </button>
-        </div>
-      </div>
+    <WorkshopCard
+      workshop={cardWorkshop}
+      timezone={tz}
+      showLocation
+      footer={
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setPanel(panel === 'edit' ? 'none' : 'edit')}
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+            >
+              {t('publicApp.me.instructor.edit')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel(panel === 'notify' ? 'none' : 'notify')}
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+            >
+              {t('publicApp.me.instructor.notify')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel(panel === 'feedback' ? 'none' : 'feedback')}
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-background"
+            >
+              {t('publicApp.me.instructor.feedback')}
+            </button>
+          </div>
 
-      {panel === 'edit' && (
-        <EditPanel
-          workshopId={workshop.id}
-          apiUrl={apiUrl}
-          fields={fields}
-          onSaved={(next) => {
-            setFields(next);
-            setPanel('none');
-          }}
-        />
-      )}
-      {panel === 'notify' && <NotifyPanel workshopId={workshop.id} apiUrl={apiUrl} />}
-      {panel === 'feedback' && <FeedbackPanel workshopId={workshop.id} apiUrl={apiUrl} />}
-
-      <div className="mt-3 flex flex-col divide-y divide-border">
-        {workshop.sessions.length === 0 ? (
-          <p className="py-2 text-sm text-muted">{t('publicApp.me.instructor.notScheduled')}</p>
-        ) : (
-          workshop.sessions.map((s) => (
-            <SessionRow
-              key={s.id}
-              session={s}
-              capacity={workshop.capacity}
-              tz={tz}
-              tag={tag}
+          {panel === 'edit' && (
+            <EditPanel
+              workshopId={workshop.id}
               apiUrl={apiUrl}
+              fields={fields}
+              onSaved={(next) => {
+                setFields(next);
+                setPanel('none');
+              }}
             />
-          ))
-        )}
-      </div>
-    </article>
+          )}
+          {panel === 'notify' && <NotifyPanel workshopId={workshop.id} apiUrl={apiUrl} />}
+          {panel === 'feedback' && <FeedbackPanel workshopId={workshop.id} apiUrl={apiUrl} />}
+
+          <div className="flex flex-col divide-y divide-border border-t border-border">
+            {workshop.sessions.length === 0 ? (
+              <p className="py-2 text-sm text-muted">{t('publicApp.me.instructor.notScheduled')}</p>
+            ) : (
+              workshop.sessions.map((s) => (
+                <SessionRow
+                  key={s.id}
+                  session={s}
+                  capacity={workshop.capacity}
+                  tz={tz}
+                  tag={tag}
+                  apiUrl={apiUrl}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      }
+    />
   );
 }
 
@@ -303,7 +308,7 @@ function EditPanel({
     'w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
   return (
-    <div className="mt-3 rounded-md border border-border bg-background p-3">
+    <div className="rounded-md border border-border bg-background p-3">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
           {t('publicApp.me.instructor.weaponLabel')}
@@ -401,7 +406,7 @@ function NotifyPanel({ workshopId, apiUrl }: { workshopId: string; apiUrl: strin
   }
 
   return (
-    <div className="mt-3 rounded-md border border-border bg-background p-3">
+    <div className="rounded-md border border-border bg-background p-3">
       <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
         {t('publicApp.me.instructor.notifyTitleLabel')}
         <input
@@ -484,7 +489,7 @@ function FeedbackPanel({ workshopId, apiUrl }: { workshopId: string; apiUrl: str
   }, [apiUrl, workshopId]);
 
   return (
-    <div className="mt-3 rounded-md border border-border bg-background p-3">
+    <div className="rounded-md border border-border bg-background p-3">
       {error && <p className="text-sm text-danger">{t('publicApp.me.instructor.feedbackError')}</p>}
       {!error && summary === null && (
         <p className="text-sm text-muted">{t('publicApp.me.instructor.feedbackLoading')}</p>

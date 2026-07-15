@@ -169,6 +169,7 @@ export interface InstructorWorkshop {
   capacity: number | null;
   durationMinutes: number | null;
   sessions: InstructorWorkshopSession[];
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
 
 export interface InstructorWorkshopGroup {
@@ -1039,6 +1040,7 @@ export class MeEventsService {
         capacity,
         durationMinutes: (workshop['duration_minutes'] as number | null) ?? null,
         sessions: mappedSessions,
+        instructors: [],
       });
     }
 
@@ -1068,6 +1070,29 @@ export class MeEventsService {
           }
         }
       }
+    }
+
+    // Co-instructors for every workshop in one query (the viewer is one of them,
+    // but co-teachers are surfaced on the card). Separate query — not a nested
+    // workshops → workshop_instructors self-embed — to avoid PostgREST ambiguity.
+    const workshopIds = [...new Set([...groups.values()].flatMap((g) => [...g.workshops.keys()]))];
+    if (workshopIds.length > 0) {
+      const { data: instr } = await this.supabase.service
+        .from('workshop_instructors')
+        .select('workshop_id, global_person_id, display_name')
+        .in('workshop_id', workshopIds);
+      const byWorkshop = new Map<string, InstructorWorkshop['instructors']>();
+      for (const i of Array.isArray(instr) ? (instr as Row[]) : []) {
+        const wid = String(i['workshop_id']);
+        const arr = byWorkshop.get(wid) ?? [];
+        arr.push({
+          globalPersonId: (i['global_person_id'] as string | null) ?? null,
+          displayName: String(i['display_name'] ?? ''),
+        });
+        byWorkshop.set(wid, arr);
+      }
+      for (const g of groups.values())
+        for (const w of g.workshops.values()) w.instructors = byWorkshop.get(w.id) ?? [];
     }
 
     const firstStart = (w: InstructorWorkshop): string | null =>
