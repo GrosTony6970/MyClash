@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AdminPageHeader,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   RowActionButton,
   SortableHeader,
   rowActionClasses,
@@ -212,233 +216,233 @@ export default function AdminLeaguesPage() {
       </div>
 
       {tab === 'ranking' && (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full min-w-[820px] text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 w-16">{t('admin.adminLeagues.colLogo')}</th>
-                <th className="px-4 py-3">{t('admin.adminLeagues.colName')}</th>
-                <th className="px-4 py-3">{t('admin.adminLeagues.colYear')}</th>
-                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colEvents')}</th>
-                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colTournaments')}</th>
-                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colGroups')}</th>
-                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colFighters')}</th>
+        <DataTable className="min-w-[820px]">
+          <DataTableHead>
+            <DataTableCell as="th" className="w-16">
+              {t('admin.adminLeagues.colLogo')}
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.adminLeagues.colName')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminLeagues.colYear')}</DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('admin.adminLeagues.colEvents')}
+            </DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('admin.adminLeagues.colTournaments')}
+            </DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('admin.adminLeagues.colGroups')}
+            </DataTableCell>
+            <DataTableCell as="th" className="text-center">
+              {t('admin.adminLeagues.colFighters')}
+            </DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-sm text-muted">
+                  {t('admin.adminLeagues.loading')}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-sm text-muted">
-                    {t('admin.adminLeagues.loading')}
-                  </td>
-                </tr>
-              )}
-              {!loading && leagues.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-muted">
-                    {t('admin.adminLeagues.noLeaguesYet')}
-                  </td>
-                </tr>
-              )}
-              {leagues.map((league) => (
-                <tr key={league.id} className="border-b border-border">
-                  <td className="px-4 py-3">
-                    {league.logo_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={league.logo_url}
-                        alt={league.name}
-                        className="h-9 w-9 rounded-md border border-border bg-surface object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-[11px] font-semibold text-muted">
-                        {initialsFor(league.name)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/admin/leagues/${league.id}/ranking`}
-                      className="font-medium text-accent hover:underline"
-                    >
-                      {league.name}
-                    </Link>
-                    <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
-                  </td>
-                  <td className="px-4 py-3 text-foreground-secondary">{league.season_year}</td>
-                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
-                    {league.event_count ?? 0}
-                  </td>
-                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
-                    {league.tournament_count ?? 0}
-                  </td>
-                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
-                    {league.group_count ?? 0}
-                  </td>
-                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
-                    {league.fighter_count ?? 0}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            )}
+            {!loading && leagues.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-sm text-muted">
+                  {t('admin.adminLeagues.noLeaguesYet')}
+                </td>
+              </tr>
+            )}
+            {leagues.map((league) => (
+              <DataTableRow key={league.id}>
+                <DataTableCell>
+                  {league.logo_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={league.logo_url}
+                      alt={league.name}
+                      className="h-9 w-9 rounded-md border border-border bg-surface object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-[11px] font-semibold text-muted">
+                      {initialsFor(league.name)}
+                    </div>
+                  )}
+                </DataTableCell>
+                <DataTableCell>
+                  <Link
+                    href={`/admin/leagues/${league.id}/ranking`}
+                    className="font-medium text-accent hover:underline"
+                  >
+                    {league.name}
+                  </Link>
+                  <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
+                </DataTableCell>
+                <DataTableCell>{league.season_year}</DataTableCell>
+                <DataTableCell className="text-center tabular-nums">
+                  {league.event_count ?? 0}
+                </DataTableCell>
+                <DataTableCell className="text-center tabular-nums">
+                  {league.tournament_count ?? 0}
+                </DataTableCell>
+                <DataTableCell className="text-center tabular-nums">
+                  {league.group_count ?? 0}
+                </DataTableCell>
+                <DataTableCell className="text-center tabular-nums">
+                  {league.fighter_count ?? 0}
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       {tab === 'list' && (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full min-w-[920px] text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 w-16">{t('admin.adminLeagues.colLogo')}</th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.adminLeagues.colName')}
-                    columnKey="name"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.adminLeagues.colYear')}
-                    columnKey="year"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.adminLeagues.colGrouping')}
-                    columnKey="category"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.adminLeagues.colScoringSystem')}
-                    columnKey="scoringSystem"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.adminLeagues.colStatus')}
-                    columnKey="status"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">{t('admin.adminLeagues.colPublic')}</th>
-                <th className="px-4 py-3">{t('admin.adminLeagues.colActions')}</th>
+        <DataTable className="min-w-[920px]">
+          <DataTableHead>
+            <DataTableCell as="th" className="w-16">
+              {t('admin.adminLeagues.colLogo')}
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.adminLeagues.colName')}
+                columnKey="name"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.adminLeagues.colYear')}
+                columnKey="year"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.adminLeagues.colGrouping')}
+                columnKey="category"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.adminLeagues.colScoringSystem')}
+                columnKey="scoringSystem"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.adminLeagues.colStatus')}
+                columnKey="status"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.adminLeagues.colPublic')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.adminLeagues.colActions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={8} className="py-8 text-center text-sm text-muted">
+                  {t('admin.adminLeagues.loading')}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-sm text-muted">
-                    {t('admin.adminLeagues.loading')}
-                  </td>
-                </tr>
-              )}
-              {!loading && leagues.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-sm text-muted">
-                    {t('admin.adminLeagues.emptyHintBefore')}{' '}
-                    <strong>{t('admin.adminLeagues.emptyHintAction')}</strong>{' '}
-                    {t('admin.adminLeagues.emptyHintAfter')}
-                  </td>
-                </tr>
-              )}
-              {visibleLeagues.map((league) => (
-                <tr key={league.id} className="border-b border-border hover:bg-background">
-                  <td className="px-4 py-3">
-                    {league.logo_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={league.logo_url}
-                        alt={league.name}
-                        className="h-9 w-9 rounded-md border border-border bg-surface object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-[11px] font-semibold text-muted">
-                        {initialsFor(league.name)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-foreground">{league.name}</p>
-                    <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
-                  </td>
-                  <td className="px-4 py-3 text-foreground-secondary">{league.season_year}</td>
-                  <td className="px-4 py-3 text-foreground-secondary">
-                    {formatCategory(league.scoring_config?.rankingDimensions)}
-                  </td>
-                  <td className="px-4 py-3 text-foreground-secondary">
-                    {formatScoringSystem(league.scoring_system)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      aria-label={t('admin.adminLeagues.colStatus')}
-                      value={league.status}
-                      disabled={busyId === league.id}
-                      onChange={(e) => void changeStatus(league, e.target.value)}
-                      className={[
-                        'cursor-pointer rounded-full border border-border px-2 py-0.5 text-xs font-semibold',
-                        league.status === 'published'
-                          ? 'bg-success/10 text-success'
-                          : league.status === 'archived'
-                            ? 'bg-background text-foreground-secondary'
-                            : 'bg-warning/10 text-warning',
-                      ].join(' ')}
-                    >
-                      <option value="draft">{t('admin.adminLeagues.statusDraft')}</option>
-                      <option value="published">{t('admin.adminLeagues.statusPublished')}</option>
-                      <option value="archived">{t('admin.adminLeagues.statusArchived')}</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-foreground-secondary">
-                    {league.public_visibility ? 'Yes' : 'No'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/admin/leagues/${league.id}/edit`}
-                        className={rowActionClasses('edit')}
-                      >
-                        {t('admin.adminLeagues.editAction')}
-                      </Link>
-                      <RowActionButton
-                        variant="danger"
-                        onClick={() => setPendingDelete(league)}
-                        disabled={busyId === league.id}
-                      >
-                        {t('admin.adminLeagues.deleteAction')}
-                      </RowActionButton>
+            )}
+            {!loading && leagues.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-12 text-center text-sm text-muted">
+                  {t('admin.adminLeagues.emptyHintBefore')}{' '}
+                  <strong>{t('admin.adminLeagues.emptyHintAction')}</strong>{' '}
+                  {t('admin.adminLeagues.emptyHintAfter')}
+                </td>
+              </tr>
+            )}
+            {visibleLeagues.map((league) => (
+              <DataTableRow key={league.id}>
+                <DataTableCell>
+                  {league.logo_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={league.logo_url}
+                      alt={league.name}
+                      className="h-9 w-9 rounded-md border border-border bg-surface object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-[11px] font-semibold text-muted">
+                      {initialsFor(league.name)}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  )}
+                </DataTableCell>
+                <DataTableCell>
+                  <p className="font-medium text-foreground">{league.name}</p>
+                  <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
+                </DataTableCell>
+                <DataTableCell>{league.season_year}</DataTableCell>
+                <DataTableCell>
+                  {formatCategory(league.scoring_config?.rankingDimensions)}
+                </DataTableCell>
+                <DataTableCell>{formatScoringSystem(league.scoring_system)}</DataTableCell>
+                <DataTableCell>
+                  <select
+                    aria-label={t('admin.adminLeagues.colStatus')}
+                    value={league.status}
+                    disabled={busyId === league.id}
+                    onChange={(e) => void changeStatus(league, e.target.value)}
+                    className={[
+                      'cursor-pointer rounded-full border border-border px-2 py-0.5 text-xs font-semibold',
+                      league.status === 'published'
+                        ? 'bg-success/10 text-success'
+                        : league.status === 'archived'
+                          ? 'bg-background text-foreground-secondary'
+                          : 'bg-warning/10 text-warning',
+                    ].join(' ')}
+                  >
+                    <option value="draft">{t('admin.adminLeagues.statusDraft')}</option>
+                    <option value="published">{t('admin.adminLeagues.statusPublished')}</option>
+                    <option value="archived">{t('admin.adminLeagues.statusArchived')}</option>
+                  </select>
+                </DataTableCell>
+                <DataTableCell>{league.public_visibility ? 'Yes' : 'No'}</DataTableCell>
+                <DataTableCell>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/admin/leagues/${league.id}/edit`}
+                      className={rowActionClasses('edit')}
+                    >
+                      {t('admin.adminLeagues.editAction')}
+                    </Link>
+                    <RowActionButton
+                      variant="danger"
+                      onClick={() => setPendingDelete(league)}
+                      disabled={busyId === league.id}
+                    >
+                      {t('admin.adminLeagues.deleteAction')}
+                    </RowActionButton>
+                  </div>
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </tbody>
+        </DataTable>
       )}
 
       <ConfirmDialog

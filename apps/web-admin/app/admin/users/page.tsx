@@ -6,6 +6,10 @@ import {
   AdminPageHeader,
   Button,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   SortableHeader,
   fuzzyMatch,
   rowActionClasses,
@@ -439,158 +443,152 @@ export default function AdminUsersPage() {
       ) : users.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.users.empty')}</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="w-full min-w-[980px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-background text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.users.table.displayName')}
-                    columnKey="displayName"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.users.table.email')}
-                    columnKey="email"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">{t('admin.users.table.organizations')}</th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.users.table.created')}
-                    columnKey="created"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">
-                  <SortableHeader
-                    label={t('admin.users.table.lastSignIn')}
-                    columnKey="lastSignIn"
-                    currentKey={sortKey}
-                    direction={direction}
-                    onToggle={toggle}
-                    ariaSortAsc={t('admin.common.sortAscLabel')}
-                    ariaSortDesc={t('admin.common.sortDescLabel')}
-                  />
-                </th>
-                <th className="px-4 py-3">{t('admin.users.table.status')}</th>
-                <th className="px-4 py-3">{t('admin.users.table.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleUsers.map((user) => {
-                const disabled = isDisabled(user);
-                return (
-                  <tr key={user.id} className="border-b border-border hover:bg-background">
-                    <td className="px-4 py-3 font-medium text-foreground">
-                      {getDisplayName(user, t('admin.users.noDisplayName'))}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-foreground">
-                      {user.email ?? t('admin.users.noEmail')}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-foreground-secondary">
-                      {(user.organizations ?? []).length === 0 ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {(user.organizations ?? []).slice(0, 3).map((org) => (
-                            <span
-                              key={org.id}
-                              className="rounded-full border border-border bg-background px-2 py-0.5"
-                              title={org.name}
-                            >
-                              {org.name} <span className="text-muted">· {org.role}</span>
-                            </span>
-                          ))}
-                          {(user.organizations ?? []).length > 3 && (
-                            <span className="rounded-full bg-background px-2 py-0.5 text-muted">
-                              +{(user.organizations ?? []).length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-foreground-secondary">
-                      {formatDate(user.created_at, t('admin.users.missingDate'), locale)}
-                    </td>
-                    <td className="px-4 py-3 text-foreground-secondary">
-                      {formatDate(user.last_sign_in_at, t('admin.users.missingDate'), locale)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          disabled ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
-                        }`}
-                      >
-                        {disabled
-                          ? t('admin.users.status.disabled')
-                          : t('admin.users.status.active')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <Link href={`/admin/users/${user.id}`} className={rowActionClasses('edit')}>
-                          {t('admin.users.actions.edit')}
-                        </Link>
-                        <ActionButton
-                          label={
-                            disabled
-                              ? t('admin.users.actions.enable')
-                              : t('admin.users.actions.disable')
-                          }
-                          description={
-                            disabled
-                              ? t('admin.users.actions.enableHelp')
-                              : t('admin.users.actions.disableHelp')
-                          }
-                          onClick={() => {
-                            setPending({
-                              kind: 'toggle',
-                              user,
-                              action: disabled ? 'enable' : 'disable',
-                            });
-                          }}
-                          variant={disabled ? 'success' : 'warning'}
-                        />
-                        <ActionButton
-                          label={t('admin.users.actions.safeDelete')}
-                          description={t('admin.users.actions.safeDeleteHelp')}
-                          onClick={() => {
-                            setPending({ kind: 'delete', user, mode: 'safe' });
-                          }}
-                          variant="neutral"
-                        />
-                        <ActionButton
-                          label={t('admin.users.actions.cleanupDelete')}
-                          description={t('admin.users.actions.cleanupDeleteHelp')}
-                          onClick={() => {
-                            setPending({ kind: 'delete', user, mode: 'cleanup' });
-                          }}
-                          variant="danger"
-                        />
+        <DataTable className="min-w-[980px]">
+          <DataTableHead>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.users.table.displayName')}
+                columnKey="displayName"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.users.table.email')}
+                columnKey="email"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.users.table.organizations')}</DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.users.table.created')}
+                columnKey="created"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">
+              <SortableHeader
+                label={t('admin.users.table.lastSignIn')}
+                columnKey="lastSignIn"
+                currentKey={sortKey}
+                direction={direction}
+                onToggle={toggle}
+                ariaSortAsc={t('admin.common.sortAscLabel')}
+                ariaSortDesc={t('admin.common.sortDescLabel')}
+              />
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.users.table.status')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.users.table.actions')}</DataTableCell>
+          </DataTableHead>
+          <tbody>
+            {visibleUsers.map((user) => {
+              const disabled = isDisabled(user);
+              return (
+                <DataTableRow key={user.id}>
+                  <DataTableCell className="font-medium text-foreground">
+                    {getDisplayName(user, t('admin.users.noDisplayName'))}
+                  </DataTableCell>
+                  <DataTableCell className="font-medium text-foreground">
+                    {user.email ?? t('admin.users.noEmail')}
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-foreground-secondary">
+                    {(user.organizations ?? []).length === 0 ? (
+                      <span className="text-muted">—</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {(user.organizations ?? []).slice(0, 3).map((org) => (
+                          <span
+                            key={org.id}
+                            className="rounded-full border border-border bg-background px-2 py-0.5"
+                            title={org.name}
+                          >
+                            {org.name} <span className="text-muted">· {org.role}</span>
+                          </span>
+                        ))}
+                        {(user.organizations ?? []).length > 3 && (
+                          <span className="rounded-full bg-background px-2 py-0.5 text-muted">
+                            +{(user.organizations ?? []).length - 3}
+                          </span>
+                        )}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {formatDate(user.created_at, t('admin.users.missingDate'), locale)}
+                  </DataTableCell>
+                  <DataTableCell className="text-foreground-secondary">
+                    {formatDate(user.last_sign_in_at, t('admin.users.missingDate'), locale)}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        disabled ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
+                      }`}
+                    >
+                      {disabled ? t('admin.users.status.disabled') : t('admin.users.status.active')}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex gap-2">
+                      <Link href={`/admin/users/${user.id}`} className={rowActionClasses('edit')}>
+                        {t('admin.users.actions.edit')}
+                      </Link>
+                      <ActionButton
+                        label={
+                          disabled
+                            ? t('admin.users.actions.enable')
+                            : t('admin.users.actions.disable')
+                        }
+                        description={
+                          disabled
+                            ? t('admin.users.actions.enableHelp')
+                            : t('admin.users.actions.disableHelp')
+                        }
+                        onClick={() => {
+                          setPending({
+                            kind: 'toggle',
+                            user,
+                            action: disabled ? 'enable' : 'disable',
+                          });
+                        }}
+                        variant={disabled ? 'success' : 'warning'}
+                      />
+                      <ActionButton
+                        label={t('admin.users.actions.safeDelete')}
+                        description={t('admin.users.actions.safeDeleteHelp')}
+                        onClick={() => {
+                          setPending({ kind: 'delete', user, mode: 'safe' });
+                        }}
+                        variant="neutral"
+                      />
+                      <ActionButton
+                        label={t('admin.users.actions.cleanupDelete')}
+                        description={t('admin.users.actions.cleanupDeleteHelp')}
+                        onClick={() => {
+                          setPending({ kind: 'delete', user, mode: 'cleanup' });
+                        }}
+                        variant="danger"
+                      />
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       <ConfirmDialog

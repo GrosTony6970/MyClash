@@ -2,7 +2,16 @@
 
 import { t } from '@myclash/i18n';
 import { getDateFormat } from '@myclash/types';
-import { Button, SortableHeader, useConfirm, useSortableList } from '@myclash/ui';
+import {
+  Button,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
+  SortableHeader,
+  useConfirm,
+  useSortableList,
+} from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -616,97 +625,91 @@ export default function AdminFightersPage() {
               </button>
             )}
           </div>
-          <div className="overflow-x-auto border border-border rounded-lg">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-background border-b border-border text-left text-muted text-xs uppercase tracking-wide">
-                  <th className="py-3 px-4">
-                    <SortableHeader
-                      label={t('admin.globalProfiles.colName')}
-                      columnKey="displayName"
-                      currentKey={personSortKey}
-                      direction={personSortDir}
-                      onToggle={togglePersonSort}
-                      ariaSortAsc={t('admin.common.sortAscLabel')}
-                      ariaSortDesc={t('admin.common.sortDescLabel')}
-                    />
-                  </th>
-                  <th className="py-3 px-4">
-                    <SortableHeader
-                      label={t('admin.globalProfiles.colClub')}
-                      columnKey="club"
-                      currentKey={personSortKey}
-                      direction={personSortDir}
-                      onToggle={togglePersonSort}
-                      ariaSortAsc={t('admin.common.sortAscLabel')}
-                      ariaSortDesc={t('admin.common.sortDescLabel')}
-                    />
-                  </th>
-                  <th className="py-3 px-4">{t('admin.globalProfiles.colRoles')}</th>
-                  <th className="py-3 px-4">{t('admin.globalProfiles.colCountry')}</th>
-                  <th className="py-3 px-4">{t('admin.globalProfiles.colActions')}</th>
+          <DataTable>
+            <DataTableHead>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('admin.globalProfiles.colName')}
+                  columnKey="displayName"
+                  currentKey={personSortKey}
+                  direction={personSortDir}
+                  onToggle={togglePersonSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">
+                <SortableHeader
+                  label={t('admin.globalProfiles.colClub')}
+                  columnKey="club"
+                  currentKey={personSortKey}
+                  direction={personSortDir}
+                  onToggle={togglePersonSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </DataTableCell>
+              <DataTableCell as="th">{t('admin.globalProfiles.colRoles')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.globalProfiles.colCountry')}</DataTableCell>
+              <DataTableCell as="th">{t('admin.globalProfiles.colActions')}</DataTableCell>
+            </DataTableHead>
+            <tbody>
+              {sortedPersons.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-muted text-sm">
+                    {personsLoading
+                      ? t('admin.globalProfiles.loading')
+                      : t('admin.globalProfiles.noProfilesFound')}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {sortedPersons.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted text-sm">
-                      {personsLoading
-                        ? t('admin.globalProfiles.loading')
-                        : t('admin.globalProfiles.noProfilesFound')}
-                    </td>
-                  </tr>
-                )}
-                {sortedPersons.map((p) => (
-                  <tr key={p.id} className="border-b border-border hover:bg-background">
-                    <td className="py-2.5 px-4">
-                      <p className="font-medium text-foreground">{p.display_name}</p>
-                      <p className="text-xs text-muted">
-                        {p.given_name} {p.family_name}
-                      </p>
-                    </td>
-                    <td className="py-2.5 px-4 text-foreground-secondary text-sm">
-                      {(p.clubs as { name: string } | null)?.name ?? '—'}
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <div className="flex gap-1 flex-wrap">
-                        {p.is_fighter && (
-                          <span className="text-xs bg-accent/10 text-accent px-1.5 py-0.5 rounded">
-                            {t('admin.globalProfiles.roleFighter')}
-                          </span>
-                        )}
-                        {p.is_referee && (
-                          <span className="text-xs bg-info/10 text-info px-1.5 py-0.5 rounded">
-                            {t('admin.globalProfiles.roleReferee')}
-                          </span>
-                        )}
-                        {p.is_workshop_participant && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
-                            {t('admin.globalProfiles.roleWorkshop')}
-                          </span>
-                        )}
-                        {p.is_instructor && (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                            {t('admin.globalProfiles.roleInstructor')}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-4 text-muted text-sm">{p.country_code ?? '—'}</td>
-                    <td className="py-2.5 px-4">
-                      <button
-                        type="button"
-                        onClick={() => startEditProfile(p)}
-                        className="text-xs font-semibold text-accent hover:underline"
-                      >
-                        {t('actions.edit')}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              )}
+              {sortedPersons.map((p) => (
+                <DataTableRow key={p.id}>
+                  <DataTableCell>
+                    <p className="font-medium text-foreground">{p.display_name}</p>
+                    <p className="text-xs text-muted">
+                      {p.given_name} {p.family_name}
+                    </p>
+                  </DataTableCell>
+                  <DataTableCell>{(p.clubs as { name: string } | null)?.name ?? '—'}</DataTableCell>
+                  <DataTableCell>
+                    <div className="flex gap-1 flex-wrap">
+                      {p.is_fighter && (
+                        <span className="text-xs bg-accent/10 text-accent px-1.5 py-0.5 rounded">
+                          {t('admin.globalProfiles.roleFighter')}
+                        </span>
+                      )}
+                      {p.is_referee && (
+                        <span className="text-xs bg-info/10 text-info px-1.5 py-0.5 rounded">
+                          {t('admin.globalProfiles.roleReferee')}
+                        </span>
+                      )}
+                      {p.is_workshop_participant && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                          {t('admin.globalProfiles.roleWorkshop')}
+                        </span>
+                      )}
+                      {p.is_instructor && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                          {t('admin.globalProfiles.roleInstructor')}
+                        </span>
+                      )}
+                    </div>
+                  </DataTableCell>
+                  <DataTableCell className="text-muted">{p.country_code ?? '—'}</DataTableCell>
+                  <DataTableCell>
+                    <button
+                      type="button"
+                      onClick={() => startEditProfile(p)}
+                      className="text-xs font-semibold text-accent hover:underline"
+                    >
+                      {t('actions.edit')}
+                    </button>
+                  </DataTableCell>
+                </DataTableRow>
+              ))}
+            </tbody>
+          </DataTable>
           {persons.length > 0 && (
             <p className="text-xs text-muted mt-2">
               {t('admin.globalProfiles.profilesCount', { count: persons.length })}
@@ -1025,26 +1028,30 @@ export default function AdminFightersPage() {
               </button>
             </div>
             {fighters.length > 0 && (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-border text-left text-muted">
-                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colFighter')}</th>
-                      <th className="py-2 pr-4">
-                        {t('admin.globalProfiles.merge.colHemaRatings')}
-                      </th>
-                      <th className="py-2">{t('admin.globalProfiles.merge.colSelect')}</th>
-                    </tr>
-                  </thead>
+              <div className="mt-4">
+                <DataTable>
+                  <DataTableHead>
+                    <DataTableCell as="th">
+                      {t('admin.globalProfiles.merge.colFighter')}
+                    </DataTableCell>
+                    <DataTableCell as="th">
+                      {t('admin.globalProfiles.merge.colHemaRatings')}
+                    </DataTableCell>
+                    <DataTableCell as="th">
+                      {t('admin.globalProfiles.merge.colSelect')}
+                    </DataTableCell>
+                  </DataTableHead>
                   <tbody>
                     {fighters.map((fighter) => (
-                      <tr key={fighter.id} className="border-b border-border hover:bg-background">
-                        <td className="py-2 pr-4">
+                      <DataTableRow key={fighter.id}>
+                        <DataTableCell>
                           <p className="font-medium">{fighter.display_name}</p>
                           <p className="font-mono text-xs text-muted">{fighter.slug}</p>
-                        </td>
-                        <td className="py-2 pr-4 text-muted">{fighter.hema_ratings_id ?? '-'}</td>
-                        <td className="py-2">
+                        </DataTableCell>
+                        <DataTableCell className="text-muted">
+                          {fighter.hema_ratings_id ?? '-'}
+                        </DataTableCell>
+                        <DataTableCell>
                           <div className="flex gap-2">
                             <button
                               onClick={() => setSource(fighter)}
@@ -1059,11 +1066,11 @@ export default function AdminFightersPage() {
                               {t('admin.globalProfiles.merge.markTarget')}
                             </button>
                           </div>
-                        </td>
-                      </tr>
+                        </DataTableCell>
+                      </DataTableRow>
                     ))}
                   </tbody>
-                </table>
+                </DataTable>
               </div>
             )}
           </section>
@@ -1111,58 +1118,56 @@ export default function AdminFightersPage() {
             {audits.length === 0 ? (
               <p className="text-muted text-sm">{t('admin.globalProfiles.merge.noMerges')}</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-border text-left text-muted">
-                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colMerge')}</th>
-                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colReason')}</th>
-                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colCreated')}</th>
-                      <th className="py-2">{t('admin.globalProfiles.merge.colMergeActions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {audits.map((audit) => (
-                      <tr key={audit.id} className="border-b border-border hover:bg-background">
-                        <td className="py-2 pr-4">
-                          <p>
-                            {audit.payload_json.source?.display_name ??
-                              audit.payload_json.source?.id ??
-                              audit.entity_id}
-                            {' -> '}
-                            {audit.payload_json.target?.display_name ??
-                              audit.payload_json.target?.id ??
-                              '-'}
-                          </p>
-                          <p className="text-xs text-muted">
-                            {t('admin.globalProfiles.merge.movedSummary', {
-                              persons: audit.payload_json.moved?.personIds?.length ?? 0,
-                              registrations: audit.payload_json.moved?.registrationIds?.length ?? 0,
-                              instructors:
-                                audit.payload_json.moved?.workshopInstructorIds?.length ?? 0,
-                            })}
-                          </p>
-                        </td>
-                        <td className="py-2 pr-4 text-foreground-secondary">
-                          {audit.payload_json.reason ?? '-'}
-                        </td>
-                        <td className="py-2 pr-4 text-muted">
-                          {new Date(audit.created_at).toLocaleDateString(localeToBcp47(locale))}
-                        </td>
-                        <td className="py-2">
-                          <button
-                            onClick={() => void revertMerge(audit.id)}
-                            disabled={nowMs === null || !canRevert(audit.created_at, nowMs)}
-                            className="text-xs text-accent hover:underline disabled:text-muted"
-                          >
-                            {t('admin.globalProfiles.merge.revert')}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable>
+                <DataTableHead>
+                  <DataTableCell as="th">{t('admin.globalProfiles.merge.colMerge')}</DataTableCell>
+                  <DataTableCell as="th">{t('admin.globalProfiles.merge.colReason')}</DataTableCell>
+                  <DataTableCell as="th">
+                    {t('admin.globalProfiles.merge.colCreated')}
+                  </DataTableCell>
+                  <DataTableCell as="th">
+                    {t('admin.globalProfiles.merge.colMergeActions')}
+                  </DataTableCell>
+                </DataTableHead>
+                <tbody>
+                  {audits.map((audit) => (
+                    <DataTableRow key={audit.id}>
+                      <DataTableCell>
+                        <p>
+                          {audit.payload_json.source?.display_name ??
+                            audit.payload_json.source?.id ??
+                            audit.entity_id}
+                          {' -> '}
+                          {audit.payload_json.target?.display_name ??
+                            audit.payload_json.target?.id ??
+                            '-'}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {t('admin.globalProfiles.merge.movedSummary', {
+                            persons: audit.payload_json.moved?.personIds?.length ?? 0,
+                            registrations: audit.payload_json.moved?.registrationIds?.length ?? 0,
+                            instructors:
+                              audit.payload_json.moved?.workshopInstructorIds?.length ?? 0,
+                          })}
+                        </p>
+                      </DataTableCell>
+                      <DataTableCell>{audit.payload_json.reason ?? '-'}</DataTableCell>
+                      <DataTableCell className="text-muted">
+                        {new Date(audit.created_at).toLocaleDateString(localeToBcp47(locale))}
+                      </DataTableCell>
+                      <DataTableCell>
+                        <button
+                          onClick={() => void revertMerge(audit.id)}
+                          disabled={nowMs === null || !canRevert(audit.created_at, nowMs)}
+                          className="text-xs text-accent hover:underline disabled:text-muted"
+                        >
+                          {t('admin.globalProfiles.merge.revert')}
+                        </button>
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </tbody>
+              </DataTable>
             )}
           </section>
         </div>

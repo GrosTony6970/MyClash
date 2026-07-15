@@ -6,6 +6,10 @@ import {
   AdminPageHeader,
   BulkActionBar,
   ConfirmDialog,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableRow,
   Modal,
   RowActionButton,
   SortableHeader,
@@ -1028,256 +1032,248 @@ export default function AdminClubsPage() {
       </BulkActionBar>
 
       {/* Table */}
-      <div className="overflow-x-auto border border-border rounded-lg">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-background border-b border-border text-left text-muted text-xs uppercase tracking-wide">
-              <th className="w-10 px-4 py-3">
-                <input
-                  type="checkbox"
-                  aria-label={t('admin.clubs.selectAll')}
-                  checked={
-                    visibleClubs.length > 0 && visibleClubs.every((c) => selection.has(c.id))
-                  }
-                  onChange={() => selection.toggleAll(visibleClubs.map((c) => c.id))}
-                  className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
-                />
-              </th>
-              <th className="py-3 px-4 w-20">{t('admin.clubs.logo')}</th>
-              <th className="py-3 px-4">
-                <SortableHeader
-                  label={t('admin.clubs.name')}
-                  columnKey="name"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="py-3 px-4">{t('admin.clubs.abbreviation')}</th>
-              <th className="py-3 px-4">
-                <SortableHeader
-                  label={t('admin.clubs.city')}
-                  columnKey="city"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="py-3 px-4">
-                <SortableHeader
-                  label={t('admin.clubs.country')}
-                  columnKey="country"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="py-3 px-4">
-                <SortableHeader
-                  label={t('admin.clubs.createdAt')}
-                  columnKey="createdAt"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="py-3 px-4">{t('admin.clubs.status')}</th>
-              <th className="py-3 px-4">{t('admin.clubs.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleClubs.length === 0 && (
-              <tr>
-                <td colSpan={9} className="py-8 text-center text-muted text-sm">
-                  {loading ? t('common.loading') : t('admin.clubs.empty')}
-                </td>
-              </tr>
-            )}
-            {visibleClubs.map((club) =>
-              editingId === club.id ? (
-                <tr key={club.id} className="border-b border-border bg-warning/10">
-                  <td className="px-4 py-2" />
-                  <td className="py-2 px-4">
-                    <div className="flex items-center gap-2">
-                      <LogoButton club={club} onOpen={setLightboxClub} />
-                      <label className="text-[11px] font-medium text-foreground-secondary">
-                        <span className="block">{t('admin.clubs.logoReplace')}</span>
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          onChange={(e) => handleEditLogoFile(e.target.files?.[0] ?? null)}
-                          className="mt-1 block w-40 rounded-md border border-border px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-background file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-foreground-secondary hover:file:bg-background"
-                        />
-                      </label>
-                      {editLogoPreviewUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={editLogoPreviewUrl}
-                          alt={t('admin.clubs.logoPreviewAlt')}
-                          className="h-8 w-8 rounded-md border border-border bg-surface object-contain"
-                        />
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-2 px-4" aria-label={t('admin.clubs.actions')}>
-                    <input
-                      aria-label={t('admin.clubs.editNameLabel', { club: club.name })}
-                      value={editState.name}
-                      onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                      className="border border-border rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-accent/30"
-                    />
-                  </td>
-                  <td className="py-2 px-4" aria-label={t('admin.clubs.actions')}>
-                    <input
-                      aria-label={t('admin.clubs.editAbbreviationLabel', { club: club.name })}
-                      value={editState.abbreviation}
-                      onChange={(e) =>
-                        setEditState((s) => ({ ...s, abbreviation: e.target.value }))
-                      }
-                      placeholder={t('admin.clubs.abbreviationPlaceholder')}
-                      maxLength={20}
-                      className="border border-border rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-accent/30 uppercase"
-                    />
-                  </td>
-                  <td className="py-2 px-4">
-                    <input
-                      aria-label={t('admin.clubs.editCityLabel', { club: club.name })}
-                      value={editState.city}
-                      onChange={(e) => setEditState((s) => ({ ...s, city: e.target.value }))}
-                      className="border border-border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-accent/30"
-                    />
-                  </td>
-                  <td className="py-2 px-4">
-                    <input
-                      aria-label={t('admin.clubs.editCountryLabel', { club: club.name })}
-                      value={editState.country_code}
-                      onChange={(e) =>
-                        setEditState((s) => ({ ...s, country_code: e.target.value }))
-                      }
-                      placeholder={t('admin.clubs.countryPlaceholder')}
-                      maxLength={100}
-                      className="border border-border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-accent/30"
-                    />
-                  </td>
-                  <td className="py-2 px-4 text-xs text-muted">
-                    {formatAddedDate(club.created_at, locale)}
-                  </td>
-                  <td className="py-2 px-4">
-                    <span className="sr-only">{t('admin.clubs.status')}</span>
-                  </td>
-                  <td className="py-2 px-4" aria-label={t('admin.clubs.actions')}>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => void saveEdit(club.id)}
-                        disabled={saving}
-                        className="text-xs bg-accent hover:bg-accent-hover disabled:opacity-50 text-white px-3 py-1 rounded"
-                      >
-                        {saving ? t('admin.clubs.saving') : t('actions.save')}
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        className="text-xs text-muted hover:text-foreground-secondary"
-                      >
-                        {t('actions.cancel')}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                <tr key={club.id} className="border-b border-border hover:bg-background">
-                  <td className="px-4 py-2.5">
-                    <input
-                      type="checkbox"
-                      aria-label={t('admin.clubs.selectRow', { club: club.name })}
-                      checked={selection.has(club.id)}
-                      onChange={() => selection.toggle(club.id)}
-                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
-                    />
-                  </td>
-                  <td className="py-2.5 px-4">
+      <DataTable>
+        <DataTableHead>
+          <DataTableCell as="th" className="w-10">
+            <input
+              type="checkbox"
+              aria-label={t('admin.clubs.selectAll')}
+              checked={visibleClubs.length > 0 && visibleClubs.every((c) => selection.has(c.id))}
+              onChange={() => selection.toggleAll(visibleClubs.map((c) => c.id))}
+              className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
+            />
+          </DataTableCell>
+          <DataTableCell as="th" className="w-20">
+            {t('admin.clubs.logo')}
+          </DataTableCell>
+          <DataTableCell as="th">
+            <SortableHeader
+              label={t('admin.clubs.name')}
+              columnKey="name"
+              currentKey={sortKey}
+              direction={direction}
+              onToggle={toggle}
+              ariaSortAsc={t('admin.common.sortAscLabel')}
+              ariaSortDesc={t('admin.common.sortDescLabel')}
+            />
+          </DataTableCell>
+          <DataTableCell as="th">{t('admin.clubs.abbreviation')}</DataTableCell>
+          <DataTableCell as="th">
+            <SortableHeader
+              label={t('admin.clubs.city')}
+              columnKey="city"
+              currentKey={sortKey}
+              direction={direction}
+              onToggle={toggle}
+              ariaSortAsc={t('admin.common.sortAscLabel')}
+              ariaSortDesc={t('admin.common.sortDescLabel')}
+            />
+          </DataTableCell>
+          <DataTableCell as="th">
+            <SortableHeader
+              label={t('admin.clubs.country')}
+              columnKey="country"
+              currentKey={sortKey}
+              direction={direction}
+              onToggle={toggle}
+              ariaSortAsc={t('admin.common.sortAscLabel')}
+              ariaSortDesc={t('admin.common.sortDescLabel')}
+            />
+          </DataTableCell>
+          <DataTableCell as="th">
+            <SortableHeader
+              label={t('admin.clubs.createdAt')}
+              columnKey="createdAt"
+              currentKey={sortKey}
+              direction={direction}
+              onToggle={toggle}
+              ariaSortAsc={t('admin.common.sortAscLabel')}
+              ariaSortDesc={t('admin.common.sortDescLabel')}
+            />
+          </DataTableCell>
+          <DataTableCell as="th">{t('admin.clubs.status')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.clubs.actions')}</DataTableCell>
+        </DataTableHead>
+        <tbody>
+          {visibleClubs.length === 0 && (
+            <DataTableRow>
+              <DataTableCell colSpan={9} className="py-8 text-center text-muted text-sm">
+                {loading ? t('common.loading') : t('admin.clubs.empty')}
+              </DataTableCell>
+            </DataTableRow>
+          )}
+          {visibleClubs.map((club) =>
+            editingId === club.id ? (
+              <DataTableRow key={club.id} className="bg-warning/10">
+                <DataTableCell />
+                <DataTableCell>
+                  <div className="flex items-center gap-2">
                     <LogoButton club={club} onOpen={setLightboxClub} />
-                  </td>
-                  <td className="py-2.5 px-4 font-medium text-foreground">{club.name}</td>
-                  <td className="py-2.5 px-4">
-                    {club.abbreviation ? (
-                      <span className="font-mono text-foreground-secondary bg-background px-1.5 py-0.5 rounded text-xs">
-                        {club.abbreviation}
-                      </span>
-                    ) : (
-                      <span className="text-muted">{t('common.none')}</span>
+                    <label className="text-[11px] font-medium text-foreground-secondary">
+                      <span className="block">{t('admin.clubs.logoReplace')}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(e) => handleEditLogoFile(e.target.files?.[0] ?? null)}
+                        className="mt-1 block w-40 rounded-md border border-border px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-background file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-foreground-secondary hover:file:bg-background"
+                      />
+                    </label>
+                    {editLogoPreviewUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={editLogoPreviewUrl}
+                        alt={t('admin.clubs.logoPreviewAlt')}
+                        className="h-8 w-8 rounded-md border border-border bg-surface object-contain"
+                      />
                     )}
-                  </td>
-                  <td className="py-2.5 px-4 text-foreground-secondary">
-                    {club.city ?? t('common.none')}
-                  </td>
-                  <td className="py-2.5 px-4 text-foreground-secondary">
-                    {club.country_code ?? t('common.none')}
-                  </td>
-                  <td className="py-2.5 px-4 text-xs text-muted">
-                    {formatAddedDate(club.created_at, locale)}
-                  </td>
-                  <td className="py-2.5 px-4">
-                    {club.unverified === 'true' ? (
-                      <span className="text-xs bg-warning/10 text-warning px-2 py-0.5 rounded-full">
-                        {t('admin.clubs.unverified')}
-                      </span>
-                    ) : (
-                      <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
-                        {t('admin.clubs.verified')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <div className="flex gap-2">
-                      <RowActionButton variant="edit" onClick={() => startEdit(club)}>
-                        {t('actions.edit')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant={club.unverified === 'true' ? 'success' : 'warning'}
-                        onClick={() => void setClubVerified(club, club.unverified === 'true')}
-                        disabled={verifyingId === club.id}
-                      >
-                        {club.unverified === 'true'
-                          ? t('admin.clubs.verify')
-                          : t('admin.clubs.unverify')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant="neutral"
-                        onClick={() => void deleteClub(club, 'safe')}
-                        disabled={deletingId === club.id}
-                      >
-                        {t('admin.clubs.safeDelete')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant="warning"
-                        onClick={() => void deleteClub(club, 'archive')}
-                        disabled={deletingId === club.id}
-                      >
-                        {t('admin.clubs.archive')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant="danger"
-                        onClick={() => void deleteClub(club, 'cleanup')}
-                        disabled={deletingId === club.id}
-                      >
-                        {t('admin.clubs.cleanupDelete')}
-                      </RowActionButton>
-                    </div>
-                  </td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </DataTableCell>
+                <DataTableCell aria-label={t('admin.clubs.actions')}>
+                  <input
+                    aria-label={t('admin.clubs.editNameLabel', { club: club.name })}
+                    value={editState.name}
+                    onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                    className="border border-border rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-accent/30"
+                  />
+                </DataTableCell>
+                <DataTableCell aria-label={t('admin.clubs.actions')}>
+                  <input
+                    aria-label={t('admin.clubs.editAbbreviationLabel', { club: club.name })}
+                    value={editState.abbreviation}
+                    onChange={(e) => setEditState((s) => ({ ...s, abbreviation: e.target.value }))}
+                    placeholder={t('admin.clubs.abbreviationPlaceholder')}
+                    maxLength={20}
+                    className="border border-border rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-accent/30 uppercase"
+                  />
+                </DataTableCell>
+                <DataTableCell>
+                  <input
+                    aria-label={t('admin.clubs.editCityLabel', { club: club.name })}
+                    value={editState.city}
+                    onChange={(e) => setEditState((s) => ({ ...s, city: e.target.value }))}
+                    className="border border-border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                  />
+                </DataTableCell>
+                <DataTableCell>
+                  <input
+                    aria-label={t('admin.clubs.editCountryLabel', { club: club.name })}
+                    value={editState.country_code}
+                    onChange={(e) => setEditState((s) => ({ ...s, country_code: e.target.value }))}
+                    placeholder={t('admin.clubs.countryPlaceholder')}
+                    maxLength={100}
+                    className="border border-border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                  />
+                </DataTableCell>
+                <DataTableCell className="text-xs text-muted">
+                  {formatAddedDate(club.created_at, locale)}
+                </DataTableCell>
+                <DataTableCell>
+                  <span className="sr-only">{t('admin.clubs.status')}</span>
+                </DataTableCell>
+                <DataTableCell aria-label={t('admin.clubs.actions')}>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => void saveEdit(club.id)}
+                      disabled={saving}
+                      className="text-xs bg-accent hover:bg-accent-hover disabled:opacity-50 text-white px-3 py-1 rounded"
+                    >
+                      {saving ? t('admin.clubs.saving') : t('actions.save')}
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="text-xs text-muted hover:text-foreground-secondary"
+                    >
+                      {t('actions.cancel')}
+                    </button>
+                  </div>
+                </DataTableCell>
+              </DataTableRow>
+            ) : (
+              <DataTableRow key={club.id}>
+                <DataTableCell>
+                  <input
+                    type="checkbox"
+                    aria-label={t('admin.clubs.selectRow', { club: club.name })}
+                    checked={selection.has(club.id)}
+                    onChange={() => selection.toggle(club.id)}
+                    className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
+                  />
+                </DataTableCell>
+                <DataTableCell>
+                  <LogoButton club={club} onOpen={setLightboxClub} />
+                </DataTableCell>
+                <DataTableCell className="font-medium text-foreground">{club.name}</DataTableCell>
+                <DataTableCell>
+                  {club.abbreviation ? (
+                    <span className="font-mono text-foreground-secondary bg-background px-1.5 py-0.5 rounded text-xs">
+                      {club.abbreviation}
+                    </span>
+                  ) : (
+                    <span className="text-muted">{t('common.none')}</span>
+                  )}
+                </DataTableCell>
+                <DataTableCell className="text-foreground-secondary">
+                  {club.city ?? t('common.none')}
+                </DataTableCell>
+                <DataTableCell className="text-foreground-secondary">
+                  {club.country_code ?? t('common.none')}
+                </DataTableCell>
+                <DataTableCell className="text-xs text-muted">
+                  {formatAddedDate(club.created_at, locale)}
+                </DataTableCell>
+                <DataTableCell>
+                  {club.unverified === 'true' ? (
+                    <span className="text-xs bg-warning/10 text-warning px-2 py-0.5 rounded-full">
+                      {t('admin.clubs.unverified')}
+                    </span>
+                  ) : (
+                    <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full">
+                      {t('admin.clubs.verified')}
+                    </span>
+                  )}
+                </DataTableCell>
+                <DataTableCell>
+                  <div className="flex gap-2">
+                    <RowActionButton variant="edit" onClick={() => startEdit(club)}>
+                      {t('actions.edit')}
+                    </RowActionButton>
+                    <RowActionButton
+                      variant={club.unverified === 'true' ? 'success' : 'warning'}
+                      onClick={() => void setClubVerified(club, club.unverified === 'true')}
+                      disabled={verifyingId === club.id}
+                    >
+                      {club.unverified === 'true'
+                        ? t('admin.clubs.verify')
+                        : t('admin.clubs.unverify')}
+                    </RowActionButton>
+                    <RowActionButton
+                      variant="neutral"
+                      onClick={() => void deleteClub(club, 'safe')}
+                      disabled={deletingId === club.id}
+                    >
+                      {t('admin.clubs.safeDelete')}
+                    </RowActionButton>
+                    <RowActionButton
+                      variant="warning"
+                      onClick={() => void deleteClub(club, 'archive')}
+                      disabled={deletingId === club.id}
+                    >
+                      {t('admin.clubs.archive')}
+                    </RowActionButton>
+                    <RowActionButton
+                      variant="danger"
+                      onClick={() => void deleteClub(club, 'cleanup')}
+                      disabled={deletingId === club.id}
+                    >
+                      {t('admin.clubs.cleanupDelete')}
+                    </RowActionButton>
+                  </div>
+                </DataTableCell>
+              </DataTableRow>
+            ),
+          )}
+        </tbody>
+      </DataTable>
 
       {visibleClubs.length > 0 && (
         <p className="text-xs text-muted mt-2">
