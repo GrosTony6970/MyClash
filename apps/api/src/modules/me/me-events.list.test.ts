@@ -87,6 +87,53 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
     });
   });
 
+  it('exposes the taught workshop (with its session) in workshopsTeaching', async () => {
+    const service = buildService({
+      persons: [],
+      workshopInstructors: [
+        {
+          workshops: {
+            id: 'w-1',
+            slug: 'intro-longsword',
+            title: 'Intro to Longsword',
+            event_id: 'e-1',
+            events: EVENT(),
+            // UNIQUE(workshop_id) → PostgREST embeds the session as an object.
+            workshop_sessions: {
+              id: 's-1',
+              starts_at: '2026-06-01T09:00:00Z',
+              ends_at: '2026-06-01T10:30:00Z',
+              location_label: 'Lice 3',
+            },
+          },
+        },
+      ],
+    });
+    const events = await service.listMyEvents('user-1');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.workshopsTeaching).toEqual([
+      {
+        workshopId: 'w-1',
+        workshopSlug: 'intro-longsword',
+        workshopName: 'Intro to Longsword',
+        sessionStart: '2026-06-01T09:00:00Z',
+        sessionEnd: '2026-06-01T10:30:00Z',
+        location: 'Lice 3',
+      },
+    ]);
+  });
+
+  it('leaves workshopsTeaching empty for a roster-only instructor (no workshop)', async () => {
+    const service = buildService({
+      persons: [],
+      eventInstructors: [{ events: EVENT() }],
+    });
+    const events = await service.listMyEvents('user-1');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.roles.isInstructor).toBe(true);
+    expect(events[0]!.workshopsTeaching).toEqual([]);
+  });
+
   it('leaves isInstructor false when the user has no instructor role at the event', async () => {
     const service = buildService({}); // claimed person only, no instructor rows
     const events = await service.listMyEvents('user-1');

@@ -9,6 +9,7 @@ import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHu
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
+import { buildWorkshopRows } from '@/components/me/workshop-rows';
 import type { MyEvent, MyEventTournament } from '@/components/me/types';
 
 type TFn = ReturnType<typeof useI18n>['t'];
@@ -109,7 +110,9 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
     ...r,
     tournament: myEvent.tournaments.find((tr) => tr.name === r.tournamentName) ?? null,
   }));
-  const workshops = schedule?.workshops ?? [];
+  // Unified Workshops section: workshops the user TEACHES (instructor) + those
+  // they ATTEND (enrolled), merged/deduped/sorted by buildWorkshopRows.
+  const workshops = buildWorkshopRows(myEvent.workshopsTeaching, schedule?.workshops ?? [], slug);
 
   // Competing time slot = the span of the user's matches in that tournament.
   const competingSlot = (tr: MyEventTournament): string | null => {
@@ -222,17 +225,30 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
         <>
           <SectionTitle>{t('publicApp.me.hub.tabWorkshops')}</SectionTitle>
           {workshops.map((w) => {
-            const meta = [daySlotLabel(w.sessionStart, w.sessionEnd, tz, tag, t), w.location]
+            const meta = [daySlotLabel(w.start, w.end, tz, tag, t), w.location]
               .filter(Boolean)
               .join(' · ');
             return (
               <Link
-                key={w.workshopId}
-                href={`/me/events/${slug}/workshops`}
+                key={w.key}
+                href={w.href}
                 className="mb-2.5 block rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
               >
-                <p className="font-bold leading-tight">{w.workshopName}</p>
-                {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold leading-tight">{w.name}</p>
+                    {meta && <p className="mt-0.5 text-xs text-muted">{meta}</p>}
+                  </div>
+                  {w.involvement === 'teaching' ? (
+                    <span className="shrink-0 rounded-full bg-instructor/15 px-2 py-0.5 text-[11px] font-bold text-instructor">
+                      {t('publicApp.me.events.roleInstructor')}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
+                      {t('publicApp.me.events.roleParticipant')}
+                    </span>
+                  )}
+                </div>
               </Link>
             );
           })}

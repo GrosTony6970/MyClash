@@ -65,6 +65,19 @@ export interface MyEventRefereeOf {
   endsAt: string | null;
 }
 
+/** A workshop the signed-in user TEACHES at the event (workshop_instructors lead).
+ *  Compact, mirrors the attending `WorkshopEnrollment` shape so the /me overview
+ *  can render teaching + attending workshops with the same card. */
+export interface MyEventWorkshopTeaching {
+  /** Parent workshop id (stable key). */
+  workshopId: string;
+  workshopSlug: string | null;
+  workshopName: string;
+  sessionStart: string | null;
+  sessionEnd: string | null;
+  location: string | null;
+}
+
 export interface MyEvent {
   event: MyEventInfo;
   roles: {
@@ -75,6 +88,8 @@ export interface MyEvent {
   };
   tournaments: MyEventTournament[];
   refereeOf: MyEventRefereeOf[];
+  /** Workshops the user teaches at this event (empty for roster-only instructors). */
+  workshopsTeaching: MyEventWorkshopTeaching[];
   counts: { matches: number; refereeSlots: number; workshops: number };
 }
 
@@ -304,6 +319,7 @@ export class MeEventsService {
           },
           tournaments: [],
           refereeOf: [],
+          workshopsTeaching: [],
           counts: { matches: 0, refereeSlots: 0, workshops: 0 },
         };
         events.set(info.id, entry);
@@ -338,10 +354,12 @@ export class MeEventsService {
       entry.roles.isWorkshopParticipant = true;
       entry.counts.workshops += 1;
     }
-    for (const info of instructorEvents.values()) {
+    for (const info of instructorEvents.events.values()) {
       const entry = ensure(info);
       if (!entry) continue;
       entry.roles.isInstructor = true;
+      const taught = instructorEvents.workshopsByEvent.get(entry.event.id);
+      if (taught && taught.length > 0) entry.workshopsTeaching = taught;
     }
 
     // Tournaments for every touched event + the user's registration flags.
@@ -671,12 +689,19 @@ export class MeEventsService {
    * events), both keyed on global_persons.id. Mirrors the two instructor
    * sources surfaced by the /me instructor dashboard and the public roster.
    * Test events are dropped via mapEvent.
+   *
+   * Returns the event map (surfaces instructor-only events in /me) plus the
+   * taught workshops per event (workshop leads only — roster-only instructors
+   * teach no specific workshop, so they contribute an event but no rows), so the
+   * /me overview can render a "Workshops · Instructor" card.
    */
-  private async fetchInstructorEventIds(
-    globalPersonId: string | null,
-  ): Promise<Map<string, MyEventInfo | null>> {
-    const map = new Map<string, MyEventInfo | null>();
-    if (!globalPersonId) return map;
+  private async fetchInstructorEventIds(globalPersonId: string | null): Promise<{
+    events: Map<string, MyEventInfo | null>;
+    workshopsByEvent: Map<string, MyEventWorkshopTeaching[]>;
+  }> {
+    const events = new Map<string, MyEventInfo | null>();
+    const workshopsByEvent = new Map<string, MyEventWorkshopTeaching[]>();
+    if (!globalPersonId) return { events, workshopsByEvent };
 
     const [rosterRes, workshopRes] = await Promise.all([
       this.supabase.service
@@ -686,7 +711,11 @@ export class MeEventsService {
       this.supabase.service
         .from('workshop_instructors')
         .select(
-          'workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ) )',
+          `workshops (
+            id, slug, title, event_id,
+            events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+            workshop_sessions ( id, starts_at, ends_at, location_label )
+          )`,
         )
         .eq('global_person_id', globalPersonId),
     ]);
@@ -694,17 +723,34 @@ export class MeEventsService {
     const rosterRows = Array.isArray(rosterRes.data) ? (rosterRes.data as Row[]) : [];
     for (const r of rosterRows) {
       const event = this.mapEvent(one(r['events']));
-      if (event) map.set(event.id, event);
+      if (event) events.set(event.id, event);
     }
 
     const workshopRows = Array.isArray(workshopRes.data) ? (workshopRes.data as Row[]) : [];
     for (const r of workshopRows) {
-      const workshop = one(r['workshops']);
+      const workshop = one<Row>(r['workshops']);
       const event = workshop ? this.mapEvent(one(workshop['events'])) : null;
-      if (event) map.set(event.id, event);
+      if (!workshop || !event) continue;
+      events.set(event.id, event);
+      // Surface the event even when the workshop row is thin; only add a card
+      // when we actually have a workshop to point at.
+      const workshopId = workshop['id'];
+      if (!workshopId) continue;
+      // UNIQUE(workshop_id) (migration 0098) → the session embed is an object.
+      const session = one<Row>(workshop['workshop_sessions']);
+      const rows = workshopsByEvent.get(event.id) ?? [];
+      rows.push({
+        workshopId: String(workshopId),
+        workshopSlug: (workshop['slug'] as string | null) ?? null,
+        workshopName: String(workshop['title'] ?? ''),
+        sessionStart: (session?.['starts_at'] as string | null) ?? null,
+        sessionEnd: (session?.['ends_at'] as string | null) ?? null,
+        location: (session?.['location_label'] as string | null) ?? null,
+      });
+      workshopsByEvent.set(event.id, rows);
     }
 
-    return map;
+    return { events, workshopsByEvent };
   }
 
   private async fetchRegistrations(personIds: string[]): Promise<

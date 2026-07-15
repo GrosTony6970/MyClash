@@ -112,6 +112,17 @@ export interface MyEventRefereeOf {
   endsAt: string | null;
 }
 
+/** A workshop the signed-in user TEACHES at the event (mirrors the API shape).
+ *  Distinct from `WorkshopEnrollment` (a workshop the user attends). */
+export interface MyEventWorkshopTeaching {
+  workshopId: string;
+  workshopSlug: string | null;
+  workshopName: string;
+  sessionStart: string | null;
+  sessionEnd: string | null;
+  location: string | null;
+}
+
 export interface MyEvent {
   event: MyEventInfo;
   roles: {
@@ -122,6 +133,8 @@ export interface MyEvent {
   };
   tournaments: MyEventTournament[];
   refereeOf: MyEventRefereeOf[];
+  /** Workshops the user teaches at this event (empty for roster-only instructors). */
+  workshopsTeaching: MyEventWorkshopTeaching[];
   counts: { matches: number; refereeSlots: number; workshops: number };
 }
 
