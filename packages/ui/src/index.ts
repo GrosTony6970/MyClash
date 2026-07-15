@@ -101,6 +101,8 @@ export type { HelpTooltipProps } from './components/HelpTooltip';
 
 export { ConfirmDialog } from './components/ConfirmDialog';
 export type { ConfirmDialogProps } from './components/ConfirmDialog';
+export { Modal } from './components/Modal';
+export type { ModalProps, ModalSize } from './components/Modal';
 
 export { useConfirm } from './components/useConfirm';
 export type { ConfirmOptions } from './components/useConfirm';

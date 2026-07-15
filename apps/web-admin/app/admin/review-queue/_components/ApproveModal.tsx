@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { t } from '@myclash/i18n';
+import { Modal } from '@myclash/ui';
 import type { ReviewQueueItem } from '../_types';
 
 export interface ApproveModalProps {
@@ -15,7 +16,6 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
   const [confirmInput, setConfirmInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const isDeletion = item.type === 'deletion';
   const canSubmit = !isDeletion || confirmInput === 'DELETE';
@@ -52,51 +52,15 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
   }
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop click-to-close, Cancel button provides keyboard exit
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
-        <h2 className="font-display font-semibold text-lg sm:text-xl">
-          {t('admin.reviewQueue.approveModalTitle')}
-        </h2>
-        <p className="mt-1 text-sm text-muted">{item.targetLabel}</p>
-
-        {isDeletion && (
-          <div className="mt-4 rounded-md bg-danger/10 border border-danger/30 p-3">
-            <p className="text-sm font-semibold text-danger">
-              {t('admin.reviewQueue.approveConfirmDeletion')}
-            </p>
-            <p className="mt-2 text-sm text-danger">{t('admin.reviewQueue.approveTypeDelete')}</p>
-            <input
-              ref={inputRef}
-              type="text"
-              value={confirmInput}
-              onChange={(e) => setConfirmInput(e.target.value)}
-              // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional focus of the destructive-confirmation input on modal open
-              autoFocus
-              className="mt-2 w-full rounded-md border border-danger/30 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-danger"
-              placeholder="DELETE"
-            />
-          </div>
-        )}
-
-        {!isDeletion && (
-          <p className="mt-4 text-sm text-foreground-secondary">
-            {t('admin.adminRulesetsReview.approveConfirmPrompt')}
-          </p>
-        )}
-
-        {error && (
-          <p className="mt-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
+    <Modal
+      open
+      onClose={onClose}
+      busy={submitting}
+      size="md"
+      title={t('admin.reviewQueue.approveModalTitle')}
+      description={item.targetLabel}
+      footer={
+        <>
           <button
             onClick={onClose}
             disabled={submitting}
@@ -111,8 +75,36 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
           >
             {submitting ? 'Approving…' : t('admin.reviewQueue.approve')}
           </button>
+        </>
+      }
+    >
+      {isDeletion && (
+        <div className="rounded-md border border-danger/30 bg-danger/10 p-3">
+          <p className="text-sm font-semibold text-danger">
+            {t('admin.reviewQueue.approveConfirmDeletion')}
+          </p>
+          <p className="mt-2 text-sm text-danger">{t('admin.reviewQueue.approveTypeDelete')}</p>
+          <input
+            type="text"
+            value={confirmInput}
+            onChange={(e) => setConfirmInput(e.target.value)}
+            className="mt-2 w-full rounded-md border border-danger/30 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-danger"
+            placeholder="DELETE"
+          />
         </div>
-      </div>
-    </div>
+      )}
+
+      {!isDeletion && (
+        <p className="text-sm text-foreground-secondary">
+          {t('admin.adminRulesetsReview.approveConfirmPrompt')}
+        </p>
+      )}
+
+      {error && (
+        <p className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </Modal>
   );
 }

@@ -24,6 +24,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { Modal } from '@myclash/ui';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 
 interface BlockingMatch {
@@ -228,24 +229,19 @@ export function DeleteParticipantModal({
       : `Delete ${counts.total} participants`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-surface p-6 shadow-2xl">
-        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-          {headerLabel}
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          {tournamentId
-            ? 'Reviewing pool / bracket / match assignments inside the selected tournament. Started or completed matches block removal — those participants stay.'
-            : 'Reviewing every place these participants are plumbed in across the event. Started or completed matches block removal — those participants stay.'}
-        </p>
-
-        <div className="mt-5 space-y-3">
-          {rows.map((row) => (
-            <PersonAssignmentCard key={row.personId} row={row} />
-          ))}
-        </div>
-
-        <div className="mt-6 flex items-center justify-between">
+    <Modal
+      open
+      onClose={onClose}
+      busy={busy}
+      size="xl"
+      title={headerLabel}
+      description={
+        tournamentId
+          ? 'Reviewing pool / bracket / match assignments inside the selected tournament. Started or completed matches block removal — those participants stay.'
+          : 'Reviewing every place these participants are plumbed in across the event. Started or completed matches block removal — those participants stay.'
+      }
+      footer={
+        <div className="flex w-full items-center justify-between gap-3">
           <p className="text-xs text-muted">
             {counts.stillLoading > 0
               ? `Loading ${counts.stillLoading}…`
@@ -272,8 +268,14 @@ export function DeleteParticipantModal({
             </button>
           </div>
         </div>
+      }
+    >
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <PersonAssignmentCard key={row.personId} row={row} />
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 }
 
