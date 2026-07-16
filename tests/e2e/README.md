@@ -30,8 +30,9 @@ pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 
 Specs are numbered `01`…`07` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
-> Login is rate-limited (3/hour per email) — the suite logs in **once** per run.
-> Don't loop runs rapidly on the same account.
+> Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
+> in **once** per run and reuses the session for 45 min. Don't loop runs rapidly
+> on the same account.
 >
 > Data is **kept by default** for inspection; CI sets `E2E_CLEANUP=1`. Each run
 > creates a fresh, uniquely-slugged event, so preserved events accumulate until
@@ -39,11 +40,18 @@ Specs are numbered `01`…`07` (see the Status table), so you can run one by num
 
 ## Rate limits & pacing
 
-The API throttles **writes per IP**. The organizer's **public IP is whitelisted**, so
-runs from it are **unpaced** (fast) — this is the default and needs no configuration.
-From a **non-whitelisted IP** (or CI), set `E2E_PACE_MS=550` to pace writes under the
-limit, e.g. `E2E_PACE_MS=550 pnpm test:e2e:prod`. (Login throttling — 3/hour/email — is
-separate and applies regardless; the suite logs in once per run.)
+The API throttles **every request** per client IP (120/min), not just writes. IPs
+listed in the API's `THROTTLE_IP_WHITELIST` env var skip throttling entirely, so
+runs from a whitelisted network are **unpaced** (fast).
+
+> The organizer's IP used to be hardcoded in `apps/api/src/app.module.ts`; it now
+> has to be present in `THROTTLE_IP_WHITELIST` in the API's deployed environment.
+> If unpaced runs suddenly start returning 429s, that env var is the first thing
+> to check.
+
+From a **non-whitelisted IP** (or CI), set `E2E_PACE_MS=550` to pace writes under
+the limit, e.g. `E2E_PACE_MS=550 pnpm test:e2e:prod`. Login throttling is separate
+and applies regardless of pacing; the suite logs in once per run.
 
 ## Participants CSV
 

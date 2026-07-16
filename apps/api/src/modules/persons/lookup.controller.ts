@@ -49,9 +49,7 @@ export class LookupController {
    * Public fuzzy name search — used by the participant onboarding screen
    * ("type your name to find yourself in the roster").
    *
-   * Rate limits:
-   *   - 30 req/min per IP (global throttler)
-   *   - 200 req/min per event (enforced at application level below)
+   * Rate limited: 30 req/min per IP (global throttler override below).
    *
    * Returns max 10 results sorted by similarity desc.
    * Email is always masked.

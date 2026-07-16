@@ -21,7 +21,7 @@ export class HealthController {
    * Does NOT check DB or Redis — those are checked by /health/deep (T-061).
    */
   @Get('health')
-  @SkipThrottle({ global: true, auth: true })
+  @SkipThrottle({ global: true })
   @ApiOperation({ summary: 'Liveness probe' })
   @ApiResponse({
     status: 200,

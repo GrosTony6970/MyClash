@@ -50,21 +50,7 @@ import { RequestLoggingMiddleware } from './common/observability/request-logging
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
 import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard';
-
-// Client IPs exempt from the global rate limit (e.g. the organizer's own network
-// running bulk imports / demo population). Extend via THROTTLE_IP_WHITELIST
-// (comma-separated) without a code change.
-const THROTTLE_WHITELIST = new Set(
-  ['82.66.103.92', ...(process.env.THROTTLE_IP_WHITELIST ?? '').split(',')]
-    .map((ip) => ip.trim())
-    .filter(Boolean),
-);
-
-function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string }): string {
-  const xff = req.headers?.['x-forwarded-for'];
-  const first = (Array.isArray(xff) ? xff[0] : (xff as string | undefined))?.split(',')[0]?.trim();
-  return first || req.ip || '';
-}
+import { throttlerOptions } from './common/throttling/throttler-options';
 
 @Module({
   imports: [
@@ -77,20 +63,7 @@ function throttleClientIp(req: { headers?: Record<string, unknown>; ip?: string 
     }),
 
     // ── Rate limiting ────────────────────────────────────────────────────
-    // Global defaults: 120 requests per minute per IP. Whitelisted IPs
-    // (THROTTLE_WHITELIST) skip throttling entirely.
-    // Heavy read-only admin/catalog routes and sensitive auth actions override this per route.
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          name: 'global',
-          ttl: 60_000, // 1 minute window
-          limit: 120,
-        },
-      ],
-      skipIf: (context) =>
-        THROTTLE_WHITELIST.has(throttleClientIp(context.switchToHttp().getRequest())),
-    }),
+    ThrottlerModule.forRoot(throttlerOptions),
 
     // ── Infrastructure ───────────────────────────────────────────────────
     SupabaseModule,

@@ -16,7 +16,8 @@ This document records the production-review security posture for MyClash. It is 
   - localhost ports 3001, 3002, and 3003 for development only
 - Wildcard CORS is not used.
 - Swagger/OpenAPI is disabled when `NODE_ENV=production`.
-- Throttling is globally enabled through `ThrottlerModule` and `ThrottlerGuard`; auth-sensitive endpoints use the named `auth` limiter where controllers apply `@Throttle`.
+- Throttling is globally enabled through `ThrottlerModule` and `ThrottlerGuard`. Two throttlers are registered: `global` (120 req/min per client IP, overridden per route via `@Throttle` — auth actions drop to 10/hour) and `auth-email` (10 login attempts/hour per email address, on routes marked `@ThrottleByEmail`). IPs in `THROTTLE_IP_WHITELIST` skip both. See ARCHITECTURE.md §14.3 for the full table.
+- The throttler store is in-memory, so counters are per API container and reset on redeploy; Traefik applies no rate limiting of its own. There is no account lockout — login is protected by the two throttlers above plus Supabase GoTrue's own internal limits.
 - `pnpm security:routes` inventories every NestJS controller as public, authenticated, guest, staff, organizer, org-admin, super-admin, or mixed. CI fails when a new controller is not classified.
 
 ## Cookie And CSRF Posture

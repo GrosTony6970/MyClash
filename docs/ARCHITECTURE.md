@@ -1936,10 +1936,29 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 
 ### 14.3 Rate limits
 
-- Anonymous public reads: 100 req/min/IP.
-- Authenticated reads: 600 req/min/user.
-- Scoring writes (exchange POST): 30 req/min/user (well above realistic match pace).
-- Bracket generation: 5 req/min/org.
+Enforced by `ThrottlerModule` in `apps/api/src/app.module.ts`; the shared profiles
+live in `apps/api/src/common/throttling/throttle-profiles.ts`. Limits are per
+client IP unless stated otherwise, and IPs listed in `THROTTLE_IP_WHITELIST` skip
+all of them.
+
+| Scope                                                                  | Limit                                                |
+| ---------------------------------------------------------------------- | ---------------------------------------------------- |
+| Default — every route, reads and writes alike                          | 120 req/min/IP                                       |
+| Login, magic link, password-reset-confirm                              | 10 req/hour/IP                                       |
+| Login **per email** — `password-login` + `public-login` share a bucket | 10 req/hour                                          |
+| Signup, password-reset request                                         | 5 req/hour/IP                                        |
+| Admin reads — `/admin/users`, fighter merge audit-log                  | 600 req/min/IP                                       |
+| Catalog reads — `/clubs`, `/global-persons`                            | 300 req/min/IP                                       |
+| Event persons lookup                                                   | 30 req/min/IP                                        |
+| AI natural-language query                                              | 60/hour per (tournament, user); admin-settable 1–500 |
+
+`req.ip` is resolved through `trustProxy: 1` on the Fastify adapter, so it is the
+address Traefik observed rather than a client-supplied `X-Forwarded-For` entry.
+
+Two limits worth knowing about: the throttler store is in-memory, so counters are
+per API container and reset on every redeploy; and there is no edge-level
+(Traefik) rate limiting, so the Nest guard is the only limiter in front of the API.
+There are no per-user or per-org limiters, and scoring writes get the default.
 
 ---
 

@@ -20,7 +20,16 @@ registerProcessFailureHandlers(undefined, (reason, context) =>
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'test' }),
+    new FastifyAdapter({
+      logger: process.env['NODE_ENV'] !== 'test',
+      // Traefik is the only hop in front of us, so trust exactly one: `req.ip`
+      // then resolves to the last X-Forwarded-For entry — the address Traefik
+      // itself observed. Without this, `req.ip` is Traefik's container address
+      // and every client shares a single rate-limit bucket. The hop count (not
+      // `true`) is what makes it spoof-proof: a client-supplied X-Forwarded-For
+      // only ever prepends to the chain, so it can't displace the real address.
+      trustProxy: 1,
+    }),
   );
 
   // ── Cookie support ───────────────────────────────────────────────────────

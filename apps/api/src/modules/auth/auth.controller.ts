@@ -6,6 +6,7 @@ import {
   AUTH_ACTION_THROTTLE,
   SIGNUP_ACTION_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
+import { ThrottleByEmail } from '../../common/throttling/throttle-by-email';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
 import { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -30,7 +31,8 @@ export class AuthController {
    * - Organizer login (admin app): type='login'
    * - Participant claim (public app): type='claim', personId required
    *
-   * Rate limited: 3 per hour per email + 10 per hour per IP (via ThrottlerGuard).
+   * Rate limited: 10 per hour per IP (via ThrottlerGuard). Supabase applies its
+   * own per-address limit on the email send itself.
    * Always returns the same generic message to prevent email enumeration.
    */
   @Post('magic-link')
@@ -61,9 +63,16 @@ export class AuthController {
     await this.authService.acceptOAuthSession(dto, reply);
   }
 
+  /**
+   * POST /api/v1/auth/password-login
+   *
+   * Rate limited: 10 per hour per IP, and 10 per hour per email address shared
+   * with `public-login` (both are sign-ins for the same Supabase account).
+   */
   @Post('password-login')
   @HttpCode(HttpStatus.OK)
   @Throttle(AUTH_ACTION_THROTTLE)
+  @ThrottleByEmail()
   @ApiOperation({ summary: 'Sign in with email and password for admin access' })
   @ApiResponse({ status: 200, description: 'Password session accepted' })
   @ApiResponse({ status: 400, description: 'Validation error' })
@@ -100,14 +109,19 @@ export class AuthController {
    * this does NOT require admin/organizer access. Surfaces
    * `email_not_confirmed` as a 403 so the UI can route to the "check
    * your inbox" state.
+   *
+   * Rate limited: 10 per hour per IP, and 10 per hour per email address shared
+   * with `password-login`.
    */
   @Post('public-login')
   @HttpCode(HttpStatus.OK)
   @Throttle(AUTH_ACTION_THROTTLE)
+  @ThrottleByEmail()
   @ApiOperation({ summary: 'Sign in to the public app with email + password' })
   @ApiResponse({ status: 200, description: 'Session accepted' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   @ApiResponse({ status: 403, description: 'email_not_confirmed' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async publicLogin(@Body() dto: PublicLoginDto, @Res() reply: FastifyReply): Promise<void> {
     await this.authService.publicLogin(dto.email, dto.password, reply);
   }

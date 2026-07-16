@@ -120,7 +120,7 @@
   - Person claim at `/e/<eventSlug>/claim?personId=...` (public app; linked from the "This is me" CTA on `/e/<eventSlug>/people/<personId>`) → magic link to person.email → click → `persons.claim_status` becomes `'claimed'`, `claimed_by_user_id` set.
   - Magic link emails go through Resend (or other SMTP from O-006).
   - API `/api/v1/me` returns either `{ type: 'claimed', user, person? }` or `{ type: 'guest', person }` or `{ type: 'anonymous' }`.
-  - Rate limiting on magic link requests: 3 per hour per email + 10 per hour per IP.
+  - Rate limiting on magic link requests: 10 per hour per IP (Supabase applies its own per-address limit on the send itself).
 
 ### T-009b · Organizer signup (open self-service, named org)
 
