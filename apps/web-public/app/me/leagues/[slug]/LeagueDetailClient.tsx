@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { formatGroup, rankMedal } from '../helpers';
 
@@ -45,7 +45,7 @@ type Status = 'loading' | 'ready' | 'notfound' | 'error';
 export default function LeagueDetailClient() {
   const { t } = useI18n();
   const { slug } = useParams<{ slug: string }>();
-  const apiUrl = useMemo(() => getApiUrl(), []);
+  const apiUrl = useMemo(() => getPublicApiUrl(), []);
   const [fighterId, setFighterId] = useState<string | null>(null);
   const [league, setLeague] = useState<MyLeague | null>(null);
   const [group, setGroup] = useState<string | null>(null);

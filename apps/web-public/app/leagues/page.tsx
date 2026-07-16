@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 
 interface League {
@@ -22,7 +22,7 @@ async function fetchLeagues(apiUrl: string): Promise<League[]> {
 
 export default async function PublicLeaguesPage() {
   const t = await getServerT();
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const leagues = await fetchLeagues(apiUrl);
 
   return (

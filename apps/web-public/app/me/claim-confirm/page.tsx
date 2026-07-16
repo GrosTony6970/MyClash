@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { Button } from '@myclash/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -78,7 +78,7 @@ function ClaimConfirm() {
         }
 
         phase = 'confirming';
-        const apiUrl = getApiUrl();
+        const apiUrl = getPublicApiUrl();
         const response = await fetch(`${apiUrl}/api/v1/me/claim-confirm`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

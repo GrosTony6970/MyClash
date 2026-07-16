@@ -6,7 +6,7 @@
  */
 
 import type { Metadata } from 'next';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { getServerT } from '@/i18n/server-locale';
 
@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ClubPage({ params }: Props) {
   const t = await getServerT();
   const { slug } = await params;
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const club = await fetchClub(slug, apiUrl);
 
   if (!club) {

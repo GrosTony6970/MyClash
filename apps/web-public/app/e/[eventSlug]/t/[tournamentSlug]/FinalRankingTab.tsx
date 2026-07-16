@@ -23,7 +23,7 @@ import {
   type PoolEntry,
   type RankingSlot,
 } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { SelfRowFocus } from './SelfRowFocus';
 import type { BracketSlot } from './page';
 
@@ -64,11 +64,11 @@ export function FinalRankingTab({
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
 
   // Pool scores for the tiebreak + the "Pools" tail. Resolve client-side:
-  // getApiUrl() returns the browser-reachable public URL (a server-passed prop
+  // getPublicApiUrl() returns the browser-reachable public URL (a server-passed prop
   // would be the docker-internal host, unreachable from the browser).
   useEffect(() => {
     const controller = new AbortController();
-    const apiUrl = getApiUrl();
+    const apiUrl = getPublicApiUrl();
     void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`, {
       cache: 'no-store',
       signal: controller.signal,

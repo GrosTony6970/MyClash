@@ -13,7 +13,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { flagEmoji } from '@/lib/flag';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { Chevron } from './Chevron';
 import { usePersistedOpen } from './usePersistedOpen';
@@ -53,7 +53,7 @@ function groupKeyOf(f: PersonFollowing): { id: string; name: string } | null {
  */
 export default function FollowsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, locale } = useI18n();
-  const apiUrl = useMemo(() => getApiUrl(), []);
+  const apiUrl = useMemo(() => getPublicApiUrl(), []);
   const now = useNow(apiUrl);
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();

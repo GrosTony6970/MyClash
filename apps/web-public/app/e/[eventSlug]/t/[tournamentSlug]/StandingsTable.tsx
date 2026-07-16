@@ -11,7 +11,7 @@
 
 import { useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import type { StandingRow } from './page';
 
@@ -49,7 +49,7 @@ export function StandingsTable({
     setUpdating(true);
     try {
       // Resolve client-side — the public (browser-reachable) URL.
-      const apiUrl = getApiUrl();
+      const apiUrl = getPublicApiUrl();
       const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/standings`, { cache: 'no-store' });
       if (res.ok) {
         const data = (await res.json()) as StandingRow[];

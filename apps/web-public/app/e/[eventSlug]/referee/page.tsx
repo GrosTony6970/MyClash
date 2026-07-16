@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { localeToBcp47 } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -45,7 +45,7 @@ export default function RefereeDashboardPage() {
   const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   const roleLabels: Record<string, string> = {
     arbitre_declarant: t('publicApp.fighterProfile.arbitreDeclarant'),

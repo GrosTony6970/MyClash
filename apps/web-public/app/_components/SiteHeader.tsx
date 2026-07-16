@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher';
 
 type AuthState = 'unknown' | 'signed-out' | 'signed-in';
@@ -40,7 +40,7 @@ export function SiteHeader() {
   const authState = useSyncExternalStore(subscribeAuth, readAuthSnapshot, readAuthServerSnapshot);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   // Fetch the display name once the client knows the user is signed in. The
   // setState lives in the async .then (not the effect body), so it doesn't trip

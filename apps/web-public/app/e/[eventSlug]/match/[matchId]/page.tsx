@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { MatchLiveView } from './match-live-view';
 import {
   mapMatchRow,
@@ -9,7 +9,7 @@ import {
   type MatchSummary,
 } from './match-row';
 
-const API_URL = getApiUrl();
+const API_URL = getServerApiUrl();
 
 async function fetchMatch(matchId: string): Promise<MatchRow | null> {
   const res = await fetch(`${API_URL}/api/v1/matches/${matchId}`, {
@@ -96,7 +96,6 @@ export default async function MatchPage({ params, searchParams }: Props) {
       initialSummary={summary}
       initialExchanges={exchanges}
       initialPenalties={penalties}
-      apiUrl={API_URL}
       backHref={backHref}
       backToMatchList={validReturn !== null}
     />

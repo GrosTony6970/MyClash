@@ -11,7 +11,6 @@
  */
 
 import { cookies } from 'next/headers';
-import { getApiUrl } from '@/lib/api-url';
 import type { Metadata } from 'next';
 import { CompetitorHome } from './CompetitorHome';
 import { AccompanistHome } from './AccompanistHome';
@@ -39,14 +38,13 @@ export default async function HomePage({ params }: Props) {
   const { eventSlug } = await params;
   const cookieStore = await cookies();
   const persona = resolvePersona(cookieStore);
-  const apiUrl = getApiUrl();
 
   switch (persona) {
     case 'competitor':
-      return <CompetitorHome eventSlug={eventSlug} apiUrl={apiUrl} />;
+      return <CompetitorHome eventSlug={eventSlug} />;
     case 'accompanist':
-      return <AccompanistHome eventSlug={eventSlug} apiUrl={apiUrl} />;
+      return <AccompanistHome eventSlug={eventSlug} />;
     default:
-      return <PublicHome eventSlug={eventSlug} apiUrl={apiUrl} />;
+      return <PublicHome eventSlug={eventSlug} />;
   }
 }

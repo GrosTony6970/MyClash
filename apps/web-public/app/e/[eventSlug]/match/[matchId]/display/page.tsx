@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { DisplayView } from './display-view';
 
-const API_URL = getApiUrl();
+const API_URL = getServerApiUrl();
 
 interface Props {
   params: Promise<{ eventSlug: string; matchId: string }>;

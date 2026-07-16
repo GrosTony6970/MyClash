@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SegmentedTabs } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { FighterProfileClient } from '../../profile/fighter/FighterProfileClient';
 import { RefereeProfileClient } from '../../profile/referee/RefereeProfileClient';
@@ -23,10 +23,10 @@ const parseTab = (raw: string | null): ProfileTab =>
  */
 export function ProfileTabs() {
   // Resolve the API base URL on the client (browser value). Receiving a
-  // server-resolved `getApiUrl()` prop would leak the docker-internal
+  // server-resolved `getPublicApiUrl()` prop would leak the docker-internal
   // `http://api:4000` host into the page and get blocked as mixed content on
   // HTTPS — the same pattern used by SettingsClient/InstructorDashboard.
-  const apiUrl = useMemo(() => getApiUrl(), []);
+  const apiUrl = useMemo(() => getPublicApiUrl(), []);
   const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();

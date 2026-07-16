@@ -1,23 +1,26 @@
 /**
  * Resolve the API base URL for the public app.
  *
- * - **Server-side (SSR, route handlers, server components):** prefer
- *   `API_URL_INTERNAL` (set to `http://api:4000` in
- *   `infra/docker-compose.prod.yml`). The public hostname
- *   `https://api.myclash.fr` doesn't reliably hairpin from inside the
- *   Docker network — inside the container it resolves to 127.0.0.1
- *   which has no listener, producing Node's generic `fetch failed`.
+ * Two helpers, split by WHERE the value is allowed to be used. The name states
+ * the constraint, because the value differs by execution context and that is
+ * invisible at the call site:
+ *
+ * - `getServerApiUrl()` — SSR / route handlers only. Prefers `API_URL_INTERNAL`
+ *   (`http://api:4000` in `infra/docker-compose.prod.yml`). The public hostname
+ *   doesn't reliably hairpin from inside the Docker network — there it resolves
+ *   to 127.0.0.1, which has no listener, producing Node's generic `fetch failed`.
  *   Server-side fetches must use the docker service name.
- * - **Client-side (browser):** use `NEXT_PUBLIC_API_URL` (the public
- *   hostname). Next.js inlines this at build time, so the browser
- *   bundle ships with the public URL baked in.
+ * - `getPublicApiUrl()` — browser-reachable, safe on BOTH sides. Use this in
+ *   client components, and for any URL that ends up in server-rendered HTML
+ *   (`<a href>`, `<img src>`).
  *
- * `typeof window === 'undefined'` is the canonical
- * server-vs-browser discriminator inside React server components.
+ * The docker-internal host must never cross into the browser: it can't resolve
+ * there, and plain `http://` is blocked as mixed content on an HTTPS page. The
+ * `myclash/no-server-api-url-leak` lint rule enforces that `getServerApiUrl` is
+ * neither imported by a `'use client'` file nor rendered into JSX.
  *
- * NEVER read `process.env['NEXT_PUBLIC_API_URL']` directly anywhere
- * in `apps/web-public/app/**`. The ESLint guard in
- * `apps/web-public/.eslintrc.json` blocks it.
+ * NEVER read `process.env['NEXT_PUBLIC_API_URL']` directly in `app/**` or
+ * `src/**` — the ESLint guard in `apps/web-public/eslint.config.mjs` blocks it.
  */
 /** Treat empty string as unset — guards against deployments that
  * accidentally set the var to '' (which `??` would otherwise let
@@ -28,22 +31,25 @@ function trimmed(value: string | undefined): string | undefined {
   return v.length > 0 ? v : undefined;
 }
 
-export function getApiUrl(): string {
-  if (typeof window === 'undefined') {
-    return (
-      trimmed(process.env['API_URL_INTERNAL']) ??
-      trimmed(process.env['NEXT_PUBLIC_API_URL']) ??
-      'http://localhost:4000'
-    );
-  }
-  return trimmed(process.env['NEXT_PUBLIC_API_URL']) ?? 'http://localhost:4000';
+/**
+ * SSR / route-handler ONLY — returns the docker-internal host in prod.
+ *
+ * Use for a server component's or route handler's own `await fetch`. Never pass
+ * the result to a client component or render it into HTML; use
+ * `getPublicApiUrl()` for anything the browser will touch.
+ */
+export function getServerApiUrl(): string {
+  return (
+    trimmed(process.env['API_URL_INTERNAL']) ??
+    trimmed(process.env['NEXT_PUBLIC_API_URL']) ??
+    'http://localhost:4000'
+  );
 }
 
 /**
- * Browser-reachable API base URL, safe on BOTH sides. Use this for URLs that
- * end up in rendered HTML (`<a href>`, `<img src>`) from server components —
- * `getApiUrl()` would leak the docker-internal `http://api:4000` host into
- * the page there (the SSR client-URL-leak gotcha).
+ * Browser-reachable API base URL, safe on BOTH sides — it has no
+ * server/browser branch, so it returns the same value during the SSR pass of a
+ * client component and in the browser (no hydration mismatch).
  */
 export function getPublicApiUrl(): string {
   return trimmed(process.env['NEXT_PUBLIC_API_URL']) ?? 'http://localhost:4000';

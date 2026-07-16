@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { useParams, useSearchParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
@@ -50,7 +50,7 @@ export default function WorkshopDetailPage() {
   const params = useParams<{ eventSlug: string; workshopSlug: string }>();
   const searchParams = useSearchParams();
   const { eventSlug, workshopSlug } = params;
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);

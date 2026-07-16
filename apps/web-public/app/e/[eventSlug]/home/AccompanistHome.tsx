@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { EventBackLink } from './_components/EventBackLink';
+import { getServerApiUrl } from '@/lib/api-url';
 import { resolveServerLocale } from '@/i18n/server-locale';
 
 interface FavoriteMatch {
@@ -25,7 +26,6 @@ interface FavoriteMatch {
 
 interface Props {
   eventSlug: string;
-  apiUrl: string;
 }
 
 async function fetchFavoriteMatches(eventSlug: string, apiUrl: string): Promise<FavoriteMatch[]> {
@@ -63,7 +63,8 @@ async function fetchEventBranding(
   }
 }
 
-export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
+export async function AccompanistHome({ eventSlug }: Props) {
+  const apiUrl = getServerApiUrl();
   const locale = await resolveServerLocale();
   const tag = localeToBcp47(locale);
   const t = createTranslator(getMessages(locale));

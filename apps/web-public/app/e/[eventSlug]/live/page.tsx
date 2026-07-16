@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -89,7 +89,7 @@ export default function LivePage() {
   const { eventSlug } = params;
   const focusLiceId = searchParams.get('lice');
 
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
   const [state, setState] = useState<LiveState | null>(null);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMatchClock } from '@myclash/ui';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
@@ -379,7 +380,6 @@ interface Props {
   initialSummary: MatchSummary;
   initialExchanges: ExchangeRow[];
   initialPenalties: MatchPenaltyRow[];
-  apiUrl: string;
   /** Where the top back-link leads (validated root-relative path). */
   backHref: string;
   /** True when `backHref` returns to the pool-matches list (vs. event home). */
@@ -392,10 +392,13 @@ export function MatchLiveView({
   initialSummary,
   initialExchanges,
   initialPenalties,
-  apiUrl,
   backHref,
   backToMatchList,
 }: Props) {
+  // Resolved here, not handed down from the server page: a server-resolved URL
+  // is the docker-internal host, which the browser can't reach — the polling
+  // fallback and post-reconnect catch-up refresh both run in the browser.
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const [match, setMatch] = useState<MatchRow>(initialMatch);
   const [summary, setSummary] = useState<MatchSummary>(initialSummary);

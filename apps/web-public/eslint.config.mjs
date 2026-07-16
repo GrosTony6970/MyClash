@@ -6,6 +6,7 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
+import noServerApiUrlLeakRule from '../../eslint-rules/no-server-api-url-leak.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -22,6 +23,7 @@ export default tseslint.config(
         rules: {
           'no-literal-string': noLiteralStringRule,
           'no-literal-locale': noLiteralLocaleRule,
+          'no-server-api-url-leak': noServerApiUrlLeakRule,
         },
       },
     },
@@ -40,6 +42,9 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
       'myclash/no-literal-locale': 'error',
+      // The docker-internal API host must never reach the browser. The rule
+      // self-detects 'use client', so it applies to every file.
+      'myclash/no-server-api-url-leak': 'error',
     },
     languageOptions: {
       parserOptions: {
@@ -48,14 +53,19 @@ export default tseslint.config(
       },
     },
   },
-  // Guard against the SSR-hairpin regression: server-side fetches must
-  // go through `getApiUrl()` (which picks API_URL_INTERNAL on the
-  // server) so they don't try to reach the public hostname from inside
-  // the docker network. Direct `process.env['NEXT_PUBLIC_API_URL']`
-  // reads bypass that branch. The helper file itself is the single
-  // exception.
+  // Guard against the SSR-hairpin regression: server-side fetches must go
+  // through `getServerApiUrl()` (API_URL_INTERNAL) so they don't try to reach
+  // the public hostname from inside the docker network, and browser-bound URLs
+  // must go through `getPublicApiUrl()`. A direct
+  // `process.env['NEXT_PUBLIC_API_URL']` read bypasses both — including the
+  // `trimmed()` guard that treats an accidental '' deploy as unset. The helper
+  // file itself is the single exception.
+  //
+  // Scoped to src/** as well as app/**: components live in both, and the
+  // app/**-only scope let src/components/PublicPersonalShell.tsx read the env
+  // var directly for months.
   {
-    files: ['app/**/*.{ts,tsx}'],
+    files: ['app/**/*.{ts,tsx}', 'src/**/*.{ts,tsx}'],
     ignores: ['src/lib/api-url.ts', 'src/lib/api-url.test.ts'],
     rules: {
       'no-restricted-syntax': [
@@ -64,7 +74,7 @@ export default tseslint.config(
           selector:
             "MemberExpression[object.object.name='process'][object.property.name='env'][property.value='NEXT_PUBLIC_API_URL']",
           message:
-            "Don't read NEXT_PUBLIC_API_URL directly — use getApiUrl() from '@/lib/api-url'. Direct reads break SSR inside the Docker network (the public hostname doesn't hairpin).",
+            "Don't read NEXT_PUBLIC_API_URL directly — use getPublicApiUrl() (browser-bound) or getServerApiUrl() (SSR fetch) from '@/lib/api-url'. Direct reads bypass the empty-string guard and the server/browser split.",
         },
       ],
     },

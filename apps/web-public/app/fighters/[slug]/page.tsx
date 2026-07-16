@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from 'next';
-import { getApiUrl, getPublicApiUrl } from '@/lib/api-url';
+import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
@@ -297,7 +297,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function FighterPage({ params }: Props) {
   const { slug } = await params;
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const locale = await resolveServerLocale();
   const t = createTranslator(getMessages(locale));
   const [fighter, career, refereeStats] = await Promise.all([

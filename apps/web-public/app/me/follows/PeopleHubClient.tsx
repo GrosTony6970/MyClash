@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EmptyState, SegmentedTabs } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import FollowsClient from './FollowsClient';
 import { GroupsTab } from './GroupsTab';
@@ -21,7 +21,7 @@ type PeopleTab = 'following' | 'search' | 'groups';
  */
 export function PeopleHubClient() {
   const { t } = useI18n();
-  const apiUrl = useMemo(() => getApiUrl(), []);
+  const apiUrl = useMemo(() => getPublicApiUrl(), []);
   const router = useRouter();
   const params = useSearchParams();
   const groupsApi = useDirectoryGroups(apiUrl);

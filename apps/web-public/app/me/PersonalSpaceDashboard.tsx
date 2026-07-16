@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { formatLocalizedDate } from '@myclash/types';
 import { useToast } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { DashboardToday } from '@/components/me/DashboardToday';
 
 interface PersonalSpaceResponse {
@@ -52,7 +53,10 @@ function roleEnabled(profile: Record<string, unknown> | null, key: string) {
   return Boolean(profile?.[key]);
 }
 
-export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
+export function PersonalSpaceDashboard() {
+  // Resolved here, not handed down from the server page: a server-resolved URL
+  // is the docker-internal host, which the browser can't reach.
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const toast = useToast();
   const [data, setData] = useState<PersonalSpaceResponse | null>(null);

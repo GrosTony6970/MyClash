@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '../../src/lib/api-url';
 import { markBroadcastsSeen } from '../../src/components/me/useUnreadBroadcasts';
 
 type PermissionStateLabel = NotificationPermission | 'unsupported' | 'loading';
 
 interface Props {
-  apiUrl: string;
   embedded?: boolean;
 }
 
@@ -48,7 +48,10 @@ function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   return buffer;
 }
 
-export default function NotificationSettingsClient({ apiUrl, embedded = false }: Props) {
+export default function NotificationSettingsClient({ embedded = false }: Props) {
+  // Resolved here, not handed down from the server page: a server-resolved URL
+  // is the docker-internal host, which the browser can't reach.
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const [permission, setPermission] = useState<PermissionStateLabel>('loading');
   const [busy, setBusy] = useState(false);

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import { getPublicApiUrl } from '../lib/api-url';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
 import { useUnreadBroadcasts } from './me/useUnreadBroadcasts';
@@ -40,7 +41,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   );
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const notificationsUnread = useUnreadBroadcasts(apiUrl);
 
   useEffect(() => {

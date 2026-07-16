@@ -2,7 +2,7 @@ import { BackLink } from '@/components/BackLink';
 import { createTranslator, defaultLocale, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
 import type { ParticipantLike } from './_components/filter-participants';
@@ -28,7 +28,7 @@ function formatEventPlace(event: Pick<EventInfo, 'city' | 'country'>): string | 
 }
 
 async function fetchEventInfo(eventSlug: string): Promise<EventInfo | null> {
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   try {
     const res = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
       cache: 'no-store',
@@ -52,7 +52,7 @@ async function fetchEventInfo(eventSlug: string): Promise<EventInfo | null> {
 }
 
 async function fetchParticipants(eventSlug: string): Promise<ParticipantLike[]> {
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants?includeStaff=true`,

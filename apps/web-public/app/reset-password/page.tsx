@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { Button } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -50,7 +50,7 @@ function ResetPassword() {
     setPhase('submitting');
     setError(null);
     try {
-      const apiUrl = getApiUrl();
+      const apiUrl = getPublicApiUrl();
       const res = await fetch(`${apiUrl}/api/v1/auth/public-password-reset-confirm`, {
         method: 'POST',
         credentials: 'include',

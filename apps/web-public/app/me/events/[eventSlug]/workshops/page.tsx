@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import { WorkshopRegisterControls } from '@/components/me/WorkshopRegisterControls';
 import {
@@ -39,7 +39,7 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
   const { t, locale } = useI18n();
   const tag = locale === 'fr' ? 'fr-FR' : 'en-GB';
   const tz = event.timezone ?? 'Europe/Paris';
-  const api = getApiUrl();
+  const api = getPublicApiUrl();
 
   const [workshops, setWorkshops] = useState<WorkshopListItem[] | null>(null);
   const [wsKey, setWsKey] = useState(0);

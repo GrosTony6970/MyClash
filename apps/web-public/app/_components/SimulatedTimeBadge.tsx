@@ -1,7 +1,7 @@
 'use client';
 
 import { useNow, useRuntimeFlags } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 
 /**
@@ -14,7 +14,7 @@ import { useI18n } from '@/i18n/I18nProvider';
  */
 export function SimulatedTimeBadge() {
   const { t, locale } = useI18n();
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
   const flags = useRuntimeFlags(apiUrl);
   const now = useNow(apiUrl);
 

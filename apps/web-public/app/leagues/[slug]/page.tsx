@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { accentClassFor } from '@myclash/ui';
-import { getApiUrl, getPublicApiUrl } from '@/lib/api-url';
+import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 
 interface League {
@@ -111,7 +111,7 @@ export default async function PublicLeagueStandingsPage({
 }) {
   const { slug } = await params;
   const t = await getServerT();
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const league = await fetchLeague(apiUrl, slug);
   if (!league) notFound();
   const [standings, memberEvents] = await Promise.all([
@@ -158,7 +158,7 @@ export default async function PublicLeagueStandingsPage({
           {rows.length > 0 && (
             <p className="mt-3 flex flex-wrap gap-4 text-sm">
               {/* getPublicApiUrl: these hrefs land in HTML — the SSR-side
-                  getApiUrl() would leak the docker-internal host here. */}
+                  getServerApiUrl() would leak the docker-internal host here. */}
               <a
                 href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.csv`}
                 className="font-semibold text-accent hover:text-accent-hover"

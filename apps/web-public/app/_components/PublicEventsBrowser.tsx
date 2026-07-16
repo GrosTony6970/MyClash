@@ -1,4 +1,4 @@
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
@@ -42,7 +42,7 @@ interface EventLoadResult {
 const visibleStatuses = new Set(['published', 'running', 'completed']);
 
 async function fetchPublicEvents(): Promise<EventLoadResult> {
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const target = `${apiUrl}/api/v1/events`;
 
   try {
@@ -82,7 +82,7 @@ async function fetchPublicEvents(): Promise<EventLoadResult> {
 }
 
 async function fetchPublicLeagues(): Promise<PublicLeague[]> {
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const target = `${apiUrl}/api/v1/leagues`;
   try {
     const res = await fetch(target, { cache: 'no-store' });

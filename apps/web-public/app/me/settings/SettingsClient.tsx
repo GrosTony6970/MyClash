@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { AccountSection } from './AccountSection';
 import { AISettingsSection } from './AISettingsSection';
@@ -11,12 +11,12 @@ import { PrivacySettings } from './PrivacySettings';
 /**
  * Consolidated personal-space settings hub (mockup frame 17). Resolves the API
  * base URL on the client (browser value) rather than receiving a server-side
- * `getApiUrl()` — passing the server value to a client island would leak the
+ * `getPublicApiUrl()` — passing the server value to a client island would leak the
  * internal `http://api:4000` host to the browser.
  */
 export default function SettingsClient() {
   const { t } = useI18n();
-  const apiUrl = useMemo(() => getApiUrl(), []);
+  const apiUrl = useMemo(() => getPublicApiUrl(), []);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {

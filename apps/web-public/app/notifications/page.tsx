@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { getApiUrl } from '@/lib/api-url';
 import NotificationSettingsClient from './NotificationSettingsClient';
 
 export const metadata: Metadata = {
@@ -8,6 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function NotificationsPage() {
-  const apiUrl = getApiUrl();
-  return <NotificationSettingsClient apiUrl={apiUrl} />;
+  return <NotificationSettingsClient />;
 }

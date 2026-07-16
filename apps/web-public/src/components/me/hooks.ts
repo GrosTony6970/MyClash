@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ProgrammeBlock } from '@myclash/types';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import type { MyEvent, PersonSchedule, UpcomingItem } from './types';
 
 // Stale-while-revalidate cache for the in-venue schedule: the last payload is
@@ -43,7 +43,10 @@ export function useMyEvents(): { events: MyEvent[] | null; loading: boolean; err
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${getApiUrl()}/api/v1/me/events`, { credentials: 'include', signal: controller.signal })
+    fetch(`${getPublicApiUrl()}/api/v1/me/events`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
       .then(async (res) => {
         if (res.ok) setEvents((await res.json()) as MyEvent[]);
         else {
@@ -96,7 +99,7 @@ export function useMySchedule(eventId: string | null): {
       /* eslint-enable react-hooks/set-state-in-effect */
     }
 
-    fetch(`${getApiUrl()}/api/v1/events/${eventId}/my-schedule`, {
+    fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/my-schedule`, {
       credentials: 'include',
       signal: controller.signal,
     })
@@ -146,7 +149,7 @@ export function useProgramme(eventId: string | null): {
   useEffect(() => {
     if (!eventId) return;
     const controller = new AbortController();
-    fetch(`${getApiUrl()}/api/v1/events/${eventId}/programme`, {
+    fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/programme`, {
       credentials: 'include',
       signal: controller.signal,
     })
@@ -172,7 +175,7 @@ export function useUpcoming(limit = 4): { items: UpcomingItem[] | null } {
   const [items, setItems] = useState<UpcomingItem[] | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${getApiUrl()}/api/v1/me/upcoming?limit=${limit}`, {
+    fetch(`${getPublicApiUrl()}/api/v1/me/upcoming?limit=${limit}`, {
       credentials: 'include',
       signal: controller.signal,
     })

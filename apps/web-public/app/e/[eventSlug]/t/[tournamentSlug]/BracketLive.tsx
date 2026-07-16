@@ -20,7 +20,7 @@ import {
   type PodiumData,
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { refereeRoleLabel } from './referee-display';
 import type { BracketSlot } from './page';
@@ -92,7 +92,7 @@ export function BracketLive({
   async function refresh() {
     try {
       // Resolve client-side — the public (browser-reachable) URL.
-      const apiUrl = getApiUrl();
+      const apiUrl = getPublicApiUrl();
       const res = await fetch(
         `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/tournaments/${encodeURIComponent(tournamentSlug)}/standings`,
         { cache: 'no-store' },

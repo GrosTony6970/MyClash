@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { Suspense, useState } from 'react';
 import { GoogleIcon } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
@@ -17,7 +17,7 @@ function ClaimForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   async function handleGoogleClaim() {
     if (!personId) {

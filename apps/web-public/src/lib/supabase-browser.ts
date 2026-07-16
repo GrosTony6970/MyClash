@@ -3,6 +3,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useRef } from 'react';
 import { getRuntimeFlagsCached, useRuntimeFlags } from '@myclash/ui';
+import { getPublicApiUrl } from './api-url';
 import { supabase } from './supabase';
 
 export interface UseRealtimeOptions {
@@ -28,7 +29,7 @@ export interface UseRealtimeOptions {
   enabled?: boolean;
 }
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? '';
+const API_URL = getPublicApiUrl();
 
 /**
  * Hook exposing the `disable_realtime` kill-switch state — for consumers whose

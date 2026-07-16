@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { formatInZone } from '@myclash/time';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@/i18n/I18nProvider';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
@@ -62,7 +62,7 @@ interface RosterEntry {
 export function InstructorDashboard() {
   const { t, locale } = useI18n();
   const tag = locale === 'fr' ? 'fr-FR' : 'en-GB';
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   const [groups, setGroups] = useState<InstructorGroup[] | null>(null);
   const [error, setError] = useState(false);

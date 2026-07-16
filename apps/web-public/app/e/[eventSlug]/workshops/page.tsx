@@ -9,7 +9,7 @@
 
 import type { Metadata } from 'next';
 import { BackLink } from '@/components/BackLink';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
 import { fetchEventInfo } from '../_components/EventHeader';
@@ -39,7 +39,7 @@ async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<Worksh
 export default async function WorkshopsPage({ params }: Props) {
   const { eventSlug } = await params;
   const t = await getServerT();
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
   const [workshops, event] = await Promise.all([
     fetchWorkshops(eventSlug, apiUrl),
     fetchEventInfo(eventSlug, apiUrl),

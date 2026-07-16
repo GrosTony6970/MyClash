@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -14,7 +14,7 @@ interface SecurityStatus {
 
 export default function SecurityPage() {
   const { t } = useI18n();
-  const apiUrl = useMemo(() => getApiUrl(), []);
+  const apiUrl = useMemo(() => getPublicApiUrl(), []);
   const [status, setStatus] = useState<SecurityStatus | null>(null);
   const [statusError, setStatusError] = useState(false);
 

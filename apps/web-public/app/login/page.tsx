@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -25,7 +25,7 @@ export default function PublicLoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   const passwordValidation = useMemo(() => validatePassword(password), [password]);
 

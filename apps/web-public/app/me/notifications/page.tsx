@@ -1,10 +1,8 @@
-import { getApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 import NotificationSettingsClient from '../../notifications/NotificationSettingsClient';
 
 export default async function PersonalNotificationsPage() {
   const t = await getServerT();
-  const apiUrl = getApiUrl();
 
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8">
@@ -20,7 +18,7 @@ export default async function PersonalNotificationsPage() {
             {t('publicApp.notifications.description')}
           </p>
         </header>
-        <NotificationSettingsClient apiUrl={apiUrl} embedded />
+        <NotificationSettingsClient embedded />
       </div>
     </main>
   );

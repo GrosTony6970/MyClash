@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { LiceWaitingDisplay, type LiceWaitingDisplayNextMatch } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
-import { getApiUrl } from '../../../../../../src/lib/api-url';
+import { getPublicApiUrl } from '../../../../../../src/lib/api-url';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 
 interface Props {
@@ -41,7 +41,7 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   // the DisplayView delegation.
   const refresh = useCallback(async () => {
     // Client-side base URL (browser-reachable public host).
-    const apiUrl = getApiUrl();
+    const apiUrl = getPublicApiUrl();
     const res = await fetch(
       `${apiUrl}/api/v1/events/${eventSlug}/lices/${encodeURIComponent(liceName)}/current`,
       { cache: 'no-store' },

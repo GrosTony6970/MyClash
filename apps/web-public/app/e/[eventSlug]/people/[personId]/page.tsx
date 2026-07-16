@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
@@ -57,7 +57,7 @@ export default function PersonProfilePage() {
   const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string; personId: string }>();
   const { eventSlug, personId } = params;
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);

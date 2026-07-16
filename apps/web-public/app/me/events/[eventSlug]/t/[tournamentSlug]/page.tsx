@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents } from '@/components/me/hooks';
 import { HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
@@ -55,7 +55,7 @@ export default function PersonalTournamentPage() {
   useEffect(() => {
     const controller = new AbortController();
     void fetch(
-      `${getApiUrl()}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
+      `${getPublicApiUrl()}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
       { credentials: 'include', cache: 'no-store', signal: controller.signal },
     )
       .then(async (res) => {

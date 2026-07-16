@@ -14,7 +14,7 @@
  */
 
 import type { Metadata } from 'next';
-import { getApiUrl } from '@/lib/api-url';
+import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 import Link from 'next/link';
 
@@ -151,7 +151,7 @@ function pct(n: number, total: number): string {
 export default async function StatsPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
   const t = await getServerT();
-  const apiUrl = getApiUrl();
+  const apiUrl = getServerApiUrl();
 
   const tournamentId = await fetchTournamentId(eventSlug, tournamentSlug, apiUrl);
   if (!tournamentId) {

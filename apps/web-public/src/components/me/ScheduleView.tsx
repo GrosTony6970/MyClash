@@ -4,7 +4,7 @@ import { formatInZone } from '@myclash/time';
 import { EmptyState, SkillBadge, useNow } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
-import { getApiUrl } from '../../lib/api-url';
+import { getPublicApiUrl } from '../../lib/api-url';
 import { CollapsibleSection } from './CollapsibleSection';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
@@ -79,7 +79,7 @@ export function ScheduleView({
   // event unfolds. `useNow` also honours an active super-admin time simulation
   // (the `time_simulation` feature flag). ScheduleView only ever mounts on the
   // client, so it never hydrates on the server.
-  const now = useNow(getApiUrl());
+  const now = useNow(getPublicApiUrl());
 
   // Retractable day + weapon sections. Default expanded (a key present in the set
   // is collapsed); state is in-memory for the tab's lifetime.

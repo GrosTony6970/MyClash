@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { Modal } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -54,7 +54,7 @@ export default function RefereeMatchPage() {
   const { t } = useI18n();
   const params = useParams<{ eventSlug: string; matchId: string }>();
   const { eventSlug, matchId } = params;
-  const apiUrl = getApiUrl();
+  const apiUrl = getPublicApiUrl();
 
   const warningReasonLabels: Record<WarningReason, string> = {
     unsportsmanlike_conduct: t('publicApp.refereePublic.warningReasons.unsportsmanlikeConduct'),

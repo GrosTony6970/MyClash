@@ -1,10 +1,10 @@
 'use client';
 
 import { TVScoreboard } from '@myclash/ui';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { supabase } from '@/lib/supabase';
 
-const API_URL = getApiUrl();
+const API_URL = getPublicApiUrl();
 
 interface Props {
   matchId: string;

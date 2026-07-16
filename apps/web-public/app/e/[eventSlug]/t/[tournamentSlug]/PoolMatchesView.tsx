@@ -20,7 +20,7 @@ import { sideStyle, tintTextClassFor } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { naturalCompare } from './pool-matches-sort';
 import { matchesQuery } from './pool-matches-filter';
@@ -140,11 +140,11 @@ export function PoolMatchesView({
 
   useEffect(() => {
     const controller = new AbortController();
-    // Resolve the API base URL client-side: getApiUrl() returns the
+    // Resolve the API base URL client-side: getPublicApiUrl() returns the
     // public NEXT_PUBLIC_API_URL in the browser. A server-passed prop
     // would carry the docker-internal http://api:4000, which is
     // unreachable from the browser (the bug that left this tab empty).
-    const apiUrl = getApiUrl();
+    const apiUrl = getPublicApiUrl();
     void fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/tournaments/${encodeURIComponent(
         tournamentSlug,

@@ -20,7 +20,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { getApiUrl } from '@/lib/api-url';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
 import { SelfRowFocus } from './SelfRowFocus';
 import type { Pool } from './page';
@@ -125,10 +125,10 @@ export function StandingsView({
   useEffect(() => {
     if (mode !== 'overall') return;
     const controller = new AbortController();
-    // Resolve client-side: getApiUrl() returns the browser-reachable
+    // Resolve client-side: getPublicApiUrl() returns the browser-reachable
     // public URL. A server-passed prop would be the docker-internal
     // host, unreachable from the browser.
-    const apiUrl = getApiUrl();
+    const apiUrl = getPublicApiUrl();
     void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`, {
       cache: 'no-store',
       signal: controller.signal,
