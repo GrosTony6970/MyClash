@@ -3875,6 +3875,20 @@ export const en = {
       },
     },
   },
+  // Personal league workspace (/leagues in web-admin) — a third surface,
+  // neither the super-admin console (`admin`) nor the org workspace
+  // (`organizer`). The management view it renders is shared with the org route
+  // and keeps reading `organizer.leagues.manage.*`.
+  leagueWorkspace: {
+    eyebrow: 'League workspace',
+    role: 'League admin',
+    list: {
+      empty: 'No league has been assigned to you yet.',
+      viaDirect: 'Direct grant',
+      viaOrg: 'Via {organization}',
+      viaSuperAdmin: 'Super admin',
+    },
+  },
   organizer: {
     venues: {
       title: 'Venues',
@@ -4088,6 +4102,7 @@ export const en = {
         events: 'Events list',
         rulesets: 'Rulesets',
         leagues: 'Leagues',
+        myLeagues: 'My leagues',
         orgSettings: 'Members',
         aiSettings: 'AI settings',
         venues: 'Venues',
@@ -10014,6 +10029,16 @@ export const fr = {
       },
     },
   },
+  leagueWorkspace: {
+    eyebrow: 'Espace ligues',
+    role: 'Administrateur de ligue',
+    list: {
+      empty: 'Aucune ligue ne vous a encore été attribuée.',
+      viaDirect: 'Accès direct',
+      viaOrg: 'Via {organization}',
+      viaSuperAdmin: 'Super admin',
+    },
+  },
   organizer: {
     venues: {
       title: 'Lieux',
@@ -10228,6 +10253,7 @@ export const fr = {
         events: 'Liste des evenements',
         rulesets: 'Rulesets',
         leagues: 'Ligues',
+        myLeagues: 'Mes ligues',
         orgSettings: 'Membres',
         aiSettings: 'Parametres IA',
         venues: 'Lieux',

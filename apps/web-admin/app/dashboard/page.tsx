@@ -8,6 +8,7 @@ type MeResponse = {
   admin?: {
     isSuperAdmin: boolean;
     organizations: Array<{ slug: string }>;
+    hasLeagueRoles?: boolean;
   };
 };
 
@@ -45,6 +46,15 @@ export default function DashboardPage() {
         );
         if (firstOrganization) {
           window.location.href = `/org/${firstOrganization.slug}`;
+          return;
+        }
+
+        // Checked AFTER the org branch: an org owner who also holds a personal
+        // league grant keeps landing on the org workspace they use daily, and
+        // reaches /leagues through the sidebar instead. This branch is for the
+        // account whose only grant is a league — previously a dead end here.
+        if (data.admin?.hasLeagueRoles) {
+          window.location.href = '/leagues';
           return;
         }
 

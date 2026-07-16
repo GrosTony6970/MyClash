@@ -19,6 +19,8 @@ export type OrganizerMePayload = {
   admin?: {
     isSuperAdmin?: boolean;
     organizations?: Array<{ slug: string }>;
+    /** Read by the shell to decide whether to offer the /leagues entry. */
+    hasLeagueRoles?: boolean;
   };
 };
 

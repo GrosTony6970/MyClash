@@ -79,6 +79,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Personal league grants only. Org-managed leagues already have a home under
+  // this org's own Leagues entry, so offering /leagues for those would just be
+  // a second door to the same room.
+  const [hasLeagueRoles, setHasLeagueRoles] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
 
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +142,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           return;
         }
         const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1];
+        setHasLeagueRoles(Boolean(data?.admin?.hasLeagueRoles));
         const decision = resolveAuthDecision(slug, data);
         if (decision.kind === 'unauthenticated') {
           window.location.replace('/login');
@@ -401,6 +406,24 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           </div>
         );
       })}
+
+      {/*
+        Rendered OUTSIDE orgNavItems on purpose. That array is mapped through
+        joinPath(orgBase, href), which strips a leading slash — so '/leagues'
+        would silently become '/org/{slug}/leagues', an existing valid route
+        that is the very surface this entry exists to bypass. It would not 404
+        and would not error; only a manual click would ever catch it.
+      */}
+      {hasLeagueRoles && (
+        <div className="border-t border-border pt-5">
+          <div className="flex flex-col gap-1">
+            {renderNavItem(
+              { href: '/leagues', labelKey: 'organizer.shell.nav.myLeagues', badge: 'ML' },
+              pickActiveHref(pathname, [{ href: '/leagues' }]),
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 
