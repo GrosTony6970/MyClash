@@ -179,7 +179,11 @@ export class LeaguesService {
         .select('*')
         .order('season_year', { ascending: false });
       if (error) throw new BadRequestException(error.message);
-      return this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+      const enriched = await this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+      return enriched.map((league) => ({
+        ...league,
+        access: { direct_role: null, organizations: [], super_admin: true },
+      }));
     }
 
     const [userRoles, orgMemberships] = await Promise.all([
@@ -187,16 +191,50 @@ export class LeaguesService {
       this.listRows('organization_members', 'user_id', userId),
     ]);
     const leagueIds = new Set(userRoles.map((row) => String(row['league_id'])));
+    // Why each league is listed, so the personal workspace can badge a direct
+    // grant apart from one inherited through an organization. The nav entry is
+    // gated on direct grants only while this list is the full union, and the
+    // badge is what keeps that difference legible rather than looking like a bug.
+    const directRoleByLeague = new Map<string, string>();
+    for (const row of userRoles) {
+      directRoleByLeague.set(String(row['league_id']), String(row['role']));
+    }
     const orgIds = orgMemberships
       .filter((row) => ['admin', 'owner'].includes(String(row['role'])))
       .map((row) => String(row['organization_id']));
+    const orgRolesByLeague = new Map<string, Array<{ id: string; name: string; role: string }>>();
     if (orgIds.length > 0) {
       const { data } = await this.supabase.service
         .from('league_organization_roles')
-        .select('league_id')
+        .select('league_id, organization_id, role')
         .in('organization_id', orgIds)
         .in('role', ['admin', 'owner']);
-      for (const row of (data ?? []) as Row[]) leagueIds.add(String(row['league_id']));
+      const rows = (data ?? []) as Row[];
+      for (const row of rows) leagueIds.add(String(row['league_id']));
+
+      // Names, never ids — the cards render "Via {organization}".
+      const nameById = new Map<string, string>();
+      const referencedOrgIds = [...new Set(rows.map((row) => String(row['organization_id'])))];
+      if (referencedOrgIds.length > 0) {
+        const { data: orgs } = await this.supabase.service
+          .from('organizations')
+          .select('id, name')
+          .in('id', referencedOrgIds);
+        for (const org of (orgs ?? []) as Row[]) {
+          nameById.set(String(org['id']), String(org['name'] ?? ''));
+        }
+      }
+      for (const row of rows) {
+        const leagueId = String(row['league_id']);
+        const organizationId = String(row['organization_id']);
+        const list = orgRolesByLeague.get(leagueId) ?? [];
+        list.push({
+          id: organizationId,
+          name: nameById.get(organizationId) ?? '',
+          role: String(row['role']),
+        });
+        orgRolesByLeague.set(leagueId, list);
+      }
     }
 
     if (leagueIds.size === 0) return [];
@@ -206,7 +244,36 @@ export class LeaguesService {
       .in('id', [...leagueIds])
       .order('season_year', { ascending: false });
     if (error) throw new BadRequestException(error.message);
-    return this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+    const enriched = await this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+    return enriched.map((league) => {
+      const id = String((league as Row)['id']);
+      return {
+        ...league,
+        access: {
+          direct_role: directRoleByLeague.get(id) ?? null,
+          organizations: orgRolesByLeague.get(id) ?? [],
+          super_admin: false,
+        },
+      };
+    });
+  }
+
+  /**
+   * One league the caller manages. The org workspace historically fetched the
+   * whole manageable list and .find()-ed it, purely because this endpoint did
+   * not exist; the personal workspace reads it directly instead.
+   */
+  async getManageable(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .select('*')
+      .eq('id', leagueId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`League ${leagueId} not found`);
+    const [enriched] = await this.enrichLeaguesWithCounts([data as Row]);
+    return enriched;
   }
 
   /**
@@ -641,6 +708,23 @@ export class LeaguesService {
 
   async removeUserRole(leagueId: string, targetUserId: string, userId: string) {
     await this.assertCanManageLeague(leagueId, userId);
+
+    // The roles tab can remove individual admins but cannot add them — that
+    // stays super-admin only — so both of these are unrecoverable through the
+    // UI: dropping your own last route in, and draining the league's managers.
+    if (
+      targetUserId === userId &&
+      !(await this.isSuperAdmin(userId)) &&
+      !(await this.hasOrgManagePath(leagueId, userId))
+    ) {
+      throw new BadRequestException(
+        'You cannot remove your own league access. Ask a super admin to do it.',
+      );
+    }
+    if (!(await this.wouldRetainAManager(leagueId, targetUserId))) {
+      throw new BadRequestException('A league must keep at least one admin or owner.');
+    }
+
     const { data, error } = await this.supabase.service
       .from('league_user_roles')
       .delete()
@@ -1534,25 +1618,61 @@ export class LeaguesService {
       .maybeSingle();
     if (directRole) return;
 
+    if (await this.hasOrgManagePath(leagueId, userId)) return;
+
+    throw new ForbiddenException('League admin access required');
+  }
+
+  /**
+   * True when the user manages this league through an organization they admin,
+   * i.e. their access survives the removal of any personal league_user_roles
+   * row. Shared with removeUserRole so its self-removal error can't claim the
+   * caller is losing access they in fact keep via their org.
+   */
+  private async hasOrgManagePath(leagueId: string, userId: string): Promise<boolean> {
     const orgMemberships = await this.listRows('organization_members', 'user_id', userId);
     const adminOrgIds = orgMemberships
       .filter((row) => ['admin', 'owner'].includes(String(row['role'])))
       .map((row) => String(row['organization_id']));
-    if (adminOrgIds.length > 0) {
-      // .limit(1), not .maybeSingle(): a user who admins two orgs that both hold
-      // a role on this league matches two rows, which nulls `data` and sets
-      // PGRST116 — silently denying a manager access to their own league.
-      const { data: orgRoles } = await this.supabase.service
-        .from('league_organization_roles')
-        .select('id')
-        .eq('league_id', leagueId)
-        .in('organization_id', adminOrgIds)
-        .in('role', ['admin', 'owner'])
-        .limit(1);
-      if (Array.isArray(orgRoles) && orgRoles.length > 0) return;
-    }
+    if (adminOrgIds.length === 0) return false;
 
-    throw new ForbiddenException('League admin access required');
+    // .limit(1), not .maybeSingle(): a user who admins two orgs that both hold
+    // a role on this league matches two rows, which nulls `data` and sets
+    // PGRST116 — silently denying a manager access to their own league.
+    const { data: orgRoles } = await this.supabase.service
+      .from('league_organization_roles')
+      .select('id')
+      .eq('league_id', leagueId)
+      .in('organization_id', adminOrgIds)
+      .in('role', ['admin', 'owner'])
+      .limit(1);
+    return Array.isArray(orgRoles) && orgRoles.length > 0;
+  }
+
+  /**
+   * True when the league keeps at least one manager once `excludedUserId`'s
+   * personal grant is gone. Counts BOTH axes on purpose: a league managed only
+   * through an organization is legitimate, and so is one whose individual grants
+   * are all `admin` with no `owner` — so neither "keep one owner" nor "keep one
+   * league_user_roles row" is the right invariant.
+   */
+  private async wouldRetainAManager(leagueId: string, excludedUserId: string): Promise<boolean> {
+    const { data: userRoles } = await this.supabase.service
+      .from('league_user_roles')
+      .select('user_id')
+      .eq('league_id', leagueId)
+      .in('role', ['admin', 'owner'])
+      .neq('user_id', excludedUserId)
+      .limit(1);
+    if (Array.isArray(userRoles) && userRoles.length > 0) return true;
+
+    const { data: orgRoles } = await this.supabase.service
+      .from('league_organization_roles')
+      .select('id')
+      .eq('league_id', leagueId)
+      .in('role', ['admin', 'owner'])
+      .limit(1);
+    return Array.isArray(orgRoles) && orgRoles.length > 0;
   }
 
   private async isSuperAdmin(userId: string): Promise<boolean> {

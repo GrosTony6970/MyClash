@@ -1182,3 +1182,208 @@ describe('LeaguesService update status/visibility invariant', () => {
     ).toThrow();
   });
 });
+
+// ── Personal league workspace ───────────────────────────────────────────────
+// The non-super-admin branch of listManageable, plus the guards that make the
+// roles tab safe to expose outside the super-admin console. All of it was
+// reachable only by super-admins before /leagues existed, so none of it had
+// any coverage.
+
+/**
+ * A thenable query chain: awaiting it resolves to `result`, and every builder
+ * method returns it, so one stub serves `.select().eq()`, `.in().in()`,
+ * `.eq().in().neq().limit()` and `.maybeSingle()` alike.
+ */
+function chainOf(result: QueryResult) {
+  const chain = Object.assign(Promise.resolve(result), {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    neq: vi.fn(),
+    limit: vi.fn(),
+    order: vi.fn(),
+    delete: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+  });
+  for (const method of ['select', 'eq', 'in', 'neq', 'limit', 'order', 'delete'] as const) {
+    chain[method].mockReturnValue(chain);
+  }
+  return chain;
+}
+
+function buildLeaguesService(tables: Record<string, QueryResult>) {
+  const chains = new Map<string, ReturnType<typeof chainOf>>();
+  const from = vi.fn((table: string) => {
+    if (!chains.has(table)) {
+      chains.set(table, chainOf(tables[table] ?? { data: [], error: null }));
+    }
+    return chains.get(table);
+  });
+  const service = new LeaguesService(
+    { service: { from } } as never,
+    { assertOrgRole: vi.fn() } as never,
+    {} as never,
+  );
+  return { service, from, chains };
+}
+
+describe('LeaguesService.listManageable direct grants', () => {
+  it('lists a league granted directly via league_user_roles to a non-super-admin', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: [{ league_id: 'L1', role: 'admin' }], error: null },
+      organization_members: { data: [], error: null },
+      leagues: { data: [{ id: 'L1', name: 'Coupe de France', season_year: 2026 }], error: null },
+    });
+
+    const result = (await service.listManageable('league-admin-1')) as Array<
+      Record<string, unknown>
+    >;
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: 'L1', name: 'Coupe de France' });
+    expect(result[0]?.['access']).toEqual({
+      direct_role: 'admin',
+      organizations: [],
+      super_admin: false,
+    });
+  });
+
+  it('returns an empty list without querying leagues when the user holds no roles', async () => {
+    const { service, from } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: [], error: null },
+      organization_members: { data: [], error: null },
+    });
+
+    expect(await service.listManageable('nobody')).toEqual([]);
+    expect(from).not.toHaveBeenCalledWith('leagues');
+  });
+
+  it('badges an org-derived league with the organization name, never its id', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: [], error: null },
+      organization_members: { data: [{ organization_id: 'org-1', role: 'owner' }], error: null },
+      league_organization_roles: {
+        data: [{ league_id: 'L2', organization_id: 'org-1', role: 'admin' }],
+        error: null,
+      },
+      organizations: { data: [{ id: 'org-1', name: 'Lyon AMHE' }], error: null },
+      leagues: { data: [{ id: 'L2', name: 'Ligue Rhone', season_year: 2026 }], error: null },
+    });
+
+    const result = (await service.listManageable('org-owner-1')) as Array<Record<string, unknown>>;
+
+    expect(result[0]?.['access']).toEqual({
+      direct_role: null,
+      organizations: [{ id: 'org-1', name: 'Lyon AMHE', role: 'admin' }],
+      super_admin: false,
+    });
+  });
+
+  it('marks every league as super-admin access for a platform admin', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: { role: 'super_admin' }, error: null },
+      leagues: { data: [{ id: 'L1', name: 'A', season_year: 2026 }], error: null },
+    });
+
+    const result = (await service.listManageable('super-1')) as Array<Record<string, unknown>>;
+
+    expect(result[0]?.['access']).toEqual({
+      direct_role: null,
+      organizations: [],
+      super_admin: true,
+    });
+  });
+});
+
+describe('LeaguesService.getManageable', () => {
+  it('returns the league with counts for a direct league admin', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: { role: 'admin' }, error: null },
+      leagues: { data: { id: 'L1', name: 'Coupe de France' }, error: null },
+    });
+
+    const result = (await service.getManageable('L1', 'league-admin-1')) as Record<string, unknown>;
+
+    expect(result).toMatchObject({ id: 'L1', name: 'Coupe de France', group_count: 0 });
+  });
+
+  it('refuses a user who does not manage the league', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: null, error: null },
+      organization_members: { data: [], error: null },
+    });
+
+    await expect(service.getManageable('L1', 'outsider')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('404s an unknown league id for a super-admin', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: { role: 'super_admin' }, error: null },
+      leagues: { data: null, error: null },
+    });
+
+    await expect(service.getManageable('missing', 'super-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});
+
+describe('LeaguesService.removeUserRole lockout guards', () => {
+  it('refuses to let a league admin remove their own access', async () => {
+    // The roles tab has no "add admin" control, so this is unrecoverable.
+    const { service } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: { role: 'admin' }, error: null },
+      organization_members: { data: [], error: null },
+    });
+
+    await expect(service.removeUserRole('L1', 'me', 'me')).rejects.toThrow(
+      /cannot remove your own league access/i,
+    );
+  });
+
+  it('allows self-removal when the caller still manages the league via their org', async () => {
+    const { service, chains } = buildLeaguesService({
+      platform_roles: { data: null, error: null },
+      league_user_roles: { data: { role: 'admin' }, error: null },
+      organization_members: { data: [{ organization_id: 'org-1', role: 'owner' }], error: null },
+      league_organization_roles: { data: [{ id: 'role-1' }], error: null },
+    });
+
+    await service.removeUserRole('L1', 'me', 'me');
+
+    expect(chains.get('league_user_roles')?.delete).toHaveBeenCalled();
+  });
+
+  it('refuses to drain the last manager off a league', async () => {
+    const { service } = buildLeaguesService({
+      platform_roles: { data: { role: 'super_admin' }, error: null },
+      // No other individual admin, and no org holds a role either.
+      league_user_roles: { data: [], error: null },
+      league_organization_roles: { data: [], error: null },
+    });
+
+    await expect(service.removeUserRole('L1', 'last-admin', 'super-1')).rejects.toThrow(
+      /at least one admin or owner/i,
+    );
+  });
+
+  it('allows removing the last individual admin when an org still manages the league', async () => {
+    const { service, chains } = buildLeaguesService({
+      platform_roles: { data: { role: 'super_admin' }, error: null },
+      league_user_roles: { data: [], error: null },
+      league_organization_roles: { data: [{ id: 'role-1' }], error: null },
+    });
+
+    await service.removeUserRole('L1', 'redundant-admin', 'super-1');
+
+    expect(chains.get('league_user_roles')?.delete).toHaveBeenCalled();
+  });
+});

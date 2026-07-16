@@ -102,6 +102,18 @@ export class LeaguesController {
     return this.leagues.listManageable(userId);
   }
 
+  @Get('admin/leagues/:leagueId')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
+  @ApiOperation({ summary: 'Get one league manageable by the current user' })
+  async getManageable(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.getManageable(leagueId, userId);
+  }
+
   @Get('organizations/:orgId/leagues')
   @ApiBearerAuth()
   @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })

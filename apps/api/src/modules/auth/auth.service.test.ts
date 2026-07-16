@@ -262,7 +262,11 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
       expect(result.type).toBe('claimed');
       expect(result.user?.email).toBe('organizer@example.com');
-      expect(result.admin).toEqual({ isSuperAdmin: false, organizations: [] });
+      expect(result.admin).toEqual({
+        isSuperAdmin: false,
+        organizations: [],
+        hasLeagueRoles: false,
+      });
     });
 
     it('includes the claimed user global profile photo when linked', async () => {
@@ -307,7 +311,11 @@ describe('AuthService', () => {
       } as never);
 
       expect(result.type).toBe('claimed');
-      expect(result.admin).toEqual({ isSuperAdmin: true, organizations: [] });
+      expect(result.admin).toEqual({
+        isSuperAdmin: true,
+        organizations: [],
+        hasLeagueRoles: false,
+      });
     });
 
     it('returns organization landing context for organizer users', async () => {
@@ -348,7 +356,41 @@ describe('AuthService', () => {
           { id: 'org-1', slug: 'lyon-amhe', role: 'owner' },
           { id: 'org-2', slug: 'paris-hema', role: 'admin' },
         ],
+        hasLeagueRoles: false,
       });
+    });
+
+    // Drives the "My leagues" nav entry and the /dashboard league branch, so it
+    // must be true for an account holding only a personal league grant.
+    it('reports hasLeagueRoles for an account with a direct league grant', async () => {
+      mockAuthUser({ id: 'league-admin-1', email: 'league@example.com', user_metadata: {} });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // persons
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // super_admin check
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null })) // orgs list
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // photo
+        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'admin' }], error: null }));
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer league-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.admin).toEqual({
+        isSuperAdmin: false,
+        organizations: [],
+        hasLeagueRoles: true,
+      });
+    });
+
+    it('does not query league roles for an anonymous visitor', async () => {
+      getAuthUserMock.mockResolvedValue(null);
+
+      const result = await service.getMe({ headers: {}, cookies: {} } as never);
+
+      expect(result.type).toBe('anonymous');
+      expect(fromMock).not.toHaveBeenCalled();
     });
 
     it('returns anonymous when Supabase token is invalid', async () => {
@@ -579,11 +621,12 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
-    it('rejects admin OAuth when user has no organization or platform role', async () => {
+    it('rejects admin OAuth when user has no organization, platform or league role', async () => {
       mockAuthUser({ id: 'user-123', email: 'outsider@example.com' });
       fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
+        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
+        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })); // league_user_roles
 
       await expect(
         service.acceptOAuthSession(
@@ -596,6 +639,33 @@ describe('AuthService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
       expect(getUserMock).not.toHaveBeenCalled();
+    });
+
+    // A league can be administered by an account that belongs to no org.
+    // assertCanManageLeague already authorizes these users on every
+    // /admin/leagues/* endpoint, so login must not be what blocks them.
+    it('sets cookies for an account whose only grant is a direct league role', async () => {
+      mockAuthUser({ id: 'league-admin-1', email: 'league@example.com' });
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
+        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
+        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'admin' }], error: null }));
+
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'admin_login',
+        },
+        reply as never,
+      );
+
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'access-token',
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
+      );
     });
 
     it('creates organizer signup membership after Google session validation', async () => {
@@ -837,8 +907,9 @@ describe('AuthService', () => {
         }),
       });
       fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
+        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
+        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })); // league_user_roles
 
       await expect(
         service.passwordLogin(
@@ -850,6 +921,35 @@ describe('AuthService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
       expect(signInWithPasswordMock).not.toHaveBeenCalled();
+    });
+
+    it('allows password login for an account whose only grant is a direct league role', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          access_token: 'league-access-token',
+          refresh_token: 'league-refresh-token',
+          expires_in: 3600,
+          user: { id: 'league-admin-1', email: 'league@example.com' },
+        }),
+      });
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
+        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
+        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'admin' }], error: null }));
+
+      const reply = makeReply();
+      await service.passwordLogin(
+        { email: 'league@example.com', password: 'correct-password' },
+        reply as never,
+      );
+
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'league-access-token',
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
     });
 
     // Regression guard. PostgREST nulls `data` and returns PGRST116 when

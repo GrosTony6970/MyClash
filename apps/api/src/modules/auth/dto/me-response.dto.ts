@@ -30,6 +30,17 @@ export class MeResponseDto {
       slug: string;
       role: string;
     }>;
+    /**
+     * True when the user holds a PERSONAL league_user_roles admin/owner grant.
+     * Gates the "My leagues" nav entry and the /dashboard league branch.
+     *
+     * Deliberately NOT "listManageable would return >= 1": org-derived leagues
+     * already have a home at /org/{slug}/leagues, and a super-admin manages
+     * every league. The /leagues page itself still lists the full union, so the
+     * nav gate is intentionally narrower than the page source — change one and
+     * you must change the other.
+     */
+    hasLeagueRoles?: boolean;
   };
 
   /** Present only when type='guest' */

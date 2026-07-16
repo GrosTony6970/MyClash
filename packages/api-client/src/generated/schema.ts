@@ -2506,6 +2506,25 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/admin/leagues/{leagueId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one league manageable by the current user */
+    get: operations['LeaguesController_getManageable'];
+    put?: never;
+    post?: never;
+    /** Delete a league */
+    delete: operations['LeaguesController_deleteLeague'];
+    options?: never;
+    head?: never;
+    /** Update league */
+    patch: operations['LeaguesController_update'];
+    trace?: never;
+  };
   '/api/v1/organizations/{orgId}/leagues': {
     parameters: {
       query?: never;
@@ -2589,24 +2608,6 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
-    trace?: never;
-  };
-  '/api/v1/admin/leagues/{leagueId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete a league */
-    delete: operations['LeaguesController_deleteLeague'];
-    options?: never;
-    head?: never;
-    /** Update league */
-    patch: operations['LeaguesController_update'];
     trace?: never;
   };
   '/api/v1/admin/leagues/{leagueId}/events/{eventId}/tournament-links': {
@@ -3945,23 +3946,6 @@ export interface paths {
     /** Update pool assignment settings (organizer+) */
     put: operations['SettingsController_update'];
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/auto-assign-referees': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Auto-assign referees to pools (dry-run or persist) */
-    post: operations['AutoAssignController_autoAssign'];
     delete?: never;
     options?: never;
     head?: never;
@@ -8734,8 +8718,7 @@ export interface components {
     };
     UpsertRoleRatesDto: {
       rates: {
-        /** @enum {string} */
-        refereeRole: 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
+        refereeRole: string;
         /** @enum {string} */
         compensationPhase: 'pool' | 'bracket' | 'finals';
         tokensPerMatch: number;
@@ -8752,6 +8735,7 @@ export interface components {
       /** Format: uuid */
       planId: string;
       maxCompensationAmount?: number | null;
+      minCompensationAmount?: number | null;
     };
     TogglePaidDto: {
       paid: boolean;
@@ -9724,6 +9708,13 @@ export interface operations {
       };
       /** @description email_not_confirmed */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Rate limit exceeded */
+      429: {
         headers: {
           [name: string]: unknown;
         };
@@ -13224,6 +13215,67 @@ export interface operations {
       };
     };
   };
+  LeaguesController_getManageable: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_deleteLeague: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateLeagueDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   LeaguesController_listManageableByOrg: {
     parameters: {
       query?: never;
@@ -13314,48 +13366,6 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  LeaguesController_deleteLeague: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        leagueId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  LeaguesController_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        leagueId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateLeagueDto'];
-      };
-    };
     responses: {
       200: {
         headers: {
@@ -15357,27 +15367,6 @@ export interface operations {
         'application/json': components['schemas']['UpdateSettingsDto'];
       };
     };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AutoAssignController_autoAssign: {
-    parameters: {
-      query?: {
-        dryRun?: boolean;
-      };
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       200: {
         headers: {

@@ -467,6 +467,13 @@ export class AuthService {
       // ignore — sidebar simply falls back to initials
     }
 
+    // Gates the "My leagues" nav entry + the /dashboard league branch. Appended
+    // after the photo query for the same reason it is kept last: inserting a
+    // query earlier shifts the ordered mocks in the getMe tests. Deliberately a
+    // cheap existence check rather than listManageable, whose count enrichment
+    // pulls every league_rankings row into memory — far too heavy for /me.
+    const hasLeagueRoles = await this.hasLeagueGrant(user.id);
+
     return {
       type: 'claimed',
       user: {
@@ -476,7 +483,7 @@ export class AuthService {
         photo_url: photoUrl,
       },
       person,
-      admin,
+      admin: { ...admin, hasLeagueRoles },
     };
   }
 
@@ -1595,7 +1602,36 @@ export class AuthService {
         .in('role', ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead'])
         .limit(1);
 
-      return Array.isArray(memberships) && memberships.length > 0;
+      if (Array.isArray(memberships) && memberships.length > 0) return true;
+    } catch {
+      // Table may not exist during early bootstrap.
+    }
+
+    return this.hasLeagueGrant(userId);
+  }
+
+  /**
+   * A direct league grant is a first-class organizer credential. Leagues can be
+   * administered by an individual account that belongs to no organization, and
+   * assertCanManageLeague already authorizes those users on every
+   * /admin/leagues/* endpoint — so login must not be the thing that blocks them.
+   *
+   * This widens no API capability: it only issues a session cookie for access
+   * the API already permits. Their workspace is /leagues in web-admin.
+   */
+  private async hasLeagueGrant(userId: string): Promise<boolean> {
+    try {
+      // .limit(1), not .maybeSingle(): a user granted a role on two leagues
+      // matches two rows, which PostgREST nulls — locking out exactly the users
+      // this check exists to admit.
+      const { data } = await this.supabase.service
+        .from('league_user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .in('role', ['admin', 'owner'])
+        .limit(1);
+
+      return Array.isArray(data) && data.length > 0;
     } catch {
       return false;
     }
