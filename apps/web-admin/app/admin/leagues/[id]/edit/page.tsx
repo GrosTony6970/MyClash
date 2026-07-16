@@ -445,8 +445,6 @@ export default function EditLeaguePage() {
           name: name.trim(),
           description: description.trim() || null,
           status,
-          // Visibility is derived from status: Published ⇒ publicly visible.
-          publicVisibility: status === 'published',
           scoringConfig,
         }),
       });
@@ -799,9 +797,9 @@ export default function EditLeaguePage() {
           )}
           {/* Publishing control. A single Status dropdown drives everything:
               Published ⇒ the league is publicly visible on app.myclash.fr.
-              The BE AND-gate (leagues.service.ts:45-56) still requires
-              public_visibility = true AND status = 'published'; we derive
-              public_visibility from status on save so the two stay in lockstep. */}
+              The BE AND-gate still requires public_visibility = true AND
+              status = 'published', but LeaguesService.update() now derives
+              public_visibility from status, so callers only send status. */}
           <fieldset className="sm:col-span-2 rounded-lg border border-border bg-background p-4">
             <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
               {t('admin.leagues.editPage.basics.publishingLegend')}

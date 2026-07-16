@@ -310,8 +310,6 @@ export default function OrgLeagueManagePage() {
         name: name.trim(),
         description: description.trim() || null,
         status,
-        // Visibility is derived from status: Published ⇒ publicly visible.
-        publicVisibility: status === 'published',
       },
       'organizer.leagues.manage.savedToast',
     );

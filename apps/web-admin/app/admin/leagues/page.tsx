@@ -136,7 +136,13 @@ export default function AdminLeaguesPage() {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? t('admin.common.updateFailed'));
       }
-      setLeagues((prev) => prev.map((l) => (l.id === league.id ? { ...l, status } : l)));
+      // The API derives public_visibility from status (published <=> public);
+      // mirror it here so the PUBLIC cell re-renders without a reload.
+      setLeagues((prev) =>
+        prev.map((l) =>
+          l.id === league.id ? { ...l, status, public_visibility: status === 'published' } : l,
+        ),
+      );
       toast.success(t('admin.adminLeagues.statusUpdated'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');

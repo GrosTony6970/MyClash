@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { UpdateLeagueDto } from './dto/leagues.dto';
 import { LeaguesService } from './leagues.service';
 
 type QueryResult = { data: unknown; error: { message: string } | null };
@@ -1104,5 +1105,80 @@ describe('LeaguesService.listOrganizationLeagueAttachments', () => {
     await service.listOrganizationLeagueAttachments('org-1', 'user-1', 'L1');
 
     expect(chainObj.eq).toHaveBeenCalledWith('league_id', 'L1');
+  });
+});
+
+describe('LeaguesService update status/visibility invariant', () => {
+  // Public league reads AND-gate status='published' AND public_visibility=true.
+  // The flag is derived from status server-side so no caller can desync the
+  // pair — the /admin/leagues dropdown used to PATCH status alone, publishing
+  // leagues that stayed invisible.
+  function makeUpdateService() {
+    const updates: Record<string, unknown>[] = [];
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        // isSuperAdmin() inside assertCanManageLeague — pass the auth check.
+        if (table === 'platform_roles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { role: 'super_admin' },
+              error: null,
+            }),
+          };
+        }
+        return {
+          update: vi.fn((payload: Record<string, unknown>) => {
+            updates.push(payload);
+            return {
+              eq: vi.fn().mockReturnThis(),
+              select: vi.fn().mockReturnThis(),
+              single: vi.fn().mockResolvedValue({ data: { id: 'league-1' }, error: null }),
+            };
+          }),
+        };
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, updates };
+  }
+
+  it('publishes and makes public in one write when status becomes published', async () => {
+    const { service, updates } = makeUpdateService();
+
+    await service.update('league-1', { status: 'published' }, 'user-1');
+
+    expect(updates[0]).toMatchObject({ status: 'published', public_visibility: true });
+  });
+
+  it.each(['draft', 'archived'] as const)(
+    'clears public_visibility when status is %s',
+    async (status) => {
+      const { service, updates } = makeUpdateService();
+
+      await service.update('league-1', { status }, 'user-1');
+
+      expect(updates[0]).toMatchObject({ status, public_visibility: false });
+    },
+  );
+
+  it('leaves public_visibility untouched when status is not part of the update', async () => {
+    const { service, updates } = makeUpdateService();
+
+    await service.update('league-1', { name: 'Renamed league' }, 'user-1');
+
+    expect(updates[0]).toMatchObject({ name: 'Renamed league' });
+    expect(updates[0]).not.toHaveProperty('public_visibility');
+  });
+
+  it('rejects a caller trying to set publicVisibility independently of status', () => {
+    expect(() =>
+      UpdateLeagueDto.schema.parse({ status: 'draft', publicVisibility: true }),
+    ).toThrow();
   });
 });

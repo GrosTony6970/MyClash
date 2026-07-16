@@ -51,8 +51,9 @@ const updateLeagueSchema = z
     name: z.string().min(2).max(200).optional(),
     description: z.string().nullish(),
     logoUrl: z.string().nullish(),
+    // No publicVisibility: it is derived from `status` in LeaguesService.update()
+    // (published <=> public). .strict() rejects callers that try to set it apart.
     status: z.enum(['draft', 'published', 'archived']).optional(),
-    publicVisibility: z.boolean().optional(),
     // Full scoring configuration object (unknown extra keys are stripped).
     scoringConfig: leagueScoringConfigSchema.optional(),
   })

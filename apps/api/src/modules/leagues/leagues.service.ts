@@ -401,8 +401,13 @@ export class LeaguesService {
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.description !== undefined) updates['description'] = dto.description;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
-    if (dto.status !== undefined) updates['status'] = dto.status;
-    if (dto.publicVisibility !== undefined) updates['public_visibility'] = dto.publicVisibility;
+    if (dto.status !== undefined) {
+      updates['status'] = dto.status;
+      // published <=> publicly visible. Derived here, never accepted from the
+      // caller, so no update path can desync the pair that the public reads
+      // AND-gate (listPublic / getPublicBySlug / standings).
+      updates['public_visibility'] = dto.status === 'published';
+    }
     if (dto.scoringConfig !== undefined) {
       const scoringConfig = normalizeScoringConfig(dto.scoringConfig);
       updates['scoring_config'] = scoringConfig;

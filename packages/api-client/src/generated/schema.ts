@@ -8422,7 +8422,6 @@ export interface components {
       logoUrl?: string | null;
       /** @enum {string} */
       status?: 'draft' | 'published' | 'archived';
-      publicVisibility?: boolean;
       scoringConfig?: {
         scoringSystem: string;
         /** @enum {string} */
