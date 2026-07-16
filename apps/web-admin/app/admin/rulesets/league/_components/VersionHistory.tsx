@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
-import { ScoringSystemPreview } from './ScoringSystemPreview';
+import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 

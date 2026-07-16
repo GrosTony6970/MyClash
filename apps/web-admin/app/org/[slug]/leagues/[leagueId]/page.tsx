@@ -7,7 +7,7 @@ import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
-import { ScoringSystemPreview } from '../../../../admin/rulesets/league/_components/ScoringSystemPreview';
+import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ScoringSystemPreview } from '../../../rulesets/league/_components/ScoringSystemPreview';
+import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';

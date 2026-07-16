@@ -13,7 +13,7 @@ import {
 } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
-import { ScoringSystemPreview } from '../../../../admin/rulesets/league/_components/ScoringSystemPreview';
+import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
