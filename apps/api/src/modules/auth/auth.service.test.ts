@@ -542,7 +542,8 @@ describe('AuthService', () => {
 
       fromMock
         .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: { role: 'owner' }, error: null }));
+        // organization_members is read with .limit(1), so it resolves to an array.
+        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'owner' }], error: null }));
 
       const reply = makeReply();
       await service.acceptOAuthSession(
@@ -849,6 +850,37 @@ describe('AuthService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
       expect(signInWithPasswordMock).not.toHaveBeenCalled();
+    });
+
+    // Regression guard. PostgREST nulls `data` and returns PGRST116 when
+    // .maybeSingle() matches more than one row, and hasAdminAccess ignores
+    // `error` — so reading organization_members with .maybeSingle() denied login
+    // to every user who belongs to two or more organizations. Assert the query
+    // shape, since the mock cannot reproduce PostgREST's multi-row behaviour.
+    it('reads organization_members with limit(1) rather than maybeSingle', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+          expires_in: 3600,
+          user: { id: 'multi-org-user', email: 'owner@example.com' },
+        }),
+      });
+      const orgChain = makeQueryChain({ data: [{ role: 'owner' }], error: null });
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(orgChain);
+
+      const reply = makeReply();
+      await service.passwordLogin(
+        { email: 'owner@example.com', password: 'correct-password' },
+        reply as never,
+      );
+
+      expect(orgChain.limit).toHaveBeenCalledWith(1);
+      expect(orgChain.maybeSingle).not.toHaveBeenCalled();
+      expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
     });
   });
 

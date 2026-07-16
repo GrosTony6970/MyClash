@@ -21,6 +21,7 @@ function buildSupabase(state: {
   platformRole?: Result;
   leagueUserRole?: Result;
   orgMembers?: Result;
+  orgLeagueRole?: Result;
 }) {
   const inserted: unknown[] = [];
   const updates: unknown[] = [];
@@ -41,7 +42,11 @@ function buildSupabase(state: {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      // Two distinct reads land here: submit() checks for an existing membership
+      // with .eq().eq().maybeSingle(), while assertCanReview's org path reads
+      // .in().in().limit(1) and gets an array back.
       maybeSingle: vi.fn().mockResolvedValue(state.existingRole ?? { data: null, error: null }),
+      limit: vi.fn().mockResolvedValue(state.orgLeagueRole ?? { data: [], error: null }),
       upsert: vi.fn((payload: unknown) => {
         roleUpserts.push(payload);
         return Promise.resolve({ data: payload, error: state.roleUpsertError ?? null });
@@ -279,7 +284,7 @@ describe('LeagueMembershipRequestsService.review', () => {
       platformRole: { data: null, error: null }, // not a super-admin
       leagueUserRole: { data: null, error: null }, // no direct league_user_roles row
       orgMembers: { data: [{ organization_id: 'org-1', role: 'owner' }], error: null },
-      existingRole: { data: { id: 'role-1' }, error: null }, // org-1 holds a role on league-1
+      orgLeagueRole: { data: [{ id: 'role-1' }], error: null }, // org-1 holds a role on league-1
     });
     const svc = new LeagueMembershipRequestsService(
       service as never,

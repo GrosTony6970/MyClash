@@ -304,14 +304,17 @@ export class LeagueMembershipRequestsService {
       .filter((row) => ['admin', 'owner'].includes(String((row as { role?: unknown }).role)))
       .map((row) => String((row as { organization_id?: unknown }).organization_id));
     if (adminOrgIds.length > 0) {
-      const { data: orgRole } = await this.supabase.service
+      // .limit(1), not .maybeSingle(): a user who admins two orgs that both hold
+      // a role on this league matches two rows, which nulls `data` and sets
+      // PGRST116 — silently denying a reviewer their own league.
+      const { data: orgRoles } = await this.supabase.service
         .from('league_organization_roles')
         .select('id')
         .eq('league_id', leagueId)
         .in('organization_id', adminOrgIds)
         .in('role', ['admin', 'owner'])
-        .maybeSingle();
-      if (orgRole) return;
+        .limit(1);
+      if (Array.isArray(orgRoles) && orgRoles.length > 0) return;
     }
 
     throw new ForbiddenException('Only super-admins or league admins can review this request.');

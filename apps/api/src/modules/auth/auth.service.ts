@@ -1584,14 +1584,18 @@ export class AuthService {
     }
 
     try {
-      const { data: membership } = await this.supabase.service
+      // .limit(1), not .maybeSingle(): PostgREST nulls `data` and returns
+      // PGRST116 when more than one row matches, and this read ignores `error`.
+      // A user who belongs to two or more organizations would therefore read as
+      // having no membership at all and be denied login.
+      const { data: memberships } = await this.supabase.service
         .from('organization_members')
         .select('role')
         .eq('user_id', userId)
         .in('role', ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead'])
-        .maybeSingle();
+        .limit(1);
 
-      return Boolean(membership);
+      return Array.isArray(memberships) && memberships.length > 0;
     } catch {
       return false;
     }
