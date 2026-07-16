@@ -76,6 +76,143 @@ describe('buildFighterCareer', () => {
     ]);
   });
 
+  // Regression: stats used to require the fighter's TOURNAMENT to be
+  // status='completed'. Nothing ever sets that (the ticker only transitions
+  // events, and only a manual organiser PATCH flips a tournament), so a fully
+  // played tournament left at 'published' reported zeros across every tile
+  // while the fighter's own penalty cards — which never had that gate — showed
+  // real data. A match now counts as soon as the MATCH itself is completed.
+  it('counts completed matches in a tournament that is still open', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-1',
+          tournamentId: 'tournament-live',
+          tournamentName: 'Sidesword Open',
+          tournamentSlug: 'sidesword-open',
+          // Never flipped to 'completed' by the organiser…
+          tournamentStatus: 'published',
+          weapon: 'Sidesword',
+          eventId: 'event-live',
+          eventName: 'Fosse aux Lions 2027',
+          eventSlug: 'fosse-aux-lions-2027',
+          eventStatus: 'published',
+          eventStartDate: '2027-04-10',
+          eventEndDate: '2027-04-11',
+        },
+      ],
+      matches: [
+        {
+          id: 'match-win',
+          tournamentId: 'tournament-live',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'reg-2',
+          winnerRegistrationId: 'reg-1',
+          redScore: 5,
+          blueScore: 1,
+          scheduledAt: '2027-04-10T10:00:00Z',
+          matchNumberLabel: 'P1-M1',
+          opponentName: 'Blue Fighter',
+        },
+        // …still in play, so it must NOT count.
+        {
+          id: 'match-running',
+          tournamentId: 'tournament-live',
+          status: 'running',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'reg-3',
+          winnerRegistrationId: null,
+          redScore: 2,
+          blueScore: 2,
+          scheduledAt: '2027-04-10T11:00:00Z',
+          matchNumberLabel: 'P1-M2',
+          opponentName: 'Other Fighter',
+        },
+      ],
+      exchanges: [
+        { id: 'ex-1', matchId: 'match-win', type: 'double', voided: false },
+        { id: 'ex-2', matchId: 'match-win', type: 'clean', voided: false },
+        // Belongs to the running match — excluded with it.
+        { id: 'ex-3', matchId: 'match-running', type: 'double', voided: false },
+      ],
+      leagueRankings: [],
+    });
+
+    expect(career.stats.overall).toMatchObject({
+      matches: 1,
+      wins: 1,
+      losses: 0,
+      doubleHits: 1,
+      exchanges: 2,
+      doubleHitPercentage: 50,
+    });
+    expect(career.stats.byEvent).toEqual([
+      expect.objectContaining({ eventId: 'event-live', weapon: 'Sidesword', matches: 1, wins: 1 }),
+    ]);
+    expect(career.recentForm).toHaveLength(1);
+    expect(career.currentStreak).toEqual({ kind: 'win', count: 1 });
+  });
+
+  it('treats a fought-but-open event as attended, not upcoming', () => {
+    const registration = {
+      id: 'reg-1',
+      tournamentId: 'tournament-live',
+      tournamentName: 'Sidesword Open',
+      tournamentSlug: 'sidesword-open',
+      tournamentStatus: 'published',
+      weapon: 'Sidesword',
+      eventId: 'event-live',
+      eventName: 'Fosse aux Lions 2027',
+      eventSlug: 'fosse-aux-lions-2027',
+      eventStatus: 'published',
+      eventStartDate: '2027-04-10',
+      eventEndDate: '2027-04-11',
+    };
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        registration,
+        // Registered, not yet fought — genuinely upcoming.
+        {
+          ...registration,
+          id: 'reg-future',
+          tournamentId: 'tournament-future',
+          eventId: 'event-future',
+          eventName: 'Next Event',
+          eventSlug: 'next-event',
+        },
+      ],
+      matches: [
+        {
+          id: 'match-win',
+          tournamentId: 'tournament-live',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'reg-2',
+          winnerRegistrationId: 'reg-1',
+          redScore: 5,
+          blueScore: 1,
+          scheduledAt: '2027-04-10T10:00:00Z',
+          matchNumberLabel: 'P1-M1',
+          opponentName: 'Blue Fighter',
+        },
+      ],
+      exchanges: [],
+      leagueRankings: [],
+    });
+
+    expect(career.eventParticipation).toEqual([expect.objectContaining({ eventId: 'event-live' })]);
+    expect(career.upcoming.map((registration) => registration.eventId)).toEqual(['event-future']);
+    // Only the tournament with a completed match counts as attended.
+    expect(career.tournamentsAttended).toBe(1);
+    // Listed so the client can show it, but unranked — no medal mid-play.
+    expect(career.tournamentPlacements).toEqual([
+      expect.objectContaining({ tournamentId: 'tournament-live', place: null }),
+    ]);
+  });
+
   it('separates upcoming registrations from completed event participation', () => {
     const career = buildFighterCareer({
       fighterId: 'fighter-1',

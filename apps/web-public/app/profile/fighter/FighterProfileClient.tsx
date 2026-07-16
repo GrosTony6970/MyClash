@@ -148,6 +148,10 @@ interface DashboardResponse {
   career: {
     eventParticipation: Array<{ startDate?: string | null }>;
     tournamentPlacements: FighterPlacement[];
+    /** Distinct tournaments with a completed match — what the "tournaments
+     *  attended" tile means. `tournamentPlacements` only covers the ones we
+     *  could rank, so it undercounts a tournament still in play. */
+    tournamentsAttended: number;
     upcoming: unknown[];
     leagueRankings: Array<{
       leagueName: string;
@@ -1753,7 +1757,7 @@ function FighterStatsCard({
         />
         <DashboardStat
           label={t('publicApp.fighterProfile.tournamentsAttended')}
-          value={career.tournamentPlacements.length}
+          value={career.tournamentsAttended}
         />
         {career.upcoming.length > 0 && (
           <DashboardStat

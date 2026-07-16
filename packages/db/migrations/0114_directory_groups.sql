@@ -71,7 +71,9 @@ CREATE POLICY "directory_group_members_owner_all" ON directory_group_members
 -- ── 4. Compact per-fighter career stats for member cards ──────────────────────
 -- Returns matches / wins / losses / events_attended for a set of global_person
 -- ids in ONE round-trip. The win rule MUST match the public career profile
--- (fighter-career.ts buildFighterCareer):
+-- (fighter-career.ts buildFighterCareer).
+-- SUPERSEDED by 0138, which drops the TOURNAMENT-status gate below (nothing ever
+-- set tournaments.status='completed', so it zeroed every stat). Rules as of 0114:
 --   • only matches with status='completed' in registrations whose TOURNAMENT
 --     status='completed' count toward matches/wins/losses
 --   • win  = matches.winner_registration_id = the fighter's registration

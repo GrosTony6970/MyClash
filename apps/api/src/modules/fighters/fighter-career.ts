@@ -150,11 +150,12 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
   const registrationById = new Map(
     input.registrations.map((registration) => [registration.id, registration]),
   );
-  const completedRegistrationIds = new Set(
-    input.registrations
-      .filter((registration) => registration.tournamentStatus === 'completed')
-      .map((registration) => registration.id),
-  );
+  // Every registration this fighter holds — used purely to answer "which side of
+  // this match was I on?". Deliberately NOT gated on `tournamentStatus`: a match
+  // counts the moment IT is completed, so stats stay live during an event and
+  // never wait on an organiser flipping the tournament to `completed` (nothing
+  // does so automatically — the status ticker only transitions events).
+  const myRegistrationIds = new Set(input.registrations.map((registration) => registration.id));
   const matchById = new Map(input.matches.map((match) => [match.id, match]));
   const overall = emptyStats();
   const byWeapon = new Map<string, FighterCareerStats & { weapon: string }>();
@@ -163,17 +164,26 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
   // the selected event and/or weapon. Keyed by `${eventKey}|${weapon}`.
   const byEvent = new Map<string, FighterEventStat>();
 
+  // Events / tournaments the fighter actually fought in (≥1 completed match) —
+  // filled by the match loop below and used for the attendance counts, so those
+  // no longer hinge on an event/tournament being flagged `completed` either.
+  const foughtEventIds = new Set<string>();
+  const foughtTournamentIds = new Set<string>();
+
   for (const match of input.matches) {
     if (match.status !== 'completed') continue;
-    const registrationId = completedRegistrationIds.has(match.redRegistrationId ?? '')
+    const registrationId = myRegistrationIds.has(match.redRegistrationId ?? '')
       ? match.redRegistrationId
-      : completedRegistrationIds.has(match.blueRegistrationId ?? '')
+      : myRegistrationIds.has(match.blueRegistrationId ?? '')
         ? match.blueRegistrationId
         : null;
     if (!registrationId) continue;
 
     const registration = registrationById.get(registrationId);
     if (!registration) continue;
+
+    if (registration.eventId) foughtEventIds.add(registration.eventId);
+    if (registration.tournamentId) foughtTournamentIds.add(registration.tournamentId);
 
     const weapon = registration.weapon ?? 'Unknown';
     const year = registration.eventStartDate?.slice(0, 4) ?? 'unknown';
@@ -220,9 +230,13 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     if (exchange.voided) continue;
     const match = matchById.get(exchange.matchId);
     if (!match) continue;
-    const registrationId = completedRegistrationIds.has(match.redRegistrationId ?? '')
+    // Same gate as the match loop above. `overall` is always defined, so without
+    // this an in-progress match's exchanges landed in the career total (and
+    // diluted double-hit %) even though its result didn't count.
+    if (match.status !== 'completed') continue;
+    const registrationId = myRegistrationIds.has(match.redRegistrationId ?? '')
       ? match.redRegistrationId
-      : completedRegistrationIds.has(match.blueRegistrationId ?? '')
+      : myRegistrationIds.has(match.blueRegistrationId ?? '')
         ? match.blueRegistrationId
         : null;
     if (!registrationId) continue;
@@ -243,24 +257,30 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     }
   }
 
-  const completedEvents = new Map<string, CareerRegistrationInput>();
+  // An event counts as attended once it's `completed` OR the fighter fought a
+  // completed match there — the latter covers an event still running (or one an
+  // organiser never closed) whose matches are already in the books.
+  const attendedEvents = new Map<string, CareerRegistrationInput>();
   const upcoming = input.registrations.filter(
     (registration) =>
       !['completed', 'archived'].includes(registration.eventStatus) &&
-      !['completed', 'archived'].includes(registration.tournamentStatus),
+      !['completed', 'archived'].includes(registration.tournamentStatus) &&
+      // An event we've already fought in is history, not something upcoming —
+      // without this it would show under both.
+      !foughtEventIds.has(registration.eventId),
   );
 
   for (const registration of input.registrations) {
-    if (registration.eventStatus === 'completed')
-      completedEvents.set(registration.eventId, registration);
+    if (registration.eventStatus === 'completed' || foughtEventIds.has(registration.eventId))
+      attendedEvents.set(registration.eventId, registration);
   }
 
   // Recent form / streak — the fighter's outcome (+ score) per completed match.
   const formMatches = input.matches
     .filter((match) => match.status === 'completed')
     .flatMap((match) => {
-      const onRed = completedRegistrationIds.has(match.redRegistrationId ?? '');
-      const onBlue = completedRegistrationIds.has(match.blueRegistrationId ?? '');
+      const onRed = myRegistrationIds.has(match.redRegistrationId ?? '');
+      const onBlue = myRegistrationIds.has(match.blueRegistrationId ?? '');
       const registrationId = onRed
         ? match.redRegistrationId
         : onBlue
@@ -325,17 +345,28 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
     recentForm,
     currentStreak,
     fighterId: input.fighterId,
-    eventParticipation: [...completedEvents.values()].map((registration) => ({
+    eventParticipation: [...attendedEvents.values()].map((registration) => ({
       eventId: registration.eventId,
       eventName: registration.eventName,
       eventSlug: registration.eventSlug,
       startDate: registration.eventStartDate,
       endDate: registration.eventEndDate,
     })),
+    /** Distinct tournaments the fighter fought a completed match in. The tile
+     *  labelled "tournaments attended" wants this — `tournamentPlacements`
+     *  counts tournaments we could *rank*, which is a different question. */
+    tournamentsAttended: foughtTournamentIds.size,
     upcoming,
     matches: input.matches,
     tournamentPlacements: input.registrations
-      .filter((registration) => registration.tournamentStatus === 'completed')
+      // A tournament shows here once it's `completed` OR the fighter fought in
+      // it — `place` stays null until it's genuinely decided, so an in-progress
+      // tournament is listed without handing out a medal.
+      .filter(
+        (registration) =>
+          registration.tournamentStatus === 'completed' ||
+          foughtTournamentIds.has(registration.tournamentId),
+      )
       .map((registration) => {
         const placement = input.placementByRegistrationId?.get(registration.id) ?? null;
         return {

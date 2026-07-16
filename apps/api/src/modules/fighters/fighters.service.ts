@@ -755,7 +755,18 @@ export class FightersService {
     const exchanges =
       matches.length > 0 ? await this.fetchCareerExchanges(matches.map((match) => match.id)) : [];
     const leagueRankings = await this.fetchCareerLeagueRankings(fighterId);
-    const placementByRegistrationId = await this.computeTournamentPlacements(registrations);
+    // Only rank tournaments the fighter actually fought a completed match in.
+    // Registration alone isn't enough (nothing to place), and this bounds the
+    // per-tournament bracket/standings fetches below to real participation.
+    const foughtRegistrationIds = new Set(
+      matches
+        .filter((match) => match.status === 'completed')
+        .flatMap((match) => [match.redRegistrationId, match.blueRegistrationId])
+        .filter((id): id is string => id != null),
+    );
+    const placementByRegistrationId = await this.computeTournamentPlacements(
+      registrations.filter((registration) => foughtRegistrationIds.has(registration.id)),
+    );
     // Cards received are private — only fetched for the fighter's own dashboard,
     // never the public `/fighters/:slug` career projection.
     const penalties =
@@ -775,12 +786,17 @@ export class FightersService {
   }
 
   /**
-   * For each completed tournament the fighter competed in, compute their final
-   * placement using the SAME shared `computeFinalRanking` the public tournament
-   * page uses — so the number on the profile matches the number on the bracket.
+   * For each tournament the fighter competed in, compute their final placement
+   * using the SAME shared `computeFinalRanking` the public tournament page uses
+   * — so the number on the profile matches the number on the bracket.
    * Best-effort per tournament: any failure leaves that placement unset rather
    * than breaking dashboard load. Requires the phases + pool-standings services
    * (provided in production; absent in some unit tests).
+   *
+   * Callers pass only registrations the fighter actually fought in. Whether a
+   * placement is *awarded* turns on the tournament being decided (see
+   * `computeOnePlacement`), never on `tournaments.status` — nothing sets that
+   * to `completed` automatically, so gating on it left every medal at zero.
    */
   private async computeTournamentPlacements(
     registrations: CareerRegistrationInput[],
@@ -788,14 +804,15 @@ export class FightersService {
     const placements = new Map<string, TournamentPlacement>();
     if (!this.phases || !this.poolStandings) return placements;
 
-    const completed = registrations.filter(
-      (registration) => registration.tournamentStatus === 'completed',
-    );
-    for (const registration of completed) {
+    // Per-build memo for the "every match played?" probe — a fighter's
+    // registrations cluster onto a handful of tournaments.
+    const fullyPlayed = new Map<string, boolean>();
+    for (const registration of registrations) {
       try {
         const placement = await this.computeOnePlacement(
           registration.tournamentId,
           registration.id,
+          fullyPlayed,
         );
         if (placement) placements.set(registration.id, placement);
       } catch {
@@ -808,10 +825,16 @@ export class FightersService {
 
   /** Placement of one registration in one tournament, mirroring the public
    *  FinalRankingTab (bracket slots + overall pool standings → computeFinalRanking).
-   *  Falls back to the overall pool rank for pool-only tournaments. */
+   *  Falls back to the overall pool rank for pool-only tournaments.
+   *
+   *  Only ever returns a placement for a DECIDED tournament, so a medal can't be
+   *  awarded mid-play: `computeFinalRanking` already yields [] until the Final is
+   *  settled, and the pool fallback below is fenced to pool-only tournaments whose
+   *  matches are all in. */
   private async computeOnePlacement(
     tournamentId: string,
     registrationId: string,
+    fullyPlayed: Map<string, boolean>,
   ): Promise<TournamentPlacement | null> {
     let rows: StandingsRow[] = [];
     try {
@@ -834,6 +857,7 @@ export class FightersService {
     });
 
     const bracket = await this.phases!.getTournamentBracket(tournamentId);
+    const hasBracket = Boolean(bracket?.slots?.length);
     if (bracket?.slots?.length) {
       const slots: RankingSlot[] = bracket.slots.map((slot) => ({
         id: slot.id,
@@ -858,13 +882,42 @@ export class FightersService {
       }
     }
 
-    // Pool-only tournament (or a bracket that isn't decided yet): use the
-    // fighter's overall pool rank.
+    // A bracket that exists but isn't decided yet has NO placement — falling back
+    // to pool rank here would crown the mid-event pool leader (a bracket entrant
+    // can still lose in the quarters). computeFinalRanking returning [] is exactly
+    // that "not decided" signal, so bail rather than guess.
+    if (hasBracket) return null;
+
+    // Pool-only tournament: the overall pool rank IS the final result — but only
+    // once every match is in, otherwise the standings are a mid-play snapshot.
+    if (!(await this.isTournamentFullyPlayed(tournamentId, fullyPlayed))) return null;
     const row = rows.find((r) => r.registrationId === registrationId);
     if (row && Number.isFinite(row.rank)) {
       return { place: row.rank, resultKind: 'pool', totalRanked: rows.length };
     }
     return null;
+  }
+
+  /** True when a tournament has no unfinished match left (voided ones don't
+   *  block). The `cache` is per career build, NOT on the service — this is a
+   *  singleton, so instance-level memoisation would freeze a mid-play verdict
+   *  and the medal would never appear. */
+  private async isTournamentFullyPlayed(
+    tournamentId: string,
+    cache: Map<string, boolean>,
+  ): Promise<boolean> {
+    const cached = cache.get(tournamentId);
+    if (cached !== undefined) return cached;
+
+    const { count, error } = await this.supabase.service
+      .from('matches')
+      .select('id, phases!inner(tournament_id)', { count: 'exact', head: true })
+      .eq('phases.tournament_id', tournamentId)
+      .not('status', 'in', '("completed","voided")');
+    // On error, assume NOT decided — better a missing medal than a wrong one.
+    const decided = !error && (count ?? 1) === 0;
+    cache.set(tournamentId, decided);
+    return decided;
   }
 
   async promote(dto: PromoteFighterDto, claimedUserId: string) {

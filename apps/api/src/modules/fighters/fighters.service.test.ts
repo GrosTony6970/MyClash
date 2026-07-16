@@ -651,3 +651,96 @@ describe('parseBoolCell', () => {
     expect(parseBoolCell('-1')).toBe(false);
   });
 });
+
+// A placement is what turns into a MEDAL on the fighter profile, so it may only
+// be awarded once a tournament is genuinely decided. It used to be gated on
+// `tournaments.status === 'completed'` — which nothing ever sets, so medals sat
+// at zero forever. The gate is now real decided-ness, and these cover the edge
+// that gate has to hold: no medal while the tournament is still in play.
+describe('FightersService placement decided-ness', () => {
+  const registrationId = 'reg-1';
+
+  /** Bracket slot for a Final at round 2; `winner` null = not decided yet. */
+  const finalSlot = (winner: string | null) => ({
+    id: 'slot-final',
+    round: 2,
+    position: 1,
+    status: winner ? 'completed' : 'running',
+    redRegistrationId: registrationId,
+    blueRegistrationId: 'reg-2',
+    redFighterName: 'Me',
+    blueFighterName: 'Them',
+    redClubAbbrev: null,
+    blueClubAbbrev: null,
+    redScore: winner ? 5 : 1,
+    blueScore: winner ? 2 : 1,
+    winnerRegistrationId: winner,
+  });
+
+  const standings = {
+    rows: [
+      { registrationId, displayName: 'Me', rank: 1, club: null, stats: { score: 9 } },
+      { registrationId: 'reg-2', displayName: 'Them', rank: 2, club: null, stats: { score: 3 } },
+    ],
+  };
+
+  function makeService(opts: { slots: unknown[]; openMatches: number }) {
+    const countChain = { select: vi.fn(), eq: vi.fn(), not: vi.fn() };
+    countChain.select.mockReturnValue(countChain);
+    countChain.eq.mockReturnValue(countChain);
+    // `.not()` is the last link in isTournamentFullyPlayed's chain — it awaits.
+    countChain.not.mockResolvedValue({ count: opts.openMatches, error: null });
+
+    const supabase = { service: { from: vi.fn().mockReturnValue(countChain) }, anon: {} };
+    const phases = { getTournamentBracket: vi.fn().mockResolvedValue({ slots: opts.slots }) };
+    const poolStandings = { getPoolStandings: vi.fn().mockResolvedValue(standings) };
+    return new FightersService(
+      supabase as never,
+      {} as never,
+      undefined,
+      phases as never,
+      poolStandings as never,
+    );
+  }
+
+  const place = (service: FightersService) =>
+    (
+      service as unknown as {
+        computeOnePlacement: (
+          t: string,
+          r: string,
+          cache: Map<string, boolean>,
+        ) => Promise<{ place: number } | null>;
+      }
+    ).computeOnePlacement('tournament-1', registrationId, new Map());
+
+  it('awards no placement while the bracket final is undecided', async () => {
+    // Leading the pools does NOT make you the champion — the final can still
+    // knock you out. Falling back to pool rank here would hand out a gold medal.
+    const service = makeService({ slots: [finalSlot(null)], openMatches: 1 });
+    await expect(place(service)).resolves.toBeNull();
+  });
+
+  it('awards no placement when the final has no match row yet', async () => {
+    // The sharp edge: the final's slot exists but its match hasn't been created,
+    // so NOTHING is open — yet the tournament is undecided. Only the bracket
+    // check stands between the pool leader and an unearned gold.
+    const service = makeService({ slots: [finalSlot(null)], openMatches: 0 });
+    await expect(place(service)).resolves.toBeNull();
+  });
+
+  it('awards the placement once the bracket final is decided', async () => {
+    const service = makeService({ slots: [finalSlot(registrationId)], openMatches: 0 });
+    await expect(place(service)).resolves.toMatchObject({ place: 1, resultKind: 'champion' });
+  });
+
+  it('awards the pool rank for a pool-only tournament with every match played', async () => {
+    const service = makeService({ slots: [], openMatches: 0 });
+    await expect(place(service)).resolves.toMatchObject({ place: 1, resultKind: 'pool' });
+  });
+
+  it('awards nothing for a pool-only tournament still in play', async () => {
+    const service = makeService({ slots: [], openMatches: 3 });
+    await expect(place(service)).resolves.toBeNull();
+  });
+});
