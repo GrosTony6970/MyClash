@@ -88,8 +88,7 @@ VALUES (
   1
 );
 
--- Identity flows via person_id → persons.global_person_id (the
--- legacy registrations.fighter_id column was retired in 0083).
+-- Identity via person_id → persons.global_person_id (0083 retired fighter_id).
 INSERT INTO registrations (id, tournament_id, person_id, seed, status, bib_number)
 SELECT
   ('10000000-0000-4000-8000-000000005' || lpad(i::text, 3, '0'))::uuid,
