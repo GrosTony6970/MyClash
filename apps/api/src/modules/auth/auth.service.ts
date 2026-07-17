@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -39,6 +39,11 @@ const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard
 // happen — previously both cookies were capped at 1h with no refresh, so every
 // session hard-expired after an hour.
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
+// Entropy for the global-profile claim token, matching the same one-time
+// emailed-token flow in PersonEmailChangeService. 32 bytes base64url encodes
+// to 43 chars, which fits the DTO's 20..64 bound.
+const CLAIM_TOKEN_BYTES = 32;
 
 type GoTruePasswordTokenResponse = {
   access_token?: string;
@@ -1478,15 +1483,16 @@ export class AuthService {
       return { status: 'pending_approval' };
     }
 
-    // Issue a one-time token. UUID is opaque enough for a single-use,
-    // 1-hour link; consistent with §3e schema.
-    const token = randomUUID();
+    // Issue a one-time token for a single-use, 1-hour link. Only the hash is
+    // stored: possession of the mailbox is this flow's whole security model,
+    // so a readable token column would be equivalent to a readable inbox.
+    const token = randomBytes(CLAIM_TOKEN_BYTES).toString('base64url');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     const { error: tokenError } = await this.supabase.service
       .from('global_person_claim_tokens')
       .insert({
-        token,
+        token_hash: this.hashToken(token),
         user_id: user.id,
         global_person_id: row.id,
         expires_at: expiresAt,
@@ -1526,8 +1532,8 @@ export class AuthService {
 
     const { data: tokenRow, error: loadError } = await this.supabase.service
       .from('global_person_claim_tokens')
-      .select('token, user_id, global_person_id, expires_at')
-      .eq('token', token)
+      .select('id, user_id, global_person_id, expires_at')
+      .eq('token_hash', this.hashToken(token))
       .maybeSingle();
     if (loadError) {
       throw new ServiceUnavailableException('Could not load token');
@@ -1536,14 +1542,14 @@ export class AuthService {
       throw new BadRequestException('expired_or_used');
     }
     const t = tokenRow as {
-      token: string;
+      id: string;
       user_id: string;
       global_person_id: string;
       expires_at: string;
     };
     if (new Date(t.expires_at).getTime() < Date.now()) {
       // Best-effort cleanup; ignore errors.
-      await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+      await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
       throw new BadRequestException('expired_or_used');
     }
     if (t.user_id !== user.id) {
@@ -1563,17 +1569,26 @@ export class AuthService {
     }
     if (!updated) {
       // Someone else already claimed in the racing window.
-      await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+      await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
       throw new BadRequestException('already_claimed');
     }
 
-    await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+    await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
 
     await this.syncPersonsForClaimedGlobalPerson(user.id, t.global_person_id);
 
     this.logger.log(`global-person claim confirmed: user ${user.id} → ${t.global_person_id}`);
 
     return { status: 'claimed', globalPersonId: t.global_person_id };
+  }
+
+  /**
+   * The token is high-entropy random, so a bare digest is enough — no salt,
+   * and no constant-time compare, since the match is an indexed equality in
+   * Postgres rather than a comparison here. Mirrors PersonEmailChangeService.
+   */
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private async hasAdminAccess(userId: string): Promise<boolean> {

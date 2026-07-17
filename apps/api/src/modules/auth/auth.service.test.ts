@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -1342,7 +1343,7 @@ describe('AuthService', () => {
       const future = new Date(Date.now() + 3_600_000).toISOString();
       const tokenLoadChain = makeQueryChain({
         data: {
-          token: 'claim-token',
+          id: 'token-row-1',
           user_id: 'user-1',
           global_person_id: 'global-1',
           expires_at: future,
@@ -1370,6 +1371,85 @@ describe('AuthService', () => {
       });
       expect(personsSyncChain.eq).toHaveBeenCalledWith('global_person_id', 'global-1');
       expect(personsSyncChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+    });
+
+    it('looks the token up by hash, never by the raw value', async () => {
+      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      const future = new Date(Date.now() + 3_600_000).toISOString();
+      const tokenLoadChain = makeQueryChain({
+        data: {
+          id: 'token-row-1',
+          user_id: 'user-1',
+          global_person_id: 'global-1',
+          expires_at: future,
+        },
+        error: null,
+      });
+      const tokenDeleteChain = { delete: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() };
+      fromMock
+        .mockReturnValueOnce(tokenLoadChain)
+        .mockReturnValueOnce(makeQueryChain({ data: { id: 'global-1' }, error: null }))
+        .mockReturnValueOnce(tokenDeleteChain)
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
+
+      await service.confirmGlobalPersonClaim(
+        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+        'raw-claim-token',
+      );
+
+      expect(tokenLoadChain.eq).toHaveBeenCalledWith(
+        'token_hash',
+        createHash('sha256').update('raw-claim-token').digest('hex'),
+      );
+      // The raw token must never reach the database, under any column.
+      for (const [column, value] of tokenLoadChain.eq.mock.calls) {
+        expect(column).not.toBe('token');
+        expect(value).not.toBe('raw-claim-token');
+      }
+      // Single-use delete keys on the surrogate id, not the secret.
+      expect(tokenDeleteChain.eq).toHaveBeenCalledWith('id', 'token-row-1');
+    });
+  });
+
+  describe('requestGlobalPersonClaim', () => {
+    it('stores only the hash and mails the raw token', async () => {
+      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      const personLoadChain = makeQueryChain({
+        data: {
+          id: 'global-1',
+          email: 'fighter@example.com',
+          display_name: 'Fighter One',
+          merged_into_id: null,
+          claimed_by_user_id: null,
+        },
+        error: null,
+      });
+      const tokenInsertChain = {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      };
+      fromMock.mockReturnValueOnce(personLoadChain).mockReturnValueOnce(tokenInsertChain);
+
+      const result = await service.requestGlobalPersonClaim(
+        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+        'global-1',
+      );
+
+      expect(result).toMatchObject({ status: 'confirmation_sent' });
+
+      const inserted = tokenInsertChain.insert.mock.calls[0]?.[0] as Record<string, unknown>;
+      const magicLink = mockMailService.sendMagicLink.mock.calls[0]?.[0]?.magicLink as string;
+      const rawToken = new URL(magicLink).searchParams.get('token') ?? '';
+
+      // The row carries a digest, and no column carries the raw secret.
+      expect(inserted['token']).toBeUndefined();
+      expect(rawToken).not.toBe('');
+      expect(Object.values(inserted)).not.toContain(rawToken);
+      expect(inserted['token_hash']).toBe(createHash('sha256').update(rawToken).digest('hex'));
+      // sha256 hex, so the emailed value is not recoverable from the row.
+      expect(inserted['token_hash']).toMatch(/^[0-9a-f]{64}$/u);
+      // Raw token stays within the confirm DTO's 20..64 bound.
+      expect(rawToken.length).toBeGreaterThanOrEqual(20);
+      expect(rawToken.length).toBeLessThanOrEqual(64);
     });
   });
 });
