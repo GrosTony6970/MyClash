@@ -112,18 +112,32 @@ async function fetchStats(
   }
 }
 
+/**
+ * Resolve slug → tournament id via the public standings route.
+ *
+ * This used to GET `events/:eventSlug/tournaments/:tournamentSlug`, which has
+ * never existed — so it 404'd, this returned null, and the guard clause below
+ * short-circuited the whole page to "stats unavailable". Every visitor, always,
+ * since the page was written; the 400 lines of stats UI under it never ran.
+ *
+ * `.../standings` is public, slug-based, and already returns the tournament
+ * header including `id` (events.service.ts: `tournamentHeader`), on the draft
+ * early-return path too. The sibling tournament page resolves the id exactly
+ * this way (../page.tsx), so this adds no new API surface.
+ */
 async function fetchTournamentId(
   eventSlug: string,
   tournamentSlug: string,
   apiUrl: string,
 ): Promise<string | null> {
   try {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}`, {
-      cache: 'no-store',
-    });
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
+      { cache: 'no-store' },
+    );
     if (!res.ok) return null;
-    const t = (await res.json()) as { id: string };
-    return t.id;
+    const data = (await res.json()) as { tournament?: { id?: string } };
+    return data.tournament?.id ?? null;
   } catch {
     return null;
   }

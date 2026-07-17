@@ -42,8 +42,13 @@ const fighters = Array.from({ length: FIGHTER_COUNT }, (_, index) => ({
 globalThis.fetch = async (input: string | URL | Request): Promise<Response> => {
   const url = String(input);
 
-  if (url.includes('/api/v1/events/perf-event/tournaments/perf-tournament')) {
-    return jsonResponse({ id: 'tournament-perf' });
+  // Mirrors the real slug → id resolution the page performs. This mock used to
+  // answer the bare `events/perf-event/tournaments/perf-tournament` with
+  // `{ id }` — a route that has never existed. Because `includes()` is a
+  // substring test it matched anyway, so this harness passed green against a
+  // fiction while the real page 404'd and rendered nothing. Match the full path.
+  if (url.includes('/api/v1/events/perf-event/tournaments/perf-tournament/standings')) {
+    return jsonResponse({ tournament: { id: 'tournament-perf' } });
   }
 
   if (url.includes('/api/v1/tournaments/tournament-perf/stats/overview')) {
