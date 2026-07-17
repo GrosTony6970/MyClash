@@ -40,12 +40,6 @@ const FRONTENDS = ['apps/web-public', 'apps/web-admin', 'apps/web-scoring'];
  * that does not exist — which is the entire bug this file exists to prevent.
  */
 const KNOWN_PHANTOM: string[] = [
-  // T-909/910 — orphaned referee dashboard, superseded by /me/profile?tab=referee.
-  '/api/v1/events/{p}/my-referee-assignments',
-  '/api/v1/referee-assignments/{p}/status',
-  '/api/v1/matches/{p}/my-referee-context',
-  '/api/v1/matches/{p}/warnings',
-  '/api/v1/matches/{p}/attention',
   // T-604 — 'Live Now' + 'Schedule Highlights' have never rendered. The fix is
   // to repoint at live-state, but that returns one match PER LICE rather than
   // the next 5 event-wide: a real behavioural change, pending a product call.
