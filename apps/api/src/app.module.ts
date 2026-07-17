@@ -49,6 +49,7 @@ import { PeopleContextModule } from './modules/people-context/people-context.mod
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
+import { AuthGuard } from './common/auth/auth.guard';
 import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard';
 import { throttlerOptions } from './common/throttling/throttler-options';
 
@@ -119,6 +120,22 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Authenticate every request. A route without @Public() requires an
+    // identity; forgetting a guard now fails closed instead of open.
+    //
+    // Ordering is deliberate — globals run in provider-array order, so this sits
+    // after ThrottlerGuard (an unauthenticated flood should still be rate
+    // limited first) and before EventReadOnlyGuard ("who are you?" precedes
+    // "is this event archived?", and it saves that guard's chained lookups on
+    // requests that are about to 401 anyway).
+    //
+    // Defaults to AUTH_GUARD_MODE=shadow: it logs the 401 it would have thrown
+    // and lets the request through. Flip to 'enforce' only once the shadow logs
+    // are clean; the env var is the rollback.
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
     },
     // Block all mutations on archived events globally.
     // Routes that must work on archived events (deletion-request flow, super-admin)

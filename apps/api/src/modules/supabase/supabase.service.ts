@@ -152,6 +152,25 @@ export class SupabaseService {
     return secret ? verifyAccessTokenLocally(accessToken, secret) : null;
   }
 
+  /**
+   * Signature-only check of an access token, with no GoTrue round-trip.
+   *
+   * For AuthGuard, which runs on every request: asking GoTrue 573 times per
+   * request-wave is not viable, and an anonymous caller carries no token and so
+   * costs nothing here.
+   *
+   * The trade-off is deliberate and bounded: unlike `getAuthUser`, this does not
+   * see revocations, so a revoked token stays accepted until it expires
+   * (GOTRUE_JWT_EXP=3600, i.e. <=1h). That only widens *authentication* — every
+   * caller that authoritatively checks revocation today still calls
+   * `getAuthUser`, and those paths are untouched. Do not repoint them at this
+   * method without deciding to accept the <=1h gap everywhere.
+   */
+  verifyAccessTokenLocal(accessToken: string): SupabaseAuthUser | null {
+    const secret = this.config.get<string>('SUPABASE_JWT_SECRET');
+    return secret ? verifyAccessTokenLocally(accessToken, secret) : null;
+  }
+
   private async validateAgainstGoTrue(accessToken: string): Promise<GoTrueValidation> {
     const authUrl =
       this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??

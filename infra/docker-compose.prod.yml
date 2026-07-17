@@ -318,6 +318,10 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET}
+      # AuthGuard: 'shadow' logs the 401 it would have thrown, 'enforce' throws.
+      # Defaults to shadow in code when unset. Set on the worker too so the two
+      # can never diverge if it ever serves HTTP.
+      AUTH_GUARD_MODE: ${AUTH_GUARD_MODE:-shadow}
       COOKIE_SECRET: ${COOKIE_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAIL_FROM: ${MAIL_FROM}
@@ -535,6 +539,10 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET}
+      # AuthGuard: 'shadow' logs the 401 it would have thrown, 'enforce' throws.
+      # Defaults to shadow in code when unset. Set on the worker too so the two
+      # can never diverge if it ever serves HTTP.
+      AUTH_GUARD_MODE: ${AUTH_GUARD_MODE:-shadow}
       COOKIE_SECRET: ${COOKIE_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAIL_FROM: ${MAIL_FROM}
