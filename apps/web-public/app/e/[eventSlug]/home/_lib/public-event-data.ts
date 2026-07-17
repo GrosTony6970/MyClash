@@ -133,16 +133,51 @@ export async function fetchParticipantsCounts(
   }
 }
 
+/** The live-state envelope: current match state, one entry per lice. */
+interface LiveStateResponse {
+  lices?: Array<{
+    lice: { name: string };
+    runningMatch: Omit<HighlightMatch, 'liceName'> | null;
+    nextMatch: Omit<HighlightMatch, 'liceName'> | null;
+  }>;
+}
+
+/**
+ * Matches to feature on the event home ("Live Now" + "Schedule Highlights").
+ *
+ * This used to GET `events/:eventSlug/highlights`, which has never existed —
+ * T-604 shipped this call and touched no api files. It 404'd, this returned [],
+ * and both sections are `&&`-gated on length, so they silently vanished. They
+ * have never rendered once, and the page looked intentional.
+ *
+ * `live-state` is the route that does exist: public, slug-accepting, and it
+ * already filters to `running` + `scheduled` — exactly the two statuses
+ * PublicHome splits on. Reusing it beats adding a fifth way to read event
+ * matches.
+ *
+ * Behaviour note, deliberate: live-state returns one running + one next match
+ * PER LICE, where the old intent was "next 5 scheduled event-wide". For a
+ * spectator that is arguably better — one upcoming match per piste, rather than
+ * five that might all be on the same piste. PublicHome still caps the upcoming
+ * list at 5.
+ */
 export async function fetchHighlights(
   eventSlug: string,
   apiUrl: string,
 ): Promise<HighlightMatch[]> {
   try {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/highlights`, {
+    const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
       cache: 'no-store',
     });
     if (!res.ok) return [];
-    return (await res.json()) as HighlightMatch[];
+    const data = (await res.json()) as LiveStateResponse;
+
+    return (data.lices ?? []).flatMap((state) =>
+      [state.runningMatch, state.nextMatch]
+        .filter((m): m is Omit<HighlightMatch, 'liceName'> => m !== null)
+        // liceName isn't on the match itself — it comes from the enclosing lice.
+        .map((m) => ({ ...m, liceName: state.lice.name })),
+    );
   } catch {
     return [];
   }

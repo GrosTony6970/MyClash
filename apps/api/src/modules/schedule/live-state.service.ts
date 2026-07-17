@@ -12,6 +12,9 @@ export interface LiveMatch {
   scheduledAt: string | null;
   status: string;
   tournamentName: string | null;
+  /** Live score — the public event home renders these on its Live Now cards. */
+  redScore: number;
+  blueScore: number;
 }
 
 export interface LiveLiceState {
@@ -93,7 +96,7 @@ export class LiveStateService {
       const { data } = await this.supabase.service
         .from('matches')
         .select(
-          'id,status,scheduled_at,match_number_label,lice_id,' +
+          'id,status,scheduled_at,match_number_label,lice_id,red_score,blue_score,' +
             'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
             'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
             'phases(tournaments(id,name))',
@@ -155,6 +158,8 @@ export class LiveStateService {
       scheduledAt: (m['scheduled_at'] as string | null) ?? null,
       status: (m['status'] as string) ?? 'scheduled',
       tournamentName: phases?.tournaments?.name ?? null,
+      redScore: (m['red_score'] as number | null) ?? 0,
+      blueScore: (m['blue_score'] as number | null) ?? 0,
     };
   }
 

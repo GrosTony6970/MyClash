@@ -321,8 +321,8 @@ export class EventsController {
   /**
    * GET /api/v1/events/:eventSlug/participants — public roster.
    *
-   * Slug-based to match the rest of the public surface (highlights,
-   * standings…). Returns one row per person with the tournaments they
+   * Slug-based to match the rest of the public surface (standings,
+   * live-state…). Returns one row per person with the tournaments they
    * are registered in; withdrawn / disqualified entries are excluded.
    */
   @Public()

@@ -40,10 +40,6 @@ const FRONTENDS = ['apps/web-public', 'apps/web-admin', 'apps/web-scoring'];
  * that does not exist — which is the entire bug this file exists to prevent.
  */
 const KNOWN_PHANTOM: string[] = [
-  // T-604 — 'Live Now' + 'Schedule Highlights' have never rendered. The fix is
-  // to repoint at live-state, but that returns one match PER LICE rather than
-  // the next 5 event-wide: a real behavioural change, pending a product call.
-  '/api/v1/events/{p}/highlights',
   // Personal event-home surfaces — never built.
   '/api/v1/events/{p}/my-matches',
   '/api/v1/events/{p}/following/matches',
