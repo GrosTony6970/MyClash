@@ -172,6 +172,9 @@ jobs:
       - name: Check code quality gates
         run: pnpm quality:todos && pnpm quality:api-docs && pnpm quality:complexity && pnpm quality:shared-types
 
+      - name: Check design system drift
+        run: pnpm design:lint
+
       - name: Check database review gates
         run: pnpm db:review && pnpm db:perf:fixture
 
