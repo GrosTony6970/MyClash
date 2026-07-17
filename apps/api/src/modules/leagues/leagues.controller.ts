@@ -28,6 +28,7 @@ import {
   UpdateLeagueDto,
   UpdateLeagueGroupDto,
 } from './dto/leagues.dto';
+import { Public } from '../../common/auth/public.decorator';
 import { LeaguesService } from './leagues.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -50,6 +51,7 @@ export class LeaguesController {
     private readonly supabase: SupabaseService,
   ) {}
 
+  @Public()
   @Get('leagues')
   @ApiOperation({ summary: 'List public leagues' })
   async listPublic(@Query('seasonYear') seasonYear?: string) {
@@ -64,12 +66,14 @@ export class LeaguesController {
     return this.leagues.listAttachable();
   }
 
+  @Public()
   @Get('leagues/:slug')
   @ApiOperation({ summary: 'Get public league by slug' })
   async getPublic(@Param('slug') slug: string) {
     return this.leagues.getPublicBySlug(slug);
   }
 
+  @Public()
   @Get('leagues/:leagueId/standings')
   @ApiOperation({ summary: 'Get public league standings' })
   @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
@@ -80,6 +84,7 @@ export class LeaguesController {
     return this.leagues.standings(leagueId, query.group);
   }
 
+  @Public()
   @Get('leagues/:leagueId/final-report.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @ApiOperation({ summary: 'Export league final report as CSV' })
@@ -87,6 +92,7 @@ export class LeaguesController {
     return this.leagues.finalReportCsv(leagueId);
   }
 
+  @Public()
   @Get('leagues/:leagueId/final-report.print.html')
   @Header('Content-Type', 'text/html; charset=utf-8')
   @ApiOperation({ summary: 'Export printable league final report' })
@@ -460,6 +466,7 @@ export class LeaguesController {
     await this.leagues.selfDetachTournamentLink(eventId, linkId, userId);
   }
 
+  @Public()
   @Get('leagues/:leagueId/member-events')
   @ApiOperation({
     summary:

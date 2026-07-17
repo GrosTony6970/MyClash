@@ -1,3 +1,4 @@
+import { Public } from '../../common/auth/public.decorator';
 import {
   BadRequestException,
   Body,
@@ -247,6 +248,7 @@ export class VenuesController {
 
   // ── Public slug-based variant for the public event page ────────────────────
 
+  @Public()
   @Get('events/slug/:eventSlug/venues')
   @ApiOperation({
     summary: 'Public venues for an event by slug (no auth).',

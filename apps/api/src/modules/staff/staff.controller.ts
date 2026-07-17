@@ -23,6 +23,7 @@ import {
   StaffLoginDto,
   UpdateStaffAccountDto,
 } from './dto';
+import { Public } from '../../common/auth/public.decorator';
 import { STAFF_COOKIE_NAME, StaffService } from './staff.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -107,6 +108,7 @@ export class StaffController {
     return this.staff.setLices(eventId, staffAccountId, dto, userId);
   }
 
+  @Public()
   @Post('staff-auth/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a local event staff session' })
@@ -155,6 +157,7 @@ export class StaffController {
     return this.staff.getAssignedLiceCurrent(req, liceId);
   }
 
+  @Public()
   @Get('events/:eventSlug/lices/:liceName/current')
   @ApiOperation({ summary: 'Public current match and queue for a Lice' })
   async publicLiceCurrent(
@@ -164,6 +167,7 @@ export class StaffController {
     return this.staff.getPublicLiceCurrent(eventSlug, decodeURIComponent(liceName));
   }
 
+  @Public()
   @Get('matches/:id/display')
   @ApiOperation({ summary: 'Public read-only match display payload' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

@@ -1,3 +1,4 @@
+import { Public } from '../../common/auth/public.decorator';
 import {
   Body,
   Controller,
@@ -29,6 +30,7 @@ export class ProgrammeController {
   constructor(private readonly programme: ProgrammeService) {}
 
   /** GET /api/v1/events/:eventId/programme */
+  @Public()
   @Get('events/:eventId/programme')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List all programme blocks for an event' })

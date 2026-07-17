@@ -25,6 +25,7 @@ import {
   UpdatePenaltyRulesetDto,
   VoidPenaltyDto,
 } from './dto/penalties.dto';
+import { Public } from '../../common/auth/public.decorator';
 import { PenaltiesService } from './penalties.service';
 
 async function getOptionalUserId(
@@ -179,6 +180,7 @@ export class PenaltiesController {
     return this.penalties.assignTournamentRuleset(id, dto, userId);
   }
 
+  @Public()
   @Get('matches/:id/penalties')
   @ApiOperation({ summary: 'List penalties for a match' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

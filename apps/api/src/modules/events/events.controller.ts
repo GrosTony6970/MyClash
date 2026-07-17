@@ -33,6 +33,7 @@ import {
   UpdateTournamentDto,
 } from './dto/events.dto';
 import { EventThemesService } from './event-themes.service';
+import { Public } from '../../common/auth/public.decorator';
 import { EventsService } from './events.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -58,6 +59,7 @@ export class EventsController {
   // ── Events ───────────────────────────────────────────────────────────────────
 
   /** GET /api/v1/events?status=...&organizationId=... */
+  @Public()
   @Get('events')
   @ApiOperation({ summary: 'List events (public, filtered)' })
   async listEvents(@Query() query: EventQueryDto) {
@@ -107,6 +109,7 @@ export class EventsController {
   }
 
   /** GET /api/v1/events/:slug */
+  @Public()
   @Get('events/:slug')
   @ApiOperation({ summary: 'Get event by slug (public)' })
   async getEvent(@Param('slug') slug: string) {
@@ -114,6 +117,7 @@ export class EventsController {
   }
 
   /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/standings */
+  @Public()
   @Get('events/:eventSlug/tournaments/:tournamentSlug/standings')
   @ApiOperation({ summary: 'Get public tournament pools and bracket, respecting phase visibility' })
   async getPublicTournamentStandings(
@@ -124,6 +128,7 @@ export class EventsController {
   }
 
   /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches */
+  @Public()
   @Get('events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches')
   @ApiOperation({ summary: 'Public per-pool matches list (read-only) for the spectator page' })
   async getPublicTournamentPoolsWithMatches(
@@ -305,6 +310,7 @@ export class EventsController {
   // ── Tournaments ───────────────────────────────────────────────────────────────
 
   /** GET /api/v1/events/:eventId/tournaments */
+  @Public()
   @Get('events/:eventId/tournaments')
   @ApiOperation({ summary: 'List tournaments for an event (public)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
@@ -319,6 +325,7 @@ export class EventsController {
    * standings…). Returns one row per person with the tournaments they
    * are registered in; withdrawn / disqualified entries are excluded.
    */
+  @Public()
   @Get('events/:eventSlug/participants')
   @ApiOperation({ summary: 'List participants for an event (public)' })
   @ApiParam({ name: 'eventSlug', type: 'string' })

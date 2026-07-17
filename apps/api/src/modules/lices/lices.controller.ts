@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { LicesService } from './lices.service';
+import { Public } from '../../common/auth/public.decorator';
 import { CreateLiceDto, UpdateLiceDto } from './dto/lices.dto';
 
 @ApiTags('lices')
@@ -19,6 +20,7 @@ import { CreateLiceDto, UpdateLiceDto } from './dto/lices.dto';
 export class LicesController {
   constructor(private readonly lices: LicesService) {}
 
+  @Public()
   @Get('events/:eventId/lices')
   @ApiOperation({ summary: 'List lices for an event (public)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })

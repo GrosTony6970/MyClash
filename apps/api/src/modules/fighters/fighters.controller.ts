@@ -1,3 +1,4 @@
+import { Public } from '../../common/auth/public.decorator';
 import {
   Body,
   Controller,
@@ -161,6 +162,7 @@ export class FightersController {
   }
 
   /** GET /api/v1/fighters/:slug/matches?limit=20&offset=0&eventId=&year= */
+  @Public()
   @Get(':slug/matches')
   @ApiOperation({ summary: 'Get paginated match history for a fighter (public)' })
   async listMatches(
@@ -181,6 +183,7 @@ export class FightersController {
   }
 
   /** GET /api/v1/fighters/:slug */
+  @Public()
   @Get(':slug/career')
   @ApiOperation({ summary: 'Get public Fighter career history and statistics' })
   async career(@Param('slug') slug: string, @Query() query: { year?: string; weapon?: string }) {
@@ -188,6 +191,7 @@ export class FightersController {
   }
 
   /** GET /api/v1/fighters/:slug/referee-stats */
+  @Public()
   @Get(':slug/referee-stats')
   @ApiOperation({ summary: 'Get public Fighter referee statistics' })
   async refereeStats(@Param('slug') slug: string) {
@@ -195,6 +199,7 @@ export class FightersController {
   }
 
   /** GET /api/v1/fighters/:slug/rating-history */
+  @Public()
   @Get(':slug/rating-history')
   @ApiOperation({ summary: 'Get public Fighter HEMA rating history (time-series)' })
   async ratingHistory(@Param('slug') slug: string) {
@@ -202,6 +207,7 @@ export class FightersController {
   }
 
   /** GET /api/v1/fighters/:slug */
+  @Public()
   @Get(':slug')
   @ApiOperation({ summary: 'Get fighter by slug (public)' })
   async getBySlug(@Param('slug') slug: string) {

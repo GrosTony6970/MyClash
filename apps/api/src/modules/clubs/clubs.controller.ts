@@ -1,3 +1,4 @@
+import { Public } from '../../common/auth/public.decorator';
 import {
   Body,
   Controller,
@@ -165,6 +166,7 @@ export class ClubsController {
   }
 
   /** GET /api/v1/clubs/:slug */
+  @Public()
   @Get(':slug')
   @ApiOperation({ summary: 'Get club by slug (public)' })
   async getBySlug(@Param('slug') slug: string) {

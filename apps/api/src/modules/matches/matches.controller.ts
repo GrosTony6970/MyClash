@@ -1,3 +1,4 @@
+import { Public } from '../../common/auth/public.decorator';
 import {
   BadRequestException,
   Body,
@@ -72,6 +73,7 @@ export class MatchesController {
     return this.matches.listByPhase(phaseId);
   }
 
+  @Public()
   @Get('matches/:id')
   @ApiOperation({ summary: 'Get match by ID (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -79,6 +81,7 @@ export class MatchesController {
     return this.matches.getMatch(id);
   }
 
+  @Public()
   @Get('matches/:id/summary')
   @ApiOperation({ summary: 'Match header summary for the scoreboard page (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -190,6 +193,7 @@ export class MatchesController {
 
   // ── Exchanges ─────────────────────────────────────────────────────────────────
 
+  @Public()
   @Get('matches/:id/exchanges')
   @ApiOperation({ summary: 'List exchanges for a match (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

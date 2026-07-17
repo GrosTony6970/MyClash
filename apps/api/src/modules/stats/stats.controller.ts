@@ -10,9 +10,13 @@
 
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/auth/public.decorator';
 import { StatsService } from './stats.service';
 
 @ApiTags('stats')
+// Three GET reads, all rendered on the public tournament stats page (SSR, no
+// credentials) — t/[tournamentSlug]/stats/page.tsx:94,97,100.
+@Public()
 @Controller()
 export class StatsController {
   constructor(private readonly stats: StatsService) {}

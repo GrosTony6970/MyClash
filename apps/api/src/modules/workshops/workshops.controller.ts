@@ -37,6 +37,7 @@ import { BroadcastNotificationsService } from '../notifications/broadcast-notifi
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
 import { FeedbackService } from './feedback.service';
+import { Public } from '../../common/auth/public.decorator';
 import { WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
@@ -206,6 +207,7 @@ export class WorkshopsController {
 
   // ── Public reads (slug-based, status-gated; no auth) ────────────────────────────
 
+  @Public()
   @Get('events/:eventSlug/public-workshops')
   @ApiOperation({ summary: 'List public (published+) workshops for an event by slug' })
   @ApiParam({ name: 'eventSlug', type: 'string' })
@@ -213,6 +215,7 @@ export class WorkshopsController {
     return this.workshops.listPublicWorkshops(eventSlug);
   }
 
+  @Public()
   @Get('workshops/slug/:slug')
   @ApiOperation({ summary: 'Get a public workshop by event slug + workshop slug' })
   @ApiParam({ name: 'slug', type: 'string' })
