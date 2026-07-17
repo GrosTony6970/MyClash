@@ -1,9 +1,17 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/auth/public.decorator';
 import { PoolStandingsService } from './pool-standings.service';
 
 @ApiTags('pool-standings')
 @ApiBearerAuth()
+// Anonymous by evidence, not by assumption: the PUBLIC tournament page fetches
+// this client-side with no credentials —
+// apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/FinalRankingTab.tsx:72.
+// The class-level @ApiBearerAuth() here is Swagger decoration and enforces
+// nothing; the data is the same public standings already served by
+// events.controller's unauthenticated standings route.
+@Public()
 @Controller()
 export class PoolStandingsController {
   constructor(private readonly service: PoolStandingsService) {}

@@ -11,6 +11,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
+import { Public } from '../../common/auth/public.decorator';
 import { GeneratedContentService } from './generated-content.service';
 
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -94,6 +95,7 @@ export class GeneratedContentController {
 
 /** Public, unauthenticated read of PUBLISHED content only (powers public pages). */
 @ApiTags('generated-content')
+@Public()
 @Controller('public/generated-content')
 export class PublicGeneratedContentController {
   constructor(private readonly service: GeneratedContentService) {}

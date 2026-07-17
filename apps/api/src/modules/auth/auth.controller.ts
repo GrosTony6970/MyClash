@@ -17,8 +17,15 @@ import {
   PublicPasswordResetDto,
   PublicSignupDto,
 } from './dto/public-auth.dto';
+import { Public } from '../../common/auth/public.decorator';
 import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 
+// Every route here is part of the pre-session bootstrap — magic link, OAuth
+// exchange, password login, public signup/reset, the OAuth callback, logout,
+// and identity discovery. By definition the caller has no identity yet, so
+// requiring one would deadlock login. They authenticate internally where it
+// matters (e.g. oauth/session validates the code it is handed).
+@Public()
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {

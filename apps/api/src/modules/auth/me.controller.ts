@@ -14,6 +14,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { Public } from '../../common/auth/public.decorator';
 import { AuthService, type GlobalPersonSearchResult } from './auth.service';
 import {
   GlobalPersonClaimConfirmDto,
@@ -53,6 +54,13 @@ export class MeController {
    * When both claimed + guest are present, claimed wins and the guest
    * cookie is cleared (consolidation).
    */
+  // @Public() because this route IS the identity-discovery mechanism: every
+  // frontend calls it to find out whether it has a session at all, and it
+  // answers `anonymous` with a 200 by design. A 401 here would break every app
+  // for logged-out visitors. Note @Public() does not mean unauthenticated — the
+  // guard still resolves and attaches identity, which is exactly what this
+  // handler needs.
+  @Public()
   @Get('me')
   @ApiOperation({ summary: 'Get current identity (claimed / guest / anonymous)' })
   @ApiResponse({ status: 200, type: MeResponseDto })

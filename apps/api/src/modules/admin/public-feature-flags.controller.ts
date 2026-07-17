@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { PublicFeatureFlagsSnapshot } from '@myclash/feature-flags';
+import { Public } from '../../common/auth/public.decorator';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 
 /**
@@ -16,6 +17,12 @@ import { AdminFeatureFlagsService } from './admin-feature-flags.service';
  * misbehaving FE hammer us; staying on the global limit protects us.
  */
 @ApiTags('public')
+// Public by design despite living under admin/ — the directory is a code
+// organisation artifact (it reuses AdminFeatureFlagsService); the route is
+// /api/v1/public/feature-flags. Returns a strict 3-key allowlist
+// (maintenance_banner, disable_realtime, time_simulation) that every app polls
+// BEFORE login — you cannot gate a maintenance banner behind auth.
+@Public()
 @Controller('public/feature-flags')
 export class PublicFeatureFlagsController {
   constructor(private readonly flags: AdminFeatureFlagsService) {}

@@ -18,8 +18,12 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
+import { Public } from '../../common/auth/public.decorator';
 import { AuthService } from './auth.service';
 
+// Pre-session bootstrap: org signup, slug availability, signup callback.
+// The caller has no identity yet by definition.
+@Public()
 @ApiTags('auth')
 @Controller('auth')
 export class SignupController {

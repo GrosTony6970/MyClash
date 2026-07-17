@@ -18,6 +18,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
+import { Public } from '../../common/auth/public.decorator';
 import { GuestJwtService } from './guest-jwt.service';
 
 const createGuestSessionSchema = z
@@ -46,6 +47,10 @@ export class GuestSessionsController {
    *
    * Returns: { person, session }
    */
+  // The caller has no identity yet — this route is how a guest gets one.
+  // (DELETE guest-sessions/me is deliberately NOT public: it needs the mc_guest
+  // cookie, which the guard resolves to a guest identity.)
+  @Public()
   @Post('events/:eventId/guest-sessions')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a guest session (participant picks themselves)' })

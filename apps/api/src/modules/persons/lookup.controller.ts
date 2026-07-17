@@ -5,6 +5,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
+import { Public } from '../../common/auth/public.decorator';
 import { CsvImportService } from './csv-import.service';
 
 // Query DTO: values arrive as strings. `limit` is kept as a string because the
@@ -35,6 +36,8 @@ export interface LookupResult {
   global_person_id: string | null;
 }
 
+// Public person/club lookup used by the public site's search.
+@Public()
 @ApiTags('persons')
 @Controller()
 export class LookupController {

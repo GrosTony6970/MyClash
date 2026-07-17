@@ -11,8 +11,11 @@ import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { GuestJwtService } from '../auth/guest-jwt.service';
+import { Public } from '../../common/auth/public.decorator';
 import { PublicScheduleService } from './public-schedule.service';
 
+// Public event schedule — rendered for logged-out visitors on the public site.
+@Public()
 @ApiTags('persons')
 @Controller()
 export class PublicScheduleController {
