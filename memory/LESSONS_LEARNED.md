@@ -37,7 +37,8 @@
 
 ## Frontend & UX
 
-- For HEMA-themed UI, the prototype design language (Cinzel + Inter, red/blue + gold, shield motifs) is canonical.
+- For UI, **`/DESIGN.md` is canonical** — the "Tournament Manual" language (Fraunces + Geist, `#b91c1c` accent, gold for placings, FoilMark as the only ornament). Per-surface deltas live in `docs/design/`; token values in `packages/ui/src/theme.css`, gated by `pnpm design:lint`.
+  - **Lesson (2026-07-17):** this line previously read _"the prototype design language (Cinzel + Inter, red/blue + gold, shield motifs) is canonical"_ and pointed at `docs/prototype/` — a directory that **only ever contained a README**. Three docs (`AGENTS.md`, `myclash.md`, here) plus a dead `packages/design-tokens` all asserted a Cinzel/Inter language the product had abandoned. Agents obeyed `AGENTS.md` and produced UI in it. **A design doc that isn't machine-checked against the tokens will drift, and every reader downstream inherits the drift.** That is why `design:lint` now diffs `DESIGN.md` against `theme.css` in CI.
 - Personas are non-exclusive: a single user can be Competitor + Referee + Workshop attendee at the same event. Onboarding must be multi-select.
 - The "My Schedule" view aggregates all of a user's commitments and surfaces conflicts. It is the most-used screen of the public PWA.
 - Never use `localStorage` / `sessionStorage` in artifacts running in Claude.ai (these APIs aren't supported there). For real production code, use IndexedDB for offline state.

@@ -187,7 +187,7 @@ It is designed around three convictions:
 
 ## Design / UX
 
-- **Design language**: Cinzel display + Inter body. Red and blue (HEMA fighter colors), gold for accents, deep neutrals for backgrounds. Shield and crossed-sword motifs used sparingly. The prototype HTML in `docs/prototype/` is canonical.
+- **Design language**: the **Tournament Manual** — Fraunces display + Geist body (+ JetBrains Mono for codes). Red accent (`#b91c1c`) on warm paper, gold for placings, a blue accent reserved for the personal space. Red and blue also carry rule semantics as the HEMA fighter corners, tokenized separately so they are never decoration. The FoilMark (a fencing foil's cross-guard) is the only ornament. **[`/DESIGN.md`](DESIGN.md) is canonical**; token values live in `packages/ui/src/theme.css`.
 - **Mobile-first**: every public app screen is built for one-handed phone use first. Desktop layouts are derived from mobile by widening, not redesigning.
 - **Tablet-first scoring app**: large, gloved-finger-friendly buttons. Color-coded (red fighter / blue fighter). High-contrast for outdoor lighting.
 - **Desktop-first admin**: dense, table-driven, drag-drop for scheduling.

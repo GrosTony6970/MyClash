@@ -1,6 +1,18 @@
 # MyClash Public App — UX Design-System Contract (Phase 0)
 
-_Owner: Sally (UX). Status: ratified by Tony, 2026-06-27. Scope: `apps/web-public` + `packages/{design-tokens,ui}`. Goal: the public app reads as **one website** while keeping an **intentional light/dark split**._
+> ## ⚠️ SUPERSEDED by [`/DESIGN.md`](../../DESIGN.md) — 2026-07-17
+>
+> This contract's §6 asked to _"promote this contract to `docs/` once stable"_. `/DESIGN.md` **is** that promotion: §2 (type scale), §3 (container scale), §4 (component standards) and §5 (chrome) were carried forward, corrected where the code had moved on. Per-surface detail now lives in [`docs/design/`](../../docs/design/).
+>
+> **Kept for the record, not for reference.** Three things below are now wrong — they are exactly why `/DESIGN.md` is machine-checked against the tokens (`pnpm design:lint`):
+>
+> 1. **§1 points at the wrong files.** Tokens are not in `apps/web-public/src/styles/globals.css`, and values do not come from `packages/design-tokens/src/tokens.ts` — that package is **dead** (imported by nothing) and describes a Cinzel + Inter design that does not render. The single live source is **`packages/ui/src/theme.css`**.
+> 2. **§1 describes two surfaces; there are two _orthogonal scopes_.** `[data-theme='dark']` (surface) and `[data-accent='personal']` (accent) compose independently — dark does **not** imply blue.
+> 3. **§5 says `/me/*` is dark. It never shipped that way.** `PublicPersonalShell` renders **light content + blue accent + a dark sidebar**. The code is the truth; `/DESIGN.md` documents it.
+>
+> Also of note: §1's "hard rule: no raw hex … enforced by grep in verification" was never wired into CI, and had already been broken — see [`known-deviations.md`](../../docs/design/known-deviations.md).
+
+_Owner: Sally (UX). Status: ratified by Tony, 2026-06-27 — **superseded 2026-07-17**. Scope: `apps/web-public` + `packages/{design-tokens,ui}`. Goal: the public app reads as **one website** while keeping an **intentional light/dark split**._
 
 This is the contract the implementation passes follow. Decisions here are binding; deviations need a new decision.
 

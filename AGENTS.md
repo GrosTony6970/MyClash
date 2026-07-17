@@ -138,7 +138,8 @@ This file is yours to maintain too. Keep it accurate as features evolve.
 ## When you don't know
 
 - If `ARCHITECTURE.md` is silent on a decision, **ask**. Do not guess and write 500 lines that need to be unwound.
-- For UI ambiguity, refer to the prototype (`docs/prototype/`) and the live beta at `https://myfal.lyonamhe.fr/`. The prototype design language is canonical.
+- **For UI ambiguity, `DESIGN.md` at the repo root is canonical.** It is the design language ("Tournament Manual" — Fraunces + Geist, red accent, two orthogonal scopes), with per-surface deltas in `docs/design/` and a register of known gaps in `docs/design/known-deviations.md`. Token values live in `packages/ui/src/theme.css` and are gated by `pnpm design:lint`. The rendered contract is the `/admin/design-system` route.
+  - **Ignore `docs/prototype/`** — it is empty (the HTML was never committed) and its README describes a **superseded** language (Cinzel + Inter, shield motifs). Likewise `packages/design-tokens/` calls itself canonical but is imported by nothing and is wrong.
 - For HEMA terminology in French, refer to `docs/glossary.md` (when it exists) or ask before translating.
 
 ---
