@@ -64,6 +64,51 @@
   --color-corner-red-foreground: #ffffff;
   --color-corner-blue: #2563eb; /* blue-600 */
   --color-corner-blue-foreground: #ffffff;
+
+  /* ── Stacking layers ────────────────────────────────────────────────────
+   * Tailwind ships NO --z-index-* defaults, so every key here is a pure
+   * addition: `z-50` still resolves via the bare-value path, untouched.
+   * NEVER name one --z-index-<number> — `--z-index-50` would capture the
+   * bare-value path behind all 24 existing z-50 sites.
+   * Existing code still uses bare numbers; the mapping is NOT mechanical
+   * (today z-50 covers both dialog backdrops and inline dropdowns), so
+   * migration needs an audit. Use these names in new code.
+   * See docs/design/known-deviations.md#d8. */
+  --z-index-raised: 10; /* lifted-in-flow elements */
+  --z-index-sticky: 20; /* sticky sub-headers */
+  --z-index-header: 30; /* page header */
+  --z-index-sidebar: 40; /* sidebars, drawers */
+  --z-index-overlay: 50; /* modals, dialog backdrops, popovers */
+  --z-index-skip-link: 60; /* the skip link, above everything */
+
+  /* ── Scale, pinned ──────────────────────────────────────────────────────
+   * EXACT Tailwind 4.2.4 defaults, restated so this file reads as the source
+   * of truth and the scale survives an upgrade. Byte-identical to the built-in
+   * values: `rounded-md` already resolves via var(--radius-md), so restating
+   * the same value changes nothing.
+   *
+   * Do NOT "fix" these from packages/design-tokens — that package is dead and
+   * uses Tailwind v3 naming (its `sm` is 0.125rem = v4's --radius-xs), which
+   * would silently repaint ~857 rounded-md sites. See known-deviations.md#d3.
+   *
+   * Do NOT declare bare --radius or --shadow: 310 bare `rounded` and 9 bare
+   * `shadow` usages currently inline their values from Tailwind's deprecated
+   * block; declaring the bare key would flip them all to var() indirection.
+   *
+   * There are deliberately no semantic aliases (--radius-control etc.): two
+   * names for one value is a migration nobody finishes. Jurisdiction —
+   * md = controls, lg = panels, xl = cards, full = pills — is documented in
+   * DESIGN.md → Shapes instead.
+   *
+   * There are deliberately no shadow tokens: `.shadow-sm` inlines its value at
+   * build time and never reads var(--shadow-sm), so a shadow token could never
+   * respond to [data-theme='dark'] anyway. `shadow-sm` is the ceiling. */
+  --spacing: 0.25rem; /* the 4px grid */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem; /* controls */
+  --radius-lg: 0.5rem; /* panels */
+  --radius-xl: 0.75rem; /* cards */
+  --radius-2xl: 1rem;
 }
 
 /* Dark surface — dark sidebars (both apps), web-public /me + auth. */
