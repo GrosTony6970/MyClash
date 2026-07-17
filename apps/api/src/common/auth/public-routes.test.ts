@@ -19,9 +19,11 @@
  *   2. no @Public() route uses a destructive verb (the invariant that matters)
  */
 
+import { readdirSync, statSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import 'reflect-metadata';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 const VERB: Record<number, string> = {
@@ -133,15 +135,33 @@ const PUBLIC_POST_ALLOWLIST = new Set([
 
 type Row = { route: string; verb: string; isPublic: boolean };
 
-function collectRoutes(): Row[] {
-  // Reflects the real controller classes — the same metadata Nest reads.
-  const modules = import.meta.glob('../../modules/**/*.controller.ts', { eager: true });
+function controllerFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) return controllerFiles(path);
+    return path.endsWith('.controller.ts') ? [path] : [];
+  });
+}
+
+/**
+ * Deliberately fs + dynamic import rather than `import.meta.glob`: the glob is a
+ * vitest-only feature, and `nest build` compiles this file too (that is why the
+ * repo builds the API rather than trusting `tsc --noEmit`). A glob here passes
+ * the test run and breaks the Docker build.
+ */
+async function collectRoutes(): Promise<Row[]> {
+  const files = controllerFiles(join(__dirname, '..', '..', 'modules'));
   const rows: Row[] = [];
 
-  for (const mod of Object.values(modules)) {
-    for (const exported of Object.values(mod as Record<string, unknown>)) {
-      if (typeof exported !== 'function' || !(exported as { prototype?: object }).prototype)
+  for (const file of files) {
+    // Plain absolute path with forward slashes — NOT pathToFileURL: this repo's
+    // checkout path contains a space, which the file:// URL percent-encodes and
+    // vitest's resolver then fails to load.
+    const mod = (await import(file.split(sep).join('/'))) as Record<string, unknown>;
+    for (const exported of Object.values(mod)) {
+      if (typeof exported !== 'function' || !(exported as { prototype?: object }).prototype) {
         continue;
+      }
       const cls = exported as { prototype: object };
       const prefix = Reflect.getMetadata(PATH_METADATA, exported) as string | undefined;
       if (prefix === undefined) continue; // not a @Controller
@@ -172,7 +192,11 @@ function collectRoutes(): Row[] {
 }
 
 describe('@Public() route surface', () => {
-  const rows = collectRoutes();
+  let rows: Row[] = [];
+
+  beforeAll(async () => {
+    rows = await collectRoutes();
+  }, 60_000);
 
   it('finds the controller metadata at all (guards the reflection itself)', () => {
     // If this breaks, every other assertion here silently passes on an empty set.
