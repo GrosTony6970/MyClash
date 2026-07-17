@@ -67,7 +67,7 @@ const SEVERITIES: PlatformLogSeverity[] = ['info', 'warning', 'error'];
 
 const SEVERITY_PILL: Record<PlatformLogSeverity, string> = {
   error: 'bg-danger/10 text-danger border border-danger/30',
-  warning: 'bg-gold/10 text-gold',
+  warning: 'bg-gold/10 text-gold-text',
   info: 'bg-background text-foreground-secondary',
 };
 
@@ -247,7 +247,7 @@ export function PlatformLogPanel() {
       </section>
 
       {response.truncated && !loading && (
-        <div className="bg-gold/10 text-gold rounded-md px-4 py-2 mb-4 text-sm">
+        <div className="bg-gold/10 text-gold-text rounded-md px-4 py-2 mb-4 text-sm">
           {t('admin.platformLog.truncatedNotice')}
         </div>
       )}

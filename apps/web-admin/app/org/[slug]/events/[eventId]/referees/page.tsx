@@ -2493,7 +2493,7 @@ export default function RefereesPage() {
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => void createAndLinkGlobalPerson(ref)}
-                                    className="text-xs text-gold hover:text-warning"
+                                    className="text-xs text-gold-text hover:text-warning"
                                   >
                                     {t('organizer.refereesPage.createGlobalProfile')}
                                   </button>
@@ -2512,7 +2512,7 @@ export default function RefereesPage() {
                             ) : (
                               <button
                                 onClick={() => setLinkingPersonId(ref.personId)}
-                                className="text-xs text-gold hover:text-warning"
+                                className="text-xs text-gold-text hover:text-warning"
                               >
                                 {t('organizer.refereesPage.linkGlobalProfile')}
                               </button>

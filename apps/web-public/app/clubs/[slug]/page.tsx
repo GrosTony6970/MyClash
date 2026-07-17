@@ -107,7 +107,7 @@ export default async function ClubPage({ params }: Props) {
       {/* Members */}
       {club.members.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gold mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gold-text mb-3">
             {t('publicApp.clubs.members', { count: club.members.length })}
           </h2>
           <div className="flex flex-col gap-2">
@@ -116,7 +116,7 @@ export default async function ClubPage({ params }: Props) {
                 <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                   <p className="font-medium text-foreground">{m.displayName}</p>
                   {m.hemaRatingsScore !== null && (
-                    <p className="text-xs text-gold">{m.hemaRatingsScore.toFixed(1)}</p>
+                    <p className="text-xs text-gold-text">{m.hemaRatingsScore.toFixed(1)}</p>
                   )}
                 </div>
               </Link>
@@ -128,7 +128,7 @@ export default async function ClubPage({ params }: Props) {
       {/* Recent results */}
       {club.recentResults.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gold mb-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gold-text mb-3">
             {t('publicApp.clubs.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">

@@ -502,7 +502,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   </DataTableCell>
                   <DataTableCell>
                     {member.role === 'owner' ? (
-                      <span className="inline-block rounded bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
+                      <span className="inline-block rounded bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold-text">
                         {member.role}
                       </span>
                     ) : (
@@ -770,7 +770,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         <span className="block font-semibold text-foreground">
                           {label}
                           {isCurrentOwner ? (
-                            <span className="ml-2 rounded bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gold">
+                            <span className="ml-2 rounded bg-gold/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gold-text">
                               {t('admin.adminMisc.ownerBadge')}
                             </span>
                           ) : row.isMember ? (
@@ -809,7 +809,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                             <span className="block font-semibold text-foreground">
                               {accountLabel(account)}
                               {isSuperAdmin && (
-                                <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold">
+                                <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold-text">
                                   {t('admin.adminMisc.superAdminBadge')}
                                 </span>
                               )}

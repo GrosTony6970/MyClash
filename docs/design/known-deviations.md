@@ -8,26 +8,38 @@ Each entry names the rule it breaks, the files that break it, and why it hasn't 
 
 ---
 
-## D1 — `success` and `warning` fail WCAG AA as text colours
+## D1 — residual: ★ rating glyphs are below the non-text contrast floor
 
-**Rule broken:** accessibility (WCAG AA 4.5:1 for normal text). Surfaced by `pnpm design:lint`.
+**Status: the text failures are FIXED (2026-07-17). This is what is left.**
 
-| Pair                                     | Ratio      | Needs |
-| ---------------------------------------- | ---------- | ----- |
-| `#ffffff` on `--color-success` `#16a34a` | **3.30:1** | 4.5:1 |
-| `#ffffff` on `--color-warning` `#d97706` | **3.19:1** | 4.5:1 |
+`--color-gold` (`#f59e0b`) is **2.06:1** against a light page. That clears nothing, but the three remaining light-surface `text-gold` sites are all ★ rating glyphs, not prose:
 
-Live instances, solid fill at 12px semibold — **not** WCAG "large text", so 4.5:1 applies:
+- `apps/web-public/app/me/instructor/InstructorDashboard.tsx:462` — `Stars`, `aria-hidden="true"` (an accessible equivalent exists)
+- `apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx:272` — star buttons, each with an `aria-label`
+- `apps/web-admin/app/org/[slug]/events/[eventId]/referees/page.tsx:194` — same star-rating control
 
-- `apps/web-admin/src/components/league/LeagueRequestsPanel.tsx:319` and `:397` — `bg-success … text-xs font-semibold text-success-foreground`
+They are left gold deliberately: a star rating **is** the medal-ink use case, and `gold-text` (`#92400e`) would render brown stars. But be precise about what that costs — WCAG **1.4.11** wants 3:1 for non-text, and 2.06:1 misses it. So they are exempt from 1.4.3 (they are graphics with accessible names), not from 1.4.11.
 
-The tint form fails too: `text-success` (`#16a34a`) on a near-white `bg-success/10` is the same ~3.3:1. Widespread — `AiKeysManager.tsx:307`, `AiBudgetView.tsx:84`, `AiUsageView.tsx:122`, `RulesetForm.tsx:508`, `EmailChangeSection.tsx:206`, `CommitmentCard.tsx:44,48`, `WorkshopRegisterControls.tsx:71`, and others.
+**Fix when someone owns it:** give the ★ a darker stroke/outline, or pair it with a `gold-text` numeral. Do not "fix" it by recolouring the stars.
 
-Non-text uses (`bg-success` as a chart bar or a status dot — `TournamentStatSection.tsx:38`, `ScheduleView.tsx:520`, `kind-accent.ts:10`) are **fine**: the 4.5:1 rule is about text.
+---
 
-**Why not fixed:** the fix is a token value change (`success` → ~`#15803d` green-700, `warning` → ~`#b45309` amber-700), which repaints every status badge in both apps and needs a visual review of its own. Axe in CI never caught this because it only audits the pages it visits; the linter reads the tokens directly.
+## D1b — FIXED: the AA text failures
 
-**Do not** add new solid `bg-success` / `bg-warning` + white-text buttons until this is resolved.
+Kept briefly for the record, because the shape of this bug is worth remembering.
+
+| Pair                            | Was                                    | Now                                                            |
+| ------------------------------- | -------------------------------------- | -------------------------------------------------------------- |
+| white on `success`              | `#16a34a` **3.30:1**                   | `#15803d` **5.02:1**                                           |
+| white on `warning`              | `#d97706` **3.19:1**                   | `#b45309` **5.02:1**                                           |
+| `text-gold` as small light text | `#f59e0b` **2.06:1**                   | `gold-text` `#92400e` **6.79:1** (13 sites)                    |
+| `danger` as text on a dark card | `#ef4444` **3.89:1**                   | `#f87171` **5.29:1**                                           |
+| white on any dark status fill   | success **2.28:1**, warning **2.15:1** | dark scope flips `*-foreground` to `#0f172a` → 7.83:1 / 8.31:1 |
+
+Two things this taught us:
+
+1. **The worst one was invisible to every tool we had.** Axe runs in CI but only audits the pages it visits; these were deep admin routes and the scoring app. The token linter reads the values directly and found them in one pass.
+2. **The dark-fill bug was structural, not a typo.** The dark scope lightens each status hue so it reads as _text_ on a dark surface — and that same lightening makes it unusable as a _fill_ under white text. It shipped in the scoring app, on the buttons a scorekeeper taps. `--color-strong` had solved this correctly all along (it inverts its foreground); the statuses were simply never given the same treatment.
 
 ---
 
@@ -53,22 +65,13 @@ Non-text uses (`bg-success` as a chart bar or a status dot — `TournamentStatSe
 
 ---
 
-## D3 — `packages/design-tokens` is dead and lies about it
+## D3 — FIXED: `packages/design-tokens` deleted
 
-**Rule broken:** one source of truth.
+Deleted 2026-07-17 (commit `db7b2e4c`), along with its wiring in 3 `package.json`, 3 `next.config.ts`, 3 `Dockerfile` and the CI build filter.
 
-`packages/design-tokens/src/tokens.ts:4` says _"Canonical source of truth for the design language"_ and specifies **Cinzel + Inter**. It is imported by **zero source files**. The live source is `packages/ui/src/theme.css` (Fraunces + Geist).
+It had declared itself the "canonical source of truth" for a Cinzel + Inter design and was imported by **zero** source files. Proof it was dead: web-admin's emitted CSS was byte-identical before and after removal.
 
-It is still wired in, which is why it looks alive:
-
-- `apps/{web-admin,web-public,web-scoring}/package.json` — a `workspace:^` dependency
-- `apps/{web-admin,web-public,web-scoring}/next.config.ts` — listed in `transpilePackages`
-- `apps/{web-admin,web-public,web-scoring}/Dockerfile` — copied and built
-- `.github/workflows/ci.yml:81` — built in CI
-
-**It is actively dangerous, not merely dead.** Its radius scale uses Tailwind **v3** naming (`sm: 0.125rem`), whereas the installed Tailwind 4.2.4 has `--radius-xs: 0.125rem` / `--radius-sm: 0.25rem`; its `shadows.sm` equals v4's `--shadow-xs`. Anyone who "reconnects the canonical tokens" would silently repaint ~857 `rounded-md` and ~165 `shadow-sm` sites.
-
-**Why not fixed:** deleting it touches 3 `package.json`, 3 `next.config.ts`, 3 `Dockerfile` and CI — a separate commit that needs a full Docker build to verify.
+Worth remembering _why_ it was dangerous rather than merely dead: its radius scale used Tailwind **v3** naming (`sm: 0.125rem`, which is v4's `--radius-xs`), so anyone "reconnecting the canonical tokens" would have silently repainted ~857 `rounded-md` sites. A dead file that names itself canonical is worse than no file.
 
 ---
 

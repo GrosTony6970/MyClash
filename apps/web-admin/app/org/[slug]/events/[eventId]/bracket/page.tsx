@@ -1814,7 +1814,9 @@ export default function BracketPage() {
               {bronzeMatch && (
                 <>
                   <span>·</span>
-                  <span className="text-gold">{t('organizer.bracketPage.summaryBronzeMatch')}</span>
+                  <span className="text-gold-text">
+                    {t('organizer.bracketPage.summaryBronzeMatch')}
+                  </span>
                 </>
               )}
             </div>

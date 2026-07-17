@@ -22,7 +22,8 @@ colors:
   # `primary`; this system's live variable is --color-accent. See Colors.
   primary: '{colors.accent}'
 
-  gold: '#f59e0b' # gold-500 — placings and flourish. NEVER a warning.
+  gold: '#f59e0b' # gold-500 — FILLS/medals/icons/large type. NEVER a warning.
+  gold-text: '#92400e' # amber-800 — gold as SMALL TEXT on light. 6.79:1.
 
   # Strong: a dark-neutral action surface. Not accent, not foreground.
   strong: '#0f172a' # slate-900
@@ -33,12 +34,12 @@ colors:
   danger: '#dc2626' # red-600
   danger-foreground: '#ffffff'
   danger-hover: '#b91c1c'
-  success: '#16a34a' # green-600
+  success: '#15803d' # green-700 — 5.02:1 under white
   success-foreground: '#ffffff'
-  success-hover: '#15803d'
-  warning: '#d97706' # gold-600 — the warning. Not `gold`.
+  success-hover: '#166534' # green-800
+  warning: '#b45309' # amber-700 — the warning. Not `gold`. 5.02:1 under white
   warning-foreground: '#ffffff'
-  warning-hover: '#b45309'
+  warning-hover: '#92400e' # amber-800
   info: '#2563eb' # blue-600
   info-foreground: '#ffffff'
   info-hover: '#1d4ed8'
@@ -64,11 +65,12 @@ colors:
   dark-muted: '#94a3b8'
   dark-border: '#334155'
   dark-gold: '#fbbf24' # gold-400 — brighter for contrast on dark
+  dark-gold-text: '#fbbf24' # no split needed on dark: already 10.69:1
   dark-strong: '#e2e8f0' # INVERTS — a light chip on a dark page
   dark-strong-foreground: '#0f172a'
   dark-strong-hover: '#cbd5e1'
-  dark-danger: '#ef4444'
-  dark-danger-hover: '#dc2626'
+  dark-danger: '#f87171' # red-400 — 5.29:1 on a dark card
+  dark-danger-hover: '#ef4444'
   dark-success: '#22c55e'
   dark-success-hover: '#16a34a'
   dark-warning: '#f59e0b'
@@ -78,6 +80,12 @@ colors:
   dark-instructor: '#a78bfa'
   dark-corner-red: '#ef4444'
   dark-corner-blue: '#3b82f6'
+  # A bright chip on a dark page takes DARK ink, not white. See Colors.
+  dark-danger-foreground: '#0f172a'
+  dark-success-foreground: '#0f172a'
+  dark-warning-foreground: '#0f172a'
+  dark-info-foreground: '#0f172a'
+  dark-instructor-foreground: '#0f172a'
 
 typography:
   display:
@@ -267,7 +275,7 @@ The single recurring mark is the **FoilMark** (`packages/ui/src/components/FoilM
 
 **Token source of truth: `packages/ui/src/theme.css`.** Tailwind v4 `@theme`, plain and deliberately not `@theme inline`, so the generated utilities resolve through `var(--color-*)` and the runtime scopes can override them. Every value in the front matter above is mirrored from that file and is checked against it by `pnpm design:lint`.
 
-**`packages/design-tokens/` is dead.** It calls itself the "canonical source of truth" and describes a Cinzel + Inter design. It is imported by no application code, it renders nothing, and it is wrong. Do not read it, do not extend it, do not copy values from it — its radius scale uses Tailwind v3 naming and would repaint the app.
+**There is no second token package.** `packages/design-tokens/` used to exist, called itself the "canonical source of truth", described a Cinzel + Inter design, and was imported by nothing. It was deleted on 2026-07-17. If you find a doc, comment or memory that points at it, that doc is stale — fix it.
 
 **The executable contract is `/admin/design-system`** (`apps/web-admin/app/admin/design-system/page.tsx`) — this language in one page, in real components. Code can rot against a markdown file; it cannot rot against a route.
 
@@ -290,7 +298,20 @@ Colours fall into five families, and the families have jurisdictions:
 | **Status**      | `danger`, `success`, `warning`, `info`, `instructor`                             | Badges and alerts **only**. Never the page accent.       |
 | **Strong**      | `strong`, `strong-foreground`, `strong-hover`                                    | A dark-neutral action — a slate button, a selected chip. |
 | **Domain**      | `corner-red`, `corner-blue`                                                      | The fighter's corner. Rule semantics.                    |
-| **Gold**        | `gold`                                                                           | Placings and flourish.                                   |
+| **Gold**        | `gold`, `gold-text`                                                              | Placings and flourish.                                   |
+
+### Gold is two tokens, and that is not an accident
+
+`gold` (`#f59e0b`) is **medal ink** — fills, medals, ★ rating glyphs, icons, large display type. As _small text on a light surface_ it is **2.06:1**, so it must never be used that way. `gold-text` (`#92400e`, 6.79:1) exists for exactly that case.
+
+They are not merged into one darker token because the amber that passes AA as text is `#b45309` — **the exact value of `warning`**. Merging would make gold indistinguishable from a warning and destroy the distinction this system is built on. The dark scope needs no split: gold is `#fbbf24` there and already clears AA, so `gold-text` points at the same value and a component can use `text-gold-text` on either surface and stay legible.
+
+### Every colour pair here clears WCAG AA for text
+
+That is a checked claim, not an aspiration — `pnpm design:lint` runs the contrast rule over the front matter. Two consequences worth knowing:
+
+- **`success` and `warning` are red-700-era darks** (`#15803d`, `#b45309`), not the green-600/amber-600 you might reach for. Those failed at 3.30:1 and 3.19:1.
+- **On dark, a bright chip takes dark ink.** The dark scope lightens every status hue so it reads as text on a dark surface — which makes it useless as a fill under _white_ text (white on dark `success` is 2.28:1). So the dark scope also flips `--color-*-foreground` to `#0f172a`. This is the same move `strong` already makes: it is the only other token the dark scope lightens, and it inverts its foreground for the same reason.
 
 ### The two scopes are orthogonal
 
@@ -411,7 +432,8 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Do** spend the accent once per page, on the live action. Two inks; the red is scarce.
 - **Don't** paint a page in a status colour. `danger` / `success` / `warning` / `info` are badge and alert inks. A rule book does not turn red because one bout was cancelled.
 - **Do** use `gold` for placings and flourish — eyebrows, medals, a card's top rule.
-- **Don't** use `gold` as a warning. It is medal ink. `warning` (`#d97706`) is the warning; `gold` (`#f59e0b`) is a podium. They are two ambers a few hex apart and this is the easiest mistake in the system to make.
+- **Don't** use `gold` as a warning. It is medal ink. `warning` (`#b45309`) is the warning; `gold` (`#f59e0b`) is a podium. Two ambers, and this is the easiest mistake in the system to make.
+- **Don't** use `text-gold` for small text on a light surface — it is 2.06:1. That is what `gold-text` is for. On dark, either is fine.
 - **Do** reach for `strong` when you need a dark-neutral action.
 - **Don't** collapse `strong`, `accent` and `foreground` into "the dark one". Three tokens, three jobs — and on dark, `strong` **inverts** while `accent` does not move at all. Code that treats them as interchangeable breaks on exactly one surface, which is how it ships.
 - **Don't** restyle `corner-red` / `corner-blue`. The corner is rule semantics. Theme the chrome around a scoreboard; leave the corners alone.

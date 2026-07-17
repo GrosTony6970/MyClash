@@ -800,7 +800,7 @@ export default function PoolsPage() {
                           )}
                           {m.hemaWeightedRating !== null && (
                             <span
-                              className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-bold text-gold"
+                              className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-bold text-gold-text"
                               title={t('organizer.pools.page.hemaRatingTitle')}
                             >
                               {m.hemaWeightedRating.toFixed(1)}
@@ -1063,7 +1063,7 @@ export default function PoolsPage() {
                         </div>
                         {u.hemaWeightedRating !== null && (
                           <span
-                            className="ml-1 rounded-full bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold shrink-0"
+                            className="ml-1 rounded-full bg-gold/10 px-1.5 py-0.5 text-[11px] font-bold text-gold-text shrink-0"
                             title={t('organizer.pools.page.hemaRatingTitle')}
                           >
                             {u.hemaWeightedRating.toFixed(1)}
