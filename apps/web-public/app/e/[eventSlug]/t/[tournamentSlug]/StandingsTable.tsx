@@ -9,10 +9,11 @@
  * AC: Pool standings update live (within 1s of exchange entry).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { toStandingRow, type ApiPoolStandings } from './tournament-data';
 import type { StandingRow } from './page';
 
 interface Props {
@@ -37,26 +38,48 @@ export function StandingsTable({
   poolId,
   poolName,
   initialStandings,
-  tournamentId: _tournamentId,
+  tournamentId,
   highlightRegistrationId,
 }: Props) {
   const { t } = useI18n();
   const [standings, setStandings] = useState<StandingRow[]>(initialStandings);
   const [updating, setUpdating] = useState(false);
 
-  // Re-fetch standings from API
-  async function refresh() {
-    setUpdating(true);
+  /**
+   * Re-fetch this pool's standings.
+   *
+   * This used to GET `pools/:poolId/standings`, which has never existed — so it
+   * 404'd, `if (res.ok)` swallowed it, and the table never populated. The real
+   * endpoint is `tournaments/:tournamentId/pool-standings?mode=by-pool`: public,
+   * already implemented, and until now it had zero callers anywhere.
+   *
+   * Deliberately NOT a new `pools/:poolId/standings` route — by-pool already
+   * computes exactly this, and pool-standings.service.ts documents how a
+   * previous divergent standings query silently returned all-zero standings.
+   * A second implementation of the ruleset scoring chain is that trap again.
+   */
+  async function fetchRows(): Promise<StandingRow[] | null> {
     try {
       // Resolve client-side — the public (browser-reachable) URL.
       const apiUrl = getPublicApiUrl();
-      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/standings`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = (await res.json()) as StandingRow[];
-        setStandings(data);
-      }
+      const res = await fetch(
+        `${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=by-pool`,
+        { cache: 'no-store' },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as ApiPoolStandings;
+      const pool = data.pools?.find((p) => p.poolId === poolId);
+      return pool ? pool.rows.map(toStandingRow) : null;
     } catch {
-      // Swallow — keep showing last known standings
+      return null; // Keep showing last known standings
+    }
+  }
+
+  async function refresh() {
+    setUpdating(true);
+    try {
+      const rows = await fetchRows();
+      if (rows) setStandings(rows);
     } finally {
       setUpdating(false);
     }
@@ -74,6 +97,28 @@ export function StandingsTable({
     onEvent: () => void refresh(),
     onFallbackPoll: () => void refresh(),
   });
+
+  // Fetch once on mount. The SSR payload ships `standings: []` for every pool
+  // (events.service.ts getPublishedPools stubs it, deferring to "a dedicated
+  // endpoint" — which was the route that never existed), so without this the
+  // table renders its header over an empty body until a match happens to change.
+  // Note the realtime hook only calls refresh() on an event or on WS *loss*, so
+  // a healthy socket and a quiet pool means no data at all.
+  // fetchRows() rather than refresh(): refresh() flips `updating` synchronously,
+  // and setState in an effect body trips react-hooks/set-state-in-effect. Here
+  // the state lands in a post-await callback, which is what the rule asks for.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const rows = await fetchRows();
+      if (!cancelled && rows) setStandings(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // fetchRows closes over poolId/tournamentId; re-run only when those change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poolId, tournamentId]);
 
   return (
     <div

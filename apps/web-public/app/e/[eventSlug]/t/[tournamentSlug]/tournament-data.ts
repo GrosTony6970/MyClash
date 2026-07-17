@@ -156,3 +156,54 @@ export function colorTokenToHex(token: string | null | undefined): string {
       return '#64748b';
   }
 }
+
+// ── Pool standings (live) ────────────────────────────────────────────────────
+
+/**
+ * A row as the API returns it from `tournaments/:id/pool-standings`.
+ *
+ * `stats` is ruleset-driven: the active ruleset decides which keys exist
+ * (Generic_PointsCap declares none of the extended ones), so every read must
+ * tolerate a missing key rather than assume the shape.
+ */
+export interface ApiStandingsRow {
+  rank: number;
+  registrationId: string;
+  displayName: string;
+  club: { id: string; name: string; abbreviation: string | null } | null;
+  status: 'in_progress' | 'completed';
+  stats: Record<string, number | string>;
+}
+
+export interface ApiPoolStandings {
+  pools?: Array<{ poolId: string; poolName: string; rows: ApiStandingsRow[] }>;
+}
+
+function statNum(stats: Record<string, number | string>, key: string): number {
+  const v = stats[key];
+  return typeof v === 'number' ? v : Number(v ?? 0) || 0;
+}
+
+/**
+ * Adapt the API's ruleset-driven row to the fixed-field shape StandingsTable
+ * renders. The Overall table sidesteps this by rendering `row.stats[column.key]`
+ * generically; the per-pool table predates that and wants named fields.
+ *
+ * `seed` has no equivalent on the API row and is unused by the table — it is
+ * only in the type. Kept at 0 rather than faked.
+ */
+export function toStandingRow(row: ApiStandingsRow): StandingRow {
+  return {
+    registrationId: row.registrationId,
+    fighterName: row.displayName,
+    clubName: row.club?.name ?? null,
+    wins: statNum(row.stats, 'W'),
+    losses: statNum(row.stats, 'L'),
+    draws: statNum(row.stats, 'D'),
+    pointsFor: statNum(row.stats, 'ptsScored'),
+    pointsAgainst: statNum(row.stats, 'ptsConceded'),
+    doubles: statNum(row.stats, 'doubles'),
+    score: statNum(row.stats, 'score'),
+    seed: 0,
+  };
+}
