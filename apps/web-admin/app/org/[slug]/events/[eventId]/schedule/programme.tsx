@@ -112,6 +112,8 @@ export function ProgrammePlanner({
   const [config, setConfig] = useState<SuggestConfig>(DEFAULT_CONFIG);
   const [activeDay, setActiveDay] = useState(0);
   const [loading, setLoading] = useState(true);
+  /** Load failed → the board is not a trustworthy base for a replace-all save. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -138,11 +140,20 @@ export function ProgrammePlanner({
   // ── Load saved blocks + default parallel-lice count ───────────────────────
 
   useEffect(() => {
+    // A failed load must NOT look like an empty programme. PUT
+    // /events/:eventId/programme is a replace-all ("Replace all programme blocks
+    // for an event"), so silently starting from [] and letting the organizer
+    // save would destroy the real programme. Any non-ok — 401, 5xx, a network
+    // blip — has to be visible and has to block saving.
     fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' })
       .then(async (res) => {
-        if (res.ok) setBlocks((await res.json()) as ProgrammeBlock[]);
+        if (res.ok) {
+          setBlocks((await res.json()) as ProgrammeBlock[]);
+          return;
+        }
+        setLoadFailed(true);
       })
-      .catch(() => undefined)
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
 
     // Default parallelLiceCount = number of lices configured for the event.
@@ -551,6 +562,12 @@ export function ProgrammePlanner({
 
       {/* Preview / output column. */}
       <div className="min-w-0 space-y-4">
+        {loadFailed && (
+          <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 text-sm mb-4">
+            {t('admin.common.loadFailedNoSave')}
+          </div>
+        )}
+
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 text-sm mb-4">
             {error}
@@ -700,7 +717,7 @@ export function ProgrammePlanner({
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => void saveProgramme()}
-            disabled={saving || blocks.length === 0}
+            disabled={saving || loadFailed || blocks.length === 0}
             className="border border-border rounded-md px-4 py-2 text-sm font-medium hover:bg-background disabled:opacity-50"
           >
             {saving
@@ -710,7 +727,7 @@ export function ProgrammePlanner({
           <button
             onClick={() => void confirmAndGenerate()}
             data-testid="schedule-generate"
-            disabled={generating || blocks.length === 0}
+            disabled={generating || loadFailed || blocks.length === 0}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
           >
             {generating
@@ -719,7 +736,7 @@ export function ProgrammePlanner({
           </button>
           <button
             onClick={() => void confirmAndReset()}
-            disabled={resetting}
+            disabled={resetting || loadFailed}
             className="ml-auto rounded-md border border-danger/30 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
             title={t('organizer.schedulePage.planner.resetTitle')}
           >

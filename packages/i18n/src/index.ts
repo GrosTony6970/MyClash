@@ -1996,6 +1996,8 @@ export const en = {
       uploadFailed: 'Upload failed',
       removeFailed: 'Remove failed',
       importFailed: 'Import failed',
+      loadFailedNoSave:
+        'Could not load the saved programme, so this board may be incomplete. Saving is disabled to avoid overwriting it — reload the page to try again.',
       previewFailed: 'Preview failed',
       generationFailed: 'Generation failed',
       voidFailed: 'Void failed',
@@ -8129,6 +8131,8 @@ export const fr = {
       uploadFailed: 'Échec du téléversement',
       removeFailed: 'Échec du retrait',
       importFailed: "Échec de l'import",
+      loadFailedNoSave:
+        "Le programme enregistré n'a pas pu être chargé : ce tableau est peut-être incomplet. L'enregistrement est désactivé pour ne pas l'écraser — rechargez la page pour réessayer.",
       previewFailed: "Échec de l'aperçu",
       generationFailed: 'Échec de la génération',
       voidFailed: "Échec de l'annulation",
