@@ -125,6 +125,11 @@ export class StaffController {
     return result.me;
   }
 
+  // Logout is idempotent and reads no identity — it clears the cookie and
+  // returns ok. 401ing someone for logging out when their session already
+  // expired is user-hostile and would strand a stale scoring tablet on a
+  // dead cookie. Mirrors auth/logout, which is public for the same reason.
+  @Public()
   @Post('staff-auth/logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Clear the local event staff session' })
