@@ -58,7 +58,7 @@ const upsertEventThemeSchema = z
     // logoUrl + heroImageUrl are the only per-event identity affordances
     // that remain. Per-event color overrides + font pickers + custom CSS
     // were retired in migration 0086 — the unified MyClash design is now
-    // governed by @myclash/design-tokens across both apps.
+    // governed by DESIGN.md / packages/ui/src/theme.css across both apps.
     logoUrl: z.string().nullish(),
     heroImageUrl: z.string().nullish(),
   })

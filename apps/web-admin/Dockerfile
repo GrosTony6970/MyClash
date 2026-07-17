@@ -15,7 +15,6 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web-admin/package.json ./apps/web-admin/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/
-COPY packages/design-tokens/package.json ./packages/design-tokens/
 COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/rulesets/package.json ./packages/rulesets/
@@ -27,7 +26,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
       --filter @myclash/web-admin \
       --filter @myclash/types \
       --filter @myclash/ui \
-      --filter @myclash/design-tokens \
       --filter @myclash/i18n \
       --filter @myclash/api-client \
       --filter @myclash/rulesets \
@@ -64,7 +62,6 @@ COPY eslint-rules/ ./eslint-rules/
 COPY apps/web-admin/ ./apps/web-admin/
 COPY packages/types/ ./packages/types/
 COPY packages/ui/ ./packages/ui/
-COPY packages/design-tokens/ ./packages/design-tokens/
 COPY packages/i18n/ ./packages/i18n/
 COPY packages/api-client/ ./packages/api-client/
 COPY packages/rulesets/ ./packages/rulesets/
@@ -74,7 +71,6 @@ COPY packages/feature-flags/ ./packages/feature-flags/
 
 # schedule-core is built after time because it imports @myclash/time.
 RUN pnpm --filter @myclash/types build \
- && pnpm --filter @myclash/design-tokens build \
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/api-client build \
  && pnpm --filter @myclash/rulesets build \

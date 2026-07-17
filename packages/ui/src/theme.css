@@ -87,9 +87,10 @@
    * values: `rounded-md` already resolves via var(--radius-md), so restating
    * the same value changes nothing.
    *
-   * Do NOT "fix" these from packages/design-tokens — that package is dead and
-   * uses Tailwind v3 naming (its `sm` is 0.125rem = v4's --radius-xs), which
-   * would silently repaint ~857 rounded-md sites. See known-deviations.md#d3.
+   * These values are Tailwind v4's. Do not re-derive them from a v3-era scale:
+   * v3 named 0.125rem `sm`, v4 names it `xs` and `sm` is 0.25rem — so a v3
+   * scale pasted in here silently repaints ~857 rounded-md sites. (The deleted
+   * packages/design-tokens made exactly that mistake.)
    *
    * Do NOT declare bare --radius or --shadow: 310 bare `rounded` and 9 bare
    * `shadow` usages currently inline their values from Tailwind's deprecated

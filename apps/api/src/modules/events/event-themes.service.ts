@@ -90,7 +90,7 @@ export class EventThemesService {
     // logo_url intentionally omitted — migration 0084 dropped it
     // from this table; the canonical column is events.logo_url.
     // Color overrides + font pickers + custom_css retired in 0086 —
-    // unified MyClash design from @myclash/design-tokens applies.
+    // unified MyClash design (packages/ui/src/theme.css) applies.
     return {
       event_id: eventId,
       hero_image_url: dto.heroImageUrl ?? null,

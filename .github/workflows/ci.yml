@@ -78,7 +78,7 @@ jobs:
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build packages
-        run: pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/design-tokens" --filter="@myclash/i18n" --filter="@myclash/api-client"
+        run: pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
 
       - name: Save Turborepo cache
         uses: actions/cache/save@v4

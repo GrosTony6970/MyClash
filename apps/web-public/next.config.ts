@@ -38,7 +38,6 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@myclash/ui',
     '@myclash/types',
-    '@myclash/design-tokens',
     '@myclash/i18n',
     '@myclash/api-client',
     '@myclash/time',

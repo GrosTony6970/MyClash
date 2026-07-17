@@ -38,13 +38,7 @@ const nextConfig: NextConfig = {
   ...(SCORING_ASSET_PREFIX ? { assetPrefix: SCORING_ASSET_PREFIX } : {}),
 
   // Transpile shared workspace packages
-  transpilePackages: [
-    '@myclash/ui',
-    '@myclash/types',
-    '@myclash/design-tokens',
-    '@myclash/i18n',
-    '@myclash/api-client',
-  ],
+  transpilePackages: ['@myclash/ui', '@myclash/types', '@myclash/i18n', '@myclash/api-client'],
 };
 
 export default withSentryConfig(nextConfig, {

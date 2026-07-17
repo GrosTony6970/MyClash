@@ -3,7 +3,7 @@
  *
  * Server component. Slice 4 of the public redesign retired per-event
  * color overrides + custom font + custom CSS — the unified MyClash
- * design from @myclash/design-tokens governs both apps. The only
+ * design (packages/ui/src/theme.css) governs both apps. The only
  * per-event flow that remains is:
  *   - the hero image (set from the admin's Branding page) exposed
  *     to children via the `--event-hero-image` CSS variable
