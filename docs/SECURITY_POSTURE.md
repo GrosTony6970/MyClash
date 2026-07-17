@@ -18,7 +18,21 @@ This document records the production-review security posture for MyClash. It is 
 - Swagger/OpenAPI is disabled when `NODE_ENV=production`.
 - Throttling is globally enabled through `ThrottlerModule` and `ThrottlerGuard`. Two throttlers are registered: `global` (120 req/min per client IP, overridden per route via `@Throttle` — auth actions drop to 10/hour) and `auth-email` (10 login attempts/hour per email address, on routes marked `@ThrottleByEmail`). IPs in `THROTTLE_IP_WHITELIST` skip both. See ARCHITECTURE.md §14.3 for the full table.
 - The throttler store is in-memory, so counters are per API container and reset on redeploy; Traefik applies no rate limiting of its own. There is no account lockout — login is protected by the two throttlers above plus Supabase GoTrue's own internal limits.
-- `pnpm security:routes` inventories every NestJS controller as public, authenticated, guest, staff, organizer, org-admin, super-admin, or mixed. CI fails when a new controller is not classified.
+- Authentication is global. `AuthGuard` (`apps/api/src/common/auth/`) runs on every request and rejects
+  callers with no identity unless the route is marked `@Public()`, so forgetting a guard fails closed.
+  It resolves all four identity types (claimed / guest / staff / anonymous) locally, with no GoTrue
+  round-trip; the bounded trade-off is that a revoked token stays accepted until it expires (<=1h,
+  `GOTRUE_JWT_EXP`). Authorization stays in the service layer behind `assertOrgRole`.
+- The public surface is pinned by `apps/api/src/common/auth/public-routes.test.ts`, which reflects the
+  real decorator metadata (not a hand-written list) and bans DELETE/PUT/PATCH from it. Exposing a route
+  to the internet is therefore a reviewed diff.
+- `apps/api/src/common/routes/frontend-route-contract.test.ts` asserts every `/api/v1` path the frontends
+  call resolves to a real route.
+- NOTE: `AUTH_GUARD_MODE` defaults to `shadow`, where AuthGuard logs the 401 it WOULD have thrown and
+  lets the request through. Until it is flipped to `enforce`, the guard is observing, not protecting.
+- Retired: `pnpm security:routes` maintained a hand-written map of controller -> posture. It never read a
+  guard, so it could not detect that its own labels were false (7 were), and it sat red for its entire
+  life. The two tests above replace it by checking behaviour instead of a declaration.
 
 ## Cookie And CSRF Posture
 
@@ -97,7 +111,6 @@ Gitleaks runs in CI as the automated secret-scan gate.
 ## Phase 2 Verification Commands
 
 ```bash
-pnpm security:routes
 pnpm security:client-secrets
 pnpm --filter @myclash/api test -- src/security src/modules/auth src/modules/staff src/modules/persons src/modules/admin
 pnpm --filter @myclash/db test

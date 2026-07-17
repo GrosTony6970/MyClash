@@ -163,9 +163,6 @@ jobs:
       - name: Lint all workspaces
         run: pnpm turbo run lint
 
-      - name: Check API route security inventory
-        run: pnpm security:routes
-
       - name: Check frontend secret boundaries
         run: pnpm security:client-secrets
 
