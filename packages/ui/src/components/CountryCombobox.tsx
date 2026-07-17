@@ -133,7 +133,7 @@ export function CountryCombobox({
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+          className="absolute z-overlay mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
         >
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-sm text-gray-500">No country matches</li>

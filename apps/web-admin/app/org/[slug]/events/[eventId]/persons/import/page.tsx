@@ -415,7 +415,7 @@ export default function CsvImportPage() {
               {/* Sticky action bar — summary chips + bulk shortcuts +
                   Cancel/Import. Stays pinned while the operator
                   scrolls through the section bodies below. */}
-              <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
+              <div className="sticky top-0 z-sticky flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
                 <div className="flex flex-wrap items-center gap-3 text-foreground-secondary">
                   <span>
                     <strong>{preview.rows.length}</strong> {t('organizer.personsImport.rowsChip')}

@@ -102,7 +102,7 @@ export function BottomNav({ notificationsUnread = 0 }: { notificationsUnread?: n
   return (
     <nav
       aria-label={t('publicApp.personalShell.navigationLabel')}
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-sidebar flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {ITEMS.map((item) => {
         const active = item.match(pathname);

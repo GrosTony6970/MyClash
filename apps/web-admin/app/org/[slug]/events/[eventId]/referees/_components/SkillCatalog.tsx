@@ -316,7 +316,7 @@ function SkillDrillDownDrawer({
 }: DrawerProps) {
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop, dismiss-on-click; the close button provides keyboard access
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40" onClick={onClose}>
+    <div className="fixed inset-0 z-overlay flex justify-end bg-slate-950/40" onClick={onClose}>
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation wrapper so backdrop clicks inside the panel don't dismiss */}
       <aside
         className="h-full w-full max-w-md bg-surface shadow-2xl flex flex-col"

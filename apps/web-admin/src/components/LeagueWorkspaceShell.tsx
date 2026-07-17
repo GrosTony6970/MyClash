@@ -87,7 +87,7 @@ export function LeagueWorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-surface">
+      <header className="sticky top-0 z-header border-b border-border bg-surface">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-3 lg:px-8">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted">

@@ -451,14 +451,14 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background text-foreground">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent-foreground"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent-foreground"
       >
         {t('organizer.shell.skipToContent')}
       </a>
 
       <aside
         data-theme="dark"
-        className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground lg:flex"
+        className="fixed inset-y-0 left-0 z-sidebar hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground lg:flex"
       >
         {/* Three-slot brand row: MyClash logo (always) + org name + org
             logo (when uploaded, as a secondary identity badge to the
@@ -500,7 +500,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-background/90 backdrop-blur lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-header border-b border-border bg-background/90 backdrop-blur lg:left-72">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
@@ -536,7 +536,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
       </header>
 
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-overlay lg:hidden">
           <button
             type="button"
             aria-label={t('organizer.shell.closeMenu')}

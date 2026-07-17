@@ -225,7 +225,7 @@ export function MatchCorrectionsDrawer({
 
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- backdrop click-to-dismiss is a mouse convenience; keyboard close is the header button.
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-sidebar flex justify-end bg-black/50" onClick={onClose}>
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation keeps a click inside the drawer from closing it; not an interactive control. */}
       <aside
         onClick={(e) => e.stopPropagation()}

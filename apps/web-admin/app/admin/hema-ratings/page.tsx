@@ -559,7 +559,7 @@ export default function HemaRatingsAdminPage() {
       {/* Sync history drawer */}
       {historyOpen && (
         <div
-          className="fixed inset-0 z-50 flex"
+          className="fixed inset-0 z-overlay flex"
           role="dialog"
           aria-modal="true"
           aria-label={t('admin.hemaRatings.syncHistoryTitle')}

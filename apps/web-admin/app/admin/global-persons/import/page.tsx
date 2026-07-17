@@ -267,7 +267,7 @@ export default function GlobalPersonsImportPage() {
               Cancel/Commit pair visible while the operator scrolls
               the preview table. Long imports used to require
               scrolling to the bottom of the table just to commit. */}
-          <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
+          <div className="sticky top-0 z-sticky flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
             <div className="flex flex-wrap gap-4 text-foreground-secondary">
               <span>
                 <strong>{preview.summary.total}</strong> {t('organizer.personsImport.rowsChip')}

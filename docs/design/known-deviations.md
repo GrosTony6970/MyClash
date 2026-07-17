@@ -135,17 +135,17 @@ The stage is deliberately deeper than `dark-background` (`#0f172a`) so the corne
 
 ---
 
-## D8 — Bare `z-*` and `rounded-*` numbers
+## D8 — z-index migration (mostly done; a deliberate tail remains)
 
-**Rule broken:** Layout — use the named `z-*` tokens.
+**FIXED (2026-07-17):** an audit classified all 82 bare `z-*` sites by what each element _is_. The **35 unambiguous, page-level ones** now use the named tokens: dialog backdrops / popovers → `z-overlay`, the shells' sidebars → `z-sidebar` and headers → `z-header`, sticky sub-headers → `z-sticky`, skip-links → `z-skip-link`.
 
-`theme.css` now defines `--z-index-{raised,sticky,header,sidebar,overlay,skip-link}`, but existing code still uses bare numbers (`z-50` ×24, `z-30` ×17, `z-20` ×17, `z-10` ×15, `z-40` ×7, `z-[60]` ×2).
+32 of those were **value-preserving renames** (`z-overlay`=50, `z-sidebar`=40, `z-header`=30, `z-sticky`=20, `z-raised`=10 — same numbers), so stacking order did not move; verified every named utility emits its expected value in the built CSS. The 3 skip-links were the one real change: `focus:z-50` → `z-skip-link` (50→60), a correction so a focused skip-link sits **above** an open modal instead of tying with it (the two shells were already at 60).
 
-**The mapping is not mechanical** — today `z-10`/`z-20`/`z-30` each cover _both_ dropdown menus and resize handles, and `z-50` covers both dialog backdrops (`dialog-enter fixed inset-0 z-50`) and inline dropdowns (`absolute z-50 mt-1`). Migrating needs an audit that decides what each site _means_, not a find-and-replace.
+**Left on bare numbers on purpose (~47 sites):** private, self-contained stacking ladders where a page-level name would *mis*describe the element. The largest is the schedule grid (`grid.tsx`): its `z-10` time-label column < `z-20` resize handles < `z-30` venue header cells is an internal ladder, not the page's header/sticky layers. Renaming those to `z-header`/`z-sticky` would be value-identical but semantically wrong, and would invite someone to "fix" the grid against the page's z-order. Also left: a handful of dropdown menus rendered _inside_ an already-stacked fixed parent (their number only competes with a sibling backdrop, so the page-level token doesn't apply). New code should use the named tokens; a number that is part of a local ladder is fine.
+
+**Latent bug the audit found, NOT fixed here:** `BulkActionBar.tsx:46` (`z-30`, top-sticky) ties with the fixed shell header (also `z-30`) and, being later in the DOM, paints over it when pinned — its own deviation, needs a real fix not a rename.
 
 Radius is **not** a deviation: `rounded-md/lg/xl/full` is the vocabulary, deliberately un-aliased (see `DESIGN.md` → Shapes).
-
-**Why not fixed:** the audit is the work. New code should use the named tokens.
 
 ---
 

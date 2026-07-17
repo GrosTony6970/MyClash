@@ -66,7 +66,7 @@ export default async function RootLayout({
       <body className="bg-background font-body text-foreground antialiased">
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-surface focus:text-foreground focus:rounded focus:shadow-lg focus:text-sm focus:font-semibold"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-skip-link focus:px-4 focus:py-2 focus:bg-surface focus:text-foreground focus:rounded focus:shadow-lg focus:text-sm focus:font-semibold"
         >
           {t('navigation.skipToMainContent')}
         </a>

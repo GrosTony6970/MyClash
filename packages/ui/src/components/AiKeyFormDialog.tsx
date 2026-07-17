@@ -134,7 +134,7 @@ export function AiKeyFormDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 dialog-enter"
+      className="fixed inset-0 z-overlay flex items-center justify-center bg-slate-950/40 p-4 dialog-enter"
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onCancel();
       }}

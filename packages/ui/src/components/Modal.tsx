@@ -77,7 +77,7 @@ export function Modal({
   return createPortal(
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop click-to-close; Escape + the Cancel/Close button provide keyboard exit
     <div
-      className="dialog-enter fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="dialog-enter fixed inset-0 z-overlay flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onClose();
       }}

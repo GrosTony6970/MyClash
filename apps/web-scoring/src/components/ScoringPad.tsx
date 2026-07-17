@@ -533,7 +533,7 @@ export function ScoringPad({
 
       {/* No-exchange reason picker */}
       {showNoExchange && (
-        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-overlay p-4">
           <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-4">
             <p className="text-sm font-bold text-foreground mb-3">
               {t('scoring.pad.noExchangeReason')}

@@ -226,7 +226,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
     <div data-accent="personal" className="min-h-screen bg-background text-foreground">
       <aside
         data-theme="dark"
-        className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground shadow-2xl lg:flex"
+        className="fixed inset-y-0 left-0 z-sidebar hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground shadow-2xl lg:flex"
       >
         <div className="mb-7">
           <Link href="/me" className="flex items-center gap-3">
@@ -264,7 +264,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-surface/95 shadow-sm backdrop-blur lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-header border-b border-border bg-surface/95 shadow-sm backdrop-blur lg:left-72">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
@@ -296,7 +296,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
       </header>
 
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-overlay lg:hidden">
           <button
             type="button"
             aria-label={t('publicApp.personalShell.closeMenu')}

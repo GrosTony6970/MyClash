@@ -387,7 +387,7 @@ Stacking layers are tokenized (`--z-index-*` in `theme.css`), because "which num
 | `z-overlay`   | 50    | Modals, dialog backdrops, popovers |
 | `z-skip-link` | 60    | The skip link, above everything    |
 
-Existing code still uses the bare numbers (`z-50`), and the mapping is not mechanical — today `z-50` covers both dialog backdrops and inline dropdowns. Use the named tokens in new code; migration is tracked in the deviations register.
+The unambiguous sites (dialog backdrops, shells, skip-links, sticky sub-headers — 35 of them) now use the named tokens. What stays on bare numbers is deliberate: a private stacking ladder like the schedule grid's (`z-10` time labels under `z-20` handles under `z-30` header cells) is self-contained and would only be *mis*described by the page-level names. So the mapping is not mechanical — `z-50` covers both a dialog backdrop and an inline dropdown, and a `z-30` can be a page header or a grid cell. Use the named tokens in new code; where an existing number is part of a local ladder, leave it. The deviations register lists what was intentionally left.
 
 ## Elevation & Depth
 

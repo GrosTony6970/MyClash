@@ -296,7 +296,7 @@ function SingleElimLayout({
             return (
               <div
                 key={round}
-                className="relative z-10 flex min-w-[256px] max-w-[360px] flex-1 flex-col"
+                className="relative z-raised flex min-w-[256px] max-w-[360px] flex-1 flex-col"
               >
                 <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">
                   {labels[round] ?? `R${round}`}
