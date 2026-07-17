@@ -10,6 +10,6 @@ import type { ReactNode } from 'react';
  */
 export default function DisplayLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen w-screen overflow-hidden bg-gray-950 cursor-none">{children}</div>
+    <div className="min-h-screen w-screen overflow-hidden bg-stage cursor-none">{children}</div>
   );
 }

@@ -30,11 +30,9 @@ A projector or a big TV, **10-foot read**, legible at ~15m across a sports hall.
 
 ## Scopes
 
-None. The kiosk stage is **deeper than the dark surface** — `bg-gray-950` (`#030712`) versus `dark-background` (`#0f172a`) — so the corner colours carry across a hall without competing with a lighter field behind them.
+None — but the stage has its own token. `bg-stage` (`--color-stage: #030712`) is **deeper than the dark surface** (`dark-background` `#0f172a`) so the corner colours carry across a hall without a lighter field behind them competing. It is scope-independent: a stage is always this near-black, on any theme. Its ink is `stage-foreground` (`#ffffff`).
 
-That intent is right. The implementation isn't: `#030712` matches no token, and `gray-*` is the wrong family (the system uses `slate-*` / `stone-*`). See [D7](known-deviations.md#d7--chromeless-display-routes-bypass-the-tokens).
-
-**This delta deliberately does not invent a `kiosk-stage` token.** Adding one is a design change with its own decision to make; naming the intent and the gap in the same place is what makes it fixable later.
+Use `bg-stage` for a projector surface and nothing else — it is not a card, not content, not a fifth surface you reach for because you want "extra dark".
 
 ## What differs
 

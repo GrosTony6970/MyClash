@@ -22,7 +22,7 @@ interface Props {
  */
 export function DisplayView({ matchId, eventSlug }: Props) {
   return (
-    <div className="min-h-screen w-screen overflow-hidden bg-gray-950 cursor-none">
+    <div className="min-h-screen w-screen overflow-hidden bg-stage cursor-none">
       <TVScoreboard
         matchId={matchId}
         apiBaseUrl={API_URL}

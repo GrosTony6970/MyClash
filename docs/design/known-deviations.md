@@ -128,19 +128,17 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 
 ---
 
-## D7 — Chromeless display routes bypass the tokens
+## D7 — FIXED: the kiosk stage is now a token (and a projector bug fixed with it)
 
-**Rule broken:** _"Don't write a raw hex"_ / token discipline.
-
-The three projector routes use `bg-gray-950` (`#030712`) — matches no token, and uses `gray-*` where the system uses `slate-*`:
+Added `--color-stage` (`#030712`) + `--color-stage-foreground`, and migrated all the projector surfaces off `bg-gray-950`:
 
 - `apps/web-admin/app/display/layout.tsx`
-- `apps/web-public/app/e/[eventSlug]/match/[matchId]/display/`
-- `apps/web-public/app/e/[eventSlug]/lice/[liceName]/display/`
+- `apps/web-public/app/e/[eventSlug]/match/[matchId]/display/display-view.tsx`
+- `packages/ui/src/components/LiceWaitingDisplay.tsx` (the lice route renders this bare when idle)
 
-The **intent** is sound: the kiosk stage is deliberately deeper than `dark-background` (`#0f172a`) so the corner colours carry across a hall. The gap is that the intent isn't tokenized.
+The stage is deliberately deeper than `dark-background` (`#0f172a`) so the corner colours carry across a hall, and it is scope-independent — always this near-black on any theme, which is why it is its own token rather than a dark-scope override.
 
-**Why not fixed:** adding a `kiosk-stage` token is a design change, not a codification. See [`display-kiosk.md`](display-kiosk.md).
+**Bug fixed in passing:** `LiceWaitingDisplay` had the stage background but was **missing `cursor-none`** — so a mouse pointer sat visible on the projection during the between-matches waiting state, which is the state a hall screen sits in longest. The two `<div>` wrappers had `cursor-none`; the component everyone forgot did not. Added.
 
 ---
 

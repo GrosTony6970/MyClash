@@ -79,6 +79,14 @@
   --color-corner-blue: #2563eb; /* blue-600 */
   --color-corner-blue-foreground: #ffffff;
 
+  /* Projector/kiosk STAGE: the chromeless big-screen surfaces (match + lice
+   * displays across web-admin and web-public). Deliberately DEEPER than the
+   * dark surface (#0f172a) so the corner colours carry across a sports hall
+   * without a lighter field behind them competing. Scope-independent: a stage
+   * is always this near-black, on any theme. Not for cards or content. */
+  --color-stage: #030712; /* gray-950 */
+  --color-stage-foreground: #ffffff;
+
   /* ── Stacking layers ────────────────────────────────────────────────────
    * Tailwind ships NO --z-index-* defaults, so every key here is a pure
    * addition: `z-50` still resolves via the bare-value path, untouched.

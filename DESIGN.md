@@ -52,6 +52,10 @@ colors:
   corner-blue: '#2563eb'
   corner-blue-foreground: '#ffffff'
 
+  # Stage: the chromeless projector surface. Deeper than dark, scope-independent.
+  stage: '#030712' # gray-950
+  stage-foreground: '#ffffff'
+
   # ── Accent scope [data-accent='personal'] — overrides ONLY these two. ──
   accent-personal: '#1d4ed8' # blue-700
   accent-personal-hover: '#2563eb' # blue-600
@@ -298,6 +302,7 @@ Colours fall into five families, and the families have jurisdictions:
 | **Status**      | `danger`, `success`, `warning`, `info`, `instructor`                             | Badges and alerts **only**. Never the page accent.       |
 | **Strong**      | `strong`, `strong-foreground`, `strong-hover`                                    | A dark-neutral action — a slate button, a selected chip. |
 | **Domain**      | `corner-red`, `corner-blue`                                                      | The fighter's corner. Rule semantics.                    |
+| **Stage**       | `stage`, `stage-foreground`                                                      | The chromeless projector surface only.                   |
 | **Gold**        | `gold`, `gold-text`                                                              | Placings and flourish.                                   |
 
 ### Gold is two tokens, and that is not an accident

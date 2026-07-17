@@ -50,7 +50,9 @@ export function LiceWaitingDisplay({
   const blueStyle = sideStyle(nextMatch?.scoringConfig ?? null, 'blue');
 
   return (
-    <div className={`flex min-h-screen flex-col bg-gray-950 text-white ${className ?? ''}`}>
+    <div
+      className={`flex min-h-screen flex-col bg-stage text-stage-foreground cursor-none ${className ?? ''}`}
+    >
       <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
         <div className="flex items-center justify-between gap-6">
           <div className="min-w-0 text-left text-sm font-semibold text-slate-600">
