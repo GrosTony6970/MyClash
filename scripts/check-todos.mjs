@@ -7,6 +7,10 @@ const ignoredDirs = new Set([
   '.claude',
   '.codex',
   '.git',
+  // Tool caches. Partially tracked, so gitignore does not cover them; their
+  // generated summaries mention TODO/FIXME as prose, which is not debt.
+  '.understand-anything',
+  '.remember',
   '.kiro',
   '.next',
   '.pnpm-store',
@@ -32,6 +36,7 @@ const extensions = new Set([
 const allowedPathSuffixes = new Set([
   'docs/pre-production-review-plan.md',
   'docs/CODE_QUALITY_REVIEW.md',
+  'docs/DOC_REVIEW_2026-07-01.md',
   'memory/PROMPT_LOG.md',
   'scripts/check-todos.mjs',
 ]);
@@ -64,7 +69,12 @@ for (const file of walk(root).filter(hasAllowedExtension)) {
   const repoPath = normalize(file);
   const source = readFileSync(file, 'utf8');
   source.split(/\r?\n/).forEach((line, index) => {
-    if (!/\b(TODO|FIXME)\b/i.test(line)) return;
+    // Case-SENSITIVE on purpose. The debt marker is conventionally uppercase, and
+    // matching case-insensitively flags things that are not markers at all:
+    // ai-data-quality.service.ts lists 'todo' as a placeholder WORD to detect
+    // ('test', 'demo', 'sample', 'todo', 'tbd'), and tests/e2e uses `test.fixme`.
+    // Both are code, not debt; neither can be fixed by adding a task marker.
+    if (!/\b(TODO|FIXME)\b/.test(line)) return;
     const allowed =
       allowedPathSuffixes.has(repoPath) || allowedMarkers.some((marker) => marker.test(line));
     if (!allowed) {
