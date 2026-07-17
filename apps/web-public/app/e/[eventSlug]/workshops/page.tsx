@@ -54,7 +54,7 @@ export default async function WorkshopsPage({ params }: Props) {
       />
       <h1
         className="mb-4 font-display text-2xl font-bold sm:text-3xl"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
+        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-accent)' }}
       >
         {t('publicApp.eventHome.section.workshops')}
       </h1>

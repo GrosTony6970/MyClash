@@ -223,7 +223,7 @@ export default async function StatsPage({ params }: Props) {
             className="font-display text-2xl font-bold sm:text-3xl"
             style={{
               fontFamily: 'var(--font-display)',
-              color: 'var(--event-primary, #c0392b)',
+              color: 'var(--color-accent)',
             }}
           >
             {t('publicApp.tournamentStats.title')}

@@ -1398,7 +1398,7 @@ describe('EventsService', () => {
             name: 'Lyon AMHE',
             slug: 'lyon-amhe',
             logo_url: 'https://cdn/lyon.png',
-            brand_color: '#c0392b',
+            brand_color: '#b91c1c',
           },
         },
         {

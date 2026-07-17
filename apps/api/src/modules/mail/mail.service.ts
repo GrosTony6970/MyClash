@@ -136,7 +136,7 @@ export class MailService {
   ${intro}
   <p style="margin:32px 0">
     <a href="${escapeHtml(opts.magicLink)}"
-       style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
+       style="background:#b91c1c;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
       ${opts.type === 'claim' ? 'Confirmer mon profil / Confirm my profile' : 'Se connecter / Log in'}
     </a>
   </p>
@@ -208,7 +208,7 @@ export class MailService {
   <p style="color:#555;font-size:14px">Message envoye par l'organisation de votre evenement. / Message sent by your event organization.</p>
   ${
     actionUrl
-      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
+      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#b91c1c;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
       : ''
   }
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
@@ -251,7 +251,7 @@ export class MailService {
   <p>You requested to change your MyClash account email from <strong>${oldEmail}</strong> to <strong>${newEmail}</strong>.</p>
   <p style="margin:32px 0">
     <a href="${confirmUrl}"
-       style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
+       style="background:#b91c1c;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
       Confirmer le changement / Confirm email change
     </a>
   </p>
@@ -303,7 +303,7 @@ export class MailService {
   </p>
   <p style="margin:32px 0">
     <a href="${loginUrl}"
-       style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
+       style="background:#b91c1c;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
       Se connecter / Log in
     </a>
   </p>
@@ -350,7 +350,7 @@ export class MailService {
   <p>${body}</p>
   ${
     actionUrl
-      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
+      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#b91c1c;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
       : ''
   }
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">

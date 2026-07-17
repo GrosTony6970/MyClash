@@ -445,7 +445,7 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Don't** assume dark implies blue. The scopes are orthogonal (see Colors). `/me` is light content + blue accent + dark sidebar.
 - **Do** let event colour tint the accent on `/e/*`.
 - **Don't** treat event colour as a third surface.
-- **Don't** write a raw hex in app code. The only hex lives in `packages/ui/src/theme.css`. There are already four reds loose in this repo — `#b91c1c` (accent), `#991b1b` (its hover), `#dc2626` (danger), `#c0392b` (legacy) — because this rule was broken four times. **`#b91c1c` is the MyClash red.** The rest are tracked in the deviations register.
+- **Don't** write a raw hex in app code. The only hex lives in `packages/ui/src/theme.css`. **`#b91c1c` is the MyClash red** — it is `--color-accent`. Its shades are tokens too: `#991b1b` is `accent-hover`, `#dc2626` is `danger`. A fourth red, the legacy `#c0392b`, used to be loose in emails, PWA chrome and event pages; it was unified onto `#b91c1c` on 2026-07-17. If you are about to type `#c0392b`, you are copying something that was removed on purpose.
 
 ### Type
 

@@ -212,7 +212,7 @@ export default function WorkshopDetailPage() {
         {/* Header */}
         <h1
           className="mb-1 flex items-center gap-2 font-display text-2xl font-bold sm:text-3xl"
-          style={{ color: 'var(--event-primary, #c0392b)' }}
+          style={{ color: 'var(--color-accent)' }}
         >
           <TournamentColorDot color={workshop.color} size="md" />
           {workshop.title}

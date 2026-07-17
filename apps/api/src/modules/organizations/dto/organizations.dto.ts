@@ -20,10 +20,10 @@ const updateOrganizationSchema = z
     contactEmail: z.email().optional(),
     // Public URL of the organization logo (set by the upload endpoint).
     logoUrl: z.string().max(500).nullish(),
-    // Organization brand colour as a hex string (e.g. '#c0392b').
+    // Organization brand colour as a hex string (e.g. '#b91c1c').
     brandColor: z
       .string()
-      .regex(/^#[0-9a-fA-F]{6}$/u, 'brandColor must be a 6-digit hex color like #c0392b')
+      .regex(/^#[0-9a-fA-F]{6}$/u, 'brandColor must be a 6-digit hex color like #b91c1c')
       .nullish(),
   })
   .strict();

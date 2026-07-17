@@ -258,7 +258,7 @@ export default function MySchedulePage() {
       <div className="flex items-center justify-between mb-4">
         <h1
           className="font-display font-bold text-2xl sm:text-3xl"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-accent)' }}
         >
           {t('publicApp.mySchedule.title')}
         </h1>
@@ -318,7 +318,7 @@ export default function MySchedulePage() {
                 ? 'text-white border-transparent'
                 : 'text-foreground-secondary border-border',
             ].join(' ')}
-            style={dayFilter === 'all' ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
+            style={dayFilter === 'all' ? { backgroundColor: 'var(--color-accent)' } : {}}
           >
             {t('publicApp.mySchedule.allDays')}
           </button>
@@ -333,7 +333,7 @@ export default function MySchedulePage() {
                   ? 'text-white border-transparent'
                   : 'text-foreground-secondary border-border',
               ].join(' ')}
-              style={dayFilter === day ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
+              style={dayFilter === day ? { backgroundColor: 'var(--color-accent)' } : {}}
             >
               {new Date(day).toLocaleDateString(localeToBcp47(locale), {
                 weekday: 'short',

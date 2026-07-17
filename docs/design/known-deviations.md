@@ -43,25 +43,18 @@ Two things this taught us:
 
 ---
 
-## D2 — Four reds; `#c0392b` is the product's other red
+## D2 — FIXED: the legacy red `#c0392b` unified onto `#b91c1c`
 
-**Rule broken:** _"Don't write a raw hex in app code"_ / one MyClash red. **`#b91c1c` is the red** (`DESIGN.md` → Colors).
+Every live `#c0392b` is gone. The original entry's two premises were both wrong, and finding that out changed the fix — recorded here because the wrong version is instructive:
 
-| Red               | Where                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------- |
-| `#b91c1c` red-700 | `--color-accent` — **correct**                                                              |
-| `#991b1b` red-800 | `--color-accent-hover` — correct, but mislabelled "primary CTA" in the style guide (see D5) |
-| `#dc2626` red-600 | `--color-danger` — correct as danger, but used as the _brand_ red in web-marketing (see D4) |
-| `#c0392b`         | **legacy product red** — no token                                                           |
+- **"It's the `events.primary_color` DB default."** No. The column was `themes.primary_color`, and migration **0086 already dropped it** (along with 5 sibling colour/font columns; `logo_url` went in 0084). No event has received that default since 0086. So there was **no migration to write** — the drizzle `themes` table was simply carrying 7 dead columns as stale drift. Those were deleted from `packages/db/src/schema/events.ts` (verified unread: the only live theme field is `hero_image_url`).
+- **"The event pages have a `#c0392b` fallback."** It wasn't a fallback — `--event-primary` has **no producer anywhere in the repo**, so `var(--event-primary, #c0392b)` rendered `#c0392b` unconditionally on every `/e/*` page. It was the _actual shipped accent_, not a safety net. The 10 sites now read `var(--color-accent)` — the token, which is `#b91c1c` on `/e/*` today and would inherit any future event tint set at the `--color-accent` level (the mechanism the contract actually specifies).
 
-`#c0392b` is not a stray. It is load-bearing in four places:
+Also unified: the 5 transactional-email CTA backgrounds (`mail.service.ts` — a literal is unavoidable in email, so the value was corrected), the scoring PWA `themeColor` + `manifest.json` `theme_color`, and two `organizations.dto.ts` doc/example strings.
 
-- **Database default** — `packages/db/src/schema/events.ts:39` and `packages/db/migrations/0001_init.sql:183`: `events.primary_color` defaults to `#c0392b`. Every event created without a colour gets it.
-- **Transactional email CTAs** — `apps/api/src/modules/mail/mail.service.ts` (5 occurrences, inline `style="background:#c0392b"`). Email cannot read CSS variables, so _some_ literal is unavoidable here; the value is what's wrong.
-- **Scoring PWA chrome** — `apps/web-scoring/app/layout.tsx:26` (`themeColor`) and `apps/web-scoring/public/manifest.json:8` (`theme_color`).
-- **Event-page fallbacks** — ~15 inline `var(--event-primary, #c0392b)` across `apps/web-public/app/e/[eventSlug]/**`. Note the ratified contract specified the fallback as `#b91c1c`; the code shipped `#c0392b`.
+**Applied migrations `0001_init.sql:183` and `0085` still contain `#c0392b`** — never edited, by rule (the ledger checksums them). They are history, not live config.
 
-**Why not fixed:** changing the DB default needs a migration and a decision about existing rows; the email colour is a visible brand change. Sequence it deliberately, not as a find-and-replace.
+**Adjacent, left alone (not `#c0392b`, its own decision):** `apps/web-scoring/public/manifest.json` `background_color: "#1a1a2e"` is an untokenized dark navy matching no token (`dark-background` is `#0f172a`). Changing it shifts the PWA splash — flag, don't bundle.
 
 ---
 

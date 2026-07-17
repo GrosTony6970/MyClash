@@ -36,14 +36,13 @@ export const themes = pgTable('themes', {
   eventId: uuid('event_id')
     .notNull()
     .references(() => events.id, { onDelete: 'cascade' }),
-  primaryColor: text('primary_color').default('#c0392b'),
-  secondaryColor: text('secondary_color').default('#2c3e50'),
-  accentColor: text('accent_color').default('#f39c12'),
-  logoUrl: text('logo_url'),
   heroImageUrl: text('hero_image_url'),
-  fontDisplay: text('font_display').default('Cinzel'),
-  fontBody: text('font_body').default('Inter'),
-  customCss: text('custom_css'),
+  // NOTE: primary_color/secondary_color/accent_color/font_display/font_body/
+  // custom_css were dropped from the live DB by migration 0086 (they were
+  // write-only knobs no component read — the unified MyClash design governs
+  // both apps now), and logo_url by 0084 (moved to events.logo_url). They were
+  // left declared here as stale drift; removed 2026-07-17. hero_image_url is
+  // the only per-event theme field that still flows to the public site.
 });
 
 // ── Lices (pistes / fighting arenas) ─────────────────────────────────────────

@@ -80,7 +80,7 @@ export default function PeoplePage() {
     <main className="px-4 py-6 max-w-lg mx-auto">
       <h1
         className="font-display font-bold text-2xl sm:text-3xl mb-4"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
+        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-accent)' }}
       >
         {t('publicApp.people.title')}
       </h1>
@@ -95,7 +95,7 @@ export default function PeoplePage() {
           className="w-full bg-surface border border-border text-foreground placeholder:text-muted
                      px-4 py-3 text-base rounded-xl
                      focus:outline-none focus:ring-2 focus:border-transparent"
-          style={{ '--tw-ring-color': 'var(--event-primary, #c0392b)' } as React.CSSProperties}
+          style={{ '--tw-ring-color': 'var(--color-accent)' } as React.CSSProperties}
         />
         {loading && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2">

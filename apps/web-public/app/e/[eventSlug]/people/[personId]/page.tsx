@@ -243,7 +243,7 @@ export default function PersonProfilePage() {
                 ? 'bg-surface border border-border text-foreground-secondary hover:border-danger hover:text-danger'
                 : 'text-white',
             ].join(' ')}
-            style={!following ? { backgroundColor: 'var(--event-primary, #c0392b)' } : {}}
+            style={!following ? { backgroundColor: 'var(--color-accent)' } : {}}
           >
             {following
               ? t('publicApp.following.followingButton')
@@ -272,7 +272,7 @@ export default function PersonProfilePage() {
             <Link
               href={`/e/${eventSlug}/claim?personId=${profile.id}&next=${encodeURIComponent(`/e/${eventSlug}`)}`}
               className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white"
-              style={{ backgroundColor: 'var(--event-primary, #c0392b)' }}
+              style={{ backgroundColor: 'var(--color-accent)' }}
             >
               {t('publicApp.people.claimButton')}
             </Link>
