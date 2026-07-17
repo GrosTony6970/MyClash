@@ -77,33 +77,33 @@ export default function DesignSystemPage() {
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Swatch
-            name="bg-stone-50"
+            name="bg-background"
             hex="#FAFAF9"
-            className="bg-stone-50 border border-slate-200"
+            className="bg-background border border-border"
             caption={t('admin.designSystem.swatches.surface')}
           />
           <Swatch
-            name="text-slate-900"
+            name="text-foreground"
             hex="#0F172A"
-            className="bg-slate-900"
+            className="bg-foreground"
             caption={t('admin.designSystem.swatches.inkPrimary')}
           />
           <Swatch
-            name="border-slate-200"
-            hex="#E2E8F0"
-            className="bg-slate-200"
+            name="border-border"
+            hex="#E7E5E4"
+            className="bg-border"
             caption={t('admin.designSystem.swatches.hairlines')}
           />
           <Swatch
-            name="text-slate-500"
+            name="text-muted"
             hex="#64748B"
-            className="bg-slate-500"
+            className="bg-muted"
             caption={t('admin.designSystem.swatches.mutedText')}
           />
           <Swatch
-            name="bg-red-800"
-            hex="#991B1B"
-            className="bg-red-800"
+            name="bg-accent"
+            hex="#B91C1C"
+            className="bg-accent"
             caption={t('admin.designSystem.swatches.primaryCta')}
           />
           <Swatch

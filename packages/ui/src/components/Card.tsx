@@ -12,11 +12,11 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       className={[
-        // Token-aware with current dark values as fallback: web-public (which
-        // defines --color-*) adapts light/dark; web-admin/web-scoring keep the
-        // current gray look via the fallbacks.
-        'bg-[var(--color-surface,#111827)] border border-[var(--color-border,#1f2937)] rounded-xl',
-        accent ? 'border-t-2 border-t-[var(--color-gold,#f59e0b)]' : '',
+        // Every app imports @myclash/ui/theme.css, so these tokens are always
+        // defined and adapt light/dark automatically. (They used to carry dark
+        // hex fallbacks that never fired and misdescribed the light surface.)
+        'bg-surface border border-border rounded-xl',
+        accent ? 'border-t-2 border-t-gold' : '',
         noPadding ? '' : 'p-6',
         className,
       ].join(' ')}
@@ -45,10 +45,7 @@ export const CardTitle = ({
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <h3
-    className={[
-      'font-display text-lg font-bold text-[var(--color-foreground,#ffffff)]',
-      className,
-    ].join(' ')}
+    className={['font-display text-lg font-bold text-foreground', className].join(' ')}
     {...props}
   >
     {children}
@@ -60,7 +57,7 @@ export const CardBody = ({
   children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={['text-[var(--color-foreground,#d1d5db)]', className].join(' ')} {...props}>
+  <div className={['text-foreground', className].join(' ')} {...props}>
     {children}
   </div>
 );

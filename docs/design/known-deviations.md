@@ -92,20 +92,25 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 
 ---
 
-## D5 — The living style guide has drifted from the tokens
+## D5 — style guide + component retokenization (mostly FIXED)
 
-**Rule broken:** `/admin/design-system` is the executable contract — so it must be right.
+**Rule:** `/admin/design-system` is the executable contract, and shared components should read tokens not raw palette classes.
 
-`apps/web-admin/app/admin/design-system/page.tsx` hardcodes swatch values that no longer match `theme.css`:
+**FIXED (2026-07-17):**
 
-| Swatch says                     | Token actually is                                      |
-| ------------------------------- | ------------------------------------------------------ |
-| hairlines `#E2E8F0` (slate-200) | `--color-border: #e7e5e4` (stone-200)                  |
-| "primary CTA" `#991B1B`         | that's `--color-accent-hover`; the accent is `#b91c1c` |
+- **The two wrong swatches.** `/admin/design-system` showed `border-slate-200 #E2E8F0` for hairlines (token is `#e7e5e4`) and `bg-red-800 #991B1B` for "primary CTA" (accent is `#b91c1c`). All the mappable swatches now render the semantic token utilities (`bg-background`, `text-foreground`, `border-border`, `text-muted`, `bg-accent`), so the two values are corrected and the page can no longer drift from a raw hex.
+- **The dead hex fallbacks in `Button.tsx` and `Card.tsx`.** Removed. Every app imports `theme.css`, so `--color-*` is always defined and the fallbacks never fired — proven zero-op by a byte-level check that no `--color-*` value changed. Card's fallbacks were also actively _wrong_ (`#111827` for a `#ffffff` surface), a textbook declarations-rot case. The stale comments claiming web-admin/web-scoring "keep the gray look via the fallbacks" went with them.
+- **`AdminPageHeader` H1 + subtitle** retokenized to `text-foreground` / `text-foreground-secondary` (exact-value, zero render change).
 
-Related: `AdminPageHeader.tsx` and `FormField.tsx` — the two best in-code definitions of the aesthetic — use raw palette classes (`text-red-800`, `border-slate-200`, `text-slate-900`) rather than tokens. `packages/ui` also carries dark hex fallbacks: `Button.tsx:33`, `Card.tsx:18-19,49,63`.
+**Still open (each needs a value-shift decision or a new token — not a silent sweep):**
 
-**Why not fixed:** mechanical but broad; wants one focused retokenization pass with a visual diff.
+- **`AdminPageHeader` eyebrow** is `text-red-800` (`#991b1b`). DESIGN.md says the eyebrow is _the accent_, but the accent is `#b91c1c` (red-700) — so the value-exact token is `accent-hover`, which is semantically the wrong token (a hover colour used at rest inverts under `[data-accent='personal']`). Fixing it to `text-accent` is correct but shifts the eyebrow red-800→red-700 across ~21 admin pages. Left for an explicit call.
+- **`AdminPageHeader` border** `border-slate-200` (`#e2e8f0`) vs `border-border` (`#e7e5e4`, stone-200): sub-perceptual but non-zero.
+- **`FoilMark` / FormField input border** `text-slate-300` / `border-slate-300` (`#cbd5e1`): **no token has this value.** The system has no control-border tier distinct from the card hairline, and no placeholder tier (`slate-400`). Adding those tiers is a token decision.
+- **`FormField`** (its only consumer is the design-system showcase, not shipped chrome): its error text is `text-red-700` = accent-exact, but an error should be `text-danger` — the value-matching token and the correct token disagree. Wants the semantic fix, not a value-preserving swap.
+- **`Button` status variants** (`danger`, `gold`, secondary, …) stay raw **on purpose**: they render in web-scoring (dark), and a solid `bg-danger`/`bg-gold` fill there was tuned for _text_ contrast, so tokenizing the fill naively would break legibility. Needs status-fill tokens distinct from status-text.
+- **`Button.tsx:69` `ring-offset-gray-900`** is a live focus-state bug: on light admin pages it paints a near-black halo around a focused button. Independent of tokenization.
+- **`Card` `CardBody`** the removed `#d1d5db` fallback shows the original intent was a _muted_ body; the var choice (`--color-foreground`) silently flattened title and body to one colour. `CardBody` should probably be `foreground-secondary` — a deliberate (visible) change, so deferred.
 
 ---
 

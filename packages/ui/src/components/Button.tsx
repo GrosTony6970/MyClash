@@ -26,11 +26,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  // `primary` is accent-aware: apps that define --color-accent (web-public:
-  // red on light, blue under data-accent="personal") get it; others (web-admin,
-  // web-scoring) fall back to the brand red so nothing changes for them.
+  // `primary` is the accent token. Every app imports @myclash/ui/theme.css, so
+  // --color-accent is always defined (red on light, blue under
+  // data-accent="personal"); there is no fallback to rot.
   primary:
-    'bg-[var(--color-accent,#b91c1c)] hover:bg-[var(--color-accent-hover,#991b1b)] active:bg-[var(--color-accent-hover,#991b1b)] text-[var(--color-accent-foreground,#ffffff)] border-transparent shadow-sm',
+    'bg-accent hover:bg-accent-hover active:bg-accent-hover text-accent-foreground border-transparent shadow-sm',
   secondary:
     'bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white border-transparent shadow-sm',
   ghost:

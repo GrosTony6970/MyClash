@@ -41,11 +41,13 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({
           <FoilMark className="text-slate-300" width={28} />
         </p>
       ) : null}
-      <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl leading-tight tracking-tight text-slate-900">
+      <h1 className="mt-2 font-display font-bold text-2xl sm:text-3xl leading-tight tracking-tight text-foreground">
         {title}
       </h1>
       {subtitle ? (
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">{subtitle}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-foreground-secondary">
+          {subtitle}
+        </p>
       ) : null}
     </div>
     {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
