@@ -68,12 +68,28 @@ interface NotificationPreferenceRow {
   results_published?: boolean | null;
 }
 
+/**
+ * Custom BullMQ job ids MUST NOT contain ':'.
+ *
+ * `Job.validateOptions` (bullmq/dist/cjs/classes/job.js) throws
+ * `Custom Id cannot contain :` for any id with a colon, unless it splits into
+ * exactly 3 parts — a compatibility carve-out for legacy repeatable jobs. The
+ * ids here used to be `notification:<kind>:<entity>:<user>` (4 parts), so EVERY
+ * `queue.add` threw, and the throw surfaced as a 500 on whatever request was
+ * enqueueing. It went unnoticed because the enqueue paths only ever ran with an
+ * empty recipient list (unclaimed fighters, sessions with no enrollees yet) —
+ * `Promise.all([])` adds nothing. The first real recipient was the instructor
+ * "Notify participants" broadcast, which failed for this reason.
+ *
+ * Separator is '.', which is legal in a Redis key and cannot appear in a UUID
+ * or in a notification kind.
+ */
 export function buildNotificationJobId(
   kind: NotificationKind,
   entityId: string,
   userId: string,
 ): string {
-  return `notification:${kind}:${entityId}:${userId}`;
+  return `notification.${kind}.${entityId}.${userId}`;
 }
 
 export function computeNotificationDelayMs(

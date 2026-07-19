@@ -35,7 +35,7 @@ function makeSupabaseFrom(rowsByTable: Record<string, unknown>) {
 describe('notification scheduler jobs', () => {
   it('builds stable per-user job ids for duplicate suppression', () => {
     expect(buildNotificationJobId('match_starting', 'match-1', 'user-1')).toBe(
-      'notification:match_starting:match-1:user-1',
+      'notification.match_starting.match-1.user-1',
     );
   });
 
@@ -68,7 +68,7 @@ describe('notification scheduler jobs', () => {
       now: new Date('2026-05-02T10:00:00.000Z'),
     });
 
-    expect(queue.getJob).toHaveBeenCalledWith('notification:match_starting:match-1:user-1');
+    expect(queue.getJob).toHaveBeenCalledWith('notification.match_starting.match-1.user-1');
     expect(existingJob.remove).toHaveBeenCalledOnce();
     expect(queue.add).toHaveBeenCalledWith(
       'send',
@@ -79,7 +79,7 @@ describe('notification scheduler jobs', () => {
       }),
       expect.objectContaining({
         delay: 20 * 60_000,
-        jobId: 'notification:match_starting:match-1:user-1',
+        jobId: 'notification.match_starting.match-1.user-1',
       }),
     );
   });
@@ -128,7 +128,7 @@ describe('notification scheduler jobs', () => {
       }),
       expect.objectContaining({
         delay: 0,
-        jobId: 'notification:assignment_changed:assignment-1:user-1',
+        jobId: 'notification.assignment_changed.assignment-1.user-1',
       }),
     );
   });

@@ -34,7 +34,7 @@ function makeSupabaseFrom(rowsByTable: Record<string, unknown>) {
 describe('follow notification scheduler', () => {
   it('builds stable per-follower match notification job ids', () => {
     expect(buildFollowNotificationJobId('match-1', 'user-1')).toBe(
-      'follow:match_starting:match-1:user-1',
+      'follow.match_starting.match-1.user-1',
     );
   });
 
@@ -111,7 +111,7 @@ describe('follow notification scheduler', () => {
         body: 'Jean Dupont fights in 10 min - Pool A vs Marie Martin on Lice 1.',
       }),
       expect.objectContaining({
-        jobId: 'follow:match_starting:match-1:user-1',
+        jobId: 'follow.match_starting.match-1.user-1',
         delay: 20 * 60_000,
       }),
     );
@@ -169,7 +169,7 @@ describe('follow notification scheduler', () => {
 
     await service.scheduleMatchStarting('match-1', new Date('2026-05-02T10:00:00.000Z'));
 
-    expect(queue.getJob).toHaveBeenCalledWith('follow:match_starting:match-1:user-1');
+    expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-1.user-1');
     expect(existingJob.remove).toHaveBeenCalledOnce();
     expect(queue.add).toHaveBeenCalledTimes(1);
   });
@@ -236,7 +236,7 @@ describe('follow notification scheduler', () => {
         body: 'Longsword Basics with Coach Ada starts in 15 min.',
       }),
       expect.objectContaining({
-        jobId: 'follow:workshop_starting:session-1:user-1',
+        jobId: 'follow.workshop_starting.session-1.user-1',
         delay: 15 * 60_000,
       }),
     );
@@ -286,8 +286,8 @@ describe('follow notification scheduler', () => {
 
     await service.cancelForFollowedPerson('person-1', 'user-1');
 
-    expect(queue.getJob).toHaveBeenCalledWith('follow:match_starting:match-1:user-1');
-    expect(queue.getJob).toHaveBeenCalledWith('follow:match_starting:match-2:user-1');
+    expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-1.user-1');
+    expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-2.user-1');
     expect(existingJob.remove).toHaveBeenCalledTimes(2);
   });
 });

@@ -12,6 +12,7 @@ function makeChain(result: unknown) {
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
     insert: vi.fn(),
+    update: vi.fn(),
   });
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
@@ -19,6 +20,7 @@ function makeChain(result: unknown) {
   chain.order.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
   return chain;
 }
 
@@ -274,5 +276,98 @@ describe('BroadcastNotificationsService', () => {
     });
 
     expect(scheduler.sendImmediate).toHaveBeenCalledTimes(3);
+  });
+
+  // ── sendToEventPersons — the instructor "Notify participants" path ────────────
+
+  function instructorNotifyTables() {
+    return {
+      events: { data: { id: 'event-1', organization_id: 'org-1', slug: 'fal' }, error: null },
+      persons: {
+        data: [{ id: 'person-1', claimed_by_user_id: 'user-1', email: 'one@example.com' }],
+        error: null,
+      },
+      event_broadcast_notifications: {
+        data: { id: 'broadcast-1', recipient_count: 1 },
+        error: null,
+      },
+      event_broadcast_recipients: {
+        data: [
+          {
+            id: 'recipient-1',
+            broadcast_id: 'broadcast-1',
+            person_id: 'person-1',
+            user_id: 'user-1',
+            email: 'one@example.com',
+          },
+        ],
+        error: null,
+      },
+      audit_log: { data: { id: 'audit-1' }, error: null },
+    };
+  }
+
+  it('messages workshop enrollees without requiring an org-admin role', async () => {
+    const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
+    const assertOrgRole = vi.fn().mockRejectedValue(new ForbiddenException('not an org admin'));
+    const service = new BroadcastNotificationsService(
+      makeSupabase(instructorNotifyTables()) as never,
+      { assertOrgRole } as never,
+      scheduler as never,
+    );
+
+    const result = await service.sendToEventPersons(
+      'event-1',
+      'instructor-user',
+      ['person-1'],
+      'hello',
+      'test',
+    );
+
+    // The caller (assertCanManageWorkshopAsInstructorOrLead) already authorized;
+    // this path must NOT re-gate on org membership or instructors get a 403.
+    expect(assertOrgRole).not.toHaveBeenCalled();
+    expect(result).toEqual({ id: 'broadcast-1', recipientCount: 1 });
+    expect(scheduler.sendImmediate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'organizer_broadcast',
+        entityId: 'broadcast-1',
+        recipientId: 'recipient-1',
+        userId: 'user-1',
+        severity: 'info',
+      }),
+    );
+  });
+
+  it('marks a recipient failed instead of failing the request when queueing throws', async () => {
+    const chains: Record<string, ReturnType<typeof makeChain>> = {};
+    const tables = instructorNotifyTables() as Record<string, unknown>;
+    const from = vi.fn((table: string) => {
+      // One chain per table so the update on event_broadcast_recipients is
+      // observable after the call.
+      chains[table] ??= makeChain(tables[table] ?? { data: null, error: null });
+      return chains[table];
+    });
+    const scheduler = {
+      sendImmediate: vi.fn().mockRejectedValue(new Error('Custom Id cannot contain :')),
+    };
+    const service = new BroadcastNotificationsService(
+      { service: { from } } as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      scheduler as never,
+    );
+
+    const result = await service.sendToEventPersons(
+      'event-1',
+      'instructor-user',
+      ['person-1'],
+      'hello',
+      'test',
+    );
+
+    expect(result).toEqual({ id: 'broadcast-1', recipientCount: 1 });
+    expect(chains['event_broadcast_recipients']?.update).toHaveBeenCalledWith(
+      expect.objectContaining({ delivery_status: 'failed' }),
+    );
   });
 });

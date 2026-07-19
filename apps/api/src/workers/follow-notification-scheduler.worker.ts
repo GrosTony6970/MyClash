@@ -61,16 +61,18 @@ interface NotificationPreferenceRow {
   workshop_starting_minutes_before?: string | number | null;
 }
 
+// Separator is '.', never ':' — see buildNotificationJobId in
+// notification-scheduler.worker.ts for why a colon makes BullMQ throw.
 export function buildFollowNotificationJobId(matchId: string, followerUserId: string): string {
-  return `follow:match_starting:${matchId}:${followerUserId}`;
+  return `follow.match_starting.${matchId}.${followerUserId}`;
 }
 
 export function buildFollowRefereeJobId(assignmentId: string, followerUserId: string): string {
-  return `follow:referee_starting:${assignmentId}:${followerUserId}`;
+  return `follow.referee_starting.${assignmentId}.${followerUserId}`;
 }
 
 export function buildFollowWorkshopJobId(sessionId: string, followerUserId: string): string {
-  return `follow:workshop_starting:${sessionId}:${followerUserId}`;
+  return `follow.workshop_starting.${sessionId}.${followerUserId}`;
 }
 
 function fighterName(registration: RegistrationRow | undefined): string {

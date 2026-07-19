@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -43,6 +43,8 @@ const SEVERITIES: BroadcastSeverity[] = ['info', 'warning', 'alert'];
 
 @Injectable()
 export class BroadcastNotificationsService {
+  private readonly logger = new Logger(BroadcastNotificationsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly organizations: OrganizationsService,
@@ -169,22 +171,36 @@ export class BroadcastNotificationsService {
       recipientCount: recipients.length,
     });
 
+    // The broadcast is already persisted at this point. A queue failure is a
+    // DELIVERY failure, not a write failure — record it on the recipient row and
+    // keep going, rather than 500-ing a request whose durable effect succeeded.
     await Promise.all(
-      ((insertedRecipients ?? []) as RecipientRow[]).map((recipient) =>
-        this.scheduler.sendImmediate({
-          kind: 'organizer_broadcast',
-          entityId: broadcastId,
-          recipientId: recipient.id,
-          userId: recipient.user_id ?? recipient.id,
-          forceEmail: !recipient.user_id,
-          title,
-          body,
-          url: '/notifications',
-          email: recipient.email,
-          emailSubject: title,
-          severity,
-        }),
-      ),
+      ((insertedRecipients ?? []) as RecipientRow[]).map(async (recipient) => {
+        try {
+          await this.scheduler.sendImmediate({
+            kind: 'organizer_broadcast',
+            entityId: broadcastId,
+            recipientId: recipient.id,
+            userId: recipient.user_id ?? recipient.id,
+            forceEmail: !recipient.user_id,
+            title,
+            body,
+            url: '/notifications',
+            email: recipient.email,
+            emailSubject: title,
+            severity,
+          });
+        } catch (err) {
+          const message = (err as Error).message;
+          this.logger.error(
+            `broadcast ${broadcastId}: failed to queue delivery for recipient ${recipient.id}: ${message}`,
+          );
+          await this.supabase.service
+            .from('event_broadcast_recipients')
+            .update({ delivery_status: 'failed', error: message })
+            .eq('id', recipient.id);
+        }
+      }),
     );
 
     return { id: broadcastId, recipientCount: recipients.length };
