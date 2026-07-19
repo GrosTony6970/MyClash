@@ -1,7 +1,7 @@
 'use client';
 
 import { formatInZone } from '@myclash/time';
-import { EmptyState, SkillBadge, useNow } from '@myclash/ui';
+import { EmptyState, useNow } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { getPublicApiUrl } from '../../lib/api-url';
@@ -33,8 +33,6 @@ interface Group {
   key: string;
   kind: 'fight' | 'referee' | 'workshop';
   title: string;
-  skillName?: string | null;
-  skillColor?: string | null;
   /** Header tokens: pool / lice shown only when uniform across the group; the
    *  timeslot spans the group's earliest start → latest end. */
   poolName?: string | null;
@@ -280,8 +278,6 @@ export function ScheduleView({
           key,
           kind: item.kind,
           title: groupTitle(item),
-          skillName: item.kind === 'referee' ? item.data.skillName : null,
-          skillColor: item.kind === 'referee' ? item.data.skillColor : null,
           poolName: null,
           liceName: null,
           startMs: null,
@@ -485,13 +481,6 @@ export function ScheduleView({
                       <span className="truncate text-base font-bold text-foreground">
                         {group.title}
                       </span>
-                      {group.kind === 'referee' && group.skillName && (
-                        <SkillBadge
-                          color={group.skillColor ?? 'slate'}
-                          label={group.skillName}
-                          size="sm"
-                        />
-                      )}
                     </span>
                     {meta && (
                       <span className="truncate pl-4 text-sm font-medium text-muted">{meta}</span>
