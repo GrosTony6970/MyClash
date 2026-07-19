@@ -1343,11 +1343,18 @@ export default function WorkshopsAdminPage() {
                   key={entry.id}
                   className="flex items-center justify-between border border-border rounded-lg px-3 py-2 text-sm"
                 >
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {entry.persons
-                        ? `${entry.persons.givenName} ${entry.persons.familyName}`
-                        : t('organizer.workshopsPage.unknownPerson')}
+                  <div className="min-w-0">
+                    <p className="flex min-w-0 items-baseline gap-1.5 font-medium text-foreground">
+                      <span className="truncate">
+                        {entry.persons
+                          ? `${entry.persons.givenName} ${entry.persons.familyName}`
+                          : t('organizer.workshopsPage.unknownPerson')}
+                      </span>
+                      {entry.persons?.clubs && (
+                        <span className="min-w-0 shrink-[9999] truncate text-xs font-normal text-muted">
+                          {entry.persons.clubs.name}
+                        </span>
+                      )}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span

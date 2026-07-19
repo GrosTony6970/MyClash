@@ -834,37 +834,50 @@ export class WorkshopsService {
     // Names come from the linked global profile when set; otherwise resolve the
     // event-scoped persons row (enrollment.user_id) so self-enrolled attendees —
     // which never set global_person_id — still show a real name to the instructor.
+    //
+    // The CLUB always comes from the event-scoped persons row (`persons.club_id`
+    // — global_persons carries no club), so this lookup runs for every enrollee,
+    // not only the ones missing a global profile.
     const oneGp = (v: Gp | Gp[] | null): Gp | null => (Array.isArray(v) ? (v[0] ?? null) : v);
-    const unresolvedUserIds = raws
-      .filter((e) => !oneGp(e.global_persons) && e.user_id)
-      .map((e) => e.user_id as string);
+    const enrolleeUserIds = raws.map((e) => e.user_id).filter((id): id is string => Boolean(id));
 
-    const personNames = new Map<string, { givenName: string; familyName: string }>();
-    if (unresolvedUserIds.length > 0) {
+    type Club = { id: string; name: string; abbreviation: string | null };
+    const personRows = new Map<
+      string,
+      { givenName: string; familyName: string; club: Club | null }
+    >();
+    if (enrolleeUserIds.length > 0) {
       const { data: persons } = await this.supabase.service
         .from('persons')
-        .select('id, given_name, family_name')
-        .in('id', unresolvedUserIds);
-      for (const p of (persons ?? []) as Array<{
+        .select('id, given_name, family_name, clubs ( id, name, abbreviation )')
+        .in('id', enrolleeUserIds);
+      for (const p of (persons ?? []) as unknown as Array<{
         id: string;
         given_name: string;
         family_name: string;
+        clubs: Club | Club[] | null;
       }>) {
-        personNames.set(String(p.id), { givenName: p.given_name, familyName: p.family_name });
+        const club = Array.isArray(p.clubs) ? (p.clubs[0] ?? null) : p.clubs;
+        personRows.set(String(p.id), {
+          givenName: p.given_name,
+          familyName: p.family_name,
+          club: club ?? null,
+        });
       }
     }
 
     return raws.map((e) => {
       const gp = oneGp(e.global_persons);
-      const fallback = e.user_id ? (personNames.get(e.user_id) ?? null) : null;
+      const fallback = e.user_id ? (personRows.get(e.user_id) ?? null) : null;
+      const clubs = fallback?.club ?? null;
       const persons = gp
-        ? { id: gp.id, givenName: gp.given_name, familyName: gp.family_name, clubs: null }
+        ? { id: gp.id, givenName: gp.given_name, familyName: gp.family_name, clubs }
         : fallback
           ? {
               id: e.user_id as string,
               givenName: fallback.givenName,
               familyName: fallback.familyName,
-              clubs: null,
+              clubs,
             }
           : null;
       return {

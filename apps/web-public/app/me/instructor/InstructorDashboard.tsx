@@ -56,7 +56,13 @@ interface RosterEntry {
   status: string;
   waitlistPosition: number | null;
   personId: string | null;
-  persons: { id: string; givenName: string; familyName: string } | null;
+  persons: {
+    id: string;
+    givenName: string;
+    familyName: string;
+    // Event-scoped club (persons.club_id → clubs); null for unaffiliated entrants.
+    clubs: { id: string; name: string; abbreviation: string | null } | null;
+  } | null;
 }
 
 export function InstructorDashboard() {
@@ -684,6 +690,11 @@ function RosterLists({
         t('publicApp.me.instructor.unnamedParticipant')
       : t('publicApp.me.instructor.unnamedParticipant');
 
+  // Quiet secondary line, same treatment as the public participant lists: the
+  // abbreviation when the club has one, otherwise the full name.
+  const clubOf = (r: RosterEntry): string | null =>
+    r.persons?.clubs ? (r.persons.clubs.abbreviation ?? r.persons.clubs.name) : null;
+
   const actionButton = (r: RosterEntry, action: 'accept' | 'refuse') => {
     if (!r.personId) return null;
     const personId = r.personId;
@@ -700,19 +711,28 @@ function RosterLists({
         type="button"
         disabled={busyId === personId}
         onClick={() => onModerate(personId, action)}
-        className={`rounded border px-1.5 py-0.5 text-xs font-semibold disabled:opacity-50 ${tone}`}
+        className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold disabled:opacity-50 ${tone}`}
       >
         {label}
       </button>
     );
   };
 
-  const row = (r: RosterEntry, action: 'accept' | 'refuse') => (
-    <li key={r.id} className="flex items-center justify-between gap-2 text-sm text-foreground">
-      <span>{nameOf(r)}</span>
-      {actionButton(r, action)}
-    </li>
-  );
+  const row = (r: RosterEntry, action: 'accept' | 'refuse') => {
+    const club = clubOf(r);
+    return (
+      <li key={r.id} className="flex items-center justify-between gap-2 text-sm text-foreground">
+        {/* min-w-0 on every link of the chain, or the club overflows the card. */}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate">{nameOf(r)}</span>
+          {club && (
+            <span className="min-w-0 shrink-[9999] truncate text-xs text-muted">{club}</span>
+          )}
+        </span>
+        {actionButton(r, action)}
+      </li>
+    );
+  };
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">

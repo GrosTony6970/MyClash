@@ -315,3 +315,100 @@ describe('WorkshopsService — uploadLogo', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+// ── Session roster ─────────────────────────────────────────────────────────────
+
+/**
+ * Table-keyed thenable chain, enough for getSessionRoster's read path:
+ * authorization probes (maybeSingle) plus the two list queries (awaited).
+ */
+interface RosterChain extends Promise<Result<unknown>> {
+  select: (cols: string) => RosterChain;
+  eq: () => RosterChain;
+  in: () => RosterChain;
+  order: () => RosterChain;
+  maybeSingle: () => Promise<Result<unknown>>;
+}
+
+function buildRosterSupabase(rowsByTable: Record<string, Result<unknown>>) {
+  const selects: Record<string, string> = {};
+  return {
+    from: vi.fn((table: string) => {
+      const result = rowsByTable[table] ?? { data: null, error: null };
+      const chain = Promise.resolve(result) as unknown as RosterChain;
+      chain.select = vi.fn((cols: string) => {
+        selects[table] = cols;
+        return chain;
+      });
+      chain.eq = vi.fn(() => chain);
+      chain.in = vi.fn(() => chain);
+      chain.order = vi.fn(() => chain);
+      chain.maybeSingle = vi.fn().mockResolvedValue(result);
+      return chain;
+    }),
+    selects,
+  };
+}
+
+describe('WorkshopsService — session roster', () => {
+  it('resolves the club from the event-scoped persons row, even when the name comes from the global profile', async () => {
+    const supabase = buildRosterSupabase({
+      workshop_sessions: { data: { workshop_id: 'w-1' }, error: null },
+      global_persons: { data: { id: 'gp-instructor' }, error: null },
+      workshop_instructors: { data: { id: 'wi-1' }, error: null },
+      workshop_enrollments: {
+        data: [
+          {
+            id: 'enr-1',
+            status: 'confirmed',
+            position: null,
+            enrolled_at: '2026-05-22T10:00:00.000Z',
+            user_id: 'person-1',
+            global_person_id: 'gp-1',
+            global_persons: { id: 'gp-1', given_name: 'Léo', family_name: 'Ferrand' },
+          },
+          {
+            id: 'enr-2',
+            status: 'waitlisted',
+            position: 1,
+            enrolled_at: '2026-05-22T10:05:00.000Z',
+            user_id: 'person-2',
+            global_person_id: null,
+            global_persons: null,
+          },
+        ],
+        error: null,
+      },
+      persons: {
+        data: [
+          {
+            id: 'person-1',
+            given_name: 'Leo',
+            family_name: 'Ferrand',
+            clubs: { id: 'club-1', name: 'Cercle des Cerisiers', abbreviation: 'CDC' },
+          },
+          { id: 'person-2', given_name: 'Robin', family_name: 'Duval', clubs: null },
+        ],
+        error: null,
+      },
+    });
+
+    const roster = await makeService({ service: supabase }).getSessionRoster('sess-1', 'user-1');
+
+    // Club lives on persons.club_id — global_persons carries none, so the
+    // persons lookup must run for EVERY enrollee, not only the unnamed ones.
+    expect(supabase.selects['persons']).toContain('clubs');
+    expect(roster[0]?.persons).toEqual({
+      id: 'gp-1',
+      givenName: 'Léo',
+      familyName: 'Ferrand',
+      clubs: { id: 'club-1', name: 'Cercle des Cerisiers', abbreviation: 'CDC' },
+    });
+    expect(roster[1]?.persons).toEqual({
+      id: 'person-2',
+      givenName: 'Robin',
+      familyName: 'Duval',
+      clubs: null,
+    });
+  });
+});
