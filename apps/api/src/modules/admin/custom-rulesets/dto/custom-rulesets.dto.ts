@@ -1,6 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { AuthoredTargetsSchema } from '@myclash/rulesets';
+import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
 
 /**
  * The grammar half of a ruleset: what an exchange can be and what it is worth.
@@ -18,6 +18,11 @@ const rulesetGrammarShape = {
   // Seeds a new tournament's afterblow mode. Never authoritative at scoring
   // time — the tournament's scoring_config_json is.
   afterblowMode: z.enum(['full', 'deductive']).optional(),
+  // How the retaliation is worth points, which decides the button grid:
+  // `fixed` gives N buttons, `weighted` the full attacker x defender product.
+  afterblowValuation: z.enum(['fixed', 'weighted']).optional(),
+  // Bounded by createExchangeSchema's cap on a button's value.
+  afterblowFixedValue: z.number().int().min(1).max(MAX_AUTHORED_TARGET_VALUE).optional(),
 };
 
 const tiebreakerSchema = z.object({

@@ -36,6 +36,8 @@ interface GrammarColumns {
   targets: Array<{ name: string; value: number }> | null;
   has_afterblow: boolean | null;
   afterblow_mode: 'full' | 'deductive' | null;
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
 }
 
 /**
@@ -48,6 +50,8 @@ function toGrammar(row: GrammarColumns): RulesetGrammar {
     targets: row.targets,
     hasAfterblow: row.has_afterblow,
     defaultAfterblowMode: row.afterblow_mode,
+    afterblowValuation: row.afterblow_valuation,
+    afterblowFixedValue: row.afterblow_fixed_value,
   };
 }
 
@@ -93,7 +97,7 @@ export class RulesetResolver {
       const { data } = await this.supabase.service
         .from('custom_rulesets')
         .select(
-          'code, version, name, status, is_system, score_formula, constants, tiebreakers, targets, has_afterblow, afterblow_mode',
+          'code, version, name, status, is_system, score_formula, constants, tiebreakers, targets, has_afterblow, afterblow_mode, afterblow_valuation, afterblow_fixed_value',
         )
         .eq('code', code)
         .eq('version', version)

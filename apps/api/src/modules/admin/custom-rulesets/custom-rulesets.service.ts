@@ -53,6 +53,9 @@ export interface CustomRulesetRow {
   has_afterblow: boolean;
   /** Seeds a tournament's mode; the tournament stays authoritative. */
   afterblow_mode: 'full' | 'deductive' | null;
+  /** Decides the button grid — see buildScoringButtons. */
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
   is_default: boolean;
   is_system: boolean;
   /** Set when an organizer authored the ruleset; null for platform/system rows. */
@@ -217,15 +220,28 @@ export function grammarColumns(dto: {
   targets?: Array<{ name: string; value: number }>;
   hasAfterblow?: boolean;
   afterblowMode?: 'full' | 'deductive';
+  afterblowValuation?: 'fixed' | 'weighted';
+  afterblowFixedValue?: number;
 }): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (dto.targets !== undefined) out['targets'] = dto.targets;
   if (dto.hasAfterblow !== undefined) {
     out['has_afterblow'] = dto.hasAfterblow;
-    if (!dto.hasAfterblow) out['afterblow_mode'] = null;
+    // Turning afterblow off clears everything that only means something while
+    // it is on, rather than leaving a stale rule behind for the next reader.
+    if (!dto.hasAfterblow) {
+      out['afterblow_mode'] = null;
+      out['afterblow_valuation'] = null;
+      out['afterblow_fixed_value'] = null;
+    }
   }
-  if (dto.afterblowMode !== undefined && dto.hasAfterblow !== false) {
-    out['afterblow_mode'] = dto.afterblowMode;
+  if (dto.hasAfterblow === false) return out;
+  if (dto.afterblowMode !== undefined) out['afterblow_mode'] = dto.afterblowMode;
+  if (dto.afterblowValuation !== undefined) {
+    out['afterblow_valuation'] = dto.afterblowValuation;
+  }
+  if (dto.afterblowFixedValue !== undefined) {
+    out['afterblow_fixed_value'] = dto.afterblowFixedValue;
   }
   return out;
 }
@@ -462,6 +478,8 @@ export class CustomRulesetsService {
         targets: src.targets,
         has_afterblow: src.has_afterblow,
         afterblow_mode: src.afterblow_mode,
+        afterblow_valuation: src.afterblow_valuation,
+        afterblow_fixed_value: src.afterblow_fixed_value,
         created_by_user_id: actorUserId,
       })
       .select('*')

@@ -20,10 +20,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registry, TF_v1 } from '@myclash/rulesets';
+import { createFormulaRuleset } from '@myclash/rulesets';
 import { RulesetResolver } from './ruleset-resolver.service';
 
 const FORMULA = { type: 'var', name: 'victories' };
 const CONSTANTS = { pointsPerVictory: 3, pointsPerTie: 1, pointsPerLoss: 0, doublePenalty: 0 };
+const FORMULA_CONFIG = { scoreFormula: FORMULA, constants: CONSTANTS, tiebreakers: [] } as never;
 
 /**
  * Mirrors `resolve()`'s two-step query shape rather than using an ordered
@@ -80,12 +82,15 @@ describe('RulesetResolver — grammar', () => {
         ],
         has_afterblow: true,
         afterblow_mode: 'deductive',
+        afterblow_valuation: 'weighted',
+        afterblow_fixed_value: null,
       },
     });
 
     const ruleset = await resolver.resolve('custom_house', '1.0.0');
     expect(ruleset?.metadata?.hasAfterblow).toBe(true);
     expect(ruleset?.metadata?.defaultAfterblowMode).toBe('deductive');
+    expect(ruleset?.metadata?.afterblowValuation).toBe('weighted');
     expect(ruleset?.metadata?.targets).toHaveLength(2);
   });
 
@@ -103,12 +108,15 @@ describe('RulesetResolver — grammar', () => {
         targets: [{ name: 'Hit', value: 1 }],
         has_afterblow: true,
         afterblow_mode: 'full',
+        afterblow_valuation: 'fixed',
+        afterblow_fixed_value: 2,
       },
     });
 
     const ruleset = await resolver.resolve('custom_house', '1.0.0');
     expect(ruleset?.metadata?.hasAfterblow).toBe(true);
     expect(ruleset?.metadata?.targets).toEqual([{ name: 'Hit', value: 1 }]);
+    expect(ruleset?.metadata?.afterblowFixedValue).toBe(2);
   });
 
   it('reads a pre-0143 row as declaring no afterblow, not as undefined', async () => {
@@ -128,6 +136,8 @@ describe('RulesetResolver — grammar', () => {
         targets: null,
         has_afterblow: null,
         afterblow_mode: null,
+        afterblow_valuation: null,
+        afterblow_fixed_value: null,
       },
     });
 
@@ -135,6 +145,19 @@ describe('RulesetResolver — grammar', () => {
     expect(ruleset?.metadata).toBeDefined();
     expect(ruleset?.metadata?.hasAfterblow).toBe(false);
     expect(ruleset?.metadata?.defaultAfterblowMode).toBe(null);
+    expect(ruleset?.metadata?.afterblowValuation).toBe(null);
+  });
+
+  it('reads an undeclared valuation as fixed/1, so no pad doubles at deploy', () => {
+    // A row that has afterblow but predates 0145. `weighted` would turn its two
+    // buttons into four without anyone asking.
+    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'X', FORMULA_CONFIG, {
+      hasAfterblow: true,
+      afterblowValuation: null,
+      afterblowFixedValue: null,
+    });
+    expect(ruleset.metadata?.afterblowValuation).toBe('fixed');
+    expect(ruleset.metadata?.afterblowFixedValue).toBe(1);
   });
 
   it('refuses an unpublished row', async () => {
@@ -151,6 +174,8 @@ describe('RulesetResolver — grammar', () => {
         targets: null,
         has_afterblow: false,
         afterblow_mode: null,
+        afterblow_valuation: null,
+        afterblow_fixed_value: null,
       },
     });
 

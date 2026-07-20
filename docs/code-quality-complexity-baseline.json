@@ -249,7 +249,7 @@
     "apps/api/src/modules/matches/matches.service.ts:608",
     "apps/api/src/modules/matches/matches.service.ts:829",
     "apps/api/src/modules/matches/matches.service.ts:896",
-    "apps/api/src/modules/matches/ruleset-resolver.service.ts:61",
+    "apps/api/src/modules/matches/ruleset-resolver.service.ts:65",
     "apps/api/src/modules/matches/scoring.service.ts:533",
     "apps/api/src/modules/matches/scoring.service.ts:74",
     "apps/api/src/modules/me/me-events.service.ts:1003",
