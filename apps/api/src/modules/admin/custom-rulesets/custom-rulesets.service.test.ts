@@ -1,10 +1,16 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DOUBLE_PENALTY_FORMULA_KEYS, registry, TF_v1 } from '@myclash/rulesets';
+import {
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  FEDERAL_DOUBLE_PENALTY_AST,
+  registry,
+  TF_v1,
+} from '@myclash/rulesets';
 import {
   CustomRulesetsService,
   grammarColumns,
   validateDoublePenaltyFormula,
+  validateTfConfigPatch,
 } from './custom-rulesets.service';
 
 const fromMock = vi.fn();
@@ -330,5 +336,62 @@ describe('grammarColumns', () => {
 
   it('allows a mode change without restating hasAfterblow', () => {
     expect(grammarColumns({ afterblowMode: 'full' })).toEqual({ afterblow_mode: 'full' });
+  });
+});
+
+// ── authored double-penalty AST via tf_config ────────────────────────────────
+// The whitelist is not the only expression path any more. A club with a house
+// rule authors a FormulaNode AST, which reaches the engine through
+// tf_config.doublePenaltyFormula (JSONB) rather than the key-only TEXT column.
+// AGENTS.md rule #5 still holds: this is Zod-validated data evaluated by our
+// own interpreter, never constructed code.
+
+describe('validateTfConfigPatch — double penalty', () => {
+  it('accepts the federal formula as an authored AST', () => {
+    const out = validateTfConfigPatch({ doublePenaltyFormula: FEDERAL_DOUBLE_PENALTY_AST });
+    expect(out['doublePenaltyFormula']).toEqual(FEDERAL_DOUBLE_PENALTY_AST);
+  });
+
+  it('accepts a house rule the whitelist has no key for', () => {
+    // Half a penalty point per double — the case that previously required
+    // shipping a release to add a fifth whitelist entry.
+    const houseRule = {
+      type: 'binop',
+      op: '/',
+      left: { type: 'var', name: 'doubleHits' },
+      right: { type: 'literal', value: 2 },
+    };
+    expect(
+      validateTfConfigPatch({ doublePenaltyFormula: houseRule })['doublePenaltyFormula'],
+    ).toEqual(houseRule);
+  });
+
+  it('still accepts every legacy key, so stored values keep validating', () => {
+    for (const key of DOUBLE_PENALTY_FORMULA_KEYS) {
+      expect(validateTfConfigPatch({ doublePenaltyFormula: key })['doublePenaltyFormula']).toBe(
+        key,
+      );
+    }
+  });
+
+  it('rejects a malformed AST at authoring time, not at scoring time', () => {
+    expect(() =>
+      validateTfConfigPatch({ doublePenaltyFormula: { type: 'binop', op: '**' } }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('rejects an AST referencing a variable outside the whitelist', () => {
+    expect(() =>
+      validateTfConfigPatch({ doublePenaltyFormula: { type: 'var', name: 'n' } }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('rejects free text, which is the thing rule #5 actually forbids', () => {
+    expect(() => validateTfConfigPatch({ doublePenaltyFormula: 'n*2' })).toThrow(
+      BadRequestException,
+    );
+    expect(() => validateTfConfigPatch({ doublePenaltyFormula: 'process.exit(1)' })).toThrow(
+      BadRequestException,
+    );
   });
 });

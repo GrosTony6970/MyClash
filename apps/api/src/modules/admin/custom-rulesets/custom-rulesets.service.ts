@@ -138,22 +138,32 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
 }
 
 /**
- * Validate a double-penalty formula against the engine's WHITELIST.
+ * Validate the `double_penalty_formula` TEXT column against the engine's
+ * WHITELIST.
  *
  * This used to accept any character-whitelisted expression and sanity-check it
  * with `new Function('n', ...)`, justified by the characters having been
  * filtered. AGENTS.md hard rule #5 admits no such exemption: no eval, no
- * Function(), ruleset configs are validated with Zod and dispatched to
- * whitelisted functions only. The character filter also cannot make code
- * execution safe — it only makes it narrow.
+ * Function(). The character filter also cannot make code execution safe — it
+ * only makes it narrow.
  *
- * The whitelist is now the single source of truth, which closes a second hole:
- * `doublePenaltyFormula` is a z.enum on TFv1ConfigSchema, and
- * resolveRulesetConfigDefaults injects this column into a TF_v1-shaped config.
- * A free-text value like 'n*2' passed the old validator, then made every
- * tournament create/update on that ruleset fail Zod parsing — and if it slipped
- * through, the engine would silently fall back to the federal formula, so the
- * stored expression was a lie either way.
+ * Keeping the column key-only closes a second hole: resolveRulesetConfigDefaults
+ * injects it into a TF_v1-shaped config, so a free-text value like 'n*2' passed
+ * the old validator and then made every tournament create/update on that
+ * ruleset fail Zod parsing — and if it slipped through, the engine silently
+ * used the federal formula, so the stored expression was a lie either way.
+ *
+ * NOTE — this is no longer the only way to express a double penalty, and the
+ * docblock used to claim it was. A club with a house rule authors a
+ * `FormulaNode` AST, which is accepted through `tf_config.doublePenaltyFormula`
+ * (JSONB) because TFv1ConfigSchema takes `key | AST` since 2f195eeb, and
+ * validateTfConfigPatch parses the whole config. That path is Zod-validated and
+ * evaluated by our own interpreter, so rule #5 still holds — the rule forbids
+ * EXECUTING input, not authoring formulas.
+ *
+ * The TEXT column stays key-only on purpose rather than being widened to JSONB:
+ * a formula-kind ruleset expresses its double penalty inside `scoreFormula`
+ * using the `doubleHits` variable, so the column is meaningless there.
  */
 export function validateDoublePenaltyFormula(raw: string): string {
   const trimmed = raw.trim();
