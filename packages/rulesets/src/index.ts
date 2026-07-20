@@ -74,8 +74,15 @@ export { doublePenalty, computeScore, computeAggregates } from './tf_v1/score';
 export {
   DOUBLE_PENALTY_FORMULAS,
   DOUBLE_PENALTY_FORMULA_KEYS,
+  DOUBLE_PENALTY_VARIABLE,
   DEFAULT_DOUBLE_PENALTY_FORMULA,
+  FEDERAL_DOUBLE_PENALTY_AST,
+  DoublePenaltySpecSchema,
+  evaluateDoublePenaltyAst,
+  isDoublePenaltyAst,
+  formatDoublePenalty,
   type DoublePenaltyFormula,
+  type DoublePenaltySpec,
 } from './tf_v1/double-penalty';
 
 // Generic_PointsCap ruleset

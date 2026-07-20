@@ -19,10 +19,16 @@ import {
 } from '../match-format';
 import {
   doublePenalty,
+  evaluateDoublePenaltyAst,
+  isDoublePenaltyAst,
   DOUBLE_PENALTY_FORMULAS,
   DOUBLE_PENALTY_FORMULA_KEYS,
+  DOUBLE_PENALTY_VARIABLE,
   DEFAULT_DOUBLE_PENALTY_FORMULA,
+  FEDERAL_DOUBLE_PENALTY_AST,
+  DoublePenaltySpecSchema,
   type DoublePenaltyFormula,
+  type DoublePenaltySpec,
 } from './double-penalty';
 import type { TFv1Config } from './config';
 
@@ -35,10 +41,16 @@ export const WIN_BONUS = 3;
 // package's existing `doublePenalty` entry point is unchanged.
 export {
   doublePenalty,
+  evaluateDoublePenaltyAst,
+  isDoublePenaltyAst,
   DOUBLE_PENALTY_FORMULAS,
   DOUBLE_PENALTY_FORMULA_KEYS,
+  DOUBLE_PENALTY_VARIABLE,
   DEFAULT_DOUBLE_PENALTY_FORMULA,
+  FEDERAL_DOUBLE_PENALTY_AST,
+  DoublePenaltySpecSchema,
   type DoublePenaltyFormula,
+  type DoublePenaltySpec,
 };
 
 // ── Per-fighter aggregates ────────────────────────────────────────────────────
@@ -133,7 +145,8 @@ export function computeAggregates(
  */
 export interface ScoreOptions {
   winBonus?: number;
-  doublePenaltyFormula?: DoublePenaltyFormula;
+  /** Whitelisted key or authored AST — see `double-penalty.ts`. */
+  doublePenaltyFormula?: DoublePenaltySpec;
 }
 
 /**

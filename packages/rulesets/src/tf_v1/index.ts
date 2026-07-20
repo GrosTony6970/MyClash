@@ -17,6 +17,7 @@ import type { AfterblowMode } from '../match-format';
 import { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config } from './config';
 import { computeMatchScore, isMatchOver } from './score';
 import { computePoolStandings } from './standings';
+import { formatDoublePenalty } from './double-penalty';
 
 /**
  * `afterblowMode` lives in the tournament's `scoring_config_json`, not in the
@@ -87,7 +88,7 @@ export const TF_v1: Ruleset = {
   metadata: {
     hasAfterblow: true,
     winBonus: TFv1DefaultConfig.winBonus,
-    doublePenaltyFormula: TFv1DefaultConfig.doublePenaltyFormula,
+    doublePenaltyFormula: formatDoublePenalty(TFv1DefaultConfig.doublePenaltyFormula),
     deepTargetDefault: TFv1DefaultConfig.targetValues.deepTarget,
     shallowTargetDefault: TFv1DefaultConfig.targetValues.shallowTarget,
     scoreFormula: 'score = (wins × winBonus + targetPoints) / (timesHit + doublePenalty(doubles))',
@@ -101,6 +102,13 @@ export { doublePenalty, computeScore, computeAggregates } from './score';
 export {
   DOUBLE_PENALTY_FORMULAS,
   DOUBLE_PENALTY_FORMULA_KEYS,
+  DOUBLE_PENALTY_VARIABLE,
   DEFAULT_DOUBLE_PENALTY_FORMULA,
+  FEDERAL_DOUBLE_PENALTY_AST,
+  DoublePenaltySpecSchema,
+  evaluateDoublePenaltyAst,
+  isDoublePenaltyAst,
+  formatDoublePenalty,
   type DoublePenaltyFormula,
+  type DoublePenaltySpec,
 } from './double-penalty';

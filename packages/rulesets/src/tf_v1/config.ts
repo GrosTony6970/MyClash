@@ -14,7 +14,7 @@ import {
   normalizeMatchFormatConfig,
 } from '../match-format';
 import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
-import { DEFAULT_DOUBLE_PENALTY_FORMULA, DOUBLE_PENALTY_FORMULA_KEYS } from './double-penalty';
+import { DEFAULT_DOUBLE_PENALTY_FORMULA, DoublePenaltySpecSchema } from './double-penalty';
 
 /**
  * Wizard-set tournament policy switches. Lives next to (not inside)
@@ -43,11 +43,17 @@ export const TFv1ConfigSchema = z.object({
     .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
     .default(DEFAULT_MATCH_FORMAT_CONFIG),
   /**
-   * Whitelisted formula KEY — never eval'd; it selects one of
-   * DOUBLE_PENALTY_FORMULAS. Widening literal → enum is a strict superset, so
-   * every stored 'n*(n-1)/3' keeps validating.
+   * Either a whitelisted formula KEY (selecting one of DOUBLE_PENALTY_FORMULAS)
+   * or an authored `FormulaNode` AST evaluated by our own `evaluateFormula`.
+   * Never eval'd in either form — see the docblock on `double-penalty.ts`.
+   *
+   * Widening key → key|AST is a strict superset, so every stored 'n*(n-1)/3'
+   * keeps validating. The DEFAULT stays the federal KEY rather than the
+   * equivalent AST: they are bit-identical, and keeping the key leaves
+   * `TFv1DefaultConfig` — and the metadata string every admin surface renders
+   * off it — unchanged.
    */
-  doublePenaltyFormula: z.enum(DOUBLE_PENALTY_FORMULA_KEYS).default(DEFAULT_DOUBLE_PENALTY_FORMULA),
+  doublePenaltyFormula: DoublePenaltySpecSchema.default(DEFAULT_DOUBLE_PENALTY_FORMULA),
   forfeitPolicy: ForfeitPolicySchema.default(DEFAULT_FORFEIT_POLICY),
   tournamentPolicy: TournamentPolicySchema.default(DEFAULT_TOURNAMENT_POLICY),
 });

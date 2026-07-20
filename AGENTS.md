@@ -45,7 +45,7 @@ BMad (planning/PRD/architecture toolkit, v6.9.0) is **not installed in this repo
 2. **The TF_v1 implementation must reproduce the FAL 2026 reference data byte-for-byte.** A failing golden test (`packages/rulesets/test/tf_v1.fal2026.test.ts`, driven by the fixture `packages/rulesets/test/fixtures/fal2026.json`) is a red flag — fix the engine, do not adjust the snapshot.
 3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline functionality. E2E offline tests must pass.
 4. **RLS first, application checks second.** Every new table needs an RLS policy. Never disable RLS in production code paths.
-5. **No `eval`, no `Function()`, no dynamic code execution** for user-supplied formulas. Ruleset configs are validated against Zod schemas and dispatched to whitelisted functions.
+5. **No `eval`, no `Function()`, no dynamic code execution** for user-supplied formulas. Ruleset configs are validated against Zod schemas and either dispatched to whitelisted functions or evaluated as a Zod-validated AST (`FormulaNode`) by our own `evaluateFormula` — a closed recursive interpreter over a fixed variable domain. Authoring a formula is allowed; _executing_ input is not. Never reintroduce a string that gets compiled.
 6. **All user-facing strings go through i18n.** Never hardcode English.
 7. **Don't commit secrets.** Use `.env.example` as the canonical key list.
 8. **Hard constraint `enforce_fighter_referee_no_overlap` cannot be disabled.** A fighter cannot referee a pool whose time overlaps with their match — this is a safety/integrity invariant.
