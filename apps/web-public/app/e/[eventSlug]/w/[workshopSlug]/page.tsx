@@ -43,6 +43,8 @@ interface Workshop {
   eventTimezone: string | null;
   sessions: Session[];
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  /** The signed-in caller teaches this workshop — no participant seat for them. */
+  viewerIsInstructor: boolean;
 }
 
 export default function WorkshopDetailPage() {
@@ -75,6 +77,9 @@ export default function WorkshopDetailPage() {
     fetch(
       `${apiUrl}/api/v1/workshops/slug/${encodeURIComponent(workshopSlug)}?eventSlug=${encodeURIComponent(eventSlug)}`,
       {
+        // The route is public, but send the session anyway: it's what lets the
+        // response carry `viewerIsInstructor` for the register button.
+        credentials: 'include',
         signal: controller.signal,
       },
     )
@@ -122,8 +127,14 @@ export default function WorkshopDetailPage() {
         );
         if (refreshRes.ok) setWorkshop((await refreshRes.json()) as Workshop);
       } else {
-        const body = (await res.json()) as { message?: string };
-        setToast(body.message ?? t('publicApp.workshopDetail.enrollmentFailed'));
+        const body = (await res.json()) as { code?: string; message?: string };
+        // The API answers in English; translate the one case the button can't
+        // pre-empt (guest session, or a page loaded before the tag was added).
+        setToast(
+          body.code === 'INSTRUCTOR_SELF_ENROLLMENT'
+            ? t('publicApp.workshopDetail.instructorCannotEnroll')
+            : (body.message ?? t('publicApp.workshopDetail.enrollmentFailed')),
+        );
         setTimeout(() => setToast(null), 3000);
       }
     } finally {
@@ -349,6 +360,12 @@ export default function WorkshopDetailPage() {
                         <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
                           {t('publicApp.workshopDetail.waitlisted')}
                         </span>
+                      ) : workshop.viewerIsInstructor ? (
+                        // Teaching it means no participant seat; the API rejects
+                        // the enroll too, this just says so up front.
+                        <Button type="button" variant="secondary" size="sm" disabled>
+                          {t('publicApp.workshopDetail.youTeachThis')}
+                        </Button>
                       ) : (
                         <Button
                           type="button"

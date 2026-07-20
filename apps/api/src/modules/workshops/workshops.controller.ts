@@ -219,8 +219,18 @@ export class WorkshopsController {
   @Get('workshops/slug/:slug')
   @ApiOperation({ summary: 'Get a public workshop by event slug + workshop slug' })
   @ApiParam({ name: 'slug', type: 'string' })
-  async getPublicBySlug(@Param('slug') slug: string, @Query('eventSlug') eventSlug: string) {
-    return this.workshops.getPublicWorkshopBySlug(eventSlug, slug);
+  async getPublicBySlug(
+    @Param('slug') slug: string,
+    @Query('eventSlug') eventSlug: string,
+    @Req() req: FastifyRequest,
+  ) {
+    // Stays @Public() — anonymous browsing is the norm here. The identity is
+    // read opportunistically, only to set `viewerIsInstructor` for the caller.
+    return this.workshops.getPublicWorkshopBySlug(
+      eventSlug,
+      slug,
+      await getUserId(req, this.supabase),
+    );
   }
 
   @Patch('workshops/:id')

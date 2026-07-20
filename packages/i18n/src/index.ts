@@ -421,6 +421,7 @@ export const en = {
         registered: 'Registered',
         joinWaitlist: 'Join waitlist',
         full: 'Full · waitlist',
+        instructorOwn: 'You teach this workshop',
         conflictsWith: 'Conflicts with {item} ({time})',
         empty: 'No workshops for this event.',
         rateTitle: 'Rate this workshop',
@@ -1122,6 +1123,8 @@ export const en = {
       waitlisted: 'Waitlisted',
       joinWaitlist: 'Join waitlist',
       addToSchedule: 'Add to schedule',
+      youTeachThis: 'You teach this workshop',
+      instructorCannotEnroll: 'You cannot register for a workshop you teach.',
     },
     live: {
       badge: 'LIVE',
@@ -6487,6 +6490,7 @@ export const fr = {
         registered: 'Inscrit',
         joinWaitlist: "Rejoindre la liste d'attente",
         full: "Complet · liste d'attente",
+        instructorOwn: 'Vous animez cet atelier',
         conflictsWith: 'En conflit avec {item} ({time})',
         empty: 'Aucun atelier pour cet événement.',
         rateTitle: 'Évaluer cet atelier',
@@ -7204,6 +7208,8 @@ export const fr = {
       waitlisted: "En liste d'attente",
       joinWaitlist: "Rejoindre la liste d'attente",
       addToSchedule: 'Ajouter à mon programme',
+      youTeachThis: 'Vous animez cet atelier',
+      instructorCannotEnroll: 'Vous ne pouvez pas vous inscrire à un atelier que vous animez.',
     },
     live: {
       badge: 'EN DIRECT',

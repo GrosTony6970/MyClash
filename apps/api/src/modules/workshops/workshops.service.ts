@@ -157,6 +157,13 @@ export interface WorkshopView {
   /** Event IANA timezone — set on public reads so the FE renders in event time. */
   eventTimezone: string | null;
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  /**
+   * True when the CALLER is a listed instructor of this workshop — they teach
+   * it, so they can't take a participant seat. Caller-scoped, therefore only
+   * populated on the single-workshop public read; always false elsewhere
+   * (notably the cacheable catalog list, which is caller-independent).
+   */
+  viewerIsInstructor: boolean;
   sessions: WorkshopSessionView[];
 }
 
@@ -278,8 +285,18 @@ export class WorkshopsService {
     return this.applyInstructorPrivacy(event.id, views);
   }
 
-  /** Public single workshop by (event slug, workshop slug), status-gated. */
-  async getPublicWorkshopBySlug(eventSlug: string, workshopSlug: string): Promise<WorkshopView> {
+  /**
+   * Public single workshop by (event slug, workshop slug), status-gated.
+   *
+   * `userId` is the caller's auth id ('anonymous' when signed out) and only
+   * drives `viewerIsInstructor`, so the page can grey out its own register
+   * button. Nothing about the caller is exposed to anyone else.
+   */
+  async getPublicWorkshopBySlug(
+    eventSlug: string,
+    workshopSlug: string,
+    userId = 'anonymous',
+  ): Promise<WorkshopView> {
     const event = await this.resolveEventBySlug(eventSlug);
     if (!event) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
 
@@ -295,7 +312,18 @@ export class WorkshopsService {
     if (!data) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
     const row = data as unknown as RawWorkshop;
     const counts = await this.confirmedCountsForWorkshops([row]);
-    const view = { ...this.mapWorkshop(row, counts), eventTimezone: event.timezone };
+    // Read from the RAW instructor rows, before applyInstructorPrivacy — an
+    // instructor who hid themselves publicly is dropped from `instructors`
+    // below and would otherwise read as false on their own workshop.
+    const viewerGlobalId = await this.resolveClaimedGlobalPersonId(userId);
+    const viewerIsInstructor =
+      viewerGlobalId !== null &&
+      (row.workshop_instructors ?? []).some((i) => i.global_person_id === viewerGlobalId);
+    const view = {
+      ...this.mapWorkshop(row, counts),
+      eventTimezone: event.timezone,
+      viewerIsInstructor,
+    };
     const [withPrivacy] = await this.applyInstructorPrivacy(event.id, [view]);
     return withPrivacy!;
   }
@@ -950,6 +978,7 @@ export class WorkshopsService {
         globalPersonId: i.global_person_id,
         displayName: i.display_name,
       })),
+      viewerIsInstructor: false,
       sessions: toArray(row.workshop_sessions).map((s) => ({
         id: s.id,
         startsAt: s.starts_at,

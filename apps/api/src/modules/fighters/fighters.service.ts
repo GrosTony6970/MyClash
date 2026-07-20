@@ -2264,6 +2264,16 @@ export class FightersService {
   }
 
   async linkWorkshopEnrollment(enrollmentId: string, globalPersonId: string) {
+    // An instructor holds no participant seat in a workshop they teach
+    // (enforced on self-enrollment in EnrollmentService.enroll). Linking an
+    // orphan enrollment to that workshop's instructor would recreate exactly
+    // that state through the back door, so reject it here too.
+    if (await this.enrollmentIsTaughtBy(enrollmentId, globalPersonId)) {
+      throw new ForbiddenException(
+        'This person teaches the workshop — they cannot be linked to an enrollment in it.',
+      );
+    }
+
     const { error } = await this.supabase.service
       .from('workshop_enrollments')
       .update({ global_person_id: globalPersonId })
@@ -2271,6 +2281,34 @@ export class FightersService {
       .is('global_person_id', null);
 
     if (error) throw new BadRequestException(error.message);
+  }
+
+  /** True when `globalPersonId` is a listed instructor of the enrollment's workshop. */
+  private async enrollmentIsTaughtBy(
+    enrollmentId: string,
+    globalPersonId: string,
+  ): Promise<boolean> {
+    const { data: enrollment } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('workshop_sessions ( workshop_id )')
+      .eq('id', enrollmentId)
+      .maybeSingle();
+
+    // UNIQUE(workshop_id) on workshop_sessions (migration 0098) makes PostgREST
+    // embed the parent as an object, but it can still arrive as an array.
+    const raw = (enrollment as { workshop_sessions?: unknown } | null)?.workshop_sessions;
+    const session = (Array.isArray(raw) ? raw[0] : raw) as { workshop_id?: string | null } | null;
+    const workshopId = session?.workshop_id ?? null;
+    if (!workshopId) return false;
+
+    const { data } = await this.supabase.service
+      .from('workshop_instructors')
+      .select('id')
+      .eq('workshop_id', workshopId)
+      .eq('global_person_id', globalPersonId)
+      .maybeSingle(); // UNIQUE(workshop_id, global_person_id) — migration 0103
+
+    return Boolean(data);
   }
 }
 

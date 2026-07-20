@@ -16,7 +16,7 @@ import {
 import { overlaps, toTimed, type TimedItem } from '@/components/me/conflicts';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
-import type { MyEventInfo } from '@/components/me/types';
+import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
 
 type WorkshopSession = WorkshopListItem['sessions'][number];
 
@@ -30,12 +30,18 @@ export default function HubWorkshopsPage() {
 
   return (
     <EventHubChrome event={myEvent.event} active="workshops">
-      <WorkshopsContent event={myEvent.event} />
+      <WorkshopsContent event={myEvent.event} teaching={myEvent.workshopsTeaching} />
     </EventHubChrome>
   );
 }
 
-function WorkshopsContent({ event }: { event: MyEventInfo }) {
+function WorkshopsContent({
+  event,
+  teaching,
+}: {
+  event: MyEventInfo;
+  teaching: MyEventWorkshopTeaching[];
+}) {
   const { t, locale } = useI18n();
   const tag = locale === 'fr' ? 'fr-FR' : 'en-GB';
   const tz = event.timezone ?? 'Europe/Paris';
@@ -66,6 +72,11 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
     () => new Set((schedule?.workshops ?? []).map((w) => w.workshopId)),
     [schedule],
   );
+
+  // Workshops the viewer TEACHES (parent workshop ids, so these key off `w.id`,
+  // unlike `enrolledIds` above which holds session ids). Teaching one means no
+  // participant seat in it — the API rejects the enroll either way.
+  const teachingIds = useMemo(() => new Set(teaching.map((w) => w.workshopId)), [teaching]);
 
   // Deep-link from a schedule workshop card (`…/workshops#workshop-<slug>`):
   // once the list has loaded, scroll that workshop's card into view. Once only.
@@ -148,6 +159,7 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
     registered: t('publicApp.me.workshops.registered'),
     joinWaitlist: t('publicApp.me.workshops.joinWaitlist'),
     full: t('publicApp.me.workshops.full'),
+    instructorOwn: t('publicApp.me.workshops.instructorOwn'),
   };
 
   return (
@@ -160,6 +172,7 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
           <div className="flex flex-col gap-4">
             {group.items.map((w) => {
               const session = w.sessions.find((s) => s.status !== 'cancelled')!;
+              const teaches = teachingIds.has(w.id);
               const enrolled = enrolledIds.has(session.id);
               const remaining =
                 session.capacity != null
@@ -183,6 +196,7 @@ function WorkshopsContent({ event }: { event: MyEventInfo }) {
                           full={full}
                           conflict={enrolled ? null : conflictFor(session)}
                           busy={busy === session.id}
+                          isInstructor={teaches}
                           labels={labels}
                           onRegister={() => void act(session.id, 'POST')}
                           onCancel={() => void act(session.id, 'DELETE')}

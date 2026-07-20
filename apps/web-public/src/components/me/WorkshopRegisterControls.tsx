@@ -10,6 +10,8 @@ export interface WorkshopRegisterLabels {
   registered: string;
   joinWaitlist: string;
   full: string;
+  /** Shown on the disabled button when the viewer teaches this workshop. */
+  instructorOwn: string;
 }
 
 export interface WorkshopRegisterControlsProps {
@@ -17,6 +19,8 @@ export interface WorkshopRegisterControlsProps {
   full: boolean;
   conflict?: string | null;
   busy?: boolean;
+  /** The viewer teaches this workshop — no participant seat, button disabled. */
+  isInstructor?: boolean;
   labels: WorkshopRegisterLabels;
   onRegister?: () => void;
   onCancel?: () => void;
@@ -46,19 +50,36 @@ function CheckIcon() {
 
 /**
  * Registration footer for a personal-space workshop card: the warn-but-allow
- * conflict badge, the enrolled chip, and the four-state action button
+ * conflict badge, the enrolled chip, and the action button
  * (Register / Register-anyway / Join-waitlist / Cancel). Slotted into the shared
  * `WorkshopCard` footer.
+ *
+ * `isInstructor` disables the button: someone who teaches the workshop takes no
+ * participant seat, so the conflict badge is meaningless too. The API enforces
+ * the same rule. The one exception is a seat that predates the rule — teaching
+ * AND enrolled still gets its Cancel button, so the seat can be released here
+ * rather than only from the instructor roster.
  */
 export function WorkshopRegisterControls({
   enrolled,
   full,
   conflict,
   busy,
+  isInstructor = false,
   labels,
   onRegister,
   onCancel,
 }: WorkshopRegisterControlsProps): ReactNode {
+  if (isInstructor && !enrolled) {
+    return (
+      <div>
+        <Button variant="secondary" size="sm" className="w-full" disabled>
+          {labels.instructorOwn}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div>
       {conflict && !enrolled && (

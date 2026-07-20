@@ -33,6 +33,8 @@ function buildFake(opts: {
   personGlobalId?: string | null;
   personsError?: { message: string } | null;
   globalUpdateError?: { message: string } | null;
+  /** global_persons.id values tagged as instructors of workshop 'w-1'. */
+  instructorGlobalIds?: string[];
 }) {
   const rows: Row[] = [...(opts.seed ?? [])];
   let idc = rows.length;
@@ -72,6 +74,25 @@ function buildFake(opts: {
           }),
         }),
       };
+    }
+    if (name === 'workshop_instructors') {
+      // The self-enrollment guard filters on (workshop_id, global_person_id);
+      // match on both so a wrong-namespace comparison can't pass this test.
+      const filters: Record<string, unknown> = {};
+      const wiBuilder: Record<string, unknown> = {
+        select: () => wiBuilder,
+        eq: (col: string, val: unknown) => {
+          filters[col] = val;
+          return wiBuilder;
+        },
+        maybeSingle: () => {
+          const hit =
+            filters['workshop_id'] === 'w-1' &&
+            (opts.instructorGlobalIds ?? []).includes(filters['global_person_id'] as string);
+          return Promise.resolve({ data: hit ? { id: 'wi-1' } : null, error: null });
+        },
+      };
+      return wiBuilder;
     }
     if (name === 'global_persons') {
       // Records the is_workshop_participant tick for assertions.
@@ -289,6 +310,64 @@ describe('EnrollmentService.enroll', () => {
 
     await expect(svc.enroll('s-1', 'p-refused')).rejects.toThrow(/instructor/i);
     expect(fake.inserts).toHaveLength(0);
+  });
+
+  it('refuses to enrol a person who teaches the workshop', async () => {
+    const fake = buildFake({
+      capacity: 5,
+      personGlobalId: 'gp-teacher',
+      instructorGlobalIds: ['gp-teacher'],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await expect(svc.enroll('s-1', 'p-teacher')).rejects.toThrow(/teach/i);
+    expect(fake.inserts).toHaveLength(0);
+  });
+
+  it('refuses even when an enrollment row predates the rule', async () => {
+    // The guard runs before the idempotency read, so a legacy row can't
+    // short-circuit into a success.
+    const fake = buildFake({
+      capacity: 5,
+      personGlobalId: 'gp-teacher',
+      instructorGlobalIds: ['gp-teacher'],
+      seed: [
+        {
+          id: 'e-legacy',
+          workshop_session_id: 's-1',
+          user_id: 'p-teacher',
+          status: 'confirmed',
+          position: null,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    await expect(svc.enroll('s-1', 'p-teacher')).rejects.toThrow(/teach/i);
+  });
+
+  it('lets an instructor of a DIFFERENT workshop enrol normally', async () => {
+    const fake = buildFake({
+      capacity: 5,
+      personGlobalId: 'gp-other',
+      instructorGlobalIds: ['gp-teacher'],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'p-other');
+    expect(res.status).toBe('confirmed');
+  });
+
+  it('enrols a guest with no global link (never matchable as an instructor)', async () => {
+    const fake = buildFake({
+      capacity: 5,
+      personGlobalId: null,
+      instructorGlobalIds: ['gp-teacher'],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'guest-1');
+    expect(res.status).toBe('confirmed');
   });
 
   it('ticks global_persons.is_workshop_participant when the person has a global link', async () => {
