@@ -9,7 +9,16 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 interface RulesetConfigTF {
   winBonus: number;
   targetValues: { deepTarget: number; shallowTarget: number };
-  forfeitPolicy: {
+  /**
+   * MUST stay `tournamentPolicy`. This block was keyed `forfeitPolicy`, which
+   * collides with the rulesets-engine `forfeitPolicy.reasons.*` blob (same JSON
+   * key, unrelated shape) — the wizard was migrated off it by migration 0062,
+   * but this tab was not. Since `tournamentRulesetConfigSchema` is `.strict()`
+   * and whitelists only `tournamentPolicy`, every TF_v1 save from here 400'd,
+   * and hydration read a key the API never writes, so the fields always showed
+   * defaults. Keep this shape aligned with the wizard's `buildTfFromRow`.
+   */
+  tournamentPolicy: {
     forfeitDrawsCount: boolean;
     forfeitFighterBefore1stMatch: boolean;
     disqualifyAfter: number;
@@ -19,7 +28,7 @@ interface RulesetConfigTF {
 const TF_DEFAULTS: RulesetConfigTF = {
   winBonus: 3,
   targetValues: { deepTarget: 2, shallowTarget: 1 },
-  forfeitPolicy: {
+  tournamentPolicy: {
     forfeitDrawsCount: false,
     forfeitFighterBefore1stMatch: false,
     disqualifyAfter: 2,
@@ -42,7 +51,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
         setTf({
           winBonus: rc.winBonus ?? TF_DEFAULTS.winBonus,
           targetValues: { ...TF_DEFAULTS.targetValues, ...(rc.targetValues ?? {}) },
-          forfeitPolicy: { ...TF_DEFAULTS.forfeitPolicy, ...(rc.forfeitPolicy ?? {}) },
+          tournamentPolicy: { ...TF_DEFAULTS.tournamentPolicy, ...(rc.tournamentPolicy ?? {}) },
         });
       });
   }, [tournamentId]);
@@ -126,55 +135,55 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
           />
           <BoolField
             label={t('admin.orgTournaments.forfeitDrawsCount')}
-            value={tf.forfeitPolicy.forfeitDrawsCount}
-            defaultValue={TF_DEFAULTS.forfeitPolicy.forfeitDrawsCount}
+            value={tf.tournamentPolicy.forfeitDrawsCount}
+            defaultValue={TF_DEFAULTS.tournamentPolicy.forfeitDrawsCount}
             onChange={(v) =>
-              setTf({ ...tf, forfeitPolicy: { ...tf.forfeitPolicy, forfeitDrawsCount: v } })
+              setTf({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, forfeitDrawsCount: v } })
             }
             onReset={() =>
               setTf({
                 ...tf,
-                forfeitPolicy: {
-                  ...tf.forfeitPolicy,
-                  forfeitDrawsCount: TF_DEFAULTS.forfeitPolicy.forfeitDrawsCount,
+                tournamentPolicy: {
+                  ...tf.tournamentPolicy,
+                  forfeitDrawsCount: TF_DEFAULTS.tournamentPolicy.forfeitDrawsCount,
                 },
               })
             }
           />
           <BoolField
             label={t('admin.orgTournaments.forfeitBeforeFirstMatchDq')}
-            value={tf.forfeitPolicy.forfeitFighterBefore1stMatch}
-            defaultValue={TF_DEFAULTS.forfeitPolicy.forfeitFighterBefore1stMatch}
+            value={tf.tournamentPolicy.forfeitFighterBefore1stMatch}
+            defaultValue={TF_DEFAULTS.tournamentPolicy.forfeitFighterBefore1stMatch}
             onChange={(v) =>
               setTf({
                 ...tf,
-                forfeitPolicy: { ...tf.forfeitPolicy, forfeitFighterBefore1stMatch: v },
+                tournamentPolicy: { ...tf.tournamentPolicy, forfeitFighterBefore1stMatch: v },
               })
             }
             onReset={() =>
               setTf({
                 ...tf,
-                forfeitPolicy: {
-                  ...tf.forfeitPolicy,
+                tournamentPolicy: {
+                  ...tf.tournamentPolicy,
                   forfeitFighterBefore1stMatch:
-                    TF_DEFAULTS.forfeitPolicy.forfeitFighterBefore1stMatch,
+                    TF_DEFAULTS.tournamentPolicy.forfeitFighterBefore1stMatch,
                 },
               })
             }
           />
           <NumField
             label={t('admin.orgTournaments.disqualifyAfter')}
-            value={tf.forfeitPolicy.disqualifyAfter}
-            defaultValue={TF_DEFAULTS.forfeitPolicy.disqualifyAfter}
+            value={tf.tournamentPolicy.disqualifyAfter}
+            defaultValue={TF_DEFAULTS.tournamentPolicy.disqualifyAfter}
             onChange={(v) =>
-              setTf({ ...tf, forfeitPolicy: { ...tf.forfeitPolicy, disqualifyAfter: v } })
+              setTf({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, disqualifyAfter: v } })
             }
             onReset={() =>
               setTf({
                 ...tf,
-                forfeitPolicy: {
-                  ...tf.forfeitPolicy,
-                  disqualifyAfter: TF_DEFAULTS.forfeitPolicy.disqualifyAfter,
+                tournamentPolicy: {
+                  ...tf.tournamentPolicy,
+                  disqualifyAfter: TF_DEFAULTS.tournamentPolicy.disqualifyAfter,
                 },
               })
             }
