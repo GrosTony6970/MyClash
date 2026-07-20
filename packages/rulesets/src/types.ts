@@ -142,9 +142,18 @@ export interface RulesetMetadata {
   winBonus?: number | null;
   /** Human-readable double-hit penalty formula, or null if no doubles concept. */
   doublePenaltyFormula?: string | null;
-  /** Default deep-target points value (e.g. 2 in TF v1). */
+  /**
+   * Named targets this ruleset scores, in the order they should be offered.
+   * Supersedes the deepTarget/shallowTarget pair below; a ruleset with any
+   * count other than two can only be described here.
+   */
+  targets?: ReadonlyArray<{ name: string; value: number }> | null;
+  /**
+   * @deprecated Use `targets`. Kept so admin surfaces that still render the
+   * pair keep working during the migration.
+   */
   deepTargetDefault?: number | null;
-  /** Default shallow-target points value (e.g. 1 in TF v1). */
+  /** @deprecated Use `targets`. */
   shallowTargetDefault?: number | null;
   /**
    * Human-readable score formula for display, or null if the ruleset has no

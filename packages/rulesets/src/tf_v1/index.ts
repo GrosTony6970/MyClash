@@ -89,6 +89,7 @@ export const TF_v1: Ruleset = {
     hasAfterblow: true,
     winBonus: TFv1DefaultConfig.winBonus,
     doublePenaltyFormula: formatDoublePenalty(TFv1DefaultConfig.doublePenaltyFormula),
+    targets: TFv1DefaultConfig.targets,
     deepTargetDefault: TFv1DefaultConfig.targetValues.deepTarget,
     shallowTargetDefault: TFv1DefaultConfig.targetValues.shallowTarget,
     scoreFormula: 'score = (wins × winBonus + targetPoints) / (timesHit + doublePenalty(doubles))',
@@ -96,6 +97,15 @@ export const TF_v1: Ruleset = {
 };
 
 export { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config };
+export {
+  TargetSchema,
+  TargetsSchema,
+  DEFAULT_TARGETS,
+  MAX_TARGETS,
+  MAX_STORED_TARGET_VALUE,
+  withDerivedTargets,
+  type Target,
+} from './targets';
 export { computeMatchScore, isMatchOver } from './score';
 export { computePoolStandings } from './standings';
 export { doublePenalty, computeScore, computeAggregates } from './score';

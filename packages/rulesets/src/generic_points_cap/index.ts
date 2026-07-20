@@ -232,6 +232,9 @@ export const Generic_PointsCap: Ruleset = {
     hasAfterblow: false,
     winBonus: null,
     doublePenaltyFormula: null,
+    // A single undifferentiated hit — the case the deepTarget/shallowTarget
+    // pair could not express, and the reason `targets` is a list.
+    targets: [{ name: 'Hit', value: 1 }],
     deepTargetDefault: null,
     shallowTargetDefault: null,
   },

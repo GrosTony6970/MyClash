@@ -15,6 +15,7 @@ import {
 } from '../match-format';
 import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
 import { DEFAULT_DOUBLE_PENALTY_FORMULA, DoublePenaltySpecSchema } from './double-penalty';
+import { DEFAULT_TARGETS, TargetsSchema, withDerivedTargets } from './targets';
 
 /**
  * Wizard-set tournament policy switches. Lives next to (not inside)
@@ -31,8 +32,21 @@ export const TournamentPolicySchema = z.object({
 
 export const DEFAULT_TOURNAMENT_POLICY = TournamentPolicySchema.parse({});
 
-export const TFv1ConfigSchema = z.object({
+const TFv1ConfigObjectSchema = z.object({
   winBonus: z.number().int().positive().default(3),
+  /**
+   * Named targets — any count, any names. The grammar half of the ruleset.
+   * Derived from the legacy `targetValues` pair when absent (see
+   * `withDerivedTargets`), so a config written before this field existed keeps
+   * parsing and lands with the same two values it always had.
+   */
+  targets: TargetsSchema.default(DEFAULT_TARGETS),
+  /**
+   * @deprecated Superseded by `targets`. Retained so the admin surfaces and
+   * API paths that still read the pair keep working while they migrate; the
+   * preprocess above derives `targets` FROM this, never the reverse, so
+   * `targets` is the one to read.
+   */
   targetValues: z
     .object({
       deepTarget: z.number().int().positive().default(2),
@@ -57,6 +71,13 @@ export const TFv1ConfigSchema = z.object({
   forfeitPolicy: ForfeitPolicySchema.default(DEFAULT_FORFEIT_POLICY),
   tournamentPolicy: TournamentPolicySchema.default(DEFAULT_TOURNAMENT_POLICY),
 });
+
+/**
+ * Wrapped in a preprocess so `targets` can be derived from the sibling
+ * `targetValues` key. Only `.parse()` is ever called on this schema, so the
+ * ZodObject -> ZodEffects change is invisible to callers.
+ */
+export const TFv1ConfigSchema = z.preprocess(withDerivedTargets, TFv1ConfigObjectSchema);
 
 export type TFv1Config = z.infer<typeof TFv1ConfigSchema>;
 

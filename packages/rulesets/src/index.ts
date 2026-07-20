@@ -67,6 +67,17 @@ export type { ForfeitPolicy, ForfeitReason, ForfeitReasonPolicy } from './forfei
 export { TF_v1 } from './tf_v1';
 export { TFv1ConfigSchema, TFv1DefaultConfig } from './tf_v1/config';
 export type { TFv1Config } from './tf_v1/config';
+// Named targets — the grammar half of a ruleset. Exported so the API validates
+// authored targets against the same schema the engine parses.
+export {
+  TargetSchema,
+  TargetsSchema,
+  DEFAULT_TARGETS,
+  MAX_TARGETS,
+  MAX_STORED_TARGET_VALUE,
+  withDerivedTargets,
+  type Target,
+} from './tf_v1/targets';
 export { computeMatchScore, isMatchOver, computePoolStandings } from './tf_v1';
 export { doublePenalty, computeScore, computeAggregates } from './tf_v1/score';
 // The double-penalty whitelist. Exported so the API validates authored formulas
