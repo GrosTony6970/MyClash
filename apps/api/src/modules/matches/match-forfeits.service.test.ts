@@ -93,9 +93,119 @@ describe('MatchForfeitsService', () => {
 
     await expect(service.voidForfeit('forfeit-1')).rejects.toThrow(BadRequestException);
   });
+
+  it("auto-disqualifies a forfeit before the fighter's first match when the policy is on", async () => {
+    // tournamentPolicy.forfeitFighterBefore1stMatch - "Forfeit before 1st match
+    // -> auto-DQ". Nothing conditioned on match count before this; the
+    // per-reason tournamentState ('voluntary' -> 'ask') cannot express it.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({
+          phaseType: 'pool',
+          status: 'running',
+          tournamentPolicy: { forfeitFighterBefore1stMatch: true },
+        }),
+        update: { id: 'match-1' },
+        count: 0, // no other completed match for this registration
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+  });
+
+  it('does not auto-disqualify when the fighter has already completed a match', async () => {
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({
+          phaseType: 'pool',
+          status: 'running',
+          tournamentPolicy: { forfeitFighterBefore1stMatch: true },
+        }),
+        update: { id: 'match-1' },
+        count: 2,
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+  });
+
+  it('disqualifies on the Nth forfeit per tournamentPolicy.disqualifyAfter', async () => {
+    // "Disqualify after N forfeits" counts FORFEITS, not black cards. The
+    // per-reason state and the penalty ruleset's black-card ordinal both key off
+    // something else, so nothing in the codebase counted these.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({
+          phaseType: 'pool',
+          status: 'running',
+          tournamentPolicy: { disqualifyAfter: 2 },
+        }),
+        update: { id: 'match-1' },
+      },
+      // One prior non-voided forfeit; this one makes two.
+      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-2' }, count: 1 },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+  });
+
+  it('leaves the per-reason state alone when no tournament policy is set', async () => {
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }),
+        update: { id: 'match-1' },
+        count: 0,
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' }, count: 5 },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+  });
 });
 
-function matchRow(input: { phaseType: string; status: string }) {
+function matchRow(input: {
+  phaseType: string;
+  status: string;
+  tournamentPolicy?: Record<string, unknown>;
+}) {
   return {
     id: 'match-1',
     phase_id: 'phase-1',
@@ -111,7 +221,10 @@ function matchRow(input: { phaseType: string; status: string }) {
       type: input.phaseType,
       tournament_id: 'tournament-1',
       config_json: {},
-      tournaments: { id: 'tournament-1', ruleset_config: {} },
+      tournaments: {
+        id: 'tournament-1',
+        ruleset_config: input.tournamentPolicy ? { tournamentPolicy: input.tournamentPolicy } : {},
+      },
     },
   };
 }
@@ -123,6 +236,8 @@ type TableState = Record<
     select?: unknown[];
     insert?: unknown;
     update?: unknown;
+    /** For `.select(col, { count: 'exact', head: true })` lookups. */
+    count?: number;
   }
 >;
 
@@ -132,12 +247,17 @@ function fakeSupabase(state: TableState) {
 
   function chain(table: string) {
     const tableState = state[table] ?? {};
-    const promise = Promise.resolve({ data: tableState.select ?? [], error: null });
+    const promise = Promise.resolve({
+      data: tableState.select ?? [],
+      count: tableState.count ?? 0,
+      error: null,
+    });
     // Supabase's fluent query builder is both thenable and chainable in the code under test.
     // The test double intentionally mirrors that hybrid shape.
     const api: any = Object.assign(promise, {
       select: vi.fn(() => api),
       eq: vi.fn(() => api),
+      neq: vi.fn(() => api),
       is: vi.fn(() => api),
       or: vi.fn(() => api),
       in: vi.fn(() => api),

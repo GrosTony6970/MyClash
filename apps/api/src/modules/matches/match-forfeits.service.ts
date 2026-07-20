@@ -49,7 +49,18 @@ export class MatchForfeitsService {
         ? match.blue_registration_id
         : match.red_registration_id;
 
-    const canContinue = this.resolveCanContinue(policy.tournamentState, dto.canContinue);
+    // tournamentPolicy can escalate the per-reason state to a disqualification.
+    // Resolved BEFORE canContinue, because a DQ implies the fighter cannot
+    // continue (which in pools also auto-forfeits their remaining matches).
+    const tournamentState = await this.escalateTournamentState(
+      dto.forfeitingRegistrationId,
+      matchId,
+      phase.tournament_id,
+      policy.tournamentState,
+      tournament.ruleset_config,
+    );
+
+    const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue);
     const scores = this.resolveScores(match, dto.forfeitingRegistrationId, policy);
     const now = new Date().toISOString();
     const priorRegistration = await this.loadRegistration(dto.forfeitingRegistrationId);
@@ -80,11 +91,7 @@ export class MatchForfeitsService {
       forfeitEndReason(dto.reason),
       now,
     );
-    await this.applyTournamentState(
-      dto.forfeitingRegistrationId,
-      policy.tournamentState,
-      canContinue,
-    );
+    await this.applyTournamentState(dto.forfeitingRegistrationId, tournamentState, canContinue);
 
     const downstreamIds: string[] = [];
     if (phase.type === 'pool' && canContinue === false) {
@@ -473,6 +480,56 @@ export class MatchForfeitsService {
         .update({ status: 'withdrawn' })
         .eq('id', registrationId);
     }
+  }
+
+  /**
+   * Apply the two tournament-policy escalations to a forfeit's resulting state.
+   * Both were stored and editable but read by nothing.
+   *
+   * - `forfeitFighterBefore1stMatch` — "Forfeit before 1st match → auto-DQ".
+   *   A registration id is tournament-scoped, so counting that fighter's
+   *   completed matches needs no tournament filter.
+   * - `disqualifyAfter` — "Disqualify after N forfeits". Counts FORFEITS, not
+   *   black cards; the per-reason `tournamentState` and the penalty ruleset's
+   *   black-card scope both key off other things, so nothing counted these.
+   *
+   * Counted before the new forfeit row is inserted, hence the `+ 1`.
+   */
+  private async escalateTournamentState(
+    registrationId: string,
+    matchId: string,
+    tournamentId: string,
+    state: string,
+    rulesetConfig: unknown,
+  ): Promise<string> {
+    if (state === 'disqualified') return state;
+
+    const policy =
+      ((rulesetConfig as { tournamentPolicy?: Record<string, unknown> } | null) ?? {})
+        .tournamentPolicy ?? {};
+
+    if (policy['forfeitFighterBefore1stMatch'] === true) {
+      const { count } = await this.supabase.service
+        .from('matches')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'completed')
+        .neq('id', matchId)
+        .or(`red_registration_id.eq.${registrationId},blue_registration_id.eq.${registrationId}`);
+      if ((count ?? 0) === 0) return 'disqualified';
+    }
+
+    const threshold = policy['disqualifyAfter'];
+    if (typeof threshold === 'number' && threshold > 0) {
+      const { count } = await this.supabase.service
+        .from('match_forfeits')
+        .select('id', { count: 'exact', head: true })
+        .eq('tournament_id', tournamentId)
+        .eq('forfeiting_registration_id', registrationId)
+        .is('voided_at', null);
+      if ((count ?? 0) + 1 >= threshold) return 'disqualified';
+    }
+
+    return state;
   }
 
   private resolveCanContinue(state: string, input: boolean | undefined): boolean | null {
