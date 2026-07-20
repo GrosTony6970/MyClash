@@ -144,6 +144,23 @@ export interface RulesetMetadata {
    */
   hasAfterblow?: boolean;
   /**
+   * How an afterblow is WORTH points, when the ruleset has them at all.
+   *
+   *  - `fixed`    — the retaliation is always worth `afterblowFixedValue`,
+   *                 whatever it landed on. This is FFAMHE's convention: its
+   *                 published results have `1-1` and `2-1` columns and no
+   *                 `2-2`, and every afterblow stat bucket in the database
+   *                 keys on `first_strike_value`, never on `afterblow_value`.
+   *  - `weighted` — the retaliation is worth the target it hit, so the button
+   *                 grid is the full attacker x defender product.
+   *
+   * Declaring the rule is what lets the scoring buttons be DERIVED rather than
+   * guessed by a seeding heuristic.
+   */
+  afterblowValuation?: 'fixed' | 'weighted' | null;
+  /** The retaliation's worth under `fixed` valuation. Meaningless otherwise. */
+  afterblowFixedValue?: number | null;
+  /**
    * The afterblow mode a new tournament is SEEDED with. Never authoritative
    * at scoring time.
    *

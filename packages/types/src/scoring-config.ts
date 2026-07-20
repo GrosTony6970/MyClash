@@ -206,3 +206,76 @@ export function pointCapWinnerSide(
   if (blueScore >= matchFormat.pointCap) return 'blue';
   return null;
 }
+
+// ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
+
+/**
+ * How an afterblow is worth points.
+ *
+ *  - `fixed`    — the retaliation is always worth the same, whatever it landed
+ *                 on. FFAMHE's convention: its published results carry `1-1`
+ *                 and `2-1` columns and no `2-2`, and every afterblow stat
+ *                 bucket in the database keys on `first_strike_value`, never on
+ *                 `afterblow_value`.
+ *  - `weighted` — the retaliation is worth the target it hit, so the grid is
+ *                 the full attacker x defender product.
+ *
+ * Mirrors the union on `RulesetMetadata.afterblowValuation` in
+ * @myclash/rulesets. Duplicated rather than imported because this package has
+ * no dependencies at all and rulesets does not depend on it — the same
+ * arrangement `AfterblowMode` already has. A drift guard in the API asserts the
+ * two stay identical.
+ */
+export type AfterblowValuation = 'fixed' | 'weighted';
+
+/** What a ruleset declares about what an exchange can be and what it is worth. */
+export interface ScoringGrammar {
+  targets: ReadonlyArray<{ name: string; value: number }>;
+  hasAfterblow: boolean;
+  afterblowValuation: AfterblowValuation;
+  /** The retaliation's worth under `fixed` valuation. Ignored when weighted. */
+  afterblowFixedValue: number;
+}
+
+/**
+ * Derive a tournament's scoring buttons from its ruleset's grammar.
+ *
+ * This is what stops the pad being a hardcoded pair. The button values were
+ * `+2 / +1` and `2-1 / 1-1` constants in DEFAULT_SCORING_CONFIG, which happened
+ * to agree with TF_v1's targets by coincidence rather than by derivation — so a
+ * federation with different targets got FFAMHE's buttons.
+ *
+ * Author order is preserved rather than sorted: the operator controls the order
+ * of their own targets, and the pad should show what they arranged.
+ *
+ * Note the afterblow list is returned EMPTY (not omitted) for a ruleset without
+ * afterblow. An empty array survives `ensureButtonArray`, whereas a missing key
+ * gets DEFAULT_SCORING_CONFIG's `2-1 / 1-1` pair injected on the next PATCH —
+ * handing afterblow buttons to a ruleset that has no afterblow.
+ */
+export function buildScoringButtons(grammar: ScoringGrammar): ScoringButtonConfig {
+  const clean: CleanButton[] = grammar.targets.map((target) => ({
+    label: `+${target.value}`,
+    value: target.value,
+    visible: true,
+  }));
+
+  if (!grammar.hasAfterblow) return { clean, afterblow: [] };
+
+  const afterblow: AfterblowButton[] = [];
+  for (const attacker of grammar.targets) {
+    const defenderValues =
+      grammar.afterblowValuation === 'weighted'
+        ? grammar.targets.map((t) => t.value)
+        : [grammar.afterblowFixedValue];
+    for (const defenderPts of defenderValues) {
+      afterblow.push({
+        label: `${attacker.value}-${defenderPts}`,
+        attackerPts: attacker.value,
+        defenderPts,
+        visible: true,
+      });
+    }
+  }
+  return { clean, afterblow };
+}

@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_MATCH_FORMAT_CONFIG as TYPES_DEFAULT } from '@myclash/types';
-import { DEFAULT_MATCH_FORMAT_CONFIG as ENGINE_DEFAULT } from '@myclash/rulesets';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG as TYPES_DEFAULT,
+  type AfterblowValuation,
+} from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG as ENGINE_DEFAULT,
+  type RulesetMetadata,
+} from '@myclash/rulesets';
 
 /**
  * The default match format is defined TWICE, on purpose:
@@ -36,5 +42,35 @@ describe('DEFAULT_MATCH_FORMAT_CONFIG', () => {
       maxDoubleHits: 4,
       bestOf: { pool: 1, bracket: 1, finals: 1 },
     });
+  });
+});
+
+/**
+ * `AfterblowValuation` is duplicated for the same reason and needs the same
+ * guard: the union lives on `RulesetMetadata` in @myclash/rulesets (where the
+ * rule is DECLARED) and in @myclash/types (where the buttons are DERIVED from
+ * it), and neither package may import the other.
+ *
+ * A silent divergence here would not throw — it would build the wrong pad. Add
+ * a third member on one side only and a ruleset could declare a valuation the
+ * button builder falls through to `fixed` on, quietly handing a federation the
+ * wrong grid.
+ */
+describe('AfterblowValuation', () => {
+  it('has the same members in @myclash/types and @myclash/rulesets', () => {
+    // The unions are types, not values, so they are compared through a total
+    // mapping: this fails to COMPILE if either side gains or loses a member.
+    const fromTypes: Record<AfterblowValuation, true> = { fixed: true, weighted: true };
+    const fromEngine: Record<NonNullable<RulesetMetadata['afterblowValuation']>, true> = {
+      fixed: true,
+      weighted: true,
+    };
+    expect(Object.keys(fromTypes).sort()).toEqual(Object.keys(fromEngine).sort());
+  });
+
+  it('pins the canonical members', () => {
+    expect(
+      Object.keys({ fixed: true, weighted: true } satisfies Record<AfterblowValuation, true>),
+    ).toEqual(['fixed', 'weighted']);
   });
 });

@@ -88,6 +88,10 @@ export const TF_v1: Ruleset = {
   metadata: {
     hasAfterblow: true,
     defaultAfterblowMode: 'full',
+    // FFAMHE scores the retaliation at a flat 1 regardless of target — see
+    // the ARCHITECTURE.md FAL columns (1-1, 2-1; no 2-2).
+    afterblowValuation: 'fixed',
+    afterblowFixedValue: 1,
     winBonus: TFv1DefaultConfig.winBonus,
     doublePenaltyFormula: formatDoublePenalty(TFv1DefaultConfig.doublePenaltyFormula),
     targets: TFv1DefaultConfig.targets,

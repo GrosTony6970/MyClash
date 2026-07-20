@@ -231,6 +231,8 @@ export const Generic_PointsCap: Ruleset = {
   metadata: {
     hasAfterblow: false,
     defaultAfterblowMode: null,
+    afterblowValuation: null,
+    afterblowFixedValue: null,
     winBonus: null,
     doublePenaltyFormula: null,
     // A single undifferentiated hit — the case the deepTarget/shallowTarget

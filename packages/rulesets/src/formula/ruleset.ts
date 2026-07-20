@@ -129,6 +129,9 @@ export interface RulesetGrammar {
   targets?: ReadonlyArray<{ name: string; value: number }> | null;
   hasAfterblow?: boolean | null;
   defaultAfterblowMode?: AfterblowMode | null;
+  /** See RulesetMetadata.afterblowValuation. */
+  afterblowValuation?: 'fixed' | 'weighted' | null;
+  afterblowFixedValue?: number | null;
 }
 
 export function createFormulaRuleset(
@@ -210,6 +213,11 @@ export function createFormulaRuleset(
     metadata: {
       hasAfterblow,
       defaultAfterblowMode: hasAfterblow ? (grammar?.defaultAfterblowMode ?? 'full') : null,
+      // `fixed` is the default because it is what every ruleset behaved as
+      // before the rule could be declared — a row that says nothing keeps its
+      // two-button pad rather than silently doubling it.
+      afterblowValuation: hasAfterblow ? (grammar?.afterblowValuation ?? 'fixed') : null,
+      afterblowFixedValue: hasAfterblow ? (grammar?.afterblowFixedValue ?? 1) : null,
       targets: grammar?.targets ?? null,
       winBonus: null,
       doublePenaltyFormula: null,
