@@ -223,4 +223,110 @@ describe('ruleset resolution', () => {
 
     await expect(service.getPoolStandings('t-1', 'overall')).rejects.toThrow(/not registered/);
   });
+
+  it('applies a ruleset-configured winBonus to the TF_v1 score', async () => {
+    // End-to-end proof of the wiring: a super-admin amends the federal rulebook
+    // in custom_rulesets.tf_config, resolveRulesetConfigDefaults seeds it into
+    // tournaments.ruleset_config, and the engine reads it. winBonus was
+    // hardcoded to 3, so that stored value used to change nothing at all.
+    //
+    // Same fixture as the TF_v1 score test: reg-1 wins with targetPoints 2,
+    // timesHit 1 → default (1*3 + 2) / 1 = 5. With winBonus 10 → 12.
+    fromMock
+      .mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 't-1',
+            ruleset_code: 'TF_v1',
+            ruleset_version: '1.0.0',
+            ruleset_config: { winBonus: 10 },
+          },
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: { id: 'phase-1' }, error: null }))
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            {
+              id: 'pool-1',
+              name: 'Pool A',
+              pool_members: [
+                {
+                  registration_id: 'reg-1',
+                  registrations: {
+                    id: 'reg-1',
+                    persons: { id: 'p-1', given_name: 'A', family_name: 'One', clubs: null },
+                  },
+                },
+                {
+                  registration_id: 'reg-2',
+                  registrations: {
+                    id: 'reg-2',
+                    persons: { id: 'p-2', given_name: 'B', family_name: 'Two', clubs: null },
+                  },
+                },
+              ],
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            {
+              id: 'm1',
+              pool_id: 'pool-1',
+              status: 'completed',
+              red_registration_id: 'reg-1',
+              blue_registration_id: 'reg-2',
+              red_score: 2,
+              blue_score: 1,
+              winner_registration_id: 'reg-1',
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            {
+              match_id: 'm1',
+              type: 'clean',
+              first_striker_color: 'red',
+              first_strike_value: 2,
+              afterblow_value: null,
+              voided: false,
+            },
+            {
+              match_id: 'm1',
+              type: 'clean',
+              first_striker_color: 'blue',
+              first_strike_value: 1,
+              afterblow_value: null,
+              voided: false,
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
+
+    const service = new PoolStandingsService(
+      mockSupabase as never,
+      {
+        resolve: async (code: string, version: string) =>
+          registry.has(code, version) ? registry.get(code, version) : null,
+      } as never,
+    );
+
+    const result = (await service.getPoolStandings('t-1', 'overall')) as {
+      rows: Array<{ registrationId: string; stats: Record<string, number> }>;
+    };
+
+    const r1 = result.rows.find((r) => r.registrationId === 'reg-1')!;
+    expect(r1.stats['score']).toBe(12);
+  });
 });

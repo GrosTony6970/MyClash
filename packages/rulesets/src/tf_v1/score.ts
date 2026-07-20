@@ -17,21 +17,29 @@ import {
   normalizeMatchFormatConfig,
   type AfterblowMode,
 } from '../match-format';
+import {
+  doublePenalty,
+  DOUBLE_PENALTY_FORMULAS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  DEFAULT_DOUBLE_PENALTY_FORMULA,
+  type DoublePenaltyFormula,
+} from './double-penalty';
 import type { TFv1Config } from './config';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+/** Default win bonus. Overridable per ruleset via TFv1Config.winBonus. */
 export const WIN_BONUS = 3;
 
-/**
- * Double penalty formula: n*(n-1)/3
- * Where n = total doubles in the match for this fighter.
- * ARCHITECTURE.md §6.2: DOUBLE_PENALTY(n) = n * (n - 1) / 3
- */
-export function doublePenalty(n: number): number {
-  if (n <= 1) return 0;
-  return (n * (n - 1)) / 3;
-}
+// Imported (computeScore below calls doublePenalty) AND re-exported, so the
+// package's existing `doublePenalty` entry point is unchanged.
+export {
+  doublePenalty,
+  DOUBLE_PENALTY_FORMULAS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  DEFAULT_DOUBLE_PENALTY_FORMULA,
+  type DoublePenaltyFormula,
+};
 
 // ── Per-fighter aggregates ────────────────────────────────────────────────────
 
@@ -118,15 +126,26 @@ export function computeAggregates(
 }
 
 /**
+ * Ranking inputs a ruleset can tune. Both were hardcoded, so a super-admin
+ * amending the federal rulebook changed a stored number that nothing read.
+ * Omitted values fall back to the federal defaults, so callers that pass
+ * nothing (and the FAL 2026 golden test) behave exactly as before.
+ */
+export interface ScoreOptions {
+  winBonus?: number;
+  doublePenaltyFormula?: DoublePenaltyFormula;
+}
+
+/**
  * Compute TF_v1 score for a fighter.
  * ARCHITECTURE.md §6.2:
- *   SCORE = (wins * WIN_BONUS + targetPoints) / (timesHit + doublePenalty(doubles))
+ *   SCORE = (wins * winBonus + targetPoints) / (timesHit + doublePenalty(doubles))
  *
  * Edge case: if denominator = 0, treat as denominator = 1.
  */
-export function computeScore(agg: FighterAggregates): number {
-  const numerator = agg.wins * WIN_BONUS + agg.targetPoints;
-  const denominator = agg.timesHit + doublePenalty(agg.doubles);
+export function computeScore(agg: FighterAggregates, opts: ScoreOptions = {}): number {
+  const numerator = agg.wins * (opts.winBonus ?? WIN_BONUS) + agg.targetPoints;
+  const denominator = agg.timesHit + doublePenalty(agg.doubles, opts.doublePenaltyFormula);
 
   // Edge case: denominator = 0 → treat as 1 (ARCHITECTURE.md §6.2)
   if (denominator === 0) {

@@ -12,6 +12,9 @@ import {
   computeAggregates,
   computeMatchScore,
   isMatchOver,
+  DOUBLE_PENALTY_FORMULAS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  type DoublePenaltyFormula,
 } from './score';
 import { TFv1DefaultConfig } from './config';
 import type { Exchange, Match } from '../types';
@@ -86,6 +89,44 @@ describe('computeScore', () => {
   });
 
   it('WIN_BONUS is 3', () => expect(WIN_BONUS).toBe(3));
+});
+
+// ── Configurable ranking inputs ───────────────────────────────────────────────
+
+describe('computeScore — ruleset-configured inputs', () => {
+  const agg = { wins: 2, targetPoints: 10, timesHit: 5, doubles: 0 };
+
+  it('honours a non-default winBonus', () => {
+    // Both were hardcoded, so a super-admin amending the rulebook changed a
+    // stored value the engine never read.
+    expect(computeScore(agg)).toBeCloseTo(3.2); // (2*3 + 10) / 5
+    expect(computeScore(agg, { winBonus: 5 })).toBeCloseTo(4); // (2*5 + 10) / 5
+    expect(computeScore(agg, { winBonus: 0 })).toBeCloseTo(2); // (0 + 10) / 5
+  });
+
+  it('honours each whitelisted doublePenaltyFormula', () => {
+    // 4 doubles, 0 hits taken → the denominator IS the double penalty.
+    const d = { wins: 0, targetPoints: 12, timesHit: 0, doubles: 4 };
+    expect(computeScore(d, { doublePenaltyFormula: 'n*(n-1)/3' })).toBeCloseTo(3); // /4
+    expect(computeScore(d, { doublePenaltyFormula: 'n*(n-1)/2' })).toBeCloseTo(2); // /6
+    expect(computeScore(d, { doublePenaltyFormula: 'n' })).toBeCloseTo(3); // /4
+    // '0' zeroes the denominator, so the edge case returns the numerator.
+    expect(computeScore(d, { doublePenaltyFormula: '0' })).toBe(12);
+  });
+
+  it('falls back to the federal formula for an unknown key', () => {
+    // A stored config predating a whitelist entry must not 500 the standings.
+    const unknown = 'n*(n-1)/7' as unknown as DoublePenaltyFormula;
+    expect(doublePenalty(4, unknown)).toBe(doublePenalty(4));
+  });
+
+  it('every whitelisted key is a pure function of n, never evaluated', () => {
+    // AGENTS.md hard rule #5 — the config carries a key, not an expression.
+    for (const key of DOUBLE_PENALTY_FORMULA_KEYS) {
+      expect(typeof DOUBLE_PENALTY_FORMULAS[key]).toBe('function');
+      expect(DOUBLE_PENALTY_FORMULAS[key](0)).toBe(0);
+    }
+  });
 });
 
 // ── computeAggregates ─────────────────────────────────────────────────────────

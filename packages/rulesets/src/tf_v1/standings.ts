@@ -23,7 +23,7 @@ export function computePoolStandings(
   _pool: Pool,
   matches: Match[],
   registrations: Registration[],
-  _config: TFv1Config,
+  config: TFv1Config,
   afterblowMode: AfterblowMode = 'full',
 ): PoolStandingRow[] {
   // Build a map of all exchanges per match
@@ -78,7 +78,13 @@ export function computePoolStandings(
       targetPoints: agg.targetPoints,
       timesHit: agg.timesHit,
       doubles: agg.doubles,
-      score: computeScore(agg),
+      // winBonus / doublePenaltyFormula come from the ruleset config. They were
+      // hardcoded, so a super-admin amending the federal rulebook changed a
+      // stored value the engine never read.
+      score: computeScore(agg, {
+        winBonus: config.winBonus,
+        doublePenaltyFormula: config.doublePenaltyFormula,
+      }),
       seed: reg.seed ?? reg.bibNumber ?? null,
     };
   });

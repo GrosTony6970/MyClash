@@ -14,6 +14,7 @@ import {
   normalizeMatchFormatConfig,
 } from '../match-format';
 import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
+import { DEFAULT_DOUBLE_PENALTY_FORMULA, DOUBLE_PENALTY_FORMULA_KEYS } from './double-penalty';
 
 /**
  * Wizard-set tournament policy switches. Lives next to (not inside)
@@ -41,8 +42,12 @@ export const TFv1ConfigSchema = z.object({
   matchFormat: z
     .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
     .default(DEFAULT_MATCH_FORMAT_CONFIG),
-  /** Whitelisted formula key — never eval'd */
-  doublePenaltyFormula: z.literal('n*(n-1)/3').default('n*(n-1)/3'),
+  /**
+   * Whitelisted formula KEY — never eval'd; it selects one of
+   * DOUBLE_PENALTY_FORMULAS. Widening literal → enum is a strict superset, so
+   * every stored 'n*(n-1)/3' keeps validating.
+   */
+  doublePenaltyFormula: z.enum(DOUBLE_PENALTY_FORMULA_KEYS).default(DEFAULT_DOUBLE_PENALTY_FORMULA),
   forfeitPolicy: ForfeitPolicySchema.default(DEFAULT_FORFEIT_POLICY),
   tournamentPolicy: TournamentPolicySchema.default(DEFAULT_TOURNAMENT_POLICY),
 });
