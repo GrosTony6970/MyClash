@@ -17,10 +17,17 @@
  *   11. Spacebar hint (muted)
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { ConfirmDialog, clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
+import {
+  buildUnifiedTimeline,
+  clockStatusSemantic,
+  ConfirmDialog,
+  MatchTimeline,
+  sideStyle,
+  statusPillTone,
+} from '@myclash/ui';
 import {
   clockShouldTick,
   displayClockMs,
@@ -29,9 +36,8 @@ import {
   shouldWarnClock,
   type ClockState,
 } from './scoreboard-clock';
-import { buildUnifiedTimeline } from './exchange-timeline';
 import { useExchanges } from '../hooks/useExchanges';
-import { usePenalties, type PenaltyCard } from '../hooks/usePenalties';
+import { usePenalties } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
@@ -203,11 +209,6 @@ export function ScoringCenterControls({
       config,
     ],
   );
-
-  const eventsListRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (eventsListRef.current) eventsListRef.current.scrollTop = 0;
-  }, [events.length]);
 
   async function clearLastExchange() {
     const lastExchange = activeExchanges[activeExchanges.length - 1];
@@ -417,57 +418,7 @@ export function ScoringCenterControls({
         <p className="text-xs font-bold uppercase tracking-wide text-muted mb-1.5 text-center">
           {t('scoring.lice.eventsHeader')}
         </p>
-        <div
-          ref={eventsListRef}
-          className="max-h-[260px] overflow-y-auto rounded-lg border border-border bg-background p-2 space-y-1"
-        >
-          {events.length === 0 && <p className="text-center text-xs text-muted py-2">—</p>}
-          {events.map((ev) => (
-            <div key={ev.id} className="flex items-center gap-2 text-sm py-0.5">
-              <span className="font-mono text-muted tabular-nums w-7 flex-shrink-0">
-                #{ev.number}
-              </span>
-              <span className="font-mono text-muted tabular-nums">{ev.timeLabel}</span>
-              {ev.sideColor && (
-                <span
-                  className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: ev.sideColor }}
-                />
-              )}
-              <span className="font-semibold text-foreground truncate flex-1">
-                {ev.fighterLabel}
-              </span>
-              {ev.card && (
-                <span
-                  title={ev.card}
-                  className={`inline-block h-3.5 w-3.5 rounded-sm flex-shrink-0 ${CARD_CHIP_COLOR[ev.card]}`}
-                />
-              )}
-              {ev.icon && (
-                <span className="text-warning" aria-hidden>
-                  {ev.icon}
-                </span>
-              )}
-              <span className="text-muted truncate">{ev.typeLabel}</span>
-              {ev.delta && <span className="font-bold text-foreground">{ev.delta}</span>}
-              {ev.opponentDelta && (
-                <span className="flex items-center gap-1 flex-shrink-0">
-                  <span className="text-muted">·</span>
-                  {ev.opponentSideColor && (
-                    <span
-                      className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: ev.opponentSideColor }}
-                    />
-                  )}
-                  {ev.opponentLabel && (
-                    <span className="text-muted truncate max-w-[6rem]">{ev.opponentLabel}</span>
-                  )}
-                  <span className="font-bold text-foreground">{ev.opponentDelta}</span>
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
+        <MatchTimeline events={events} ariaLabel={t('scoring.lice.eventsHeader')} t={t} />
       </div>
 
       {/* Spacebar hint (when idle) */}
@@ -522,14 +473,3 @@ function primaryAction(status: 'idle' | 'running' | 'halted' | 'ended'): {
       return null;
   }
 }
-
-// ── Event list ────────────────────────────────────────────────────
-
-// Card → swatch colour for the timeline penalty icon. Mirrors the
-// per-side counter chips in ScoringColumn (not exported there; a 3-entry
-// dup is cleaner than widening that component's public surface).
-const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
-  yellow: 'bg-yellow-500',
-  red: 'bg-red-600',
-  black: 'bg-gray-900 border border-gray-600',
-};

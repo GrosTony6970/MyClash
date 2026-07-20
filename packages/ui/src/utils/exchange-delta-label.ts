@@ -8,8 +8,11 @@
  *
  * Pure: no React, no I/O.
  */
+
+import type { ExchangeType } from '../types/match-events';
+
 export function exchangeDeltaLabel(
-  type: 'clean' | 'afterblow' | 'double' | 'no_exchange',
+  type: ExchangeType,
   scoreDelta: number | null | undefined,
 ): string | null {
   if (type !== 'clean' && type !== 'afterblow') return null;
@@ -27,7 +30,7 @@ export function exchangeDeltaLabel(
  * Pure: no React, no I/O.
  */
 export function afterblowDefenderLabel(
-  type: 'clean' | 'afterblow' | 'double' | 'no_exchange',
+  type: ExchangeType,
   defenderDelta: number | null | undefined,
 ): string | null {
   if (type !== 'afterblow') return null;

@@ -24,8 +24,12 @@ import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTranslator, getMessages } from '@myclash/i18n';
+import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
+import type { ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
+import { buildUnifiedTimeline } from '../utils/exchange-timeline';
+import { MatchTimeline } from './MatchTimeline';
 import { nextDisplayHref } from './next-display-href';
 
 export interface TVScoreboardProps {
@@ -77,8 +81,11 @@ export function TVScoreboard({
   mirror = false,
   className,
 }: TVScoreboardProps): React.ReactElement | null {
-  const t = createTranslator(getMessages());
-  const { match, penalties, clock, elapsedMs, loadError, connected } = useLiveMatch(
+  // Stable identity: this component re-renders ~20×/s off the clock ticker, and
+  // `t` is a dependency of the timeline memo below — rebuilding the translator
+  // each tick would rebuild the whole event list with it, all day on a projector.
+  const t = useMemo(() => createTranslator(getMessages()), []);
+  const { match, penalties, exchanges, clock, elapsedMs, loadError, connected } = useLiveMatch(
     apiBaseUrl,
     matchId,
     supabaseClient,
@@ -241,6 +248,7 @@ export function TVScoreboard({
           clockStatus={clockStatus}
           elapsedMs={elapsedMs}
           penalties={penalties}
+          exchanges={exchanges}
           countdownRemaining={countdownRemaining}
           redName={redName}
           blueName={blueName}
@@ -459,6 +467,7 @@ function CenterColumn({
   clockStatus,
   elapsedMs,
   penalties,
+  exchanges,
   countdownRemaining,
   redName,
   blueName,
@@ -468,6 +477,7 @@ function CenterColumn({
   clockStatus: 'idle' | 'running' | 'halted' | 'ended';
   elapsedMs: number;
   penalties: Penalty[];
+  exchanges: ExchangeRow[];
   countdownRemaining: number | null;
   redName: string;
   blueName: string;
@@ -488,8 +498,37 @@ function CenterColumn({
     return null;
   }, [isEnded, match.redScore, match.blueScore, redName, blueName]);
 
+  // The same numbered timeline the referee pad and the public match page show —
+  // exchanges and cards merged into one contiguous 1..N sequence, newest first,
+  // so "#6" means the same event on the projector and on the pad.
+  const events = useMemo(
+    () =>
+      buildUnifiedTimeline({
+        exchanges,
+        penalties,
+        redName,
+        blueName,
+        redRegId: match.redRegistrationId ?? '',
+        blueRegId: match.blueRegistrationId ?? '',
+        t,
+        config: match.scoringConfig ?? DEFAULT_SCORING_CONFIG,
+      }),
+    [
+      exchanges,
+      penalties,
+      redName,
+      blueName,
+      match.redRegistrationId,
+      match.blueRegistrationId,
+      match.scoringConfig,
+      t,
+    ],
+  );
+
   return (
-    <div className="flex flex-col items-center gap-4 pt-6">
+    // min-w-0 as a grid item: without it this column's min-content width wins
+    // over the 380px track and the timeline rows push into the score numerals.
+    <div className="flex min-w-0 flex-col items-center gap-4 pt-6">
       <span
         className={`rounded-full px-4 py-1 text-base font-bold uppercase tracking-widest ${
           clockStatus === 'running'
@@ -561,36 +600,18 @@ function CenterColumn({
         </>
       )}
 
-      {/* Events list — last 8 active */}
-      <div className="mt-4 w-full">
+      {/* Exchange history — the full timeline, scrollable and pinned to the
+          newest row (the projector has no operator to scroll it). */}
+      <div className="mt-4 w-full min-w-0">
         <p className="mb-2 text-center text-sm font-bold uppercase tracking-widest text-gray-500">
-          ── EVENTS ──
+          {t('scoring.lice.eventsHeader')}
         </p>
-        <div className="max-h-[420px] overflow-y-auto rounded-lg border border-gray-800 bg-gray-900/50 p-3 space-y-2">
-          {penalties.filter((p) => !p.voided).length === 0 && (
-            <p className="text-center text-base text-gray-600 py-2">—</p>
-          )}
-          {penalties
-            .filter((p) => !p.voided)
-            .slice(-8)
-            .reverse()
-            .map((p) => (
-              <div key={p.id} className="flex items-center gap-2 text-lg">
-                <span
-                  className={`inline-block h-4 w-4 rounded-sm ${
-                    p.card === 'yellow'
-                      ? 'bg-yellow-400'
-                      : p.card === 'red'
-                        ? 'bg-red-600'
-                        : 'bg-gray-900 border border-gray-600'
-                  }`}
-                />
-                <span className="font-semibold text-gray-100 truncate">
-                  {p.short_name ?? p.reason ?? p.card}
-                </span>
-              </div>
-            ))}
-        </div>
+        <MatchTimeline
+          events={events}
+          scale="tv"
+          ariaLabel={t('scoring.lice.eventsHeader')}
+          t={t}
+        />
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { formatMatchClock } from '@myclash/ui';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buildUnifiedTimeline, MatchTimeline } from '@myclash/ui';
+import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -34,6 +35,7 @@ interface ExchangeChangeRaw {
   red_score_delta: number;
   blue_score_delta: number;
   clock_time_ms: number | null;
+  occurred_at: string;
   voided: boolean;
 }
 
@@ -67,7 +69,11 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
     sequence: raw.sequence,
     type: raw.type,
     voided: raw.voided,
-    noExchangeReason: raw.no_exchange_reason,
+    // REQUIRED by the shared timeline: `orderedWithNumbers` sorts on it, so a
+    // live-inserted row missing it would sort to the front of the ascending
+    // pass and get numbered #1 until the next refresh repaired it.
+    occurredAt: raw.occurred_at,
+    no_exchange_reason: raw.no_exchange_reason,
     scoringSide,
     scoreDelta,
     defenderDelta,
@@ -190,184 +196,69 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
   );
 }
 
-function ExchangeLabel({
-  exchange,
-  redName,
-  blueName,
-}: {
-  exchange: ExchangeRow;
-  redName: string;
-  blueName: string;
-}) {
-  const { t } = useI18n();
-  if (exchange.type === 'no_exchange') {
-    return (
-      <span className="text-muted">
-        {t('scoring.liveMatch.noExchange')}
-        {exchange.noExchangeReason ? ` - ${exchange.noExchangeReason}` : ''}
-      </span>
-    );
-  }
-
-  if (exchange.type === 'double') {
-    return <span className="font-medium text-warning">{t('scoring.liveMatch.doubleTouch')}</span>;
-  }
-
-  const side = exchange.scoringSide ?? 'red';
-  const value = exchange.scoreDelta ?? 0;
-  const name = side === 'red' ? redName : blueName;
-  const nameClass = side === 'red' ? 'text-corner-red' : 'text-corner-blue';
-
-  if (exchange.type === 'afterblow') {
-    const abValue = exchange.defenderDelta ?? 0;
-    const oppName = side === 'red' ? blueName : redName;
-    const oppClass = side === 'red' ? 'text-corner-blue' : 'text-corner-red';
-    return (
-      <span>
-        <span className={`font-medium ${nameClass}`}>{name}</span>
-        {` ${value}pt`}
-        {` + ${t('scoring.liveMatch.afterblow')} `}
-        <span className={`font-medium ${oppClass}`}>{oppName}</span>
-        {` ${abValue}pt`}
-      </span>
-    );
-  }
-
-  // clean hit
-  return (
-    <span>
-      <span className={`font-medium ${nameClass}`}>{name}</span>
-      {` ${t('scoring.liveMatch.hit')} - ${value}pt`}
-    </span>
-  );
-}
-
-function ExchangeFeed({
+function MatchEventFeed({
   exchanges,
-  redName,
-  blueName,
-}: {
-  exchanges: ExchangeRow[];
-  redName: string;
-  blueName: string;
-}) {
-  const { t } = useI18n();
-  const active = [...exchanges].reverse().filter((e) => !e.voided);
-  const voided = exchanges.filter((e) => e.voided);
-
-  return (
-    <div className="mt-4">
-      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">
-        {t('scoring.liveMatch.exchanges')}
-      </h2>
-
-      {active.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted">{t('scoring.liveMatch.noExchanges')}</p>
-      )}
-
-      <ol className="space-y-2">
-        {active.map((ex) => (
-          <li
-            key={ex.id}
-            className="rounded-lg border border-border bg-surface px-4 py-3 text-sm shadow-xs"
-          >
-            <div className="flex items-baseline gap-2">
-              <span className="w-6 shrink-0 font-mono text-xs tabular-nums text-muted">
-                #{ex.sequence}
-              </span>
-              <span className="flex-1">
-                <ExchangeLabel exchange={ex} redName={redName} blueName={blueName} />
-              </span>
-            </div>
-            <p className="ml-8 mt-0.5 text-xs tabular-nums text-muted">
-              {formatMatchClock(ex.clockTimeMs)}
-            </p>
-          </li>
-        ))}
-      </ol>
-
-      {voided.length > 0 && (
-        <p className="mt-3 text-center text-xs text-muted">
-          {t('scoring.liveMatch.voidedHidden', {
-            count: voided.length,
-            plural: voided.length > 1 ? 's' : '',
-          })}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function PenaltyFeed({
   penalties,
   match,
   redName,
   blueName,
 }: {
+  exchanges: ExchangeRow[];
   penalties: MatchPenaltyRow[];
   match: MatchRow;
   redName: string;
   blueName: string;
 }) {
   const { t } = useI18n();
-  const active = penalties
-    .filter((penalty) => !penalty.voided)
-    .slice()
-    .reverse();
-  if (active.length === 0) return null;
+  // The same builder the referee pad and the TV display use, so a spectator's
+  // "#6" is the operator's "#6": exchanges and cards in ONE contiguous 1..N
+  // sequence, newest first. Voided rows are dropped by the builder; they are
+  // still counted below so the page keeps disclosing that they existed.
+  const events = useMemo(
+    () =>
+      buildUnifiedTimeline({
+        exchanges,
+        penalties,
+        redName,
+        blueName,
+        redRegId: match.redRegistrationId,
+        blueRegId: match.blueRegistrationId,
+        t,
+        // This page never loads a tournament scoring config, so the builder's
+        // per-side hex would be meaningless here. `sideColors="tokens"` below
+        // ignores it and paints from the corner-red/corner-blue design tokens
+        // this page already uses, keeping the surface fully tokenized.
+        config: DEFAULT_SCORING_CONFIG,
+      }),
+    [exchanges, penalties, redName, blueName, match.redRegistrationId, match.blueRegistrationId, t],
+  );
 
-  const cardClass: Record<MatchPenaltyRow['card'], string> = {
-    yellow: 'border-warning/40 bg-warning/10 text-warning',
-    red: 'border-danger/40 bg-danger/10 text-danger',
-    black: 'border-strong bg-strong text-strong-foreground',
-  };
-
-  const cardLabel: Record<MatchPenaltyRow['card'], string> = {
-    yellow: t('scoring.penalties.cards.yellow'),
-    red: t('scoring.penalties.cards.red'),
-    black: t('scoring.penalties.cards.black'),
-  };
-
-  const fighterFor = (registrationId: string): { name: string; className: string } | null => {
-    if (registrationId === match.redRegistrationId)
-      return { name: redName, className: 'text-corner-red' };
-    if (registrationId === match.blueRegistrationId)
-      return { name: blueName, className: 'text-corner-blue' };
-    return null;
-  };
+  // Exchange-scoped ON PURPOSE: the string says "voided exchanges", so folding
+  // voided cards into the same number would misreport them as exchanges.
+  const voidedExchanges = exchanges.filter((e) => e.voided).length;
+  const header = t('scoring.lice.eventsHeader');
 
   return (
     <div className="mt-4">
-      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">
-        {t('scoring.liveMatch.cards')}
-      </h2>
-      <ol className="space-y-2">
-        {active.map((penalty) => {
-          const fighter = fighterFor(penalty.registration_id);
-          return (
-            <li
-              key={penalty.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm shadow-xs"
-            >
-              <span className="flex-1">
-                <span
-                  className={`mr-2 rounded border px-2 py-0.5 text-xs font-black uppercase ${cardClass[penalty.card]}`}
-                >
-                  {cardLabel[penalty.card]}
-                </span>
-                {fighter && (
-                  <span className={`font-semibold ${fighter.className}`}>{fighter.name} · </span>
-                )}
-                {penalty.short_name ?? penalty.reason ?? t('scoring.liveMatch.directCard')}
-              </span>
-              <span className="ml-2 shrink-0 tabular-nums text-xs text-muted">
-                {penalty.causes_match_forfeit ? `${t('scoring.liveMatch.matchLost')} · ` : ''}
-                {formatMatchClock(penalty.clock_time_ms)}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+      <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">{header}</h2>
+
+      <MatchTimeline
+        events={events}
+        scale="page"
+        sideColors="tokens"
+        emptyLabel={t('scoring.liveMatch.noExchanges')}
+        ariaLabel={header}
+        t={t}
+      />
+
+      {voidedExchanges > 0 && (
+        <p className="mt-3 text-center text-xs text-muted">
+          {t('scoring.liveMatch.voidedHidden', {
+            count: String(voidedExchanges),
+            plural: voidedExchanges > 1 ? 's' : '',
+          })}
+        </p>
+      )}
     </div>
   );
 }
@@ -541,14 +432,10 @@ export function MatchLiveView({
       )}
 
       <ScoreBoard match={match} summary={summary} />
-      <PenaltyFeed
+      <MatchEventFeed
+        exchanges={exchanges}
         penalties={penalties}
         match={match}
-        redName={summary.redName || t('scoring.liveMatch.red')}
-        blueName={summary.blueName || t('scoring.liveMatch.blue')}
-      />
-      <ExchangeFeed
-        exchanges={exchanges}
         redName={summary.redName || t('scoring.liveMatch.red')}
         blueName={summary.blueName || t('scoring.liveMatch.blue')}
       />

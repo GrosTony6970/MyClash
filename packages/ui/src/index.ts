@@ -65,6 +65,9 @@ export type { MatchScoreboardProps } from './components/MatchScoreboard';
 export { TVScoreboard } from './components/TVScoreboard';
 export type { TVScoreboardProps } from './components/TVScoreboard';
 
+export { MatchTimeline } from './components/MatchTimeline';
+export type { MatchTimelineProps, MatchTimelineScale } from './components/MatchTimeline';
+
 export { LiceWaitingDisplay } from './components/LiceWaitingDisplay';
 export type {
   LiceWaitingDisplayProps,
@@ -173,6 +176,21 @@ export { sideStyle, styleForToken } from './utils/side-color';
 export type { SideColorToken, SideColorStyle } from './utils/side-color';
 
 export { formatMatchClock } from './utils/format-match-clock';
+
+// ── Unified match timeline (exchanges + cards, one contiguous numbering) ──
+// Shared by the scoring pad, the corrections drawer, the TV display and the
+// public match page so their `#N` always agree.
+
+export {
+  buildUnifiedTimeline,
+  orderedWithNumbers,
+  exchangeOptionLabel,
+} from './utils/exchange-timeline';
+export type { UnifiedEvent, BuildTimelineArgs } from './utils/exchange-timeline';
+
+export { exchangeDeltaLabel, afterblowDefenderLabel } from './utils/exchange-delta-label';
+
+export type { ExchangeRow, ExchangeType, PenaltyCard } from './types/match-events';
 
 export {
   statusPillTone,

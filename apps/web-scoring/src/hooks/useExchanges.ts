@@ -1,25 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { ExchangeRow } from '@myclash/ui';
 
-export interface ExchangeRow {
-  id: string;
-  sequence: number;
-  type: 'clean' | 'afterblow' | 'double' | 'no_exchange';
-  voided: boolean;
-  occurredAt: string;
-  /** Match-clock position (accumulated active ms) when recorded — drives
-   *  the timeline's match-clock time. Null for legacy rows. */
-  clockTimeMs?: number | null;
-  /** Registration id of the fighter who scored, if applicable. */
-  scoringRegistrationId?: string | null;
-  /** Side of the scoring fighter — derived BE-side. */
-  scoringSide?: 'red' | 'blue' | null;
-  /** Numeric score delta for this exchange (positive for the scorer). */
-  scoreDelta?: number | null;
-  /** Defender delta (only for afterblow_full mode). */
-  defenderDelta?: number | null;
-}
+// The wire shape is declared once in @myclash/ui (packages/ui/src/types/
+// match-events.ts) because the shared timeline builder and the TV display need
+// it too. Re-exported here so this hook stays the import site every consumer
+// already uses. `export type` is required — isolatedModules is on.
+export type { ExchangeRow };
 
 interface UseExchangesResult {
   exchanges: ExchangeRow[];

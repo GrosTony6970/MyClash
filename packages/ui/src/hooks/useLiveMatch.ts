@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { ExchangeRow, MatchStatus, Penalty } from '../types/match-events';
 
-export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
+// The wire shapes live in ../types/match-events (a leaf module the pure
+// timeline utils can import without depending on this hook). Re-exported here
+// so `@myclash/ui`'s long-standing public surface is unchanged.
+export type { ExchangeRow, MatchStatus, Penalty, PenaltyCard } from '../types/match-events';
 
 export interface DisplayMatch {
   id: string;
@@ -68,15 +72,6 @@ export interface DisplayMatch {
   } | null;
 }
 
-export interface Penalty {
-  id: string;
-  card: 'yellow' | 'red' | 'black';
-  registration_id: string;
-  short_name: string | null;
-  reason: string | null;
-  voided: boolean;
-}
-
 export interface ClockSnapshot {
   status: 'idle' | 'running' | 'halted' | 'ended';
   activeMs: number;
@@ -86,6 +81,9 @@ export interface ClockSnapshot {
 export interface UseLiveMatchResult {
   match: DisplayMatch | null;
   penalties: Penalty[];
+  /** Scoring exchanges, oldest-first. Includes voided rows — the unified
+   *  timeline filters them so numbering stays consistent across surfaces. */
+  exchanges: ExchangeRow[];
   clock: ClockSnapshot | null;
   /** Elapsed ms including the in-flight running interval, ticked
    *  every 50ms while the clock is running. */
@@ -110,10 +108,16 @@ function computeElapsedMs(state: ClockSnapshot): number {
 /**
  * Subscribe to a match's display state and keep it live.
  *
- * Resolves three endpoints in parallel:
+ * Resolves four endpoints in parallel:
  *   - `GET /api/v1/matches/:id/display`   (canonical scoreboard payload)
  *   - `GET /api/v1/matches/:id/penalties` (per-side card list)
+ *   - `GET /api/v1/matches/:id/exchanges` (scoring timeline rows)
  *   - `GET /api/v1/matches/:id/clock`     (state machine + activeMs)
+ * The first three are `@Public()`. `/clock` is NOT — today it resolves for an
+ * anonymous projector only because the global AuthGuard runs in shadow mode.
+ * When the guard is enforced it will 401, and `refresh()` swallows that (the
+ * `clockRes.ok` guard below), so the board would show a frozen clock with no
+ * error. Mark it `@Public()` before flipping the guard.
  *
  * Subscribes to Supabase realtime postgres_changes on the `matches`,
  * `exchanges`, `match_penalties`, and `match_events` tables filtered
@@ -146,6 +150,7 @@ export function useLiveMatch(
 ): UseLiveMatchResult {
   const [match, setMatch] = useState<DisplayMatch | null>(null);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
+  const [exchanges, setExchanges] = useState<ExchangeRow[]>([]);
   const [clock, setClock] = useState<ClockSnapshot | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
@@ -156,12 +161,16 @@ export function useLiveMatch(
 
   const refresh = useCallback(async () => {
     try {
-      const [matchRes, penaltyRes, clockRes] = await Promise.all([
+      const [matchRes, penaltyRes, exchangeRes, clockRes] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/display`, {
           cache: 'no-store',
           credentials: 'include',
         }),
         fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/penalties`, {
+          cache: 'no-store',
+          credentials: 'include',
+        }),
+        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/exchanges`, {
           cache: 'no-store',
           credentials: 'include',
         }),
@@ -178,6 +187,7 @@ export function useLiveMatch(
       setLoadError(null);
       setMatch((await matchRes.json()) as DisplayMatch);
       if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
+      if (exchangeRes.ok) setExchanges((await exchangeRes.json()) as ExchangeRow[]);
       if (clockRes.ok) {
         const nextClock = (await clockRes.json()) as ClockSnapshot;
         setClock(nextClock);
@@ -260,5 +270,5 @@ export function useLiveMatch(
     return () => clearInterval(id);
   }, [pollMs, refresh]);
 
-  return { match, penalties, clock, elapsedMs, loadError, connected, refresh };
+  return { match, penalties, exchanges, clock, elapsedMs, loadError, connected, refresh };
 }

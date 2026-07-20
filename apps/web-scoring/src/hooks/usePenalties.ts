@@ -1,8 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { PenaltyCard, Penalty as MatchPenalty } from '@myclash/ui';
 
-export type PenaltyCard = 'yellow' | 'red' | 'black';
+// The card union and the `match_penalties` wire row are declared once in
+// @myclash/ui (packages/ui/src/types/match-events.ts) because the shared
+// timeline builder and the TV display need them too. Re-exported here so this
+// hook stays the import site every consumer already uses. `export type` is
+// required — isolatedModules is on.
+export type { PenaltyCard, MatchPenalty };
 
 export interface PenaltyRulesetEntry {
   id: string;
@@ -18,24 +24,6 @@ export interface PenaltyRuleset {
   id: string;
   name: string;
   penalty_ruleset_entries?: PenaltyRulesetEntry[];
-}
-
-export interface MatchPenalty {
-  id: string;
-  sequence: number;
-  registration_id: string;
-  card: PenaltyCard;
-  source: 'ruleset' | 'direct';
-  short_name: string | null;
-  reason: string | null;
-  score_delta: number;
-  causes_match_forfeit: boolean;
-  voided: boolean;
-  /** ISO timestamp the penalty was applied. */
-  occurred_at?: string;
-  /** Match-clock position (accumulated active ms) when recorded — drives
-   *  the timeline's match-clock time. Null for legacy rows. */
-  clock_time_ms?: number | null;
 }
 
 interface UsePenaltiesResult {

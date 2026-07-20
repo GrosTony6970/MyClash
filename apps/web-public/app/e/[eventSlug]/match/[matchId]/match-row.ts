@@ -7,8 +7,17 @@
  * Pure: no React, no I/O.
  */
 
+import type { ExchangeRow, ExchangeType, Penalty } from '@myclash/ui';
+
+// The exchange + penalty wire shapes are declared once in @myclash/ui
+// (packages/ui/src/types/match-events.ts), because the shared timeline builder
+// this page renders through needs them too. Re-exported under this module's
+// long-standing names so the server page and the client view are unchanged.
+// `export type` is required — isolatedModules is on.
+export type { ExchangeRow, ExchangeType };
+export type MatchPenaltyRow = Penalty;
+
 export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
-export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 
 /** A closed round in a best-of-N match (snapshot from `matches.rounds_json`). */
 export interface RoundSnapshot {
@@ -50,34 +59,6 @@ export interface MatchSummary {
   referees: string[];
   /** Effective best-of for this match's phase (1 = single round). */
   bestOf: number;
-}
-
-/** Mirrors the API's `listExchanges` shape (scoringSide/scoreDelta/clockTimeMs). */
-export interface ExchangeRow {
-  id: string;
-  sequence: number;
-  type: ExchangeType;
-  voided: boolean;
-  noExchangeReason: string | null;
-  scoringSide: 'red' | 'blue' | null;
-  scoreDelta: number | null;
-  defenderDelta: number | null;
-  clockTimeMs: number | null;
-}
-
-export interface MatchPenaltyRow {
-  id: string;
-  sequence: number;
-  registration_id: string;
-  card: 'yellow' | 'red' | 'black';
-  source: 'ruleset' | 'direct';
-  short_name: string | null;
-  reason: string | null;
-  score_delta: number;
-  causes_match_forfeit: boolean;
-  voided: boolean;
-  occurred_at: string;
-  clock_time_ms: number | null;
 }
 
 /** Map a raw `matches` row (snake_case, from REST or realtime) to MatchRow. */
