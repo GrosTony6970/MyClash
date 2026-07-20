@@ -69,6 +69,14 @@ export { TFv1ConfigSchema, TFv1DefaultConfig } from './tf_v1/config';
 export type { TFv1Config } from './tf_v1/config';
 export { computeMatchScore, isMatchOver, computePoolStandings } from './tf_v1';
 export { doublePenalty, computeScore, computeAggregates } from './tf_v1/score';
+// The double-penalty whitelist. Exported so the API validates authored formulas
+// against the same keys the engine dispatches on, instead of eval'ing a string.
+export {
+  DOUBLE_PENALTY_FORMULAS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  DEFAULT_DOUBLE_PENALTY_FORMULA,
+  type DoublePenaltyFormula,
+} from './tf_v1/double-penalty';
 
 // Generic_PointsCap ruleset
 export {

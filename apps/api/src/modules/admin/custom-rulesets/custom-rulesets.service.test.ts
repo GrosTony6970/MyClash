@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1 } from '@myclash/rulesets';
-import { CustomRulesetsService } from './custom-rulesets.service';
+import { DOUBLE_PENALTY_FORMULA_KEYS, registry, TF_v1 } from '@myclash/rulesets';
+import { CustomRulesetsService, validateDoublePenaltyFormula } from './custom-rulesets.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -165,5 +165,37 @@ describe('CustomRulesetsService', () => {
     const result = await service.getById('custom-row');
     expect(result.systemRankingChain).toBeUndefined();
     expect(result.systemMetadata).toBeUndefined();
+  });
+});
+
+describe('validateDoublePenaltyFormula', () => {
+  // This used to accept any character-whitelisted expression and sanity-check it
+  // with `new Function('n', ...)`. AGENTS.md hard rule #5 forbids eval/Function
+  // outright, and a character filter cannot make code execution safe — it only
+  // makes it narrow. The engine's whitelist is now the only accepted input.
+  it('accepts every key the engine can actually dispatch on', () => {
+    for (const key of DOUBLE_PENALTY_FORMULA_KEYS) {
+      expect(validateDoublePenaltyFormula(key)).toBe(key);
+    }
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(validateDoublePenaltyFormula('  n*(n-1)/3  ')).toBe('n*(n-1)/3');
+  });
+
+  it('rejects an expression the engine cannot dispatch on', () => {
+    // 'n*2' passed the old character filter, then broke every tournament
+    // create/update on that ruleset once doublePenaltyFormula became a z.enum —
+    // and if it slipped past, the engine silently used the federal formula.
+    expect(() => validateDoublePenaltyFormula('n*2')).toThrow(BadRequestException);
+    expect(() => validateDoublePenaltyFormula('n*2')).toThrow(/Allowed values/);
+  });
+
+  it('rejects an empty formula', () => {
+    expect(() => validateDoublePenaltyFormula('   ')).toThrow(BadRequestException);
+  });
+
+  it('rejects a code-execution attempt outright', () => {
+    expect(() => validateDoublePenaltyFormula('process.exit(1)')).toThrow(BadRequestException);
   });
 });

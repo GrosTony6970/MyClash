@@ -98,3 +98,9 @@ export { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config };
 export { computeMatchScore, isMatchOver } from './score';
 export { computePoolStandings } from './standings';
 export { doublePenalty, computeScore, computeAggregates } from './score';
+export {
+  DOUBLE_PENALTY_FORMULAS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  DEFAULT_DOUBLE_PENALTY_FORMULA,
+  type DoublePenaltyFormula,
+} from './double-penalty';

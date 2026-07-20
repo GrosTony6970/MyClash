@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
   DEFAULT_FORMULA_CONSTANTS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
   FormulaConfigSchema,
   FormulaConstantsSchema,
   FormulaNodeSchema,
@@ -127,44 +128,32 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
 }
 
 /**
- * Whitelist-validate a free-string double-penalty formula like 'n*(n-1)/3'.
- * Only digits, the variable `n`, the operators + - * /, parentheses, decimal
- * points, and whitespace are allowed. We also evaluate it with a few sample
- * n values to confirm the expression produces finite numbers — rejecting
- * anything that throws or returns NaN.
+ * Validate a double-penalty formula against the engine's WHITELIST.
+ *
+ * This used to accept any character-whitelisted expression and sanity-check it
+ * with `new Function('n', ...)`, justified by the characters having been
+ * filtered. AGENTS.md hard rule #5 admits no such exemption: no eval, no
+ * Function(), ruleset configs are validated with Zod and dispatched to
+ * whitelisted functions only. The character filter also cannot make code
+ * execution safe — it only makes it narrow.
+ *
+ * The whitelist is now the single source of truth, which closes a second hole:
+ * `doublePenaltyFormula` is a z.enum on TFv1ConfigSchema, and
+ * resolveRulesetConfigDefaults injects this column into a TF_v1-shaped config.
+ * A free-text value like 'n*2' passed the old validator, then made every
+ * tournament create/update on that ruleset fail Zod parsing — and if it slipped
+ * through, the engine would silently fall back to the federal formula, so the
+ * stored expression was a lie either way.
  */
 export function validateDoublePenaltyFormula(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
     throw new BadRequestException('Double-penalty formula cannot be empty');
   }
-  if (!/^[0-9n+\-*/().\s]+$/i.test(trimmed)) {
+  if (!(DOUBLE_PENALTY_FORMULA_KEYS as readonly string[]).includes(trimmed)) {
     throw new BadRequestException(
-      'Double-penalty formula may only contain digits, the variable n, ' +
-        'operators + - * /, parentheses, decimal points, and whitespace.',
+      `Unsupported double-penalty formula "${trimmed}". Allowed values: ${DOUBLE_PENALTY_FORMULA_KEYS.join(', ')}.`,
     );
-  }
-  // Sanity-evaluate with sample inputs. We allow Function here because the
-  // input has already been character-whitelisted.
-  let fn: (n: number) => number;
-  try {
-    // eslint-disable-next-line no-new-func
-    fn = new Function('n', `return (${trimmed});`) as (n: number) => number;
-  } catch {
-    throw new BadRequestException('Double-penalty formula is not a valid expression');
-  }
-  for (const n of [0, 1, 2, 5, 10]) {
-    let value: number;
-    try {
-      value = fn(n);
-    } catch {
-      throw new BadRequestException(`Double-penalty formula errored when n=${n}`);
-    }
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw new BadRequestException(
-        `Double-penalty formula did not return a finite number for n=${n}`,
-      );
-    }
   }
   return trimmed;
 }
