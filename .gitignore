@@ -44,6 +44,8 @@ coverage/
 playwright-report/
 test-results/
 .nyc_output/
+# Page snapshots dumped by the Playwright MCP server during agent sessions.
+.playwright-mcp/
 
 # ── Editor / OS ──────────────────────────────────────────────────
 .DS_Store
