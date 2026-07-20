@@ -16,7 +16,13 @@
  *   rulesets, but callers (DTO, wizard, tests) may pass the shorthand "1".
  *   We normalise both to the same defaults entry.
  */
-import { TFv1DefaultConfig, GenericPointsCapDefaultConfig } from '@myclash/rulesets';
+import {
+  TFv1DefaultConfig,
+  GenericPointsCapDefaultConfig,
+  DEFAULT_TARGETS,
+  registry,
+  type RulesetMetadata,
+} from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
 
@@ -155,4 +161,87 @@ export async function freezeRulesetVersion(
     .update({ is_frozen: true })
     .eq('custom_ruleset_id', parentRow.id)
     .eq('version', version);
+}
+
+// ── Ruleset grammar ──────────────────────────────────────────────────────────
+
+/**
+ * What a ruleset declares about what an exchange can be and what it is worth.
+ * The shape `buildScoringButtons` consumes.
+ */
+export interface ResolvedRulesetGrammar {
+  targets: Array<{ name: string; value: number }>;
+  hasAfterblow: boolean;
+  afterblowValuation: 'fixed' | 'weighted';
+  afterblowFixedValue: number;
+  defaultAfterblowMode: 'full' | 'deductive';
+}
+
+const FALLBACK_GRAMMAR: ResolvedRulesetGrammar = {
+  targets: [...DEFAULT_TARGETS],
+  hasAfterblow: false,
+  afterblowValuation: 'fixed',
+  afterblowFixedValue: 1,
+  defaultAfterblowMode: 'full',
+};
+
+/**
+ * Resolve a ruleset's grammar for SEEDING purposes.
+ *
+ * Deliberately NOT `RulesetResolver.resolve()`, which is the scoring-time
+ * resolver and returns null for `is_system` rows and for anything whose status
+ * is not 'published'. Both are exactly the cases seeding must handle:
+ *
+ *   - every built-in is `is_system`, so the common case would resolve to null;
+ *   - a tournament can legitimately be created against a DRAFT custom ruleset
+ *     (see freezeRulesetVersion's docblock — drafts pinned before publish are a
+ *     supported flow), and a null there would silently seed FFAMHE's pad onto a
+ *     federation that declared something else. Unlike today's NULL config, a
+ *     seeded wrong value is materialised, sticky, and never re-derived.
+ *
+ * Refusing to SCORE with an unpublished ruleset and refusing to READ ITS
+ * GRAMMAR are different concerns; this function only does the latter.
+ */
+export async function resolveRulesetGrammar(
+  supabase: SupabaseService,
+  code: string,
+  version: string,
+): Promise<ResolvedRulesetGrammar> {
+  const coded = registry.has(code, version) ? registry.get(code, version) : null;
+  if (coded) return fromMetadata(coded.metadata);
+
+  const { data } = await supabase.service
+    .from('custom_rulesets')
+    .select('targets, has_afterblow, afterblow_mode, afterblow_valuation, afterblow_fixed_value')
+    .eq('code', code)
+    .maybeSingle();
+  if (!data) return { ...FALLBACK_GRAMMAR, targets: [...DEFAULT_TARGETS] };
+
+  const row = data as {
+    targets: Array<{ name: string; value: number }> | null;
+    has_afterblow: boolean | null;
+    afterblow_mode: 'full' | 'deductive' | null;
+    afterblow_valuation: 'fixed' | 'weighted' | null;
+    afterblow_fixed_value: number | null;
+  };
+  const hasAfterblow = row.has_afterblow ?? false;
+  return {
+    targets: row.targets?.length ? row.targets : [...DEFAULT_TARGETS],
+    hasAfterblow,
+    afterblowValuation: hasAfterblow ? (row.afterblow_valuation ?? 'fixed') : 'fixed',
+    afterblowFixedValue: hasAfterblow ? (row.afterblow_fixed_value ?? 1) : 1,
+    defaultAfterblowMode: hasAfterblow ? (row.afterblow_mode ?? 'full') : 'full',
+  };
+}
+
+function fromMetadata(metadata: RulesetMetadata | undefined): ResolvedRulesetGrammar {
+  const hasAfterblow = metadata?.hasAfterblow ?? false;
+  const targets = metadata?.targets;
+  return {
+    targets: targets?.length ? targets.map((t) => ({ ...t })) : [...DEFAULT_TARGETS],
+    hasAfterblow,
+    afterblowValuation: hasAfterblow ? (metadata?.afterblowValuation ?? 'fixed') : 'fixed',
+    afterblowFixedValue: hasAfterblow ? (metadata?.afterblowFixedValue ?? 1) : 1,
+    defaultAfterblowMode: hasAfterblow ? (metadata?.defaultAfterblowMode ?? 'full') : 'full',
+  };
 }

@@ -36,6 +36,7 @@ import {
   freezeRulesetVersion,
   normalizeRulesetVersion,
   resolveRulesetConfigDefaults,
+  resolveRulesetGrammar,
 } from './ruleset-defaults';
 
 /**
@@ -2397,7 +2398,18 @@ export class EventsService {
       userId,
       'scorekeeper',
     );
-    return data;
+
+    // Enrich with the ruleset's own grammar so admin surfaces stop asking
+    // `rulesetCode === 'TF_v1'` to decide whether to offer afterblow controls.
+    // That literal hid the controls from every custom ruleset that HAS
+    // afterblow, and showed them for a ruleset that does not.
+    const row = data as { ruleset_code?: string | null; ruleset_version?: string | null };
+    const grammar = await resolveRulesetGrammar(
+      this.supabase,
+      row.ruleset_code ?? 'TF_v1',
+      normalizeRulesetVersion(row.ruleset_version ?? '1'),
+    );
+    return { ...(data as Record<string, unknown>), ruleset_grammar: grammar };
   }
 
   async updateTournament(tournamentId: string, dto: UpdateTournamentDto, userId: string) {

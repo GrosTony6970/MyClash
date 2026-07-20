@@ -25,7 +25,7 @@ export function Step2MatchFormat({
 }) {
   const toast = useToast();
   const [data, setData] = useState<MatchFormat>(DEFAULTS);
-  const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
+  const [hasAfterblow, setHasAfterblow] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function Step2MatchFormat({
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;
-        setRulesetCode(row.ruleset_code);
+        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
         // Pluck-not-spread to keep stray engine/legacy keys out of the
         // PATCH body — same discipline as Step 4. See buildMatchFormatFromRow.
         setData(
@@ -65,7 +65,12 @@ export function Step2MatchFormat({
               bestOf: data.bestOf,
             },
           },
-          scoringConfig: { afterblowMode: data.afterblowMode },
+          // Only written when the ruleset HAS afterblow. This used to send
+          // unconditionally while the control itself was hidden for non-TF_v1
+          // rulesets, so it wrote the untouched default `full` over whatever
+          // the tournament was seeded with — silently overriding a ruleset that
+          // declared `deductive`, from a field the operator never saw.
+          ...(hasAfterblow ? { scoringConfig: { afterblowMode: data.afterblowMode } } : {}),
           // Recorded, not inferred: this PATCH's own scoringConfig makes the
           // server backfill buttons, which used to read as "Step 3 done".
           wizardStep: 2,
@@ -85,8 +90,6 @@ export function Step2MatchFormat({
       setSaving(false);
     }
   }
-
-  const isTfV1 = rulesetCode === 'TF_v1';
 
   return (
     <div className="space-y-4">
@@ -202,7 +205,7 @@ export function Step2MatchFormat({
         max={20}
       />
 
-      {isTfV1 && (
+      {hasAfterblow && (
         <SelectField
           label={t('organizer.tournaments.settings.afterblowMode')}
           hint={t('organizer.tournaments.settings.afterblowModeHelp')}

@@ -34,7 +34,10 @@ export function displayPreviewModel(input: DisplayPreviewInput): DisplayPreviewM
     red: sideStyle(config, 'red'),
     blue: sideStyle(config, 'blue'),
     cleanButtons: input.buttons.clean.filter((b) => b.visible),
-    afterblowButtons:
-      input.rulesetCode === 'TF_v1' ? input.buttons.afterblow.filter((b) => b.visible) : [],
+    // Show the buttons that exist. Re-deriving this from the ruleset CODE made
+    // the preview disagree with both the editor above it and the referee's pad,
+    // hiding a custom ruleset's real afterblow buttons. A ruleset without
+    // afterblow simply has none, so the filter yields [] on its own.
+    afterblowButtons: input.buttons.afterblow.filter((b) => b.visible),
   };
 }

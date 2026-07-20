@@ -28,6 +28,9 @@ export function Step3Display({
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
+  // The RULESET's own answer, not a guess from its code. `false` until the row
+  // loads, so the fieldset appears rather than flickering away.
+  const [hasAfterblow, setHasAfterblow] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,6 +42,7 @@ export function Step3Display({
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
+        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
         setLogoUrl((row.logo_url as string | null) ?? null);
         // Pluck-not-spread, same as Step 2 / Step 4. The column is
         // `scoring_config_json` (the `_json` suffix matters — Step 3
@@ -329,7 +333,12 @@ export function Step3Display({
             </button>
           </fieldset>
 
-          {rulesetCode === 'TF_v1' && (
+          {/* Driven by the ruleset, not by its name. The literal
+              `rulesetCode === 'TF_v1'` hid these controls from every custom
+              ruleset that HAS afterblow — leaving buttons on the referee's pad
+              that nobody could edit — and showed them for rulesets that do
+              not. */}
+          {hasAfterblow && (
             <fieldset className="space-y-2">
               <legend className="text-xs font-medium text-foreground-secondary">
                 {t('organizer.tournaments.settings.afterblowButtons')}
