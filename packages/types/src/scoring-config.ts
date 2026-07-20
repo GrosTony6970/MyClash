@@ -48,17 +48,32 @@ export const TOURNAMENT_SIDE_COLORS = [
 
 export type TournamentSideColor = (typeof TOURNAMENT_SIDE_COLORS)[number];
 
+/**
+ * Fallback match format for clients when a tournament carries no config.
+ *
+ * These values MUST match `MatchFormatConfigSchema`'s defaults in
+ * `@myclash/rulesets` (match-format.ts). They had drifted — this copy said
+ * pointCap 5 / 180s / softClock 0 / maxDoubleHits null while the schema said
+ * 10 / 90s / 5 / 4 — so the scoring pad's fallback disagreed with what the
+ * engine actually seeds into every tournament.
+ *
+ * The rulesets schema is canonical because it is what `TFv1DefaultConfig`
+ * seeds; this copy exists only because `@myclash/types` must not depend on
+ * `@myclash/rulesets` (that edge would drag the engine into every app's
+ * Docker build via `@myclash/ui`). Duplicated on purpose, kept in step by
+ * `default-match-format.test.ts`.
+ */
 export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = {
-  pointCap: 5,
+  pointCap: 10,
   scoringDirection: 'normal',
   timerMode: 'countdown',
   timeLimitsSeconds: {
-    pool: 180,
-    bracket: 180,
-    finals: 180,
+    pool: 90,
+    bracket: 90,
+    finals: 90,
   },
-  softClockLimitSeconds: 0,
-  maxDoubleHits: null,
+  softClockLimitSeconds: 5,
+  maxDoubleHits: 4,
   maxDoubleHitOutcome: 'double_loss_zero_scores',
   bestOf: { pool: 1, bracket: 1, finals: 1 },
 };
