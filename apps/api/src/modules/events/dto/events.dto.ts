@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
 
 const createEventSchema = z
   .object({
@@ -107,10 +108,22 @@ const submitEventClubRequestSchema = z
   .strict();
 export class SubmitEventClubRequestDto extends createZodDto(submitEventClubRequestSchema) {}
 
+/**
+ * @deprecated Superseded by `targets`. Kept so the settings tab and wizard keep
+ * saving while they migrate to the named-target editor.
+ *
+ * Bounds now match what the engine and the scoring pad can actually accept.
+ * They previously read `min(0).max(20)` on a plain `z.number()`, which let
+ * three organizer spinners send values the save then rejected:
+ *   - 0 passed here and failed `TFv1ConfigSchema`'s `.positive()`, surfacing as
+ *     a raw Zod message on a field whose own input allowed 0;
+ *   - anything above 10 passed here and produced a scoring button that 400s
+ *     the exchange POST, which the offline queue drops as terminal.
+ */
 const targetValuesSchema = z
   .object({
-    deepTarget: z.number().min(0).max(20).optional(),
-    shallowTarget: z.number().min(0).max(20).optional(),
+    deepTarget: z.number().int().min(1).max(MAX_AUTHORED_TARGET_VALUE).optional(),
+    shallowTarget: z.number().int().min(1).max(MAX_AUTHORED_TARGET_VALUE).optional(),
   })
   .strict();
 
@@ -128,7 +141,7 @@ const tournamentPolicySchema = z
   .object({
     forfeitDrawsCount: z.boolean().optional(),
     forfeitFighterBefore1stMatch: z.boolean().optional(),
-    disqualifyAfter: z.number().min(1).max(10).optional(),
+    disqualifyAfter: z.number().int().min(1).max(10).optional(),
   })
   .strict();
 
@@ -175,9 +188,19 @@ const matchFormatSchema = z
   })
   .strict();
 
+/**
+ * `.strict()`, so every key an organizer surface sends must be listed here or
+ * the whole PATCH 400s — the failure mode the Advanced tab hit for months by
+ * writing `forfeitPolicy` instead of `tournamentPolicy`.
+ */
 const tournamentRulesetConfigSchema = z
   .object({
-    winBonus: z.number().min(0).max(20).optional(),
+    // `.int()`: the engine has always required one. min(0) rather than min(1)
+    // because a win bonus of zero is a real rule, and this spinner offers it.
+    winBonus: z.number().int().min(0).max(20).optional(),
+    // Named targets, any count. Supersedes targetValues; both are accepted
+    // while the editors migrate, and the engine derives one from the other.
+    targets: AuthoredTargetsSchema.optional(),
     targetValues: targetValuesSchema.optional(),
     tournamentPolicy: tournamentPolicySchema.optional(),
     matchFormat: matchFormatSchema.optional(),

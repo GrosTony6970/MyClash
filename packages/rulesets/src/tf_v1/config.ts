@@ -33,7 +33,15 @@ export const TournamentPolicySchema = z.object({
 export const DEFAULT_TOURNAMENT_POLICY = TournamentPolicySchema.parse({});
 
 const TFv1ConfigObjectSchema = z.object({
-  winBonus: z.number().int().positive().default(3),
+  /**
+   * Points added to the numerator per pool win.
+   *
+   * `min(0)`, not `positive()`: a ruleset where wins carry no bonus — score is
+   * purely the hits ratio — is a legitimate house rule, and the organizer UI
+   * has always offered 0 on this spinner. Requiring >= 1 meant the field
+   * accepted a value the save then rejected with a raw Zod message.
+   */
+  winBonus: z.number().int().min(0).default(3),
   /**
    * Named targets — any count, any names. The grammar half of the ruleset.
    * Derived from the legacy `targetValues` pair when absent (see

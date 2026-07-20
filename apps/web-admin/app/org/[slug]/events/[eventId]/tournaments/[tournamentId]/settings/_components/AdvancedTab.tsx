@@ -111,8 +111,8 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
                 },
               })
             }
-            min={0}
-            max={20}
+            min={1}
+            max={10}
           />
           <NumField
             label={t('admin.orgTournaments.shallowTarget')}
@@ -130,8 +130,8 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
                 },
               })
             }
-            min={0}
-            max={20}
+            min={1}
+            max={10}
           />
           <BoolField
             label={t('admin.orgTournaments.forfeitDrawsCount')}
