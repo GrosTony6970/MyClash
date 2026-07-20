@@ -136,8 +136,24 @@ export interface RankingRule {
  * All fields are optional — rulesets only populate what's relevant.
  */
 export interface RulesetMetadata {
-  /** Whether this ruleset uses the afterblow concept. */
+  /**
+   * Whether this ruleset uses the afterblow concept at all. Drives whether
+   * afterblow controls are offered when configuring a tournament — replacing
+   * the `rulesetCode === 'TF_v1'` checks that hardcoded one federation's
+   * grammar into the UI.
+   */
   hasAfterblow?: boolean;
+  /**
+   * The afterblow mode a new tournament is SEEDED with. Never authoritative
+   * at scoring time.
+   *
+   * The live mode is `tournaments.scoring_config_json.afterblowMode`, read by
+   * every derivation path. Exchanges store RAW button values and are netted at
+   * read, so if the engine ever preferred this field over the tournament's,
+   * changing a ruleset would retroactively rewrite every score ever derived
+   * under it. Seeds the tournament; the tournament stays the source of truth.
+   */
+  defaultAfterblowMode?: 'full' | 'deductive' | null;
   /** Win bonus (points awarded for a pool win), or null if not used. */
   winBonus?: number | null;
   /** Human-readable double-hit penalty formula, or null if no doubles concept. */

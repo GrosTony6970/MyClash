@@ -23,3 +23,4 @@ export type { FormulaScope } from './evaluator';
 export { deriveFighterStats } from './derive-stats';
 
 export { createFormulaRuleset } from './ruleset';
+export type { RulesetGrammar } from './ruleset';

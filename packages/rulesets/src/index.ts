@@ -113,6 +113,7 @@ export {
   FormulaNodeSchema,
   TiebreakerSchema,
   createFormulaRuleset,
+  type RulesetGrammar,
   deriveFighterStats,
   evaluateFormula,
   isVariableKey,

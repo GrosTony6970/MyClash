@@ -115,12 +115,30 @@ function buildRankingChain(tiebreakers: Tiebreaker[]): RankingRule[] {
   return chain;
 }
 
+/**
+ * The grammar an org-authored ruleset declares about itself: what an exchange
+ * can be, and what it is worth. Distinct from `FormulaConfig`, which is the
+ * ranking half (score AST, constants, tiebreakers).
+ *
+ * Every field is optional and every default preserves TODAY's behaviour for a
+ * row that predates these columns: `hasAfterblow: false` matches the UI, which
+ * currently gates afterblow controls on `rulesetCode === 'TF_v1'` and so has
+ * never offered them for a custom ruleset.
+ */
+export interface RulesetGrammar {
+  targets?: ReadonlyArray<{ name: string; value: number }> | null;
+  hasAfterblow?: boolean | null;
+  defaultAfterblowMode?: AfterblowMode | null;
+}
+
 export function createFormulaRuleset(
   code: string,
   version: string,
   displayName: string,
   config: FormulaConfig,
+  grammar?: RulesetGrammar | null,
 ): Ruleset {
+  const hasAfterblow = grammar?.hasAfterblow ?? false;
   return {
     code,
     version,
@@ -178,6 +196,27 @@ export function createFormulaRuleset(
 
     standingsColumns: FORMULA_STANDINGS_COLUMNS,
     rankingChain: buildRankingChain(config.tiebreakers),
+
+    /**
+     * Previously omitted entirely, which made `metadata` undefined for every
+     * org-authored ruleset. Anything driving UI off `metadata.hasAfterblow`
+     * would then read `undefined` and hide afterblow for exactly the rulesets
+     * self-service is meant to empower.
+     *
+     * `defaultAfterblowMode` is a SEED, not a runtime input: `computePoolStandings`
+     * above still reads the live mode off the runtime config, because exchanges
+     * store raw values netted at read.
+     */
+    metadata: {
+      hasAfterblow,
+      defaultAfterblowMode: hasAfterblow ? (grammar?.defaultAfterblowMode ?? 'full') : null,
+      targets: grammar?.targets ?? null,
+      winBonus: null,
+      doublePenaltyFormula: null,
+      deepTargetDefault: null,
+      shallowTargetDefault: null,
+      scoreFormula: null,
+    },
   };
 }
 
