@@ -5,6 +5,20 @@ import { registry, TF_v1 } from '@myclash/rulesets';
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
 
+/**
+ * The service resolves rulesets through RulesetResolver now (so org-authored
+ * custom rulesets stop 400-ing). Stub it against the in-memory registry: the
+ * real resolver would issue its own supabase queries, and the `fromMock` queue
+ * in these tests is order-sensitive — one extra from() call desyncs every
+ * subsequent expectation.
+ */
+const resolverStub = {
+  resolve: async (code: string, version: string) =>
+    registry.has(code, version) ? registry.get(code, version) : null,
+};
+
+const makeService = () => new PoolStandingsService(mockSupabase as never, resolverStub as never);
+
 function makeChain(result: { data: unknown; error: unknown } = { data: null, error: null }) {
   const chain = {
     select: vi.fn(),
@@ -62,7 +76,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(poolsChain)
       .mockReturnValueOnce(matchesChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     const result = await service.getPoolStandings('t-1', 'overall');
 
     expect(result.rulesetCode).toBe('TF_v1');
@@ -88,7 +102,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(poolsChain)
       .mockReturnValueOnce(matchesChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     await service.getPoolStandings('t-1', 'overall');
 
     const selectArg = String((poolsChain.select as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]);
@@ -132,7 +146,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(poolsChain)
       .mockReturnValueOnce(matchesChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     const result = (await service.getPoolStandings('t-1', 'overall')) as {
       rows: Array<{ displayName: string }>;
     };
@@ -158,7 +172,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(poolsChain)
       .mockReturnValueOnce(matchesChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     await service.getPoolStandings('t-1', 'overall');
 
     const selectArg = String((matchesChain.select as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]);
@@ -183,7 +197,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(poolsChain)
       .mockReturnValueOnce(matchesChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     await expect(service.getPoolStandings('t-1', 'overall')).rejects.toThrow(/does not exist/);
   });
 
@@ -243,7 +257,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(exchangesChain)
       .mockReturnValueOnce(forfeitsChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     const result = (await service.getPoolStandings('t-1', 'by-pool')) as {
       pools: Array<{
         status: string;
@@ -347,7 +361,7 @@ describe('PoolStandingsService', () => {
       .mockReturnValueOnce(exchangesChain)
       .mockReturnValueOnce(forfeitsChain);
 
-    const service = new PoolStandingsService(mockSupabase as never);
+    const service = makeService();
     return service.getPoolStandings('t-1', 'by-pool').then((result) => {
       const pool = (
         result as {

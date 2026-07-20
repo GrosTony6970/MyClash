@@ -51,11 +51,69 @@ function compareTiebreakers(
   return 0;
 }
 
-// FormulaRuleset doesn't expose pre-defined standings; the standings tab will
-// render a "Ruleset doesn't expose standings yet" empty state for tournaments
-// using this ruleset.
-const FORMULA_STANDINGS_COLUMNS: StandingsColumn[] = [];
-const FORMULA_RANKING_CHAIN: RankingRule[] = [];
+/**
+ * Standings columns for a data-authored ruleset.
+ *
+ * Both of these used to be empty, so a tournament on an org-authored ruleset
+ * rendered a "ruleset doesn't expose standings yet" empty state — on top of the
+ * API refusing the request outright, because standings resolved through the
+ * in-memory registry, which only holds the built-ins.
+ *
+ * `score` leads the table: it is THIS ruleset's `scoreFormula`, evaluated by
+ * computePoolStandings below. The API must fill that column by asking the
+ * ruleset — deriving it itself would substitute TF_v1's hardcoded formula and
+ * silently rank an org's pool by somebody else's algorithm.
+ *
+ * Every other key is derived generically by the API from match scores,
+ * exchanges and forfeits, so it is correct for any ruleset.
+ */
+const FORMULA_STANDINGS_COLUMNS: StandingsColumn[] = [
+  { key: 'score', label: 'Score', type: 'number', sortDesc: true, decimals: 2 },
+  { key: 'W', label: 'Wins', type: 'number', sortDesc: true },
+  { key: 'L', label: 'Losses', type: 'number', sortDesc: false },
+  { key: 'D', label: 'Draws', type: 'number', sortDesc: true },
+  { key: 'F', label: 'Forfeits', type: 'number', sortDesc: false },
+  { key: 'ptsScored', label: 'Points scored', type: 'number', sortDesc: true },
+  { key: 'ptsConceded', label: 'Points conceded', type: 'number', sortDesc: false },
+  { key: 'diff', label: 'Differential', type: 'number', sortDesc: true },
+  { key: 'doubles', label: 'Doubles', type: 'number', sortDesc: false },
+  { key: 'hitsGiven', label: 'Hits given', type: 'number', sortDesc: true },
+  { key: 'hitsReceived', label: 'Hits received', type: 'number', sortDesc: false },
+];
+
+/**
+ * Formula variables that correspond to a per-fighter standings column. The
+ * remaining variables (pointsPerVictory, doublePenalty, …) are configured
+ * constants — identical for every fighter, so useless as a tiebreak.
+ */
+const TIEBREAK_COLUMN_BY_VARIABLE: Partial<Record<VariableKey, string>> = {
+  victories: 'W',
+  losses: 'L',
+  ties: 'D',
+  doubleHits: 'doubles',
+  hitsGiven: 'hitsGiven',
+  hitsReceived: 'hitsReceived',
+};
+
+/**
+ * Rank by this ruleset's score, then by the author's own tiebreakers.
+ *
+ * The tiebreakers must be projected onto standings-column keys because the API
+ * ranks rows with `applyRanking(rows, rankingChain)` over the rendered columns —
+ * the sort inside computePoolStandings only orders the rows returned from there,
+ * and would be lost when the API re-ranks (notably in "overall" mode, where rows
+ * from every pool are flattened and ranked again).
+ */
+function buildRankingChain(tiebreakers: Tiebreaker[]): RankingRule[] {
+  const chain: RankingRule[] = [{ key: 'score', direction: 'desc' }];
+  for (const tb of tiebreakers) {
+    const key = TIEBREAK_COLUMN_BY_VARIABLE[tb.variable];
+    if (key && !chain.some((rule) => rule.key === key)) {
+      chain.push({ key, direction: tb.direction });
+    }
+  }
+  return chain;
+}
 
 export function createFormulaRuleset(
   code: string,
@@ -119,7 +177,7 @@ export function createFormulaRuleset(
     },
 
     standingsColumns: FORMULA_STANDINGS_COLUMNS,
-    rankingChain: FORMULA_RANKING_CHAIN,
+    rankingChain: buildRankingChain(config.tiebreakers),
   };
 }
 

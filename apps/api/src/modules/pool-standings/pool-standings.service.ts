@@ -1,23 +1,23 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { registry, computeAggregates, computeScore } from '@myclash/rulesets';
+import { computeAggregates } from '@myclash/rulesets';
 import type {
   StandingsColumn,
   RankingRule,
   Exchange,
   Match,
   FighterAggregates,
+  Ruleset,
 } from '@myclash/rulesets';
+import { poolScoresByRegistration } from './ruleset-scores';
+import { applyRanking, type PoolWithMembers, type StandingsRow } from './standings-rows';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import ON PURPOSE — `import type` erases the DI metadata Nest needs to
+// resolve the provider (see modules/matches/di-wiring.regression.test.ts).
+import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { normalizeRulesetVersion } from '../events/ruleset-defaults';
 
-export interface StandingsRow {
-  rank: number;
-  registrationId: string;
-  displayName: string;
-  club: { id: string; name: string; abbreviation: string | null } | null;
-  status: 'in_progress' | 'completed';
-  stats: Record<string, number | string>;
-}
+// Re-exported so existing consumers keep importing StandingsRow from here.
+export type { StandingsRow } from './standings-rows';
 
 export type PoolStandingsResponse =
   | {
@@ -40,7 +40,10 @@ export type PoolStandingsResponse =
 
 @Injectable()
 export class PoolStandingsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly rulesets: RulesetResolver,
+  ) {}
 
   async getPoolStandings(
     tournamentId: string,
@@ -49,7 +52,7 @@ export class PoolStandingsService {
     // 1. Tournament + ruleset.
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, ruleset_code, ruleset_version, scoring_config_json')
+      .select('id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json')
       .eq('id', tournamentId)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
@@ -64,14 +67,28 @@ export class PoolStandingsService {
         ?.scoring_config_json?.afterblowMode === 'deductive'
         ? 'deductive'
         : 'full';
+    // The engine reads afterblowMode off the raw config object even though it
+    // is stored in scoring_config_json rather than ruleset_config, so splice it
+    // on — the same shape ScoringService hands the engine.
+    const runtimeConfig = {
+      ...((tournament as { ruleset_config?: Record<string, unknown> | null }).ruleset_config ?? {}),
+      afterblowMode,
+    };
 
-    let ruleset;
-    try {
-      // Normalize the stored version to the registry-canonical form ('1' ->
-      // '1.0.0'). Tournaments created before the createTournament fix persisted
-      // the raw shorthand, so normalize here to resolve those legacy rows too.
-      ruleset = registry.get(rulesetCode, normalizeRulesetVersion(rulesetVersion));
-    } catch {
+    // Resolve through RulesetResolver rather than the in-memory registry. The
+    // registry only ever holds the built-ins (TF_v1, Generic_PointsCap), so an
+    // org-authored custom ruleset 400'd here — standings were the one surface
+    // that could not see it, even though scoring resolved it fine.
+    //
+    // normalizeRulesetVersion STAYS. Tournaments created before the
+    // createTournament fix persisted the raw '1' shorthand, and the resolver's
+    // registry short-circuit (what keeps TF_v1 working) is keyed on '1.0.0';
+    // is_system rows are deliberately never resolvable via the DB path.
+    const ruleset = await this.rulesets.resolve(
+      rulesetCode,
+      normalizeRulesetVersion(rulesetVersion),
+    );
+    if (!ruleset) {
       throw new BadRequestException(`Ruleset ${rulesetCode} v${rulesetVersion} not registered`);
     }
 
@@ -103,22 +120,7 @@ export class PoolStandingsService {
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
-    const poolRows = (pools ?? []) as unknown as Array<{
-      id: string;
-      name: string;
-      pool_members: Array<{
-        registration_id: string;
-        registrations: {
-          id: string;
-          persons: {
-            id: string;
-            given_name: string;
-            family_name: string;
-            clubs: { id: string; name: string; abbreviation: string | null } | null;
-          };
-        };
-      }>;
-    }>;
+    const poolRows = (pools ?? []) as unknown as PoolWithMembers[];
 
     // 4. Matches in this phase.
     // NOTE: do NOT select a column that doesn't exist on `matches` (there is no
@@ -211,6 +213,8 @@ export class PoolStandingsService {
         poolStatus,
         exchangesByMatch,
         forfeitCountByReg,
+        ruleset,
+        runtimeConfig,
         afterblowMode,
       );
       return { poolId: pool.id, poolName: pool.name, status: poolStatus, rows };
@@ -222,27 +226,12 @@ export class PoolStandingsService {
 
     // 6. Overall: flatten + re-rank globally.
     const allRows = perPool.flatMap((p) => p.rows);
-    const ranked = this.applyRanking(allRows, rankingChain);
+    const ranked = applyRanking(allRows, rankingChain);
     return { rulesetCode, rulesetVersion, columns, rows: ranked };
   }
 
   private computeRows(
-    pool: {
-      id: string;
-      name: string;
-      pool_members: Array<{
-        registration_id: string;
-        registrations: {
-          id: string;
-          persons: {
-            id: string;
-            given_name: string;
-            family_name: string;
-            clubs: { id: string; name: string; abbreviation: string | null } | null;
-          };
-        };
-      }>;
-    },
+    pool: PoolWithMembers,
     completedMatches: Array<{
       id: string;
       red_registration_id: string;
@@ -256,11 +245,14 @@ export class PoolStandingsService {
     poolStatus: 'in_progress' | 'completed',
     exchangesByMatch: Map<string, Exchange[]>,
     forfeitCountByReg: Map<string, number>,
+    ruleset: Ruleset,
+    runtimeConfig: unknown,
     afterblowMode: 'full' | 'deductive' = 'full',
   ): StandingsRow[] {
     const statsByReg = new Map<string, Record<string, number>>();
+    const declaresScore = columns.some((col) => col.key === 'score');
     // Per-fighter exchange aggregates (targetPoints/timesHit/doubles/wins),
-    // accumulated across the pool, then fed to the ruleset's computeScore.
+    // accumulated across the pool, and the source of the generic stat columns.
     const aggByReg = new Map<string, FighterAggregates>();
     for (const member of pool.pool_members) {
       const empty: Record<string, number> = {};
@@ -326,16 +318,30 @@ export class PoolStandingsService {
       }
     }
 
+    // `score` is the one ruleset-SPECIFIC column, so the ruleset computes it.
+    // This used to call TF_v1's computeScore directly, which meant an
+    // org-authored pool was scored and ranked by the federal formula instead of
+    // the author's own scoreFormula.
+    const scoreByReg = declaresScore
+      ? poolScoresByRegistration(
+          ruleset,
+          pool.pool_members,
+          completedMatches,
+          exchangesByMatch,
+          runtimeConfig,
+        )
+      : new Map<string, number>();
+
     // Extended columns derived from exchanges + forfeits. Only assign keys the
     // active ruleset actually declares (Generic_PointsCap declares none of these
     // and stays untouched). Score is rounded to 2 decimals for display; ranking
-    // uses the same rounded value with W as the next tiebreak.
+    // uses the same rounded value with the ruleset's own tiebreaks after it.
     for (const [regId, stats] of statsByReg) {
       const agg = aggByReg.get(regId) ?? { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 };
       if ('hitsGiven' in stats) stats['hitsGiven'] = agg.targetPoints;
       if ('hitsReceived' in stats) stats['hitsReceived'] = agg.timesHit;
       if ('doubles' in stats) stats['doubles'] = agg.doubles;
-      if ('score' in stats) stats['score'] = Math.round(computeScore(agg) * 100) / 100;
+      if ('score' in stats) stats['score'] = Math.round((scoreByReg.get(regId) ?? 0) * 100) / 100;
       if ('F' in stats) stats['F'] = forfeitCountByReg.get(regId) ?? 0;
     }
 
@@ -352,20 +358,6 @@ export class PoolStandingsService {
       };
     });
 
-    return this.applyRanking(rows, rankingChain);
-  }
-
-  private applyRanking(rows: StandingsRow[], rankingChain: RankingRule[]): StandingsRow[] {
-    const sorted = [...rows].sort((a, b) => {
-      for (const rule of rankingChain) {
-        const av = Number(a.stats[rule.key] ?? 0);
-        const bv = Number(b.stats[rule.key] ?? 0);
-        if (av !== bv) {
-          return rule.direction === 'desc' ? bv - av : av - bv;
-        }
-      }
-      return 0;
-    });
-    return sorted.map((row, i) => ({ ...row, rank: i + 1 }));
+    return applyRanking(rows, rankingChain);
   }
 }
