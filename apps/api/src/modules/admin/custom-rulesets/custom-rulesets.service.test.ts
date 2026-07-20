@@ -1,7 +1,11 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DOUBLE_PENALTY_FORMULA_KEYS, registry, TF_v1 } from '@myclash/rulesets';
-import { CustomRulesetsService, validateDoublePenaltyFormula } from './custom-rulesets.service';
+import {
+  CustomRulesetsService,
+  grammarColumns,
+  validateDoublePenaltyFormula,
+} from './custom-rulesets.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -286,5 +290,45 @@ describe('validateDoublePenaltyFormula', () => {
 
   it('rejects a code-execution attempt outright', () => {
     expect(() => validateDoublePenaltyFormula('process.exit(1)')).toThrow(BadRequestException);
+  });
+});
+
+// ── grammar columns (migration 0143) ─────────────────────────────────────────
+// `tf_config.targetValues` was read only for is_system rows, so an org-authored
+// ruleset had nowhere to declare its targets or whether it uses afterblow.
+
+describe('grammarColumns', () => {
+  it('maps only the fields the caller actually sent', () => {
+    expect(grammarColumns({})).toEqual({});
+    expect(grammarColumns({ targets: [{ name: 'Head', value: 3 }] })).toEqual({
+      targets: [{ name: 'Head', value: 3 }],
+    });
+  });
+
+  it('clears the mode when afterblow is turned off', () => {
+    // A mode without the concept is meaningless, and a stale one would seed a
+    // tournament with a setting this ruleset's grammar cannot produce.
+    expect(grammarColumns({ hasAfterblow: false })).toEqual({
+      has_afterblow: false,
+      afterblow_mode: null,
+    });
+  });
+
+  it('refuses to set a mode while afterblow is being turned off in the same patch', () => {
+    expect(grammarColumns({ hasAfterblow: false, afterblowMode: 'deductive' })).toEqual({
+      has_afterblow: false,
+      afterblow_mode: null,
+    });
+  });
+
+  it('sets the mode when afterblow is on', () => {
+    expect(grammarColumns({ hasAfterblow: true, afterblowMode: 'deductive' })).toEqual({
+      has_afterblow: true,
+      afterblow_mode: 'deductive',
+    });
+  });
+
+  it('allows a mode change without restating hasAfterblow', () => {
+    expect(grammarColumns({ afterblowMode: 'full' })).toEqual({ afterblow_mode: 'full' });
   });
 });

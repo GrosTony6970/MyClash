@@ -101,9 +101,11 @@ export { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config };
 export {
   TargetSchema,
   TargetsSchema,
+  AuthoredTargetsSchema,
   DEFAULT_TARGETS,
   MAX_TARGETS,
   MAX_STORED_TARGET_VALUE,
+  MAX_AUTHORED_TARGET_VALUE,
   withDerivedTargets,
   type Target,
 } from './targets';

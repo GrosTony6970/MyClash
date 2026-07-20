@@ -72,9 +72,11 @@ export type { TFv1Config } from './tf_v1/config';
 export {
   TargetSchema,
   TargetsSchema,
+  AuthoredTargetsSchema,
   DEFAULT_TARGETS,
   MAX_TARGETS,
   MAX_STORED_TARGET_VALUE,
+  MAX_AUTHORED_TARGET_VALUE,
   withDerivedTargets,
   type Target,
 } from './tf_v1/targets';

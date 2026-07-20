@@ -44,6 +44,15 @@ export interface CustomRulesetRow {
    * Null for non-system rulesets.
    */
   tf_config: Record<string, unknown> | null;
+  /**
+   * The grammar half of the ruleset (migration 0143). First-class columns
+   * rather than more tf_config JSONB, because tf_config is read only for
+   * is_system rows — an org-authored ruleset could not declare any of this.
+   */
+  targets: Array<{ name: string; value: number }> | null;
+  has_afterblow: boolean;
+  /** Seeds a tournament's mode; the tournament stays authoritative. */
+  afterblow_mode: 'full' | 'deductive' | null;
   is_default: boolean;
   is_system: boolean;
   /** Set when an organizer authored the ruleset; null for platform/system rows. */
@@ -187,6 +196,30 @@ function slugify(value: string): string {
     .slice(0, 60);
 }
 
+/**
+ * Map authored grammar onto its columns.
+ *
+ * `hasAfterblow: false` forces the mode to NULL rather than leaving a stale one
+ * behind: a mode without the concept is meaningless and would seed a tournament
+ * with a setting the ruleset's own grammar cannot produce.
+ */
+export function grammarColumns(dto: {
+  targets?: Array<{ name: string; value: number }>;
+  hasAfterblow?: boolean;
+  afterblowMode?: 'full' | 'deductive';
+}): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (dto.targets !== undefined) out['targets'] = dto.targets;
+  if (dto.hasAfterblow !== undefined) {
+    out['has_afterblow'] = dto.hasAfterblow;
+    if (!dto.hasAfterblow) out['afterblow_mode'] = null;
+  }
+  if (dto.afterblowMode !== undefined && dto.hasAfterblow !== false) {
+    out['afterblow_mode'] = dto.afterblowMode;
+  }
+  return out;
+}
+
 @Injectable()
 export class CustomRulesetsService {
   private readonly logger = new Logger(CustomRulesetsService.name);
@@ -264,6 +297,7 @@ export class CustomRulesetsService {
         double_penalty_formula: doublePenaltyFormula,
         is_default: false,
         is_system: false,
+        ...grammarColumns(dto),
         created_by_user_id: actorUserId,
       })
       .select('*')
@@ -332,6 +366,7 @@ export class CustomRulesetsService {
         ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
         : null;
     }
+    Object.assign(updates, grammarColumns(dto));
     if (dto.tfConfig !== undefined) {
       // Validate against TFv1ConfigSchema.partial() — accept any subset of the
       // schema's fields. Only meaningful for TF v1; on non-system rows the
@@ -412,6 +447,11 @@ export class CustomRulesetsService {
         double_penalty_formula: src.double_penalty_formula,
         is_default: false,
         is_system: false,
+        // Carry the source's grammar. Dropping it here would repeat the bug
+        // that made cloning TF_v1 produce a ruleset with nothing in it.
+        targets: src.targets,
+        has_afterblow: src.has_afterblow,
+        afterblow_mode: src.afterblow_mode,
         created_by_user_id: actorUserId,
       })
       .select('*')
@@ -700,6 +740,7 @@ export class CustomRulesetsService {
         double_penalty_formula: doublePenaltyFormula,
         is_default: false,
         is_system: false,
+        ...grammarColumns(dto),
         owner_organization_id: orgId,
         public_visibility: false,
         created_by_user_id: actorUserId,

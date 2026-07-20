@@ -16,6 +16,7 @@ import {
   registry,
   type FormulaConfig,
   type Ruleset,
+  type RulesetGrammar,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -24,6 +25,30 @@ const CACHE_TTL_MS = 5_000;
 interface CachedEntry {
   ruleset: Ruleset | null;
   expiresAt: number;
+}
+
+/**
+ * The grammar columns added by migration 0143, as they come off a row.
+ * Present on both `custom_rulesets` and `custom_ruleset_versions`, so a
+ * published version round-trips its grammar rather than silently resetting it.
+ */
+interface GrammarColumns {
+  targets: Array<{ name: string; value: number }> | null;
+  has_afterblow: boolean | null;
+  afterblow_mode: 'full' | 'deductive' | null;
+}
+
+/**
+ * Rows written before 0143 read as nulls, which `createFormulaRuleset` turns
+ * into "declares no afterblow" — matching what the UI has always done for a
+ * custom ruleset, so nothing switches on at deploy.
+ */
+function toGrammar(row: GrammarColumns): RulesetGrammar {
+  return {
+    targets: row.targets,
+    hasAfterblow: row.has_afterblow,
+    defaultAfterblowMode: row.afterblow_mode,
+  };
 }
 
 @Injectable()
@@ -67,7 +92,9 @@ export class RulesetResolver {
     try {
       const { data } = await this.supabase.service
         .from('custom_rulesets')
-        .select('code, version, name, status, is_system, score_formula, constants, tiebreakers')
+        .select(
+          'code, version, name, status, is_system, score_formula, constants, tiebreakers, targets, has_afterblow, afterblow_mode',
+        )
         .eq('code', code)
         .eq('version', version)
         .maybeSingle();
@@ -84,7 +111,7 @@ export class RulesetResolver {
         score_formula: unknown;
         constants: unknown;
         tiebreakers: unknown;
-      };
+      } & GrammarColumns;
       if (row.status !== 'published' || row.is_system) {
         this.cache.set(cacheKey, { ruleset: null, expiresAt: now + CACHE_TTL_MS });
         return null;
@@ -94,7 +121,7 @@ export class RulesetResolver {
         constants: row.constants as FormulaConfig['constants'],
         tiebreakers: row.tiebreakers as FormulaConfig['tiebreakers'],
       };
-      const ruleset = createFormulaRuleset(row.code, row.version, row.name, config);
+      const ruleset = createFormulaRuleset(row.code, row.version, row.name, config, toGrammar(row));
       this.cache.set(cacheKey, { ruleset, expiresAt: now + CACHE_TTL_MS });
       return ruleset;
     } catch (err) {
@@ -121,7 +148,9 @@ export class RulesetResolver {
 
     const { data } = await this.supabase.service
       .from('custom_ruleset_versions')
-      .select('version, score_formula, constants, tiebreakers')
+      .select(
+        'version, score_formula, constants, tiebreakers, targets, has_afterblow, afterblow_mode',
+      )
       .eq('custom_ruleset_id', parentRow.id)
       .eq('version', version)
       .maybeSingle();
@@ -131,13 +160,13 @@ export class RulesetResolver {
       score_formula: unknown;
       constants: unknown;
       tiebreakers: unknown;
-    };
+    } & GrammarColumns;
     const config: FormulaConfig = {
       scoreFormula: snap.score_formula as FormulaConfig['scoreFormula'],
       constants: snap.constants as FormulaConfig['constants'],
       tiebreakers: snap.tiebreakers as FormulaConfig['tiebreakers'],
     };
-    return createFormulaRuleset(code, snap.version, parentRow.name, config);
+    return createFormulaRuleset(code, snap.version, parentRow.name, config, toGrammar(snap));
   }
 
   /** Invalidate the cache for a single ruleset (call after upsert/publish/etc). */

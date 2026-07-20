@@ -41,6 +41,19 @@ export const MAX_TARGETS = 8;
  */
 export const MAX_STORED_TARGET_VALUE = 99;
 
+/**
+ * Upper bound on an AUTHORED target value — the write-side counterpart to
+ * `MAX_STORED_TARGET_VALUE`.
+ *
+ * 10 is not arbitrary: it is `createExchangeSchema`'s cap on
+ * `firstStrikeValue`. Authoring a target worth more produces a scoring button
+ * that 400s the exchange POST, and the offline queue treats a 400 as terminal
+ * and drops the exchange — so an out-of-range target does not degrade, it
+ * loses fencing data. Reject it at authoring time, where the operator is
+ * present to fix it.
+ */
+export const MAX_AUTHORED_TARGET_VALUE = 10;
+
 export const TargetSchema = z.object({
   name: z.string().trim().min(1).max(40),
   value: z.number().int().min(1).max(MAX_STORED_TARGET_VALUE),
@@ -48,7 +61,18 @@ export const TargetSchema = z.object({
 
 export type Target = z.infer<typeof TargetSchema>;
 
+/** Read-side: liberal, so a config stored before the bounds existed still parses. */
 export const TargetsSchema = z.array(TargetSchema).min(1).max(MAX_TARGETS);
+
+/** Write-side: strict, so nothing new is stored that scoring cannot accept. */
+export const AuthoredTargetsSchema = z
+  .array(
+    TargetSchema.extend({
+      value: z.number().int().min(1).max(MAX_AUTHORED_TARGET_VALUE),
+    }),
+  )
+  .min(1)
+  .max(MAX_TARGETS);
 
 /**
  * TF_v1's federal pair, expressed as named targets. Names are seed values the

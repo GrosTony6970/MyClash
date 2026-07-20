@@ -1,5 +1,24 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { AuthoredTargetsSchema } from '@myclash/rulesets';
+
+/**
+ * The grammar half of a ruleset: what an exchange can be and what it is worth.
+ * Authorable on EVERY ruleset, which is the point — `tf_config.targetValues`
+ * was two anonymous slots read only for is_system rows, so an org-authored
+ * ruleset had nowhere to declare this at all.
+ *
+ * `AuthoredTargetsSchema` is the strict write-side bound (value 1..10, the cap
+ * createExchangeSchema puts on firstStrikeValue). The engine's read-side
+ * schema stays liberal so older configs keep parsing; see targets.ts.
+ */
+const rulesetGrammarShape = {
+  targets: AuthoredTargetsSchema.optional(),
+  hasAfterblow: z.boolean().optional(),
+  // Seeds a new tournament's afterblow mode. Never authoritative at scoring
+  // time — the tournament's scoring_config_json is.
+  afterblowMode: z.enum(['full', 'deductive']).optional(),
+};
 
 const tiebreakerSchema = z.object({
   variable: z.string(),
@@ -21,6 +40,7 @@ const createCustomRulesetSchema = z
     matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
     // Free-string expression in terms of `n` (double-hit count). Validated server-side.
     doublePenaltyFormula: z.string().max(200).optional(),
+    ...rulesetGrammarShape,
   })
   .strict();
 export class CreateCustomRulesetDto extends createZodDto(createCustomRulesetSchema) {}
@@ -39,6 +59,7 @@ const updateCustomRulesetSchema = z
     // (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
     // Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.
     tfConfig: z.record(z.string(), z.unknown()).optional(),
+    ...rulesetGrammarShape,
   })
   .strict();
 export class UpdateCustomRulesetDto extends createZodDto(updateCustomRulesetSchema) {}
