@@ -8,16 +8,18 @@ import { MatchAutoLockService } from './match-auto-lock.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
-import { RulesetResolver } from './ruleset-resolver.service';
+import { RulesetResolverModule } from './ruleset-resolver.module';
 import { ScoringService } from './scoring.service';
 
 @Module({
-  imports: [WorkersModule, StaffModule, PhasesModule],
+  // RulesetResolver now arrives via RulesetResolverModule rather than being a
+  // private provider here, so PoolStandingsModule can inject it without
+  // importing MatchesModule (which would close a cycle through PhasesModule).
+  imports: [WorkersModule, StaffModule, PhasesModule, RulesetResolverModule],
   controllers: [MatchesController],
   providers: [
     MatchesService,
     ScoringService,
-    RulesetResolver,
     ClockService,
     FrozenResultsGuard,
     MatchAutoLockService,
