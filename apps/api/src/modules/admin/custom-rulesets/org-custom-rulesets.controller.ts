@@ -17,25 +17,12 @@ import { OrganizationsService } from '../../organizations/organizations.service'
 import { SupabaseService } from '../../supabase/supabase.service';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
+import { resolveRequestUserId } from '../../../common/auth/request-user';
 
-// Resolve the caller's user id from their Supabase JWT (cookie or Bearer).
-// We deliberately do NOT read `req.actorUserId` here — that property is only
-// populated by `SuperAdminGuard`, and this controller intentionally doesn't
-// use that guard (organizers aren't super-admins). Without this helper, every
-// `assertOrgRole(orgId, 'unknown', 'admin')` would 403, even for real org
-// admins. See LESSONS_LEARNED.md > Identity & auth.
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
-}
+// Resolve the caller's user id from their Supabase JWT. Shared with the
+// ruleset picker, which needs the identical behaviour — see the docblock on
+// `resolveRequestUserId` for why `req.actorUserId` must NOT be used here.
+const getUserId = resolveRequestUserId;
 
 /**
  * Organizer-side scoring-ruleset CRUD. Lives under

@@ -22,6 +22,7 @@ import {
   type Tiebreaker,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
 import type { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
 
 export interface CustomRulesetRow {
@@ -646,7 +647,7 @@ export class CustomRulesetsService {
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select('*')
-      .or(`is_system.eq.true,public_visibility.eq.true,owner_organization_id.eq.${orgId}`)
+      .or(customRulesetOrgVisibilityFilter(orgId))
       .order('is_system', { ascending: false })
       .order('owner_organization_id', { ascending: true })
       .order('name', { ascending: true });
