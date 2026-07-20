@@ -352,8 +352,48 @@ export class CustomRulesetsService {
     return data as CustomRulesetRow;
   }
 
+  /**
+   * Copy a ruleset into a new draft.
+   *
+   * This was the only write path that could produce a row `create`,
+   * `createForOrg` and `update` would all have rejected: it copied the source
+   * columns straight into the INSERT without running `validateConfig`. Both
+   * checks below close that gap, and they close it at different levels.
+   *
+   * The `is_system` guard is the specific case. System rows carry EMPTY
+   * `score_formula` / `constants` / `tiebreakers` placeholders — migration 0038
+   * seeds them and says so: "their formula/constants/tiebreakers fields are
+   * nominal — the runtime always prefers the in-code plugin for these codes".
+   * That holds only while `is_system` is true. Cloning flipped it to false and
+   * turned the placeholders load-bearing: the resolver stops short-circuiting
+   * to the registry, builds a FormulaRuleset from `{}`, and standings blow up
+   * with "Cannot read properties of undefined" while match scoring silently
+   * carries on under Generic_PointsCap's semantics. The clone also dropped
+   * `tf_config`, which is where every one of TF v1's real tunables lives, so
+   * there was nothing to salvage either.
+   *
+   * `validateConfig` is the general invariant: a clone must satisfy what every
+   * other writer satisfies, whatever the source row. It also catches a
+   * corrupt non-system source, which the guard alone would let through.
+   *
+   * Cloning a built-in is still supported — through the org flow
+   * (`/org/:slug/rulesets/scoring/new?cloneFrom=<id>`), which pre-fills the
+   * form from the built-in and requires the operator to author a score
+   * formula before `createForOrg` will accept it.
+   */
   async clone(id: string, actorUserId: string): Promise<CustomRulesetRow> {
     const src = await this.getById(id);
+    if (src.is_system) {
+      throw new ForbiddenException(
+        'System rulesets cannot be cloned directly — their scoring lives in code, not in the row. ' +
+          'Create a ruleset for your organisation from this one instead.',
+      );
+    }
+    const config = this.validateConfig({
+      scoreFormula: src.score_formula,
+      constants: src.constants,
+      tiebreakers: src.tiebreakers,
+    });
     const baseSlug = slugify(`${src.name}-copy`);
     const code = `custom_${baseSlug}-${Date.now().toString(36)}`;
     const { data, error } = await this.supabase.service
@@ -364,9 +404,9 @@ export class CustomRulesetsService {
         name: `${src.name} (copy)`,
         description: src.description,
         status: 'draft',
-        score_formula: src.score_formula,
-        constants: src.constants,
-        tiebreakers: src.tiebreakers,
+        score_formula: config.scoreFormula,
+        constants: config.constants,
+        tiebreakers: config.tiebreakers,
         match_format_defaults: src.match_format_defaults,
         double_penalty_formula: src.double_penalty_formula,
         is_default: false,

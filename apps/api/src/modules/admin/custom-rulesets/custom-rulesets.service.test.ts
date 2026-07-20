@@ -166,6 +166,95 @@ describe('CustomRulesetsService', () => {
     expect(result.systemRankingChain).toBeUndefined();
     expect(result.systemMetadata).toBeUndefined();
   });
+
+  // ── clone ──────────────────────────────────────────────────────────────────
+  // clone() was the only write path that could produce a row create() /
+  // createForOrg() / update() would all have rejected: it copied the source
+  // columns straight into the INSERT without running validateConfig.
+
+  it('refuses to clone a system ruleset', async () => {
+    // Migration 0038 seeds system rows with EMPTY score_formula / constants /
+    // tiebreakers because "the runtime always prefers the in-code plugin for
+    // these codes" — true only while is_system is TRUE. Cloning flipped it to
+    // false, so the resolver stopped short-circuiting to the registry and
+    // built a FormulaRuleset from `{}`. Standings then died on "Cannot read
+    // properties of undefined" while match scoring silently continued under
+    // Generic_PointsCap. The clone also dropped tf_config, where every TF v1
+    // tunable lives, so there was nothing to recover from either.
+    fromMock.mockReturnValue(
+      makeChain({
+        data: {
+          id: 'tf',
+          code: 'TF_v1',
+          version: '1.0.0',
+          name: 'TF v1',
+          is_system: true,
+          score_formula: {},
+          constants: {},
+          tiebreakers: [],
+        },
+        error: null,
+      }),
+    );
+
+    await expect(service.clone('tf', 'actor-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('names the org flow in the refusal, since cloning a built-in is still supported there', async () => {
+    // /org/:slug/rulesets/scoring/new?cloneFrom=<id> pre-fills the form from a
+    // built-in and requires the operator to author a score formula, so it
+    // cannot produce the empty-AST orphan. The message must point there rather
+    // than reading as a flat "no".
+    fromMock.mockReturnValue(
+      makeChain({ data: { id: 'tf', code: 'TF_v1', is_system: true }, error: null }),
+    );
+
+    await expect(service.clone('tf', 'actor-1')).rejects.toThrow(/organisation/i);
+  });
+
+  it('refuses to clone a row whose stored formula is invalid', async () => {
+    // The general invariant, not just the is_system case: a clone must satisfy
+    // what every other writer satisfies. A guard alone would let a corrupt
+    // non-system source row propagate.
+    fromMock.mockReturnValue(
+      makeChain({
+        data: {
+          id: 'broken',
+          code: 'custom_broken',
+          name: 'Broken',
+          is_system: false,
+          score_formula: {},
+          constants: validConstants,
+          tiebreakers: validTiebreakers,
+        },
+        error: null,
+      }),
+    );
+
+    await expect(service.clone('broken', 'actor-1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('clones a valid custom ruleset', async () => {
+    fromMock.mockReturnValue(
+      makeChain({
+        data: {
+          id: 'ok',
+          code: 'custom_ok',
+          name: 'Good',
+          description: null,
+          is_system: false,
+          score_formula: { type: 'var', name: 'victories' },
+          constants: validConstants,
+          tiebreakers: validTiebreakers,
+          match_format_defaults: null,
+          double_penalty_formula: null,
+        },
+        error: null,
+      }),
+    );
+
+    await expect(service.clone('ok', 'actor-1')).resolves.toMatchObject({ id: 'ok' });
+  });
 });
 
 describe('validateDoublePenaltyFormula', () => {
