@@ -7,6 +7,7 @@ import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
 import { matchWeapon } from './weapon-match';
 import { pickWizardDefaults } from './wizard-defaults';
+import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -60,9 +61,9 @@ export function Step1Basics({
 
   useEffect(() => {
     void Promise.all([
-      fetch(`${apiUrl}/api/v1/rulesets`, { credentials: 'include' }).then((r) =>
-        r.ok ? r.json() : [],
-      ),
+      // Event-scoped, so an org-authored ruleset is selectable at all. The
+      // bare /rulesets catalog is registry-only and can never contain one.
+      fetchSelectableRulesets(apiUrl, eventId),
       fetch(`${apiUrl}/api/v1/penalty-rulesets`, { credentials: 'include' }).then((r) =>
         r.ok ? r.json() : [],
       ),
@@ -98,7 +99,7 @@ export function Step1Basics({
           setMaxWaitlist(row.max_waitlist != null ? String(row.max_waitlist) : '');
         });
     }
-  }, [initialTournamentId]);
+  }, [initialTournamentId, eventId]);
 
   async function submit() {
     if (!name.trim()) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
@@ -32,8 +33,9 @@ interface TournamentBasics {
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export function BasicsTab({ tournamentId }: { tournamentId: string }) {
-  const params = useParams<{ slug: string }>();
+  const params = useParams<{ slug: string; eventId: string }>();
   const orgSlug = params.slug;
+  const eventId = params.eventId;
   const toast = useToast();
   const weaponOptions = useWeaponOptions();
   const [data, setData] = useState<TournamentBasics | null>(null);
@@ -58,9 +60,9 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' }).then(
             (r) => (r.ok ? r.json() : null),
           ),
-          fetch(`${apiUrl}/api/v1/rulesets`, { credentials: 'include' }).then((r) =>
-            r.ok ? r.json() : [],
-          ),
+          // Event-scoped, so an org-authored ruleset stays selectable here.
+          // The bare /rulesets catalog is registry-only and never contains one.
+          fetchSelectableRulesets(apiUrl, eventId),
           fetch(`${apiUrl}${penaltyEndpoint}`, { credentials: 'include' }).then((r) =>
             r.ok ? r.json() : [],
           ),
@@ -81,7 +83,7 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           setPenaltyRulesets(p as PenaltyRuleset[]);
         });
       });
-  }, [tournamentId, orgSlug]);
+  }, [tournamentId, orgSlug, eventId]);
 
   async function save() {
     if (!data) return;
