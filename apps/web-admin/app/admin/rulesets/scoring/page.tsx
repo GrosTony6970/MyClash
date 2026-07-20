@@ -573,12 +573,21 @@ export default function AdminRulesetsPage() {
                           </RowActionButton>
                         </>
                       )}
-                      <RowActionButton
-                        variant="neutral"
-                        onClick={() => void performCuratedAction(row.id, 'clone')}
-                      >
-                        {t('admin.rulesets.shared.actions.clone')}
-                      </RowActionButton>
+                      {/* Not offered for built-ins, matching Publish/Unpublish
+                          below and the server-side guard. A system row's
+                          score_formula is an empty placeholder that only works
+                          while is_system is TRUE, so a copy of one is a ruleset
+                          with no ranking algorithm at all. Cloning a built-in
+                          lives on the org side (?cloneFrom=), which requires an
+                          authored formula before it will save. */}
+                      {!row.is_system && (
+                        <RowActionButton
+                          variant="neutral"
+                          onClick={() => void performCuratedAction(row.id, 'clone')}
+                        >
+                          {t('admin.rulesets.shared.actions.clone')}
+                        </RowActionButton>
+                      )}
                       {!row.is_system && row.status !== 'published' ? (
                         <RowActionButton
                           variant="success"
