@@ -115,6 +115,7 @@ export function Step3Display({
             display: { sideColors: data.sideColors },
             buttons: data.buttons,
           },
+          wizardStep: 3,
         }),
       });
       if (!res.ok) throw new Error(t('admin.common.saveFailed'));

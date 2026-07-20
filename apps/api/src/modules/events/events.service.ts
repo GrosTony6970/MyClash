@@ -2358,6 +2358,8 @@ export class EventsService {
         max_waitlist: dto.maxWaitlist ?? null,
         status: 'draft',
         ruleset_config: rulesetConfig,
+        // Step 1 is complete by definition once the row exists.
+        wizard_step: 1,
       })
       .select('*')
       .single();
@@ -2446,6 +2448,14 @@ export class EventsService {
     if (dto.maxParticipants !== undefined) updates['max_participants'] = dto.maxParticipants;
     if (dto.maxWaitlist !== undefined) updates['max_waitlist'] = dto.maxWaitlist;
 
+    // Monotonic: the operator can jump back and re-save an earlier step, and
+    // that must not un-complete the later ones. Recorded rather than inferred —
+    // every blob the old heuristic read is written by the server itself.
+    if (dto.wizardStep !== undefined) {
+      const current = currentJson['wizard_step'];
+      const previous = typeof current === 'number' ? current : 0;
+      updates['wizard_step'] = Math.max(previous, dto.wizardStep);
+    }
     if (dto.scoringConfig !== undefined) {
       const merged = deepMergeJson(currentJson['scoring_config_json'] ?? {}, dto.scoringConfig);
       updates['scoring_config_json'] = normalizeTournamentScoringConfig(merged);

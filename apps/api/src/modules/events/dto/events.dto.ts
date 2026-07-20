@@ -264,6 +264,13 @@ const updateTournamentSchema = z
     // Public URL of the tournament logo. Pass null to clear.
     logoUrl: z.string().max(2048).nullish(),
     rulesetCode: z.string().max(50).optional(),
+    /**
+     * Highest creation-wizard step completed. Recorded rather than inferred:
+     * every JSONB blob the old heuristic read is written by the server itself
+     * (ruleset_config at create, the full scoring config on any PATCH), so
+     * progress could not be derived from content. Monotonic server-side.
+     */
+    wizardStep: z.number().int().min(1).max(4).optional(),
     rulesetVersion: z.string().max(20).optional(),
     // Tournament identity color token (e.g. "red", "amber"). Pass null to clear.
     color: z.string().max(32).nullish(),

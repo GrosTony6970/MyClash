@@ -47,7 +47,10 @@ export function Step4Advanced({
   async function saveAndFinish() {
     setSaving(true);
     try {
-      const body: Record<string, unknown> = {};
+      // Always carries the step, so finishing the wizard is recorded even for
+      // a ruleset with no TF-shaped config to send — this PATCH used to have
+      // an empty body entirely for those.
+      const body: Record<string, unknown> = { wizardStep: 4 };
       if (rulesetCode === 'TF_v1') body['rulesetConfig'] = tf;
       const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',

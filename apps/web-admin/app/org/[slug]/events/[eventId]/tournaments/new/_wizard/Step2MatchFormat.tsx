@@ -66,6 +66,9 @@ export function Step2MatchFormat({
             },
           },
           scoringConfig: { afterblowMode: data.afterblowMode },
+          // Recorded, not inferred: this PATCH's own scoringConfig makes the
+          // server backfill buttons, which used to read as "Step 3 done".
+          wizardStep: 2,
         }),
       });
       if (!res.ok) throw new Error(t('admin.common.saveFailed'));
