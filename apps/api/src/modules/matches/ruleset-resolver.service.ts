@@ -28,6 +28,21 @@ interface CachedEntry {
 }
 
 /**
+ * The grammar columns, selected identically on BOTH resolution paths.
+ *
+ * Extracted after they drifted: 0145's two valuation columns were added to the
+ * parent-row select and missed on the snapshot select, so a published ruleset
+ * authored as `weighted` resolved as `fixed` — silently seeding the wrong
+ * button grid. The unit test could not catch it either, because a Supabase
+ * mock whose `.select()` is `mockReturnThis()` ignores its argument and returns
+ * the whole fixture row regardless of what was asked for.
+ *
+ * One constant makes the divergence unrepresentable instead of merely tested.
+ */
+const GRAMMAR_COLUMNS =
+  'targets, has_afterblow, afterblow_mode, afterblow_valuation, afterblow_fixed_value';
+
+/**
  * The grammar columns added by migration 0143, as they come off a row.
  * Present on both `custom_rulesets` and `custom_ruleset_versions`, so a
  * published version round-trips its grammar rather than silently resetting it.
@@ -97,7 +112,7 @@ export class RulesetResolver {
       const { data } = await this.supabase.service
         .from('custom_rulesets')
         .select(
-          'code, version, name, status, is_system, score_formula, constants, tiebreakers, targets, has_afterblow, afterblow_mode, afterblow_valuation, afterblow_fixed_value',
+          `code, version, name, status, is_system, score_formula, constants, tiebreakers, ${GRAMMAR_COLUMNS}`,
         )
         .eq('code', code)
         .eq('version', version)
@@ -152,9 +167,7 @@ export class RulesetResolver {
 
     const { data } = await this.supabase.service
       .from('custom_ruleset_versions')
-      .select(
-        'version, score_formula, constants, tiebreakers, targets, has_afterblow, afterblow_mode',
-      )
+      .select(`version, score_formula, constants, tiebreakers, ${GRAMMAR_COLUMNS}`)
       .eq('custom_ruleset_id', parentRow.id)
       .eq('version', version)
       .maybeSingle();

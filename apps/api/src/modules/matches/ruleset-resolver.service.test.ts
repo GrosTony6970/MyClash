@@ -37,19 +37,28 @@ const FORMULA_CONFIG = { scoreFormula: FORMULA, constants: CONSTANTS, tiebreaker
  */
 function makeResolver(rows: { parent?: unknown; snapshot?: unknown; row?: unknown }) {
   let call = 0;
+  const selects: string[] = [];
   const from = vi.fn().mockImplementation(() => {
     call += 1;
     let data: unknown = null;
     if (call === 1) data = rows.parent ?? null;
     else if (rows.parent) data = rows.snapshot ?? null;
     else data = rows.row ?? null;
-    return {
-      select: vi.fn().mockReturnThis(),
+    const chain = {
+      // RECORDS the column list rather than ignoring it. A `mockReturnThis()`
+      // select swallows its argument and hands back the whole fixture row, so
+      // it will happily "pass" a query that never asked for the column being
+      // asserted — which is exactly how the two paths drifted apart.
+      select: vi.fn().mockImplementation((columns: string) => {
+        selects.push(columns);
+        return chain;
+      }),
       eq: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({ data }),
     };
+    return chain;
   });
-  return new RulesetResolver({ service: { from } } as never);
+  return { resolver: new RulesetResolver({ service: { from } } as never), selects };
 }
 
 describe('RulesetResolver — grammar', () => {
@@ -69,7 +78,7 @@ describe('RulesetResolver — grammar', () => {
     // Snapshots must round-trip grammar, or publishing and then rolling back
     // would silently reset it — the "an edit changed how a pinned tournament
     // scores" failure custom_ruleset_versions exists to prevent.
-    const resolver = makeResolver({
+    const { resolver } = makeResolver({
       parent: { id: 'p1', name: 'House rules', is_system: false },
       snapshot: {
         version: '1.0.0',
@@ -95,7 +104,7 @@ describe('RulesetResolver — grammar', () => {
   });
 
   it('carries the parent row’s grammar when no snapshot exists', async () => {
-    const resolver = makeResolver({
+    const { resolver } = makeResolver({
       row: {
         code: 'custom_house',
         version: '1.0.0',
@@ -123,7 +132,7 @@ describe('RulesetResolver — grammar', () => {
     // Nulls are what a row written before the columns existed looks like. They
     // must resolve to a DEFINITE false — the UI has never offered afterblow
     // controls for a custom ruleset, so nothing should switch on at deploy.
-    const resolver = makeResolver({
+    const { resolver } = makeResolver({
       row: {
         code: 'custom_old',
         version: '1.0.0',
@@ -161,7 +170,7 @@ describe('RulesetResolver — grammar', () => {
   });
 
   it('refuses an unpublished row', async () => {
-    const resolver = makeResolver({
+    const { resolver } = makeResolver({
       row: {
         code: 'custom_draft',
         version: '1.0.0',
@@ -181,5 +190,60 @@ describe('RulesetResolver — grammar', () => {
 
     // `=== null` rather than toBeNull(): see the serializer warning at the top.
     expect((await resolver.resolve('custom_draft', '1.0.0')) === null).toBe(true);
+  });
+
+  it('asks BOTH resolution paths for the same grammar columns', () => {
+    // The regression this exists for: 0145's valuation columns were added to
+    // the parent-row select and missed on the snapshot select, so a ruleset
+    // authored as `weighted` resolved as `fixed`. Both paths now share one
+    // constant, and this asserts the queries actually carry it.
+    const grammar = [
+      'targets',
+      'has_afterblow',
+      'afterblow_mode',
+      'afterblow_valuation',
+      'afterblow_fixed_value',
+    ];
+
+    return (async () => {
+      const snapshotPath = makeResolver({
+        parent: { id: 'p1', name: 'N', is_system: false },
+        snapshot: {
+          version: '1.0.0',
+          score_formula: FORMULA,
+          constants: CONSTANTS,
+          tiebreakers: [],
+          targets: null,
+          has_afterblow: false,
+          afterblow_mode: null,
+          afterblow_valuation: null,
+          afterblow_fixed_value: null,
+        },
+      });
+      await snapshotPath.resolver.resolve('custom_snap', '1.0.0');
+      const snapshotSelect = snapshotPath.selects.at(-1) ?? '';
+      for (const column of grammar) expect(snapshotSelect).toContain(column);
+
+      const parentPath = makeResolver({
+        row: {
+          code: 'custom_row',
+          version: '1.0.0',
+          name: 'N',
+          status: 'published',
+          is_system: false,
+          score_formula: FORMULA,
+          constants: CONSTANTS,
+          tiebreakers: [],
+          targets: null,
+          has_afterblow: false,
+          afterblow_mode: null,
+          afterblow_valuation: null,
+          afterblow_fixed_value: null,
+        },
+      });
+      await parentPath.resolver.resolve('custom_row', '1.0.0');
+      const parentSelect = parentPath.selects.at(-1) ?? '';
+      for (const column of grammar) expect(parentSelect).toContain(column);
+    })();
   });
 });
