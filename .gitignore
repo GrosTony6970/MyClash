@@ -73,3 +73,7 @@ test-results/
 # the project config, un-ignore _bmad/config.yaml specifically (but never
 # _bmad/config.user.yaml — that one is personal).
 _bmad/
+
+# BMad working output (brainstorming memlogs, session artifacts, generated
+# project context). Local thinking, not product code — same reasoning as above.
+_bmad-output/
