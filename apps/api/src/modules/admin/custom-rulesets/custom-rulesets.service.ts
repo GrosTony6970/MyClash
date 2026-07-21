@@ -175,32 +175,21 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
 }
 
 /**
- * Validate the `double_penalty_formula` TEXT column against the engine's
- * WHITELIST.
+ * Validate a custom ruleset's `double_penalty_formula` — a whitelist KEY or an
+ * authored `FormulaNode` AST (the `DoublePenaltySpec` shape), stored in the
+ * JSONB column since migration 0146.
  *
- * This used to accept any character-whitelisted expression and sanity-check it
- * with `new Function('n', ...)`, justified by the characters having been
- * filtered. AGENTS.md hard rule #5 admits no such exemption: no eval, no
- * Function(). The character filter also cannot make code execution safe — it
- * only makes it narrow.
+ * The old TEXT/whitelist-only validator used `new Function('n', ...)`,
+ * justified by a character filter. AGENTS.md hard rule #5 admits no such
+ * exemption: no eval, no Function(). This validates and evaluates OUR AST — a
+ * Zod-validated tree over a fixed variable domain, run by our own interpreter —
+ * so the rule still holds: it forbids EXECUTING input, not authoring formulas.
  *
- * Keeping the column key-only closes a second hole: resolveRulesetConfigDefaults
- * injects it into a TF_v1-shaped config, so a free-text value like 'n*2' passed
- * the old validator and then made every tournament create/update on that
- * ruleset fail Zod parsing — and if it slipped through, the engine silently
- * used the federal formula, so the stored expression was a lie either way.
- *
- * NOTE — this is no longer the only way to express a double penalty, and the
- * docblock used to claim it was. A club with a house rule authors a
- * `FormulaNode` AST, which is accepted through `tf_config.doublePenaltyFormula`
- * (JSONB) because TFv1ConfigSchema takes `key | AST` since 2f195eeb, and
- * validateTfConfigPatch parses the whole config. That path is Zod-validated and
- * evaluated by our own interpreter, so rule #5 still holds — the rule forbids
- * EXECUTING input, not authoring formulas.
- *
- * The TEXT column stays key-only on purpose rather than being widened to JSONB:
- * a formula-kind ruleset expresses its double penalty inside `scoreFormula`
- * using the `doubleHits` variable, so the column is meaningless there.
+ * The column is no longer inert. It is the NAMED double-penalty sub-formula a
+ * FormulaRuleset's score references through the `doublePenalty` variable
+ * (FormulaConfig.doublePenaltyFormula) — so a ruleset with a nonlinear penalty
+ * authors it here once instead of inlining it in `scoreFormula`. Optional: a
+ * ruleset that does not penalise doubles simply leaves it null.
  */
 export function validateDoublePenaltyFormula(raw: unknown): DoublePenaltySpec {
   // A whitelist KEY: keep the friendly "allowed values" error rather than a
