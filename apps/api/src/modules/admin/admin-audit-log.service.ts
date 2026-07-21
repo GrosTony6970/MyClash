@@ -230,6 +230,18 @@ export class AdminAuditLogService {
           }),
         );
       }
+      case 'tournament': {
+        // tournament.ruleset.repin + tournament.ruleset.fork write entity_type
+        // 'tournament'; resolve the id to the tournament name (never a raw UUID).
+        const { data, error } = await this.supabase.service
+          .from('tournaments')
+          .select('id, name')
+          .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
+        return new Map(
+          ((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]),
+        );
+      }
       case 'fighter': {
         const { data, error } = await this.supabase.service
           .from('global_persons')
