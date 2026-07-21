@@ -16,7 +16,7 @@
  * triggers a refetch.
  */
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -46,6 +46,13 @@ function formatStat(c: OverallColumn, value: unknown): string {
   return String(value);
 }
 
+interface DecidingTiebreak {
+  key: string;
+  direction: 'asc' | 'desc';
+  mine: number;
+  theirs: number;
+}
+
 interface OverallRow {
   rank: number;
   registrationId: string;
@@ -53,11 +60,15 @@ interface OverallRow {
   club: { id: string; name: string; abbreviation: string | null } | null;
   status: string;
   stats: Record<string, number | string>;
+  /** The chain key that separated this fighter from the one above (C1). */
+  decidingTiebreak?: DecidingTiebreak | null;
 }
 
 interface OverallResponse {
   rulesetCode: string;
   rulesetVersion: string;
+  /** Human ruleset name + display score formula, for the derivation panel. */
+  ruleset?: { label: string; scoreFormula: string | null };
   columns: OverallColumn[];
   rows: OverallRow[];
 }
@@ -219,6 +230,21 @@ export function StandingsView({
   );
 }
 
+/** The one-line explanation of why a fighter sits where they do. */
+function derivationSentence(data: OverallResponse, row: OverallRow, idx: number): string {
+  if (idx === 0) return t('publicApp.tournament.standings.derivationLeader');
+  const aboveName = data.rows[idx - 1]?.displayName ?? '';
+  const dt = row.decidingTiebreak;
+  if (!dt) return t('publicApp.tournament.standings.derivationTied', { name: aboveName });
+  const criterion = data.columns.find((c) => c.key === dt.key)?.label ?? dt.key;
+  return t('publicApp.tournament.standings.derivationBelow', {
+    name: aboveName,
+    criterion,
+    mine: String(dt.mine),
+    theirs: String(dt.theirs),
+  });
+}
+
 function OverallTable({
   data,
   bracketSize,
@@ -228,6 +254,15 @@ function OverallTable({
   bracketSize: number | null;
   highlightRegistrationId?: string | null;
 }) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
   if (!data) {
     return (
       <p className="rounded-xl border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
@@ -280,45 +315,96 @@ function OverallTable({
               cutAfterIndex != null && idx === cutAfterIndex - 1 && idx < data.rows.length - 1;
             const isYou =
               !!highlightRegistrationId && row.registrationId === highlightRegistrationId;
+            const isExpanded = expanded.has(row.registrationId);
             return (
-              <tr
-                key={row.registrationId}
-                data-self-row={isYou ? '' : undefined}
-                className={[
-                  isCut ? 'border-b-2 border-foreground' : 'border-b border-border',
-                  'last:border-0',
-                  isYou ? 'bg-accent/5' : '',
-                  idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
-                ].join(' ')}
-              >
-                <td className="px-3 py-2 text-center font-mono tabular-nums">{row.rank}</td>
-                <td className="px-3 py-2">
-                  <p
-                    className={[
-                      'flex items-center gap-1 font-medium leading-tight',
-                      isYou ? 'font-bold text-accent' : 'text-foreground',
-                    ].join(' ')}
-                  >
-                    {row.displayName}
-                    {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
-                  </p>
-                  {row.club && (
-                    <p className="text-xs text-muted">{row.club.abbreviation ?? row.club.name}</p>
-                  )}
-                </td>
-                {orderedColumns.map((c) => (
-                  <td
-                    key={c.key}
-                    className={
-                      c.key === 'score'
-                        ? 'bg-accent/5 px-3 py-2 text-center font-mono text-base font-bold tabular-nums text-foreground'
-                        : 'px-2 py-2 text-right font-mono tabular-nums'
-                    }
-                  >
-                    {formatStat(c, row.stats[c.key])}
+              <Fragment key={row.registrationId}>
+                <tr
+                  data-self-row={isYou ? '' : undefined}
+                  className={[
+                    isExpanded
+                      ? 'border-0'
+                      : isCut
+                        ? 'border-b-2 border-foreground'
+                        : 'border-b border-border',
+                    'last:border-0',
+                    isYou ? 'bg-accent/5' : '',
+                    idx === 0 ? 'text-foreground' : 'text-foreground-secondary',
+                  ].join(' ')}
+                >
+                  <td className="px-3 py-2 text-center font-mono tabular-nums">{row.rank}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => toggle(row.registrationId)}
+                      aria-expanded={isExpanded}
+                      aria-label={t('publicApp.tournament.standings.derivationToggle')}
+                      className="flex w-full items-center gap-1.5 text-left"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 12 12"
+                        fill="currentColor"
+                        className={`h-2.5 w-2.5 shrink-0 text-muted transition-transform ${
+                          isExpanded ? 'rotate-90' : ''
+                        }`}
+                      >
+                        <path d="M4 2l4 4-4 4z" />
+                      </svg>
+                      <span className="min-w-0">
+                        <span
+                          className={[
+                            'flex items-center gap-1 font-medium leading-tight',
+                            isYou ? 'font-bold text-accent' : 'text-foreground',
+                          ].join(' ')}
+                        >
+                          <span className="truncate">{row.displayName}</span>
+                          {isYou && <YouChip label={t('publicApp.me.hub.youChip')} />}
+                        </span>
+                        {row.club && (
+                          <span className="block text-xs text-muted">
+                            {row.club.abbreviation ?? row.club.name}
+                          </span>
+                        )}
+                      </span>
+                    </button>
                   </td>
-                ))}
-              </tr>
+                  {orderedColumns.map((c) => (
+                    <td
+                      key={c.key}
+                      className={
+                        c.key === 'score'
+                          ? 'bg-accent/5 px-3 py-2 text-center font-mono text-base font-bold tabular-nums text-foreground'
+                          : 'px-2 py-2 text-right font-mono tabular-nums'
+                      }
+                    >
+                      {formatStat(c, row.stats[c.key])}
+                    </td>
+                  ))}
+                </tr>
+                {isExpanded && (
+                  <tr className={isCut ? 'border-b-2 border-foreground' : 'border-b border-border'}>
+                    <td colSpan={2 + orderedColumns.length} className="px-4 pb-3 pt-0.5">
+                      <div className="flex flex-col gap-1 text-xs text-foreground-secondary">
+                        <p>{derivationSentence(data, row, idx)}</p>
+                        {data.ruleset?.scoreFormula && (
+                          <p className="font-mono text-[11px] text-muted">
+                            {t('publicApp.tournament.standings.derivationFormula', {
+                              formula: data.ruleset.scoreFormula,
+                            })}
+                          </p>
+                        )}
+                        {data.ruleset?.label && (
+                          <p className="text-[11px] text-muted">
+                            {t('publicApp.tournament.standings.derivationScoredBy', {
+                              ruleset: data.ruleset.label,
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>

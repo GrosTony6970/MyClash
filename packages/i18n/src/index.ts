@@ -939,6 +939,12 @@ export const en = {
         colScore: 'Score',
         poolRegionLabel: '{pool} standings',
         emptyOverall: 'No standings yet. Results will appear once pool matches are completed.',
+        derivationToggle: 'Show how this ranking was reached',
+        derivationLeader: 'Leads the standings.',
+        derivationBelow: 'Ranked below {name} on {criterion} ({mine} vs {theirs}).',
+        derivationTied: 'Level with {name} on every ranking criterion.',
+        derivationFormula: 'Score = {formula}',
+        derivationScoredBy: 'Scored by {ruleset}',
       },
       finalRanking: {
         colRank: 'Rank',
@@ -7040,6 +7046,12 @@ export const fr = {
         poolRegionLabel: 'Classement {pool}',
         emptyOverall:
           'Aucun classement pour le moment. Les résultats apparaîtront une fois les combats de poule terminés.',
+        derivationToggle: 'Voir comment ce classement a été obtenu',
+        derivationLeader: 'En tête du classement.',
+        derivationBelow: 'Classé derrière {name} sur {criterion} ({mine} contre {theirs}).',
+        derivationTied: 'À égalité avec {name} sur tous les critères de classement.',
+        derivationFormula: 'Score = {formula}',
+        derivationScoredBy: 'Noté selon {ruleset}',
       },
       finalRanking: {
         colRank: 'Rang',
