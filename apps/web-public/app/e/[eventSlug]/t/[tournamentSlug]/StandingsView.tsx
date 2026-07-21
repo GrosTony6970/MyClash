@@ -337,7 +337,6 @@ function OverallTable({
                       type="button"
                       onClick={() => toggle(row.registrationId)}
                       aria-expanded={isExpanded}
-                      aria-label={t('publicApp.tournament.standings.derivationToggle')}
                       className="flex w-full items-center gap-1.5 text-left"
                     >
                       <svg
@@ -366,6 +365,11 @@ function OverallTable({
                           </span>
                         )}
                       </span>
+                      {/* Keeps the fighter's name + club as the button's accessible
+                          name (an aria-label would override them); appends the action. */}
+                      <span className="sr-only">
+                        {t('publicApp.tournament.standings.derivationToggle')}
+                      </span>
                     </button>
                   </td>
                   {orderedColumns.map((c) => (
@@ -382,7 +386,12 @@ function OverallTable({
                   ))}
                 </tr>
                 {isExpanded && (
-                  <tr className={isCut ? 'border-b-2 border-foreground' : 'border-b border-border'}>
+                  <tr
+                    className={[
+                      isCut ? 'border-b-2 border-foreground' : 'border-b border-border',
+                      'last:border-0',
+                    ].join(' ')}
+                  >
                     <td colSpan={2 + orderedColumns.length} className="px-4 pb-3 pt-0.5">
                       <div className="flex flex-col gap-1 text-xs text-foreground-secondary">
                         <p>{derivationSentence(data, row, idx)}</p>

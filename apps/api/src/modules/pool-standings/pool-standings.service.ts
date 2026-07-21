@@ -23,8 +23,10 @@ export type { StandingsRow } from './standings-rows';
  * The ruleset context a fighter page needs to EXPLAIN a placing, projected onto
  * the public standings payload (which otherwise carries only a raw code). The
  * per-column labels for a deciding tiebreak already live in `columns`; this adds
- * the human ruleset name and the score formula's display string (null for a
- * formula ruleset, whose formula is rendered from its AST instead).
+ * the human ruleset name and the score formula's display string. A formula
+ * ruleset renders its AST into that string, and TF_v1 ships a static one, so
+ * `scoreFormula` is null only for a coded ruleset with no formula (e.g.
+ * Generic_PointsCap).
  */
 export interface RulesetDerivationMeta {
   label: string;
