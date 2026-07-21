@@ -55,6 +55,19 @@ export interface FormulaConfig {
   scoreFormula: FormulaNode;
   constants: FormulaConstants;
   tiebreakers: Tiebreaker[];
+  /**
+   * An optional NAMED double-hit penalty, kept out of `scoreFormula` so a
+   * ruleset with a nonlinear penalty (e.g. `doubleHits*(doubleHits-1)/3`)
+   * needn't inline it. When set, it is evaluated per fighter over `doubleHits`
+   * and its result becomes the `doublePenalty` variable the score formula
+   * references; when null, `doublePenalty` stays the flat `constants.doublePenalty`.
+   *
+   * A whitelist KEY (string) or an authored AST — the same `DoublePenaltySpec`
+   * shape TF_v1 uses. Typed structurally (`FormulaNode | string`) rather than
+   * importing `DoublePenaltySpec`, whose module imports this one — the import
+   * would close a cycle.
+   */
+  doublePenaltyFormula?: FormulaNode | string | null;
 }
 
 export interface DerivedFighterStats {
@@ -111,6 +124,7 @@ export const FormulaConfigSchema: z.ZodType<FormulaConfig> = z.object({
   scoreFormula: FormulaNodeSchema,
   constants: FormulaConstantsSchema,
   tiebreakers: z.array(TiebreakerSchema).max(16),
+  doublePenaltyFormula: z.union([z.string(), FormulaNodeSchema]).nullish(),
 });
 
 export function isVariableKey(value: string): value is VariableKey {

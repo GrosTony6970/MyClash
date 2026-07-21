@@ -255,3 +255,114 @@ describe('createFormulaRuleset', () => {
     expect(standings[2]?.registrationId).toBe('C');
   });
 });
+
+describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
+  // The penalty is authored in its own field and referenced by the score
+  // formula as `doublePenalty`, so a nonlinear penalty need not be inlined in
+  // the score. Absent → the flat constant, so a ruleset with no double-hit
+  // penalty is unchanged.
+  function matchWithDoubles(doubles: number): Match {
+    const exchanges: Exchange[] = Array.from({ length: doubles }, (_, i) => ({
+      id: `d${i}`,
+      clientUuid: 'c',
+      matchId: 'm1',
+      sequence: i,
+      type: 'double',
+      occurredAt: '',
+      firstStrikerColor: null,
+      firstStrikeValue: null,
+      afterblowValue: null,
+      noExchangeReason: null,
+      voided: false,
+    }));
+    return {
+      id: 'm1',
+      redRegistrationId: 'A',
+      blueRegistrationId: 'B',
+      rulesetCode: 'custom_dp',
+      rulesetVersion: '1.0.0',
+      status: 'completed',
+      exchanges,
+    } as unknown as Match;
+  }
+
+  // score = victories - doublePenalty. With only doubles, victories = 0, so the
+  // score is exactly -doublePenalty for that fighter's double count.
+  const scoreFormula: FormulaNode = {
+    type: 'binop',
+    op: '-',
+    left: { type: 'var', name: 'victories' },
+    right: { type: 'var', name: 'doublePenalty' },
+  };
+  const constants = { pointsPerVictory: 3, pointsPerTie: 1, pointsPerLoss: 0, doublePenalty: 0 };
+  const regs = [{ id: 'A' }, { id: 'B' }] as unknown as Registration[];
+
+  function scoreForDoubles(config: FormulaConfig, doubles: number): number {
+    const ruleset = createFormulaRuleset('custom_dp', '1.0.0', 'DP', config);
+    const rows = ruleset.computePoolStandings!(
+      { id: 'p1' } as never,
+      [matchWithDoubles(doubles)],
+      regs,
+      {},
+    );
+    return rows.find((r) => r.registrationId === 'A')!.score;
+  }
+
+  it('applies a linear penalty formula through the doublePenalty variable', () => {
+    const config: FormulaConfig = {
+      scoreFormula,
+      constants,
+      tiebreakers: [],
+      doublePenaltyFormula: { type: 'var', name: 'doubleHits' },
+    };
+    // 3 doubles → penalty 3 → score 0 - 3 = -3.
+    expect(scoreForDoubles(config, 3)).toBe(-3);
+  });
+
+  it('applies a nonlinear AST penalty (doubleHits*(doubleHits-1)/2)', () => {
+    const config: FormulaConfig = {
+      scoreFormula,
+      constants,
+      tiebreakers: [],
+      doublePenaltyFormula: {
+        type: 'binop',
+        op: '/',
+        left: {
+          type: 'binop',
+          op: '*',
+          left: { type: 'var', name: 'doubleHits' },
+          right: {
+            type: 'binop',
+            op: '-',
+            left: { type: 'var', name: 'doubleHits' },
+            right: { type: 'literal', value: 1 },
+          },
+        },
+        right: { type: 'literal', value: 2 },
+      },
+    };
+    // 4 doubles → 4*3/2 = 6 → score -6.
+    expect(scoreForDoubles(config, 4)).toBe(-6);
+  });
+
+  it('accepts a whitelist key form for the penalty', () => {
+    const config: FormulaConfig = {
+      scoreFormula,
+      constants,
+      tiebreakers: [],
+      doublePenaltyFormula: 'n*(n-1)/3',
+    };
+    // 3 doubles → 3*2/3 = 2 → score -2.
+    expect(scoreForDoubles(config, 3)).toBe(-2);
+  });
+
+  it('falls back to the flat constant when no penalty formula is set', () => {
+    const config: FormulaConfig = {
+      scoreFormula,
+      constants: { ...constants, doublePenalty: 5 },
+      tiebreakers: [],
+    };
+    // No formula → doublePenalty is the constant 5, regardless of doubles.
+    expect(scoreForDoubles(config, 3)).toBe(-5);
+  });
+});

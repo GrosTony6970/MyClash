@@ -20,6 +20,7 @@ import type {
 } from '../types';
 import { deriveFighterStats } from './derive-stats';
 import { evaluateFormula, type FormulaScope } from './evaluator';
+import { doublePenalty, type DoublePenaltySpec } from '../tf_v1/double-penalty';
 import {
   FORMULA_VARIABLE_KEYS,
   FormulaConfigSchema,
@@ -244,6 +245,13 @@ function buildScope(stats: { [k in VariableKey]?: number }, config: FormulaConfi
     pointsPerVictory: config.constants.pointsPerVictory,
     pointsPerTie: config.constants.pointsPerTie,
     pointsPerLoss: config.constants.pointsPerLoss,
-    doublePenalty: config.constants.doublePenalty,
+    // The named double-penalty sub-formula, evaluated over this fighter's
+    // doubleHits, becomes the `doublePenalty` the score formula references.
+    // Absent → the flat constant (default 0), so a ruleset with no double-hit
+    // penalty is unchanged.
+    doublePenalty:
+      config.doublePenaltyFormula != null
+        ? doublePenalty(stats.doubleHits ?? 0, config.doublePenaltyFormula as DoublePenaltySpec)
+        : config.constants.doublePenalty,
   };
 }
