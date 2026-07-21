@@ -501,7 +501,7 @@
     "apps/web-admin/src/components/league/LeagueRequestsPanel.tsx:58",
     "apps/web-admin/src/components/league/ScoringSystemPreview.tsx:21",
     "apps/web-admin/src/components/organizer-event-context.tsx:93",
-    "apps/web-admin/src/components/rulesets/FormulaEditor.tsx:42",
+    "apps/web-admin/src/components/rulesets/FormulaEditor.tsx:50",
     "apps/web-admin/src/components/rulesets/PenaltyEntriesEditor.tsx:234",
     "apps/web-admin/src/components/rulesets/PenaltyEntriesEditor.tsx:341",
     "apps/web-admin/src/components/rulesets/PenaltyEntriesEditor.tsx:55",

@@ -16,6 +16,14 @@ interface Props {
   value: FormulaNode | null;
   onChange: (next: FormulaNode | null, validationError: string | null) => void;
   disabled?: boolean;
+  /**
+   * The variables offered in the palette. Defaults to the full set, so every
+   * existing mount is unchanged. The double-penalty editor passes a single
+   * variable (`doubleHits`, TF_v1's `n`) so it cannot reference stats that are
+   * meaningless in a penalty term — the parser and AST are variable-agnostic,
+   * only the palette narrows.
+   */
+  variables?: readonly VariableKey[];
 }
 
 const OPERATORS: BinaryOperator[] = ['+', '-', '*', '/'];
@@ -39,7 +47,12 @@ function tokenLabel(t: ReturnType<typeof useI18n>['t'], token: Token): string {
   }
 }
 
-export function FormulaEditor({ value, onChange, disabled }: Props) {
+export function FormulaEditor({
+  value,
+  onChange,
+  disabled,
+  variables = FORMULA_VARIABLE_KEYS,
+}: Props) {
   const { t } = useI18n();
   const [tokens, setTokens] = useState<Token[]>(() => astToTokens(value));
   const [literalDraft, setLiteralDraft] = useState('');
@@ -119,7 +132,7 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
         {t('admin.rulesets.variablesTitle')}
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
-        {FORMULA_VARIABLE_KEYS.map((v) => (
+        {variables.map((v) => (
           <button
             key={v}
             type="button"
