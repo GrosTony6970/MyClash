@@ -87,7 +87,7 @@ export const TF_v1: Ruleset = {
 
   metadata: {
     hasAfterblow: true,
-    defaultAfterblowMode: 'full',
+    defaultAfterblowMode: 'deductive',
     // FFAMHE scores the retaliation at a flat 1 regardless of target — see
     // the ARCHITECTURE.md FAL columns (1-1, 2-1; no 2-2).
     afterblowValuation: 'fixed',

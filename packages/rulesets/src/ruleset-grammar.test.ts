@@ -22,9 +22,10 @@ const config: FormulaConfig = {
 };
 
 describe('every ruleset declares its grammar', () => {
-  it('TF_v1 has afterblow, defaulting to full', () => {
+  it('TF_v1 has afterblow, defaulting to deductive', () => {
     expect(TF_v1.metadata?.hasAfterblow).toBe(true);
-    expect(TF_v1.metadata?.defaultAfterblowMode).toBe('full');
+    // FFAMHE nets the retaliation against the attacker (deductive).
+    expect(TF_v1.metadata?.defaultAfterblowMode).toBe('deductive');
     expect(TF_v1.metadata?.targets).toEqual([
       { name: 'Deep', value: 2 },
       { name: 'Shallow', value: 1 },

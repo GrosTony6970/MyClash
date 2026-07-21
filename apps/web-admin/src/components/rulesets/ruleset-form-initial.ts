@@ -112,7 +112,8 @@ export function rulesetFormInitial(row: RulesetRowLike): {
       afterblowValuation: row.afterblow_valuation ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowValuation,
       afterblowFixedValue:
         row.afterblow_fixed_value ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowFixedValue,
-      afterblowMode: row.afterblow_mode ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowMode,
+      afterblowMode:
+        row.afterblow_mode ?? (isTfV1 ? 'deductive' : DEFAULT_AFTERBLOW_GRAMMAR.afterblowMode),
     },
   };
 }

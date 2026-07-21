@@ -111,7 +111,7 @@ describe('createTournament — seeds scoring_config_json', () => {
 
     const config = seeded();
     expect(config).toBeDefined();
-    expect(config.afterblowMode).toBe('full');
+    expect(config.afterblowMode).toBe('deductive');
     expect(config.buttons.clean.map((b) => b.label)).toEqual(['+2', '+1']);
     expect(config.buttons.afterblow.map((b) => b.label)).toEqual(['2-1', '1-1']);
     expect(config.display.sideColors).toEqual({ red: 'red', blue: 'blue' });
@@ -244,7 +244,7 @@ describe('buildSeededScoringConfig (pure)', () => {
     hasAfterblow: true,
     afterblowValuation: 'fixed' as const,
     afterblowFixedValue: 1,
-    defaultAfterblowMode: 'full' as const,
+    defaultAfterblowMode: 'deductive' as const,
   };
 
   it('produces the federal pad from the grammar alone', () => {
@@ -254,7 +254,7 @@ describe('buildSeededScoringConfig (pure)', () => {
     };
     expect(seed.buttons.clean.map((b) => b.label)).toEqual(['+2', '+1']);
     expect(seed.buttons.afterblow.map((b) => b.label)).toEqual(['2-1', '1-1']);
-    expect(seed.afterblowMode).toBe('full');
+    expect(seed.afterblowMode).toBe('deductive');
   });
 
   it("prefers the resolved config's targets (super-admin tf_config override) over grammar metadata", () => {

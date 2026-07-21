@@ -170,6 +170,9 @@ describe('rulesetFormInitial — afterblow hydration', () => {
     });
     expect(out.afterblow.hasAfterblow).toBe(true);
     expect(out.afterblow.afterblowValuation).toBe('fixed');
+    // FFAMHE is deductive; TF_v1's mode lives in code, so the mirror row is
+    // null and hydration must supply the real value, not the generic 'full'.
+    expect(out.afterblow.afterblowMode).toBe('deductive');
   });
 
   it('defaults a custom ruleset with no afterblow columns to off', () => {

@@ -145,7 +145,9 @@ export const DEFAULT_TOURNAMENT_LOCK_CONFIG: TournamentLockConfig = {
 
 /** Default config — matches TF_v1 standard */
 export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
-  afterblowMode: 'full',
+  // Deductive: FFAMHE nets the retaliation against the attacker. This is the
+  // federal fallback for a null config; TF_v1's seed default matches it.
+  afterblowMode: 'deductive',
   buttons: {
     clean: [
       { label: '+2', value: 2, visible: true },
