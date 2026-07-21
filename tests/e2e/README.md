@@ -80,15 +80,16 @@ recorded-results guard) — keep it for inspection or recreate the env.
 
 ## Status
 
-| #   | Flow                              | Spec                             | State                                    |
-| --- | --------------------------------- | -------------------------------- | ---------------------------------------- |
-| 1   | CSV participant import            | `01-participants-import.spec.ts` | active                                   |
-| 2   | Create tournament (wizard step 1) | `02-create-tournament.spec.ts`   | active                                   |
-| 3   | Create event (wizard)             | `03-create-event.spec.ts`        | step 1 active; full flow `test.fixme`    |
-| 4   | Schedule / programme              | `04-schedule.spec.ts`            | load smoke active; generate `test.fixme` |
-| 5   | Referee auto-assign board         | `05-referee-board.spec.ts`       | active                                   |
-| 6   | Offline scoring sync (PWA)        | `06-offline-sync.spec.ts`        | active                                   |
-| 7   | Populate rich demo event          | `07-populate-event.spec.ts`      | opt-in (`E2E_POPULATE=1`); see above     |
+| #   | Flow                                | Spec                                | State                                    |
+| --- | ----------------------------------- | ----------------------------------- | ---------------------------------------- |
+| 1   | CSV participant import              | `01-participants-import.spec.ts`    | active                                   |
+| 2   | Create tournament (wizard step 1)   | `02-create-tournament.spec.ts`      | active                                   |
+| 3   | Create event (wizard)               | `03-create-event.spec.ts`           | step 1 active; full flow `test.fixme`    |
+| 4   | Schedule / programme                | `04-schedule.spec.ts`               | load smoke active; generate `test.fixme` |
+| 5   | Referee auto-assign board           | `05-referee-board.spec.ts`          | active                                   |
+| 6   | Offline scoring sync (PWA)          | `06-offline-sync.spec.ts`           | active                                   |
+| 7   | Populate rich demo event            | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
+| 8   | Offline scoring on a custom ruleset | `08-offline-custom-ruleset.spec.ts` | active                                   |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
