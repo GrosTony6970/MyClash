@@ -1,5 +1,18 @@
 import type { RankingRule } from '@myclash/rulesets';
 
+/**
+ * Why this fighter is ranked below the one directly above them: the first
+ * rankingChain key on which their values differ, plus both values so a fighter
+ * page can render "placed below X on doubles (2 vs 4)". `direction` tells the
+ * reader which way is better for that key.
+ */
+export interface DecidingTiebreak {
+  key: string;
+  direction: 'asc' | 'desc';
+  mine: number;
+  theirs: number;
+}
+
 export interface StandingsRow {
   rank: number;
   registrationId: string;
@@ -7,6 +20,13 @@ export interface StandingsRow {
   club: { id: string; name: string; abbreviation: string | null } | null;
   status: 'in_progress' | 'completed';
   stats: Record<string, number | string>;
+  /**
+   * The rankingChain key that separated this fighter from the one directly
+   * above them, computed by `applyRanking`. `null` for the leader and for a
+   * fighter tied with the one above on every chain key. Optional so callers
+   * that build rows before ranking need not set it.
+   */
+  decidingTiebreak?: DecidingTiebreak | null;
 }
 
 /** A pool with its members, as embedded by the pools select. */
@@ -47,5 +67,28 @@ export function applyRanking(rows: StandingsRow[], rankingChain: RankingRule[]):
     }
     return 0;
   });
-  return sorted.map((row, i) => ({ ...row, rank: i + 1 }));
+  return sorted.map((row, i) => ({
+    ...row,
+    rank: i + 1,
+    decidingTiebreak: i === 0 ? null : decidingTiebreakBetween(sorted[i - 1]!, row, rankingChain),
+  }));
+}
+
+/**
+ * The rankingChain key that ordered `me` below `above` — the FIRST key on which
+ * they differ, which is exactly the key the sort compared last. Returns null
+ * when they match on every chain key (an exact tie). Runs over applyRanking's
+ * own sorted output and chain, so overall and per-pool views agree.
+ */
+function decidingTiebreakBetween(
+  above: StandingsRow,
+  me: StandingsRow,
+  rankingChain: RankingRule[],
+): DecidingTiebreak | null {
+  for (const rule of rankingChain) {
+    const theirs = Number(above.stats[rule.key] ?? 0);
+    const mine = Number(me.stats[rule.key] ?? 0);
+    if (mine !== theirs) return { key: rule.key, direction: rule.direction, mine, theirs };
+  }
+  return null;
 }
