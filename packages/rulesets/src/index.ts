@@ -135,8 +135,8 @@ export type {
 } from './formula';
 
 // Ruleset lineage (fork-vs-parent bucket diff)
-export { diffRulesetBuckets } from './lineage';
-export type { BucketStatus, BucketDiff, RulesetBucketInputs } from './lineage';
+export { diffRulesetBuckets, normalizeMatchFormat, projectRulesetBuckets } from './lineage';
+export type { BucketStatus, BucketDiff, RulesetBucketInputs, RulesetBucketRow } from './lineage';
 
 // Penalty rulesets
 export {

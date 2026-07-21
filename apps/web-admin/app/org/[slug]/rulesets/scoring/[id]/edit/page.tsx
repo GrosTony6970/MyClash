@@ -3,14 +3,17 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { DEFAULT_FORMULA_CONSTANTS, diffRulesetBuckets } from '@myclash/rulesets';
+import {
+  DEFAULT_FORMULA_CONSTANTS,
+  diffRulesetBuckets,
+  projectRulesetBuckets,
+} from '@myclash/rulesets';
 import type {
   BucketDiff,
   DoublePenaltySpec,
   FormulaConstants,
   FormulaNode,
   RankingRule,
-  RulesetBucketInputs,
   RulesetMetadata,
   Target,
   Tiebreaker,
@@ -133,7 +136,10 @@ export default function OrgEditScoringRulesetPage() {
         if (data.base_code) {
           const baseRow = rows.find((r) => r.code === data.base_code);
           setForkOf(baseRow?.name ?? data.base_code);
-          if (baseRow) setForkDiff(diffRulesetBuckets(bucketInputs(baseRow), bucketInputs(data)));
+          if (baseRow)
+            setForkDiff(
+              diffRulesetBuckets(projectRulesetBuckets(baseRow), projectRulesetBuckets(data)),
+            );
           return;
         }
         const formula =
@@ -262,42 +268,6 @@ export default function OrgEditScoringRulesetPage() {
       )}
     </main>
   );
-}
-
-/** The end-condition fields, pulled into a fixed shape so the base and the fork
- *  compare over the same key set. Without this, a field the fork's config
- *  carries but the base's older tf_config seed lacks (e.g. bestOf) would read as
- *  a change on every fork. */
-function normMatchFormat(mf: Record<string, unknown> | null | undefined): Record<string, unknown> {
-  const m = mf ?? {};
-  return {
-    pointCap: m['pointCap'] ?? null,
-    scoringDirection: m['scoringDirection'] ?? null,
-    maxDoubleHits: m['maxDoubleHits'] ?? null,
-    timeLimitsSeconds: m['timeLimitsSeconds'] ?? null,
-    softClockLimitSeconds: m['softClockLimitSeconds'] ?? null,
-    bestOf: m['bestOf'] ?? null,
-  };
-}
-
-/** Project a row (a fork or its base) into the lineage bucket inputs. A coded
- *  ruleset keeps winBonus / matchFormat / doublePenalty in tf_config and its
- *  grammar in the first-class columns. */
-function bucketInputs(row: OrgCustomRulesetDetail): RulesetBucketInputs {
-  const tf = (row.tf_config ?? {}) as {
-    winBonus?: number;
-    matchFormat?: Record<string, unknown>;
-    doublePenaltyFormula?: unknown;
-  };
-  return {
-    targets: row.targets ?? null,
-    hasAfterblow: row.has_afterblow ?? false,
-    afterblowValuation: row.afterblow_valuation ?? null,
-    afterblowFixedValue: row.afterblow_fixed_value ?? null,
-    matchFormat: normMatchFormat(tf.matchFormat),
-    winBonus: tf.winBonus ?? null,
-    doublePenaltyFormula: tf.doublePenaltyFormula ?? null,
-  };
 }
 
 function LineageLamp({

@@ -476,7 +476,7 @@
     "apps/web-admin/app/org/[slug]/rulesets/penalty/[id]/edit/page.tsx:42",
     "apps/web-admin/app/org/[slug]/rulesets/penalty/new/page.tsx:79",
     "apps/web-admin/app/org/[slug]/rulesets/penalty/page.tsx:38",
-    "apps/web-admin/app/org/[slug]/rulesets/scoring/[id]/edit/page.tsx:73",
+    "apps/web-admin/app/org/[slug]/rulesets/scoring/[id]/edit/page.tsx:76",
     "apps/web-admin/app/org/[slug]/rulesets/scoring/new/page.tsx:97",
     "apps/web-admin/app/org/[slug]/rulesets/scoring/page.tsx:54",
     "apps/web-admin/app/org/[slug]/settings/ai/page.tsx:19",

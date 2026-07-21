@@ -80,3 +80,61 @@ export function diffRulesetBuckets(
   );
   return { grammar, endConditions, ranking, rankingCompatible: ranking === 'unchanged' };
 }
+
+/**
+ * A coded ruleset's stored shape, as far as bucket projection cares: its grammar
+ * lives in first-class (snake_case) columns and its ranking + end-condition
+ * fields live in `tf_config`. Kept as a loose structural record (not a
+ * `@myclash/types` shape) so this package stays dependency-free — both the
+ * web-admin lineage lamps and the server-side re-pin audit project their DB rows
+ * into it.
+ */
+export interface RulesetBucketRow {
+  targets?: ReadonlyArray<{ name: string; value: number }> | null;
+  has_afterblow?: boolean | null;
+  afterblow_valuation?: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value?: number | null;
+  tf_config?: Record<string, unknown> | null;
+}
+
+/**
+ * Pull the end-condition fields into a fixed key set so a base and a fork compare
+ * over the same shape. Without this, a field the fork's config carries but the
+ * base's older `tf_config` seed lacks (e.g. `bestOf`) reads as a change on every
+ * fork, because the bucket diff is key-count sensitive.
+ */
+export function normalizeMatchFormat(
+  mf: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const m = mf ?? {};
+  return {
+    pointCap: m['pointCap'] ?? null,
+    scoringDirection: m['scoringDirection'] ?? null,
+    maxDoubleHits: m['maxDoubleHits'] ?? null,
+    timeLimitsSeconds: m['timeLimitsSeconds'] ?? null,
+    softClockLimitSeconds: m['softClockLimitSeconds'] ?? null,
+    bestOf: m['bestOf'] ?? null,
+  };
+}
+
+/**
+ * Project a coded ruleset row (a fork or its base) into the lineage bucket
+ * inputs, ready for {@link diffRulesetBuckets}. Grammar comes from the
+ * first-class columns; ranking + end conditions come from `tf_config`.
+ */
+export function projectRulesetBuckets(row: RulesetBucketRow): RulesetBucketInputs {
+  const tf = (row.tf_config ?? {}) as {
+    winBonus?: number;
+    matchFormat?: Record<string, unknown>;
+    doublePenaltyFormula?: unknown;
+  };
+  return {
+    targets: row.targets ?? null,
+    hasAfterblow: row.has_afterblow ?? false,
+    afterblowValuation: row.afterblow_valuation ?? null,
+    afterblowFixedValue: row.afterblow_fixed_value ?? null,
+    matchFormat: normalizeMatchFormat(tf.matchFormat),
+    winBonus: tf.winBonus ?? null,
+    doublePenaltyFormula: tf.doublePenaltyFormula ?? null,
+  };
+}
