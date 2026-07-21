@@ -134,6 +134,10 @@ export type {
   VariableKey,
 } from './formula';
 
+// Ruleset lineage (fork-vs-parent bucket diff)
+export { diffRulesetBuckets } from './lineage';
+export type { BucketStatus, BucketDiff, RulesetBucketInputs } from './lineage';
+
 // Penalty rulesets
 export {
   computeDirectPenaltySanction,
