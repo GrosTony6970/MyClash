@@ -247,3 +247,116 @@ describe('RulesetResolver — grammar', () => {
     })();
   });
 });
+
+describe('RulesetResolver — coded forks (base_code)', () => {
+  beforeEach(() => {
+    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
+  });
+
+  it('resolves a base_code fork to the EXACT registry engine (scoring parity by construction)', async () => {
+    // The whole point of the coded fork: it does not re-implement TF_v1's
+    // ranking, it reuses it. Reference-identical to the registered engine, so a
+    // fork with the same tournament config scores bit-identically — the golden
+    // gate stays green because TF_v1 itself is untouched. (=== to dodge the
+    // recursive-schema serializer OOM warned about at the top of this file.)
+    const { resolver } = makeResolver({
+      parent: {
+        id: 'fork1',
+        name: 'FFAMHE (customised by Club X)',
+        is_system: false,
+        base_code: 'TF_v1',
+        base_version: '1.0.0',
+      },
+    });
+    const ruleset = await resolver.resolve('custom_fork_x', '1.0.0');
+    expect(ruleset === TF_v1).toBe(true);
+  });
+
+  it('resolves a base_code fork on the parent-row fallback path too', async () => {
+    // Belt-and-suspenders: even if the snapshot path returned nothing, the
+    // fallback must not build a FormulaRuleset from the fork's empty AST.
+    const { resolver } = makeResolver({
+      row: {
+        code: 'custom_fork_y',
+        version: '1.0.0',
+        name: 'Fork Y',
+        status: 'published',
+        is_system: false,
+        base_code: 'TF_v1',
+        base_version: '1.0.0',
+        score_formula: {},
+        constants: {},
+        tiebreakers: [],
+        targets: null,
+        has_afterblow: true,
+        afterblow_mode: 'deductive',
+        afterblow_valuation: 'fixed',
+        afterblow_fixed_value: 1,
+      },
+    });
+    const ruleset = await resolver.resolve('custom_fork_y', '1.0.0');
+    expect(ruleset === TF_v1).toBe(true);
+  });
+
+  it('normalises a shorthand base_version so a fork of `1` still resolves', async () => {
+    const { resolver } = makeResolver({
+      parent: {
+        id: 'fork2',
+        name: 'Fork',
+        is_system: false,
+        base_code: 'TF_v1',
+        base_version: null,
+      },
+    });
+    // base_version null defaults to '1.0.0', the registry key.
+    const ruleset = await resolver.resolve('custom_fork_z', '1.0.0');
+    expect(ruleset === TF_v1).toBe(true);
+  });
+
+  it('returns null (not a crash) when the fork names an unregistered base', async () => {
+    const { resolver } = makeResolver({
+      parent: {
+        id: 'fork3',
+        name: 'Broken fork',
+        is_system: false,
+        base_code: 'Nonexistent_v9',
+        base_version: '1.0.0',
+      },
+    });
+    expect((await resolver.resolve('custom_fork_broken', '1.0.0')) === null).toBe(true);
+  });
+
+  it('reads base_code + base_version on BOTH resolution paths', async () => {
+    const snapshotPath = makeResolver({
+      parent: { id: 'p', name: 'N', is_system: false, base_code: 'TF_v1', base_version: '1.0.0' },
+    });
+    await snapshotPath.resolver.resolve('custom_snap_fork', '1.0.0');
+    expect(
+      snapshotPath.selects.some((s) => s.includes('base_code') && s.includes('base_version')),
+    ).toBe(true);
+
+    const parentPath = makeResolver({
+      row: {
+        code: 'custom_row_fork',
+        version: '1.0.0',
+        name: 'N',
+        status: 'published',
+        is_system: false,
+        base_code: 'TF_v1',
+        base_version: '1.0.0',
+        score_formula: {},
+        constants: {},
+        tiebreakers: [],
+        targets: null,
+        has_afterblow: false,
+        afterblow_mode: null,
+        afterblow_valuation: null,
+        afterblow_fixed_value: null,
+      },
+    });
+    await parentPath.resolver.resolve('custom_row_fork', '1.0.0');
+    expect(
+      parentPath.selects.some((s) => s.includes('base_code') && s.includes('base_version')),
+    ).toBe(true);
+  });
+});

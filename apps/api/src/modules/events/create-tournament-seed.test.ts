@@ -46,9 +46,31 @@ interface SeededScoringConfig {
   display: { sideColors: { red: string; blue: string }; quickPenalties: number[] };
 }
 
-function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
-  let insertPayload: Record<string, unknown> | null = null;
+// tournaments: the slug existence check (maybeSingle → null) then the INSERT
+// (single). Captures whatever is inserted into `ref.current`.
+function makeTournamentsChain(ref: { current: Record<string, unknown> | null }) {
+  const chain = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    insert: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    single: vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve({ data: { id: 't1', ...ref.current }, error: null }),
+      ),
+  };
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.insert.mockImplementation((payload: Record<string, unknown>) => {
+    ref.current = payload;
+    return chain;
+  });
+  return chain;
+}
 
+function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
+  const ref: { current: Record<string, unknown> | null } = { current: null };
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'events') {
       return makeChain({
@@ -56,36 +78,13 @@ function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
         error: null,
       });
     }
-    if (table === 'custom_rulesets') {
-      // The tf_config override lookup, resolveRulesetGrammar's own read, and
-      // the freeze's parent lookup all read this table; one (possibly null)
-      // row satisfies them.
+    // custom_rulesets: the tf_config override lookup, resolveRulesetGrammar's
+    // read, and the freeze parent lookup all read it; one row satisfies them.
+    if (table === 'custom_rulesets')
       return makeChain({ data: opts?.customRow ?? null, error: null });
-    }
-    if (table === 'custom_ruleset_versions') {
-      // freezeRulesetVersion's UPDATE, reached only for a non-system ruleset.
-      return makeChain({ data: null, error: null });
-    }
-    // tournaments: the slug existence check (maybeSingle → null) then the
-    // INSERT (single). Capture whatever is inserted.
-    const chain = {
-      select: vi.fn(),
-      eq: vi.fn(),
-      insert: vi.fn(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      single: vi
-        .fn()
-        .mockImplementation(() =>
-          Promise.resolve({ data: { id: 't1', ...insertPayload }, error: null }),
-        ),
-    };
-    chain.select.mockReturnValue(chain);
-    chain.eq.mockReturnValue(chain);
-    chain.insert.mockImplementation((payload: Record<string, unknown>) => {
-      insertPayload = payload;
-      return chain;
-    });
-    return chain;
+    // freezeRulesetVersion's UPDATE, reached only for a non-system ruleset.
+    if (table === 'custom_ruleset_versions') return makeChain({ data: null, error: null });
+    return makeTournamentsChain(ref);
   });
 
   const svc = new EventsService(
@@ -93,7 +92,11 @@ function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
     { assertOrgRole } as never,
     {} as never,
   );
-  return { svc, seeded: () => insertPayload?.['scoring_config_json'] as SeededScoringConfig };
+  return {
+    svc,
+    seeded: () => ref.current?.['scoring_config_json'] as SeededScoringConfig,
+    rulesetConfig: () => ref.current?.['ruleset_config'] as Record<string, unknown> | undefined,
+  };
 }
 
 describe('createTournament — seeds scoring_config_json', () => {
@@ -177,6 +180,45 @@ describe('createTournament — seeds scoring_config_json', () => {
     expect(config.buttons.afterblow).toEqual([]);
     expect(config.buttons.clean.map((b) => b.label)).toEqual(['+1']);
     expect(config.afterblowMode).toBe('full');
+  });
+
+  it('seeds a base_code fork from the base defaults + its tf_config overrides', async () => {
+    // A coded fork of TF_v1 (base_code set) must inherit TF_v1's static
+    // defaults and layer the fork's tf_config on top — otherwise a picked fork
+    // would seed an empty config and lose winBonus / matchFormat. The grammar
+    // still comes from the fork's own columns.
+    const { svc, seeded, rulesetConfig } = seedHarness({
+      customRow: {
+        base_code: 'TF_v1',
+        base_version: '1.0.0',
+        tf_config: { winBonus: 5 },
+        is_system: false,
+        targets: [
+          { name: 'Deep', value: 2 },
+          { name: 'Shallow', value: 1 },
+        ],
+        has_afterblow: true,
+        afterblow_mode: 'deductive',
+        afterblow_valuation: 'fixed',
+        afterblow_fixed_value: 1,
+        match_format_defaults: null,
+        double_penalty_formula: null,
+      },
+    });
+    await svc.createTournament(
+      'e1',
+      { slug: 's', name: 'T', rulesetCode: 'custom_ffamhe_fork', rulesetVersion: '1.0.0' } as never,
+      'u1',
+    );
+
+    // ruleset_config = TFv1DefaultConfig merged with the fork's override.
+    const cfg = rulesetConfig();
+    expect(cfg?.['winBonus']).toBe(5); // the override wins
+    expect(cfg?.['doublePenaltyFormula']).toBe('n*(n-1)/3'); // base default survives
+    // scoring pad seeded from the fork's own grammar (the federal pad here).
+    const config = seeded();
+    expect(config.buttons.clean.map((b) => b.label)).toEqual(['+2', '+1']);
+    expect(config.afterblowMode).toBe('deductive');
   });
 
   it('lets an explicit scoringConfig override win, merged like a PATCH', async () => {

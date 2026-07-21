@@ -95,15 +95,39 @@ export async function resolveRulesetConfigDefaults(
   // Unknown to the static map — look it up in custom_rulesets.
   const { data } = await supabase.service
     .from('custom_rulesets')
-    .select('match_format_defaults, double_penalty_formula')
+    .select('match_format_defaults, double_penalty_formula, base_code, base_version, tf_config')
     .eq('code', code)
     .maybeSingle();
   if (!data) return {};
 
   const row = data as {
     match_format_defaults: Record<string, unknown> | null;
-    double_penalty_formula: string | null;
+    // JSONB since migration 0146: a whitelist key string OR an authored AST
+    // object (DoublePenaltySpec). Passed through as-is — the tournament stores
+    // and the engine reads whichever shape it is.
+    double_penalty_formula: unknown;
+    base_code: string | null;
+    base_version: string | null;
+    tf_config: Record<string, unknown> | null;
   };
+
+  // A CODED FORK (base_code set) reuses its base ruleset's coded algorithm, so
+  // it must seed from the base's static defaults with the fork's tf_config
+  // overrides merged on top — the same shape the system path produces, but for
+  // a non-system row. Without this a fork of TF_v1 would seed an empty config
+  // and lose winBonus / matchFormat / doublePenaltyFormula.
+  if (row.base_code) {
+    const baseDefaults = defaultRulesetConfigFor(
+      row.base_code,
+      normalizeRulesetVersion(row.base_version ?? '1.0.0'),
+    );
+    if (Object.keys(baseDefaults).length > 0) {
+      return row.tf_config
+        ? (deepMergeJson(baseDefaults, row.tf_config) as Record<string, unknown>)
+        : baseDefaults;
+    }
+  }
+
   const out: Record<string, unknown> = {};
   if (row.match_format_defaults) out['matchFormat'] = row.match_format_defaults;
   if (row.double_penalty_formula) out['doublePenaltyFormula'] = row.double_penalty_formula;

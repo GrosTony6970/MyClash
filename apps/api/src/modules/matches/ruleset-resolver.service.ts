@@ -77,6 +77,23 @@ export class RulesetResolver {
 
   constructor(private readonly supabase: SupabaseService) {}
 
+  /**
+   * A CODED FORK (migration 0148) is a non-system row that carries `base_code`
+   * — it reuses the coded algorithm of `base_code`@`base_version` rather than a
+   * stored AST. Resolve it straight to the registry engine; its parameter and
+   * grammar overrides live on the tournament (seeded from the fork), not on the
+   * resolved Ruleset, so the engine is exactly the base's. Returns null (rather
+   * than throwing) when the base is not registered, so a corrupt fork degrades
+   * to "unresolvable" like any other unknown ruleset.
+   *
+   * `base_version` is stored canonical at fork time; the `?? '1.0.0'` only
+   * guards a hand-written NULL.
+   */
+  private resolveCodedBase(baseCode: string, baseVersion: string | null): Ruleset | null {
+    const v = baseVersion ?? '1.0.0';
+    return registry.has(baseCode, v) ? registry.get(baseCode, v) : null;
+  }
+
   async resolve(code: string, version: string): Promise<Ruleset | null> {
     const cacheKey = `${code}@${version}`;
     const now = Date.now();
@@ -108,47 +125,55 @@ export class RulesetResolver {
     // 3. Fall back to the parent custom_rulesets row. This handles rows
     //    created before the versions table existed and the "current draft"
     //    case where nothing has been published yet.
+    let ruleset: Ruleset | null = null;
     try {
-      const { data } = await this.supabase.service
-        .from('custom_rulesets')
-        .select(
-          `code, version, name, status, is_system, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
-        )
-        .eq('code', code)
-        .eq('version', version)
-        .maybeSingle();
-      if (!data) {
-        this.cache.set(cacheKey, { ruleset: null, expiresAt: now + CACHE_TTL_MS });
-        return null;
-      }
-      const row = data as {
-        code: string;
-        version: string;
-        name: string;
-        status: string;
-        is_system: boolean;
-        score_formula: unknown;
-        constants: unknown;
-        tiebreakers: unknown;
-        double_penalty_formula: unknown;
-      } & GrammarColumns;
-      if (row.status !== 'published' || row.is_system) {
-        this.cache.set(cacheKey, { ruleset: null, expiresAt: now + CACHE_TTL_MS });
-        return null;
-      }
-      const config: FormulaConfig = {
-        scoreFormula: row.score_formula as FormulaConfig['scoreFormula'],
-        constants: row.constants as FormulaConfig['constants'],
-        tiebreakers: row.tiebreakers as FormulaConfig['tiebreakers'],
-        doublePenaltyFormula: row.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
-      };
-      const ruleset = createFormulaRuleset(row.code, row.version, row.name, config, toGrammar(row));
-      this.cache.set(cacheKey, { ruleset, expiresAt: now + CACHE_TTL_MS });
-      return ruleset;
+      ruleset = await this.resolveFromParentRow(code, version);
     } catch (err) {
       this.logger.warn(`Failed to resolve custom ruleset ${code}@${version}: ${String(err)}`);
       return null;
     }
+    this.cache.set(cacheKey, { ruleset, expiresAt: now + CACHE_TTL_MS });
+    return ruleset;
+  }
+
+  /**
+   * Resolve the parent custom_rulesets row for (code, version). Returns null for
+   * a missing, unpublished, or system row. A coded fork (base_code set) resolves
+   * to its base engine here too, so the fallback is correct independently of
+   * whether the snapshot path already short-circuited.
+   */
+  private async resolveFromParentRow(code: string, version: string): Promise<Ruleset | null> {
+    const { data } = await this.supabase.service
+      .from('custom_rulesets')
+      .select(
+        `code, version, name, status, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
+      )
+      .eq('code', code)
+      .eq('version', version)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as {
+      code: string;
+      version: string;
+      name: string;
+      status: string;
+      is_system: boolean;
+      base_code: string | null;
+      base_version: string | null;
+      score_formula: unknown;
+      constants: unknown;
+      tiebreakers: unknown;
+      double_penalty_formula: unknown;
+    } & GrammarColumns;
+    if (row.status !== 'published' || row.is_system) return null;
+    if (row.base_code) return this.resolveCodedBase(row.base_code, row.base_version);
+    const config: FormulaConfig = {
+      scoreFormula: row.score_formula as FormulaConfig['scoreFormula'],
+      constants: row.constants as FormulaConfig['constants'],
+      tiebreakers: row.tiebreakers as FormulaConfig['tiebreakers'],
+      doublePenaltyFormula: row.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
+    };
+    return createFormulaRuleset(row.code, row.version, row.name, config, toGrammar(row));
   }
 
   /**
@@ -160,12 +185,22 @@ export class RulesetResolver {
   private async resolveFromVersionSnapshot(code: string, version: string): Promise<Ruleset | null> {
     const { data: parent } = await this.supabase.service
       .from('custom_rulesets')
-      .select('id, name, is_system')
+      .select('id, name, is_system, base_code, base_version')
       .eq('code', code)
       .maybeSingle();
     if (!parent) return null;
-    const parentRow = parent as { id: string; name: string; is_system: boolean };
+    const parentRow = parent as {
+      id: string;
+      name: string;
+      is_system: boolean;
+      base_code: string | null;
+      base_version: string | null;
+    };
     if (parentRow.is_system) return null;
+    // A coded fork short-circuits to its base engine before we look for a
+    // formula snapshot — it has none (its AST is empty by construction).
+    if (parentRow.base_code)
+      return this.resolveCodedBase(parentRow.base_code, parentRow.base_version);
 
     const { data } = await this.supabase.service
       .from('custom_ruleset_versions')
