@@ -2530,6 +2530,18 @@ export class EventsService {
     const versionChanged = dtoVersion !== undefined && dtoVersion !== currentVersion;
 
     if (codeChanged || versionChanged) {
+      // Guard the score-changing swap. Standings resolve the tournament's LIVE
+      // ruleset pointer at read time (pool-standings.service.ts), so switching
+      // ruleset once matches are scored silently re-ranks recorded results.
+      // An ordinary settings PATCH must never do that: a mid-event ruleset
+      // change has to go through the audited re-pin flow (typed confirmation +
+      // justification + public disclosure). The score-preserving "Customise
+      // this format" fork re-points via repointTournamentToRuleset, not here,
+      // so it is intentionally unaffected.
+      await this.assertNoRecordedResults(
+        [tournamentId],
+        'This tournament has scored matches, so its ruleset is locked to ordinary edits. Re-pin it through the audited change flow instead.',
+      );
       // Switching ruleset wipes the existing config and seeds defaults from the
       // new ruleset. Caller-provided rulesetConfig in the same PATCH (rare) is
       // merged on top of the new defaults.
