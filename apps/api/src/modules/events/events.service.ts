@@ -22,10 +22,14 @@ import type {
   CreateTournamentDto,
   EventClubQueryDto,
   EventQueryDto,
+  RepinTournamentRulesetDto,
   SubmitEventClubRequestDto,
   UpdateEventDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { diffRulesetBuckets, projectRulesetBuckets } from '@myclash/rulesets';
+import type { BucketDiff } from '@myclash/rulesets';
 import {
   normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
@@ -101,6 +105,9 @@ export class EventsService {
     // Optional so existing direct-construction unit tests keep working; the
     // app provides it via HemaRatingsModule (imported by EventsModule).
     @Optional() private readonly hemaRatings?: HemaRatingsService,
+    // Optional for the same reason; the app provides it via PoolStandingsModule.
+    // Used by the audited ruleset re-pin to snapshot before/after placings.
+    @Optional() private readonly poolStandings?: PoolStandingsService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -2722,6 +2729,221 @@ export class EventsService {
       });
     } catch {
       // swallow — the fork + re-point are the source of truth
+    }
+  }
+
+  /**
+   * Mid-event ruleset RE-PIN: the audited path for changing a tournament's
+   * ruleset after results exist (the ordinary PATCH is blocked once matches are
+   * scored). Org-owner or platform super-admin only; completed/archived
+   * tournaments are hard-blocked. Records an append-only audit — from->to,
+   * per-bucket diff, justification, before/after placings — that the public
+   * event page discloses.
+   */
+  async repinTournamentRuleset(
+    tournamentId: string,
+    dto: RepinTournamentRulesetDto,
+    userId: string,
+  ) {
+    const { data: current, error: readError } = await this.supabase.service
+      .from('tournaments')
+      .select('*')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (readError) throw new BadRequestException(readError.message);
+    if (!current) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+
+    const row = current as Record<string, unknown>;
+    const event = await this.getEventById(row['event_id'] as string);
+    const orgId = (event as { organization_id: string }).organization_id;
+    await this.assertOwnerOrSuperAdmin(orgId, userId);
+
+    const status = String(row['status'] ?? '');
+    if (status === 'completed' || status === 'archived') {
+      throw new ForbiddenException(
+        'A completed or archived tournament cannot be re-pinned — its results are final.',
+      );
+    }
+
+    const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
+    const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
+    const toCode = dto.rulesetCode;
+    const toVersion = normalizeRulesetVersion(dto.rulesetVersion ?? '1.0.0');
+    if (toCode === fromCode && toVersion === fromVersion) {
+      throw new BadRequestException('The tournament already uses this ruleset.');
+    }
+
+    const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
+    const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
+    const diff = await this.computeRulesetBucketDiff(
+      { code: fromCode, version: fromVersion, config: oldConfig },
+      { code: toCode, version: toVersion, config: newDefaults },
+    );
+
+    // Order matters: snapshot on the OLD pointer, re-point, snapshot on the NEW
+    // pointer, then record. The audit insert throws — an unaudited re-pin must
+    // not silently happen.
+    const before = await this.snapshotPlacings(tournamentId);
+    const updated = await this.repointAndReseed(tournamentId, toCode, toVersion, newDefaults);
+    const after = await this.snapshotPlacings(tournamentId);
+    await this.writeRepinAudit({
+      eventId: row['event_id'] as string,
+      tournamentId,
+      actorUserId: userId,
+      fromCode,
+      fromVersion,
+      toCode,
+      toVersion,
+      justification: dto.justification,
+      diff,
+      before,
+      after,
+    });
+    return { tournament: updated, rulesetChange: { fromCode, toCode, diff } };
+  }
+
+  /** Re-pin authorization: platform super-admin, or the org's owner. */
+  private async assertOwnerOrSuperAdmin(orgId: string, userId: string): Promise<void> {
+    if (await this.isSuperAdmin(userId)) return;
+    await this.orgs.assertOrgRole(orgId, userId, 'owner');
+  }
+
+  private async isSuperAdmin(userId: string): Promise<boolean> {
+    const { data } = await this.supabase.service
+      .from('platform_roles')
+      .select('user_id')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin')
+      .maybeSingle();
+    return Boolean(data);
+  }
+
+  /**
+   * Per-bucket diff (grammar / end-conditions / ranking) of the NEW ruleset vs
+   * the OLD — COMPUTED from each side's grammar + config, never self-declared.
+   * Reuses the same projection the web-admin lineage lamps use.
+   */
+  private async computeRulesetBucketDiff(
+    from: { code: string; version: string; config: Record<string, unknown> },
+    to: { code: string; version: string; config: Record<string, unknown> },
+  ): Promise<BucketDiff> {
+    const [fg, tg] = await Promise.all([
+      resolveRulesetGrammar(this.supabase, from.code, from.version),
+      resolveRulesetGrammar(this.supabase, to.code, to.version),
+    ]);
+    return diffRulesetBuckets(
+      projectRulesetBuckets({
+        targets: fg.targets,
+        has_afterblow: fg.hasAfterblow,
+        afterblow_valuation: fg.afterblowValuation,
+        afterblow_fixed_value: fg.afterblowFixedValue,
+        tf_config: from.config,
+      }),
+      projectRulesetBuckets({
+        targets: tg.targets,
+        has_afterblow: tg.hasAfterblow,
+        afterblow_valuation: tg.afterblowValuation,
+        afterblow_fixed_value: tg.afterblowFixedValue,
+        tf_config: to.config,
+      }),
+    );
+  }
+
+  /**
+   * Materialise the overall standings (placings + scores) so the audit's
+   * before/after survives later match edits. A tournament that cannot yet
+   * produce standings records an empty snapshot rather than failing the re-pin.
+   */
+  private async snapshotPlacings(tournamentId: string): Promise<Array<Record<string, unknown>>> {
+    if (!this.poolStandings) {
+      throw new BadRequestException('Standings service unavailable; cannot audit a re-pin.');
+    }
+    try {
+      const standings = await this.poolStandings.getPoolStandings(tournamentId, 'overall');
+      const rows = 'rows' in standings ? standings.rows : [];
+      return rows.map((r) => ({
+        rank: r.rank,
+        registrationId: r.registrationId,
+        displayName: r.displayName,
+        stats: r.stats,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Re-point + reseed ruleset_config from the new ruleset's defaults (the
+   *  score-changing swap, mirroring updateTournament's ruleset-change branch). */
+  private async repointAndReseed(
+    tournamentId: string,
+    toCode: string,
+    toVersion: string,
+    newDefaults: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const rulesetConfig = validateTournamentRulesetConfig(toCode, newDefaults);
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .update({
+        ruleset_code: toCode,
+        ruleset_version: toVersion,
+        ruleset_config: rulesetConfig,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tournamentId)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Re-pin failed');
+    return data as Record<string, unknown>;
+  }
+
+  /** Append the re-pin to its audit table (throws — the audit IS the ceremony)
+   *  and mirror a generic audit_log row for the super-admin trail (best-effort). */
+  private async writeRepinAudit(a: {
+    eventId: string;
+    tournamentId: string;
+    actorUserId: string;
+    fromCode: string;
+    fromVersion: string;
+    toCode: string;
+    toVersion: string;
+    justification: string;
+    diff: BucketDiff;
+    before: Array<Record<string, unknown>>;
+    after: Array<Record<string, unknown>>;
+  }): Promise<void> {
+    const actor = a.actorUserId === 'unknown' ? null : a.actorUserId;
+    const { error } = await this.supabase.service.from('tournament_ruleset_repins').insert({
+      event_id: a.eventId,
+      tournament_id: a.tournamentId,
+      actor_user_id: actor,
+      from_code: a.fromCode,
+      from_version: a.fromVersion,
+      to_code: a.toCode,
+      to_version: a.toVersion,
+      justification: a.justification,
+      bucket_diff: a.diff,
+      ranking_compatible: a.diff.rankingCompatible,
+      placings_before: a.before,
+      placings_after: a.after,
+    });
+    if (error) throw new BadRequestException(`Re-pin audit failed: ${error.message}`);
+    try {
+      await this.supabase.service.from('audit_log').insert({
+        actor_user_id: actor,
+        action: 'tournament.ruleset.repin',
+        entity_type: 'tournament',
+        entity_id: a.tournamentId,
+        payload_json: {
+          eventId: a.eventId,
+          fromCode: a.fromCode,
+          fromVersion: a.fromVersion,
+          toCode: a.toCode,
+          toVersion: a.toVersion,
+          rankingCompatible: a.diff.rankingCompatible,
+        },
+      });
+    } catch {
+      // swallow — tournament_ruleset_repins is the source of truth
     }
   }
 

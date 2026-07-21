@@ -286,3 +286,19 @@ const updateTournamentSchema = z
   })
   .strict();
 export class UpdateTournamentDto extends createZodDto(updateTournamentSchema) {}
+
+// Mid-event ruleset re-pin: a deliberate, audited swap of the tournament's
+// ruleset AFTER results exist. Distinct from the ordinary PATCH (which is now
+// blocked once matches are scored) — this one requires a justification and
+// records an append-only audit with the before/after placings.
+const repinTournamentRulesetSchema = z
+  .object({
+    rulesetCode: z.string().min(1).max(50),
+    // Optional — normalised server-side; defaults to the ruleset's 1.0.0.
+    rulesetVersion: z.string().max(20).optional(),
+    // Mandatory justification (the ceremony). Kept short-but-meaningful so the
+    // public disclosure and the audit trail always carry a real reason.
+    justification: z.string().trim().min(10).max(1000),
+  })
+  .strict();
+export class RepinTournamentRulesetDto extends createZodDto(repinTournamentRulesetSchema) {}

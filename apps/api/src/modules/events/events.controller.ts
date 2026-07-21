@@ -30,6 +30,7 @@ import {
   SubmitEventClubRequestDto,
   UpsertEventThemeDto,
   UpdateEventDto,
+  RepinTournamentRulesetDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
 import { EventThemesService } from './event-themes.service';
@@ -434,6 +435,28 @@ export class EventsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.events.forkCodedRulesetForTournament(id, userId);
+  }
+
+  /**
+   * POST /api/v1/tournaments/:id/repin-ruleset
+   *
+   * Audited mid-event ruleset re-pin: change a tournament's ruleset AFTER
+   * results exist. Requires a justification, is org-owner/super-admin only,
+   * hard-blocks completed/archived, and records an append-only audit with the
+   * before/after placings that the public event page discloses.
+   */
+  @Post('tournaments/:id/repin-ruleset')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Audited mid-event ruleset re-pin (org owner/super-admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async repinTournamentRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RepinTournamentRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.repinTournamentRuleset(id, dto, userId);
   }
 
   /** DELETE /api/v1/tournaments/:id */
