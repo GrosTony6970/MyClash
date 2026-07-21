@@ -9,6 +9,7 @@ import {
   RulesetForm,
   DEFAULT_MATCH_FORMAT_DEFAULTS,
 } from '../../../../../src/components/rulesets/RulesetForm';
+import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../src/components/rulesets/AfterblowGrammarEditor';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -47,6 +48,7 @@ export default function NewRulesetPage() {
           matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
           doublePenaltyFormula: '',
           targets: [...DEFAULT_TARGETS],
+          afterblow: DEFAULT_AFTERBLOW_GRAMMAR,
         }}
         busy={busy}
         submitLabel={t('admin.rulesets.createButton')}

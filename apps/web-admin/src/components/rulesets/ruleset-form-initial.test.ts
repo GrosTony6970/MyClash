@@ -135,3 +135,49 @@ describe('rulesetFormInitial — targets hydration', () => {
     ]);
   });
 });
+
+describe('rulesetFormInitial — afterblow hydration', () => {
+  it('reads a custom ruleset afterblow grammar', () => {
+    const out = rulesetFormInitial({
+      code: 'my_custom',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      targets: [{ name: 'Hit', value: 1 }],
+      has_afterblow: true,
+      afterblow_mode: 'deductive',
+      afterblow_valuation: 'weighted',
+      afterblow_fixed_value: null,
+      tf_config: null,
+    });
+    expect(out.afterblow).toEqual({
+      hasAfterblow: true,
+      afterblowValuation: 'weighted',
+      afterblowFixedValue: 1,
+      afterblowMode: 'deductive',
+    });
+  });
+
+  it('shows TF v1 as using its federal afterblow even with null columns', () => {
+    // TF_v1's grammar lives in code, so its mirror row's columns are null;
+    // the form should still show afterblow-on rather than defaulting it off.
+    const out = rulesetFormInitial({
+      code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: null,
+    });
+    expect(out.afterblow.hasAfterblow).toBe(true);
+    expect(out.afterblow.afterblowValuation).toBe('fixed');
+  });
+
+  it('defaults a custom ruleset with no afterblow columns to off', () => {
+    const out = rulesetFormInitial({
+      code: 'my_custom',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      targets: [{ name: 'Hit', value: 1 }],
+      tf_config: null,
+    });
+    expect(out.afterblow.hasAfterblow).toBe(false);
+  });
+});

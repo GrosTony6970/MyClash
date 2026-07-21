@@ -41,6 +41,10 @@ interface CustomRulesetDetail {
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
   targets: Target[] | null;
+  has_afterblow: boolean | null;
+  afterblow_mode: 'full' | 'deductive' | null;
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
   tf_config: TfConfigOverride | null;
   is_default: boolean;
   is_system: boolean;

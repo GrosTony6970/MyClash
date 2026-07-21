@@ -21,13 +21,18 @@ import {
   type MatchFormatDefaults,
   type TfV1Internals,
 } from './RulesetForm';
+import { DEFAULT_AFTERBLOW_GRAMMAR, type AfterblowGrammar } from './AfterblowGrammarEditor';
 
 export interface RulesetRowLike {
   code: string;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
-  /** The grammar column (migration 0143). Null for a row that predates it. */
+  /** The grammar columns (migrations 0143/0145). Null on a row predating them. */
   targets?: Target[] | null;
+  has_afterblow?: boolean | null;
+  afterblow_mode?: 'full' | 'deductive' | null;
+  afterblow_valuation?: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value?: number | null;
   tf_config?: {
     winBonus?: number;
     targets?: Target[];
@@ -67,6 +72,7 @@ export function rulesetFormInitial(row: RulesetRowLike): {
   doublePenaltyFormula: string;
   tfV1Internals: TfV1Internals;
   targets: Target[];
+  afterblow: AfterblowGrammar;
 } {
   const isTfV1 = row.code === 'TF_v1';
   const tfCfg = row.tf_config ?? {};
@@ -98,5 +104,15 @@ export function rulesetFormInitial(row: RulesetRowLike): {
     doublePenaltyFormula: doublePenaltySource,
     tfV1Internals,
     targets: initialTargets(row, tfCfg),
+    afterblow: {
+      // TF_v1's afterblow grammar is federal and lives in code, not the row —
+      // its columns are null on the mirror. Default to the federal fixed/1/full,
+      // so the read-only-for-TF_v1 controls show its real behaviour.
+      hasAfterblow: row.has_afterblow ?? (isTfV1 ? true : DEFAULT_AFTERBLOW_GRAMMAR.hasAfterblow),
+      afterblowValuation: row.afterblow_valuation ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowValuation,
+      afterblowFixedValue:
+        row.afterblow_fixed_value ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowFixedValue,
+      afterblowMode: row.afterblow_mode ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowMode,
+    },
   };
 }

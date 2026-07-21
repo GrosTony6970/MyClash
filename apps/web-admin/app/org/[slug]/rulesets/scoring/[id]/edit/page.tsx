@@ -40,6 +40,10 @@ interface OrgCustomRulesetDetail {
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
   targets: Target[] | null;
+  has_afterblow: boolean | null;
+  afterblow_mode: 'full' | 'deductive' | null;
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
   /** Super-admin TF v1 overrides — the CANONICAL store for TF v1's
    *  match-format defaults + double-penalty formula. Omitting this field
    *  was the bug where the org view of TF v1 showed the generic 5/180

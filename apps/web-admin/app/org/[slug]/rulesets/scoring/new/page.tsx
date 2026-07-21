@@ -16,6 +16,7 @@ import {
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
+import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../../src/components/rulesets/AfterblowGrammarEditor';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -29,6 +30,7 @@ const BLANK_INITIAL: RulesetFormValue = {
   matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
   doublePenaltyFormula: '',
   targets: [...DEFAULT_TARGETS],
+  afterblow: DEFAULT_AFTERBLOW_GRAMMAR,
 };
 
 /** Row shape (subset) returned by the org catalog list — carries the full
@@ -45,6 +47,10 @@ interface OrgRulesetCatalogRow {
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
   targets: Target[] | null;
+  has_afterblow: boolean | null;
+  afterblow_mode: 'full' | 'deductive' | null;
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
   /** TF v1's canonical match-format store — without it a TF v1 clone
    *  would silently seed from the generic 5/180 defaults. */
   tf_config: RulesetRowLike['tf_config'];
@@ -60,7 +66,7 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
   // Match-format defaults + double-penalty come from the same shared
   // hydration the edit pages use, so cloning TF v1 carries its real
   // configured values (tf_config.matchFormat), not the generic fallbacks.
-  const { matchFormatDefaults, doublePenaltyFormula, targets } = rulesetFormInitial(row);
+  const { matchFormatDefaults, doublePenaltyFormula, targets, afterblow } = rulesetFormInitial(row);
   return {
     name: `${row.name} (copy)`,
     description: row.description ?? '',
@@ -71,6 +77,7 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     matchFormatDefaults,
     doublePenaltyFormula,
     targets,
+    afterblow,
   };
 }
 

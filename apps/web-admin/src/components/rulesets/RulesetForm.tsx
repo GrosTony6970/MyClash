@@ -14,6 +14,11 @@ import {
 import { useI18n } from '../../i18n/I18nProvider';
 import { FormulaEditor } from './FormulaEditor';
 import { TargetsEditor } from './TargetsEditor';
+import {
+  AfterblowGrammarEditor,
+  DEFAULT_AFTERBLOW_GRAMMAR,
+  type AfterblowGrammar,
+} from './AfterblowGrammarEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
 
 export interface MatchFormatDefaults {
@@ -65,6 +70,8 @@ export interface RulesetFormValue {
    *  ruleset. For TF_v1 the caller also mirrors the first two into
    *  tf_config.targetValues so today's scoring is unchanged. */
   targets: Target[];
+  /** Whether the ruleset uses afterblow and how a retaliation is valued. */
+  afterblow: AfterblowGrammar;
   /** Populated for TF_v1 rows (Round 7). Ignored for custom rulesets. */
   tfV1Internals?: TfV1Internals;
 }
@@ -93,7 +100,7 @@ interface Props {
         doublePenaltyFormula: string;
         targets: Target[];
         tfV1Internals?: TfV1Internals;
-      },
+      } & AfterblowGrammar,
   ) => void;
   onCancel?: () => void;
 }
@@ -131,6 +138,9 @@ export function RulesetForm({
   const [targets, setTargets] = useState<Target[]>(
     initial.targets.length > 0 ? initial.targets : [...DEFAULT_TARGETS],
   );
+  const [afterblow, setAfterblow] = useState<AfterblowGrammar>(
+    initial.afterblow ?? DEFAULT_AFTERBLOW_GRAMMAR,
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function setConstant(key: keyof FormulaConstants, value: string) {
@@ -166,6 +176,9 @@ export function RulesetForm({
       matchFormatDefaults,
       doublePenaltyFormula: doublePenaltyFormula.trim(),
       targets,
+      // AfterblowGrammar's keys are exactly the API's grammar fields, so a
+      // flat spread lands them where grammarColumns() reads them.
+      ...afterblow,
       ...(isTfV1 ? { tfV1Internals } : {}),
     });
   }
@@ -255,6 +268,20 @@ export function RulesetForm({
         </h3>
         <p className="mb-3 text-xs text-muted">{t('admin.rulesets.targetsHelp')}</p>
         <TargetsEditor value={targets} onChange={setTargets} disabled={disabled} />
+      </div>
+
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('admin.rulesets.afterblowTitle')}
+        </h3>
+        <p className="mb-3 text-xs text-muted">{t('admin.rulesets.afterblowHelp')}</p>
+        <AfterblowGrammarEditor
+          value={afterblow}
+          onChange={setAfterblow}
+          // TF_v1's afterblow is the federation's, defined in code — shown here
+          // read-only rather than as an editable no-op.
+          disabled={disabled || isTfV1}
+        />
       </div>
 
       {!isTfV1 && (
