@@ -19,16 +19,30 @@ import { normalizeRulesetVersion } from '../events/ruleset-defaults';
 // Re-exported so existing consumers keep importing StandingsRow from here.
 export type { StandingsRow } from './standings-rows';
 
+/**
+ * The ruleset context a fighter page needs to EXPLAIN a placing, projected onto
+ * the public standings payload (which otherwise carries only a raw code). The
+ * per-column labels for a deciding tiebreak already live in `columns`; this adds
+ * the human ruleset name and the score formula's display string (null for a
+ * formula ruleset, whose formula is rendered from its AST instead).
+ */
+export interface RulesetDerivationMeta {
+  label: string;
+  scoreFormula: string | null;
+}
+
 export type PoolStandingsResponse =
   | {
       rulesetCode: string;
       rulesetVersion: string;
+      ruleset: RulesetDerivationMeta;
       columns: StandingsColumn[];
       rows: StandingsRow[];
     }
   | {
       rulesetCode: string;
       rulesetVersion: string;
+      ruleset: RulesetDerivationMeta;
       columns: StandingsColumn[];
       pools: Array<{
         poolId: string;
@@ -98,6 +112,10 @@ export class PoolStandingsService {
 
     const columns = ruleset.standingsColumns;
     const rankingChain = ruleset.rankingChain;
+    const rulesetMeta: RulesetDerivationMeta = {
+      label: ruleset.displayName,
+      scoreFormula: ruleset.metadata?.scoreFormula ?? null,
+    };
 
     // 2. Pool phase for this tournament.
     const { data: phase } = await this.supabase.service
@@ -109,8 +127,8 @@ export class PoolStandingsService {
     const phaseId = (phase as { id?: string } | null)?.id;
     if (!phaseId) {
       return mode === 'overall'
-        ? { rulesetCode, rulesetVersion, columns, rows: [] }
-        : { rulesetCode, rulesetVersion, columns, pools: [] };
+        ? { rulesetCode, rulesetVersion, ruleset: rulesetMeta, columns, rows: [] }
+        : { rulesetCode, rulesetVersion, ruleset: rulesetMeta, columns, pools: [] };
     }
 
     // 3. Pools + members.
@@ -234,13 +252,13 @@ export class PoolStandingsService {
     });
 
     if (mode === 'by-pool') {
-      return { rulesetCode, rulesetVersion, columns, pools: perPool };
+      return { rulesetCode, rulesetVersion, ruleset: rulesetMeta, columns, pools: perPool };
     }
 
     // 6. Overall: flatten + re-rank globally.
     const allRows = perPool.flatMap((p) => p.rows);
     const ranked = applyRanking(allRows, rankingChain);
-    return { rulesetCode, rulesetVersion, columns, rows: ranked };
+    return { rulesetCode, rulesetVersion, ruleset: rulesetMeta, columns, rows: ranked };
   }
 
   private computeRows(
