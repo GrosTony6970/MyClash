@@ -30,6 +30,8 @@ interface CustomRulesetRow {
   public_visibility: boolean;
   submitted_for_review_at: string | null;
   rejected_reason: string | null;
+  /** Set on a coded fork ("Customise this format"): the built-in it reuses. */
+  base_code: string | null;
 }
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -254,6 +256,13 @@ export default function OrgScoringRulesetsPage() {
                 <DataTableRow key={row.id}>
                   <DataTableCell>
                     <div className="font-semibold text-foreground">{row.name}</div>
+                    {row.base_code && (
+                      <div className="mt-0.5 text-xs text-info">
+                        {t('admin.rulesets.forkedFrom', {
+                          base: rows.find((r) => r.code === row.base_code)?.name ?? row.base_code,
+                        })}
+                      </div>
+                    )}
                     {row.description && (
                       <div className="mt-0.5 line-clamp-2 text-xs text-muted">
                         {row.description}
