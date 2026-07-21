@@ -1887,6 +1887,13 @@ export const en = {
       tfRulesetLegend: 'Ruleset (TF v1) — per-tournament overrides',
       tfRulesetHint:
         'Defaults come from the ruleset. Any value you change here is stored as a per-tournament override; use "Reset" to restore the ruleset default.',
+      customiseFormat: 'Customise this format',
+      customiseFormatTitle: 'Customise this format?',
+      customiseFormatConfirm:
+        'This creates a private, editable copy of the format for your organisation and switches this tournament to it. Scores are unchanged — you can then adjust values like the win bonus and target points. The tournament will show your copy instead of the built-in format.',
+      customiseFormatSuccess: 'Format customised — you can now edit its values.',
+      formatLockedHint:
+        'This is a built-in format, locked so every tournament using it scores the same way. Customise it to get an editable copy for your organisation.',
       winBonus: 'Win bonus',
       deepTarget: 'Deep target points',
       shallowTarget: 'Shallow target points',
@@ -7997,6 +8004,14 @@ export const fr = {
       tfRulesetLegend: 'Jeu de règles (TF v1) — surcharges par tournoi',
       tfRulesetHint:
         'Les valeurs par défaut proviennent du jeu de règles. Toute valeur modifiée ici est enregistrée comme une surcharge propre au tournoi ; utilisez « Réinitialiser » pour rétablir la valeur par défaut du jeu de règles.',
+      customiseFormat: 'Personnaliser ce format',
+      customiseFormatTitle: 'Personnaliser ce format ?',
+      customiseFormatConfirm:
+        'Ceci crée une copie privée et modifiable du format pour votre organisation et bascule ce tournoi dessus. Les scores restent inchangés — vous pourrez ensuite ajuster des valeurs comme le bonus de victoire et les points de cible. Le tournoi affichera votre copie au lieu du format intégré.',
+      customiseFormatSuccess:
+        'Format personnalisé — vous pouvez maintenant en modifier les valeurs.',
+      formatLockedHint:
+        "Il s'agit d'un format intégré, verrouillé afin que chaque tournoi qui l'utilise soit noté de la même manière. Personnalisez-le pour obtenir une copie modifiable pour votre organisation.",
       winBonus: 'Bonus de victoire',
       deepTarget: 'Points cible profonde',
       shallowTarget: 'Points cible superficielle',

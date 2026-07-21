@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { buildTfFromRow, type RulesetConfigTF, TF_DEFAULTS } from './buildTfFromRow';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
+import { TfRulesetControls } from '../../_shared/TfRulesetControls';
+import { useCustomiseFormat } from '../../_shared/useCustomiseFormat';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -21,20 +23,21 @@ export function Step4Advanced({
 }) {
   const toast = useToast();
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
+  const [isSystem, setIsSystem] = useState(true);
+  const [baseCode, setBaseCode] = useState<string | null>(null);
   const [tf, setTf] = useState<RulesetConfigTF>(TF_DEFAULTS);
   const [saving, setSaving] = useState(false);
   const [publishOnFinish, setPublishOnFinish] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
+        setIsSystem(row.ruleset_is_system ?? true);
+        setBaseCode(row.ruleset_base_code ?? null);
         // Pluck-not-spread: see buildTfFromRow.ts for the rationale.
-        // The previous spread merge leaked the rulesets-engine
-        // `forfeitPolicy.reasons` blob into the PATCH body and tripped
-        // the API's strict `forbidNonWhitelisted` validator with a 400.
         setTf(
           buildTfFromRow(
             (row.ruleset_config ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
@@ -44,14 +47,20 @@ export function Step4Advanced({
       });
   }, [tournamentId]);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const { customise, customising, confirmDialog } = useCustomiseFormat(tournamentId, load);
+  const tfLike = rulesetCode === 'TF_v1' || baseCode === 'TF_v1';
+
   async function saveAndFinish() {
     setSaving(true);
     try {
       // Always carries the step, so finishing the wizard is recorded even for
-      // a ruleset with no TF-shaped config to send — this PATCH used to have
-      // an empty body entirely for those.
+      // a ruleset with no TF-shaped config to send.
       const body: Record<string, unknown> = { wizardStep: 4 };
-      if (rulesetCode === 'TF_v1') body['rulesetConfig'] = tf;
+      if (tfLike) body['rulesetConfig'] = tf;
       const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
         credentials: 'include',
@@ -91,114 +100,14 @@ export function Step4Advanced({
         <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} />
       </div>
 
-      {rulesetCode === 'TF_v1' && (
-        <fieldset className="space-y-3 rounded-md border border-border p-4">
-          <legend className="px-2 text-xs font-medium text-foreground-secondary">
-            {t('admin.orgTournaments.tfRulesetLegend')}
-          </legend>
-          <NumField
-            label={t('admin.orgTournaments.winBonus')}
-            value={tf.winBonus}
-            defaultValue={TF_DEFAULTS.winBonus}
-            onChange={(v) => setTf({ ...tf, winBonus: v })}
-            onReset={() => setTf({ ...tf, winBonus: TF_DEFAULTS.winBonus })}
-            min={0}
-            max={20}
-          />
-          <NumField
-            label={t('admin.orgTournaments.deepTarget')}
-            value={tf.targetValues.deepTarget}
-            defaultValue={TF_DEFAULTS.targetValues.deepTarget}
-            onChange={(v) => setTf({ ...tf, targetValues: { ...tf.targetValues, deepTarget: v } })}
-            onReset={() =>
-              setTf({
-                ...tf,
-                targetValues: {
-                  ...tf.targetValues,
-                  deepTarget: TF_DEFAULTS.targetValues.deepTarget,
-                },
-              })
-            }
-            min={1}
-            max={10}
-          />
-          <NumField
-            label={t('admin.orgTournaments.shallowTarget')}
-            value={tf.targetValues.shallowTarget}
-            defaultValue={TF_DEFAULTS.targetValues.shallowTarget}
-            onChange={(v) =>
-              setTf({ ...tf, targetValues: { ...tf.targetValues, shallowTarget: v } })
-            }
-            onReset={() =>
-              setTf({
-                ...tf,
-                targetValues: {
-                  ...tf.targetValues,
-                  shallowTarget: TF_DEFAULTS.targetValues.shallowTarget,
-                },
-              })
-            }
-            min={1}
-            max={10}
-          />
-          <BoolField
-            label={t('admin.orgTournaments.forfeitDrawsCount')}
-            value={tf.tournamentPolicy.forfeitDrawsCount}
-            defaultValue={TF_DEFAULTS.tournamentPolicy.forfeitDrawsCount}
-            onChange={(v) =>
-              setTf({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, forfeitDrawsCount: v } })
-            }
-            onReset={() =>
-              setTf({
-                ...tf,
-                tournamentPolicy: {
-                  ...tf.tournamentPolicy,
-                  forfeitDrawsCount: TF_DEFAULTS.tournamentPolicy.forfeitDrawsCount,
-                },
-              })
-            }
-          />
-          <BoolField
-            label={t('admin.orgTournaments.forfeitBeforeFirstMatchDq')}
-            value={tf.tournamentPolicy.forfeitFighterBefore1stMatch}
-            defaultValue={TF_DEFAULTS.tournamentPolicy.forfeitFighterBefore1stMatch}
-            onChange={(v) =>
-              setTf({
-                ...tf,
-                tournamentPolicy: { ...tf.tournamentPolicy, forfeitFighterBefore1stMatch: v },
-              })
-            }
-            onReset={() =>
-              setTf({
-                ...tf,
-                tournamentPolicy: {
-                  ...tf.tournamentPolicy,
-                  forfeitFighterBefore1stMatch:
-                    TF_DEFAULTS.tournamentPolicy.forfeitFighterBefore1stMatch,
-                },
-              })
-            }
-          />
-          <NumField
-            label={t('admin.orgTournaments.disqualifyAfter')}
-            value={tf.tournamentPolicy.disqualifyAfter}
-            defaultValue={TF_DEFAULTS.tournamentPolicy.disqualifyAfter}
-            onChange={(v) =>
-              setTf({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, disqualifyAfter: v } })
-            }
-            onReset={() =>
-              setTf({
-                ...tf,
-                tournamentPolicy: {
-                  ...tf.tournamentPolicy,
-                  disqualifyAfter: TF_DEFAULTS.tournamentPolicy.disqualifyAfter,
-                },
-              })
-            }
-            min={1}
-            max={10}
-          />
-        </fieldset>
+      {tfLike && (
+        <TfRulesetControls
+          tf={tf}
+          onChange={setTf}
+          locked={isSystem}
+          onCustomise={() => void customise()}
+          customising={customising}
+        />
       )}
 
       <div className="flex items-center gap-3 justify-between mt-6">
@@ -226,105 +135,7 @@ export function Step4Advanced({
           {saving ? t('common.saving') : t('organizer.tournaments.wizard.finish')}
         </button>
       </div>
+      {confirmDialog}
     </div>
-  );
-}
-
-function NumField({
-  label,
-  value,
-  defaultValue,
-  onChange,
-  onReset,
-  min,
-  max,
-}: {
-  label: string;
-  value: number;
-  defaultValue?: number;
-  onChange: (v: number) => void;
-  onReset?: () => void;
-  min: number;
-  max: number;
-}) {
-  const modified = defaultValue !== undefined && value !== defaultValue;
-  return (
-    <label className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm text-foreground-secondary">
-        {label}
-        {modified && (
-          <span
-            title={`Default: ${defaultValue}`}
-            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
-          >
-            {t('admin.orgTournaments.modifiedBadge')}
-          </span>
-        )}
-      </span>
-      <span className="flex items-center gap-2">
-        {modified && onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="text-xs text-muted underline hover:text-foreground"
-            title={`Reset to ${defaultValue}`}
-          >
-            {t('admin.orgTournaments.reset')}
-          </button>
-        )}
-        <input
-          type="number"
-          value={value}
-          min={min}
-          max={max}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-24 rounded-md border border-border px-3 py-1.5 text-sm"
-        />
-      </span>
-    </label>
-  );
-}
-
-function BoolField({
-  label,
-  value,
-  defaultValue,
-  onChange,
-  onReset,
-}: {
-  label: string;
-  value: boolean;
-  defaultValue?: boolean;
-  onChange: (v: boolean) => void;
-  onReset?: () => void;
-}) {
-  const modified = defaultValue !== undefined && value !== defaultValue;
-  return (
-    <label className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm text-foreground-secondary">
-        {label}
-        {modified && (
-          <span
-            title={`Default: ${String(defaultValue)}`}
-            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
-          >
-            {t('admin.orgTournaments.modifiedBadge')}
-          </span>
-        )}
-      </span>
-      <span className="flex items-center gap-2">
-        {modified && onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="text-xs text-muted underline hover:text-foreground"
-            title={`Reset to ${String(defaultValue)}`}
-          >
-            {t('admin.orgTournaments.reset')}
-          </button>
-        )}
-        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
-      </span>
-    </label>
   );
 }
