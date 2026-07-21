@@ -2547,6 +2547,15 @@ export const en = {
       versionLabel: 'Version',
       constantsTitle: 'Constants',
       formulaTitle: 'Score formula',
+      targetsTitle: 'Targets',
+      targetsHelp:
+        'What an exchange can be worth. Each target seeds a scoring button on the referee pad.',
+      targetNameHeader: 'Name',
+      targetValueHeader: 'Points',
+      targetNamePlaceholder: 'e.g. Head',
+      addTarget: 'Add target',
+      removeTarget: 'Remove target',
+      targetCountMax: 'Maximum number of targets reached.',
       scoreEquals: 'Score =',
       formulaHelp:
         'Compose a formula using the variable and operator chips. The formula is evaluated per fighter.',
@@ -2661,8 +2670,6 @@ export const en = {
       tfV1InternalsHelp:
         'These values are merged over the TF v1 defaults at tournament creation. The scoring algorithm and ranking chain remain code-defined.',
       tfV1WinBonus: 'Win bonus',
-      tfV1DeepTarget: 'Deep-target value',
-      tfV1ShallowTarget: 'Shallow-target value',
       tabScoring: 'Scoring rulesets',
       tabPenalty: 'Penalty rulesets',
       tabLeague: 'League rulesets',
@@ -8650,6 +8657,15 @@ export const fr = {
       versionLabel: 'Version',
       constantsTitle: 'Constantes',
       formulaTitle: 'Formule de score',
+      targetsTitle: 'Cibles',
+      targetsHelp:
+        'Ce que peut valoir une touche. Chaque cible génère un bouton de score sur la tablette arbitre.',
+      targetNameHeader: 'Nom',
+      targetValueHeader: 'Points',
+      targetNamePlaceholder: 'ex. Tête',
+      addTarget: 'Ajouter une cible',
+      removeTarget: 'Supprimer la cible',
+      targetCountMax: 'Nombre maximum de cibles atteint.',
       scoreEquals: 'Score =',
       formulaHelp:
         'Composer une formule a l aide des chips de variables et d operateurs. La formule est evaluee par tireur.',
@@ -8765,8 +8781,6 @@ export const fr = {
       tfV1InternalsHelp:
         'Ces valeurs sont fusionnees par-dessus les defauts TF v1 a la creation d un tournoi. L algorithme de scoring et la chaine de classement restent definis dans le code.',
       tfV1WinBonus: 'Bonus de victoire',
-      tfV1DeepTarget: 'Valeur cible profonde',
-      tfV1ShallowTarget: 'Valeur cible peu profonde',
       tabScoring: 'Rulesets de score',
       tabPenalty: 'Rulesets de penalites',
       tabLeague: 'Rulesets de ligue',

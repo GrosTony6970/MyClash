@@ -76,3 +76,62 @@ describe('rulesetFormInitial', () => {
     expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
   });
 });
+
+describe('rulesetFormInitial — targets hydration', () => {
+  it('reads a custom ruleset targets column', () => {
+    const out = rulesetFormInitial({
+      code: 'my_custom',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      targets: [
+        { name: 'Head', value: 3 },
+        { name: 'Limb', value: 1 },
+      ],
+      tf_config: null,
+    });
+    expect(out.targets).toEqual([
+      { name: 'Head', value: 3 },
+      { name: 'Limb', value: 1 },
+    ]);
+  });
+
+  it('derives TF v1 targets from the legacy tf_config.targetValues pair', () => {
+    const out = rulesetFormInitial({
+      code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: { targetValues: { deepTarget: 4, shallowTarget: 2 } },
+    });
+    expect(out.targets).toEqual([
+      { name: 'Deep', value: 4 },
+      { name: 'Shallow', value: 2 },
+    ]);
+  });
+
+  it('prefers an explicit tf_config.targets list over the legacy pair', () => {
+    const out = rulesetFormInitial({
+      code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: {
+        targets: [{ name: 'Only', value: 5 }],
+        targetValues: { deepTarget: 4, shallowTarget: 2 },
+      },
+    });
+    expect(out.targets).toEqual([{ name: 'Only', value: 5 }]);
+  });
+
+  it('falls back to the federal default when nothing is stored', () => {
+    const out = rulesetFormInitial({
+      code: 'my_custom',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      targets: null,
+      tf_config: null,
+    });
+    expect(out.targets).toEqual([
+      { name: 'Deep', value: 2 },
+      { name: 'Shallow', value: 1 },
+    ]);
+  });
+});

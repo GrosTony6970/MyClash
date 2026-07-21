@@ -1,16 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import type {
-  FormulaConfig,
-  FormulaConstants,
-  FormulaNode,
-  RankingRule,
-  RulesetMetadata,
-  Tiebreaker,
+import {
+  DEFAULT_TARGETS,
+  type FormulaConfig,
+  type FormulaConstants,
+  type FormulaNode,
+  type RankingRule,
+  type RulesetMetadata,
+  type Target,
+  type Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '../../i18n/I18nProvider';
 import { FormulaEditor } from './FormulaEditor';
+import { TargetsEditor } from './TargetsEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
 
 export interface MatchFormatDefaults {
@@ -58,6 +61,10 @@ export interface RulesetFormValue {
   tiebreakers: Tiebreaker[];
   matchFormatDefaults: MatchFormatDefaults;
   doublePenaltyFormula: string;
+  /** Named targets — the grammar half of the ruleset, authorable for every
+   *  ruleset. For TF_v1 the caller also mirrors the first two into
+   *  tf_config.targetValues so today's scoring is unchanged. */
+  targets: Target[];
   /** Populated for TF_v1 rows (Round 7). Ignored for custom rulesets. */
   tfV1Internals?: TfV1Internals;
 }
@@ -84,6 +91,7 @@ interface Props {
     config: { name: string; description: string; version: string } & FormulaConfig & {
         matchFormatDefaults: MatchFormatDefaults;
         doublePenaltyFormula: string;
+        targets: Target[];
         tfV1Internals?: TfV1Internals;
       },
   ) => void;
@@ -120,6 +128,9 @@ export function RulesetForm({
   const [tfV1Internals, setTfV1Internals] = useState<TfV1Internals>(
     initial.tfV1Internals ?? DEFAULT_TF_V1_INTERNALS,
   );
+  const [targets, setTargets] = useState<Target[]>(
+    initial.targets.length > 0 ? initial.targets : [...DEFAULT_TARGETS],
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function setConstant(key: keyof FormulaConstants, value: string) {
@@ -154,6 +165,7 @@ export function RulesetForm({
       tiebreakers,
       matchFormatDefaults,
       doublePenaltyFormula: doublePenaltyFormula.trim(),
+      targets,
       ...(isTfV1 ? { tfV1Internals } : {}),
     });
   }
@@ -221,6 +233,9 @@ export function RulesetForm({
           <p className="mb-3 text-xs text-foreground-secondary">
             {t('admin.rulesets.tfV1InternalsHelp')}
           </p>
+          {/* Deep/shallow are no longer edited here — they moved to the Targets
+              editor below, which is authorable for every ruleset. winBonus
+              stays, as a ranking (not grammar) input. */}
           <div className="grid gap-3 md:grid-cols-3">
             <NumberInput
               label={t('admin.rulesets.tfV1WinBonus')}
@@ -230,25 +245,17 @@ export function RulesetForm({
               max={20}
               onChange={(n) => setTfV1Internals({ ...tfV1Internals, winBonus: n })}
             />
-            <NumberInput
-              label={t('admin.rulesets.tfV1DeepTarget')}
-              value={tfV1Internals.deepTarget}
-              disabled={disabled}
-              min={1}
-              max={20}
-              onChange={(n) => setTfV1Internals({ ...tfV1Internals, deepTarget: n })}
-            />
-            <NumberInput
-              label={t('admin.rulesets.tfV1ShallowTarget')}
-              value={tfV1Internals.shallowTarget}
-              disabled={disabled}
-              min={1}
-              max={20}
-              onChange={(n) => setTfV1Internals({ ...tfV1Internals, shallowTarget: n })}
-            />
           </div>
         </div>
       )}
+
+      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
+        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('admin.rulesets.targetsTitle')}
+        </h3>
+        <p className="mb-3 text-xs text-muted">{t('admin.rulesets.targetsHelp')}</p>
+        <TargetsEditor value={targets} onChange={setTargets} disabled={disabled} />
+      </div>
 
       {!isTfV1 && (
         <div className="rounded-md border border-border bg-surface p-5 shadow-sm">

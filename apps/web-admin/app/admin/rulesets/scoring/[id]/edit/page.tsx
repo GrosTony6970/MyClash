@@ -10,6 +10,7 @@ import type {
   FormulaNode,
   RankingRule,
   RulesetMetadata,
+  Target,
   Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -39,6 +40,7 @@ interface CustomRulesetDetail {
   tiebreakers: Tiebreaker[];
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
+  targets: Target[] | null;
   tf_config: TfConfigOverride | null;
   is_default: boolean;
   is_system: boolean;
@@ -265,9 +267,14 @@ export default function EditRulesetPage() {
                             version: data.version,
                             tfConfig: {
                               winBonus: data.tfV1Internals?.winBonus,
+                              // Named targets are the source of truth in the
+                              // editor. Mirror the first two into the legacy
+                              // deep/shallow pair TF_v1 scoring reads today, and
+                              // persist the full list for the Phase-2 engine.
+                              targets: data.targets,
                               targetValues: {
-                                deepTarget: data.tfV1Internals?.deepTarget,
-                                shallowTarget: data.tfV1Internals?.shallowTarget,
+                                deepTarget: data.targets[0]?.value,
+                                shallowTarget: data.targets[1]?.value,
                               },
                               matchFormat: data.matchFormatDefaults,
                               doublePenaltyFormula: data.doublePenaltyFormula || undefined,

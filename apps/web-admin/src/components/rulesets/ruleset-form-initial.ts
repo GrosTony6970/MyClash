@@ -14,6 +14,7 @@
  * Pure: no React, no I/O.
  */
 
+import { DEFAULT_TARGETS, type Target } from '@myclash/rulesets';
 import {
   DEFAULT_MATCH_FORMAT_DEFAULTS,
   DEFAULT_TF_V1_INTERNALS,
@@ -25,18 +26,47 @@ export interface RulesetRowLike {
   code: string;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
+  /** The grammar column (migration 0143). Null for a row that predates it. */
+  targets?: Target[] | null;
   tf_config?: {
     winBonus?: number;
+    targets?: Target[];
     targetValues?: { deepTarget?: number; shallowTarget?: number };
     matchFormat?: Partial<MatchFormatDefaults>;
     doublePenaltyFormula?: string;
   } | null;
 }
 
+/**
+ * Named targets for the form, sourced in priority order:
+ *  - an authored `targets` list (custom rulesets, or a TF_v1 tf_config that
+ *    already carries one);
+ *  - TF_v1's legacy `tf_config.targetValues` deep/shallow pair, so a federal
+ *    ruleset shows its two configured values rather than the generic default;
+ *  - the federal default.
+ */
+function initialTargets(
+  row: RulesetRowLike,
+  tfCfg: NonNullable<RulesetRowLike['tf_config']>,
+): Target[] {
+  if (row.targets && row.targets.length > 0) return row.targets;
+  if (tfCfg.targets && tfCfg.targets.length > 0) return tfCfg.targets;
+  const tv = tfCfg.targetValues;
+  if (tv && (typeof tv.deepTarget === 'number' || typeof tv.shallowTarget === 'number')) {
+    const derived: Target[] = [];
+    if (typeof tv.deepTarget === 'number') derived.push({ name: 'Deep', value: tv.deepTarget });
+    if (typeof tv.shallowTarget === 'number')
+      derived.push({ name: 'Shallow', value: tv.shallowTarget });
+    if (derived.length > 0) return derived;
+  }
+  return [...DEFAULT_TARGETS];
+}
+
 export function rulesetFormInitial(row: RulesetRowLike): {
   matchFormatDefaults: MatchFormatDefaults;
   doublePenaltyFormula: string;
   tfV1Internals: TfV1Internals;
+  targets: Target[];
 } {
   const isTfV1 = row.code === 'TF_v1';
   const tfCfg = row.tf_config ?? {};
@@ -67,5 +97,6 @@ export function rulesetFormInitial(row: RulesetRowLike): {
     },
     doublePenaltyFormula: doublePenaltySource,
     tfV1Internals,
+    targets: initialTargets(row, tfCfg),
   };
 }

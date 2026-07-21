@@ -9,6 +9,7 @@ import type {
   FormulaNode,
   RankingRule,
   RulesetMetadata,
+  Target,
   Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
@@ -38,6 +39,7 @@ interface OrgCustomRulesetDetail {
   tiebreakers: Tiebreaker[];
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
+  targets: Target[] | null;
   /** Super-admin TF v1 overrides — the CANONICAL store for TF v1's
    *  match-format defaults + double-penalty formula. Omitting this field
    *  was the bug where the org view of TF v1 showed the generic 5/180

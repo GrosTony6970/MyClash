@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
-import type { FormulaConstants, FormulaNode, Tiebreaker } from '@myclash/rulesets';
+import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
+import type { FormulaConstants, FormulaNode, Target, Tiebreaker } from '@myclash/rulesets';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
@@ -28,6 +28,7 @@ const BLANK_INITIAL: RulesetFormValue = {
   tiebreakers: [{ variable: 'victories', direction: 'desc' }],
   matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
   doublePenaltyFormula: '',
+  targets: [...DEFAULT_TARGETS],
 };
 
 /** Row shape (subset) returned by the org catalog list — carries the full
@@ -43,6 +44,7 @@ interface OrgRulesetCatalogRow {
   tiebreakers: Tiebreaker[] | null;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
+  targets: Target[] | null;
   /** TF v1's canonical match-format store — without it a TF v1 clone
    *  would silently seed from the generic 5/180 defaults. */
   tf_config: RulesetRowLike['tf_config'];
@@ -58,7 +60,7 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
   // Match-format defaults + double-penalty come from the same shared
   // hydration the edit pages use, so cloning TF v1 carries its real
   // configured values (tf_config.matchFormat), not the generic fallbacks.
-  const { matchFormatDefaults, doublePenaltyFormula } = rulesetFormInitial(row);
+  const { matchFormatDefaults, doublePenaltyFormula, targets } = rulesetFormInitial(row);
   return {
     name: `${row.name} (copy)`,
     description: row.description ?? '',
@@ -68,6 +70,7 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     tiebreakers: row.tiebreakers ?? BLANK_INITIAL.tiebreakers,
     matchFormatDefaults,
     doublePenaltyFormula,
+    targets,
   };
 }
 

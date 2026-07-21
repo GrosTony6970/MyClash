@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
+import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
@@ -46,6 +46,7 @@ export default function NewRulesetPage() {
           tiebreakers: [{ variable: 'victories', direction: 'desc' }],
           matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
           doublePenaltyFormula: '',
+          targets: [...DEFAULT_TARGETS],
         }}
         busy={busy}
         submitLabel={t('admin.rulesets.createButton')}
