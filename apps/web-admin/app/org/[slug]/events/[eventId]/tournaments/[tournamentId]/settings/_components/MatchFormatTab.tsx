@@ -39,7 +39,10 @@ const BEST_OF_OPTIONS = [
 export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
   const toast = useToast();
   const [data, setData] = useState<MatchFormat>(DEFAULTS);
-  const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
+  // Whether the ruleset HAS afterblow, driven from its grammar rather than a
+  // `rulesetCode === 'TF_v1'` literal — so the afterblow-mode control survives
+  // a "Customise this format" fork (code becomes custom_*, grammar unchanged).
+  const [hasAfterblow, setHasAfterblow] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -47,7 +50,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!row) return;
-        setRulesetCode(row.ruleset_code);
+        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
         const rc = (row.ruleset_config ?? {}) as { matchFormat?: Partial<MatchFormat> };
         const mf = rc.matchFormat ?? {};
         const sc = (row.scoring_config_json ?? {}) as Partial<MatchFormat>;
@@ -94,8 +97,6 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       setSaving(false);
     }
   }
-
-  const isTfV1 = rulesetCode === 'TF_v1';
 
   return (
     <div className="space-y-4">
@@ -243,7 +244,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         max={20}
       />
 
-      {isTfV1 && (
+      {hasAfterblow && (
         <SelectField
           label={t('organizer.tournaments.settings.afterblowMode')}
           hint={t('organizer.tournaments.settings.afterblowModeHelp')}
