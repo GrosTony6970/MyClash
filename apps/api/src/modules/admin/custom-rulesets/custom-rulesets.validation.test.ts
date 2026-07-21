@@ -48,6 +48,36 @@ describe('validateDoublePenaltyFormula', () => {
   it('rejects a code-execution attempt outright', () => {
     expect(() => validateDoublePenaltyFormula('process.exit(1)')).toThrow(BadRequestException);
   });
+
+  // The column is JSONB since 0146, so the double-penalty can be an authored
+  // AST as well as a whitelist key — the named sub-formula the score references.
+  it('accepts an authored AST and returns it unchanged', () => {
+    const ast = {
+      type: 'binop' as const,
+      op: '/' as const,
+      left: { type: 'var' as const, name: 'doubleHits' as const },
+      right: { type: 'literal' as const, value: 2 },
+    };
+    expect(validateDoublePenaltyFormula(ast)).toEqual(ast);
+  });
+
+  it('accepts the federal formula as an AST', () => {
+    expect(validateDoublePenaltyFormula(FEDERAL_DOUBLE_PENALTY_AST)).toEqual(
+      FEDERAL_DOUBLE_PENALTY_AST,
+    );
+  });
+
+  it('rejects an AST referencing a variable outside the whitelist', () => {
+    expect(() => validateDoublePenaltyFormula({ type: 'var', name: 'n' })).toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a malformed AST node', () => {
+    expect(() => validateDoublePenaltyFormula({ type: 'binop', op: '**' })).toThrow(
+      BadRequestException,
+    );
+  });
 });
 
 // ── grammar columns (migration 0143) ─────────────────────────────────────────

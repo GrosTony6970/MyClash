@@ -1,6 +1,10 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
+import {
+  AuthoredTargetsSchema,
+  DoublePenaltySpecSchema,
+  MAX_AUTHORED_TARGET_VALUE,
+} from '@myclash/rulesets';
 
 /**
  * The grammar half of a ruleset: what an exchange can be and what it is worth.
@@ -43,8 +47,10 @@ const createCustomRulesetSchema = z
     tiebreakers: z.array(tiebreakerSchema),
     // MatchFormatConfig used as the default for tournaments created with this ruleset.
     matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
-    // Free-string expression in terms of `n` (double-hit count). Validated server-side.
-    doublePenaltyFormula: z.string().max(200).optional(),
+    // A named double-hit penalty: a whitelist KEY or an authored FormulaNode
+    // AST over `doubleHits`. The score formula references its result via the
+    // `doublePenalty` variable. Never eval'd — validated + evaluated by us.
+    doublePenaltyFormula: DoublePenaltySpecSchema.optional(),
     ...rulesetGrammarShape,
   })
   .strict();
@@ -59,7 +65,7 @@ const updateCustomRulesetSchema = z
     constants: z.record(z.string(), z.number()).optional(),
     tiebreakers: z.array(tiebreakerSchema).optional(),
     matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
-    doublePenaltyFormula: z.string().max(200).optional(),
+    doublePenaltyFormula: DoublePenaltySpecSchema.optional(),
     // Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
     // (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
     // Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.

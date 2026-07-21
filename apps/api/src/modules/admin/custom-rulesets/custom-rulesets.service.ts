@@ -9,12 +9,15 @@ import {
 import {
   DEFAULT_FORMULA_CONSTANTS,
   DOUBLE_PENALTY_FORMULA_KEYS,
+  DoublePenaltySpecSchema,
+  doublePenalty,
   FormulaConfigSchema,
   FormulaConstantsSchema,
   FormulaNodeSchema,
   TFv1ConfigSchema,
   TiebreakerSchema,
   registry,
+  type DoublePenaltySpec,
   type FormulaConfig,
   type RankingRule,
   type RulesetMetadata,
@@ -36,7 +39,7 @@ export interface CustomRulesetRow {
   constants: Record<string, number>;
   tiebreakers: Array<{ variable: string; direction: 'asc' | 'desc' }>;
   match_format_defaults: Record<string, unknown> | null;
-  double_penalty_formula: string | null;
+  double_penalty_formula: DoublePenaltySpec | null;
   /**
    * Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
    * (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
@@ -81,7 +84,7 @@ export interface CustomRulesetVersionRow {
   constants: Record<string, number>;
   tiebreakers: Array<{ variable: string; direction: 'asc' | 'desc' }>;
   match_format_defaults: Record<string, unknown> | null;
-  double_penalty_formula: string | null;
+  double_penalty_formula: DoublePenaltySpec | null;
   // Grammar columns (migrations 0143/0145). A snapshot must carry these or a
   // tournament pinned to a published version resolves with NO grammar — the
   // resolver reads them off this row (ruleset-resolver.service.ts), so a
@@ -199,17 +202,49 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
  * a formula-kind ruleset expresses its double penalty inside `scoreFormula`
  * using the `doubleHits` variable, so the column is meaningless there.
  */
-export function validateDoublePenaltyFormula(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    throw new BadRequestException('Double-penalty formula cannot be empty');
+export function validateDoublePenaltyFormula(raw: unknown): DoublePenaltySpec {
+  // A whitelist KEY: keep the friendly "allowed values" error rather than a
+  // raw Zod union failure.
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Double-penalty formula cannot be empty');
+    }
+    if (!(DOUBLE_PENALTY_FORMULA_KEYS as readonly string[]).includes(trimmed)) {
+      throw new BadRequestException(
+        `Unsupported double-penalty formula "${trimmed}". Allowed values: ${DOUBLE_PENALTY_FORMULA_KEYS.join(', ')}.`,
+      );
+    }
+    return trimmed as DoublePenaltySpec;
   }
-  if (!(DOUBLE_PENALTY_FORMULA_KEYS as readonly string[]).includes(trimmed)) {
+
+  // An authored AST: Zod-validate the shape, then a finite-output dry-run — the
+  // same sanity check as before, on OUR AST rather than constructed code (rule
+  // #5). FormulaNodeSchema already rejects Infinity literals and evaluateFormula
+  // maps x/0 to 0, so a valid AST is finite by construction; the dry-run guards
+  // against a future grammar change silently reintroducing a non-finite path.
+  let spec: DoublePenaltySpec;
+  try {
+    spec = DoublePenaltySpecSchema.parse(raw);
+  } catch (err) {
     throw new BadRequestException(
-      `Unsupported double-penalty formula "${trimmed}". Allowed values: ${DOUBLE_PENALTY_FORMULA_KEYS.join(', ')}.`,
+      `Invalid double-penalty formula: ${formatDoublePenaltyError(err)}`,
     );
   }
-  return trimmed;
+  for (const n of [0, 1, 2, 5, 10, 50]) {
+    if (!Number.isFinite(doublePenalty(n, spec))) {
+      throw new BadRequestException('Double-penalty formula must produce a finite value');
+    }
+  }
+  return spec;
+}
+
+function formatDoublePenaltyError(err: unknown): string {
+  const issues = (err as { issues?: Array<{ path: Array<string | number>; message: string }> })
+    .issues;
+  return Array.isArray(issues)
+    ? issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')
+    : String(err);
 }
 
 /**

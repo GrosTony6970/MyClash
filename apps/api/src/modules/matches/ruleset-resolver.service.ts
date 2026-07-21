@@ -112,7 +112,7 @@ export class RulesetResolver {
       const { data } = await this.supabase.service
         .from('custom_rulesets')
         .select(
-          `code, version, name, status, is_system, score_formula, constants, tiebreakers, ${GRAMMAR_COLUMNS}`,
+          `code, version, name, status, is_system, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
         )
         .eq('code', code)
         .eq('version', version)
@@ -130,6 +130,7 @@ export class RulesetResolver {
         score_formula: unknown;
         constants: unknown;
         tiebreakers: unknown;
+        double_penalty_formula: unknown;
       } & GrammarColumns;
       if (row.status !== 'published' || row.is_system) {
         this.cache.set(cacheKey, { ruleset: null, expiresAt: now + CACHE_TTL_MS });
@@ -139,6 +140,7 @@ export class RulesetResolver {
         scoreFormula: row.score_formula as FormulaConfig['scoreFormula'],
         constants: row.constants as FormulaConfig['constants'],
         tiebreakers: row.tiebreakers as FormulaConfig['tiebreakers'],
+        doublePenaltyFormula: row.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
       };
       const ruleset = createFormulaRuleset(row.code, row.version, row.name, config, toGrammar(row));
       this.cache.set(cacheKey, { ruleset, expiresAt: now + CACHE_TTL_MS });
@@ -167,7 +169,9 @@ export class RulesetResolver {
 
     const { data } = await this.supabase.service
       .from('custom_ruleset_versions')
-      .select(`version, score_formula, constants, tiebreakers, ${GRAMMAR_COLUMNS}`)
+      .select(
+        `version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
+      )
       .eq('custom_ruleset_id', parentRow.id)
       .eq('version', version)
       .maybeSingle();
@@ -177,11 +181,13 @@ export class RulesetResolver {
       score_formula: unknown;
       constants: unknown;
       tiebreakers: unknown;
+      double_penalty_formula: unknown;
     } & GrammarColumns;
     const config: FormulaConfig = {
       scoreFormula: snap.score_formula as FormulaConfig['scoreFormula'],
       constants: snap.constants as FormulaConfig['constants'],
       tiebreakers: snap.tiebreakers as FormulaConfig['tiebreakers'],
+      doublePenaltyFormula: snap.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
     };
     return createFormulaRuleset(code, snap.version, parentRow.name, config, toGrammar(snap));
   }
