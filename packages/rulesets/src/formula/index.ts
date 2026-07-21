@@ -20,7 +20,10 @@ export type {
 export { evaluateFormula } from './evaluator';
 export type { FormulaScope } from './evaluator';
 
+export { renderFormula } from './render';
+export type { RenderFormulaOptions } from './render';
+
 export { deriveFighterStats } from './derive-stats';
 
-export { createFormulaRuleset } from './ruleset';
+export { createFormulaRuleset, buildFormulaScope } from './ruleset';
 export type { RulesetGrammar } from './ruleset';

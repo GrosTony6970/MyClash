@@ -173,7 +173,7 @@ export function createFormulaRuleset(
 
       const enriched = registrations.map((reg) => {
         const stats = deriveFighterStats(reg.id, matches, exchangesByMatch, afterblowMode);
-        const scope = buildScope(stats, config);
+        const scope = buildFormulaScope(stats, config);
         const score = evaluateFormula(config.scoreFormula, scope);
         return { reg, stats, scope, score };
       });
@@ -229,7 +229,10 @@ export function createFormulaRuleset(
   };
 }
 
-function buildScope(stats: { [k in VariableKey]?: number }, config: FormulaConfig): FormulaScope {
+export function buildFormulaScope(
+  stats: { [k in VariableKey]?: number },
+  config: FormulaConfig,
+): FormulaScope {
   const scope: Partial<FormulaScope> = {};
   for (const key of FORMULA_VARIABLE_KEYS) {
     scope[key] = 0;

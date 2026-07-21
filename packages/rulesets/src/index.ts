@@ -115,9 +115,11 @@ export {
   FormulaNodeSchema,
   TiebreakerSchema,
   createFormulaRuleset,
+  buildFormulaScope,
   type RulesetGrammar,
   deriveFighterStats,
   evaluateFormula,
+  renderFormula,
   isVariableKey,
 } from './formula';
 export type {
@@ -127,6 +129,7 @@ export type {
   FormulaConstants,
   FormulaNode,
   FormulaScope,
+  RenderFormulaOptions,
   Tiebreaker,
   VariableKey,
 } from './formula';
