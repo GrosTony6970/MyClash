@@ -75,10 +75,7 @@ function customRulesetsChain(systemName: string, cap: Captured) {
   return chain;
 }
 
-function forkHarness(
-  current: Record<string, unknown>,
-  systemName = 'TF v1 (Tournois Fédéraux FFAMHE)',
-) {
+function forkHarness(current: Record<string, unknown>, systemName = 'TF_v1') {
   const cap: Captured = { forkInsert: null, repoint: null, audit: null };
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'events') return eventsChain();
@@ -135,7 +132,7 @@ describe('forkCodedRulesetForTournament', () => {
     expect(fork['tf_config']).toEqual({ winBonus: 5, doublePenaltyFormula: 'n*(n-1)/3' });
     // Coded fork: the AST fields are empty; the resolver reads the base engine.
     expect(fork['score_formula']).toEqual({});
-    expect(fork['name']).toBe('TF v1 (Tournois Fédéraux FFAMHE) (customised)');
+    expect(fork['name']).toBe('TF_v1 (customised)');
   });
 
   it('re-points the tournament to the fork WITHOUT touching config or the pad', async () => {

@@ -67,7 +67,7 @@ export interface Tournament {
   name: string;
   weapon: string | null;
   rulesetCode: string;
-  /** Human ruleset name (e.g. "TF v1 (Tournois Fédéraux FFAMHE)"); falls back to the code. */
+  /** Human ruleset name (e.g. "TF_v1"); falls back to the raw code. */
   rulesetLabel?: string;
   status: string;
   color?: string | null;

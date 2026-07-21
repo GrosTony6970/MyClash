@@ -112,7 +112,7 @@ describe('CustomRulesetsService', () => {
           id: 'tf-v1-row',
           code: 'TF_v1',
           version: '1.0.0',
-          name: 'TF (Tournois Fédéraux FFAMHE)',
+          name: 'TF_v1',
           description: null,
           status: 'published',
           score_formula: {},

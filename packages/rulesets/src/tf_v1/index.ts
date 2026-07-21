@@ -59,7 +59,7 @@ const TF_V1_RANKING_CHAIN: RankingRule[] = [
 export const TF_v1: Ruleset = {
   code: 'TF_v1',
   version: '1.0.0',
-  displayName: 'TF (Tournois Fédéraux FFAMHE)',
+  displayName: 'TF_v1',
   configSchema: TFv1ConfigSchema,
 
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {

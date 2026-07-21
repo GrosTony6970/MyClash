@@ -1,7 +1,6 @@
 -- Migration 0050: ruleset cleanup.
 --
--- 1. Rename the TF_v1 row to match the in-code displayName
---    ("TF (Tournois Fédéraux FFAMHE)"). 0038 now seeds this label directly, so
+-- 1. Rename the TF_v1 row's name to "TF_v1". 0038 now seeds this directly, so
 --    this UPDATE is a no-op on a fresh apply — kept only to fix a DB seeded
 --    before that edit (the old label was the mis-expansion "Tournoi de Frappe").
 -- 2. Migrate any tournament still pointing at the ghost
@@ -13,7 +12,7 @@
 -- it was never consumed by scoring.
 
 UPDATE custom_rulesets
-SET name = 'TF v1 (Tournois Fédéraux FFAMHE)',
+SET name = 'TF_v1',
     updated_at = NOW()
 WHERE code = 'TF_v1';
 

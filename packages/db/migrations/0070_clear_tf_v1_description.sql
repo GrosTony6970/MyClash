@@ -1,9 +1,8 @@
 -- 0070_clear_tf_v1_description.sql
 --
--- Drop the auto-seeded description text on the built-in TF v1 ruleset row
--- so the admin edit form shows an empty description field by default
--- (matching the shape of every other ruleset). 0038 now seeds a NULL
--- description directly, so on a fresh apply this is a no-op — it is kept
+-- Historical: this cleared the long explanatory blurb 0038 used to seed on the
+-- built-in TF v1 row. 0038 now seeds a short description directly, which does
+-- NOT match the WHERE below, so on a fresh apply this is a no-op — it is kept
 -- only to clear a DB seeded before that edit (with the old blurb).
 --
 -- Idempotent: the WHERE clause guards on the EXACT original seeded

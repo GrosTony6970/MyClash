@@ -41,11 +41,12 @@ CREATE POLICY "custom_rulesets_super_admin_all" ON custom_rulesets
 INSERT INTO custom_rulesets
   (code, version, name, description, status, score_formula, constants, tiebreakers, is_default, is_system)
 VALUES
-  -- Name matches the in-code displayName ("TF (Tournois Fédéraux FFAMHE)" — TF =
-  -- Tournois Fédéraux, not "Tournoi de Frappe"). Seeded correctly here, so the
-  -- 0050 rename and the 0070 description-clear are now no-ops on a fresh apply.
-  ('TF_v1', '1.0.0', 'TF v1 (Tournois Fédéraux FFAMHE)',
-    NULL,
+  -- Name is the code ("TF_v1"); the human blurb lives in the description
+  -- (TF = Tournois Fédéraux FFAMHE, not the old mis-expansion "Tournoi de
+  -- Frappe"). Seeded correctly here, so the 0050 rename and the 0070
+  -- description-clear are now no-ops on a fresh apply.
+  ('TF_v1', '1.0.0', 'TF_v1',
+    '(Tournois Fédéraux FFAMHE 2025-2026-2027)',
     'published', '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, TRUE, TRUE),
   ('TF_v1_no_afterblow', '1.0.0', 'TF v1 (no afterblow)',
     'TF v1 variant without afterblow scoring.',
