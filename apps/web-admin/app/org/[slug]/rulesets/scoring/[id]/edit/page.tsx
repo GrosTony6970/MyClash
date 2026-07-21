@@ -45,6 +45,8 @@ interface OrgCustomRulesetDetail {
   afterblow_mode: 'full' | 'deductive' | null;
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
+  /** Set on a coded fork ("Customise this format"): the built-in it reuses. */
+  base_code: string | null;
   /** Super-admin TF v1 overrides — the CANONICAL store for TF v1's
    *  match-format defaults + double-penalty formula. Omitting this field
    *  was the bug where the org view of TF v1 showed the generic 5/180
@@ -86,6 +88,10 @@ export default function OrgEditScoringRulesetPage() {
   >(null);
   const [submissionBanner, setSubmissionBanner] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
+  // A coded fork reuses a built-in's algorithm; it has no formula to edit here,
+  // so we show a read-only panel instead of the (empty) authoring form. Holds
+  // the base's human name when this row is a fork.
+  const [forkOf, setForkOf] = useState<string | null>(null);
 
   // Resolve org id once.
   useEffect(() => {
@@ -121,6 +127,10 @@ export default function OrgEditScoringRulesetPage() {
         if (cancelled) return;
         const data = rows.find((r) => r.id === params.id);
         if (!data) throw new Error(t('admin.rulesets.loadOneError'));
+        if (data.base_code) {
+          setForkOf(rows.find((r) => r.code === data.base_code)?.name ?? data.base_code);
+          return;
+        }
         const formula =
           data.score_formula && 'type' in (data.score_formula as object)
             ? (data.score_formula as FormulaNode)
@@ -198,7 +208,18 @@ export default function OrgEditScoringRulesetPage() {
         </div>
       )}
 
-      {loading || !initial ? (
+      {loading ? (
+        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
+      ) : forkOf ? (
+        <div className="rounded-md border border-border bg-surface p-6">
+          <h2 className="font-display font-semibold text-lg text-foreground">
+            {t('admin.rulesets.forkPanelTitle')}
+          </h2>
+          <p className="mt-2 text-sm text-foreground-secondary">
+            {t('admin.rulesets.forkPanelBody', { base: forkOf })}
+          </p>
+        </div>
+      ) : !initial ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
         <RulesetForm

@@ -2786,6 +2786,9 @@ export const en = {
       sourceMine: 'My org',
       sourceShared: 'Shared',
       forkedFrom: 'Customised from {base}',
+      forkPanelTitle: 'Customised format',
+      forkPanelBody:
+        "This is your organisation's private copy of {base}. It scores exactly like {base} — adjust its values (win bonus, target points…) on each tournament that uses it, under the tournament's Advanced settings.",
       colSubmission: 'Submission',
       submissionNotSubmitted: 'Not submitted',
       submissionPending: 'Pending review',
@@ -8921,6 +8924,9 @@ export const fr = {
       sourceMine: 'Mon org',
       sourceShared: 'Partage',
       forkedFrom: 'Personnalisé à partir de {base}',
+      forkPanelTitle: 'Format personnalisé',
+      forkPanelBody:
+        "Il s'agit de la copie privée de {base} de votre organisation. Elle est notée exactement comme {base} — ajustez ses valeurs (bonus de victoire, points de cible…) sur chaque tournoi qui l'utilise, dans les réglages avancés du tournoi.",
       colSubmission: 'Soumission',
       submissionNotSubmitted: 'Non soumis',
       submissionPending: 'En revue',
