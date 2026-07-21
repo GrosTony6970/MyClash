@@ -20,6 +20,7 @@ import type {
 } from '../types';
 import { deriveFighterStats } from './derive-stats';
 import { evaluateFormula, type FormulaScope } from './evaluator';
+import { renderFormula } from './render';
 import { doublePenalty, type DoublePenaltySpec } from '../tf_v1/double-penalty';
 import {
   FORMULA_VARIABLE_KEYS,
@@ -224,7 +225,11 @@ export function createFormulaRuleset(
       doublePenaltyFormula: null,
       deepTargetDefault: null,
       shallowTargetDefault: null,
-      scoreFormula: null,
+      // Render the authored AST to a display string so a custom ruleset shows
+      // its formula on public surfaces, the way TF_v1 ships a static one. Raw
+      // variable keys (no i18n) keep the dependency-free package i18n-free; a UI
+      // may re-render with localized labels via the same renderFormula.
+      scoreFormula: renderFormula(config.scoreFormula),
     },
   };
 }

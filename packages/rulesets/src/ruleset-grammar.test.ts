@@ -45,6 +45,32 @@ describe('every ruleset declares its grammar', () => {
     expect(ruleset.metadata?.hasAfterblow).toBe(false);
   });
 
+  it('renders the authored AST into a display scoreFormula (was null)', () => {
+    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', {
+      scoreFormula: {
+        type: 'binop',
+        op: '/',
+        left: {
+          type: 'binop',
+          op: '*',
+          left: { type: 'var', name: 'victories' },
+          right: { type: 'var', name: 'pointsPerVictory' },
+        },
+        right: {
+          type: 'binop',
+          op: '+',
+          left: { type: 'var', name: 'hitsReceived' },
+          right: { type: 'var', name: 'doublePenalty' },
+        },
+      },
+      constants: DEFAULT_FORMULA_CONSTANTS,
+      tiebreakers: [],
+    });
+    expect(ruleset.metadata?.scoreFormula).toBe(
+      'victories * pointsPerVictory / (hitsReceived + doublePenalty)',
+    );
+  });
+
   it('defaults preserve current behaviour for a row predating the columns', () => {
     // The UI gates afterblow on rulesetCode === 'TF_v1' today, so a custom
     // ruleset has never been offered afterblow controls. `false` keeps it that
