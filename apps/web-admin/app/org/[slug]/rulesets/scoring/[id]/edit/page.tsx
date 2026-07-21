@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
+import { DEFAULT_FORMULA_CONSTANTS, diffRulesetBuckets } from '@myclash/rulesets';
 import type {
+  BucketDiff,
   DoublePenaltySpec,
   FormulaConstants,
   FormulaNode,
   RankingRule,
+  RulesetBucketInputs,
   RulesetMetadata,
   Target,
   Tiebreaker,
@@ -90,8 +92,9 @@ export default function OrgEditScoringRulesetPage() {
   const [readOnly, setReadOnly] = useState(false);
   // A coded fork reuses a built-in's algorithm; it has no formula to edit here,
   // so we show a read-only panel instead of the (empty) authoring form. Holds
-  // the base's human name when this row is a fork.
+  // the base's human name when this row is a fork, plus the per-bucket diff.
   const [forkOf, setForkOf] = useState<string | null>(null);
+  const [forkDiff, setForkDiff] = useState<BucketDiff | null>(null);
 
   // Resolve org id once.
   useEffect(() => {
@@ -128,7 +131,9 @@ export default function OrgEditScoringRulesetPage() {
         const data = rows.find((r) => r.id === params.id);
         if (!data) throw new Error(t('admin.rulesets.loadOneError'));
         if (data.base_code) {
-          setForkOf(rows.find((r) => r.code === data.base_code)?.name ?? data.base_code);
+          const baseRow = rows.find((r) => r.code === data.base_code);
+          setForkOf(baseRow?.name ?? data.base_code);
+          if (baseRow) setForkDiff(diffRulesetBuckets(bucketInputs(baseRow), bucketInputs(data)));
           return;
         }
         const formula =
@@ -211,14 +216,7 @@ export default function OrgEditScoringRulesetPage() {
       {loading ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : forkOf ? (
-        <div className="rounded-md border border-border bg-surface p-6">
-          <h2 className="font-display font-semibold text-lg text-foreground">
-            {t('admin.rulesets.forkPanelTitle')}
-          </h2>
-          <p className="mt-2 text-sm text-foreground-secondary">
-            {t('admin.rulesets.forkPanelBody', { base: forkOf })}
-          </p>
-        </div>
+        <ForkLineagePanel base={forkOf} diff={forkDiff} />
       ) : !initial ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
@@ -263,5 +261,109 @@ export default function OrgEditScoringRulesetPage() {
         />
       )}
     </main>
+  );
+}
+
+/** The end-condition fields, pulled into a fixed shape so the base and the fork
+ *  compare over the same key set. Without this, a field the fork's config
+ *  carries but the base's older tf_config seed lacks (e.g. bestOf) would read as
+ *  a change on every fork. */
+function normMatchFormat(mf: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const m = mf ?? {};
+  return {
+    pointCap: m['pointCap'] ?? null,
+    scoringDirection: m['scoringDirection'] ?? null,
+    maxDoubleHits: m['maxDoubleHits'] ?? null,
+    timeLimitsSeconds: m['timeLimitsSeconds'] ?? null,
+    softClockLimitSeconds: m['softClockLimitSeconds'] ?? null,
+    bestOf: m['bestOf'] ?? null,
+  };
+}
+
+/** Project a row (a fork or its base) into the lineage bucket inputs. A coded
+ *  ruleset keeps winBonus / matchFormat / doublePenalty in tf_config and its
+ *  grammar in the first-class columns. */
+function bucketInputs(row: OrgCustomRulesetDetail): RulesetBucketInputs {
+  const tf = (row.tf_config ?? {}) as {
+    winBonus?: number;
+    matchFormat?: Record<string, unknown>;
+    doublePenaltyFormula?: unknown;
+  };
+  return {
+    targets: row.targets ?? null,
+    hasAfterblow: row.has_afterblow ?? false,
+    afterblowValuation: row.afterblow_valuation ?? null,
+    afterblowFixedValue: row.afterblow_fixed_value ?? null,
+    matchFormat: normMatchFormat(tf.matchFormat),
+    winBonus: tf.winBonus ?? null,
+    doublePenaltyFormula: tf.doublePenaltyFormula ?? null,
+  };
+}
+
+function LineageLamp({
+  changed,
+  label,
+  statusLabel,
+}: {
+  changed: boolean;
+  label: string;
+  statusLabel: string;
+}) {
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      <span
+        aria-hidden="true"
+        className={`h-2 w-2 shrink-0 rounded-full ${changed ? 'bg-warning' : 'bg-success'}`}
+      />
+      <span className="text-foreground-secondary">{label}</span>
+      <span className={`text-xs ${changed ? 'text-warning' : 'text-muted'}`}>· {statusLabel}</span>
+    </li>
+  );
+}
+
+/** Read-only view of a coded fork: what it is, and — computed by diffing, never
+ *  self-declared — which of the three buckets diverge from the base it reuses. */
+function ForkLineagePanel({ base, diff }: { base: string; diff: BucketDiff | null }) {
+  const { t } = useI18n();
+  const status = (s: 'unchanged' | 'changed') =>
+    s === 'changed' ? t('admin.rulesets.lineageCustomised') : t('admin.rulesets.lineageSame');
+  return (
+    <div className="rounded-md border border-border bg-surface p-6">
+      <h2 className="font-display font-semibold text-lg text-foreground">
+        {t('admin.rulesets.forkPanelTitle')}
+      </h2>
+      <p className="mt-2 text-sm text-foreground-secondary">
+        {t('admin.rulesets.forkPanelBody', { base })}
+      </p>
+      {diff && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+            {t('admin.rulesets.lineageHeading', { base })}
+          </p>
+          <ul className="space-y-1">
+            <LineageLamp
+              changed={diff.grammar === 'changed'}
+              label={t('admin.rulesets.lineageGrammar')}
+              statusLabel={status(diff.grammar)}
+            />
+            <LineageLamp
+              changed={diff.endConditions === 'changed'}
+              label={t('admin.rulesets.lineageEndConditions')}
+              statusLabel={status(diff.endConditions)}
+            />
+            <LineageLamp
+              changed={diff.ranking === 'changed'}
+              label={t('admin.rulesets.lineageRanking')}
+              statusLabel={status(diff.ranking)}
+            />
+          </ul>
+          {!diff.rankingCompatible && (
+            <p className="mt-3 rounded bg-warning/10 px-3 py-2 text-xs text-warning">
+              {t('admin.rulesets.lineageRankingWarning', { base })}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
