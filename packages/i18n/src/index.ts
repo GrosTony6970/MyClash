@@ -963,6 +963,10 @@ export const en = {
       },
       backToEventHome: 'Back to event home',
       recapTitle: 'Recap',
+      rulesetChangedTitle: 'Ruleset changed during this tournament',
+      rulesetChangedFromTo: 'Changed from {from} to {to}',
+      rulesetChangedReason: 'Reason',
+      rulesetChangedRankingAffected: 'This change affected how fighters are ranked.',
       poolMatchesSearch: 'Search matches (fighter, round, club…)',
       poolMatchesNoResults: 'No matches found.',
       participants: {
@@ -7095,6 +7099,10 @@ export const fr = {
       },
       backToEventHome: "Retour à l'accueil de l'événement",
       recapTitle: 'Recap',
+      rulesetChangedTitle: 'Règlement modifié pendant ce tournoi',
+      rulesetChangedFromTo: 'Changé de {from} à {to}',
+      rulesetChangedReason: 'Motif',
+      rulesetChangedRankingAffected: 'Ce changement a modifié le classement des tireurs.',
       poolMatchesSearch: 'Rechercher un match (tireur, manche, club…)',
       poolMatchesNoResults: 'Aucun match trouvé.',
       participants: {

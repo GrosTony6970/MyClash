@@ -256,6 +256,29 @@ export default async function TournamentPage({ params }: Props) {
         </div>
       </div>
 
+      {tournament.rulesetRepin && (
+        <section className="mb-6 rounded-xl border border-warning/30 bg-warning/10 p-5">
+          <h2 className="mb-1 font-display text-lg font-semibold text-warning">
+            {t('publicApp.tournament.rulesetChangedTitle')}
+          </h2>
+          <p className="text-sm text-foreground-secondary">
+            {t('publicApp.tournament.rulesetChangedFromTo', {
+              from: tournament.rulesetRepin.fromLabel,
+              to: tournament.rulesetRepin.toLabel,
+            })}
+          </p>
+          <p className="mt-2 text-sm text-foreground-secondary">
+            <span className="font-medium">{t('publicApp.tournament.rulesetChangedReason')}:</span>{' '}
+            {tournament.rulesetRepin.justification}
+          </p>
+          {!tournament.rulesetRepin.rankingCompatible && (
+            <p className="mt-2 text-sm font-medium text-warning">
+              {t('publicApp.tournament.rulesetChangedRankingAffected')}
+            </p>
+          )}
+        </section>
+      )}
+
       {recap && (
         <section className="mb-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h2 className="mb-2 font-display text-lg font-semibold text-foreground">

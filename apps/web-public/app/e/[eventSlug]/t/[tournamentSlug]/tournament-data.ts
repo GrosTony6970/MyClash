@@ -62,6 +62,16 @@ export interface BracketSlot {
   referees?: PoolReferee[];
 }
 
+/** Public disclosure of an audited mid-event ruleset re-pin (the reason is
+ *  shown publicly by design — a re-pin is never silent). */
+export interface RulesetRepinDisclosure {
+  changedAt: string;
+  fromLabel: string;
+  toLabel: string;
+  justification: string;
+  rankingCompatible: boolean;
+}
+
 export interface Tournament {
   id: string;
   name: string;
@@ -71,6 +81,8 @@ export interface Tournament {
   rulesetLabel?: string;
   status: string;
   color?: string | null;
+  /** Present when the tournament's ruleset was re-pinned mid-event. */
+  rulesetRepin?: RulesetRepinDisclosure | null;
 }
 
 export interface TournamentData {

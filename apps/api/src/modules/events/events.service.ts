@@ -963,8 +963,12 @@ export class EventsService {
     const tournamentStatus = (tournament as { status: string }).status;
     const publicTournamentStatuses = ['published', 'running', 'completed'];
     const tournamentId = (tournament as { id: string }).id;
+    const rulesetRepin = await this.loadLatestRulesetRepin(tournamentId);
     const tournamentHeader: Record<string, unknown> = {
       id: tournament['id'],
+      // Public disclosure of an audited mid-event ruleset re-pin (null when the
+      // tournament was never re-pinned). Never silent — see the re-pin ceremony.
+      rulesetRepin,
       name: tournament['name'],
       weapon: tournament['weapon'],
       rulesetCode: tournament['ruleset_code'],
@@ -2965,6 +2969,48 @@ export class EventsService {
     } catch {
       // swallow — tournament_ruleset_repins is the source of truth
     }
+  }
+
+  /**
+   * The latest audited ruleset re-pin for a tournament, projected for PUBLIC
+   * disclosure on the event page: what changed (human labels), the organiser's
+   * reason, and whether rankings were affected. Null when never re-pinned.
+   * Read server-side (service_role) — the audit table is not anon-readable, so
+   * the API is the disclosure surface.
+   */
+  private async loadLatestRulesetRepin(
+    tournamentId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const { data } = await this.supabase.service
+      .from('tournament_ruleset_repins')
+      .select(
+        'from_code, from_version, to_code, to_version, justification, ranking_compatible, created_at',
+      )
+      .eq('tournament_id', tournamentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as {
+      from_code: string;
+      from_version: string;
+      to_code: string;
+      to_version: string;
+      justification: string;
+      ranking_compatible: boolean;
+      created_at: string;
+    };
+    const [fromLabel, toLabel] = await Promise.all([
+      resolveRulesetLabel(this.supabase, row.from_code, row.from_version),
+      resolveRulesetLabel(this.supabase, row.to_code, row.to_version),
+    ]);
+    return {
+      changedAt: row.created_at,
+      fromLabel,
+      toLabel,
+      justification: row.justification,
+      rankingCompatible: row.ranking_compatible,
+    };
   }
 
   async deleteTournament(tournamentId: string, userId: string) {
