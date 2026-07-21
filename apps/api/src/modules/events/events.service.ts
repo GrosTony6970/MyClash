@@ -28,6 +28,7 @@ import type {
   UpdateTournamentDto,
 } from './dto/events.dto';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { diffRulesetBuckets, projectRulesetBuckets } from '@myclash/rulesets';
 import type { BucketDiff } from '@myclash/rulesets';
 import {
@@ -108,6 +109,9 @@ export class EventsService {
     // Optional for the same reason; the app provides it via PoolStandingsModule.
     // Used by the audited ruleset re-pin to snapshot before/after placings.
     @Optional() private readonly poolStandings?: PoolStandingsService,
+    // Optional for the same reason; provided via RulesetResolverModule. The
+    // re-pin uses it to REJECT a target ruleset that won't resolve for scoring.
+    @Optional() private readonly rulesetResolver?: RulesetResolver,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -2771,6 +2775,22 @@ export class EventsService {
     const toVersion = normalizeRulesetVersion(dto.rulesetVersion ?? '1.0.0');
     if (toCode === fromCode && toVersion === fromVersion) {
       throw new BadRequestException('The tournament already uses this ruleset.');
+    }
+
+    // Reject a target that will NOT resolve for scoring/standings before any
+    // mutation. resolveRulesetConfigDefaults + validateTournamentRulesetConfig
+    // will happily reseed a TF-shaped config for an unknown/typo code or a
+    // still-draft custom ruleset, the re-point would commit, and then every
+    // standings read 400s (the after-snapshot's resolver error is swallowed) —
+    // a live tournament silently bricked behind a 200. The fork path guards its
+    // precondition the same way (isSystemRuleset).
+    if (!this.rulesetResolver) {
+      throw new BadRequestException('Ruleset resolver unavailable; cannot re-pin.');
+    }
+    if (!(await this.rulesetResolver.resolve(toCode, toVersion))) {
+      throw new BadRequestException(
+        `The selected ruleset (${toCode} ${toVersion}) is not available to re-pin to — publish it first.`,
+      );
     }
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};

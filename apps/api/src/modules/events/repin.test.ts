@@ -28,6 +28,8 @@ interface Captured {
 interface HarnessOpts {
   current: Record<string, unknown>;
   isSuperAdmin?: boolean;
+  /** false => the target ruleset does not resolve (unknown/draft/wrong version). */
+  resolverResolves?: boolean;
   standingsRows?: Array<{
     rank: number;
     registrationId: string;
@@ -88,6 +90,9 @@ function harness(opts: HarnessOpts) {
   const poolStandings = {
     getPoolStandings: vi.fn().mockResolvedValue({ rows: opts.standingsRows ?? [] }),
   };
+  const rulesetResolver = {
+    resolve: vi.fn().mockResolvedValue(opts.resolverResolves === false ? null : {}),
+  };
   const svc = new EventsService(
     { service: { from } } as never,
     { assertOrgRole } as never,
@@ -96,8 +101,9 @@ function harness(opts: HarnessOpts) {
     undefined,
     undefined,
     poolStandings as never,
+    rulesetResolver as never,
   );
-  return { svc, cap, poolStandings };
+  return { svc, cap, poolStandings, rulesetResolver };
 }
 
 const RUNNING_TF = {
@@ -109,9 +115,10 @@ const RUNNING_TF = {
   ruleset_config: { winBonus: 3 },
 };
 
+const REPIN_JUSTIFICATION = 'Wrong ruleset selected during setup; correcting to points cap.';
 const DTO = {
   rulesetCode: 'Generic_PointsCap',
-  justification: 'Wrong ruleset selected during setup; correcting to points cap.',
+  justification: REPIN_JUSTIFICATION,
 } as never;
 
 describe('repinTournamentRuleset', () => {
@@ -142,7 +149,7 @@ describe('repinTournamentRuleset', () => {
     const audit = cap.repinInsert!;
     expect(audit['from_code']).toBe('TF_v1');
     expect(audit['to_code']).toBe('Generic_PointsCap');
-    expect(audit['justification']).toBe(DTO.justification);
+    expect(audit['justification']).toBe(REPIN_JUSTIFICATION);
     expect(typeof audit['ranking_compatible']).toBe('boolean');
     expect(audit['bucket_diff']).toMatchObject({
       grammar: expect.any(String),
@@ -179,6 +186,17 @@ describe('repinTournamentRuleset', () => {
         'u1',
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a re-pin to a target ruleset that does not resolve, before any mutation', async () => {
+    // e.g. a typo code, a still-draft custom ruleset, or a wrong version — the
+    // resolver returns null, so the live tournament must not be bricked.
+    const { svc, cap } = harness({ current: RUNNING_TF, resolverResolves: false });
+    await expect(svc.repinTournamentRuleset('t1', DTO, 'u1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(cap.tournamentUpdate).toBeNull();
+    expect(cap.repinInsert).toBeNull();
   });
 
   it('allows a super-admin who is not the org owner', async () => {
