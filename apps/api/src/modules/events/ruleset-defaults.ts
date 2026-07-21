@@ -304,6 +304,27 @@ export function isSystemRuleset(code: string, version: string): boolean {
 }
 
 /**
+ * The human display name of a ruleset, for public surfaces that must not render
+ * a raw code (no-raw-IDs-in-UI). Built-ins come from the registry; custom rows
+ * from `custom_rulesets.name`. Falls back to the code itself if nothing resolves
+ * — a label is display-only, never load-bearing, so it degrades quietly.
+ */
+export async function resolveRulesetLabel(
+  supabase: SupabaseService,
+  code: string,
+  version: string,
+): Promise<string> {
+  const v = normalizeRulesetVersion(version);
+  if (registry.has(code, v)) return registry.get(code, v).displayName;
+  const { data } = await supabase.service
+    .from('custom_rulesets')
+    .select('name')
+    .eq('code', code)
+    .maybeSingle();
+  return (data as { name: string } | null)?.name ?? code;
+}
+
+/**
  * The `custom_rulesets` INSERT payload for a CODED FORK (migration 0148): a
  * private, org-owned copy of a system ruleset that reuses its coded algorithm
  * (`base_code`) and carries the operator's captured parameters (`tfConfig`) and

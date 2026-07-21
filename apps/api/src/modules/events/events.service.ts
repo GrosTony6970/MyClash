@@ -40,6 +40,7 @@ import {
   normalizeRulesetVersion,
   resolveRulesetConfigDefaults,
   resolveRulesetGrammar,
+  resolveRulesetLabel,
 } from './ruleset-defaults';
 
 /**
@@ -928,12 +929,18 @@ export class EventsService {
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, ruleset_code, status, logo_url, color')
+      .select('id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color')
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
     if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
+
+    const rulesetLabel = await resolveRulesetLabel(
+      this.supabase,
+      tournament['ruleset_code'] as string,
+      (tournament['ruleset_version'] as string | null) ?? '1',
+    );
 
     // Tournament status is the canonical public gate. When the
     // tournament hasn't been published yet, the public page shows
@@ -950,6 +957,7 @@ export class EventsService {
       name: tournament['name'],
       weapon: tournament['weapon'],
       rulesetCode: tournament['ruleset_code'],
+      rulesetLabel,
       status: tournament['status'],
       logoUrl: (tournament['logo_url'] as string | null) ?? null,
       // Optional brand color token (e.g. 'red', 'blue'). The public

@@ -67,6 +67,8 @@ export interface Tournament {
   name: string;
   weapon: string | null;
   rulesetCode: string;
+  /** Human ruleset name (e.g. "TF v1 (Tournoi de Frappe)"); falls back to the code. */
+  rulesetLabel?: string;
   status: string;
   color?: string | null;
 }

@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   );
   return {
     title: `${data.tournament.name} · MyClash`,
-    description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetCode}`,
+    description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
   };
 }
 
@@ -249,7 +249,7 @@ export default async function TournamentPage({ params }: Props) {
           </h1>
           <p className="mt-0.5 text-sm text-muted">
             {tournament.weapon && `${tournament.weapon} · `}
-            {tournament.rulesetCode}
+            {tournament.rulesetLabel ?? tournament.rulesetCode}
             {fighterCount > 0 &&
               ` · ${t('publicApp.tournament.fighterCount', { count: fighterCount })}`}
           </p>
