@@ -1898,6 +1898,19 @@ export const en = {
       customiseFormatConfirm:
         'This creates a private, editable copy of the format for your organisation and switches this tournament to it. Scores are unchanged — you can then adjust values like the win bonus and target points. The tournament will show your copy instead of the built-in format.',
       customiseFormatSuccess: 'Format customised — you can now edit its values.',
+      changeRuleset: 'Change ruleset',
+      changeRulesetSuccess: 'Ruleset changed.',
+      repinRulesetTitle: 'Re-pin the tournament ruleset?',
+      repinRulesetWarning:
+        'This tournament already has scored matches. Changing its ruleset re-ranks those results under the new rules. The change is recorded with your reason and disclosed publicly on the event page — it is never silent.',
+      repinRulesetFromTo: 'From {from} to {to}',
+      repinRulesetJustificationLabel: 'Reason for the change',
+      repinRulesetJustificationPlaceholder:
+        'Explain why the ruleset is changing — this is shown publicly (at least 10 characters).',
+      repinRulesetConfirm: 'Re-pin ruleset',
+      repinRulesetSuccess: 'Ruleset re-pinned — the change is recorded and disclosed.',
+      repinRulesetOwnerOnly:
+        'Only an organisation owner or a super-admin can re-pin a ruleset once results exist.',
       formatLockedHint:
         'This is a built-in format, locked so every tournament using it scores the same way. Customise it to get an editable copy for your organisation.',
       winBonus: 'Win bonus',
@@ -8034,6 +8047,19 @@ export const fr = {
         'Ceci crée une copie privée et modifiable du format pour votre organisation et bascule ce tournoi dessus. Les scores restent inchangés — vous pourrez ensuite ajuster des valeurs comme le bonus de victoire et les points de cible. Le tournoi affichera votre copie au lieu du format intégré.',
       customiseFormatSuccess:
         'Format personnalisé — vous pouvez maintenant en modifier les valeurs.',
+      changeRuleset: 'Changer le règlement',
+      changeRulesetSuccess: 'Règlement changé.',
+      repinRulesetTitle: 'Modifier le règlement du tournoi ?',
+      repinRulesetWarning:
+        'Ce tournoi a déjà des combats notés. Changer son règlement reclasse ces résultats selon les nouvelles règles. Le changement est enregistré avec votre motif et divulgué publiquement sur la page de l’événement — il n’est jamais silencieux.',
+      repinRulesetFromTo: 'De {from} vers {to}',
+      repinRulesetJustificationLabel: 'Motif du changement',
+      repinRulesetJustificationPlaceholder:
+        'Expliquez pourquoi le règlement change — ce motif est affiché publiquement (au moins 10 caractères).',
+      repinRulesetConfirm: 'Modifier le règlement',
+      repinRulesetSuccess: 'Règlement modifié — le changement est enregistré et divulgué.',
+      repinRulesetOwnerOnly:
+        'Seul un propriétaire d’organisation ou un super-admin peut modifier un règlement une fois les résultats saisis.',
       formatLockedHint:
         "Il s'agit d'un format intégré, verrouillé afin que chaque tournoi qui l'utilise soit noté de la même manière. Personnalisez-le pour obtenir une copie modifiable pour votre organisation.",
       winBonus: 'Bonus de victoire',

@@ -6,6 +6,7 @@ import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
+import { RepinRulesetDialog } from './RepinRulesetDialog';
 
 interface Ruleset {
   code: string;
@@ -42,6 +43,16 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [saving, setSaving] = useState(false);
+  // The ruleset as currently pinned (captured on load). The dropdown mutates
+  // `data.ruleset*`; comparing against this detects a pending ruleset change,
+  // which is applied through a dedicated flow (never the plain Save) so it can
+  // fall back to the audited re-pin ceremony when results already exist.
+  const [originalRuleset, setOriginalRuleset] = useState<{ code: string; version: string } | null>(
+    null,
+  );
+  const [repinOpen, setRepinOpen] = useState(false);
+  const [repinBusy, setRepinBusy] = useState(false);
+  const [repinError, setRepinError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -78,6 +89,7 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
               maxParticipants: row.max_participants ?? null,
               maxWaitlist: row.max_waitlist ?? null,
             });
+            setOriginalRuleset({ code: row.ruleset_code, version: row.ruleset_version });
           }
           setRulesets(r as Ruleset[]);
           setPenaltyRulesets(p as PenaltyRuleset[]);
@@ -98,8 +110,10 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           // weapon — the DTO is nullish and the service maps null to a clear.
           name: data.name,
           weapon: data.weapon,
-          rulesetCode: data.rulesetCode,
-          rulesetVersion: data.rulesetVersion,
+          // Ruleset is deliberately NOT saved here — a ruleset change is applied
+          // through `changeRuleset` so it can fall back to the audited re-pin
+          // ceremony, and so an unrelated Save never 403s (and loses these
+          // edits) when the tournament already has results.
           penaltyRulesetId: data.penaltyRulesetId,
           maxParticipants: data.maxParticipants,
           maxWaitlist: data.maxWaitlist,
@@ -114,7 +128,72 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
     }
   }
 
+  const rulesetLabel = (code: string, version: string): string =>
+    rulesets.find((r) => r.code === code && r.version === version)?.label ?? code;
+
+  /**
+   * Apply the pending ruleset change. Tries the ordinary PATCH first (the fast
+   * path for a tournament with no results); a 403 means the commit-1 guard
+   * blocked it because matches are scored, so we open the audited re-pin
+   * ceremony instead.
+   */
+  async function changeRuleset() {
+    if (!data) return;
+    setRepinError(null);
+    const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rulesetCode: data.rulesetCode, rulesetVersion: data.rulesetVersion }),
+    });
+    if (res.ok) {
+      setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
+      toast.success(t('admin.orgTournaments.changeRulesetSuccess'));
+      return;
+    }
+    if (res.status === 403) {
+      setRepinOpen(true);
+      return;
+    }
+    toast.error(t('admin.common.saveFailed'));
+  }
+
+  /** Confirm the ceremony: POST the audited re-pin with the justification. */
+  async function repin(justification: string) {
+    if (!data) return;
+    setRepinBusy(true);
+    setRepinError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/repin-ruleset`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rulesetCode: data.rulesetCode,
+          rulesetVersion: data.rulesetVersion,
+          justification,
+        }),
+      });
+      if (res.status === 403) {
+        setRepinError(t('admin.orgTournaments.repinRulesetOwnerOnly'));
+        return;
+      }
+      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
+      setRepinOpen(false);
+      toast.success(t('admin.orgTournaments.repinRulesetSuccess'));
+    } catch (e) {
+      setRepinError(e instanceof Error ? e.message : t('admin.common.unknownError'));
+    } finally {
+      setRepinBusy(false);
+    }
+  }
+
   if (!data) return <p className="text-sm text-muted">{t('common.loading')}</p>;
+
+  const rulesetChanged =
+    originalRuleset != null &&
+    (data.rulesetCode !== originalRuleset.code || data.rulesetVersion !== originalRuleset.version);
 
   return (
     <div className="space-y-4">
@@ -181,6 +260,15 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
             </option>
           ))}
         </select>
+        {rulesetChanged && (
+          <button
+            type="button"
+            onClick={() => void changeRuleset()}
+            className="mt-2 rounded-md border border-accent px-3 py-1.5 text-sm font-semibold text-accent hover:bg-accent/10"
+          >
+            {t('admin.orgTournaments.changeRuleset')}
+          </button>
+        )}
       </Field>
 
       <label className="block">
@@ -256,6 +344,21 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
+
+      {originalRuleset && (
+        <RepinRulesetDialog
+          open={repinOpen}
+          fromLabel={rulesetLabel(originalRuleset.code, originalRuleset.version)}
+          toLabel={rulesetLabel(data.rulesetCode, data.rulesetVersion)}
+          busy={repinBusy}
+          error={repinError}
+          onConfirm={(j) => void repin(j)}
+          onClose={() => {
+            setRepinOpen(false);
+            setRepinError(null);
+          }}
+        />
+      )}
     </div>
   );
 }
