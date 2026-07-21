@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
-import type { FormulaConstants, FormulaNode, Target, Tiebreaker } from '@myclash/rulesets';
+import type {
+  DoublePenaltySpec,
+  FormulaConstants,
+  FormulaNode,
+  Target,
+  Tiebreaker,
+} from '@myclash/rulesets';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
@@ -28,7 +34,7 @@ const BLANK_INITIAL: RulesetFormValue = {
   constants: { ...DEFAULT_FORMULA_CONSTANTS, pointsPerVictory: 3 },
   tiebreakers: [{ variable: 'victories', direction: 'desc' }],
   matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
-  doublePenaltyFormula: '',
+  doublePenaltyFormula: null,
   targets: [...DEFAULT_TARGETS],
   afterblow: DEFAULT_AFTERBLOW_GRAMMAR,
 };
@@ -45,7 +51,7 @@ interface OrgRulesetCatalogRow {
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[] | null;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
-  double_penalty_formula: string | null;
+  double_penalty_formula: DoublePenaltySpec | null;
   targets: Target[] | null;
   has_afterblow: boolean | null;
   afterblow_mode: 'full' | 'deductive' | null;

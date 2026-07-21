@@ -46,7 +46,7 @@ export default function NewRulesetPage() {
           constants: { ...DEFAULT_FORMULA_CONSTANTS, pointsPerVictory: 3 },
           tiebreakers: [{ variable: 'victories', direction: 'desc' }],
           matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
-          doublePenaltyFormula: '',
+          doublePenaltyFormula: null,
           targets: [...DEFAULT_TARGETS],
           afterblow: DEFAULT_AFTERBLOW_GRAMMAR,
         }}

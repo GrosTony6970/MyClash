@@ -8,12 +8,14 @@ import {
   type FormulaNode,
   type RankingRule,
   type RulesetMetadata,
+  type DoublePenaltySpec,
   type Target,
   type Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '../../i18n/I18nProvider';
 import { FormulaEditor } from './FormulaEditor';
 import { TargetsEditor } from './TargetsEditor';
+import { DoublePenaltyEditor } from './DoublePenaltyEditor';
 import {
   AfterblowGrammarEditor,
   DEFAULT_AFTERBLOW_GRAMMAR,
@@ -65,7 +67,7 @@ export interface RulesetFormValue {
   constants: FormulaConstants;
   tiebreakers: Tiebreaker[];
   matchFormatDefaults: MatchFormatDefaults;
-  doublePenaltyFormula: string;
+  doublePenaltyFormula: DoublePenaltySpec | null;
   /** Named targets — the grammar half of the ruleset, authorable for every
    *  ruleset. For TF_v1 the caller also mirrors the first two into
    *  tf_config.targetValues so today's scoring is unchanged. */
@@ -97,7 +99,7 @@ interface Props {
   onSubmit: (
     config: { name: string; description: string; version: string } & FormulaConfig & {
         matchFormatDefaults: MatchFormatDefaults;
-        doublePenaltyFormula: string;
+        doublePenaltyFormula: DoublePenaltySpec | null;
         targets: Target[];
         tfV1Internals?: TfV1Internals;
       } & AfterblowGrammar,
@@ -129,7 +131,7 @@ export function RulesetForm({
   const [matchFormatDefaults, setMatchFormatDefaults] = useState<MatchFormatDefaults>(
     initial.matchFormatDefaults,
   );
-  const [doublePenaltyFormula, setDoublePenaltyFormula] = useState<string>(
+  const [doublePenaltyFormula, setDoublePenaltyFormula] = useState<DoublePenaltySpec | null>(
     initial.doublePenaltyFormula,
   );
   const [tfV1Internals, setTfV1Internals] = useState<TfV1Internals>(
@@ -174,7 +176,7 @@ export function RulesetForm({
       constants,
       tiebreakers,
       matchFormatDefaults,
-      doublePenaltyFormula: doublePenaltyFormula.trim(),
+      doublePenaltyFormula,
       targets,
       // AfterblowGrammar's keys are exactly the API's grammar fields, so a
       // flat spread lands them where grammarColumns() reads them.
@@ -310,27 +312,11 @@ export function RulesetForm({
         </div>
       )}
 
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          {t('admin.srcComponents.doublePenaltyFormulaTitle')}
-        </h3>
-        <p className="mb-2 text-xs text-muted">
-          {t('admin.srcComponents.doublePenaltyFormulaHelpA')} <code className="font-mono">n</code>{' '}
-          {t('admin.srcComponents.doublePenaltyFormulaHelpB')} <code className="font-mono">n</code>
-          {t('admin.srcComponents.doublePenaltyFormulaHelpC')}{' '}
-          <code className="font-mono">+ - * /</code>
-          {t('admin.srcComponents.doublePenaltyFormulaHelpD')}{' '}
-          <code className="font-mono">n*(n-1)/3</code>.
-        </p>
-        <input
-          type="text"
-          value={doublePenaltyFormula}
-          onChange={(e) => setDoublePenaltyFormula(e.target.value)}
-          disabled={disabled}
-          placeholder={t('admin.srcComponents.doublePenaltyFormulaPlaceholder')}
-          className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
-        />
-      </div>
+      <DoublePenaltyEditor
+        value={doublePenaltyFormula}
+        onChange={setDoublePenaltyFormula}
+        disabled={disabled}
+      />
 
       <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">

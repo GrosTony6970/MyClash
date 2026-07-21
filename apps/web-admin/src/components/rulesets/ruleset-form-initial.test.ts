@@ -45,19 +45,21 @@ describe('rulesetFormInitial', () => {
 
     expect(out.matchFormatDefaults.pointCap).toBe(5);
     expect(out.tfV1Internals).toEqual({ winBonus: 3, deepTarget: 2, shallowTarget: 1 });
-    expect(out.doublePenaltyFormula).toBe('');
+    // null, not '': the double-penalty is a spec (key | AST | null), and
+    // "no penalty" is null rather than an empty string.
+    expect(out.doublePenaltyFormula).toBe(null);
   });
 
   it('reads the flat columns for custom rulesets and ignores any tf_config', () => {
     const out = rulesetFormInitial({
       code: 'my_custom',
       match_format_defaults: { pointCap: 7 },
-      double_penalty_formula: 'n*2',
+      double_penalty_formula: 'n*(n-1)/3',
       tf_config: { matchFormat: TF_MATCH_FORMAT },
     });
 
     expect(out.matchFormatDefaults.pointCap).toBe(7);
-    expect(out.doublePenaltyFormula).toBe('n*2');
+    expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
   });
 
   it('extracts TF v1 internals + double-penalty formula from tf_config', () => {
@@ -179,5 +181,38 @@ describe('rulesetFormInitial — afterblow hydration', () => {
       tf_config: null,
     });
     expect(out.afterblow.hasAfterblow).toBe(false);
+  });
+});
+
+describe('rulesetFormInitial — double-penalty spec hydration', () => {
+  it('reads a custom ruleset key spec', () => {
+    const out = rulesetFormInitial({
+      code: 'my_custom',
+      match_format_defaults: null,
+      double_penalty_formula: 'n*(n-1)/2',
+      tf_config: null,
+    });
+    expect(out.doublePenaltyFormula).toBe('n*(n-1)/2');
+  });
+
+  it('reads a custom ruleset authored AST spec', () => {
+    const ast = { type: 'var' as const, name: 'doubleHits' as const };
+    const out = rulesetFormInitial({
+      code: 'my_custom',
+      match_format_defaults: null,
+      double_penalty_formula: ast,
+      tf_config: null,
+    });
+    expect(out.doublePenaltyFormula).toEqual(ast);
+  });
+
+  it('reads TF v1 double-penalty from tf_config', () => {
+    const out = rulesetFormInitial({
+      code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: { doublePenaltyFormula: 'n*(n-1)/3' },
+    });
+    expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
   });
 });

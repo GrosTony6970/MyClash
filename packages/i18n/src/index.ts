@@ -1918,12 +1918,6 @@ export const en = {
       hemaRatingsNoProfile: 'No HEMA Ratings profile selected.',
       dragHandle: 'Drag handle',
       penaltyCodePlaceholder: 'my_org_penalties',
-      doublePenaltyFormulaTitle: 'Double-hit penalty formula',
-      doublePenaltyFormulaHelpA: 'Expression evaluated against',
-      doublePenaltyFormulaHelpB: '(the number of double-hits). Only digits, the variable',
-      doublePenaltyFormulaHelpC: ', operators',
-      doublePenaltyFormulaHelpD: ', parentheses and decimal points are allowed. Example:',
-      doublePenaltyFormulaPlaceholder: 'n*(n-1)/3',
       matchFormatDefaultsTitle: 'Match-format defaults',
       matchFormatDefaultsHelp:
         'Defaults that a new tournament inherits when this ruleset is selected. Operators can still override any of these per tournament from the Match-format settings tab.',
@@ -2566,6 +2560,11 @@ export const en = {
       afterblowModeLabel: 'Default afterblow mode',
       afterblowModeFull: 'Full',
       afterblowModeDeductive: 'Deductive',
+      doublePenaltyTitle: 'Double-hit penalty',
+      doublePenaltyHelp:
+        'An optional penalty for double hits, referenced by the score formula as “doublePenalty”. Pick a preset or author your own.',
+      doublePenaltyNone: 'No double-hit penalty',
+      doublePenaltyCustom: 'Custom formula…',
       scoreEquals: 'Score =',
       formulaHelp:
         'Compose a formula using the variable and operator chips. The formula is evaluated per fighter.',
@@ -8030,13 +8029,6 @@ export const fr = {
       hemaRatingsNoProfile: 'Aucun profil HEMA Ratings sélectionné.',
       dragHandle: 'Poignée de déplacement',
       penaltyCodePlaceholder: 'my_org_penalties',
-      doublePenaltyFormulaTitle: 'Formule de pénalité pour double touche',
-      doublePenaltyFormulaHelpA: 'Expression évaluée avec',
-      doublePenaltyFormulaHelpB: '(le nombre de doubles touches). Seuls les chiffres, la variable',
-      doublePenaltyFormulaHelpC: ', les opérateurs',
-      doublePenaltyFormulaHelpD:
-        ', les parenthèses et les points décimaux sont autorisés. Exemple :',
-      doublePenaltyFormulaPlaceholder: 'n*(n-1)/3',
       matchFormatDefaultsTitle: "Valeurs par défaut du format d'assaut",
       matchFormatDefaultsHelp:
         "Valeurs par défaut héritées par un nouveau tournoi lorsque ce règlement est sélectionné. Les organisateurs peuvent toujours les remplacer pour chaque tournoi depuis l'onglet des réglages du format d'assaut.",
@@ -8687,6 +8679,11 @@ export const fr = {
       afterblowModeLabel: 'Mode de contre-frappe par défaut',
       afterblowModeFull: 'Complet',
       afterblowModeDeductive: 'Déductif',
+      doublePenaltyTitle: 'Pénalité de double touche',
+      doublePenaltyHelp:
+        'Une pénalité facultative pour les doubles touches, référencée dans la formule de score sous « doublePenalty ». Choisissez un préréglage ou composez la vôtre.',
+      doublePenaltyNone: 'Aucune pénalité de double touche',
+      doublePenaltyCustom: 'Formule personnalisée…',
       scoreEquals: 'Score =',
       formulaHelp:
         'Composer une formule a l aide des chips de variables et d operateurs. La formule est evaluee par tireur.',

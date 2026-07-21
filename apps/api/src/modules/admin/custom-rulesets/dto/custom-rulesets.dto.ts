@@ -50,7 +50,7 @@ const createCustomRulesetSchema = z
     // A named double-hit penalty: a whitelist KEY or an authored FormulaNode
     // AST over `doubleHits`. The score formula references its result via the
     // `doublePenalty` variable. Never eval'd — validated + evaluated by us.
-    doublePenaltyFormula: DoublePenaltySpecSchema.optional(),
+    doublePenaltyFormula: DoublePenaltySpecSchema.nullish(),
     ...rulesetGrammarShape,
   })
   .strict();
@@ -65,7 +65,7 @@ const updateCustomRulesetSchema = z
     constants: z.record(z.string(), z.number()).optional(),
     tiebreakers: z.array(tiebreakerSchema).optional(),
     matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
-    doublePenaltyFormula: DoublePenaltySpecSchema.optional(),
+    doublePenaltyFormula: DoublePenaltySpecSchema.nullish(),
     // Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
     // (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
     // Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.

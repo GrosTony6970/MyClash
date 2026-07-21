@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
 import type {
+  DoublePenaltySpec,
   FormulaConstants,
   FormulaNode,
   RankingRule,
@@ -38,7 +39,7 @@ interface OrgCustomRulesetDetail {
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[];
   match_format_defaults: Partial<MatchFormatDefaults> | null;
-  double_penalty_formula: string | null;
+  double_penalty_formula: DoublePenaltySpec | null;
   targets: Target[] | null;
   has_afterblow: boolean | null;
   afterblow_mode: 'full' | 'deductive' | null;

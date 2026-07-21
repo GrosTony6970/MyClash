@@ -14,7 +14,7 @@
  * Pure: no React, no I/O.
  */
 
-import { DEFAULT_TARGETS, type Target } from '@myclash/rulesets';
+import { DEFAULT_TARGETS, type DoublePenaltySpec, type Target } from '@myclash/rulesets';
 import {
   DEFAULT_MATCH_FORMAT_DEFAULTS,
   DEFAULT_TF_V1_INTERNALS,
@@ -26,7 +26,7 @@ import { DEFAULT_AFTERBLOW_GRAMMAR, type AfterblowGrammar } from './AfterblowGra
 export interface RulesetRowLike {
   code: string;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
-  double_penalty_formula: string | null;
+  double_penalty_formula: DoublePenaltySpec | null;
   /** The grammar columns (migrations 0143/0145). Null on a row predating them. */
   targets?: Target[] | null;
   has_afterblow?: boolean | null;
@@ -38,7 +38,7 @@ export interface RulesetRowLike {
     targets?: Target[];
     targetValues?: { deepTarget?: number; shallowTarget?: number };
     matchFormat?: Partial<MatchFormatDefaults>;
-    doublePenaltyFormula?: string;
+    doublePenaltyFormula?: DoublePenaltySpec;
   } | null;
 }
 
@@ -69,7 +69,7 @@ function initialTargets(
 
 export function rulesetFormInitial(row: RulesetRowLike): {
   matchFormatDefaults: MatchFormatDefaults;
-  doublePenaltyFormula: string;
+  doublePenaltyFormula: DoublePenaltySpec | null;
   tfV1Internals: TfV1Internals;
   targets: Target[];
   afterblow: AfterblowGrammar;
@@ -80,9 +80,9 @@ export function rulesetFormInitial(row: RulesetRowLike): {
   const matchFormatSource = isTfV1
     ? (tfCfg.matchFormat ?? null)
     : (row.match_format_defaults ?? null);
-  const doublePenaltySource = isTfV1
-    ? (tfCfg.doublePenaltyFormula ?? '')
-    : (row.double_penalty_formula ?? '');
+  const doublePenaltySource: DoublePenaltySpec | null = isTfV1
+    ? (tfCfg.doublePenaltyFormula ?? null)
+    : (row.double_penalty_formula ?? null);
 
   const tfV1Internals: TfV1Internals = isTfV1
     ? {
