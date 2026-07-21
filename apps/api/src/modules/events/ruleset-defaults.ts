@@ -23,6 +23,7 @@ import {
   registry,
   type RulesetMetadata,
 } from '@myclash/rulesets';
+import { buildScoringButtons } from '@myclash/types';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
 
@@ -231,6 +232,41 @@ export async function resolveRulesetGrammar(
     afterblowValuation: hasAfterblow ? (row.afterblow_valuation ?? 'fixed') : 'fixed',
     afterblowFixedValue: hasAfterblow ? (row.afterblow_fixed_value ?? 1) : 1,
     defaultAfterblowMode: hasAfterblow ? (row.afterblow_mode ?? 'full') : 'full',
+  };
+}
+
+/**
+ * The raw `scoring_config_json` a new tournament is seeded with, derived from
+ * its ruleset's grammar. Returned UN-normalized — the caller runs it through
+ * `normalizeTournamentScoringConfig` (and merges any explicit override) so the
+ * stored blob is byte-identical to what a PATCH produces.
+ *
+ * `rulesetConfig` is the already-resolved config: for TF_v1 it carries
+ * super-admin tf_config overrides that the static grammar metadata does not, so
+ * its `targets` win when present. A legacy `targetValues` override is
+ * deliberately NOT honoured — that field is inert and deprecated, and wiring it
+ * in here would make it affect scoring, which belongs to the authoring-UI
+ * migration rather than this seed.
+ */
+export function buildSeededScoringConfig(
+  grammar: ResolvedRulesetGrammar,
+  rulesetConfig: Record<string, unknown>,
+): Record<string, unknown> {
+  const configTargets = rulesetConfig['targets'];
+  return {
+    afterblowMode: grammar.defaultAfterblowMode,
+    buttons: buildScoringButtons({
+      targets:
+        Array.isArray(configTargets) && configTargets.length > 0
+          ? (configTargets as Array<{ name: string; value: number }>)
+          : grammar.targets,
+      hasAfterblow: grammar.hasAfterblow,
+      afterblowValuation: grammar.afterblowValuation,
+      afterblowFixedValue: grammar.afterblowFixedValue,
+    }),
+    // The wizard configures display in Step 3; seed the same shape the
+    // normalizer produces, so the first PATCH deep-merges cleanly.
+    display: { sideColors: { red: 'red', blue: 'blue' }, quickPenalties: [] },
   };
 }
 

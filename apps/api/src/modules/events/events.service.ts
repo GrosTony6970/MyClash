@@ -33,6 +33,7 @@ import {
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
 import {
+  buildSeededScoringConfig,
   freezeRulesetVersion,
   normalizeRulesetVersion,
   resolveRulesetConfigDefaults,
@@ -2331,6 +2332,20 @@ export class EventsService {
     const version = normalizeRulesetVersion(dto.rulesetVersion ?? '1');
     const rulesetConfig = await resolveRulesetConfigDefaults(this.supabase, code, version);
 
+    // Seed scoring_config_json from the ruleset's grammar, so the referee's pad
+    // reflects the ruleset a federation actually chose instead of FFAMHE's
+    // +2/+1 hardcoded default. Until now the column stayed NULL until a PATCH,
+    // and `GET /match-config` substituted DEFAULT_SCORING_CONFIG for NULL — so
+    // a ruleset scoring head/torso/limb still got the two federal buttons.
+    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    // An explicit caller override still wins, merged the way a PATCH merges —
+    // this stops the create DTO's `scoringConfig` being the silently-dropped
+    // field it is today. Normalize once, so the stored blob is byte-identical
+    // to what every other write path produces.
+    const scoringConfig = normalizeTournamentScoringConfig(
+      deepMergeJson(buildSeededScoringConfig(grammar, rulesetConfig), dto.scoringConfig ?? {}),
+    );
+
     // Strict catalog-only weapon: a non-empty value must resolve to an active
     // weapon_catalog entry (throws 400 otherwise); the canonical name is stored.
     const weapon = dto.weapon?.trim()
@@ -2359,6 +2374,7 @@ export class EventsService {
         max_waitlist: dto.maxWaitlist ?? null,
         status: 'draft',
         ruleset_config: rulesetConfig,
+        scoring_config_json: scoringConfig,
         // Step 1 is complete by definition once the row exists.
         wizard_step: 1,
       })
