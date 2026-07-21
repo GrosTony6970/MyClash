@@ -2,9 +2,9 @@
 --
 -- Drop the auto-seeded description text on the built-in TF v1 ruleset row
 -- so the admin edit form shows an empty description field by default
--- (matching the shape of every other ruleset). Migration 0038 seeded
--- the row with a long explanatory blurb that operators have been asked
--- to remove.
+-- (matching the shape of every other ruleset). 0038 now seeds a NULL
+-- description directly, so on a fresh apply this is a no-op — it is kept
+-- only to clear a DB seeded before that edit (with the old blurb).
 --
 -- Idempotent: the WHERE clause guards on the EXACT original seeded
 -- string. Operators who have already replaced the description with

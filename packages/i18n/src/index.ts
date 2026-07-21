@@ -3629,7 +3629,7 @@ export const en = {
         colCodeVersion: 'Code @ version',
         colStatus: 'Status',
         colSource: 'Source',
-        tfV1Description: 'Default tournament-de-frappe ruleset.',
+        tfV1Description: 'The FFAMHE federal tournament (Tournois Fédéraux) ruleset.',
         lyonOpenDescription: 'Custom ruleset by Lyon AMHE.',
       },
       buttonsDemo: {
@@ -9785,7 +9785,7 @@ export const fr = {
         colCodeVersion: 'Code @ version',
         colStatus: 'Statut',
         colSource: 'Source',
-        tfV1Description: 'Ruleset tournoi-de-frappe par defaut.',
+        tfV1Description: 'Le règlement des tournois fédéraux (TF) de la FFAMHE.',
         lyonOpenDescription: 'Ruleset personnalise par Lyon AMHE.',
       },
       buttonsDemo: {
