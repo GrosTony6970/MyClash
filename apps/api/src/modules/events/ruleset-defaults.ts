@@ -294,6 +294,63 @@ export function buildSeededScoringConfig(
   };
 }
 
+/**
+ * True when (code, version) is a built-in coded ruleset served from the
+ * in-memory registry (TF_v1, Generic_PointsCap, …) rather than a DB row. These
+ * are the rulesets a "Customise this format" fork copies FROM.
+ */
+export function isSystemRuleset(code: string, version: string): boolean {
+  return registry.has(code, normalizeRulesetVersion(version));
+}
+
+/**
+ * The `custom_rulesets` INSERT payload for a CODED FORK (migration 0148): a
+ * private, org-owned copy of a system ruleset that reuses its coded algorithm
+ * (`base_code`) and carries the operator's captured parameters (`tfConfig`) and
+ * grammar. `score_formula`/`constants`/`tiebreakers` are empty by construction —
+ * the resolver short-circuits a base_code row to the coded engine, so they are
+ * never read. Published immediately and private (`public_visibility: false`),
+ * exactly like an org-authored formula ruleset.
+ */
+export interface CodedForkRowParams {
+  code: string;
+  baseCode: string;
+  baseVersion: string;
+  name: string;
+  ownerOrganizationId: string;
+  actorUserId: string;
+  tfConfig: Record<string, unknown>;
+  grammar: ResolvedRulesetGrammar;
+}
+
+export function buildCodedForkRow(p: CodedForkRowParams): Record<string, unknown> {
+  const ab = p.grammar.hasAfterblow;
+  return {
+    code: p.code,
+    version: '1.0.0',
+    name: p.name,
+    status: 'published',
+    base_code: p.baseCode,
+    base_version: p.baseVersion,
+    tf_config: p.tfConfig,
+    score_formula: {},
+    constants: {},
+    tiebreakers: [],
+    match_format_defaults: null,
+    double_penalty_formula: null,
+    targets: p.grammar.targets,
+    has_afterblow: ab,
+    afterblow_mode: ab ? p.grammar.defaultAfterblowMode : null,
+    afterblow_valuation: ab ? p.grammar.afterblowValuation : null,
+    afterblow_fixed_value: ab ? p.grammar.afterblowFixedValue : null,
+    is_default: false,
+    is_system: false,
+    owner_organization_id: p.ownerOrganizationId,
+    public_visibility: false,
+    created_by_user_id: p.actorUserId,
+  };
+}
+
 function fromMetadata(metadata: RulesetMetadata | undefined): ResolvedRulesetGrammar {
   const hasAfterblow = metadata?.hasAfterblow ?? false;
   const targets = metadata?.targets;

@@ -416,6 +416,26 @@ export class EventsController {
     return this.events.updateTournament(id, dto, userId);
   }
 
+  /**
+   * POST /api/v1/tournaments/:id/customise-format
+   *
+   * "Customise this format": fork the built-in ruleset this tournament uses into
+   * a private, org-owned coded ruleset and re-point the tournament to it. Score-
+   * preserving — it only changes ownership so the locked controls unlock.
+   */
+  @Post('tournaments/:id/customise-format')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fork the built-in ruleset into a private org copy (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async customiseTournamentFormat(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.forkCodedRulesetForTournament(id, userId);
+  }
+
   /** DELETE /api/v1/tournaments/:id */
   @Delete('tournaments/:id')
   @HttpCode(HttpStatus.OK)

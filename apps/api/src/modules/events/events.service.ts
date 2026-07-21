@@ -33,8 +33,10 @@ import {
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
 import {
+  buildCodedForkRow,
   buildSeededScoringConfig,
   freezeRulesetVersion,
+  isSystemRuleset,
   normalizeRulesetVersion,
   resolveRulesetConfigDefaults,
   resolveRulesetGrammar,
@@ -2420,12 +2422,30 @@ export class EventsService {
     // That literal hid the controls from every custom ruleset that HAS
     // afterblow, and showed them for a ruleset that does not.
     const row = data as { ruleset_code?: string | null; ruleset_version?: string | null };
-    const grammar = await resolveRulesetGrammar(
-      this.supabase,
-      row.ruleset_code ?? 'TF_v1',
-      normalizeRulesetVersion(row.ruleset_version ?? '1'),
-    );
-    return { ...(data as Record<string, unknown>), ruleset_grammar: grammar };
+    const code = row.ruleset_code ?? 'TF_v1';
+    const version = normalizeRulesetVersion(row.ruleset_version ?? '1');
+    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    // Whether the tournament points at the LOCKED built-in format (grey the
+    // coded controls + offer "Customise this format") or at a base_code fork of
+    // one (the controls are the org's to edit). ruleset_base_code is the coded
+    // algorithm a fork reuses, so the admin UI knows a fork of TF_v1 still owns
+    // winBonus/targets even though its code is no longer 'TF_v1'.
+    const isSystem = isSystemRuleset(code, version);
+    let baseCode: string | null = null;
+    if (!isSystem) {
+      const { data: rs } = await this.supabase.service
+        .from('custom_rulesets')
+        .select('base_code')
+        .eq('code', code)
+        .maybeSingle();
+      baseCode = (rs as { base_code: string | null } | null)?.base_code ?? null;
+    }
+    return {
+      ...(data as Record<string, unknown>),
+      ruleset_grammar: grammar,
+      ruleset_is_system: isSystem,
+      ruleset_base_code: baseCode,
+    };
   }
 
   async updateTournament(tournamentId: string, dto: UpdateTournamentDto, userId: string) {
@@ -2545,6 +2565,144 @@ export class EventsService {
       await this.notificationEvents.resultsPublished(tournamentId);
     }
     return data;
+  }
+
+  /**
+   * "Customise this format": fork the built-in ruleset this tournament points at
+   * into a PRIVATE, org-owned coded ruleset, then re-point the tournament to it.
+   *
+   * The fork reuses the built-in's coded algorithm (base_code) with the
+   * tournament's CURRENT config captured as its tf_config, so re-pointing is
+   * byte-identical scoring — ruleset_config and scoring_config_json are left
+   * untouched. What changes is ownership: the format is now the org's to edit,
+   * so the locked winBonus/target controls unlock. No results guard is needed
+   * because the operation does not change any score.
+   */
+  async forkCodedRulesetForTournament(tournamentId: string, userId: string) {
+    const { data: current, error: readError } = await this.supabase.service
+      .from('tournaments')
+      .select('*')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (readError) throw new BadRequestException(readError.message);
+    if (!current) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+
+    const row = current as Record<string, unknown>;
+    const event = await this.getEventById(row['event_id'] as string);
+    const orgId = (event as { organization_id: string }).organization_id;
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
+
+    const code = (row['ruleset_code'] as string | null) ?? 'TF_v1';
+    const version = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
+    if (!isSystemRuleset(code, version)) {
+      throw new BadRequestException(
+        'Only a built-in format can be customised this way. This tournament already uses a custom ruleset — edit it directly.',
+      );
+    }
+
+    const fork = await this.createCodedFork(row, code, version, orgId, userId);
+    // Re-point only the pointer. Scoring is byte-identical (same engine, same
+    // config), so ruleset_config and scoring_config_json are left untouched. A
+    // failed re-point leaves an unreferenced private fork — harmless.
+    const updated = await this.repointTournamentToRuleset(
+      tournamentId,
+      String(fork['code']),
+      '1.0.0',
+    );
+    await this.writeForkAudit(userId, tournamentId, {
+      orgId,
+      fromCode: code,
+      fromVersion: version,
+      toCode: fork['code'],
+      forkId: fork['id'],
+    });
+    return { ruleset: fork, tournament: updated };
+  }
+
+  /**
+   * Build and insert the private coded fork for `tournamentRow`, capturing its
+   * current ruleset_config as the fork's tf_config and its grammar as columns.
+   */
+  private async createCodedFork(
+    tournamentRow: Record<string, unknown>,
+    code: string,
+    version: string,
+    orgId: string,
+    userId: string,
+  ): Promise<Record<string, unknown>> {
+    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    const forkCode = `custom_${code.toLowerCase()}_fork_${Date.now().toString(36)}`;
+    const forkRow = buildCodedForkRow({
+      code: forkCode,
+      baseCode: code,
+      baseVersion: version,
+      name: `${await this.systemRulesetName(code)} (customised)`,
+      ownerOrganizationId: orgId,
+      actorUserId: userId,
+      tfConfig: (tournamentRow['ruleset_config'] as Record<string, unknown>) ?? {},
+      grammar,
+    });
+    const { data: fork, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .insert(forkRow)
+      .select('*')
+      .single();
+    if (error || !fork) {
+      if (error?.message?.includes('unique'))
+        throw new ConflictException(`Ruleset code "${forkCode}" already exists`);
+      throw new BadRequestException(error?.message ?? 'Fork failed');
+    }
+    return fork as Record<string, unknown>;
+  }
+
+  /** Re-point a tournament to a (code, version) without touching its config. */
+  private async repointTournamentToRuleset(
+    tournamentId: string,
+    code: string,
+    version: string,
+  ): Promise<Record<string, unknown>> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .update({
+        ruleset_code: code,
+        ruleset_version: version,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tournamentId)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Re-point failed');
+    return data as Record<string, unknown>;
+  }
+
+  /** Display name of a built-in ruleset's mirror row, for naming its fork. */
+  private async systemRulesetName(code: string): Promise<string> {
+    const { data } = await this.supabase.service
+      .from('custom_rulesets')
+      .select('name')
+      .eq('code', code)
+      .eq('is_system', true)
+      .maybeSingle();
+    return (data as { name: string } | null)?.name ?? code;
+  }
+
+  /** Best-effort append to audit_log; a fork must not fail because logging did. */
+  private async writeForkAudit(
+    actorUserId: string,
+    tournamentId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.supabase.service.from('audit_log').insert({
+        actor_user_id: actorUserId === 'unknown' ? null : actorUserId,
+        action: 'tournament.ruleset.fork',
+        entity_type: 'tournament',
+        entity_id: tournamentId,
+        payload_json: payload,
+      });
+    } catch {
+      // swallow — the fork + re-point are the source of truth
+    }
   }
 
   async deleteTournament(tournamentId: string, userId: string) {
