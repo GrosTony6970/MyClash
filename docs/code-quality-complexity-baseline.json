@@ -480,7 +480,7 @@
     "apps/web-admin/app/org/[slug]/rulesets/penalty/new/page.tsx:79",
     "apps/web-admin/app/org/[slug]/rulesets/penalty/page.tsx:38",
     "apps/web-admin/app/org/[slug]/rulesets/scoring/[id]/edit/page.tsx:68",
-    "apps/web-admin/app/org/[slug]/rulesets/scoring/new/page.tsx:92",
+    "apps/web-admin/app/org/[slug]/rulesets/scoring/new/page.tsx:91",
     "apps/web-admin/app/org/[slug]/rulesets/scoring/page.tsx:52",
     "apps/web-admin/app/org/[slug]/settings/ai/page.tsx:19",
     "apps/web-admin/app/org/[slug]/settings/page.tsx:41",
