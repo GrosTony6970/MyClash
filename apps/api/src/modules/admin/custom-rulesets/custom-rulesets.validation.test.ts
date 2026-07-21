@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { DOUBLE_PENALTY_FORMULA_KEYS, FEDERAL_DOUBLE_PENALTY_AST } from '@myclash/rulesets';
 import {
   grammarColumns,
+  grammarColumnsFrom,
   validateDoublePenaltyFormula,
   validateTfConfigPatch,
 } from './custom-rulesets.service';
@@ -165,5 +166,27 @@ describe('validateTfConfigPatch — double penalty', () => {
     expect(() => validateTfConfigPatch({ doublePenaltyFormula: 'process.exit(1)' })).toThrow(
       BadRequestException,
     );
+  });
+});
+
+describe('grammarColumnsFrom', () => {
+  it('projects exactly the five grammar columns a snapshot must carry', () => {
+    // One helper feeds both snapshotVersion and rollback, so the capture and
+    // restore directions cannot select different columns.
+    expect(
+      grammarColumnsFrom({
+        targets: [{ name: 'Head', value: 3 }],
+        has_afterblow: true,
+        afterblow_mode: 'deductive',
+        afterblow_valuation: 'weighted',
+        afterblow_fixed_value: null,
+      }),
+    ).toEqual({
+      targets: [{ name: 'Head', value: 3 }],
+      has_afterblow: true,
+      afterblow_mode: 'deductive',
+      afterblow_valuation: 'weighted',
+      afterblow_fixed_value: null,
+    });
   });
 });

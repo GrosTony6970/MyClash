@@ -256,3 +256,121 @@ describe('CustomRulesetsService', () => {
     await expect(service.clone('ok', 'actor-1')).resolves.toMatchObject({ id: 'ok' });
   });
 });
+
+// ── snapshot / rollback round-trip the grammar columns ───────────────────────
+// A snapshot that omits targets/afterblow means a tournament pinned to a
+// published version resolves with NO grammar (the resolver reads them off the
+// snapshot row) — a weighted-afterblow ruleset would silently become
+// no-afterblow once frozen. snapshotVersion and rollback share grammarColumnsFrom
+// so the capture and restore directions cannot drift.
+
+describe('publish/rollback grammar round-trip', () => {
+  let service: CustomRulesetsService;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
+    service = new CustomRulesetsService(mockSupabase as never);
+  });
+
+  const grammarRow = {
+    targets: [
+      { name: 'Head', value: 3 },
+      { name: 'Limb', value: 1 },
+    ],
+    has_afterblow: true,
+    afterblow_mode: 'deductive' as const,
+    afterblow_valuation: 'weighted' as const,
+    afterblow_fixed_value: null,
+  };
+
+  function dispatch(rows: {
+    parent: Record<string, unknown>;
+    snapshot?: Record<string, unknown>;
+    capture: { insert?: Record<string, unknown>; update?: Record<string, unknown> };
+  }) {
+    return vi.fn().mockImplementation((table: string) => {
+      const chain: Record<string, unknown> = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        maybeSingle: vi
+          .fn()
+          .mockResolvedValue(
+            table === 'custom_ruleset_versions'
+              ? { data: rows.snapshot ?? null, error: null }
+              : { data: rows.parent, error: null },
+          ),
+        single: vi.fn().mockResolvedValue({ data: rows.parent, error: null }),
+        insert: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+          if (table === 'custom_ruleset_versions') rows.capture.insert = payload;
+          return chain;
+        }),
+        update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+          if (table === 'custom_rulesets') rows.capture.update = payload;
+          return chain;
+        }),
+        then: (resolve: (v: unknown) => unknown) => resolve({ data: rows.parent, error: null }),
+      };
+      return chain;
+    });
+  }
+
+  it('snapshots the parent grammar when publishing', async () => {
+    const capture: { insert?: Record<string, unknown> } = {};
+    const parent = {
+      id: 'r1',
+      code: 'custom_x',
+      version: '1.0.0',
+      name: 'X',
+      description: null,
+      status: 'draft',
+      is_system: false,
+      score_formula: { type: 'var', name: 'victories' },
+      constants: validConstants,
+      tiebreakers: validTiebreakers,
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      ...grammarRow,
+    };
+    fromMock.mockImplementation(dispatch({ parent, capture }));
+
+    await service.publish('r1', 'actor-1');
+
+    expect(capture.insert).toMatchObject({
+      targets: grammarRow.targets,
+      has_afterblow: true,
+      afterblow_mode: 'deductive',
+      afterblow_valuation: 'weighted',
+      afterblow_fixed_value: null,
+    });
+  });
+
+  it('restores the snapshot grammar on rollback', async () => {
+    const capture: { update?: Record<string, unknown> } = {};
+    const parent = { id: 'r1', code: 'custom_x', is_system: false };
+    const snapshot = {
+      id: 'v1',
+      version: '1.0.0',
+      name: 'X',
+      description: null,
+      score_formula: {},
+      constants: validConstants,
+      tiebreakers: validTiebreakers,
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      ...grammarRow,
+    };
+    fromMock.mockImplementation(dispatch({ parent, snapshot, capture }));
+
+    await service.rollback('r1', 'v1', 'actor-1');
+
+    expect(capture.update).toMatchObject({
+      targets: grammarRow.targets,
+      has_afterblow: true,
+      afterblow_mode: 'deductive',
+      afterblow_valuation: 'weighted',
+      afterblow_fixed_value: null,
+      status: 'draft',
+    });
+  });
+});

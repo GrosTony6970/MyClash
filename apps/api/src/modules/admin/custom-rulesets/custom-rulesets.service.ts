@@ -82,9 +82,40 @@ export interface CustomRulesetVersionRow {
   tiebreakers: Array<{ variable: string; direction: 'asc' | 'desc' }>;
   match_format_defaults: Record<string, unknown> | null;
   double_penalty_formula: string | null;
+  // Grammar columns (migrations 0143/0145). A snapshot must carry these or a
+  // tournament pinned to a published version resolves with NO grammar — the
+  // resolver reads them off this row (ruleset-resolver.service.ts), so a
+  // weighted-afterblow ruleset would resolve as no-afterblow once frozen.
+  targets: Array<{ name: string; value: number }> | null;
+  has_afterblow: boolean;
+  afterblow_mode: 'full' | 'deductive' | null;
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
   published_at: string;
   published_by_user_id: string | null;
   is_frozen: boolean;
+}
+
+/**
+ * The grammar columns a snapshot must copy from the parent and a rollback must
+ * restore. One helper so the two directions cannot drift — the exact failure
+ * that let 0145's valuation columns be added to one resolver select and missed
+ * on the other.
+ */
+export function grammarColumnsFrom(row: {
+  targets: Array<{ name: string; value: number }> | null;
+  has_afterblow: boolean;
+  afterblow_mode: 'full' | 'deductive' | null;
+  afterblow_valuation: 'fixed' | 'weighted' | null;
+  afterblow_fixed_value: number | null;
+}): Record<string, unknown> {
+  return {
+    targets: row.targets,
+    has_afterblow: row.has_afterblow,
+    afterblow_mode: row.afterblow_mode,
+    afterblow_valuation: row.afterblow_valuation,
+    afterblow_fixed_value: row.afterblow_fixed_value,
+  };
 }
 
 /**
@@ -556,6 +587,7 @@ export class CustomRulesetsService {
       tiebreakers: existing.tiebreakers,
       match_format_defaults: existing.match_format_defaults,
       double_penalty_formula: existing.double_penalty_formula,
+      ...grammarColumnsFrom(existing),
       published_by_user_id: actorUserId === 'unknown' ? null : actorUserId,
     });
     if (error) {
@@ -646,6 +678,7 @@ export class CustomRulesetsService {
         tiebreakers: snapshot.tiebreakers,
         match_format_defaults: snapshot.match_format_defaults,
         double_penalty_formula: snapshot.double_penalty_formula,
+        ...grammarColumnsFrom(snapshot),
         status: 'draft',
         updated_at: new Date().toISOString(),
       })
