@@ -11,6 +11,7 @@ import {
   type BlackCardForfeitScope,
   type PenaltyRulesetFormValue,
 } from '../../../../../../../src/components/rulesets/PenaltyRulesetForm';
+import { PenaltyVersionHistory } from '../../../../../../../src/components/rulesets/PenaltyVersionHistory';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -175,6 +176,9 @@ export default function OrgEditPenaltyRulesetPage() {
             }
             onCancel={() => router.push(`/org/${slugForLink}/rulesets/penalty`)}
           />
+          {!initial.builtIn && params.id && (
+            <PenaltyVersionHistory rulesetId={params.id} currentVersion={initial.version} />
+          )}
         </>
       )}
     </main>
