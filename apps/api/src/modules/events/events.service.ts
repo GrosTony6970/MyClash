@@ -2897,6 +2897,51 @@ export class EventsService {
     return { tournament: updated, rulesetChange: { fromCode, toCode, diff } };
   }
 
+  /**
+   * Read-only preview of the per-bucket lineage diff a re-pin to
+   * (rulesetCode, rulesetVersion) WOULD produce — the same computation as
+   * {@link repinTournamentRuleset} minus every mutation, so the ceremony can show
+   * the lamps BEFORE the organiser confirms. Same owner/super-admin gate, and the
+   * same reject-unresolvable-target guard, so a bogus diff is never previewed.
+   */
+  async previewRepinBucketDiff(
+    tournamentId: string,
+    dto: { rulesetCode: string; rulesetVersion?: string },
+    userId: string,
+  ): Promise<{ fromCode: string; toCode: string; diff: BucketDiff }> {
+    const { data: current, error: readError } = await this.supabase.service
+      .from('tournaments')
+      .select('ruleset_code, ruleset_version, ruleset_config, event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (readError) throw new BadRequestException(readError.message);
+    if (!current) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+
+    const row = current as Record<string, unknown>;
+    const event = await this.getEventById(row['event_id'] as string);
+    const orgId = (event as { organization_id: string }).organization_id;
+    await this.assertOwnerOrSuperAdmin(orgId, userId);
+
+    const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
+    const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
+    const toCode = dto.rulesetCode;
+    const toVersion = normalizeRulesetVersion(dto.rulesetVersion ?? '1.0.0');
+
+    if (!this.rulesetResolver || !(await this.rulesetResolver.resolve(toCode, toVersion))) {
+      throw new BadRequestException(
+        `The selected ruleset (${toCode} ${toVersion}) is not available to re-pin to — publish it first.`,
+      );
+    }
+
+    const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
+    const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
+    const diff = await this.computeRulesetBucketDiff(
+      { code: fromCode, version: fromVersion, config: oldConfig },
+      { code: toCode, version: toVersion, config: newDefaults },
+    );
+    return { fromCode, toCode, diff };
+  }
+
   /** Re-pin authorization: platform super-admin, or the org's owner. */
   private async assertOwnerOrSuperAdmin(orgId: string, userId: string): Promise<void> {
     if (await this.isSuperAdmin(userId)) return;

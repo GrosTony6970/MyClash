@@ -210,3 +210,47 @@ describe('repinTournamentRuleset', () => {
     expect(cap.repinInsert?.['to_code']).toBe('Generic_PointsCap');
   });
 });
+
+describe('previewRepinBucketDiff', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    assertOrgRole.mockResolvedValue(undefined);
+    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
+    if (!registry.has(Generic_PointsCap.code, Generic_PointsCap.version))
+      registry.register(Generic_PointsCap);
+  });
+
+  it('returns the from/to + bucket diff WITHOUT mutating or auditing', async () => {
+    const { svc, cap } = harness({ current: RUNNING_TF });
+
+    const result = await svc.previewRepinBucketDiff('t1', DTO, 'u1');
+
+    expect(result.fromCode).toBe('TF_v1');
+    expect(result.toCode).toBe('Generic_PointsCap');
+    expect(result.diff).toMatchObject({
+      grammar: expect.any(String),
+      endConditions: expect.any(String),
+      ranking: expect.any(String),
+    });
+    // Generic vs TF changes the ranking bucket → not compatible.
+    expect(result.diff.rankingCompatible).toBe(false);
+    // Read-only: nothing written.
+    expect(cap.tournamentUpdate).toBeNull();
+    expect(cap.repinInsert).toBeNull();
+  });
+
+  it('enforces the same owner/super-admin gate as the re-pin', async () => {
+    assertOrgRole.mockRejectedValue(new ForbiddenException('not owner'));
+    const { svc } = harness({ current: RUNNING_TF });
+    await expect(svc.previewRepinBucketDiff('t1', DTO, 'u1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('rejects a target that does not resolve, so no bogus preview is shown', async () => {
+    const { svc } = harness({ current: RUNNING_TF, resolverResolves: false });
+    await expect(svc.previewRepinBucketDiff('t1', DTO, 'u1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+});

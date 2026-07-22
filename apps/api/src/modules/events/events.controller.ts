@@ -459,6 +459,29 @@ export class EventsController {
     return this.events.repinTournamentRuleset(id, dto, userId);
   }
 
+  /**
+   * GET /api/v1/tournaments/:id/repin-preview?rulesetCode=X&rulesetVersion=Y
+   *
+   * Read-only preview of the per-bucket lineage diff a re-pin WOULD produce, so
+   * the ceremony can show the lamps before the organiser confirms. Same
+   * owner/super-admin gate as the re-pin itself.
+   */
+  @Get('tournaments/:id/repin-preview')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Preview the per-bucket lineage diff a re-pin would produce (read-only)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async previewRepinRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('rulesetCode') rulesetCode: string,
+    @Query('rulesetVersion') rulesetVersion: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.previewRepinBucketDiff(id, { rulesetCode, rulesetVersion }, userId);
+  }
+
   /** DELETE /api/v1/tournaments/:id */
   @Delete('tournaments/:id')
   @HttpCode(HttpStatus.OK)
