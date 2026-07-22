@@ -29,6 +29,7 @@ import type {
 } from './dto/events.dto';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
+import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { diffRulesetBuckets, projectRulesetBuckets } from '@myclash/rulesets';
 import type { BucketDiff } from '@myclash/rulesets';
 import {
@@ -116,7 +117,24 @@ export class EventsService {
     // Optional for the same reason; provided via RulesetResolverModule. The
     // re-pin uses it to REJECT a target ruleset that won't resolve for scoring.
     @Optional() private readonly rulesetResolver?: RulesetResolver,
+    // Optional for the same reason; provided via RulesetHashModule. Computes the
+    // tournament's effective content-hash identity, stamped at create/update/re-pin.
+    @Optional() private readonly rulesetHash?: RulesetHashService,
   ) {}
+
+  /**
+   * Recompute + persist a tournament's effective content-hash identity. Called
+   * after any change to its ruleset/config/penalty pin. Best-effort and optional
+   * (unit tests construct EventsService without the hash service).
+   */
+  private async stampTournamentContentHash(tournamentId: string): Promise<void> {
+    if (!this.rulesetHash) return;
+    const hash = await this.rulesetHash.computeTournamentContentHash(tournamentId);
+    await this.supabase.service
+      .from('tournaments')
+      .update({ ruleset_content_hash: hash })
+      .eq('id', tournamentId);
+  }
 
   // ── Events ───────────────────────────────────────────────────────────────────
 
@@ -2429,6 +2447,9 @@ export class EventsService {
     if (dto.penaltyRulesetId) {
       await freezePenaltyRulesetVersion(this.supabase, dto.penaltyRulesetId, userId);
     }
+    // Stamp the tournament's effective content-hash identity (matches copy it at
+    // generation). After the penalty freeze so the pinned snapshot exists.
+    await this.stampTournamentContentHash((data as { id: string }).id);
 
     return data;
   }
@@ -2636,6 +2657,16 @@ export class EventsService {
     // Freeze the newly-pinned penalty ruleset's current version (best-effort).
     if (penaltyChanged && nextPenaltyRulesetId) {
       await freezePenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId, userId);
+    }
+    // Restamp the content hash when anything score-determining changed.
+    if (
+      codeChanged ||
+      versionChanged ||
+      penaltyChanged ||
+      dto.rulesetConfig !== undefined ||
+      dto.scoringConfig !== undefined
+    ) {
+      await this.stampTournamentContentHash(tournamentId);
     }
     if (dto.status === 'completed') {
       await this.notificationEvents.resultsPublished(tournamentId);
@@ -2864,6 +2895,10 @@ export class EventsService {
       before,
       after,
     });
+    // Restamp the tournament's current hash. Already-generated matches keep their
+    // generation-time hash, so match.hash != tournament.hash now signals the
+    // re-pin drift (which the public event page also discloses).
+    await this.stampTournamentContentHash(tournamentId);
     return { tournament: updated, rulesetChange: { fromCode, toCode, diff } };
   }
 

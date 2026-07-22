@@ -22,6 +22,7 @@ describe('matchRulesetForTournament', () => {
     await expect(matchRulesetForTournament(supabase, 't1')).resolves.toEqual({
       ruleset_code: 'Generic_PointsCap',
       ruleset_version: '1.0.0',
+      ruleset_content_hash: null,
     });
   });
 
@@ -30,6 +31,20 @@ describe('matchRulesetForTournament', () => {
     await expect(matchRulesetForTournament(supabase, 't1')).resolves.toEqual({
       ruleset_code: 'TF_v1',
       ruleset_version: '1.0.0',
+      ruleset_content_hash: null,
+    });
+  });
+
+  it("carries the tournament's content hash when stamped", async () => {
+    const supabase = supabaseReturning({
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      ruleset_content_hash: 'abc123',
+    });
+    await expect(matchRulesetForTournament(supabase, 't1')).resolves.toEqual({
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      ruleset_content_hash: 'abc123',
     });
   });
 });
@@ -42,6 +57,7 @@ describe('matchRulesetForPhase', () => {
     await expect(matchRulesetForPhase(supabase, 'phase-1')).resolves.toEqual({
       ruleset_code: 'FormulaRuleset_org',
       ruleset_version: '2.0.0',
+      ruleset_content_hash: null,
     });
   });
 
@@ -52,6 +68,7 @@ describe('matchRulesetForPhase', () => {
     await expect(matchRulesetForPhase(supabase, 'phase-1')).resolves.toEqual({
       ruleset_code: 'TF_v1',
       ruleset_version: '1.0.0',
+      ruleset_content_hash: null,
     });
   });
 });

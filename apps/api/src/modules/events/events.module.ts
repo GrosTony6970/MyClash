@@ -6,6 +6,7 @@ import { ClubsModule } from '../clubs/clubs.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
 import { RulesetResolverModule } from '../matches/ruleset-resolver.module';
+import { RulesetHashModule } from '../ruleset-hash/ruleset-hash.module';
 import { EventsController } from './events.controller';
 import { EventThemesService } from './event-themes.service';
 import { EventsService } from './events.service';
@@ -24,6 +25,9 @@ import { EventsService } from './events.service';
     // RulesetResolver — the re-pin rejects a target that won't resolve for
     // scoring. Dependency-light (Supabase only), so no cycle.
     RulesetResolverModule,
+    // RulesetHashService — stamps the tournament's effective content-hash on
+    // create/update/re-pin. Leaf module (Supabase only), so no cycle.
+    RulesetHashModule,
   ],
   controllers: [EventsController],
   providers: [EventsService, EventThemesService],

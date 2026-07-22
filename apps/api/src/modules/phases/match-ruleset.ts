@@ -12,12 +12,24 @@ import { normalizeRulesetVersion } from '../events/ruleset-defaults';
 export interface MatchRulesetStamp {
   ruleset_code: string;
   ruleset_version: string;
+  /** The tournament's effective (scoring, penalty) content hash IN FORCE at
+   *  generation, frozen onto the match so a scored bout records exactly which
+   *  behaviour produced it. Null until the tournament has been stamped. */
+  ruleset_content_hash: string | null;
 }
 
-const FALLBACK: MatchRulesetStamp = { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' };
+const FALLBACK: MatchRulesetStamp = {
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.0.0',
+  ruleset_content_hash: null,
+};
 
 function toStamp(row: unknown): MatchRulesetStamp {
-  const r = row as { ruleset_code?: unknown; ruleset_version?: unknown } | null;
+  const r = row as {
+    ruleset_code?: unknown;
+    ruleset_version?: unknown;
+    ruleset_content_hash?: unknown;
+  } | null;
   if (!r || typeof r.ruleset_code !== 'string' || r.ruleset_code.length === 0) return FALLBACK;
   return {
     ruleset_code: r.ruleset_code,
@@ -26,6 +38,8 @@ function toStamp(row: unknown): MatchRulesetStamp {
         ? r.ruleset_version
         : '1',
     ),
+    ruleset_content_hash:
+      typeof r.ruleset_content_hash === 'string' ? r.ruleset_content_hash : null,
   };
 }
 
@@ -36,7 +50,7 @@ export async function matchRulesetForTournament(
 ): Promise<MatchRulesetStamp> {
   const { data } = await supabase
     .from('tournaments')
-    .select('ruleset_code, ruleset_version')
+    .select('ruleset_code, ruleset_version, ruleset_content_hash')
     .eq('id', tournamentId)
     .maybeSingle();
   return toStamp(data);
@@ -49,7 +63,7 @@ export async function matchRulesetForPhase(
 ): Promise<MatchRulesetStamp> {
   const { data } = await supabase
     .from('phases')
-    .select('tournaments(ruleset_code, ruleset_version)')
+    .select('tournaments(ruleset_code, ruleset_version, ruleset_content_hash)')
     .eq('id', phaseId)
     .maybeSingle();
   const embed = (data as { tournaments?: unknown } | null)?.tournaments;
