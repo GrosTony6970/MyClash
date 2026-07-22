@@ -11,11 +11,21 @@ import {
   DataTableRow,
   RowActionButton,
   rowActionClasses,
+  SegmentedTabs,
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
+import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/RulesetDiscoverTab';
+import { toScoringDiscoverCards } from './_components/scoring-discover-cards';
+import { rulesetSourceBadge, rulesetSubmissionBadge } from './_components/manage-row-badges';
+
+type RulesetsTab = 'manage' | 'discover';
+
+function isTabKey(value: string | null): value is RulesetsTab {
+  return value === 'manage' || value === 'discover';
+}
 
 interface CustomRulesetRow {
   id: string;
@@ -37,19 +47,11 @@ interface CustomRulesetRow {
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 /**
- * Organizer-side scoring rulesets tab — Round 2: full authoring.
- *
- * The catalog now includes:
- *   - System rulesets (TF v1, Generic_PointsCap) — read-only.
- *   - Other orgs' rulesets that a super-admin approved for public sharing — read-only.
- *   - The org's own scoring rulesets — editable + deletable. Each carries a
- *     submission status: not submitted, pending review, rejected (with
- *     reason), or approved & public.
- *
- * Actions per row:
- *   - Edit / Delete — only on the org's own.
- *   - Submit for review — only on the org's own that aren't already pending
- *     or public.
+ * Organizer-side scoring rulesets, split into two tabs:
+ *   - Manage — the org's own rulesets (edit / delete / submit-for-review, each
+ *     carrying a submission status: not submitted, pending, rejected, public).
+ *   - Discover — the adoptable catalog (built-ins + other orgs' approved-public
+ *     rows), rendered as cards by ScoringDiscoverTab; Adopt clones into the org.
  */
 export default function OrgScoringRulesetsPage() {
   const params = useParams<{ slug: string }>();
@@ -69,8 +71,24 @@ export default function OrgScoringRulesetsPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [submitTarget, setSubmitTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<RulesetsTab>('manage');
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Deep-link `?tab=` without next/navigation's useSearchParams (which makes the
+  // React Compiler bail); read once on mount, mirror on change via window APIs.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('tab');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time deep-link read on mount
+    if (isTabKey(q)) setTab(q);
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('tab') === tab) return;
+    url.searchParams.set('tab', tab);
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+  }, [tab]);
 
   useEffect(() => {
     if (!params.slug) return;
@@ -165,42 +183,9 @@ export default function OrgScoringRulesetsPage() {
     }
   }
 
-  function rowSource(row: CustomRulesetRow): { label: string; className: string } {
-    if (row.is_system)
-      return {
-        label: t('admin.rulesets.shared.badges.builtin'),
-        className: 'bg-success/10 text-success',
-      };
-    if (row.owner_organization_id === orgId)
-      return { label: t('admin.rulesets.sourceMine'), className: 'bg-info/10 text-info' };
-    return {
-      label: t('admin.rulesets.sourceShared'),
-      className: 'bg-purple-100 text-purple-800',
-    };
-  }
-
-  function rowSubmissionBadge(row: CustomRulesetRow): { label: string; className: string } | null {
-    if (row.is_system || row.owner_organization_id !== orgId) return null;
-    if (row.public_visibility)
-      return {
-        label: t('admin.rulesets.submissionApproved'),
-        className: 'bg-success/10 text-success',
-      };
-    if (row.submitted_for_review_at)
-      return {
-        label: t('admin.rulesets.submissionPending'),
-        className: 'bg-warning/10 text-warning',
-      };
-    if (row.rejected_reason)
-      return {
-        label: t('admin.rulesets.submissionRejected'),
-        className: 'bg-danger/10 text-danger',
-      };
-    return {
-      label: t('admin.rulesets.submissionNotSubmitted'),
-      className: 'bg-background text-foreground-secondary',
-    };
-  }
+  // Manage shows only the org's own rulesets; built-ins and other orgs' shared
+  // rows live in the Discover catalog tab.
+  const manageRows = rows.filter((row) => row.owner_organization_id === orgId);
 
   return (
     <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
@@ -213,132 +198,162 @@ export default function OrgScoringRulesetsPage() {
 
       <RulesetsTopNav active="scoring" basePath={`/org/${slugForLink}/rulesets`} />
 
+      <SegmentedTabs
+        tabs={[
+          { value: 'manage' as const, label: t('admin.rulesets.discover.tabManage') },
+          { value: 'discover' as const, label: t('admin.rulesets.discover.tabDiscover') },
+        ]}
+        value={tab}
+        onChange={setTab}
+        aria-label={t('admin.rulesets.title')}
+        className="mb-6 max-w-md"
+      />
+
       {error && (
         <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-          {t('admin.rulesets.curatedTitle')}
-        </h2>
-        <Link
-          href={`/org/${slugForLink}/rulesets/scoring/new`}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
-        >
-          {t('admin.rulesets.createButton')}
-        </Link>
-      </div>
+      {tab === 'discover' && orgId && (
+        <RulesetDiscoverTab
+          endpoint={`/api/v1/organizations/${orgId}/custom-rulesets/catalog`}
+          toCards={(rows) => toScoringDiscoverCards(rows, t, slugForLink)}
+        />
+      )}
 
-      {loading ? (
-        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-muted">{t('admin.rulesets.curatedEmpty')}</p>
-      ) : (
-        <DataTable>
-          <DataTableHead>
-            <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.rulesets.colSubmission')}</DataTableCell>
-            <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
-          </DataTableHead>
-          <tbody>
-            {rows.map((row) => {
-              const isMine = row.owner_organization_id === orgId;
-              const source = rowSource(row);
-              const submissionBadge = rowSubmissionBadge(row);
-              const canSubmit = isMine && !row.public_visibility && !row.submitted_for_review_at;
-              const actions = rulesetRowActions({ builtIn: row.is_system, mine: isMine });
-              return (
-                <DataTableRow key={row.id}>
-                  <DataTableCell>
-                    <div className="font-semibold text-foreground">{row.name}</div>
-                    {row.base_code && (
-                      <div className="mt-0.5 text-xs text-info">
-                        {t('admin.rulesets.forkedFrom', {
-                          base: rows.find((r) => r.code === row.base_code)?.name ?? row.base_code,
-                        })}
-                      </div>
-                    )}
-                    {row.description && (
-                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
-                        {row.description}
-                      </div>
-                    )}
-                    {row.rejected_reason && (
-                      <div className="mt-1 rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
-                        {t('admin.rulesets.rejectedReasonLabel')}: {row.rejected_reason}
-                      </div>
-                    )}
-                  </DataTableCell>
-                  <DataTableCell mono>{row.code}</DataTableCell>
-                  <DataTableCell mono className="font-bold">
-                    {row.version}
-                  </DataTableCell>
-                  <DataTableCell>
-                    <span
-                      className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${source.className}`}
-                    >
-                      {source.label}
-                    </span>
-                  </DataTableCell>
-                  <DataTableCell>
-                    {submissionBadge ? (
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${submissionBadge.className}`}
-                      >
-                        {submissionBadge.label}
-                      </span>
-                    ) : (
-                      <span className="text-xs italic text-muted">—</span>
-                    )}
-                  </DataTableCell>
-                  <DataTableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {actions.view && (
-                        <Link
-                          href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
-                          className={rowActionClasses('neutral')}
+      {tab === 'manage' && (
+        <>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+              {t('admin.rulesets.curatedTitle')}
+            </h2>
+            <Link
+              href={`/org/${slugForLink}/rulesets/scoring/new`}
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
+            >
+              {t('admin.rulesets.createButton')}
+            </Link>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
+          ) : manageRows.length === 0 ? (
+            <p className="text-sm text-muted">{t('admin.rulesets.discover.manageEmpty')}</p>
+          ) : (
+            <DataTable>
+              <DataTableHead>
+                <DataTableCell as="th">{t('admin.rulesets.shared.columns.name')}</DataTableCell>
+                <DataTableCell as="th">{t('admin.rulesets.shared.columns.code')}</DataTableCell>
+                <DataTableCell as="th">{t('admin.rulesets.shared.columns.version')}</DataTableCell>
+                <DataTableCell as="th">{t('admin.rulesets.shared.columns.source')}</DataTableCell>
+                <DataTableCell as="th">{t('admin.rulesets.colSubmission')}</DataTableCell>
+                <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
+              </DataTableHead>
+              <tbody>
+                {manageRows.map((row) => {
+                  const isMine = row.owner_organization_id === orgId;
+                  const source = rulesetSourceBadge(row, orgId, t);
+                  const submissionBadge = rulesetSubmissionBadge(row, orgId, t);
+                  const canSubmit =
+                    isMine && !row.public_visibility && !row.submitted_for_review_at;
+                  const actions = rulesetRowActions({ builtIn: row.is_system, mine: isMine });
+                  return (
+                    <DataTableRow key={row.id}>
+                      <DataTableCell>
+                        <div className="font-semibold text-foreground">{row.name}</div>
+                        {row.base_code && (
+                          <div className="mt-0.5 text-xs text-info">
+                            {t('admin.rulesets.forkedFrom', {
+                              base:
+                                rows.find((r) => r.code === row.base_code)?.name ?? row.base_code,
+                            })}
+                          </div>
+                        )}
+                        {row.description && (
+                          <div className="mt-0.5 line-clamp-2 text-xs text-muted">
+                            {row.description}
+                          </div>
+                        )}
+                        {row.rejected_reason && (
+                          <div className="mt-1 rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
+                            {t('admin.rulesets.rejectedReasonLabel')}: {row.rejected_reason}
+                          </div>
+                        )}
+                      </DataTableCell>
+                      <DataTableCell mono>{row.code}</DataTableCell>
+                      <DataTableCell mono className="font-bold">
+                        {row.version}
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span
+                          className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${source.className}`}
                         >
-                          {t('admin.rulesets.viewAction')}
-                        </Link>
-                      )}
-                      {actions.edit && (
-                        <Link
-                          href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
-                          className={rowActionClasses('edit')}
-                        >
-                          {t('admin.rulesets.shared.actions.edit')}
-                        </Link>
-                      )}
-                      {actions.clone && (
-                        <Link
-                          href={`/org/${slugForLink}/rulesets/scoring/new?cloneFrom=${row.id}`}
-                          className={rowActionClasses('neutral')}
-                        >
-                          {t('admin.rulesets.shared.actions.clone')}
-                        </Link>
-                      )}
-                      {canSubmit && (
-                        <RowActionButton variant="success" onClick={() => setSubmitTarget(row.id)}>
-                          {t('admin.rulesets.submitForReviewAction')}
-                        </RowActionButton>
-                      )}
-                      {actions.delete && (
-                        <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                          {t('admin.rulesets.shared.actions.delete')}
-                        </RowActionButton>
-                      )}
-                    </div>
-                  </DataTableCell>
-                </DataTableRow>
-              );
-            })}
-          </tbody>
-        </DataTable>
+                          {source.label}
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        {submissionBadge ? (
+                          <span
+                            className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${submissionBadge.className}`}
+                          >
+                            {submissionBadge.label}
+                          </span>
+                        ) : (
+                          <span className="text-xs italic text-muted">—</span>
+                        )}
+                      </DataTableCell>
+                      <DataTableCell>
+                        <div className="flex flex-wrap gap-2">
+                          {actions.view && (
+                            <Link
+                              href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
+                              className={rowActionClasses('neutral')}
+                            >
+                              {t('admin.rulesets.viewAction')}
+                            </Link>
+                          )}
+                          {actions.edit && (
+                            <Link
+                              href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
+                              className={rowActionClasses('edit')}
+                            >
+                              {t('admin.rulesets.shared.actions.edit')}
+                            </Link>
+                          )}
+                          {actions.clone && (
+                            <Link
+                              href={`/org/${slugForLink}/rulesets/scoring/new?cloneFrom=${row.id}`}
+                              className={rowActionClasses('neutral')}
+                            >
+                              {t('admin.rulesets.shared.actions.clone')}
+                            </Link>
+                          )}
+                          {canSubmit && (
+                            <RowActionButton
+                              variant="success"
+                              onClick={() => setSubmitTarget(row.id)}
+                            >
+                              {t('admin.rulesets.submitForReviewAction')}
+                            </RowActionButton>
+                          )}
+                          {actions.delete && (
+                            <RowActionButton
+                              variant="danger"
+                              onClick={() => setDeleteTarget(row.id)}
+                            >
+                              {t('admin.rulesets.shared.actions.delete')}
+                            </RowActionButton>
+                          )}
+                        </div>
+                      </DataTableCell>
+                    </DataTableRow>
+                  );
+                })}
+              </tbody>
+            </DataTable>
+          )}
+        </>
       )}
 
       <ConfirmDialog
