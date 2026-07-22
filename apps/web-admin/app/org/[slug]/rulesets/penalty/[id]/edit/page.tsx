@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import type { BucketStatus } from '@myclash/rulesets';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import {
   DEFAULT_PENALTY_RULESET_FORM_VALUES,
@@ -12,6 +13,7 @@ import {
   type PenaltyRulesetFormValue,
 } from '../../../../../../../src/components/rulesets/PenaltyRulesetForm';
 import { PenaltyVersionHistory } from '../../../../../../../src/components/rulesets/PenaltyVersionHistory';
+import { PenaltyLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -53,6 +55,9 @@ export default function OrgEditPenaltyRulesetPage() {
   const [initial, setInitial] = useState<(PenaltyRulesetFormValue & { builtIn: boolean }) | null>(
     null,
   );
+  // Computed penalty lineage vs the built-in default (null for the built-in
+  // itself). Never self-declared — the server diffs the canonical forms.
+  const [lineage, setLineage] = useState<{ base: string; status: BucketStatus } | null>(null);
 
   useEffect(() => {
     if (!params.id) return;
@@ -106,6 +111,24 @@ export default function OrgEditPenaltyRulesetPage() {
     };
   }, [params.id, t]);
 
+  // Fetch the computed lineage lamp (custom ruleset vs the built-in default);
+  // the endpoint returns null for the built-in, so it simply stays hidden there.
+  useEffect(() => {
+    if (!params.id) return;
+    let cancelled = false;
+    void fetch(`${apiUrl}/api/v1/penalty-rulesets/${params.id}/lineage`, {
+      credentials: 'include',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { base: string; status: BucketStatus } | null) => {
+        if (!cancelled && data) setLineage(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
+
   return (
     <main className="max-w-[110rem] p-8">
       <div className="mb-2 text-sm">
@@ -133,6 +156,7 @@ export default function OrgEditPenaltyRulesetPage() {
               {t('admin.penaltyRulesets.builtInSuperAdminBanner')}
             </div>
           )}
+          {lineage && <PenaltyLineagePanel base={lineage.base} status={lineage.status} />}
           <PenaltyRulesetForm
             initial={initial}
             // Org-admins can never edit the built-in; super-admin uses the

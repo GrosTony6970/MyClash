@@ -69,6 +69,39 @@ export function LineageLamps({ base, diff }: { base: string; diff: BucketDiff })
 }
 
 /**
+ * The single computed penalty lineage lamp for the penalty authoring surface:
+ * how a custom penalty ruleset diverges from the built-in default it is compared
+ * against (never self-declared). A `changed` status always breaks scoring
+ * compatibility — every field the penalty canonical keeps re-ranks results — so
+ * it always shows the guardrail.
+ */
+export function PenaltyLineagePanel({ base, status }: { base: string; status: BucketStatus }) {
+  const { t } = useI18n();
+  const changed = status === 'changed';
+  return (
+    <div className="mb-4 rounded-md border border-border bg-surface p-4">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+        {t('admin.rulesets.lineageHeading', { base })}
+      </p>
+      <ul className="space-y-1">
+        <LineageLamp
+          changed={changed}
+          label={t('admin.penaltyRulesets.lineagePenalties')}
+          statusLabel={
+            changed ? t('admin.rulesets.lineageCustomised') : t('admin.rulesets.lineageSame')
+          }
+        />
+      </ul>
+      {changed && (
+        <p className="mt-3 rounded bg-warning/10 px-3 py-2 text-xs text-warning">
+          {t('admin.penaltyRulesets.lineagePenaltyWarning', { base })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * Read-only view of a coded fork on the authoring surface: what it is, and —
  * computed by diffing, never self-declared — which of the buckets diverge from
  * the base it reuses.

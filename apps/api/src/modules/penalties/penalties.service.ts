@@ -11,7 +11,10 @@ import {
 import {
   computeDirectPenaltySanction,
   computePenaltySanction,
+  diffPenaltyBucket,
   parsePenaltyRulesetCsv,
+  projectPenaltyBucketFromLive,
+  type BucketStatus,
   type ExistingPenaltyForSanction,
   type PenaltyCard,
   type PenaltyRulesetEntry,
@@ -82,6 +85,38 @@ export class PenaltiesService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Penalty ruleset ${rulesetId} not found`);
     return data;
+  }
+
+  /**
+   * How a custom penalty ruleset diverges from the platform built-in default,
+   * computed by diffing their canonical forms (never self-declared). Returns
+   * null for the built-in itself (no parent) and when no built-in exists. The
+   * built-in is read LIVE (it is never frozen), so this is advisory — a later
+   * super-admin edit to the built-in moves the baseline. Powers the
+   * authoring-surface penalty lineage lamp. Resolved by the built_in flag, not
+   * the stale BUILTIN_VERSION constant.
+   */
+  async describeRulesetLineage(
+    rulesetId: string,
+  ): Promise<{ base: string; status: BucketStatus } | null> {
+    const ruleset = (await this.getRuleset(rulesetId)) as Row;
+    if (ruleset['built_in']) return null;
+    const { data } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select(
+        'name, accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, penalty_ruleset_entries(group_number, ref_number, sanctions)',
+      )
+      .eq('built_in', true)
+      .is('owner_organization_id', null)
+      .limit(1)
+      .maybeSingle();
+    const builtin = data as Row | null;
+    if (!builtin) return null;
+    const status = diffPenaltyBucket(
+      projectPenaltyBucketFromLive(builtin),
+      projectPenaltyBucketFromLive(ruleset),
+    );
+    return { base: (builtin['name'] as string) ?? '', status };
   }
 
   async getEffectiveRulesetForMatch(matchId: string) {

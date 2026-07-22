@@ -2863,6 +2863,9 @@ export const en = {
       editDescription: 'Update the metadata and the entries list. Saving rewrites the entries.',
       builtInSuperAdminBanner:
         'This is the platform built-in penalty ruleset. Only super-admin can edit it.',
+      lineagePenalties: 'Penalties (cards, forfeits)',
+      lineagePenaltyWarning:
+        'This changes scoring versus the {base} default — placings will differ.',
       colScope: 'Scope',
       colRef: 'Ref',
       colShortName: 'Short name',
@@ -9048,6 +9051,9 @@ export const fr = {
         'Mettre a jour les metadonnees et la liste des entrees. L enregistrement remplace les entrees.',
       builtInSuperAdminBanner:
         'Ceci est le ruleset de penalites integre a la plateforme. Seul le super-admin peut le modifier.',
+      lineagePenalties: 'Penalites (cartons, forfaits)',
+      lineagePenaltyWarning:
+        'Ceci change le calcul par rapport au defaut {base} — les classements differeront.',
       colScope: 'Portee',
       colRef: 'Ref',
       colShortName: 'Nom court',

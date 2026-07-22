@@ -69,6 +69,16 @@ export class PenaltiesController {
     return this.penalties.getRuleset(id);
   }
 
+  @Get('penalty-rulesets/:id/lineage')
+  @ApiOperation({
+    summary:
+      'How a custom penalty ruleset diverges from the built-in default (computed, never self-declared); null for the built-in.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getRulesetLineage(@Param('id', ParseUUIDPipe) id: string) {
+    return this.penalties.describeRulesetLineage(id);
+  }
+
   @Post('penalty-rulesets')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a custom penalty ruleset' })
