@@ -47,6 +47,7 @@ import {
   resolveRulesetGrammar,
   resolveRulesetLabel,
 } from './ruleset-defaults';
+import { freezePenaltyRulesetVersion } from '../penalties/penalty-version.util';
 
 /**
  * Distinct people with an ACTIVE registration across the event, deduped by
@@ -2412,6 +2413,12 @@ export class EventsService {
     // bump a new version instead of mutating in place. Freeze on the same
     // canonical version we stored above (a no-op for system rulesets).
     await freezeRulesetVersion(this.supabase, code, version);
+    // Pin the penalty ruleset too: snapshot + freeze its current version so the
+    // pinned definition is captured immutably (best-effort; no-op for the
+    // built-in). Immutability itself is enforced by the penalties edit-guard.
+    if (dto.penaltyRulesetId) {
+      await freezePenaltyRulesetVersion(this.supabase, dto.penaltyRulesetId, userId);
+    }
 
     return data;
   }
@@ -2588,6 +2595,22 @@ export class EventsService {
       updates['ruleset_config'] = validateTournamentRulesetConfig(currentCode ?? 'TF_v1', merged);
     }
 
+    // Penalty re-pin guard: the same posture as the scoring swap above. Recorded
+    // penalties are denormalised (past cards keep their effect), but swapping the
+    // penalty ruleset once matches are scored would apply a different sanction
+    // ladder/cost to later cards than the ones already recorded — lock it to
+    // pre-scoring edits.
+    const currentPenaltyRulesetId = (currentJson['penalty_ruleset_id'] as string | null) ?? null;
+    const nextPenaltyRulesetId =
+      dto.penaltyRulesetId !== undefined ? (dto.penaltyRulesetId ?? null) : currentPenaltyRulesetId;
+    const penaltyChanged = nextPenaltyRulesetId !== currentPenaltyRulesetId;
+    if (penaltyChanged) {
+      await this.assertNoRecordedResults(
+        [tournamentId],
+        'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
+      );
+    }
+
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .update(updates)
@@ -2596,6 +2619,10 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    // Freeze the newly-pinned penalty ruleset's current version (best-effort).
+    if (penaltyChanged && nextPenaltyRulesetId) {
+      await freezePenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId, userId);
+    }
     if (dto.status === 'completed') {
       await this.notificationEvents.resultsPublished(tournamentId);
     }

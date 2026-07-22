@@ -30,6 +30,11 @@ import type {
   UpdatePenaltyRulesetDto,
   VoidPenaltyDto,
 } from './dto/penalties.dto';
+import {
+  buildPenaltyVersionRow,
+  freezePenaltyRulesetVersion,
+  type PenaltyVersionEntry,
+} from './penalty-version.util';
 
 type Row = Record<string, unknown>;
 
@@ -456,16 +461,16 @@ export class PenaltiesService {
 
   async assignEventRuleset(eventId: string, dto: AssignPenaltyRulesetDto, userId?: string) {
     await this.assertUserCanManageOrg(await this.getEventOrganizationId(eventId), userId);
+    const nextId = dto.penaltyRulesetId ?? null;
     const { data, error } = await this.supabase.service
       .from('events')
-      .update({
-        penalty_ruleset_id: dto.penaltyRulesetId ?? null,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ penalty_ruleset_id: nextId, updated_at: new Date().toISOString() })
       .eq('id', eventId)
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
+    // Pin-time freeze: capture the pinned definition immutably (best-effort).
+    if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
     return data;
   }
 
@@ -475,16 +480,25 @@ export class PenaltiesService {
     userId?: string,
   ) {
     await this.assertUserCanManageOrg(await this.getTournamentOrganizationId(tournamentId), userId);
+    const nextId = dto.penaltyRulesetId ?? null;
+    const currentId = await this.getTournamentPenaltyRulesetId(tournamentId);
+    // Re-pin guard: once matches are scored, the penalty ruleset is locked to
+    // ordinary edits — swapping it mid-event would apply a different sanction
+    // ladder/cost to later cards than the ones already recorded. Mirrors the
+    // scoring assertNoRecordedResults guard (events.updateTournament).
+    if (nextId !== currentId && (await this.tournamentHasStartedMatches(tournamentId))) {
+      throw new ForbiddenException(
+        'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
+      );
+    }
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .update({
-        penalty_ruleset_id: dto.penaltyRulesetId ?? null,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ penalty_ruleset_id: nextId, updated_at: new Date().toISOString() })
       .eq('id', tournamentId)
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
+    if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
     return data;
   }
 
@@ -1078,42 +1092,12 @@ export class PenaltiesService {
    */
   private async snapshotPenaltyVersion(id: string, userId?: string): Promise<void> {
     const ruleset = (await this.getRuleset(id)) as Row;
-    const entries = this.serializePenaltyEntries(
-      (ruleset['penalty_ruleset_entries'] as Row[] | undefined) ?? [],
-    );
-    const actor = userId && userId !== 'unknown' && userId !== 'anonymous' ? userId : null;
-    const { error } = await this.supabase.service.from('penalty_ruleset_versions').insert({
-      penalty_ruleset_id: ruleset['id'],
-      version: ruleset['version'],
-      name: ruleset['name'],
-      description: ruleset['description'] ?? null,
-      accumulation_scope: ruleset['accumulation_scope'],
-      yellow_card_points: ruleset['yellow_card_points'],
-      red_card_points: ruleset['red_card_points'],
-      black_card_points: ruleset['black_card_points'],
-      first_black_card_forfeit: ruleset['first_black_card_forfeit'],
-      second_black_card_forfeit: ruleset['second_black_card_forfeit'],
-      entries,
-      published_by_user_id: actor,
-    });
+    const { error } = await this.supabase.service
+      .from('penalty_ruleset_versions')
+      .insert(buildPenaltyVersionRow(ruleset, userId));
     if (error && !/unique|duplicate/i.test(error.message)) {
       throw new BadRequestException(error.message);
     }
-  }
-
-  /** Map DB entry rows to the ordered snapshot-array shape (camelCase, sorted). */
-  private serializePenaltyEntries(rows: Row[]): PenaltyVersionEntry[] {
-    return rows
-      .slice()
-      .sort((a, b) => Number(a['sort_order'] ?? 0) - Number(b['sort_order'] ?? 0))
-      .map((entry, index) => ({
-        groupNumber: Number(entry['group_number']),
-        refNumber: String(entry['ref_number']),
-        shortName: String(entry['short_name']),
-        description: String(entry['description'] ?? ''),
-        sanctions: (entry['sanctions'] as PenaltyCard[]) ?? [],
-        sortOrder: Number(entry['sort_order'] ?? index + 1),
-      }));
   }
 
   /** Throw a 400 listing every reason the ruleset can't be published. */
@@ -1197,6 +1181,32 @@ export class PenaltiesService {
       .select('id', { count: 'exact', head: true })
       .eq('penalty_ruleset_id', id);
     return (eventCount ?? 0) > 0;
+  }
+
+  /** The tournament's currently-pinned penalty ruleset id (null if none). */
+  private async getTournamentPenaltyRulesetId(tournamentId: string): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('penalty_ruleset_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    return (data as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
+  }
+
+  /** True if any match under the tournament has left the 'scheduled' state. */
+  private async tournamentHasStartedMatches(tournamentId: string): Promise<boolean> {
+    const { data: phases } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId);
+    const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((phase) => phase.id);
+    if (phaseIds.length === 0) return false;
+    const { count } = await this.supabase.service
+      .from('matches')
+      .select('id', { count: 'exact', head: true })
+      .in('phase_id', phaseIds)
+      .neq('status', 'scheduled');
+    return (count ?? 0) > 0;
   }
 
   /** Published version history for a penalty ruleset, most recent first. */
@@ -1304,15 +1314,6 @@ export class PenaltiesService {
     }
     await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
   }
-}
-
-export interface PenaltyVersionEntry {
-  groupNumber: number;
-  refNumber: string;
-  shortName: string;
-  description: string;
-  sanctions: PenaltyCard[];
-  sortOrder: number;
 }
 
 export interface PenaltyRulesetVersionRow {
