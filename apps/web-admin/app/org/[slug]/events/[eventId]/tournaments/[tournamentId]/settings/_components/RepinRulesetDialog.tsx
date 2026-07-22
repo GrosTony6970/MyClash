@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Modal } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import type { BucketDiff } from '@myclash/rulesets';
+import { LineageLamps } from '@/components/rulesets/LineageLamps';
 
 /** The backend requires a justification of at least this many characters; the
  *  confirm button stays disabled until the reason is real (the typed
@@ -20,6 +22,7 @@ export function RepinRulesetDialog({
   open,
   fromLabel,
   toLabel,
+  diff,
   busy,
   error,
   onConfirm,
@@ -28,6 +31,10 @@ export function RepinRulesetDialog({
   open: boolean;
   fromLabel: string;
   toLabel: string;
+  /** Computed per-bucket lineage diff of the new ruleset vs the pinned one, so
+   *  the organiser sees WHICH buckets change before confirming. Null while the
+   *  preview loads (or if it fails — the ceremony still works without it). */
+  diff: BucketDiff | null;
   busy: boolean;
   error: string | null;
   onConfirm: (justification: string) => void;
@@ -71,6 +78,11 @@ export function RepinRulesetDialog({
         <p className="text-sm text-foreground-secondary">
           {t('admin.orgTournaments.repinRulesetFromTo', { from: fromLabel, to: toLabel })}
         </p>
+        {diff && (
+          <div className="rounded-md border border-border bg-surface p-4">
+            <LineageLamps base={fromLabel} diff={diff} />
+          </div>
+        )}
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-foreground-secondary">
             {t('admin.orgTournaments.repinRulesetJustificationLabel')}

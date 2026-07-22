@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
 import { t } from '@myclash/i18n';
+import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
@@ -53,6 +54,9 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
   const [repinOpen, setRepinOpen] = useState(false);
   const [repinBusy, setRepinBusy] = useState(false);
   const [repinError, setRepinError] = useState<string | null>(null);
+  // The computed per-bucket lineage diff for the pending re-pin, loaded from the
+  // read-only preview when the ceremony opens (null while loading / on failure).
+  const [repinDiff, setRepinDiff] = useState<BucketDiff | null>(null);
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -152,7 +156,20 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
       return;
     }
     if (res.status === 403) {
+      setRepinDiff(null);
       setRepinOpen(true);
+      // Load the computed lineage diff so the ceremony shows which buckets
+      // change before the organiser justifies the re-pin. Advisory — the
+      // ceremony still works if the preview fails.
+      const preview = (await fetch(
+        `${apiUrl}/api/v1/tournaments/${tournamentId}/repin-preview?rulesetCode=${encodeURIComponent(
+          data.rulesetCode,
+        )}&rulesetVersion=${encodeURIComponent(data.rulesetVersion)}`,
+        { credentials: 'include' },
+      )
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)) as { diff?: BucketDiff } | null;
+      setRepinDiff(preview?.diff ?? null);
       return;
     }
     toast.error(t('admin.common.saveFailed'));
@@ -350,12 +367,14 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           open={repinOpen}
           fromLabel={rulesetLabel(originalRuleset.code, originalRuleset.version)}
           toLabel={rulesetLabel(data.rulesetCode, data.rulesetVersion)}
+          diff={repinDiff}
           busy={repinBusy}
           error={repinError}
           onConfirm={(j) => void repin(j)}
           onClose={() => {
             setRepinOpen(false);
             setRepinError(null);
+            setRepinDiff(null);
           }}
         />
       )}
