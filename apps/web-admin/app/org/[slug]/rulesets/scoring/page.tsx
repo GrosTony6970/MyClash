@@ -9,8 +9,6 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
-  RowActionButton,
-  rowActionClasses,
   SegmentedTabs,
   useToast,
 } from '@myclash/ui';
@@ -18,6 +16,8 @@ import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
 import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/RulesetDiscoverTab';
+import { RulesetImportButton } from '../../../../../src/components/rulesets/RulesetImportButton';
+import { ScoringManageActions } from './_components/ScoringManageActions';
 import { toScoringDiscoverCards } from './_components/scoring-discover-cards';
 import { rulesetSourceBadge, rulesetSubmissionBadge } from './_components/manage-row-badges';
 
@@ -235,12 +235,20 @@ export default function OrgScoringRulesetsPage() {
             <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('admin.rulesets.curatedTitle')}
             </h2>
-            <Link
-              href={`/org/${slugForLink}/rulesets/scoring/new`}
-              className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
-            >
-              {t('admin.rulesets.createButton')}
-            </Link>
+            <div className="flex items-center gap-2">
+              {orgId && (
+                <RulesetImportButton
+                  endpoint={`/api/v1/organizations/${orgId}/custom-rulesets/import`}
+                  onImported={refresh}
+                />
+              )}
+              <Link
+                href={`/org/${slugForLink}/rulesets/scoring/new`}
+                className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
+              >
+                {t('admin.rulesets.createButton')}
+              </Link>
+            </div>
           </div>
 
           {loading ? (
@@ -311,48 +319,16 @@ export default function OrgScoringRulesetsPage() {
                         )}
                       </DataTableCell>
                       <DataTableCell>
-                        <div className="flex flex-wrap gap-2">
-                          {actions.view && (
-                            <Link
-                              href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
-                              className={rowActionClasses('neutral')}
-                            >
-                              {t('admin.rulesets.viewAction')}
-                            </Link>
-                          )}
-                          {actions.edit && (
-                            <Link
-                              href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
-                              className={rowActionClasses('edit')}
-                            >
-                              {t('admin.rulesets.shared.actions.edit')}
-                            </Link>
-                          )}
-                          {actions.clone && (
-                            <Link
-                              href={`/org/${slugForLink}/rulesets/scoring/new?cloneFrom=${row.id}`}
-                              className={rowActionClasses('neutral')}
-                            >
-                              {t('admin.rulesets.shared.actions.clone')}
-                            </Link>
-                          )}
-                          {canSubmit && (
-                            <RowActionButton
-                              variant="success"
-                              onClick={() => setSubmitTarget(row.id)}
-                            >
-                              {t('admin.rulesets.submitForReviewAction')}
-                            </RowActionButton>
-                          )}
-                          {actions.delete && (
-                            <RowActionButton
-                              variant="danger"
-                              onClick={() => setDeleteTarget(row.id)}
-                            >
-                              {t('admin.rulesets.shared.actions.delete')}
-                            </RowActionButton>
-                          )}
-                        </div>
+                        <ScoringManageActions
+                          row={row}
+                          actions={actions}
+                          isMine={isMine}
+                          canSubmit={canSubmit}
+                          orgId={orgId}
+                          slugForLink={slugForLink}
+                          onSubmit={setSubmitTarget}
+                          onDelete={setDeleteTarget}
+                        />
                       </DataTableCell>
                     </DataTableRow>
                   );

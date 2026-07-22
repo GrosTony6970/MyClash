@@ -9,8 +9,6 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
-  RowActionButton,
-  rowActionClasses,
   SegmentedTabs,
   useToast,
 } from '@myclash/ui';
@@ -18,6 +16,8 @@ import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
 import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/RulesetDiscoverTab';
+import { RulesetImportButton } from '../../../../../src/components/rulesets/RulesetImportButton';
+import { PenaltyManageActions } from './_components/PenaltyManageActions';
 import { toPenaltyDiscoverCards } from './_components/penalty-discover-cards';
 
 type RulesetsTab = 'manage' | 'discover';
@@ -242,12 +242,20 @@ export default function OrgPenaltyRulesetsPage() {
             <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
               {t('admin.penaltyRulesets.curatedTitle')}
             </h2>
-            <Link
-              href={`/org/${slugForLink}/rulesets/penalty/new`}
-              className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
-            >
-              {t('admin.penaltyRulesets.createButton')}
-            </Link>
+            <div className="flex items-center gap-2">
+              {orgId && (
+                <RulesetImportButton
+                  endpoint={`/api/v1/organizations/${orgId}/penalty-rulesets/import`}
+                  onImported={refresh}
+                />
+              )}
+              <Link
+                href={`/org/${slugForLink}/rulesets/penalty/new`}
+                className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-accent-hover"
+              >
+                {t('admin.penaltyRulesets.createButton')}
+              </Link>
+            </div>
           </div>
 
           {loading ? (
@@ -299,64 +307,15 @@ export default function OrgPenaltyRulesetsPage() {
                         {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
                       </DataTableCell>
                       <DataTableCell>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {(() => {
-                            const badge = sharingBadge(row);
-                            return badge ? (
-                              <span
-                                className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${badge.className}`}
-                                title={row.public_visibility_request_reason ?? undefined}
-                              >
-                                {badge.label}
-                              </span>
-                            ) : null;
-                          })()}
-                          {actions.view && (
-                            <Link
-                              href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
-                              className={rowActionClasses('neutral')}
-                            >
-                              {t('admin.rulesets.viewAction')}
-                            </Link>
-                          )}
-                          {actions.edit && (
-                            <Link
-                              href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
-                              className={rowActionClasses('edit')}
-                            >
-                              {t('admin.rulesets.shared.actions.edit')}
-                            </Link>
-                          )}
-                          {actions.clone && (
-                            <Link
-                              href={`/org/${slugForLink}/rulesets/penalty/new?cloneFrom=${row.id}`}
-                              className={rowActionClasses('neutral')}
-                            >
-                              {t('admin.rulesets.shared.actions.clone')}
-                            </Link>
-                          )}
-                          {/* R3: Submit for sharing — only on org-owned rows
-                        that aren't already public and aren't pending review. */}
-                          {!row.built_in &&
-                            row.owner_organization_id === orgId &&
-                            !row.public_visibility &&
-                            row.public_visibility_request_status !== 'pending' && (
-                              <RowActionButton
-                                variant="success"
-                                onClick={() => setSubmitShareTarget(row.id)}
-                              >
-                                {t('admin.rulesets.submitForReviewAction')}
-                              </RowActionButton>
-                            )}
-                          {actions.delete && (
-                            <RowActionButton
-                              variant="danger"
-                              onClick={() => setDeleteTarget(row.id)}
-                            >
-                              {t('admin.rulesets.shared.actions.delete')}
-                            </RowActionButton>
-                          )}
-                        </div>
+                        <PenaltyManageActions
+                          row={row}
+                          actions={actions}
+                          orgId={orgId}
+                          slugForLink={slugForLink}
+                          sharingBadge={sharingBadge(row)}
+                          onSubmitShare={setSubmitShareTarget}
+                          onDelete={setDeleteTarget}
+                        />
                       </DataTableCell>
                     </DataTableRow>
                   );

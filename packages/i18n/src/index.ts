@@ -2652,6 +2652,12 @@ export const en = {
       rejectAction: 'Reject',
       rejectReasonPrompt: 'Reason for rejection:',
       actionFailed: 'Action failed. Please try again.',
+      portability: {
+        export: 'Export',
+        import: 'Import',
+        imported: 'Ruleset imported',
+        invalidFile: 'That file is not a valid ruleset export.',
+      },
       systemReadOnlyBanner:
         'This is a system ruleset. You can clone it to create an editable copy.',
       statusPending: 'Pending',
@@ -8860,6 +8866,12 @@ export const fr = {
       rejectAction: 'Rejeter',
       rejectReasonPrompt: 'Motif du rejet :',
       actionFailed: 'L action a echoue. Veuillez reessayer.',
+      portability: {
+        export: 'Exporter',
+        import: 'Importer',
+        imported: 'Bareme importe',
+        invalidFile: 'Ce fichier n’est pas un export de bareme valide.',
+      },
       systemReadOnlyBanner:
         'Ceci est un ruleset systeme. Vous pouvez le cloner pour creer une copie modifiable.',
       statusPending: 'En attente',
