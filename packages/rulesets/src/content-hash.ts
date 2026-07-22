@@ -13,7 +13,7 @@
  * caller turns it into a stable string via {@link stableStringify} and hashes
  * that (sha256 lives in the API, which owns node:crypto).
  */
-import { normalizeMatchFormat } from './lineage';
+import { normalizeMatchFormatConfig } from './match-format';
 
 /** Grammar bucket — what an exchange can be and is worth. */
 export interface ScoringGrammarInput {
@@ -32,6 +32,9 @@ export interface CodedScoringBehaviour {
   grammar: ScoringGrammarInput;
   matchFormat: Record<string, unknown> | null;
   afterblowMode: string | null;
+  /** Tournament-level placing policy (e.g. forfeitDrawsCount) — not a ruleset
+   *  constant but it changes the W/L/D tally and thus placings. */
+  tournamentPolicy: unknown;
   winBonus: number | null;
   doublePenaltyFormula: unknown;
   forfeitPolicy: unknown;
@@ -43,6 +46,7 @@ export interface FormulaScoringBehaviour {
   grammar: ScoringGrammarInput;
   matchFormat: Record<string, unknown> | null;
   afterblowMode: string | null;
+  tournamentPolicy: unknown;
   scoreFormula: unknown;
   constants: Record<string, number>;
   tiebreakers: ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>;
@@ -78,8 +82,12 @@ export function canonicalizeScoringBehaviour(
 ): Record<string, unknown> {
   const shared = {
     grammar: canonicalizeGrammar(input.grammar),
-    matchFormat: normalizeMatchFormat(input.matchFormat),
+    // Normalise via the SAME normalizer the scorer uses (defaults + legacy
+    // aliases resolved), so 'field absent' and 'explicit default' — which score
+    // identically — also hash identically.
+    matchFormat: normalizeMatchFormatConfig(input.matchFormat ?? {}),
     afterblowMode: input.afterblowMode ?? null,
+    tournamentPolicy: input.tournamentPolicy ?? null,
   };
   if (input.kind === 'coded') {
     return {

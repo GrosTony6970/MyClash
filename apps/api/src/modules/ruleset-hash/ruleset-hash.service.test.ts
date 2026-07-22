@@ -85,6 +85,22 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     expect(changed).not.toBe(base);
   });
 
+  it('changes when the tournament overrides effective target values', async () => {
+    const base = await hashOf(stateFor());
+    const changed = await hashOf(
+      stateFor({ rulesetConfig: { targets: [{ name: 'deep', value: 3 }] } }),
+    );
+    expect(changed).not.toBe(base);
+  });
+
+  it('changes when tournamentPolicy.forfeitDrawsCount changes (a placing determinant)', async () => {
+    const base = await hashOf(stateFor());
+    const changed = await hashOf(
+      stateFor({ rulesetConfig: { tournamentPolicy: { forfeitDrawsCount: true } } }),
+    );
+    expect(changed).not.toBe(base);
+  });
+
   it('returns null when the tournament is gone', async () => {
     const supabase = fakeSupabase({ tournaments: { maybeSingle: null } });
     const hash = await new RulesetHashService(supabase as never).computeTournamentContentHash('x');

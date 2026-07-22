@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   canonicalizePenaltyDefinition,
   canonicalizeScoringBehaviour,
@@ -9,7 +9,11 @@ import {
   type ScoringBehaviourInput,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
-import { normalizeRulesetVersion, resolveRulesetGrammar } from '../events/ruleset-defaults';
+import {
+  normalizeRulesetVersion,
+  resolveRulesetGrammar,
+  type ResolvedRulesetGrammar,
+} from '../events/ruleset-defaults';
 
 type Row = Record<string, unknown>;
 
@@ -43,6 +47,8 @@ type ScoringStructure =
  */
 @Injectable()
 export class RulesetHashService {
+  private readonly logger = new Logger(RulesetHashService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   /** The (scoring, penalty) pair-hash for a tournament, or null if it is gone. */
@@ -57,11 +63,20 @@ export class RulesetHashService {
   /** Recompute + persist a tournament's effective content hash. Callers invoke
    *  this after any change to its ruleset/config/penalty pin. */
   async stampTournamentContentHash(tournamentId: string): Promise<void> {
-    const hash = await this.computeTournamentContentHash(tournamentId);
-    await this.supabase.service
-      .from('tournaments')
-      .update({ ruleset_content_hash: hash })
-      .eq('id', tournamentId);
+    // Best-effort: a hash-compute failure (e.g. an out-of-domain stored config
+    // the canonical normalizer rejects) must never fail the write that triggered
+    // the stamp — the hash is metadata, not the source of truth for scoring.
+    try {
+      const hash = await this.computeTournamentContentHash(tournamentId);
+      await this.supabase.service
+        .from('tournaments')
+        .update({ ruleset_content_hash: hash })
+        .eq('id', tournamentId);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to stamp content hash for tournament ${tournamentId}: ${String(err)}`,
+      );
+    }
   }
 
   /**
@@ -119,16 +134,12 @@ export class RulesetHashService {
     const config = t.ruleset_config ?? {};
     const scoringConfig = t.scoring_config_json ?? {};
     const matchFormat = (config['matchFormat'] as Row | undefined) ?? null;
+    const tournamentPolicy = config['tournamentPolicy'] ?? null;
     const afterblowMode =
       (scoringConfig['afterblowMode'] as string | undefined) ??
       grammar.defaultAfterblowMode ??
       null;
-    const grammarInput = {
-      targets: grammar.targets,
-      hasAfterblow: grammar.hasAfterblow,
-      afterblowValuation: grammar.hasAfterblow ? grammar.afterblowValuation : null,
-      afterblowFixedValue: grammar.hasAfterblow ? grammar.afterblowFixedValue : null,
-    };
+    const grammarInput = grammarInputFrom(config, grammar);
     const structure = await this.resolveScoringStructure(code, version);
     const input: ScoringBehaviourInput =
       structure.kind === 'coded'
@@ -137,6 +148,7 @@ export class RulesetHashService {
             engineCode: structure.engineCode,
             engineVersion: structure.engineVersion,
             grammar: grammarInput,
+            tournamentPolicy,
             matchFormat,
             afterblowMode,
             winBonus: (config['winBonus'] as number | undefined) ?? null,
@@ -148,6 +160,7 @@ export class RulesetHashService {
             grammar: grammarInput,
             matchFormat,
             afterblowMode,
+            tournamentPolicy,
             scoreFormula: structure.scoreFormula,
             constants: structure.constants,
             tiebreakers: structure.tiebreakers,
@@ -168,7 +181,7 @@ export class RulesetHashService {
     const { data } = await this.supabase.service
       .from('custom_rulesets')
       .select(
-        'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula',
+        'id, is_system, status, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula',
       )
       .eq('code', code)
       .maybeSingle();
@@ -183,7 +196,14 @@ export class RulesetHashService {
         engineVersion: (parent['base_version'] as string | null) ?? '1.0.0',
       };
     }
-    const def = (await this.loadScoringSnapshot(parent['id'] as string, version)) ?? parent;
+    const snapshot = await this.loadScoringSnapshot(parent['id'] as string, version);
+    // No published snapshot AND the parent is not published: RulesetResolver
+    // returns null for a draft, so the scorer falls back to TF_v1. Mirror that —
+    // otherwise the fingerprint describes a formula that never scored a bout.
+    if (!snapshot && parent['status'] !== 'published') {
+      return { kind: 'coded', engineCode: 'TF_v1', engineVersion: '1.0.0' };
+    }
+    const def = snapshot ?? parent;
     return {
       kind: 'formula',
       scoreFormula: def['score_formula'],
@@ -275,6 +295,19 @@ export class RulesetHashService {
       .maybeSingle();
     return data ? penaltyInputFromLive(data as Row) : null;
   }
+}
+
+/** Effective grammar for the hash: prefer the tournament's ruleset_config.targets
+ *  (a fork/tf_config edit writes them) over the ruleset's static grammar targets,
+ *  since the pressed button's value — set by targets — decides each hit. */
+function grammarInputFrom(config: Row, grammar: ResolvedRulesetGrammar) {
+  return {
+    targets:
+      (config['targets'] as Array<{ name: string; value: number }> | undefined) ?? grammar.targets,
+    hasAfterblow: grammar.hasAfterblow,
+    afterblowValuation: grammar.hasAfterblow ? grammar.afterblowValuation : null,
+    afterblowFixedValue: grammar.hasAfterblow ? grammar.afterblowFixedValue : null,
+  };
 }
 
 function penaltyBaseFields(row: Row) {

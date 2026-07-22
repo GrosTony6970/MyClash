@@ -21,8 +21,9 @@ const codedBase: CodedScoringBehaviour = {
     afterblowValuation: 'fixed',
     afterblowFixedValue: 1,
   },
-  matchFormat: { pointCap: 10, bestOf: 1, scoringDirection: 'up' },
+  matchFormat: { pointCap: 10 },
   afterblowMode: 'deductive',
+  tournamentPolicy: null,
   winBonus: 3,
   doublePenaltyFormula: 'n_times_n_minus_1_over_3',
   forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'match_only' } } },
@@ -38,6 +39,7 @@ const formulaBase: FormulaScoringBehaviour = {
   },
   matchFormat: { pointCap: 5 },
   afterblowMode: null,
+  tournamentPolicy: null,
   scoreFormula: {
     type: 'binop',
     op: '+',
@@ -100,15 +102,15 @@ describe('canonicalizeScoringBehaviour — coded', () => {
   });
 
   it('is stable under matchFormat key-order + absent-key normalisation', () => {
-    const a = hashOf({
-      ...codedBase,
-      matchFormat: { bestOf: 1, pointCap: 10, scoringDirection: 'up' },
-    });
-    const b = hashOf({
-      ...codedBase,
-      matchFormat: { scoringDirection: 'up', pointCap: 10, bestOf: 1 },
-    });
+    const a = hashOf({ ...codedBase, matchFormat: { pointCap: 10, maxDoubleHits: 4 } });
+    const b = hashOf({ ...codedBase, matchFormat: { maxDoubleHits: 4, pointCap: 10 } });
     expect(a).toBe(b);
+  });
+
+  it('changes when tournamentPolicy changes (forfeit-draws affects placings)', () => {
+    expect(hashOf({ ...codedBase, tournamentPolicy: { forfeitDrawsCount: true } })).not.toBe(
+      hashOf(codedBase),
+    );
   });
 
   it('folds the engine code+version into the fingerprint', () => {
@@ -224,6 +226,7 @@ describe('coded vs formula never collide', () => {
       },
       matchFormat: null,
       afterblowMode: null,
+      tournamentPolicy: null,
       winBonus: null,
       doublePenaltyFormula: null,
       forfeitPolicy: null,
@@ -238,6 +241,7 @@ describe('coded vs formula never collide', () => {
       },
       matchFormat: null,
       afterblowMode: null,
+      tournamentPolicy: null,
       scoreFormula: null,
       constants: { pointsPerVictory: 0, pointsPerTie: 0, pointsPerLoss: 0, doublePenalty: 0 },
       tiebreakers: [],
