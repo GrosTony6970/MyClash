@@ -110,7 +110,16 @@ export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
     }
   }
 
-  if (!versions) return null;
+  // Initial load failed (e.g. a transient error, or a non-admin who can open the
+  // form but not manage the ruleset): show the reason rather than silently
+  // vanishing the whole panel. `null` only while the first load is still pending.
+  if (!versions) {
+    return error ? (
+      <section className="mt-8 rounded-md border border-border bg-surface">
+        <p className="px-4 py-3 text-sm text-danger">{error}</p>
+      </section>
+    ) : null;
+  }
 
   return (
     <section className="mt-8 rounded-md border border-border bg-surface">
