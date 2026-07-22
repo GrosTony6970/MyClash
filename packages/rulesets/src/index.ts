@@ -143,12 +143,17 @@ export { diffRulesetBuckets, normalizeMatchFormat, projectRulesetBuckets } from 
 export type { BucketStatus, BucketDiff, RulesetBucketInputs, RulesetBucketRow } from './lineage';
 
 // Content-hash identity (canonical serialization; sha256 lives in the API)
-export { canonicalizeScoringBehaviour, stableStringify } from './content-hash';
+export {
+  canonicalizeScoringBehaviour,
+  canonicalizePenaltyDefinition,
+  stableStringify,
+} from './content-hash';
 export type {
   ScoringBehaviourInput,
   CodedScoringBehaviour,
   FormulaScoringBehaviour,
   ScoringGrammarInput,
+  PenaltyBehaviourInput,
 } from './content-hash';
 
 // Penalty rulesets

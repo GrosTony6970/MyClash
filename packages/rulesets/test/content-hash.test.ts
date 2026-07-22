@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   canonicalizeScoringBehaviour,
+  canonicalizePenaltyDefinition,
   stableStringify,
   type CodedScoringBehaviour,
   type FormulaScoringBehaviour,
+  type PenaltyBehaviourInput,
 } from '../src/content-hash';
 
 const codedBase: CodedScoringBehaviour = {
@@ -138,6 +140,73 @@ describe('canonicalizeScoringBehaviour — formula', () => {
       ],
     };
     expect(hashOf(swapped)).not.toBe(hashOf(formulaBase));
+  });
+});
+
+const penaltyBase: PenaltyBehaviourInput = {
+  accumulationScope: 'match',
+  yellowCardPoints: 0,
+  redCardPoints: -1,
+  blackCardPoints: 0,
+  firstBlackCardForfeit: 'match',
+  secondBlackCardForfeit: 'tournament',
+  entries: [
+    { groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] },
+    { groupNumber: 2, refNumber: 'R2', sanctions: ['red', 'black'] },
+  ],
+};
+
+const penaltyHash = (input: PenaltyBehaviourInput) =>
+  stableStringify(canonicalizePenaltyDefinition(input));
+
+describe('canonicalizePenaltyDefinition', () => {
+  it('is stable under entry reordering (entries keyed by group/ref, not sort_order)', () => {
+    const reordered: PenaltyBehaviourInput = {
+      ...penaltyBase,
+      entries: [penaltyBase.entries[1]!, penaltyBase.entries[0]!],
+    };
+    expect(penaltyHash(reordered)).toBe(penaltyHash(penaltyBase));
+  });
+
+  it('changes when a card cost changes', () => {
+    expect(penaltyHash({ ...penaltyBase, redCardPoints: -2 })).not.toBe(penaltyHash(penaltyBase));
+  });
+
+  it('changes when the sanction LADDER order within an entry changes', () => {
+    const swapped: PenaltyBehaviourInput = {
+      ...penaltyBase,
+      entries: [
+        { groupNumber: 1, refNumber: 'R1', sanctions: ['red', 'yellow'] },
+        penaltyBase.entries[1]!,
+      ],
+    };
+    expect(penaltyHash(swapped)).not.toBe(penaltyHash(penaltyBase));
+  });
+
+  it('changes when accumulation scope or a forfeit scope changes', () => {
+    expect(penaltyHash({ ...penaltyBase, accumulationScope: 'tournament' })).not.toBe(
+      penaltyHash(penaltyBase),
+    );
+    expect(penaltyHash({ ...penaltyBase, secondBlackCardForfeit: 'none' })).not.toBe(
+      penaltyHash(penaltyBase),
+    );
+  });
+
+  it('ignores display churn (identity is behaviour-only)', () => {
+    // Same behaviour fields, entries supplied in a different order → identical hash.
+    const same: PenaltyBehaviourInput = {
+      accumulationScope: 'match',
+      yellowCardPoints: 0,
+      redCardPoints: -1,
+      blackCardPoints: 0,
+      firstBlackCardForfeit: 'match',
+      secondBlackCardForfeit: 'tournament',
+      entries: [
+        { groupNumber: 2, refNumber: 'R2', sanctions: ['red', 'black'] },
+        { groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] },
+      ],
+    };
+    expect(penaltyHash(same)).toBe(penaltyHash(penaltyBase));
   });
 });
 

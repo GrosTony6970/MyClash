@@ -104,6 +104,57 @@ export function canonicalizeScoringBehaviour(
   };
 }
 
+/** The score-determining fields of a penalty ruleset (parent + N entries).
+ *  Display fields (name, short_name, description) and sort_order are excluded —
+ *  a rename or reorder must NOT change identity. */
+export interface PenaltyBehaviourInput {
+  accumulationScope: string;
+  yellowCardPoints: number;
+  redCardPoints: number;
+  blackCardPoints: number;
+  firstBlackCardForfeit: string;
+  secondBlackCardForfeit: string;
+  entries: ReadonlyArray<{
+    groupNumber: number;
+    refNumber: string;
+    /** Ordered sanction ladder — sanctions[occurrence] escalates, so order is
+     *  behaviour and is preserved. */
+    sanctions: ReadonlyArray<string>;
+  }>;
+}
+
+/**
+ * Canonicalise a penalty ruleset's scoring behaviour. Entries are ordered by
+ * (groupNumber, refNumber) — the stable behaviour key (ref_number is UNIQUE per
+ * ruleset) — so a sort_order reshuffle doesn't change identity; each entry's
+ * sanction ladder keeps its order.
+ */
+export function canonicalizePenaltyDefinition(
+  input: PenaltyBehaviourInput,
+): Record<string, unknown> {
+  const entries = input.entries
+    .map((entry) => ({
+      groupNumber: entry.groupNumber,
+      refNumber: entry.refNumber,
+      sanctions: [...entry.sanctions],
+    }))
+    .sort(
+      (a, b) =>
+        a.groupNumber - b.groupNumber ||
+        (a.refNumber < b.refNumber ? -1 : a.refNumber > b.refNumber ? 1 : 0),
+    );
+  return {
+    accumulationScope: input.accumulationScope,
+    cardPoints: {
+      yellow: input.yellowCardPoints,
+      red: input.redCardPoints,
+      black: input.blackCardPoints,
+    },
+    blackCardForfeit: { first: input.firstBlackCardForfeit, second: input.secondBlackCardForfeit },
+    entries,
+  };
+}
+
 /**
  * Deterministic JSON: object keys sorted, array order preserved, primitives via
  * JSON.stringify (undefined → null). Two semantically-identical objects that
