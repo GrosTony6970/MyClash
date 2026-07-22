@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -227,6 +228,17 @@ export class PenaltiesService {
       await this.assertUserCanManageOrg(row['owner_organization_id'] as string, userId);
     }
 
+    // Immutability guard: once a tournament or event pins a custom penalty
+    // ruleset, its definition is frozen — editing it in place would silently
+    // change how future cards escalate/cost under a running tournament. The
+    // built-in is exempt (super-admin authors it, mirroring the scoring
+    // is_system carve-out). To evolve a pinned ruleset, duplicate + re-pin.
+    if (!row['built_in'] && (await this.isPenaltyRulesetReferenced(id))) {
+      throw new ConflictException(
+        'This penalty ruleset is in use by a tournament or event and cannot be edited. Duplicate it to make changes, then re-pin.',
+      );
+    }
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.description !== undefined) updates['description'] = dto.description ?? null;
@@ -281,6 +293,15 @@ export class PenaltiesService {
       throw new ForbiddenException('The built-in penalty ruleset cannot be deleted');
     }
     await this.assertUserCanManageOrg(row['owner_organization_id'] as string, userId);
+
+    // Same immutability guard as updateRuleset: deleting a pinned ruleset would
+    // silently fall its tournaments back to the built-in — a definition change
+    // under a running tournament. Block it; duplicate + re-pin to replace.
+    if (await this.isPenaltyRulesetReferenced(id)) {
+      throw new ConflictException(
+        'This penalty ruleset is in use by a tournament or event and cannot be deleted. Re-pin those tournaments to another ruleset first.',
+      );
+    }
 
     const { error: delErr } = await this.supabase.service
       .from('penalty_rulesets')
@@ -1157,6 +1178,25 @@ export class PenaltiesService {
       owner_organization_id: string | null;
       version: string;
     };
+  }
+
+  /**
+   * True if any tournament or event pins this penalty ruleset by id. Powers the
+   * edit/delete immutability guards — the penalty analogue of scoring's
+   * isCurrentVersionFrozen (which queries tournaments by (code, version); here
+   * the pin is a UUID FK on tournaments/events.penalty_ruleset_id).
+   */
+  private async isPenaltyRulesetReferenced(id: string): Promise<boolean> {
+    const { count: tournamentCount } = await this.supabase.service
+      .from('tournaments')
+      .select('id', { count: 'exact', head: true })
+      .eq('penalty_ruleset_id', id);
+    if ((tournamentCount ?? 0) > 0) return true;
+    const { count: eventCount } = await this.supabase.service
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('penalty_ruleset_id', id);
+    return (eventCount ?? 0) > 0;
   }
 }
 

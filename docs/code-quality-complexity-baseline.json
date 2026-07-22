@@ -262,7 +262,7 @@
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:305",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:67",
     "apps/api/src/modules/penalties/penalties.service.test.ts:502",
-    "apps/api/src/modules/penalties/penalties.service.ts:210",
+    "apps/api/src/modules/penalties/penalties.service.ts:211",
     "apps/api/src/modules/people-context/people-context.service.ts:110",
     "apps/api/src/modules/people-context/people-context.service.ts:369",
     "apps/api/src/modules/persons/csv-import.service.ts:108",
