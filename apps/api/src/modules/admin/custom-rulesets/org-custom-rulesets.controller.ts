@@ -16,7 +16,11 @@ import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { CustomRulesetsService } from './custom-rulesets.service';
-import { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
+import {
+  CreateCustomRulesetDto,
+  UpdateCustomRulesetDto,
+  ValidateRulesetDto,
+} from './dto/custom-rulesets.dto';
 import { resolveRequestUserId } from '../../../common/auth/request-user';
 
 // Resolve the caller's user id from their Supabase JWT. Shared with the
@@ -83,6 +87,18 @@ export class OrgCustomRulesetsController {
     const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     return this.service.createForOrg(orgId, dto, userId);
+  }
+
+  @Post('validate')
+  @ApiOperation({ summary: 'Validate + preview a scoring ruleset config without saving.' })
+  async validate(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() dto: ValidateRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.assertOrgAdmin(orgId, userId);
+    return this.service.validateAndPreview(dto);
   }
 
   @Patch(':id')

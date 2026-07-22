@@ -21,6 +21,7 @@ import {
   PublishRulesetDto,
   RejectSubmissionDto,
   UpdateCustomRulesetDto,
+  ValidateRulesetDto,
 } from './dto/custom-rulesets.dto';
 
 function getActorId(req: FastifyRequest): string {
@@ -50,6 +51,12 @@ export class CustomRulesetsAdminController {
   @ApiOperation({ summary: 'Create custom ruleset (super admin)' })
   async create(@Body() dto: CreateCustomRulesetDto, @Req() req: FastifyRequest) {
     return this.service.create(dto, getActorId(req));
+  }
+
+  @Post('validate')
+  @ApiOperation({ summary: 'Validate + preview a scoring ruleset config (super admin)' })
+  async validate(@Body() dto: ValidateRulesetDto) {
+    return this.service.validateAndPreview(dto);
   }
 
   @Patch(':id')

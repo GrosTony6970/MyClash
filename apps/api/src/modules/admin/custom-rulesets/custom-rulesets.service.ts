@@ -20,6 +20,7 @@ import {
   registry,
   type DoublePenaltySpec,
   type FormulaConfig,
+  type FormulaScoringPreview,
   type RankingRule,
   type RulesetMetadata,
   type StandingsColumn,
@@ -74,6 +75,15 @@ export interface CustomRulesetRow {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** The stateless validate/preview payload the authoring form calls before it
+ *  saves or submits — the same checks the publish gates enforce, but reported
+ *  rather than thrown, plus the sample scores for a live preview. */
+export interface RulesetValidationResult {
+  ok: boolean;
+  errors: string[];
+  preview: FormulaScoringPreview | null;
 }
 
 export interface CustomRulesetVersionRow {
@@ -1074,6 +1084,46 @@ export class CustomRulesetsService {
       config.doublePenaltyFormula = row.double_penalty_formula;
     }
     this.assertFormulaFinite(config);
+  }
+
+  /**
+   * Stateless validate + preview for the authoring form (formula rulesets): the
+   * same checks the publish gates enforce, but REPORTED rather than thrown, plus
+   * the sample scores for a live preview. Keeps the evaluator server-side.
+   */
+  validateAndPreview(input: {
+    scoreFormula?: unknown;
+    constants?: unknown;
+    tiebreakers?: unknown;
+    doublePenaltyFormula?: unknown;
+    targets?: Array<{ name: string; value: number }> | null;
+  }): RulesetValidationResult {
+    const errors: string[] = [];
+    if (!Array.isArray(input.targets) || input.targets.length === 0) {
+      errors.push('This ruleset has no scoring targets, so it cannot produce a scoring pad.');
+    }
+    let preview: FormulaScoringPreview | null = null;
+    try {
+      const config = this.validateConfig({
+        scoreFormula: input.scoreFormula,
+        constants: input.constants,
+        tiebreakers: input.tiebreakers,
+      });
+      if (input.doublePenaltyFormula != null) {
+        config.doublePenaltyFormula = validateDoublePenaltyFormula(input.doublePenaltyFormula);
+      }
+      preview = previewFormulaScoring(config);
+      if (preview.hasNonFinite) {
+        errors.push(
+          'The scoring formula can produce a non-finite score (e.g. overflow from a very large constant).',
+        );
+      }
+    } catch (err) {
+      errors.push(
+        err instanceof BadRequestException ? err.message : 'The scoring formula is invalid.',
+      );
+    }
+    return { ok: errors.length === 0, errors, preview };
   }
 
   private formatZodError(err: unknown): string {

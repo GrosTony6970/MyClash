@@ -176,3 +176,54 @@ describe('CustomRulesetsService — publish-time dry-run validation', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('CustomRulesetsService.validateAndPreview', () => {
+  let service: CustomRulesetsService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
+    service = new CustomRulesetsService(mockSupabase as never);
+  });
+
+  const validInput = {
+    scoreFormula: LINEAR_AST,
+    constants: validConstants,
+    tiebreakers: validTiebreakers,
+    targets: [{ name: 'Hit', value: 1 }],
+  };
+
+  it('returns ok + a ranked preview for a valid config', () => {
+    const res = service.validateAndPreview(validInput);
+    expect(res.ok).toBe(true);
+    expect(res.errors).toEqual([]);
+    expect(res.preview?.hasNonFinite).toBe(false);
+    expect((res.preview?.rows.length ?? 0) > 0).toBe(true);
+  });
+
+  it('reports empty grammar (but still previews the formula)', () => {
+    const res = service.validateAndPreview({ ...validInput, targets: [] });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => /targets/i.test(e))).toBe(true);
+    expect(res.preview).not.toBeNull();
+  });
+
+  it('reports an invalid formula with no preview', () => {
+    const res = service.validateAndPreview({
+      ...validInput,
+      scoreFormula: { type: 'nonsense' },
+    });
+    expect(res.ok).toBe(false);
+    expect(res.preview).toBeNull();
+  });
+
+  it('reports a non-finite (overflow) formula', () => {
+    const res = service.validateAndPreview({
+      ...validInput,
+      constants: { ...validConstants, pointsPerVictory: 1e308 },
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => /non-finite/i.test(e))).toBe(true);
+    expect(res.preview?.hasNonFinite).toBe(true);
+  });
+});

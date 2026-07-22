@@ -34,6 +34,22 @@ const tiebreakerSchema = z.object({
   direction: z.enum(['asc', 'desc']),
 });
 
+/**
+ * Loose validate/preview payload. The endpoint REPORTS problems (ok/errors/
+ * preview) rather than 400ing, so the body is permissive — the service does the
+ * real checking. Only `targets` is shape-checked (it drives the display).
+ */
+const validateRulesetSchema = z
+  .object({
+    scoreFormula: z.unknown().optional(),
+    constants: z.unknown().optional(),
+    tiebreakers: z.unknown().optional(),
+    doublePenaltyFormula: z.unknown().nullish(),
+    targets: z.array(z.object({ name: z.string(), value: z.number() })).nullish(),
+  })
+  .passthrough();
+export class ValidateRulesetDto extends createZodDto(validateRulesetSchema) {}
+
 const createCustomRulesetSchema = z
   .object({
     name: z.string().min(2).max(100),
