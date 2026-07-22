@@ -175,6 +175,26 @@ describe('CustomRulesetsService — publish-time dry-run validation', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('update rejects an in-place edit that makes the formula score non-finite', async () => {
+    // An org ruleset is edited WHILE published, so update() must re-run the
+    // finite dry-run — validateConfig alone accepts 1e308 (a finite literal).
+    fromMock.mockReturnValue(makeChain({ data: formulaRow(), error: null }));
+    await expect(
+      service.update(
+        'r1',
+        { constants: { ...validConstants, pointsPerVictory: 1e308 } } as never,
+        'actor',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('update allows a valid formula edit', async () => {
+    fromMock.mockReturnValue(makeChain({ data: formulaRow(), error: null }));
+    await expect(
+      service.update('r1', { constants: validConstants } as never, 'actor'),
+    ).resolves.toMatchObject({ id: 'r1' });
+  });
 });
 
 describe('CustomRulesetsService.validateAndPreview', () => {
@@ -225,5 +245,11 @@ describe('CustomRulesetsService.validateAndPreview', () => {
     expect(res.ok).toBe(false);
     expect(res.errors.some((e) => /non-finite/i.test(e))).toBe(true);
     expect(res.preview?.hasNonFinite).toBe(true);
+  });
+
+  it('reports a blank-name target (the strict bound Save would 400 on)', () => {
+    const res = service.validateAndPreview({ ...validInput, targets: [{ name: '', value: 1 }] });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => /target/i.test(e))).toBe(true);
   });
 });

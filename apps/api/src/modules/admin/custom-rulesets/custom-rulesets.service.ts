@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuthoredTargetsSchema,
   DEFAULT_FORMULA_CONSTANTS,
   DOUBLE_PENALTY_FORMULA_KEYS,
   DoublePenaltySpecSchema,
@@ -431,6 +432,15 @@ export class CustomRulesetsService {
     if (dto.description !== undefined) updates['description'] = dto.description?.trim() || null;
     if (dto.version !== undefined) updates['version'] = dto.version.trim() || '1.0.0';
 
+    // The effective double-penalty spec (validated) — reused for the finite
+    // dry-run below and the stored column.
+    const effectiveDoublePenalty =
+      dto.doublePenaltyFormula !== undefined
+        ? dto.doublePenaltyFormula
+          ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
+          : null
+        : (existing.double_penalty_formula ?? null);
+
     // For system rulesets, the parent row's score_formula / constants /
     // tiebreakers are empty placeholders (the real values live in the code
     // plugin). Skip the FormulaConfig validation path entirely for them — the
@@ -446,6 +456,13 @@ export class CustomRulesetsService {
         constants: dto.constants ?? existing.constants,
         tiebreakers: dto.tiebreakers ?? existing.tiebreakers,
       });
+      // Re-run the finite dry-run the publish gates enforce. An org ruleset is
+      // edited in place WHILE published, and validateConfig is only a shape
+      // check — a literal/constant like 1e308 is finite but overflows at score
+      // time. Without this, update() re-opens the exact breakage createForOrg
+      // rejects. (A coded fork's empty score_formula already throws above.)
+      config.doublePenaltyFormula = effectiveDoublePenalty;
+      this.assertFormulaFinite(config);
       if (dto.scoreFormula !== undefined) updates['score_formula'] = config.scoreFormula;
       if (dto.constants !== undefined) updates['constants'] = config.constants;
       if (dto.tiebreakers !== undefined) updates['tiebreakers'] = config.tiebreakers;
@@ -455,9 +472,7 @@ export class CustomRulesetsService {
       updates['match_format_defaults'] = dto.matchFormatDefaults;
     }
     if (dto.doublePenaltyFormula !== undefined) {
-      updates['double_penalty_formula'] = dto.doublePenaltyFormula
-        ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
-        : null;
+      updates['double_penalty_formula'] = effectiveDoublePenalty;
     }
     Object.assign(updates, grammarColumns(dto));
     if (dto.tfConfig !== undefined) {
@@ -1099,8 +1114,14 @@ export class CustomRulesetsService {
     targets?: Array<{ name: string; value: number }> | null;
   }): RulesetValidationResult {
     const errors: string[] = [];
-    if (!Array.isArray(input.targets) || input.targets.length === 0) {
+    const targets = input.targets ?? [];
+    if (targets.length === 0) {
       errors.push('This ruleset has no scoring targets, so it cannot produce a scoring pad.');
+    } else if (!AuthoredTargetsSchema.safeParse(targets).success) {
+      // Mirror the strict bound the create/update DTOs enforce, so the preview
+      // never green-lights a target (blank name, out-of-range value) that Save
+      // would then 400 on.
+      errors.push('Each scoring target needs a name and a value between 1 and 10.');
     }
     let preview: FormulaScoringPreview | null = null;
     try {
