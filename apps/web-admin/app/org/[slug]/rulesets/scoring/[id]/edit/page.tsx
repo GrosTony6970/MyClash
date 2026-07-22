@@ -25,6 +25,7 @@ import {
   type RulesetFormValue,
 } from '../../../../../../../src/components/rulesets/RulesetForm';
 import {
+  isCodedRuleset,
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../../src/components/rulesets/ruleset-form-initial';
@@ -94,11 +95,14 @@ export default function OrgEditScoringRulesetPage() {
   >(null);
   const [submissionBanner, setSubmissionBanner] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
-  // A coded fork reuses a built-in's algorithm; it has no formula to edit here,
-  // so we show a read-only panel instead of the (empty) authoring form. Holds
-  // the base's human name when this row is a fork, plus the per-bucket diff.
+  // A coded fork reuses a built-in's algorithm. We show the computed lineage
+  // lamps as a header, then the coded editor (winBonus/targets) below — an
+  // editable fork opens in the right editor, not the empty formula one. forkOf
+  // holds the base's human name, forkDiff the per-bucket diff, forkBaseCode the
+  // base engine (drives the coded editor + the tf_config submit mapping).
   const [forkOf, setForkOf] = useState<string | null>(null);
   const [forkDiff, setForkDiff] = useState<BucketDiff | null>(null);
+  const [forkBaseCode, setForkBaseCode] = useState<string | null>(null);
 
   // Resolve org id once.
   useEffect(() => {
@@ -135,13 +139,16 @@ export default function OrgEditScoringRulesetPage() {
         const data = rows.find((r) => r.id === params.id);
         if (!data) throw new Error(t('admin.rulesets.loadOneError'));
         if (data.base_code) {
+          // Compute the lineage lamps (a header above the editable coded form),
+          // and remember the base engine so the form renders the coded editor
+          // and the submit maps into tf_config.
           const baseRow = rows.find((r) => r.code === data.base_code);
           setForkOf(baseRow?.name ?? data.base_code);
           if (baseRow)
             setForkDiff(
               diffRulesetBuckets(projectRulesetBuckets(baseRow), projectRulesetBuckets(data)),
             );
-          return;
+          setForkBaseCode(data.base_code);
         }
         const formula =
           data.score_formula && 'type' in (data.score_formula as object)
@@ -220,55 +227,81 @@ export default function OrgEditScoringRulesetPage() {
         </div>
       )}
 
-      {loading ? (
-        <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
-      ) : forkOf ? (
-        <ForkLineagePanel base={forkOf} diff={forkDiff} />
-      ) : !initial ? (
+      {loading || !initial ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
-        <RulesetForm
-          initial={initial}
-          validateUrl={
-            orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
-          }
-          code={initial.code}
-          tfInternalsTitle={t('admin.rulesets.tfV1InternalsTitleOrg')}
-          disabled={readOnly}
-          busy={busy}
-          // Read-only system ruleset details (score formula + tie-breakers) for
-          // built-ins like TF v1, hydrated by the org list endpoint.
-          systemMetadata={initial.systemMetadata}
-          systemRankingChain={initial.systemRankingChain}
-          submitLabel={t('admin.rulesets.saveAction')}
-          onSubmit={(data) =>
-            void (async () => {
-              if (!orgId) return;
-              setBusy(true);
-              setError(null);
-              try {
-                const res = await fetch(
-                  `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,
-                  {
-                    method: 'PATCH',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data),
-                  },
-                );
-                if (!res.ok) {
-                  const body = (await res.json().catch(() => ({}))) as { message?: string };
-                  throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+        <>
+          {forkOf && (
+            <div className="mb-6">
+              <ForkLineagePanel base={forkOf} diff={forkDiff} />
+            </div>
+          )}
+          <RulesetForm
+            initial={initial}
+            validateUrl={
+              orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
+            }
+            code={initial.code}
+            baseCode={forkBaseCode}
+            tfInternalsTitle={t('admin.rulesets.tfV1InternalsTitleOrg')}
+            disabled={readOnly}
+            busy={busy}
+            // Read-only system ruleset details (score formula + tie-breakers) for
+            // built-ins like TF v1, hydrated by the org list endpoint.
+            systemMetadata={initial.systemMetadata}
+            systemRankingChain={initial.systemRankingChain}
+            submitLabel={t('admin.rulesets.saveAction')}
+            onSubmit={(data) =>
+              void (async () => {
+                if (!orgId) return;
+                setBusy(true);
+                setError(null);
+                try {
+                  // A coded fork's edits land in tf_config (the coded engine's
+                  // tunables), plus the flat grammar targets so the lineage lamp
+                  // and grammar resolver stay current. A formula ruleset sends the
+                  // flat shape as before.
+                  const body = isCodedRuleset(initial.code, forkBaseCode)
+                    ? {
+                        name: data.name,
+                        description: data.description,
+                        version: data.version,
+                        targets: data.targets,
+                        tfConfig: {
+                          winBonus: data.tfV1Internals?.winBonus,
+                          targets: data.targets,
+                          targetValues: {
+                            deepTarget: data.targets[0]?.value,
+                            shallowTarget: data.targets[1]?.value,
+                          },
+                          matchFormat: data.matchFormatDefaults,
+                          doublePenaltyFormula: data.doublePenaltyFormula || undefined,
+                        },
+                      }
+                    : data;
+                  const res = await fetch(
+                    `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,
+                    {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body),
+                    },
+                  );
+                  if (!res.ok) {
+                    const b = (await res.json().catch(() => ({}))) as { message?: string };
+                    throw new Error(b.message ?? t('admin.rulesets.actionFailed'));
+                  }
+                  router.push(`/org/${slugForLink}/rulesets/scoring`);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                  setBusy(false);
                 }
-                router.push(`/org/${slugForLink}/rulesets/scoring`);
-              } catch (err) {
-                setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-                setBusy(false);
-              }
-            })()
-          }
-          onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
-        />
+              })()
+            }
+            onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
+          />
+        </>
       )}
     </main>
   );

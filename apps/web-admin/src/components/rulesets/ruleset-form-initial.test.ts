@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rulesetFormInitial } from './ruleset-form-initial';
+import { isCodedRuleset, rulesetFormInitial } from './ruleset-form-initial';
 
 const TF_MATCH_FORMAT = {
   pointCap: 10,
@@ -76,6 +76,37 @@ describe('rulesetFormInitial', () => {
 
     expect(out.tfV1Internals).toEqual({ winBonus: 4, deepTarget: 3, shallowTarget: 2 });
     expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
+  });
+
+  it('hydrates a base_code fork from tf_config like TF v1 (not the flat columns)', () => {
+    const out = rulesetFormInitial({
+      code: 'custom_tf_v1_fork_abc',
+      base_code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: {
+        winBonus: 5,
+        targetValues: { deepTarget: 3, shallowTarget: 2 },
+        matchFormat: TF_MATCH_FORMAT,
+        doublePenaltyFormula: 'n*(n-1)/3',
+      },
+    });
+
+    expect(out.tfV1Internals).toEqual({ winBonus: 5, deepTarget: 3, shallowTarget: 2 });
+    expect(out.matchFormatDefaults.pointCap).toBe(10);
+    expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
+  });
+});
+
+describe('isCodedRuleset', () => {
+  it('is true for TF_v1 and for a base_code fork of it', () => {
+    expect(isCodedRuleset('TF_v1')).toBe(true);
+    expect(isCodedRuleset('custom_tf_v1_fork_x', 'TF_v1')).toBe(true);
+  });
+
+  it('is false for an authored formula ruleset', () => {
+    expect(isCodedRuleset('my_formula')).toBe(false);
+    expect(isCodedRuleset('my_formula', null)).toBe(false);
   });
 });
 

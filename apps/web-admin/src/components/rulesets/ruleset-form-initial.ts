@@ -22,9 +22,14 @@ import {
   type TfV1Internals,
 } from './RulesetForm';
 import { DEFAULT_AFTERBLOW_GRAMMAR, type AfterblowGrammar } from './AfterblowGrammarEditor';
+import { isCodedRuleset } from './ruleset-kind';
+
+export { isCodedRuleset };
 
 export interface RulesetRowLike {
   code: string;
+  /** Set on a coded fork: the built-in coded engine it reuses (e.g. 'TF_v1'). */
+  base_code?: string | null;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: DoublePenaltySpec | null;
   /** The grammar columns (migrations 0143/0145). Null on a row predating them. */
@@ -74,17 +79,17 @@ export function rulesetFormInitial(row: RulesetRowLike): {
   targets: Target[];
   afterblow: AfterblowGrammar;
 } {
-  const isTfV1 = row.code === 'TF_v1';
+  const isCoded = isCodedRuleset(row.code, row.base_code);
   const tfCfg = row.tf_config ?? {};
 
-  const matchFormatSource = isTfV1
+  const matchFormatSource = isCoded
     ? (tfCfg.matchFormat ?? null)
     : (row.match_format_defaults ?? null);
-  const doublePenaltySource: DoublePenaltySpec | null = isTfV1
+  const doublePenaltySource: DoublePenaltySpec | null = isCoded
     ? (tfCfg.doublePenaltyFormula ?? null)
     : (row.double_penalty_formula ?? null);
 
-  const tfV1Internals: TfV1Internals = isTfV1
+  const tfV1Internals: TfV1Internals = isCoded
     ? {
         winBonus: tfCfg.winBonus ?? DEFAULT_TF_V1_INTERNALS.winBonus,
         deepTarget: tfCfg.targetValues?.deepTarget ?? DEFAULT_TF_V1_INTERNALS.deepTarget,
@@ -108,12 +113,12 @@ export function rulesetFormInitial(row: RulesetRowLike): {
       // TF_v1's afterblow grammar is federal and lives in code, not the row —
       // its columns are null on the mirror. Default to the federal fixed/1/full,
       // so the read-only-for-TF_v1 controls show its real behaviour.
-      hasAfterblow: row.has_afterblow ?? (isTfV1 ? true : DEFAULT_AFTERBLOW_GRAMMAR.hasAfterblow),
+      hasAfterblow: row.has_afterblow ?? (isCoded ? true : DEFAULT_AFTERBLOW_GRAMMAR.hasAfterblow),
       afterblowValuation: row.afterblow_valuation ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowValuation,
       afterblowFixedValue:
         row.afterblow_fixed_value ?? DEFAULT_AFTERBLOW_GRAMMAR.afterblowFixedValue,
       afterblowMode:
-        row.afterblow_mode ?? (isTfV1 ? 'deductive' : DEFAULT_AFTERBLOW_GRAMMAR.afterblowMode),
+        row.afterblow_mode ?? (isCoded ? 'deductive' : DEFAULT_AFTERBLOW_GRAMMAR.afterblowMode),
     },
   };
 }

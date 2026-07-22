@@ -23,6 +23,7 @@ import {
   type AfterblowGrammar,
 } from './AfterblowGrammarEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
+import { isCodedRuleset } from './ruleset-kind';
 
 export interface MatchFormatDefaults {
   pointCap: number;
@@ -90,6 +91,11 @@ interface Props {
   /** Ruleset code — when 'TF_v1', the form renders the TF v1 internals
    * section and the onSubmit payload carries `tfV1Internals`. */
   code?: string;
+  /** Set on a coded fork ("Customise this format"): the built-in coded engine
+   *  it reuses. When it (or `code`) is 'TF_v1' the form renders the coded
+   *  internals instead of the formula editor — so an editable fork opens in the
+   *  right editor, not an empty formula. */
+  baseCode?: string | null;
   /** Override for the TF v1 internals section title. The default carries
    *  a "(SUPER-ADMIN)" suffix; the org read-only view passes a neutral
    *  title instead. */
@@ -118,6 +124,7 @@ export function RulesetForm({
   validateUrl,
   submitLabel,
   code,
+  baseCode,
   tfInternalsTitle,
   systemMetadata,
   systemRankingChain,
@@ -125,7 +132,7 @@ export function RulesetForm({
   onCancel,
 }: Props) {
   const { t } = useI18n();
-  const isTfV1 = code === 'TF_v1';
+  const isCoded = isCodedRuleset(code, baseCode);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [version, setVersion] = useState(initial.version);
@@ -165,7 +172,7 @@ export function RulesetForm({
     }
     // TF v1 has no editable score-formula AST (the scoring algorithm is in
     // code, not data). Skip the formula validity check for that path.
-    if (!isTfV1 && !scoreFormula) {
+    if (!isCoded && !scoreFormula) {
       setValidationError(formulaError ?? t('admin.rulesets.formulaInvalid'));
       return;
     }
@@ -186,7 +193,7 @@ export function RulesetForm({
       // AfterblowGrammar's keys are exactly the API's grammar fields, so a
       // flat spread lands them where grammarColumns() reads them.
       ...afterblow,
-      ...(isTfV1 ? { tfV1Internals } : {}),
+      ...(isCoded ? { tfV1Internals } : {}),
     });
   }
 
@@ -245,7 +252,7 @@ export function RulesetForm({
         </label>
       </div>
 
-      {isTfV1 && (
+      {isCoded && (
         <div className="rounded-md border border-purple-200 bg-purple-50/40 p-5 shadow-sm">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-purple-700">
             {tfInternalsTitle ?? t('admin.rulesets.tfV1InternalsTitle')}
@@ -287,11 +294,11 @@ export function RulesetForm({
           onChange={setAfterblow}
           // TF_v1's afterblow is the federation's, defined in code — shown here
           // read-only rather than as an editable no-op.
-          disabled={disabled || isTfV1}
+          disabled={disabled || isCoded}
         />
       </div>
 
-      {!isTfV1 && (
+      {!isCoded && (
         <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.constantsTitle')}
@@ -442,7 +449,7 @@ export function RulesetForm({
         </div>
       </div>
 
-      {!isTfV1 && (
+      {!isCoded && (
         <div>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.formulaTitle')}
@@ -459,7 +466,7 @@ export function RulesetForm({
         </div>
       )}
 
-      {!isTfV1 && (
+      {!isCoded && (
         <div>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.tiebreakersTitle')}
