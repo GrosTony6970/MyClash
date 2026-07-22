@@ -355,7 +355,7 @@
     "apps/web-admin/app/admin/rulesets/penalty/[id]/edit/page.tsx:43",
     "apps/web-admin/app/admin/rulesets/penalty/new/page.tsx:25",
     "apps/web-admin/app/admin/rulesets/penalty/page.tsx:40",
-    "apps/web-admin/app/admin/rulesets/scoring/[id]/edit/page.tsx:65",
+    "apps/web-admin/app/admin/rulesets/scoring/[id]/edit/page.tsx:68",
     "apps/web-admin/app/admin/rulesets/scoring/new/page.tsx:16",
     "apps/web-admin/app/admin/rulesets/scoring/page.tsx:59",
     "apps/web-admin/app/admin/system-versions/page.tsx:67",

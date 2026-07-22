@@ -21,6 +21,7 @@ import {
   type RulesetFormValue,
 } from '../../../../../../src/components/rulesets/RulesetForm';
 import {
+  isCodedRuleset,
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
@@ -47,6 +48,8 @@ interface CustomRulesetDetail {
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
   tf_config: TfConfigOverride | null;
+  /** Set on a coded fork: the built-in coded engine it reuses. */
+  base_code: string | null;
   is_default: boolean;
   is_system: boolean;
   systemRankingChain?: RankingRule[];
@@ -76,6 +79,7 @@ export default function EditRulesetPage() {
   const [initial, setInitial] = useState<
     | (RulesetFormValue & {
         code: string;
+        baseCode: string | null;
         isSystem: boolean;
         systemRankingChain?: RankingRule[];
         systemMetadata?: RulesetMetadata;
@@ -128,6 +132,7 @@ export default function EditRulesetPage() {
           // TF v1 hydrates from tf_config.*, custom rulesets from the flat
           // columns — one shared helper so the org pages can't drift.
           ...rulesetFormInitial(data),
+          baseCode: data.base_code,
           isSystem: data.is_system,
           systemRankingChain: data.systemRankingChain,
           systemMetadata: data.systemMetadata,
@@ -249,6 +254,7 @@ export default function EditRulesetPage() {
               initial={initial}
               validateUrl={`${apiUrl}/api/v1/admin/custom-rulesets/validate`}
               code={initial.code}
+              baseCode={initial.baseCode}
               disabled={isCurrentFrozen}
               busy={busy}
               // Surface the coded system ruleset details (score formula +
@@ -261,32 +267,34 @@ export default function EditRulesetPage() {
                   setBusy(true);
                   setError(null);
                   try {
-                    // For TF v1 the operator's edits land in `tf_config` —
-                    // the back-end merges that over TFv1DefaultConfig at
-                    // tournament creation. For custom rulesets we send the
+                    // A coded ruleset (TF v1 or a base_code fork of it) stores
+                    // its tunables in `tf_config` — the back-end merges that over
+                    // the coded defaults at tournament creation. A fork also
+                    // writes the flat grammar targets so its lineage lamp +
+                    // grammar resolver stay current. A formula ruleset sends the
                     // sibling columns as before.
-                    const body =
-                      initial.code === 'TF_v1'
-                        ? {
-                            name: data.name,
-                            description: data.description,
-                            version: data.version,
-                            tfConfig: {
-                              winBonus: data.tfV1Internals?.winBonus,
-                              // Named targets are the source of truth in the
-                              // editor. Mirror the first two into the legacy
-                              // deep/shallow pair TF_v1 scoring reads today, and
-                              // persist the full list for the Phase-2 engine.
-                              targets: data.targets,
-                              targetValues: {
-                                deepTarget: data.targets[0]?.value,
-                                shallowTarget: data.targets[1]?.value,
-                              },
-                              matchFormat: data.matchFormatDefaults,
-                              doublePenaltyFormula: data.doublePenaltyFormula || undefined,
+                    const body = isCodedRuleset(initial.code, initial.baseCode)
+                      ? {
+                          name: data.name,
+                          description: data.description,
+                          version: data.version,
+                          ...(initial.baseCode ? { targets: data.targets } : {}),
+                          tfConfig: {
+                            winBonus: data.tfV1Internals?.winBonus,
+                            // Named targets are the source of truth in the
+                            // editor. Mirror the first two into the legacy
+                            // deep/shallow pair TF_v1 scoring reads today, and
+                            // persist the full list for the Phase-2 engine.
+                            targets: data.targets,
+                            targetValues: {
+                              deepTarget: data.targets[0]?.value,
+                              shallowTarget: data.targets[1]?.value,
                             },
-                          }
-                        : data;
+                            matchFormat: data.matchFormatDefaults,
+                            doublePenaltyFormula: data.doublePenaltyFormula || undefined,
+                          },
+                        }
+                      : data;
                     const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}`, {
                       method: 'PATCH',
                       credentials: 'include',
