@@ -130,7 +130,10 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
 
     await service.assignTournamentRuleset('t-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
 
-    expect(supabase.updated.tournaments?.[0]).toMatchObject({ penalty_ruleset_id: 'pr-1' });
+    expect(supabase.updated.tournaments?.[0]).toMatchObject({
+      penalty_ruleset_id: 'pr-1',
+      penalty_ruleset_version: '1.0.0',
+    });
     expect(supabase.inserted.penalty_ruleset_versions?.[0]).toMatchObject({
       penalty_ruleset_id: 'pr-1',
       is_frozen: true,
@@ -166,7 +169,10 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
 
     await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
 
-    expect(supabase.updated.events?.[0]).toMatchObject({ penalty_ruleset_id: 'pr-1' });
+    expect(supabase.updated.events?.[0]).toMatchObject({
+      penalty_ruleset_id: 'pr-1',
+      penalty_ruleset_version: '1.0.0',
+    });
     expect(supabase.inserted.penalty_ruleset_versions?.[0]).toMatchObject({
       penalty_ruleset_id: 'pr-1',
       is_frozen: true,

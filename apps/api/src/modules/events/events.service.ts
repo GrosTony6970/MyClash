@@ -47,7 +47,10 @@ import {
   resolveRulesetGrammar,
   resolveRulesetLabel,
 } from './ruleset-defaults';
-import { freezePenaltyRulesetVersion } from '../penalties/penalty-version.util';
+import {
+  freezePenaltyRulesetVersion,
+  loadPenaltyRulesetVersion,
+} from '../penalties/penalty-version.util';
 
 /**
  * Distinct people with an ACTIVE registration across the event, deduped by
@@ -2378,6 +2381,12 @@ export class EventsService {
       ? await resolveCatalogWeapon(this.supabase.service, dto.weapon)
       : null;
 
+    // Pin the penalty ruleset's current version so the content-hash reads the
+    // frozen snapshot for exactly what was pinned.
+    const penaltyRulesetVersion = dto.penaltyRulesetId
+      ? await loadPenaltyRulesetVersion(this.supabase, dto.penaltyRulesetId)
+      : null;
+
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .insert({
@@ -2392,6 +2401,7 @@ export class EventsService {
         // ruleset up by this stored version with no normalization of their own.
         ruleset_version: version,
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
+        penalty_ruleset_version: penaltyRulesetVersion,
         color: dto.color ?? null,
         // Capacity caps from the wizard's Step 1 Basics. Null
         // (or omitted) = no cap, same semantics as the settings
@@ -2609,6 +2619,10 @@ export class EventsService {
         [tournamentId],
         'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
       );
+      // Re-pin the penalty version so the content-hash tracks the new snapshot.
+      updates['penalty_ruleset_version'] = nextPenaltyRulesetId
+        ? await loadPenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId)
+        : null;
     }
 
     const { data, error } = await this.supabase.service

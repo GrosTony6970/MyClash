@@ -95,3 +95,21 @@ export async function freezePenaltyRulesetVersion(
       .eq('version', ruleset['version']);
   }
 }
+
+/**
+ * The current version string of a penalty ruleset — recorded as the
+ * penalty_ruleset_version pin on a tournament/event at assign time, so the
+ * content-hash reads the frozen snapshot for the version that was pinned rather
+ * than whatever the live parent later becomes.
+ */
+export async function loadPenaltyRulesetVersion(
+  supabase: SupabaseService,
+  rulesetId: string,
+): Promise<string | null> {
+  const { data } = await supabase.service
+    .from('penalty_rulesets')
+    .select('version')
+    .eq('id', rulesetId)
+    .maybeSingle();
+  return (data as { version?: string } | null)?.version ?? null;
+}

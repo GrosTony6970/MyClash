@@ -33,6 +33,7 @@ import type {
 import {
   buildPenaltyVersionRow,
   freezePenaltyRulesetVersion,
+  loadPenaltyRulesetVersion,
   type PenaltyVersionEntry,
 } from './penalty-version.util';
 
@@ -473,9 +474,16 @@ export class PenaltiesService {
         'A tournament in this event inherits the event default penalty ruleset and has scored matches, so it is locked. Change it before scoring starts.',
       );
     }
+    // Pin the ruleset's current version so the content-hash reads the frozen
+    // snapshot for exactly what was pinned (null when clearing the default).
+    const nextVersion = nextId ? await loadPenaltyRulesetVersion(this.supabase, nextId) : null;
     const { data, error } = await this.supabase.service
       .from('events')
-      .update({ penalty_ruleset_id: nextId, updated_at: new Date().toISOString() })
+      .update({
+        penalty_ruleset_id: nextId,
+        penalty_ruleset_version: nextVersion,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', eventId)
       .select('*')
       .single();
@@ -502,9 +510,14 @@ export class PenaltiesService {
         'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
       );
     }
+    const nextVersion = nextId ? await loadPenaltyRulesetVersion(this.supabase, nextId) : null;
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .update({ penalty_ruleset_id: nextId, updated_at: new Date().toISOString() })
+      .update({
+        penalty_ruleset_id: nextId,
+        penalty_ruleset_version: nextVersion,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', tournamentId)
       .select('*')
       .single();
