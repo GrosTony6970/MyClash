@@ -247,6 +247,7 @@ export default function EditRulesetPage() {
             )}
             <RulesetForm
               initial={initial}
+              validateUrl={`${apiUrl}/api/v1/admin/custom-rulesets/validate`}
               code={initial.code}
               disabled={isCurrentFrozen}
               busy={busy}

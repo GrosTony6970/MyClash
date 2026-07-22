@@ -168,6 +168,9 @@ export default function OrgNewScoringRulesetPage() {
       ) : (
         <RulesetForm
           initial={initial}
+          validateUrl={
+            orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
+          }
           busy={busy || !orgId}
           submitLabel={t('admin.rulesets.createButton')}
           onSubmit={(data) =>

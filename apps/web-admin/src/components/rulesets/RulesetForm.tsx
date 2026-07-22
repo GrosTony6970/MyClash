@@ -13,6 +13,7 @@ import {
   type Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '../../i18n/I18nProvider';
+import { RulesetPreviewPanel } from './RulesetPreviewPanel';
 import { FormulaEditor } from './FormulaEditor';
 import { TargetsEditor } from './TargetsEditor';
 import { DoublePenaltyEditor } from './DoublePenaltyEditor';
@@ -82,6 +83,9 @@ interface Props {
   initial: RulesetFormValue;
   disabled?: boolean;
   busy?: boolean;
+  /** When set, a live server-side score preview replaces the constants-only
+   *  chip (the formula evaluator stays out of the admin bundle). */
+  validateUrl?: string;
   submitLabel: string;
   /** Ruleset code — when 'TF_v1', the form renders the TF v1 internals
    * section and the onSubmit payload carries `tfV1Internals`. */
@@ -111,6 +115,7 @@ export function RulesetForm({
   initial,
   disabled,
   busy,
+  validateUrl,
   submitLabel,
   code,
   tfInternalsTitle,
@@ -308,7 +313,18 @@ export function RulesetForm({
               ),
             )}
           </div>
-          <ScorePreviewChip constants={constants} />
+          {validateUrl ? (
+            <RulesetPreviewPanel
+              validateUrl={validateUrl}
+              scoreFormula={scoreFormula}
+              constants={constants}
+              tiebreakers={tiebreakers}
+              doublePenaltyFormula={doublePenaltyFormula}
+              targets={targets}
+            />
+          ) : (
+            <ScorePreviewChip constants={constants} />
+          )}
         </div>
       )}
 

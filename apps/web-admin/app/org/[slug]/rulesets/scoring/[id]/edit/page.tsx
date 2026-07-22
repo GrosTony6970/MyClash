@@ -228,6 +228,9 @@ export default function OrgEditScoringRulesetPage() {
       ) : (
         <RulesetForm
           initial={initial}
+          validateUrl={
+            orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
+          }
           code={initial.code}
           tfInternalsTitle={t('admin.rulesets.tfV1InternalsTitleOrg')}
           disabled={readOnly}

@@ -38,6 +38,7 @@ export default function NewRulesetPage() {
       )}
 
       <RulesetForm
+        validateUrl={`${apiUrl}/api/v1/admin/custom-rulesets/validate`}
         initial={{
           name: '',
           description: '',

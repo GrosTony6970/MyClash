@@ -1962,6 +1962,9 @@ export const en = {
       previewLabel: 'Preview',
       previewFormula: '{wins}W + {ties}T + {losses}L − {doubles} double =',
       previewPts: 'pts',
+      rulesetPreviewTitle: 'Sample scores',
+      rulesetPreviewChecking: 'Checking…',
+      rulesetPreviewRow: 'Fighter {n} · {wins}W {ties}T {losses}L',
     },
     common: {
       sortAscLabel: 'Sort ascending',
@@ -8116,6 +8119,9 @@ export const fr = {
       previewLabel: 'Aperçu',
       previewFormula: '{wins}V + {ties}N + {losses}D − {doubles} double =',
       previewPts: 'pts',
+      rulesetPreviewTitle: 'Scores d’exemple',
+      rulesetPreviewChecking: 'Vérification…',
+      rulesetPreviewRow: 'Tireur {n} · {wins}V {ties}N {losses}D',
     },
     common: {
       sortAscLabel: 'Tri croissant',
