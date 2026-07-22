@@ -128,12 +128,7 @@ export class EventsService {
    * (unit tests construct EventsService without the hash service).
    */
   private async stampTournamentContentHash(tournamentId: string): Promise<void> {
-    if (!this.rulesetHash) return;
-    const hash = await this.rulesetHash.computeTournamentContentHash(tournamentId);
-    await this.supabase.service
-      .from('tournaments')
-      .update({ ruleset_content_hash: hash })
-      .eq('id', tournamentId);
+    await this.rulesetHash?.stampTournamentContentHash(tournamentId);
   }
 
   // ── Events ───────────────────────────────────────────────────────────────────

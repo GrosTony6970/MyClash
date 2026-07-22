@@ -17,6 +17,7 @@ import {
   type PenaltyRulesetEntry,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
+import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
@@ -58,6 +59,9 @@ export class PenaltiesService {
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly orgs?: OrganizationsService,
     @Optional() private readonly forfeits?: MatchForfeitsService,
+    // Optional (provided via RulesetHashModule) so direct-construction unit tests
+    // keep working. Restamps the tournament content hash after a penalty re-pin.
+    @Optional() private readonly rulesetHash?: RulesetHashService,
   ) {}
 
   async listRulesets() {
@@ -490,6 +494,9 @@ export class PenaltiesService {
     if (error) throw new BadRequestException(error.message);
     // Pin-time freeze: capture the pinned definition immutably (best-effort).
     if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
+    // The event default changed, so every tournament that inherits it needs its
+    // content hash restamped (best-effort; @Optional in unit tests).
+    await this.rulesetHash?.stampEventInheritingTournaments(eventId);
     return data;
   }
 
@@ -523,6 +530,9 @@ export class PenaltiesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
+    // The penalty pin changed — restamp the tournament's content hash so the
+    // fingerprint + match stamps track the new penalty (best-effort).
+    await this.rulesetHash?.stampTournamentContentHash(tournamentId);
     return data;
   }
 

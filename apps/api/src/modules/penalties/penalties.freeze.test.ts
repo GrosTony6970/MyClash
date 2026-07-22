@@ -179,3 +179,48 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
     });
   });
 });
+
+describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
+  it('restamps the tournament content hash after assignTournamentRuleset', async () => {
+    const supabase = fakeSupabase({
+      tournaments: { maybeSingle: { event_id: 'ev-1', penalty_ruleset_id: null } },
+      events: { maybeSingle: { organization_id: 'org-1' } },
+      phases: { select: [] },
+      matches: { count: 0 },
+      penalty_rulesets: { maybeSingle: penaltyRow() },
+    });
+    const stampTournamentContentHash = vi.fn();
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { stampTournamentContentHash } as never,
+    );
+
+    await service.assignTournamentRuleset('t-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
+    expect(stampTournamentContentHash).toHaveBeenCalledWith('t-1');
+  });
+
+  it('restamps inheriting tournaments after assignEventRuleset', async () => {
+    const supabase = fakeSupabase({
+      events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: null } },
+      tournaments: { select: [] },
+      matches: { count: 0 },
+      penalty_rulesets: { maybeSingle: penaltyRow() },
+    });
+    const stampEventInheritingTournaments = vi.fn();
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { stampEventInheritingTournaments } as never,
+    );
+
+    await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
+    expect(stampEventInheritingTournaments).toHaveBeenCalledWith('ev-1');
+  });
+});

@@ -54,6 +54,33 @@ export class RulesetHashService {
     return createHash('sha256').update(stableStringify({ scoring, penalty })).digest('hex');
   }
 
+  /** Recompute + persist a tournament's effective content hash. Callers invoke
+   *  this after any change to its ruleset/config/penalty pin. */
+  async stampTournamentContentHash(tournamentId: string): Promise<void> {
+    const hash = await this.computeTournamentContentHash(tournamentId);
+    await this.supabase.service
+      .from('tournaments')
+      .update({ ruleset_content_hash: hash })
+      .eq('id', tournamentId);
+  }
+
+  /**
+   * Restamp every tournament that INHERITS an event's default penalty (its own
+   * penalty_ruleset_id is NULL) — their effective penalty changed with the event
+   * default, so their content hash must be refreshed too.
+   */
+  async stampEventInheritingTournaments(eventId: string): Promise<void> {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId)
+      .is('penalty_ruleset_id', null);
+    const ids = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
+    for (const id of ids) {
+      await this.stampTournamentContentHash(id);
+    }
+  }
+
   /**
    * Compare a tournament's STORED content hash with a freshly recomputed one.
    * `drifted` is true when they disagree — the effective behaviour changed but
