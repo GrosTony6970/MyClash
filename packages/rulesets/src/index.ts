@@ -139,7 +139,7 @@ export type {
 } from './formula';
 
 // Ruleset lineage (fork-vs-parent bucket diff)
-export { diffRulesetBuckets, normalizeMatchFormat, projectRulesetBuckets } from './lineage';
+export { diffRulesetBuckets, projectRulesetBuckets } from './lineage';
 export type { BucketStatus, BucketDiff, RulesetBucketInputs, RulesetBucketRow } from './lineage';
 
 // Content-hash identity (canonical serialization; sha256 lives in the API)

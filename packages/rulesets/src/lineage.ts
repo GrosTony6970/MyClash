@@ -7,11 +7,26 @@
  * that changes results, so `rankingCompatible` drives the guardrail
  * ("this breaks {base} ranking compatibility").
  *
+ * The buckets are a FAITHFUL SUBSET of the content-hash's effective-scoring
+ * canonical (see content-hash.ts): the same fields decide a "change" here as
+ * decide the fingerprint, so two rulesets with the same content hash light no
+ * lamp and any hash difference lights at least one. Concretely that means:
+ *   - grammar compares targets order-insensitively (canonicalizeGrammar sorts);
+ *   - endConditions normalizes through the SAME scorer normalizer the hash uses
+ *     (defaults + legacy aliases resolved), so absent ≡ default and firstToPoints
+ *     ≡ pointCap;
+ *   - ranking folds in forfeitPolicy + tournamentPolicy (both re-rank results and
+ *     both sit in the coded canonical), not just winBonus + doublePenaltyFormula.
+ * `afterblowMode` is deliberately NOT a bucket: it lives on the tournament
+ * (scoring_config_json), not on a ruleset row, so it is not part of a ruleset's
+ * lineage. The ruleset-level afterblow shape (has/valuation/fixed) IS in grammar.
+ *
  * Inputs are structural (plain objects), not `@myclash/types` shapes, so this
  * stays in the dependency-free package. The caller projects each side's config
  * into these fields (a base_code fork's overrides live in tf_config + the
  * grammar columns; the base's come from its registry defaults).
  */
+import { normalizeMatchFormatConfig } from './match-format';
 
 export type BucketStatus = 'unchanged' | 'changed';
 
@@ -23,9 +38,11 @@ export interface RulesetBucketInputs {
   afterblowFixedValue: number | null;
   // end conditions — when/how a bout ends
   matchFormat: Record<string, unknown> | null;
-  // ranking — what a result is worth
+  // ranking — what a result is worth (all four re-rank placings)
   winBonus: number | null;
   doublePenaltyFormula: unknown;
+  forfeitPolicy: unknown;
+  tournamentPolicy: unknown;
 }
 
 export interface BucketDiff {
@@ -59,6 +76,17 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 const statusOf = (equal: boolean): BucketStatus => (equal ? 'unchanged' : 'changed');
 
+/** Targets sorted by name — order is the pad's display layout, not behaviour, so
+ *  a pure reorder must not light the grammar lamp (mirrors canonicalizeGrammar). */
+function sortedTargets(
+  targets: ReadonlyArray<{ name: string; value: number }> | null,
+): ReadonlyArray<{ name: string; value: number }> | null {
+  if (!targets) return null;
+  return [...targets]
+    .map((target) => ({ name: target.name, value: target.value }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
 /**
  * Per-bucket divergence of `fork` from its `base`. Both sides must already be
  * projected into `RulesetBucketInputs`; this only compares.
@@ -68,7 +96,7 @@ export function diffRulesetBuckets(
   fork: RulesetBucketInputs,
 ): BucketDiff {
   const grammar = statusOf(
-    deepEqual(base.targets, fork.targets) &&
+    deepEqual(sortedTargets(base.targets), sortedTargets(fork.targets)) &&
       base.hasAfterblow === fork.hasAfterblow &&
       base.afterblowValuation === fork.afterblowValuation &&
       base.afterblowFixedValue === fork.afterblowFixedValue,
@@ -76,7 +104,9 @@ export function diffRulesetBuckets(
   const endConditions = statusOf(deepEqual(base.matchFormat, fork.matchFormat));
   const ranking = statusOf(
     base.winBonus === fork.winBonus &&
-      deepEqual(base.doublePenaltyFormula, fork.doublePenaltyFormula),
+      deepEqual(base.doublePenaltyFormula, fork.doublePenaltyFormula) &&
+      deepEqual(base.forfeitPolicy, fork.forfeitPolicy) &&
+      deepEqual(base.tournamentPolicy, fork.tournamentPolicy),
   );
   return { grammar, endConditions, ranking, rankingCompatible: ranking === 'unchanged' };
 }
@@ -98,23 +128,21 @@ export interface RulesetBucketRow {
 }
 
 /**
- * Pull the end-condition fields into a fixed key set so a base and a fork compare
- * over the same shape. Without this, a field the fork's config carries but the
- * base's older `tf_config` seed lacks (e.g. `bestOf`) reads as a change on every
- * fork, because the bucket diff is key-count sensitive.
+ * Normalize the end-condition config through the SAME normalizer the scorer and
+ * the content-hash use, so a base and a fork compare over the identical shape
+ * (defaults filled, legacy aliases resolved). A stored config is validated at
+ * authoring, but a corrupt one must not crash the lamp: an out-of-domain value
+ * throws inside the normalizer, so degrade to the default shape rather than
+ * propagating (`normalizeMatchFormatConfig({})` never throws).
  */
-export function normalizeMatchFormat(
+function normalizeEndConditions(
   mf: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
-  const m = mf ?? {};
-  return {
-    pointCap: m['pointCap'] ?? null,
-    scoringDirection: m['scoringDirection'] ?? null,
-    maxDoubleHits: m['maxDoubleHits'] ?? null,
-    timeLimitsSeconds: m['timeLimitsSeconds'] ?? null,
-    softClockLimitSeconds: m['softClockLimitSeconds'] ?? null,
-    bestOf: m['bestOf'] ?? null,
-  };
+  try {
+    return normalizeMatchFormatConfig(mf ?? {}) as unknown as Record<string, unknown>;
+  } catch {
+    return normalizeMatchFormatConfig({}) as unknown as Record<string, unknown>;
+  }
 }
 
 /**
@@ -127,14 +155,18 @@ export function projectRulesetBuckets(row: RulesetBucketRow): RulesetBucketInput
     winBonus?: number;
     matchFormat?: Record<string, unknown>;
     doublePenaltyFormula?: unknown;
+    forfeitPolicy?: unknown;
+    tournamentPolicy?: unknown;
   };
   return {
     targets: row.targets ?? null,
     hasAfterblow: row.has_afterblow ?? false,
     afterblowValuation: row.afterblow_valuation ?? null,
     afterblowFixedValue: row.afterblow_fixed_value ?? null,
-    matchFormat: normalizeMatchFormat(tf.matchFormat),
+    matchFormat: normalizeEndConditions(tf.matchFormat),
     winBonus: tf.winBonus ?? null,
     doublePenaltyFormula: tf.doublePenaltyFormula ?? null,
+    forfeitPolicy: tf.forfeitPolicy ?? null,
+    tournamentPolicy: tf.tournamentPolicy ?? null,
   };
 }
