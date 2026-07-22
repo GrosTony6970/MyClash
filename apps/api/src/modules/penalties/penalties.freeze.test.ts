@@ -137,3 +137,39 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
     });
   });
 });
+
+describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => {
+  it('blocks an event-default swap when an inheriting tournament has scored matches', async () => {
+    const supabase = fakeSupabase({
+      events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: 'pr-old' } },
+      // A tournament under the event that inherits the default (penalty_ruleset_id NULL).
+      tournaments: { select: [{ id: 't-1' }] },
+      phases: { select: [{ id: 'ph-1' }] },
+      matches: { count: 1 },
+    });
+    const service = new PenaltiesService(supabase as never);
+
+    await expect(
+      service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-new' } as never, 'user-1'),
+    ).rejects.toThrow(/locked/i);
+    expect(supabase.updated.events).toBeUndefined();
+  });
+
+  it('assigns and freezes the event default when no inheriting tournament is scored', async () => {
+    const supabase = fakeSupabase({
+      events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: null } },
+      tournaments: { select: [] },
+      matches: { count: 0 },
+      penalty_rulesets: { maybeSingle: penaltyRow() },
+    });
+    const service = new PenaltiesService(supabase as never);
+
+    await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
+
+    expect(supabase.updated.events?.[0]).toMatchObject({ penalty_ruleset_id: 'pr-1' });
+    expect(supabase.inserted.penalty_ruleset_versions?.[0]).toMatchObject({
+      penalty_ruleset_id: 'pr-1',
+      is_frozen: true,
+    });
+  });
+});

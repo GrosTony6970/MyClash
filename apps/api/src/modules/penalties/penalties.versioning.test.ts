@@ -10,8 +10,17 @@ type TableState = Record<
     insert?: unknown;
     update?: unknown;
     count?: number;
+    // Version strings that already have a snapshot (drives penaltyVersionSnapshotExists
+    // — a `.eq('version', v)` count query returns 1 iff v is listed here).
+    existingVersions?: string[];
   }
 >;
+
+/** Count a `.eq('version', v)` query resolves to: existingVersions membership, else `count`. */
+function resolveExistsCount(t: TableState[string], versionArg: string | undefined): number {
+  if (t.existingVersions) return t.existingVersions.includes(versionArg ?? '') ? 1 : 0;
+  return t.count ?? 0;
+}
 
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
@@ -19,9 +28,13 @@ function fakeSupabase(state: TableState) {
   const deleted: string[] = [];
   function chain(table: string) {
     const t = state[table] ?? {};
+    let versionArg: string | undefined;
     const api: Record<string, unknown> = {
       select: vi.fn(() => api),
-      eq: vi.fn(() => api),
+      eq: vi.fn((col: string, val: unknown) => {
+        if (col === 'version') versionArg = val as string;
+        return api;
+      }),
       in: vi.fn(() => api),
       is: vi.fn(() => api),
       order: vi.fn(() => Promise.resolve({ data: t.select ?? [], error: null })),
@@ -35,6 +48,12 @@ function fakeSupabase(state: TableState) {
       }),
       update: vi.fn((row: unknown) => {
         updated[table] = [...(updated[table] ?? []), row];
+        // Reflect a version change in later maybeSingle reads, as the real DB does
+        // (so snapshotPenaltyVersion reads the version publish just set).
+        const patch = row as { version?: string };
+        if (patch.version && t.maybeSingle && typeof t.maybeSingle === 'object') {
+          (t.maybeSingle as { version?: string }).version = patch.version;
+        }
         return api;
       }),
       delete: vi.fn(() => {
@@ -42,9 +61,10 @@ function fakeSupabase(state: TableState) {
         return api;
       }),
       // Bare `.select().eq()` count queries and bare `.update()/.delete().eq()`
-      // resolve here (per-table `count` drives the reference guard).
+      // resolve here. `existingVersions` (when set) drives the per-version
+      // snapshot-exists check; otherwise `count` drives the reference guard.
       then: (resolve: (v: unknown) => void) =>
-        resolve({ data: [], count: t.count ?? 0, error: null }),
+        resolve({ data: [], count: resolveExistsCount(t, versionArg), error: null }),
     };
     return api;
   }
@@ -135,6 +155,26 @@ describe('PenaltiesService — publish (snapshot + version bump)', () => {
     ]);
     // Parent version patch-bumped so subsequent edits target a fresh slot.
     expect(supabase.updated.penalty_rulesets?.[0]).toMatchObject({ version: '1.0.1' });
+  });
+
+  it('snapshots under a free version slot when the current version is already taken', async () => {
+    // A snapshot already exists at the current version 1.0.0 (e.g. from freeze-at-pin).
+    // Publishing the live definition must NOT collide-and-drop: move the parent to
+    // the free slot 1.0.1, snapshot the definition there, then bump to 1.0.2.
+    const { service, supabase } = makeService({
+      penalty_rulesets: { maybeSingle: rulesetFixture() },
+      penalty_ruleset_versions: { existingVersions: ['1.0.0'] },
+    });
+
+    await service.publishRuleset('pr-1', 'user-1');
+
+    const versionUpdates = (supabase.updated.penalty_rulesets ?? []).map(
+      (u) => (u as { version: string }).version,
+    );
+    expect(versionUpdates).toEqual(['1.0.1', '1.0.2']);
+    // The definition was captured at the free slot, not silently dropped at 1.0.0.
+    const snap = supabase.inserted.penalty_ruleset_versions?.[0] as Record<string, unknown>;
+    expect(snap.version).toBe('1.0.1');
   });
 
   it('honours an explicit next version over the auto patch-bump', async () => {

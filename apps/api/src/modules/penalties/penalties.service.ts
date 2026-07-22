@@ -462,6 +462,17 @@ export class PenaltiesService {
   async assignEventRuleset(eventId: string, dto: AssignPenaltyRulesetDto, userId?: string) {
     await this.assertUserCanManageOrg(await this.getEventOrganizationId(eventId), userId);
     const nextId = dto.penaltyRulesetId ?? null;
+    const currentId = await this.getEventPenaltyRulesetId(eventId);
+    // Re-pin guard: tournaments under this event that INHERIT the default (their
+    // own penalty_ruleset_id is NULL) resolve the event ruleset LIVE at record
+    // time (getMatchContext), so swapping it once any such tournament has scored
+    // matches would apply a different sanction ladder/cost to later cards.
+    // Mirrors the tournament-path guard (assignTournamentRuleset).
+    if (nextId !== currentId && (await this.eventHasInheritingStartedMatches(eventId))) {
+      throw new ForbiddenException(
+        'A tournament in this event inherits the event default penalty ruleset and has scored matches, so it is locked. Change it before scoring starts.',
+      );
+    }
     const { data, error } = await this.supabase.service
       .from('events')
       .update({ penalty_ruleset_id: nextId, updated_at: new Date().toISOString() })
@@ -1073,22 +1084,31 @@ export class PenaltiesService {
     }
     await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
     await this.assertPenaltyRulesetValid(id);
+
+    // The current version slot may already hold a DIFFERENT snapshot (freeze-at-pin
+    // snapshots the current version WITHOUT bumping). Snapshotting the live
+    // definition there would collide on UNIQUE(penalty_ruleset_id, version) and be
+    // silently dropped — losing the definition being published. Move the live
+    // definition to a free slot FIRST so it is captured under its own version.
+    const publishedVersion = await this.nextFreePenaltyVersion(id, existing.version);
+    if (publishedVersion !== existing.version) {
+      await this.setPenaltyRulesetVersion(id, publishedVersion);
+    }
     await this.snapshotPenaltyVersion(id, userId);
-    const bumped = (nextVersion && nextVersion.trim()) || bumpPenaltyVersion(existing.version);
-    const { error } = await this.supabase.service
-      .from('penalty_rulesets')
-      .update({ version: bumped, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) throw new BadRequestException(error.message);
+
+    const bumped = (nextVersion && nextVersion.trim()) || bumpPenaltyVersion(publishedVersion);
+    await this.setPenaltyRulesetVersion(id, bumped);
     return this.getRuleset(id);
   }
 
   /**
    * Insert a snapshot row capturing the ruleset's current definition — the parent
    * columns plus its N entries serialised into one ordered JSONB array. Called
-   * from publishRuleset() and the pin-time freeze; never from the controller. A
-   * unique (ruleset, version) hit means this version was already snapshotted
-   * (e.g. publish twice with no version change) — harmless, skipped.
+   * from publishRuleset() (which guarantees a free version slot first) and the
+   * pin-time freeze. A unique (ruleset, version) hit means this exact version was
+   * already snapshotted (the idempotent freeze path re-pins the same definition) —
+   * harmless, skipped. publishRuleset never collides here because it bumps to a
+   * free slot before calling this.
    */
   private async snapshotPenaltyVersion(id: string, userId?: string): Promise<void> {
     const ruleset = (await this.getRuleset(id)) as Row;
@@ -1098,6 +1118,36 @@ export class PenaltiesService {
     if (error && !/unique|duplicate/i.test(error.message)) {
       throw new BadRequestException(error.message);
     }
+  }
+
+  /** True if a snapshot already exists for this (ruleset, version). */
+  private async penaltyVersionSnapshotExists(id: string, version: string): Promise<boolean> {
+    const { count } = await this.supabase.service
+      .from('penalty_ruleset_versions')
+      .select('id', { count: 'exact', head: true })
+      .eq('penalty_ruleset_id', id)
+      .eq('version', version);
+    return (count ?? 0) > 0;
+  }
+
+  /** Patch-bump `version` until it names a free (un-snapshotted) slot. */
+  private async nextFreePenaltyVersion(id: string, version: string): Promise<string> {
+    let candidate = version;
+    let guard = 0;
+    while (guard < 1000 && (await this.penaltyVersionSnapshotExists(id, candidate))) {
+      candidate = bumpPenaltyVersion(candidate);
+      guard += 1;
+    }
+    return candidate;
+  }
+
+  /** Set the parent ruleset's version string. */
+  private async setPenaltyRulesetVersion(id: string, version: string): Promise<void> {
+    const { error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update({ version, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new BadRequestException(error.message);
   }
 
   /** Throw a 400 listing every reason the ruleset can't be published. */
@@ -1199,6 +1249,44 @@ export class PenaltiesService {
       .from('phases')
       .select('id')
       .eq('tournament_id', tournamentId);
+    const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((phase) => phase.id);
+    if (phaseIds.length === 0) return false;
+    const { count } = await this.supabase.service
+      .from('matches')
+      .select('id', { count: 'exact', head: true })
+      .in('phase_id', phaseIds)
+      .neq('status', 'scheduled');
+    return (count ?? 0) > 0;
+  }
+
+  /** The event's currently-pinned default penalty ruleset id (null if none). */
+  private async getEventPenaltyRulesetId(eventId: string): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('events')
+      .select('penalty_ruleset_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    return (data as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
+  }
+
+  /**
+   * True if any tournament under the event that INHERITS the event default (its
+   * own penalty_ruleset_id is NULL) has a match past 'scheduled'. Those
+   * tournaments resolve the event ruleset live, so an event-default swap would
+   * change their in-force scoring mid-event.
+   */
+  private async eventHasInheritingStartedMatches(eventId: string): Promise<boolean> {
+    const { data: tournaments } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId)
+      .is('penalty_ruleset_id', null);
+    const tournamentIds = ((tournaments ?? []) as Array<{ id: string }>).map((tour) => tour.id);
+    if (tournamentIds.length === 0) return false;
+    const { data: phases } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .in('tournament_id', tournamentIds);
     const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((phase) => phase.id);
     if (phaseIds.length === 0) return false;
     const { count } = await this.supabase.service
