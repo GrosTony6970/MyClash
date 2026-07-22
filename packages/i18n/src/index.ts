@@ -945,6 +945,7 @@ export const en = {
         derivationTied: 'Level with {name} on every ranking criterion.',
         derivationFormula: 'Score = {formula}',
         derivationScoredBy: 'Scored by {ruleset}',
+        derivationFingerprint: 'Ruleset fingerprint {fingerprint}',
       },
       finalRanking: {
         colRank: 'Rank',
@@ -7101,6 +7102,7 @@ export const fr = {
         derivationTied: 'À égalité avec {name} sur tous les critères de classement.',
         derivationFormula: 'Score = {formula}',
         derivationScoredBy: 'Noté selon {ruleset}',
+        derivationFingerprint: 'Empreinte du règlement {fingerprint}',
       },
       finalRanking: {
         colRank: 'Rang',

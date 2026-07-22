@@ -91,6 +91,29 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     expect(hash).toBeNull();
   });
 
+  it('reports drift when the stored hash is stale', async () => {
+    const state = stateFor();
+    (state.tournaments!.maybeSingle as Record<string, unknown>).ruleset_content_hash = 'stalehash';
+    const drift = await new RulesetHashService(
+      fakeSupabase(state) as never,
+    ).describeTournamentDrift('t-1');
+    expect(drift.stored).toBe('stalehash');
+    expect(drift.current).toMatch(/^[0-9a-f]{64}$/);
+    expect(drift.drifted).toBe(true);
+  });
+
+  it('reports no drift when the stored hash matches the current', async () => {
+    const state = stateFor();
+    const current = await new RulesetHashService(
+      fakeSupabase(state) as never,
+    ).computeTournamentContentHash('t-1');
+    (state.tournaments!.maybeSingle as Record<string, unknown>).ruleset_content_hash = current;
+    const drift = await new RulesetHashService(
+      fakeSupabase(state) as never,
+    ).describeTournamentDrift('t-1');
+    expect(drift.drifted).toBe(false);
+  });
+
   it('falls back to the built-in penalty when nothing is pinned', async () => {
     const state: TableState = {
       tournaments: {

@@ -31,6 +31,10 @@ export type { StandingsRow } from './standings-rows';
 export interface RulesetDerivationMeta {
   label: string;
   scoreFormula: string | null;
+  /** Short prefix of the tournament's effective (scoring, penalty) content hash
+   *  — a verifiable identity token supplementing the human label. Null until the
+   *  tournament has been stamped. */
+  contentFingerprint: string | null;
 }
 
 export type PoolStandingsResponse =
@@ -68,7 +72,9 @@ export class PoolStandingsService {
     // 1. Tournament + ruleset.
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json')
+      .select(
+        'id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, ruleset_content_hash',
+      )
       .eq('id', tournamentId)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
@@ -114,9 +120,12 @@ export class PoolStandingsService {
 
     const columns = ruleset.standingsColumns;
     const rankingChain = ruleset.rankingChain;
+    const contentHash =
+      (tournament as { ruleset_content_hash?: string | null }).ruleset_content_hash ?? null;
     const rulesetMeta: RulesetDerivationMeta = {
       label: ruleset.displayName,
       scoreFormula: ruleset.metadata?.scoreFormula ?? null,
+      contentFingerprint: contentHash ? contentHash.slice(0, 12) : null,
     };
 
     // 2. Pool phase for this tournament.

@@ -68,7 +68,7 @@ interface OverallResponse {
   rulesetCode: string;
   rulesetVersion: string;
   /** Human ruleset name + display score formula, for the derivation panel. */
-  ruleset?: { label: string; scoreFormula: string | null };
+  ruleset?: { label: string; scoreFormula: string | null; contentFingerprint?: string | null };
   columns: OverallColumn[];
   rows: OverallRow[];
 }
@@ -406,6 +406,13 @@ function OverallTable({
                           <p className="text-[11px] text-muted">
                             {t('publicApp.tournament.standings.derivationScoredBy', {
                               ruleset: data.ruleset.label,
+                            })}
+                          </p>
+                        )}
+                        {data.ruleset?.contentFingerprint && (
+                          <p className="font-mono text-[11px] text-muted">
+                            {t('publicApp.tournament.standings.derivationFingerprint', {
+                              fingerprint: data.ruleset.contentFingerprint,
                             })}
                           </p>
                         )}

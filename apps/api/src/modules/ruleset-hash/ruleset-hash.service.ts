@@ -54,6 +54,26 @@ export class RulesetHashService {
     return createHash('sha256').update(stableStringify({ scoring, penalty })).digest('hex');
   }
 
+  /**
+   * Compare a tournament's STORED content hash with a freshly recomputed one.
+   * `drifted` is true when they disagree — the effective behaviour changed but
+   * the stamp was not refreshed (an integrity check; the stamp sites keep it
+   * current, so drift signals a bug or an out-of-band edit).
+   */
+  async describeTournamentDrift(
+    tournamentId: string,
+  ): Promise<{ stored: string | null; current: string | null; drifted: boolean }> {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('ruleset_content_hash')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const stored =
+      (data as { ruleset_content_hash?: string | null } | null)?.ruleset_content_hash ?? null;
+    const current = await this.computeTournamentContentHash(tournamentId);
+    return { stored, current, drifted: stored !== current };
+  }
+
   private async loadTournament(id: string): Promise<TournamentHashRow | null> {
     const { data } = await this.supabase.service
       .from('tournaments')
