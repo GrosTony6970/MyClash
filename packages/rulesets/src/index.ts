@@ -141,6 +141,11 @@ export type {
 // Ruleset lineage (fork-vs-parent bucket diff)
 export { diffRulesetBuckets, projectRulesetBuckets } from './lineage';
 export type { BucketStatus, BucketDiff, RulesetBucketInputs, RulesetBucketRow } from './lineage';
+export {
+  diffPenaltyBucket,
+  projectPenaltyBucketFromLive,
+  projectPenaltyBucketFromSnapshot,
+} from './penalty-lineage';
 
 // Content-hash identity (canonical serialization; sha256 lives in the API)
 export {

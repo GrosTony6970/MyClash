@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   canonicalizePenaltyDefinition,
   canonicalizeScoringBehaviour,
+  projectPenaltyBucketFromLive,
+  projectPenaltyBucketFromSnapshot,
   registry,
   stableStringify,
   type PenaltyBehaviourInput,
@@ -284,7 +286,7 @@ export class RulesetHashService {
         .eq('penalty_ruleset_id', id)
         .eq('version', version)
         .maybeSingle();
-      if (data) return penaltyInputFromSnapshot(data as Row);
+      if (data) return projectPenaltyBucketFromSnapshot(data as Row);
     }
     const { data } = await this.supabase.service
       .from('penalty_rulesets')
@@ -293,7 +295,7 @@ export class RulesetHashService {
       )
       .eq('id', id)
       .maybeSingle();
-    return data ? penaltyInputFromLive(data as Row) : null;
+    return data ? projectPenaltyBucketFromLive(data as Row) : null;
   }
 }
 
@@ -308,35 +310,4 @@ function grammarInputFrom(config: Row, grammar: ResolvedRulesetGrammar) {
     afterblowValuation: grammar.hasAfterblow ? grammar.afterblowValuation : null,
     afterblowFixedValue: grammar.hasAfterblow ? grammar.afterblowFixedValue : null,
   };
-}
-
-function penaltyBaseFields(row: Row) {
-  return {
-    accumulationScope: (row['accumulation_scope'] as string) ?? 'match',
-    yellowCardPoints: Number(row['yellow_card_points'] ?? 0),
-    redCardPoints: Number(row['red_card_points'] ?? 0),
-    blackCardPoints: Number(row['black_card_points'] ?? 0),
-    firstBlackCardForfeit: (row['first_black_card_forfeit'] as string) ?? 'match',
-    secondBlackCardForfeit: (row['second_black_card_forfeit'] as string) ?? 'tournament',
-  };
-}
-
-/** Snapshot entries are the already-serialised camelCase JSONB array. */
-function penaltyInputFromSnapshot(row: Row): PenaltyBehaviourInput {
-  const entries = ((row['entries'] as Row[] | undefined) ?? []).map((entry) => ({
-    groupNumber: Number(entry['groupNumber']),
-    refNumber: String(entry['refNumber']),
-    sanctions: (entry['sanctions'] as string[]) ?? [],
-  }));
-  return { ...penaltyBaseFields(row), entries };
-}
-
-/** Live parent entries come off the embed as snake_case DB rows. */
-function penaltyInputFromLive(row: Row): PenaltyBehaviourInput {
-  const entries = ((row['penalty_ruleset_entries'] as Row[] | undefined) ?? []).map((entry) => ({
-    groupNumber: Number(entry['group_number']),
-    refNumber: String(entry['ref_number']),
-    sanctions: (entry['sanctions'] as string[]) ?? [],
-  }));
-  return { ...penaltyBaseFields(row), entries };
 }
