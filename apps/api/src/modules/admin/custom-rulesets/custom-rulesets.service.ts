@@ -31,6 +31,11 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
 import { resolveOrganizationNames } from '../../../common/organization-names';
 import { isSystemRuleset } from '../../events/ruleset-defaults';
+import {
+  buildRulesetExport,
+  scoringRulesetExportDefinitionSchema,
+  type RulesetExportEnvelope,
+} from '../../../common/ruleset-export';
 import type { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
 
 export interface CustomRulesetRow {
@@ -1044,6 +1049,81 @@ export class CustomRulesetsService {
 
     await this.writeAuditLog(actorUserId, 'custom_ruleset.submit_for_review', id, {});
     return data as CustomRulesetRow;
+  }
+
+  /**
+   * Serialise an org-owned scoring ruleset to a portable, self-contained
+   * envelope (see common/ruleset-export.ts). Only the org's OWN formula
+   * rulesets export: a coded fork (base_code) reuses a named engine that must
+   * already exist on the target, so it carries no portable definition, and
+   * system rows are engine code, not authored data.
+   */
+  async exportForOrg(id: string, orgId: string): Promise<RulesetExportEnvelope> {
+    const row = await this.assertOrgOwns(id, orgId);
+    if ((row as unknown as { base_code?: string | null }).base_code) {
+      throw new BadRequestException(
+        'A coded fork reuses a built-in engine and cannot be exported. Recreate it with "Customise this format" on the target platform instead.',
+      );
+    }
+    if (row.is_system) {
+      throw new BadRequestException('Built-in rulesets cannot be exported.');
+    }
+    return buildRulesetExport('scoring', {
+      name: row.name,
+      version: row.version,
+      description: row.description,
+      scoreFormula: row.score_formula,
+      constants: row.constants,
+      tiebreakers: row.tiebreakers,
+      doublePenaltyFormula: row.double_penalty_formula,
+      matchFormatDefaults: row.match_format_defaults,
+      targets: row.targets,
+      hasAfterblow: row.has_afterblow,
+      afterblowMode: row.afterblow_mode,
+      afterblowValuation: row.afterblow_valuation,
+      afterblowFixedValue: row.afterblow_fixed_value,
+    });
+  }
+
+  /**
+   * Create a new org-owned scoring ruleset from a portable envelope. The
+   * definition is re-validated and inserted through createForOrg (fresh code,
+   * owner = this org, unshared, born published); the file's identity and
+   * integrity hash are never trusted — createForOrg re-runs every publish gate.
+   */
+  async importForOrg(
+    orgId: string,
+    envelope: RulesetExportEnvelope,
+    actorUserId: string,
+  ): Promise<CustomRulesetRow> {
+    if (envelope.type !== 'scoring') {
+      throw new BadRequestException(
+        `This file is a ${envelope.type} ruleset, not a scoring ruleset.`,
+      );
+    }
+    const parsed = scoringRulesetExportDefinitionSchema.safeParse(envelope.definition);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        `Invalid scoring ruleset definition: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
+      );
+    }
+    const def = parsed.data;
+    const dto = {
+      name: def.name,
+      version: def.version,
+      description: def.description ?? undefined,
+      scoreFormula: def.scoreFormula,
+      constants: def.constants ?? {},
+      tiebreakers: def.tiebreakers ?? [],
+      matchFormatDefaults: def.matchFormatDefaults ?? undefined,
+      doublePenaltyFormula: (def.doublePenaltyFormula ?? null) as DoublePenaltySpec | null,
+      targets: def.targets ?? undefined,
+      hasAfterblow: def.hasAfterblow ?? undefined,
+      afterblowMode: def.afterblowMode ?? undefined,
+      afterblowValuation: def.afterblowValuation ?? undefined,
+      afterblowFixedValue: def.afterblowFixedValue ?? undefined,
+    } as CreateCustomRulesetDto;
+    return this.createForOrg(orgId, dto, actorUserId);
   }
 
   /**

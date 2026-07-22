@@ -28,6 +28,7 @@ import {
   VoidPenaltyDto,
 } from './dto/penalties.dto';
 import { Public } from '../../common/auth/public.decorator';
+import { RulesetImportDto } from '../../common/ruleset-export';
 import { PenaltiesService } from './penalties.service';
 
 async function getOptionalUserId(
@@ -187,6 +188,32 @@ export class PenaltiesController {
   ) {
     const userId = await getOptionalUserId(req, this.supabase);
     return this.penalties.rejectRulesetSharing(id, dto.reason, userId);
+  }
+
+  @Get('penalty-rulesets/:id/export')
+  @ApiOperation({
+    summary: 'Export an org-owned penalty ruleset as a portable, self-contained JSON envelope.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async exportRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.exportRulesetJson(id, userId);
+  }
+
+  @Post('organizations/:orgId/penalty-rulesets/import')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Import a penalty ruleset from an export envelope as a new org-owned row (re-validated, hash recomputed).',
+  })
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  async importRulesetJson(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() dto: RulesetImportDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.importRulesetJson(orgId, dto, userId);
   }
 
   @Get('organizations/:orgId/penalty-rulesets')

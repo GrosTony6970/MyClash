@@ -21,6 +21,11 @@ import {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveOrganizationNames } from '../../common/organization-names';
+import {
+  buildRulesetExport,
+  penaltyRulesetExportDefinitionSchema,
+  type RulesetExportEnvelope,
+} from '../../common/ruleset-export';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
@@ -253,6 +258,90 @@ export class PenaltiesService {
           description: entry.description,
           sanctions: [...entry.sanctions],
         })),
+      },
+      userId,
+    );
+  }
+
+  /**
+   * Serialise an org-owned penalty ruleset to a portable, self-contained
+   * envelope (see common/ruleset-export.ts). Entries are sorted by (group, ref)
+   * so the same ruleset always exports to the same integrity hash. Built-in
+   * rulesets are engine data, not authored, so they are export-blocked.
+   */
+  async exportRulesetJson(id: string, userId?: string): Promise<RulesetExportEnvelope> {
+    const row = (await this.getRuleset(id)) as Row;
+    await this.assertUserCanManageOrg(row['owner_organization_id'] as string, userId);
+    if (row['built_in']) {
+      throw new BadRequestException('Built-in penalty rulesets cannot be exported.');
+    }
+    const entries = ((row['penalty_ruleset_entries'] as Array<Record<string, unknown>>) ?? [])
+      .map((e) => ({
+        groupNumber: e['group_number'] as number,
+        refNumber: String(e['ref_number'] ?? ''),
+        shortName: (e['short_name'] as string) ?? '',
+        description: (e['description'] as string) ?? '',
+        sanctions: (e['sanctions'] as Array<'yellow' | 'red' | 'black'>) ?? [],
+      }))
+      .sort((a, b) => a.groupNumber - b.groupNumber || a.refNumber.localeCompare(b.refNumber));
+    return buildRulesetExport('penalty', {
+      name: row['name'],
+      version: row['version'],
+      description: (row['description'] as string | null) ?? null,
+      accumulationScope: row['accumulation_scope'],
+      yellowCardPoints: row['yellow_card_points'],
+      redCardPoints: row['red_card_points'],
+      blackCardPoints: row['black_card_points'],
+      firstBlackCardForfeit: row['first_black_card_forfeit'],
+      secondBlackCardForfeit: row['second_black_card_forfeit'],
+      entries,
+    });
+  }
+
+  /**
+   * Create a new org-owned penalty ruleset from a portable envelope. Mirrors
+   * importRulesetCsv: re-validate the definition, generate a FRESH code, and
+   * insert through createRuleset (owner = this org, unshared). The file's
+   * identity and integrity hash are never trusted.
+   */
+  async importRulesetJson(
+    orgId: string,
+    envelope: RulesetExportEnvelope,
+    userId?: string,
+  ): Promise<Row> {
+    if (envelope.type !== 'penalty') {
+      throw new BadRequestException(
+        `This file is a ${envelope.type} ruleset, not a penalty ruleset.`,
+      );
+    }
+    const parsed = penaltyRulesetExportDefinitionSchema.safeParse(envelope.definition);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        `Invalid penalty ruleset definition: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
+      );
+    }
+    const def = parsed.data;
+    const slug =
+      def.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'ruleset';
+    return this.createRuleset(
+      {
+        ownerOrganizationId: orgId,
+        code: `imported-${slug}-${Date.now().toString(36)}`,
+        version: def.version,
+        name: def.name,
+        description: def.description ?? undefined,
+        accumulationScope: def.accumulationScope,
+        publicVisibility: false,
+        entries: def.entries,
+        yellowCardPoints: def.yellowCardPoints,
+        redCardPoints: def.redCardPoints,
+        blackCardPoints: def.blackCardPoints,
+        firstBlackCardForfeit: def.firstBlackCardForfeit,
+        secondBlackCardForfeit: def.secondBlackCardForfeit,
       },
       userId,
     );

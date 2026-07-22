@@ -19,6 +19,7 @@ import {
   UpdateCustomRulesetDto,
   ValidateRulesetDto,
 } from './dto/custom-rulesets.dto';
+import { RulesetImportDto, type RulesetExportEnvelope } from '../../../common/ruleset-export';
 import { resolveRequestUserId } from '../../../common/auth/request-user';
 
 // Resolve the caller's user id from their Supabase JWT. Shared with the
@@ -154,5 +155,34 @@ export class OrgCustomRulesetsController {
     await this.assertOrgAdmin(orgId, userId);
     await this.service.assertOrgOwns(id, orgId);
     return this.service.submitForReview(id, userId);
+  }
+
+  @Get(':id/export')
+  @ApiOperation({
+    summary: 'Export an org-owned scoring ruleset as a portable, self-contained JSON envelope.',
+  })
+  async export(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ): Promise<RulesetExportEnvelope> {
+    const userId = await getUserId(req, this.supabase);
+    await this.assertOrgAdmin(orgId, userId);
+    return this.service.exportForOrg(id, orgId);
+  }
+
+  @Post('import')
+  @ApiOperation({
+    summary:
+      'Import a scoring ruleset from an export envelope as a new org-owned row (re-validated, hash recomputed).',
+  })
+  async import(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() dto: RulesetImportDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.assertOrgAdmin(orgId, userId);
+    return this.service.importForOrg(orgId, dto, userId);
   }
 }
