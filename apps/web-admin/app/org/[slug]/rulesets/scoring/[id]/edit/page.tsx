@@ -28,6 +28,7 @@ import {
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../../src/components/rulesets/ruleset-form-initial';
+import { ForkLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -270,73 +271,5 @@ export default function OrgEditScoringRulesetPage() {
         />
       )}
     </main>
-  );
-}
-
-function LineageLamp({
-  changed,
-  label,
-  statusLabel,
-}: {
-  changed: boolean;
-  label: string;
-  statusLabel: string;
-}) {
-  return (
-    <li className="flex items-center gap-2 text-sm">
-      <span
-        aria-hidden="true"
-        className={`h-2 w-2 shrink-0 rounded-full ${changed ? 'bg-warning' : 'bg-success'}`}
-      />
-      <span className="text-foreground-secondary">{label}</span>
-      <span className={`text-xs ${changed ? 'text-warning' : 'text-muted'}`}>· {statusLabel}</span>
-    </li>
-  );
-}
-
-/** Read-only view of a coded fork: what it is, and — computed by diffing, never
- *  self-declared — which of the three buckets diverge from the base it reuses. */
-function ForkLineagePanel({ base, diff }: { base: string; diff: BucketDiff | null }) {
-  const { t } = useI18n();
-  const status = (s: 'unchanged' | 'changed') =>
-    s === 'changed' ? t('admin.rulesets.lineageCustomised') : t('admin.rulesets.lineageSame');
-  return (
-    <div className="rounded-md border border-border bg-surface p-6">
-      <h2 className="font-display font-semibold text-lg text-foreground">
-        {t('admin.rulesets.forkPanelTitle')}
-      </h2>
-      <p className="mt-2 text-sm text-foreground-secondary">
-        {t('admin.rulesets.forkPanelBody', { base })}
-      </p>
-      {diff && (
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-            {t('admin.rulesets.lineageHeading', { base })}
-          </p>
-          <ul className="space-y-1">
-            <LineageLamp
-              changed={diff.grammar === 'changed'}
-              label={t('admin.rulesets.lineageGrammar')}
-              statusLabel={status(diff.grammar)}
-            />
-            <LineageLamp
-              changed={diff.endConditions === 'changed'}
-              label={t('admin.rulesets.lineageEndConditions')}
-              statusLabel={status(diff.endConditions)}
-            />
-            <LineageLamp
-              changed={diff.ranking === 'changed'}
-              label={t('admin.rulesets.lineageRanking')}
-              statusLabel={status(diff.ranking)}
-            />
-          </ul>
-          {!diff.rankingCompatible && (
-            <p className="mt-3 rounded bg-warning/10 px-3 py-2 text-xs text-warning">
-              {t('admin.rulesets.lineageRankingWarning', { base })}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
   );
 }
