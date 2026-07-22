@@ -20,6 +20,7 @@ import {
   type PenaltyRulesetEntry,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
+import { resolveOrganizationNames } from '../../common/organization-names';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
@@ -51,6 +52,23 @@ const BUILTIN_CODE = 'ffamhe_tf_2026';
 const BUILTIN_VERSION = '2026';
 
 export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
+
+/**
+ * A lean, org-facing projection of an *adoptable* penalty ruleset for the
+ * Discover catalog: the platform built-in plus other orgs' approved-public
+ * rows. The org's own rows are excluded (they live in the Manage tab). Carries
+ * the owning-org name so a shared ruleset is attributed by name, never a UUID.
+ */
+export interface CatalogPenaltyRulesetSummary {
+  id: string;
+  code: string;
+  version: string;
+  name: string;
+  description: string | null;
+  built_in: boolean;
+  owner_organization_name: string | null;
+  accumulation_scope: 'match' | 'phase' | 'tournament';
+}
 
 @Injectable()
 export class PenaltiesService {
@@ -497,6 +515,58 @@ export class PenaltiesService {
       .order('built_in', { ascending: false });
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
+  }
+
+  /**
+   * Discover catalog for an org: penalty rulesets it can *adopt* but does not
+   * own — the platform built-in plus other orgs' approved-public rows. Unlike
+   * listRulesetsForOrg (which deliberately hides other orgs' public rows so the
+   * tournament dropdown stays scoped), this is the browse-and-adopt surface, so
+   * it surfaces them. Owning-org names are batch-resolved for attribution.
+   */
+  async listRulesetCatalogForOrg(
+    orgId: string,
+    userId?: string,
+  ): Promise<CatalogPenaltyRulesetSummary[]> {
+    await this.assertUserCanManageOrg(orgId, userId);
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select(
+        'id, code, version, name, description, built_in, owner_organization_id, public_visibility, accumulation_scope',
+      )
+      // Built-in (any org can adopt) OR another org's approved-public row. The
+      // and(...) branch excludes this org's own public rows — Manage shows those.
+      .or(`built_in.eq.true,and(public_visibility.eq.true,owner_organization_id.neq.${orgId})`)
+      .order('built_in', { ascending: false })
+      .order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Array<{
+      id: string;
+      code: string;
+      version: string;
+      name: string;
+      description: string | null;
+      built_in: boolean;
+      owner_organization_id: string | null;
+      public_visibility: boolean;
+      accumulation_scope: 'match' | 'phase' | 'tournament';
+    }>;
+    const names = await resolveOrganizationNames(
+      this.supabase,
+      rows.map((r) => r.owner_organization_id),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      version: r.version,
+      name: r.name,
+      description: r.description,
+      built_in: r.built_in,
+      owner_organization_name: r.owner_organization_id
+        ? (names.get(r.owner_organization_id) ?? null)
+        : null,
+      accumulation_scope: r.accumulation_scope,
+    }));
   }
 
   async assignEventRuleset(eventId: string, dto: AssignPenaltyRulesetDto, userId?: string) {

@@ -203,6 +203,20 @@ export class PenaltiesController {
     return this.penalties.listRulesetsForOrg(orgId, userId);
   }
 
+  @Get('organizations/:orgId/penalty-rulesets/catalog')
+  @ApiOperation({
+    summary:
+      'Discover catalog: adoptable penalty rulesets (built-in + other orgs’ approved-public), attributed by owning-org name.',
+  })
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  async listRulesetCatalogForOrg(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.listRulesetCatalogForOrg(orgId, userId);
+  }
+
   @Patch('events/:id/penalty-ruleset')
   @ApiOperation({ summary: 'Attach a penalty ruleset as event default' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

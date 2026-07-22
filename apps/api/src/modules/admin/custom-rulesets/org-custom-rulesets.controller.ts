@@ -65,6 +65,17 @@ export class OrgCustomRulesetsController {
     return this.service.listForOrg(orgId, userId);
   }
 
+  @Get('catalog')
+  @ApiOperation({
+    summary:
+      'Discover catalog: adoptable scoring rulesets (built-ins + other orgs’ approved-public), attributed by owning-org name.',
+  })
+  async catalog(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.assertOrgAdmin(orgId, userId);
+    return this.service.listCatalogForOrg(orgId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get one org-owned scoring ruleset (for the edit page).' })
   async getOne(

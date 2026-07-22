@@ -499,6 +499,85 @@ type TableState = Record<
   }
 >;
 
+describe('PenaltiesService.listRulesetCatalogForOrg', () => {
+  // A thenable chain supporting `.or().order().order()` (catalog list) and
+  // `.select().eq().eq().maybeSingle()` (the isSuperAdmin lookup) + `.in()`
+  // (org-name resolution), keyed by table.
+  function catalogSupabase(byTable: Record<string, unknown[]>) {
+    return {
+      service: {
+        from: vi.fn((table: string) => {
+          const rows = byTable[table] ?? [];
+          const chain: Record<string, unknown> = {};
+          for (const m of ['select', 'or', 'order', 'in', 'eq', 'is']) {
+            chain[m] = vi.fn(() => chain);
+          }
+          // platform_roles (isSuperAdmin) reads null → not a super-admin; with
+          // orgs undefined in this harness, assertUserCanManageOrg then passes.
+          chain['maybeSingle'] = vi.fn(() => Promise.resolve({ data: null, error: null }));
+          chain['then'] = (resolve: (value: unknown) => unknown) =>
+            resolve({ data: rows, error: null });
+          return chain;
+        }),
+      },
+    };
+  }
+
+  it('returns built-in + other orgs’ public rows, attributed by org name, own excluded', async () => {
+    const supabase = catalogSupabase({
+      penalty_rulesets: [
+        {
+          id: 'builtin-1',
+          code: 'ffamhe_tf_2026',
+          version: '2026',
+          name: 'FFAMHE TF 2026',
+          description: null,
+          built_in: true,
+          owner_organization_id: null,
+          public_visibility: false,
+          accumulation_scope: 'tournament',
+        },
+        {
+          id: 'shared-1',
+          code: 'ORGX_PEN',
+          version: '1.0.0',
+          name: 'Org X Penalties',
+          description: 'shared',
+          built_in: false,
+          owner_organization_id: 'org-x',
+          public_visibility: true,
+          accumulation_scope: 'match',
+        },
+      ],
+      organizations: [{ id: 'org-x', name: 'Org X' }],
+    });
+    const service = new PenaltiesService(supabase as never);
+
+    const result = await service.listRulesetCatalogForOrg('org-me', 'user-1');
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: 'builtin-1',
+      built_in: true,
+      owner_organization_name: null,
+    });
+    expect(result[1]).toMatchObject({ id: 'shared-1', owner_organization_name: 'Org X' });
+    const idx = supabase.service.from.mock.calls.findIndex((c) => c[0] === 'penalty_rulesets');
+    const penaltyChain = supabase.service.from.mock.results[idx]?.value as {
+      or: ReturnType<typeof vi.fn>;
+    };
+    expect(penaltyChain.or).toHaveBeenCalledWith(
+      expect.stringContaining('owner_organization_id.neq.org-me'),
+    );
+  });
+
+  it('rejects an unauthenticated caller', async () => {
+    const supabase = catalogSupabase({});
+    const service = new PenaltiesService(supabase as never);
+    await expect(service.listRulesetCatalogForOrg('org-me', undefined)).rejects.toThrow();
+  });
+});
+
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
   const updated: Record<string, unknown[]> = {};

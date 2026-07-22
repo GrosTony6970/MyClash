@@ -29,6 +29,7 @@ import {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
+import { resolveOrganizationNames } from '../../../common/organization-names';
 import { isSystemRuleset } from '../../events/ruleset-defaults';
 import type { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
 
@@ -110,6 +111,30 @@ export interface CustomRulesetVersionRow {
   published_at: string;
   published_by_user_id: string | null;
   is_frozen: boolean;
+}
+
+/**
+ * A lean, org-facing projection of an *adoptable* scoring ruleset for the
+ * Discover catalog: platform built-ins and other orgs' approved-public rows.
+ * Deliberately not CustomRulesetRow — the catalog needs the owning-org name
+ * (never a raw UUID in the UI) and none of the heavy config the Manage table
+ * hydrates.
+ */
+export interface CatalogScoringRulesetSummary {
+  id: string;
+  code: string;
+  version: string;
+  name: string;
+  description: string | null;
+  /** A platform built-in (TF v1, Generic_PointsCap) vs another org's shared row. */
+  is_system: boolean;
+  /** Set on a coded fork: the built-in it reuses (drives the "forked from" line). */
+  base_code: string | null;
+  /** Null for built-ins; the sharing org's display name otherwise. */
+  owner_organization_name: string | null;
+  /** Grammar summary for the card. Null for built-ins (grammar lives in tf_config). */
+  targets: Array<{ name: string; value: number }> | null;
+  has_afterblow: boolean;
 }
 
 /**
@@ -807,6 +832,59 @@ export class CustomRulesetsService {
     // "System ruleset details" panel — the org list is the only org-visible
     // source for built-ins (the owner-gated detail endpoint can't return them).
     return ((data ?? []) as CustomRulesetRow[]).map((r) => this.hydrateSystemRow(r));
+  }
+
+  /**
+   * The Discover catalog for an org: every scoring ruleset it can *adopt* but
+   * does not own — platform built-ins plus other orgs' approved-public rows.
+   * The org's own rows are excluded (they live in the Manage tab). Owning-org
+   * names are batch-resolved so a shared ruleset is attributed by name, never a
+   * raw UUID.
+   */
+  async listCatalogForOrg(orgId: string): Promise<CatalogScoringRulesetSummary[]> {
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .select(
+        'id, code, version, name, description, is_system, base_code, owner_organization_id, public_visibility, targets, has_afterblow',
+      )
+      // Built-ins (any org can adopt) OR another org's approved-public row. The
+      // and(...) branch excludes this org's own public rows — those are shown in
+      // Manage, not Discover.
+      .or(`is_system.eq.true,and(public_visibility.eq.true,owner_organization_id.neq.${orgId})`)
+      .order('is_system', { ascending: false })
+      .order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Array<{
+      id: string;
+      code: string;
+      version: string;
+      name: string;
+      description: string | null;
+      is_system: boolean;
+      base_code: string | null;
+      owner_organization_id: string | null;
+      public_visibility: boolean;
+      targets: Array<{ name: string; value: number }> | null;
+      has_afterblow: boolean;
+    }>;
+    const names = await resolveOrganizationNames(
+      this.supabase,
+      rows.map((r) => r.owner_organization_id),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      version: r.version,
+      name: r.name,
+      description: r.description,
+      is_system: r.is_system,
+      base_code: r.base_code,
+      owner_organization_name: r.owner_organization_id
+        ? (names.get(r.owner_organization_id) ?? null)
+        : null,
+      targets: r.targets,
+      has_afterblow: r.has_afterblow,
+    }));
   }
 
   /**
