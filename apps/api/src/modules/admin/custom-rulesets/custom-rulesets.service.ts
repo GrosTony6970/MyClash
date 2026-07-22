@@ -11,6 +11,7 @@ import {
   DOUBLE_PENALTY_FORMULA_KEYS,
   DoublePenaltySpecSchema,
   doublePenalty,
+  previewFormulaScoring,
   FormulaConfigSchema,
   FormulaConstantsSchema,
   FormulaNodeSchema,
@@ -26,6 +27,7 @@ import {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
+import { isSystemRuleset } from '../../events/ruleset-defaults';
 import type { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
 
 export interface CustomRulesetRow {
@@ -566,12 +568,10 @@ export class CustomRulesetsService {
     const existing = await this.getById(id);
     if (existing.is_system) throw new ForbiddenException('System rulesets are always published');
 
-    // Re-validate before publishing — better to fail loudly here than at runtime.
-    this.validateConfig({
-      scoreFormula: existing.score_formula,
-      constants: existing.constants,
-      tiebreakers: existing.tiebreakers,
-    });
+    // Publish-time dry-run: reject empty grammar, an unresolvable coded base, or
+    // a formula that can score non-finite — better to fail loudly here than at
+    // standings-render time. Correctly skips a coded fork's (empty) formula.
+    this.dryRunRuleset(existing);
 
     // Snapshot the current row payload as an immutable version, then auto-bump
     // the parent row's version (patch) so subsequent edits target a fresh slot.
@@ -810,6 +810,11 @@ export class CustomRulesetsService {
       ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
       : null;
 
+    // Org rows are born status:'published' (usable immediately), so create IS
+    // the publish gate — dry-run before inserting.
+    this.assertGrammarNonEmpty(dto.targets);
+    this.assertFormulaFinite({ ...config, doublePenaltyFormula });
+
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .insert({
@@ -868,6 +873,9 @@ export class CustomRulesetsService {
    * controller checks org ownership before calling this.
    */
   async submitForReview(id: string, actorUserId: string): Promise<CustomRulesetRow> {
+    // A broken ruleset must not enter the public-catalog review queue.
+    this.dryRunRuleset(await this.getById(id));
+
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .update({
@@ -893,6 +901,8 @@ export class CustomRulesetsService {
     if (!existing.submitted_for_review_at) {
       throw new BadRequestException('No pending submission to approve');
     }
+    // Re-run the dry-run at the catalog gate: approving shares it platform-wide.
+    this.dryRunRuleset(existing);
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .update({
@@ -1007,6 +1017,63 @@ export class CustomRulesetsService {
     }
 
     return FormulaConfigSchema.parse({ scoreFormula, constants, tiebreakers });
+  }
+
+  /** A ruleset with no scoring targets can't produce a scoring pad — reject it
+   *  rather than silently falling back to the federal 2-target default. */
+  private assertGrammarNonEmpty(
+    targets: Array<{ name: string; value: number }> | null | undefined,
+  ): void {
+    if (!Array.isArray(targets) || targets.length === 0) {
+      throw new BadRequestException(
+        'This ruleset has no scoring targets, so it cannot produce a scoring pad. Add at least one target before publishing.',
+      );
+    }
+  }
+
+  /** Dry-run the score formula over sample fighters; reject if it can score to a
+   *  non-finite value (overflow the Zod .finite() shape-check can't see). */
+  private assertFormulaFinite(config: FormulaConfig): void {
+    if (previewFormulaScoring(config).hasNonFinite) {
+      throw new BadRequestException(
+        'The scoring formula can produce a non-finite score (e.g. overflow from a very large constant). Adjust the formula or its constants.',
+      );
+    }
+  }
+
+  /**
+   * Publish-time dry-run of a stored ruleset row: reject anything that can't
+   * produce valid standings. Empty grammar and (for a formula ruleset) a
+   * non-finite score are rejected; a coded fork reuses its base's tested engine
+   * so we only confirm the base still resolves (and skip the formula dry-run —
+   * its score_formula is empty by construction). System rows are engine code,
+   * not authored here, so they pass through.
+   */
+  private dryRunRuleset(row: CustomRulesetRow): void {
+    if (row.is_system) return;
+    this.assertGrammarNonEmpty(row.targets);
+
+    const raw = row as unknown as Record<string, unknown>;
+    const baseCode = (raw['base_code'] as string | null) ?? null;
+    if (baseCode) {
+      const baseVersion = (raw['base_version'] as string | null) ?? '1.0.0';
+      if (!isSystemRuleset(baseCode, baseVersion)) {
+        throw new BadRequestException(
+          `This format is based on "${baseCode}", which is no longer available.`,
+        );
+      }
+      return;
+    }
+
+    const config = this.validateConfig({
+      scoreFormula: row.score_formula,
+      constants: row.constants,
+      tiebreakers: row.tiebreakers,
+    });
+    if (row.double_penalty_formula != null) {
+      config.doublePenaltyFormula = row.double_penalty_formula;
+    }
+    this.assertFormulaFinite(config);
   }
 
   private formatZodError(err: unknown): string {
