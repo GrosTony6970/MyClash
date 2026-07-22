@@ -27,3 +27,6 @@ export { deriveFighterStats } from './derive-stats';
 
 export { createFormulaRuleset, buildFormulaScope } from './ruleset';
 export type { RulesetGrammar } from './ruleset';
+
+export { previewFormulaScoring, DEFAULT_PREVIEW_SAMPLES } from './preview';
+export type { FormulaScoringPreview, FormulaScoringSampleRow } from './preview';

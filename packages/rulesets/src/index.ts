@@ -121,6 +121,8 @@ export {
   evaluateFormula,
   renderFormula,
   isVariableKey,
+  previewFormulaScoring,
+  DEFAULT_PREVIEW_SAMPLES,
 } from './formula';
 export type {
   BinaryOperator,
@@ -129,6 +131,8 @@ export type {
   FormulaConstants,
   FormulaNode,
   FormulaScope,
+  FormulaScoringPreview,
+  FormulaScoringSampleRow,
   RenderFormulaOptions,
   Tiebreaker,
   VariableKey,
