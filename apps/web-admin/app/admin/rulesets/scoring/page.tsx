@@ -337,7 +337,14 @@ export default function AdminRulesetsPage() {
         credentials: 'include',
       });
       if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.shared.actions.delete'));
+        // Soft-archived (kept resolvable) rather than deleted when a tournament
+        // still pins it — reflect which happened.
+        const body = (await res.json().catch(() => null)) as { archived?: boolean } | null;
+        toast.success(
+          body?.archived
+            ? t('admin.rulesets.shared.toast.archived')
+            : t('admin.rulesets.shared.toast.deleted'),
+        );
         setDeleteTarget(null);
         refreshCurated();
       } else {

@@ -2541,9 +2541,12 @@ export const en = {
           published: 'Published',
           draft: 'Draft',
         },
-        confirmDelete: 'This will permanently delete the ruleset. Continue?',
+        confirmDelete:
+          'This removes the ruleset from your list. If a tournament still uses it, it is archived (kept for those results) instead of deleted. Continue?',
         toast: {
           deleted: 'Ruleset deleted',
+          archived:
+            'Ruleset archived — it is still used by a tournament, so it was kept for those results.',
           defaultSet: 'Default updated',
         },
         form: {
@@ -8744,9 +8747,12 @@ export const fr = {
           published: 'Publie',
           draft: 'Brouillon',
         },
-        confirmDelete: 'Cela supprimera definitivement le bareme. Continuer ?',
+        confirmDelete:
+          'Cela retire le bareme de votre liste. Si un tournoi l’utilise encore, il est archive (conserve pour ces resultats) au lieu d’etre supprime. Continuer ?',
         toast: {
           deleted: 'Bareme supprime',
+          archived:
+            'Bareme archive : il est encore utilise par un tournoi, il a donc ete conserve pour ces resultats.',
           defaultSet: 'Defaut mis a jour',
         },
         form: {
