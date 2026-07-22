@@ -62,6 +62,15 @@ export interface BracketSlot {
   referees?: PoolReferee[];
 }
 
+/** Per-bucket lineage diff, materialised at re-pin time. Mirrors @myclash/rulesets'
+ *  BucketDiff (kept local — web-public doesn't depend on the rulesets package). */
+export interface RulesetRepinBucketDiff {
+  grammar: 'unchanged' | 'changed';
+  endConditions: 'unchanged' | 'changed';
+  ranking: 'unchanged' | 'changed';
+  rankingCompatible: boolean;
+}
+
 /** Public disclosure of an audited mid-event ruleset re-pin (the reason is
  *  shown publicly by design — a re-pin is never silent). */
 export interface RulesetRepinDisclosure {
@@ -70,6 +79,9 @@ export interface RulesetRepinDisclosure {
   toLabel: string;
   justification: string;
   rankingCompatible: boolean;
+  /** Materialised per-bucket breakdown (grammar/end-conditions/ranking); absent
+   *  on audit rows written before the diff was disclosed. */
+  bucketDiff?: RulesetRepinBucketDiff | null;
 }
 
 export interface Tournament {

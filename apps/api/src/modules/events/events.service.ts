@@ -3100,7 +3100,7 @@ export class EventsService {
     const { data } = await this.supabase.service
       .from('tournament_ruleset_repins')
       .select(
-        'from_code, from_version, to_code, to_version, justification, ranking_compatible, created_at',
+        'from_code, from_version, to_code, to_version, justification, ranking_compatible, bucket_diff, created_at',
       )
       .eq('tournament_id', tournamentId)
       .order('created_at', { ascending: false })
@@ -3114,6 +3114,7 @@ export class EventsService {
       to_version: string;
       justification: string;
       ranking_compatible: boolean;
+      bucket_diff: BucketDiff | null;
       created_at: string;
     };
     const [fromLabel, toLabel] = await Promise.all([
@@ -3126,6 +3127,9 @@ export class EventsService {
       toLabel,
       justification: row.justification,
       rankingCompatible: row.ranking_compatible,
+      // The materialised per-bucket diff (grammar/end-conditions/ranking) so the
+      // public page can show WHICH buckets changed, not just the boolean.
+      bucketDiff: row.bucket_diff ?? null,
     };
   }
 

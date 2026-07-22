@@ -968,6 +968,11 @@ export const en = {
       rulesetChangedFromTo: 'Changed from {from} to {to}',
       rulesetChangedReason: 'Reason',
       rulesetChangedRankingAffected: 'This change affected how fighters are ranked.',
+      lineageGrammar: 'Grammar (targets, afterblow)',
+      lineageEndConditions: 'End conditions (cap, timing)',
+      lineageRanking: 'Ranking (scoring)',
+      lineageChanged: 'changed',
+      lineageSame: 'unchanged',
       poolMatchesSearch: 'Search matches (fighter, round, club…)',
       poolMatchesNoResults: 'No matches found.',
       participants: {
@@ -7128,6 +7133,11 @@ export const fr = {
       rulesetChangedFromTo: 'Changé de {from} à {to}',
       rulesetChangedReason: 'Motif',
       rulesetChangedRankingAffected: 'Ce changement a modifié le classement des tireurs.',
+      lineageGrammar: 'Grammaire (cibles, afterblow)',
+      lineageEndConditions: 'Conditions de fin (plafond, minutage)',
+      lineageRanking: 'Classement (calcul)',
+      lineageChanged: 'modifié',
+      lineageSame: 'inchangé',
       poolMatchesSearch: 'Rechercher un match (tireur, manche, club…)',
       poolMatchesNoResults: 'Aucun match trouvé.',
       participants: {
