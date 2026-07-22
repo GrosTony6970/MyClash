@@ -119,5 +119,12 @@ export class RejectPenaltyRulesetSharingDto extends createZodDto(
 const assignPenaltyRulesetSchema = z.object({ penaltyRulesetId: z.uuid().nullish() }).strict();
 export class AssignPenaltyRulesetDto extends createZodDto(assignPenaltyRulesetSchema) {}
 
+/**
+ * Publish the current definition as an immutable version. `version` optionally
+ * overrides the auto patch-bump (e.g. a deliberate minor/major bump).
+ */
+const publishPenaltyRulesetSchema = z.object({ version: z.string().max(50).optional() }).strict();
+export class PublishPenaltyRulesetDto extends createZodDto(publishPenaltyRulesetSchema) {}
+
 const reviewPenaltySchema = z.object({ status: z.enum(['confirmed', 'dismissed']) }).strict();
 export class ReviewPenaltyDto extends createZodDto(reviewPenaltySchema) {}

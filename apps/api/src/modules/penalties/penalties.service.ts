@@ -1021,6 +1021,187 @@ export class PenaltiesService {
     const value = penaltyRuleset[column] as BlackCardForfeitScope | undefined;
     return value ?? (ordinal >= 2 ? 'tournament' : 'match');
   }
+
+  // ── Versioning: publish / snapshot / validate ────────────────────────────
+
+  /**
+   * Publish the current definition as an immutable version: validate it, snapshot
+   * the parent row + its entries into penalty_ruleset_versions, then patch-bump
+   * the parent's version so subsequent edits target a fresh slot. Mirrors the
+   * scoring custom-rulesets publish() gate. Built-in is always-published (a
+   * super-admin edits it in place); org rows are gated to their owning org.
+   */
+  async publishRuleset(id: string, userId?: string, nextVersion?: string) {
+    const existing = await this.loadRulesetForVersioning(id);
+    if (existing.built_in) {
+      throw new ForbiddenException('The built-in penalty ruleset is always published');
+    }
+    await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
+    await this.assertPenaltyRulesetValid(id);
+    await this.snapshotPenaltyVersion(id, userId);
+    const bumped = (nextVersion && nextVersion.trim()) || bumpPenaltyVersion(existing.version);
+    const { error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update({ version: bumped, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new BadRequestException(error.message);
+    return this.getRuleset(id);
+  }
+
+  /**
+   * Insert a snapshot row capturing the ruleset's current definition — the parent
+   * columns plus its N entries serialised into one ordered JSONB array. Called
+   * from publishRuleset() and the pin-time freeze; never from the controller. A
+   * unique (ruleset, version) hit means this version was already snapshotted
+   * (e.g. publish twice with no version change) — harmless, skipped.
+   */
+  private async snapshotPenaltyVersion(id: string, userId?: string): Promise<void> {
+    const ruleset = (await this.getRuleset(id)) as Row;
+    const entries = this.serializePenaltyEntries(
+      (ruleset['penalty_ruleset_entries'] as Row[] | undefined) ?? [],
+    );
+    const actor = userId && userId !== 'unknown' && userId !== 'anonymous' ? userId : null;
+    const { error } = await this.supabase.service.from('penalty_ruleset_versions').insert({
+      penalty_ruleset_id: ruleset['id'],
+      version: ruleset['version'],
+      name: ruleset['name'],
+      description: ruleset['description'] ?? null,
+      accumulation_scope: ruleset['accumulation_scope'],
+      yellow_card_points: ruleset['yellow_card_points'],
+      red_card_points: ruleset['red_card_points'],
+      black_card_points: ruleset['black_card_points'],
+      first_black_card_forfeit: ruleset['first_black_card_forfeit'],
+      second_black_card_forfeit: ruleset['second_black_card_forfeit'],
+      entries,
+      published_by_user_id: actor,
+    });
+    if (error && !/unique|duplicate/i.test(error.message)) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /** Map DB entry rows to the ordered snapshot-array shape (camelCase, sorted). */
+  private serializePenaltyEntries(rows: Row[]): PenaltyVersionEntry[] {
+    return rows
+      .slice()
+      .sort((a, b) => Number(a['sort_order'] ?? 0) - Number(b['sort_order'] ?? 0))
+      .map((entry, index) => ({
+        groupNumber: Number(entry['group_number']),
+        refNumber: String(entry['ref_number']),
+        shortName: String(entry['short_name']),
+        description: String(entry['description'] ?? ''),
+        sanctions: (entry['sanctions'] as PenaltyCard[]) ?? [],
+        sortOrder: Number(entry['sort_order'] ?? index + 1),
+      }));
+  }
+
+  /** Throw a 400 listing every reason the ruleset can't be published. */
+  private async assertPenaltyRulesetValid(id: string): Promise<void> {
+    const errors = await this.collectPenaltyRulesetErrors(id);
+    if (errors.length > 0) {
+      throw new BadRequestException(`Invalid penalty ruleset: ${errors.join('; ')}`);
+    }
+  }
+
+  /**
+   * Collect (never throw) the reasons a penalty ruleset is not publishable: no
+   * entries, a malformed/duplicate REF, a non-positive group, or an empty/invalid
+   * sanctions ladder. The penalty analogue of scoring's dryRunRuleset gate.
+   */
+  private async collectPenaltyRulesetErrors(id: string): Promise<string[]> {
+    const ruleset = (await this.getRuleset(id)) as Row;
+    const entries = (ruleset['penalty_ruleset_entries'] as Row[] | undefined) ?? [];
+    const errors: string[] = [];
+    if (entries.length === 0) {
+      errors.push('a penalty ruleset must have at least one entry');
+    }
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      const ref = String(entry['ref_number'] ?? '').trim();
+      const label = ref || '(blank)';
+      if (!/^[\w-]{1,20}$/.test(ref)) errors.push(`REF "${label}" is invalid`);
+      if (seen.has(ref)) errors.push(`REF "${label}" is duplicated`);
+      seen.add(ref);
+      if (typeof entry['group_number'] !== 'number' || (entry['group_number'] as number) <= 0) {
+        errors.push(`entry ${label}: group number must be a positive integer`);
+      }
+      const sanctions = entry['sanctions'];
+      if (!Array.isArray(sanctions) || sanctions.length === 0) {
+        errors.push(`entry ${label}: needs at least one sanction card`);
+      } else if (
+        !sanctions.every((card) => card === 'yellow' || card === 'red' || card === 'black')
+      ) {
+        errors.push(`entry ${label}: has an invalid sanction card`);
+      }
+    }
+    return errors;
+  }
+
+  /** Tight read for the versioning flows: identity + owner + current version. */
+  private async loadRulesetForVersioning(id: string): Promise<{
+    id: string;
+    built_in: boolean;
+    owner_organization_id: string | null;
+    version: string;
+  }> {
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select('id, built_in, owner_organization_id, version')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Penalty ruleset ${id} not found`);
+    return data as {
+      id: string;
+      built_in: boolean;
+      owner_organization_id: string | null;
+      version: string;
+    };
+  }
+}
+
+export interface PenaltyVersionEntry {
+  groupNumber: number;
+  refNumber: string;
+  shortName: string;
+  description: string;
+  sanctions: PenaltyCard[];
+  sortOrder: number;
+}
+
+export interface PenaltyRulesetVersionRow {
+  id: string;
+  penalty_ruleset_id: string;
+  version: string;
+  name: string;
+  description: string | null;
+  accumulation_scope: string;
+  yellow_card_points: number;
+  red_card_points: number;
+  black_card_points: number;
+  first_black_card_forfeit: string;
+  second_black_card_forfeit: string;
+  entries: PenaltyVersionEntry[];
+  published_at: string;
+  published_by_user_id: string | null;
+  is_frozen: boolean;
+}
+
+/**
+ * Patch-bump a semver-ish version string ('1.0.0' -> '1.0.1', '2' -> '2.1').
+ * Mirrors bumpPatchVersion in custom-rulesets.service.ts — penalties keep their
+ * own copy so the two ruleset subsystems can diverge on versioning policy.
+ */
+export function bumpPenaltyVersion(version: string): string {
+  const trimmed = (version ?? '').trim();
+  if (!trimmed) return '1.0.1';
+  const parts = trimmed.split('.');
+  const tail = parts[parts.length - 1] ?? '';
+  if (/^\d+$/.test(tail)) {
+    parts[parts.length - 1] = String(Number.parseInt(tail, 10) + 1);
+    return parts.join('.');
+  }
+  return `${trimmed}.1`;
 }
 
 interface MatchContext {

@@ -21,6 +21,7 @@ import {
   CreatePenaltyDto,
   CreatePenaltyRulesetDto,
   ImportPenaltyRulesetCsvDto,
+  PublishPenaltyRulesetDto,
   ReviewPenaltyDto,
   UpdatePenaltyRulesetDto,
   VoidPenaltyDto,
@@ -105,6 +106,21 @@ export class PenaltiesController {
   async deleteRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getOptionalUserId(req, this.supabase);
     await this.penalties.deleteRuleset(id, userId);
+  }
+
+  @Post('penalty-rulesets/:id/publish')
+  @ApiOperation({
+    summary:
+      'Publish the current definition as an immutable version (validate + snapshot + patch-bump).',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async publishRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PublishPenaltyRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.publishRuleset(id, userId, dto.version);
   }
 
   @Post('penalty-rulesets/:id/submit-for-sharing')
