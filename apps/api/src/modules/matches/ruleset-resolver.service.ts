@@ -165,7 +165,14 @@ export class RulesetResolver {
       tiebreakers: unknown;
       double_penalty_formula: unknown;
     } & GrammarColumns;
-    if (row.status !== 'published' || row.is_system) return null;
+    // A ruleset that a tournament already pins must resolve forever, even after
+    // it is retired from the catalog. Archiving is our soft-delete: it hides the
+    // row from every picker/list (see SelectableRulesetsService and the org
+    // Manage/Discover lists) but keeps THIS resolution path alive, so the pinned
+    // tournament's standings never 400 — delist ≠ delete. A ruleset is only
+    // archived once referenced, so it was necessarily published beforehand;
+    // resolving it here is correct. Only a never-published 'draft' is refused.
+    if ((row.status !== 'published' && row.status !== 'archived') || row.is_system) return null;
     if (row.base_code) return this.resolveCodedBase(row.base_code, row.base_version);
     const config: FormulaConfig = {
       scoreFormula: row.score_formula as FormulaConfig['scoreFormula'],

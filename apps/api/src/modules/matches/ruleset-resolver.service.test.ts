@@ -192,6 +192,33 @@ describe('RulesetResolver — grammar', () => {
     expect((await resolver.resolve('custom_draft', '1.0.0')) === null).toBe(true);
   });
 
+  it('still resolves an archived row so a pinned tournament never loses its ruleset', async () => {
+    // Delist ≠ delete: archiving is our soft-delete. The row is hidden from every
+    // picker/list but a tournament already pinned to it must keep resolving and
+    // scoring — so resolution accepts 'archived' where it refuses 'draft'.
+    const { resolver } = makeResolver({
+      row: {
+        code: 'custom_archived',
+        version: '1.0.0',
+        name: 'Archived',
+        status: 'archived',
+        is_system: false,
+        score_formula: FORMULA,
+        constants: CONSTANTS,
+        tiebreakers: [],
+        targets: [{ name: 'Hit', value: 1 }],
+        has_afterblow: false,
+        afterblow_mode: null,
+        afterblow_valuation: null,
+        afterblow_fixed_value: null,
+      },
+    });
+
+    const ruleset = await resolver.resolve('custom_archived', '1.0.0');
+    expect(ruleset?.code).toBe('custom_archived');
+    expect(ruleset?.metadata?.targets).toEqual([{ name: 'Hit', value: 1 }]);
+  });
+
   it('asks BOTH resolution paths for the same grammar columns', () => {
     // The regression this exists for: 0145's valuation columns were added to
     // the parent-row select and missed on the snapshot select, so a ruleset

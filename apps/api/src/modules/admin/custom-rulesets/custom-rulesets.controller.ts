@@ -3,8 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -76,10 +74,15 @@ export class CustomRulesetsAdminController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete custom ruleset (super admin)' })
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.service.remove(id, getActorId(req));
+  @ApiOperation({
+    summary:
+      'Delete custom ruleset (super admin). Soft-archives instead of deleting when a tournament still pins it.',
+  })
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ): Promise<{ archived: boolean }> {
+    return this.service.remove(id, getActorId(req));
   }
 
   @Post(':id/publish')

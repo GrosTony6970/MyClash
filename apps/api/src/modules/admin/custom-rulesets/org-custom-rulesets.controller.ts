@@ -3,8 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -127,17 +125,19 @@ export class OrgCustomRulesetsController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete an org-owned scoring ruleset.' })
+  @ApiOperation({
+    summary:
+      'Delete an org-owned scoring ruleset. If a tournament still pins it, it is soft-archived (hidden but still resolvable) instead of deleted.',
+  })
   async remove(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: FastifyRequest,
-  ) {
+  ): Promise<{ archived: boolean }> {
     const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     await this.service.assertOrgOwns(id, orgId);
-    await this.service.deleteForOrg(id, userId);
+    return this.service.deleteForOrg(id, userId);
   }
 
   @Post(':id/submit')

@@ -76,6 +76,10 @@ export class SelectableRulesetsService {
       .select('code, version')
       .eq('is_system', false)
       .or(customRulesetOrgVisibilityFilter(orgId))
+      // An archived ruleset still RESOLVES (so tournaments pinned to it keep
+      // scoring), but must not be offered for a NEW tournament — decouple
+      // "resolvable" from "selectable" here, since this picker equates them.
+      .neq('status', 'archived')
       .order('name', { ascending: true });
 
     if (error) {

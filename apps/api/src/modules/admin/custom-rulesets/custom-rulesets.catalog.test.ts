@@ -9,7 +9,7 @@ function catalogSupabase(byTable: Record<string, unknown[]>) {
       from: vi.fn((table: string) => {
         const rows = byTable[table] ?? [];
         const chain: Record<string, unknown> = {};
-        for (const m of ['select', 'or', 'order', 'in', 'eq', 'is']) {
+        for (const m of ['select', 'or', 'order', 'in', 'eq', 'neq', 'is']) {
           chain[m] = vi.fn(() => chain);
         }
         chain['then'] = (resolve: (value: unknown) => unknown) =>

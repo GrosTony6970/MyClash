@@ -14,6 +14,7 @@ function makeSupabase(result: { data?: unknown; error?: unknown }) {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockReturnThis(),
     order: vi.fn().mockResolvedValue(result),
   };
   return { supabase: { service: { from: vi.fn().mockReturnValue(chain) } }, chain };
@@ -115,6 +116,9 @@ describe('SelectableRulesetsService', () => {
     expect(chain.or).toHaveBeenCalledWith(
       expect.stringContaining('owner_organization_id.eq.org-1'),
     );
+    // Archived rulesets still resolve (for tournaments pinned to them) but must
+    // never be offered for a NEW tournament — delist ≠ delete.
+    expect(chain.neq).toHaveBeenCalledWith('status', 'archived');
   });
 
   it('never lets a coded code be shadowed by a DB row of the same name', async () => {

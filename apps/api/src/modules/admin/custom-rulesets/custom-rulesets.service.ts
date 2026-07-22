@@ -600,7 +600,7 @@ export class CustomRulesetsService {
     return data as CustomRulesetRow;
   }
 
-  async remove(id: string, actorUserId: string): Promise<void> {
+  async remove(id: string, actorUserId: string): Promise<{ archived: boolean }> {
     const existing = await this.getById(id);
     if (existing.is_system) throw new ForbiddenException('System rulesets cannot be deleted');
     if (existing.is_default)
@@ -608,10 +608,20 @@ export class CustomRulesetsService {
         'Cannot delete the default ruleset. Set another ruleset as default first.',
       );
 
+    // Delist ≠ delete: a ruleset any tournament pins must resolve forever, so a
+    // hard delete would 400 that tournament's standings. Soft-archive instead —
+    // the row leaves every picker/list but stays resolvable. Only an
+    // unreferenced ruleset is truly deleted.
+    if (await this.isReferencedByAnyTournament(existing.code)) {
+      await this.updateStatus(id, 'archived', actorUserId);
+      return { archived: true };
+    }
+
     const { error } = await this.supabase.service.from('custom_rulesets').delete().eq('id', id);
     if (error) throw new BadRequestException(error.message);
 
     await this.writeAuditLog(actorUserId, 'custom_ruleset.delete', id, { code: existing.code });
+    return { archived: false };
   }
 
   async publish(id: string, actorUserId: string, nextVersion?: string): Promise<CustomRulesetRow> {
@@ -689,6 +699,21 @@ export class CustomRulesetsService {
   }
 
   /**
+   * True if any tournament pins this ruleset by code (ANY version) — broader
+   * than isCurrentVersionFrozen. A hard delete removes the parent row, which the
+   * resolver's snapshot path needs to bridge (code, version) → snapshot via the
+   * parent id; so deleting orphans every pinned version, not just the current
+   * one. Delete callers use this to soft-archive instead.
+   */
+  private async isReferencedByAnyTournament(code: string): Promise<boolean> {
+    const { count } = await this.supabase.service
+      .from('tournaments')
+      .select('id', { count: 'exact', head: true })
+      .eq('ruleset_code', code);
+    return (count ?? 0) > 0;
+  }
+
+  /**
    * Mark all snapshots matching (code, version) as frozen. Called from
    * EventsService.createTournament once a tournament insert succeeds.
    * No-op for unknown (code, version) — system rulesets are never snapshotted.
@@ -730,6 +755,15 @@ export class CustomRulesetsService {
     const existing = await this.getById(id);
     if (existing.is_system) {
       throw new ForbiddenException('System rulesets cannot be rolled back');
+    }
+    // Rollback rewrites the parent row and drops it to draft. If a tournament
+    // pins the current version, both would break its resolution/scoring — refuse
+    // and steer the operator to publish a new version. Mirrors update()'s guard.
+    if (await this.isCurrentVersionFrozen(existing)) {
+      throw new ConflictException(
+        'This version is in use by a tournament and cannot be rolled back. ' +
+          'Publish a new version to make changes.',
+      );
     }
 
     const { data: snap, error: snapErr } = await this.supabase.service
@@ -774,6 +808,16 @@ export class CustomRulesetsService {
     if (existing.is_default) {
       throw new BadRequestException(
         'Cannot unpublish the default ruleset. Set another ruleset as default first.',
+      );
+    }
+    // A tournament pinning this version resolves it via the published parent row
+    // (an org row created for immediate use may carry no version snapshot).
+    // Dropping it to draft would 400 that tournament's standings — publish a new
+    // version to make changes instead. Mirrors update()'s freeze guard.
+    if (await this.isCurrentVersionFrozen(existing)) {
+      throw new ConflictException(
+        'This version is in use by a tournament and cannot be unpublished. ' +
+          'Publish a new version to make changes.',
       );
     }
     return this.updateStatus(id, 'draft', actorUserId);
@@ -823,6 +867,9 @@ export class CustomRulesetsService {
       .from('custom_rulesets')
       .select('*')
       .or(customRulesetOrgVisibilityFilter(orgId))
+      // Archived rulesets stay resolvable for tournaments that pin them but must
+      // not reappear in the Manage list (delist ≠ delete).
+      .neq('status', 'archived')
       .order('is_system', { ascending: false })
       .order('owner_organization_id', { ascending: true })
       .order('name', { ascending: true });
@@ -851,6 +898,10 @@ export class CustomRulesetsService {
       // and(...) branch excludes this org's own public rows — those are shown in
       // Manage, not Discover.
       .or(`is_system.eq.true,and(public_visibility.eq.true,owner_organization_id.neq.${orgId})`)
+      // An archived shared ruleset leaves the Discover catalog for other orgs too
+      // — it can no longer be adopted, only resolved for tournaments already
+      // pinned to it (delist ≠ delete).
+      .neq('status', 'archived')
       .order('is_system', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -1063,10 +1114,18 @@ export class CustomRulesetsService {
    * via assertOrgOwns first. System rows are protected by their own guard
    * in `remove()`; org-owned rows are freely deletable by their org admin.
    */
-  async deleteForOrg(id: string, actorUserId: string): Promise<void> {
+  async deleteForOrg(id: string, actorUserId: string): Promise<{ archived: boolean }> {
+    const existing = await this.getById(id);
+    // Delist ≠ delete: preserve resolution for any tournament pinning this
+    // ruleset by soft-archiving instead of deleting (see remove()).
+    if (await this.isReferencedByAnyTournament(existing.code)) {
+      await this.updateStatus(id, 'archived', actorUserId);
+      return { archived: true };
+    }
     const { error } = await this.supabase.service.from('custom_rulesets').delete().eq('id', id);
     if (error) throw new BadRequestException(error.message);
     await this.writeAuditLog(actorUserId, 'custom_ruleset.delete_for_org', id, {});
+    return { archived: false };
   }
 
   private async updateStatus(
