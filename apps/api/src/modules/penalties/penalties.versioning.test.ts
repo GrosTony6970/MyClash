@@ -9,12 +9,14 @@ type TableState = Record<
     select?: unknown[];
     insert?: unknown;
     update?: unknown;
+    count?: number;
   }
 >;
 
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
   const updated: Record<string, unknown[]> = {};
+  const deleted: string[] = [];
   function chain(table: string) {
     const t = state[table] ?? {};
     const api: Record<string, unknown> = {
@@ -35,10 +37,18 @@ function fakeSupabase(state: TableState) {
         updated[table] = [...(updated[table] ?? []), row];
         return api;
       }),
+      delete: vi.fn(() => {
+        deleted.push(table);
+        return api;
+      }),
+      // Bare `.select().eq()` count queries and bare `.update()/.delete().eq()`
+      // resolve here (per-table `count` drives the reference guard).
+      then: (resolve: (v: unknown) => void) =>
+        resolve({ data: [], count: t.count ?? 0, error: null }),
     };
     return api;
   }
-  return { inserted, updated, service: { from: vi.fn((table: string) => chain(table)) } };
+  return { inserted, updated, deleted, service: { from: vi.fn((table: string) => chain(table)) } };
 }
 
 const ENTRIES = [
@@ -185,6 +195,115 @@ describe('PenaltiesService — publish (snapshot + version bump)', () => {
     await expect(service.publishRuleset('pr-1', 'user-1')).rejects.toThrow(
       /duplicated|invalid sanction/i,
     );
+  });
+});
+
+describe('PenaltiesService — rollback + listVersions', () => {
+  const SNAPSHOT = {
+    id: 'ver-1',
+    penalty_ruleset_id: 'pr-1',
+    version: '1.0.0',
+    name: 'Older name',
+    description: 'older',
+    accumulation_scope: 'tournament',
+    yellow_card_points: -1,
+    red_card_points: -2,
+    black_card_points: -3,
+    first_black_card_forfeit: 'tournament',
+    second_black_card_forfeit: 'none',
+    entries: [
+      {
+        groupNumber: 2,
+        refNumber: 'X1',
+        shortName: 's1',
+        description: 'd1',
+        sanctions: ['yellow'],
+        sortOrder: 1,
+      },
+      {
+        groupNumber: 5,
+        refNumber: 'X2',
+        shortName: 's2',
+        description: 'd2',
+        sanctions: ['red', 'black'],
+        sortOrder: 2,
+      },
+    ],
+    is_frozen: false,
+    published_at: '2026-07-01T00:00:00.000Z',
+    published_by_user_id: null,
+  };
+
+  it('restores the snapshot definition and reinserts its entries onto the parent', async () => {
+    const { service, supabase } = makeService({
+      penalty_rulesets: { maybeSingle: rulesetFixture() },
+      penalty_ruleset_versions: { maybeSingle: SNAPSHOT },
+      tournaments: { count: 0 },
+      events: { count: 0 },
+    });
+
+    await service.rollbackRuleset('pr-1', 'ver-1', 'user-1');
+
+    expect(supabase.updated.penalty_rulesets?.[0]).toMatchObject({
+      name: 'Older name',
+      accumulation_scope: 'tournament',
+      yellow_card_points: -1,
+      red_card_points: -2,
+      second_black_card_forfeit: 'none',
+    });
+    expect(supabase.deleted).toContain('penalty_ruleset_entries');
+    const rows = supabase.inserted.penalty_ruleset_entries?.[0] as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ ref_number: 'X1', group_number: 2, sanctions: ['yellow'] });
+    expect(rows[1]).toMatchObject({ ref_number: 'X2', sanctions: ['red', 'black'], sort_order: 2 });
+  });
+
+  it('refuses to roll back a ruleset pinned by a tournament', async () => {
+    const { service, supabase } = makeService({
+      penalty_rulesets: { maybeSingle: rulesetFixture() },
+      penalty_ruleset_versions: { maybeSingle: SNAPSHOT },
+      tournaments: { count: 1 },
+      events: { count: 0 },
+    });
+
+    await expect(service.rollbackRuleset('pr-1', 'ver-1', 'user-1')).rejects.toThrow(
+      /in use by a tournament or event/i,
+    );
+    expect(supabase.updated.penalty_rulesets).toBeUndefined();
+  });
+
+  it('refuses to roll back the built-in ruleset', async () => {
+    const { service } = makeService({
+      penalty_rulesets: { maybeSingle: rulesetFixture({ built_in: true }) },
+    });
+    await expect(service.rollbackRuleset('pr-1', 'ver-1', 'user-1')).rejects.toThrow(
+      /cannot be rolled back/i,
+    );
+  });
+
+  it('404s when the version does not belong to the ruleset', async () => {
+    const { service } = makeService({
+      penalty_rulesets: { maybeSingle: rulesetFixture() },
+      penalty_ruleset_versions: { maybeSingle: null },
+      tournaments: { count: 0 },
+      events: { count: 0 },
+    });
+    await expect(service.rollbackRuleset('pr-1', 'missing', 'user-1')).rejects.toThrow(
+      /not found/i,
+    );
+  });
+
+  it('lists versions most recent first', async () => {
+    const versions = [
+      { id: 'v2', version: '1.0.1', published_at: '2026-07-02' },
+      { id: 'v1', version: '1.0.0', published_at: '2026-07-01' },
+    ];
+    const { service } = makeService({
+      penalty_rulesets: { maybeSingle: rulesetFixture() },
+      penalty_ruleset_versions: { select: versions },
+    });
+    const result = await service.listVersions('pr-1', 'user-1');
+    expect(result).toEqual(versions);
   });
 });
 

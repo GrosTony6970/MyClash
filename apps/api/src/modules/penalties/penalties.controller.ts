@@ -22,6 +22,7 @@ import {
   CreatePenaltyRulesetDto,
   ImportPenaltyRulesetCsvDto,
   PublishPenaltyRulesetDto,
+  RollbackPenaltyRulesetDto,
   ReviewPenaltyDto,
   UpdatePenaltyRulesetDto,
   VoidPenaltyDto,
@@ -121,6 +122,26 @@ export class PenaltiesController {
   ) {
     const userId = await getOptionalUserId(req, this.supabase);
     return this.penalties.publishRuleset(id, userId, dto.version);
+  }
+
+  @Get('penalty-rulesets/:id/versions')
+  @ApiOperation({ summary: 'List the published version history of a penalty ruleset.' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async listVersions(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.listVersions(id, userId);
+  }
+
+  @Post('penalty-rulesets/:id/rollback')
+  @ApiOperation({ summary: 'Restore a prior version snapshot onto the penalty ruleset.' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async rollbackRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RollbackPenaltyRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.rollbackRuleset(id, dto.versionId, userId);
   }
 
   @Post('penalty-rulesets/:id/submit-for-sharing')

@@ -1198,6 +1198,112 @@ export class PenaltiesService {
       .eq('penalty_ruleset_id', id);
     return (eventCount ?? 0) > 0;
   }
+
+  /** Published version history for a penalty ruleset, most recent first. */
+  async listVersions(id: string, userId?: string): Promise<PenaltyRulesetVersionRow[]> {
+    const existing = await this.loadRulesetForVersioning(id);
+    await this.assertCanManagePenaltyRuleset(existing, userId);
+    const { data, error } = await this.supabase.service
+      .from('penalty_ruleset_versions')
+      .select('*')
+      .eq('penalty_ruleset_id', id)
+      .order('published_at', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as PenaltyRulesetVersionRow[];
+  }
+
+  /**
+   * Restore a prior snapshot onto the parent row — its definition columns plus
+   * a delete+reinsert of its entries. The parent's `version` is left unchanged;
+   * the operator assigns the next version at the next publish (mirrors scoring's
+   * rollback). Built-in cannot be rolled back, and a pinned ruleset is frozen —
+   * rolling it back would change the definition under a running tournament.
+   */
+  async rollbackRuleset(id: string, versionId: string, userId?: string) {
+    const existing = await this.loadRulesetForVersioning(id);
+    if (existing.built_in) {
+      throw new ForbiddenException('The built-in penalty ruleset cannot be rolled back');
+    }
+    await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
+    if (await this.isPenaltyRulesetReferenced(id)) {
+      throw new ConflictException(
+        'This penalty ruleset is in use by a tournament or event and cannot be rolled back. Duplicate it instead.',
+      );
+    }
+
+    const snapshot = await this.loadPenaltyVersion(id, versionId);
+    const { error: updErr } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update({
+        name: snapshot.name,
+        description: snapshot.description,
+        accumulation_scope: snapshot.accumulation_scope,
+        yellow_card_points: snapshot.yellow_card_points,
+        red_card_points: snapshot.red_card_points,
+        black_card_points: snapshot.black_card_points,
+        first_black_card_forfeit: snapshot.first_black_card_forfeit,
+        second_black_card_forfeit: snapshot.second_black_card_forfeit,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (updErr) throw new BadRequestException(updErr.message);
+
+    // Replace entries from the snapshot (delete + reinsert, as updateRuleset does).
+    const { error: delErr } = await this.supabase.service
+      .from('penalty_ruleset_entries')
+      .delete()
+      .eq('ruleset_id', id);
+    if (delErr) throw new BadRequestException(delErr.message);
+    if (snapshot.entries.length > 0) {
+      await this.replaceEntries(
+        id,
+        snapshot.entries.map((entry) => ({
+          groupNumber: entry.groupNumber,
+          refNumber: entry.refNumber,
+          shortName: entry.shortName,
+          description: entry.description,
+          sanctions: entry.sanctions,
+        })),
+      );
+    }
+
+    return this.getRuleset(id);
+  }
+
+  /** Load one snapshot row, scoped to its parent ruleset. */
+  private async loadPenaltyVersion(
+    id: string,
+    versionId: string,
+  ): Promise<PenaltyRulesetVersionRow> {
+    const { data, error } = await this.supabase.service
+      .from('penalty_ruleset_versions')
+      .select('*')
+      .eq('id', versionId)
+      .eq('penalty_ruleset_id', id)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) {
+      throw new NotFoundException(
+        `Penalty ruleset version ${versionId} not found for ruleset ${id}`,
+      );
+    }
+    return data as PenaltyRulesetVersionRow;
+  }
+
+  /** Built-in → super-admin only; custom → org-admin of the owning org. */
+  private async assertCanManagePenaltyRuleset(
+    existing: { built_in: boolean; owner_organization_id: string | null },
+    userId?: string,
+  ): Promise<void> {
+    if (existing.built_in) {
+      if (!userId) throw new UnauthorizedException('Authentication required');
+      if (!(await this.isSuperAdmin(userId))) {
+        throw new ForbiddenException('Only super-admin can manage the built-in penalty ruleset');
+      }
+      return;
+    }
+    await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
+  }
 }
 
 export interface PenaltyVersionEntry {

@@ -126,5 +126,9 @@ export class AssignPenaltyRulesetDto extends createZodDto(assignPenaltyRulesetSc
 const publishPenaltyRulesetSchema = z.object({ version: z.string().max(50).optional() }).strict();
 export class PublishPenaltyRulesetDto extends createZodDto(publishPenaltyRulesetSchema) {}
 
+/** Restore a prior snapshot (by version-row id) onto the parent ruleset. */
+const rollbackPenaltyRulesetSchema = z.object({ versionId: z.uuid() }).strict();
+export class RollbackPenaltyRulesetDto extends createZodDto(rollbackPenaltyRulesetSchema) {}
+
 const reviewPenaltySchema = z.object({ status: z.enum(['confirmed', 'dismissed']) }).strict();
 export class ReviewPenaltyDto extends createZodDto(reviewPenaltySchema) {}
