@@ -1,0 +1,262 @@
+import { createHash } from 'node:crypto';
+import { Injectable } from '@nestjs/common';
+import {
+  canonicalizePenaltyDefinition,
+  canonicalizeScoringBehaviour,
+  registry,
+  stableStringify,
+  type PenaltyBehaviourInput,
+  type ScoringBehaviourInput,
+} from '@myclash/rulesets';
+import { SupabaseService } from '../supabase/supabase.service';
+import { normalizeRulesetVersion, resolveRulesetGrammar } from '../events/ruleset-defaults';
+
+type Row = Record<string, unknown>;
+
+interface TournamentHashRow {
+  id: string;
+  event_id: string | null;
+  ruleset_code: string | null;
+  ruleset_version: string | null;
+  ruleset_config: Row | null;
+  scoring_config_json: Row | null;
+  penalty_ruleset_id: string | null;
+  penalty_ruleset_version: string | null;
+}
+
+type ScoringStructure =
+  | { kind: 'coded'; engineCode: string; engineVersion: string }
+  | {
+      kind: 'formula';
+      scoreFormula: unknown;
+      constants: Record<string, number>;
+      tiebreakers: ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>;
+      doublePenaltyFormula: unknown;
+    };
+
+/**
+ * Computes a tournament's content-hash identity — a sha256 over the canonical
+ * form (from @myclash/rulesets) of its EFFECTIVE (scoring, penalty) behaviour.
+ * "Effective" means the resolved ruleset definition folded with the tournament's
+ * pinned config + afterblowMode, so two TF_v1 tournaments that score differently
+ * get different hashes. Read-only; the caller stamps the result.
+ */
+@Injectable()
+export class RulesetHashService {
+  constructor(private readonly supabase: SupabaseService) {}
+
+  /** The (scoring, penalty) pair-hash for a tournament, or null if it is gone. */
+  async computeTournamentContentHash(tournamentId: string): Promise<string | null> {
+    const tournament = await this.loadTournament(tournamentId);
+    if (!tournament) return null;
+    const scoring = await this.buildScoringCanonical(tournament);
+    const penalty = await this.buildPenaltyCanonical(tournament);
+    return createHash('sha256').update(stableStringify({ scoring, penalty })).digest('hex');
+  }
+
+  private async loadTournament(id: string): Promise<TournamentHashRow | null> {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select(
+        'id, event_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id, penalty_ruleset_version',
+      )
+      .eq('id', id)
+      .maybeSingle();
+    return (data as TournamentHashRow | null) ?? null;
+  }
+
+  private async buildScoringCanonical(t: TournamentHashRow): Promise<Record<string, unknown>> {
+    const code = t.ruleset_code ?? 'TF_v1';
+    const version = normalizeRulesetVersion(t.ruleset_version ?? '1');
+    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    const config = t.ruleset_config ?? {};
+    const scoringConfig = t.scoring_config_json ?? {};
+    const matchFormat = (config['matchFormat'] as Row | undefined) ?? null;
+    const afterblowMode =
+      (scoringConfig['afterblowMode'] as string | undefined) ??
+      grammar.defaultAfterblowMode ??
+      null;
+    const grammarInput = {
+      targets: grammar.targets,
+      hasAfterblow: grammar.hasAfterblow,
+      afterblowValuation: grammar.hasAfterblow ? grammar.afterblowValuation : null,
+      afterblowFixedValue: grammar.hasAfterblow ? grammar.afterblowFixedValue : null,
+    };
+    const structure = await this.resolveScoringStructure(code, version);
+    const input: ScoringBehaviourInput =
+      structure.kind === 'coded'
+        ? {
+            kind: 'coded',
+            engineCode: structure.engineCode,
+            engineVersion: structure.engineVersion,
+            grammar: grammarInput,
+            matchFormat,
+            afterblowMode,
+            winBonus: (config['winBonus'] as number | undefined) ?? null,
+            doublePenaltyFormula: config['doublePenaltyFormula'] ?? null,
+            forfeitPolicy: config['forfeitPolicy'] ?? null,
+          }
+        : {
+            kind: 'formula',
+            grammar: grammarInput,
+            matchFormat,
+            afterblowMode,
+            scoreFormula: structure.scoreFormula,
+            constants: structure.constants,
+            tiebreakers: structure.tiebreakers,
+            doublePenaltyFormula: structure.doublePenaltyFormula,
+          };
+    return canonicalizeScoringBehaviour(input);
+  }
+
+  /**
+   * Determine the scoring definition's kind + engine/formula, mirroring
+   * RulesetResolver's tiers: registry/system → coded engine token; a base_code
+   * fork → its base engine; a formula ruleset → its AST (from the pinned version
+   * snapshot, else the parent row).
+   */
+  private async resolveScoringStructure(code: string, version: string): Promise<ScoringStructure> {
+    if (registry.has(code, version))
+      return { kind: 'coded', engineCode: code, engineVersion: version };
+    const { data } = await this.supabase.service
+      .from('custom_rulesets')
+      .select(
+        'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula',
+      )
+      .eq('code', code)
+      .maybeSingle();
+    const parent = data as Row | null;
+    if (!parent || parent['is_system']) {
+      return { kind: 'coded', engineCode: code, engineVersion: version };
+    }
+    if (parent['base_code']) {
+      return {
+        kind: 'coded',
+        engineCode: parent['base_code'] as string,
+        engineVersion: (parent['base_version'] as string | null) ?? '1.0.0',
+      };
+    }
+    const def = (await this.loadScoringSnapshot(parent['id'] as string, version)) ?? parent;
+    return {
+      kind: 'formula',
+      scoreFormula: def['score_formula'],
+      constants: (def['constants'] as Record<string, number>) ?? {},
+      tiebreakers:
+        (def['tiebreakers'] as ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>) ??
+        [],
+      doublePenaltyFormula: def['double_penalty_formula'] ?? null,
+    };
+  }
+
+  private async loadScoringSnapshot(customRulesetId: string, version: string): Promise<Row | null> {
+    const { data } = await this.supabase.service
+      .from('custom_ruleset_versions')
+      .select('score_formula, constants, tiebreakers, double_penalty_formula')
+      .eq('custom_ruleset_id', customRulesetId)
+      .eq('version', version)
+      .maybeSingle();
+    return (data as Row | null) ?? null;
+  }
+
+  private async buildPenaltyCanonical(
+    t: TournamentHashRow,
+  ): Promise<Record<string, unknown> | null> {
+    const pin = await this.resolveEffectivePenalty(t);
+    if (!pin) return null;
+    const definition = await this.loadPenaltyDefinition(pin.id, pin.version);
+    return definition ? canonicalizePenaltyDefinition(definition) : null;
+  }
+
+  /** tournament pin → event default → platform built-in (by built_in flag, not
+   *  the stale version constant). */
+  private async resolveEffectivePenalty(
+    t: TournamentHashRow,
+  ): Promise<{ id: string; version: string | null } | null> {
+    if (t.penalty_ruleset_id) {
+      return { id: t.penalty_ruleset_id, version: t.penalty_ruleset_version };
+    }
+    if (t.event_id) {
+      const { data } = await this.supabase.service
+        .from('events')
+        .select('penalty_ruleset_id, penalty_ruleset_version')
+        .eq('id', t.event_id)
+        .maybeSingle();
+      const event = data as Row | null;
+      if (event?.['penalty_ruleset_id']) {
+        return {
+          id: event['penalty_ruleset_id'] as string,
+          version: (event['penalty_ruleset_version'] as string | null) ?? null,
+        };
+      }
+    }
+    const { data } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select('id, version')
+      .eq('built_in', true)
+      .is('owner_organization_id', null)
+      .limit(1)
+      .maybeSingle();
+    const builtin = data as Row | null;
+    return builtin
+      ? { id: builtin['id'] as string, version: (builtin['version'] as string) ?? null }
+      : null;
+  }
+
+  /** Prefer the immutable frozen snapshot for the pinned version; fall back to
+   *  the live parent + entries (built-in / never-published). */
+  private async loadPenaltyDefinition(
+    id: string,
+    version: string | null,
+  ): Promise<PenaltyBehaviourInput | null> {
+    if (version) {
+      const { data } = await this.supabase.service
+        .from('penalty_ruleset_versions')
+        .select(
+          'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, entries',
+        )
+        .eq('penalty_ruleset_id', id)
+        .eq('version', version)
+        .maybeSingle();
+      if (data) return penaltyInputFromSnapshot(data as Row);
+    }
+    const { data } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select(
+        'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, penalty_ruleset_entries(group_number, ref_number, sanctions)',
+      )
+      .eq('id', id)
+      .maybeSingle();
+    return data ? penaltyInputFromLive(data as Row) : null;
+  }
+}
+
+function penaltyBaseFields(row: Row) {
+  return {
+    accumulationScope: (row['accumulation_scope'] as string) ?? 'match',
+    yellowCardPoints: Number(row['yellow_card_points'] ?? 0),
+    redCardPoints: Number(row['red_card_points'] ?? 0),
+    blackCardPoints: Number(row['black_card_points'] ?? 0),
+    firstBlackCardForfeit: (row['first_black_card_forfeit'] as string) ?? 'match',
+    secondBlackCardForfeit: (row['second_black_card_forfeit'] as string) ?? 'tournament',
+  };
+}
+
+/** Snapshot entries are the already-serialised camelCase JSONB array. */
+function penaltyInputFromSnapshot(row: Row): PenaltyBehaviourInput {
+  const entries = ((row['entries'] as Row[] | undefined) ?? []).map((entry) => ({
+    groupNumber: Number(entry['groupNumber']),
+    refNumber: String(entry['refNumber']),
+    sanctions: (entry['sanctions'] as string[]) ?? [],
+  }));
+  return { ...penaltyBaseFields(row), entries };
+}
+
+/** Live parent entries come off the embed as snake_case DB rows. */
+function penaltyInputFromLive(row: Row): PenaltyBehaviourInput {
+  const entries = ((row['penalty_ruleset_entries'] as Row[] | undefined) ?? []).map((entry) => ({
+    groupNumber: Number(entry['group_number']),
+    refNumber: String(entry['ref_number']),
+    sanctions: (entry['sanctions'] as string[]) ?? [],
+  }));
+  return { ...penaltyBaseFields(row), entries };
+}
