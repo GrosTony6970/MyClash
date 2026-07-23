@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
   AdminPageHeader,
-  BulkActionBar,
   ConfirmDialog,
   DataTable,
   DataTableCell,
@@ -13,30 +12,12 @@ import {
   PromptDialog,
   RowActionButton,
   rowActionClasses,
-  useSelection,
   useToast,
 } from '@myclash/ui';
-import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';
-
-type RulesetStatus = 'pending' | 'approved' | 'rejected';
-
-interface RulesetSubmission {
-  id: string;
-  code: string;
-  version: string;
-  display_name: string;
-  description: string | null;
-  submitted_by_user_id: string | null;
-  package_ref: string | null;
-  status: RulesetStatus;
-  reviewed_at: string | null;
-  rejection_reason: string | null;
-  created_at: string;
-}
 
 interface CustomRuleset {
   id: string;
@@ -57,13 +38,7 @@ interface CustomRuleset {
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export default function AdminRulesetsPage() {
-  const { t, locale } = useI18n();
-
-  // ── Submissions section state ──────────────────────────────────────────
-  const [submissions, setSubmissions] = useState<RulesetSubmission[]>([]);
-  const [submissionsStatus, setSubmissionsStatus] = useState<'all' | RulesetStatus>('pending');
-  const [submissionsLoading, setSubmissionsLoading] = useState(true);
-  const [submissionsRefreshKey, setSubmissionsRefreshKey] = useState(0);
+  const { t } = useI18n();
 
   // ── Curated rulesets section state ─────────────────────────────────────
   const [curated, setCurated] = useState<CustomRuleset[]>([]);
@@ -73,55 +48,17 @@ export default function AdminRulesetsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const toast = useToast();
-  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   /**
-   * R3: separate target for the per-row "Reject submission" action on the
-   * curated custom_rulesets table. Reuses the same PromptDialog UX as the
-   * legacy submissions-queue reject, but POSTs to the new
-   * /admin/custom-rulesets/:id/reject-submission endpoint.
+   * Per-row "Reject submission" action on an org-submitted curated row.
+   * POSTs to /admin/custom-rulesets/:id/reject-submission — the single
+   * super-admin approve/reject path now that the legacy ruleset_submissions
+   * queue is retired.
    */
   const [rejectSubmissionTarget, setRejectSubmissionTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
-  // ── Bulk selection state ───────────────────────────────────────────────
-  const selection = useSelection();
-  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
-  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
-
-  const refreshSubmissions = useCallback(() => setSubmissionsRefreshKey((k) => k + 1), []);
   const refreshCurated = useCallback(() => setCuratedRefreshKey((k) => k + 1), []);
-
-  // Submissions fetcher
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    const params = new URLSearchParams();
-    if (submissionsStatus !== 'all') params.set('status', submissionsStatus);
-
-    fetch(`${apiUrl}/api/v1/admin/rulesets?${params}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (!res.ok) throw new Error(t('admin.rulesets.submissionsLoadError'));
-        const data = (await res.json()) as RulesetSubmission[];
-        if (!cancelled) setSubmissions(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.rulesets.submissionsLoadError'));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setSubmissionsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [submissionsStatus, submissionsRefreshKey, t]);
 
   // Curated fetcher
   useEffect(() => {
@@ -154,46 +91,6 @@ export default function AdminRulesetsPage() {
     };
   }, [curatedRefreshKey, t]);
 
-  async function approveSubmission(id: string) {
-    setActionBusy(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/${id}/approve`, {
-        method: 'PATCH',
-        credentials: 'include',
-      });
-      if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.approveAction'));
-        refreshSubmissions();
-      } else {
-        toast.error(t('admin.rulesets.actionFailed'));
-      }
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function confirmReject(reason: string) {
-    if (!rejectTarget) return;
-    setActionBusy(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/${rejectTarget}/reject`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ reason: reason.trim() }),
-      });
-      if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.rejectAction'));
-        setRejectTarget(null);
-        refreshSubmissions();
-      } else {
-        toast.error(t('admin.rulesets.actionFailed'));
-      }
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
   async function performCuratedAction(
     id: string,
     action: 'publish' | 'unpublish' | 'clone' | 'set-default' | 'approve-public',
@@ -220,7 +117,7 @@ export default function AdminRulesetsPage() {
   }
 
   /**
-   * R3: super-admin reject-submission on a curated row. Hits the new
+   * Super-admin reject-submission on a curated row. Hits the
    * /admin/custom-rulesets/:id/reject-submission endpoint with a reason
    * captured via PromptDialog.
    */
@@ -244,84 +141,6 @@ export default function AdminRulesetsPage() {
       } else {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
-      }
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function bulkApprove() {
-    const ids = Array.from(selection.selected);
-    if (ids.length === 0) return;
-    setActionBusy(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/bulk-approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ids }),
-      });
-      if (res.ok) {
-        const result = (await res.json()) as {
-          succeeded: number;
-          failed: number;
-          errors: { id: string; message: string }[];
-        };
-        if (result.failed === 0) {
-          toast.success(
-            t('admin.rulesets.bulkApproveSuccess', { count: String(result.succeeded) }),
-          );
-        } else {
-          toast.warning(
-            t('admin.rulesets.bulkPartial', {
-              succeeded: String(result.succeeded),
-              failed: String(result.failed),
-            }),
-          );
-        }
-        selection.clear();
-        setBulkConfirmOpen(false);
-        refreshSubmissions();
-      } else {
-        toast.error(t('admin.rulesets.actionFailed'));
-      }
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function bulkReject(reason: string) {
-    const ids = Array.from(selection.selected);
-    if (ids.length === 0) return;
-    setActionBusy(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/bulk-reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ids, reason: reason.trim() }),
-      });
-      if (res.ok) {
-        const result = (await res.json()) as {
-          succeeded: number;
-          failed: number;
-          errors: { id: string; message: string }[];
-        };
-        if (result.failed === 0) {
-          toast.success(t('admin.rulesets.bulkRejectSuccess', { count: String(result.succeeded) }));
-        } else {
-          toast.warning(
-            t('admin.rulesets.bulkPartial', {
-              succeeded: String(result.succeeded),
-              failed: String(result.failed),
-            }),
-          );
-        }
-        selection.clear();
-        setBulkRejectOpen(false);
-        refreshSubmissions();
-      } else {
-        toast.error(t('admin.rulesets.actionFailed'));
       }
     } finally {
       setActionBusy(false);
@@ -371,108 +190,6 @@ export default function AdminRulesetsPage() {
           {error}
         </div>
       )}
-
-      {/* ── Submissions section ────────────────────────────────────────── */}
-      <section className="mb-10">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-            {t('admin.rulesets.submissionsTitle')}
-          </h2>
-          <select
-            value={submissionsStatus}
-            onChange={(e) => setSubmissionsStatus(e.target.value as typeof submissionsStatus)}
-            className="rounded-md border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-          >
-            <option value="pending">{t('admin.rulesets.statusPending')}</option>
-            <option value="approved">{t('admin.rulesets.statusApproved')}</option>
-            <option value="rejected">{t('admin.rulesets.statusRejected')}</option>
-            <option value="all">{t('admin.rulesets.statusAll')}</option>
-          </select>
-        </div>
-
-        {submissionsLoading ? (
-          <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
-        ) : submissions.length === 0 ? (
-          <p className="text-sm text-muted">{t('admin.rulesets.submissionsEmpty')}</p>
-        ) : (
-          <DataTable>
-            <DataTableHead>
-              <DataTableCell as="th" className="w-10">
-                <input
-                  type="checkbox"
-                  aria-label={t('admin.rulesets.selectAll')}
-                  checked={submissions.length > 0 && submissions.every((s) => selection.has(s.id))}
-                  onChange={() => selection.toggleAll(submissions.map((s) => s.id))}
-                  className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
-                />
-              </DataTableCell>
-              <DataTableCell as="th">{t('admin.rulesets.colRuleset')}</DataTableCell>
-              <DataTableCell as="th">{t('admin.rulesets.colPackage')}</DataTableCell>
-              <DataTableCell as="th">{t('admin.rulesets.colSubmittedBy')}</DataTableCell>
-              <DataTableCell as="th">{t('admin.rulesets.colStatus')}</DataTableCell>
-              <DataTableCell as="th">{t('admin.rulesets.colCreated')}</DataTableCell>
-              <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
-            </DataTableHead>
-            <tbody>
-              {submissions.map((row) => (
-                <DataTableRow key={row.id}>
-                  <DataTableCell>
-                    <input
-                      type="checkbox"
-                      aria-label={t('admin.rulesets.selectRow')}
-                      checked={selection.has(row.id)}
-                      onChange={() => selection.toggle(row.id)}
-                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-2 focus:ring-accent/30"
-                    />
-                  </DataTableCell>
-                  <DataTableCell>
-                    <p className="font-medium">{row.display_name}</p>
-                    <p className="font-mono text-xs text-muted">
-                      {row.code}@{row.version}
-                    </p>
-                  </DataTableCell>
-                  <DataTableCell mono>{row.package_ref ?? '-'}</DataTableCell>
-                  <DataTableCell mono>{row.submitted_by_user_id ?? '-'}</DataTableCell>
-                  <DataTableCell>
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        row.status === 'approved'
-                          ? 'bg-success/10 text-success'
-                          : row.status === 'rejected'
-                            ? 'bg-danger/10 text-danger'
-                            : 'bg-warning/10 text-warning'
-                      }`}
-                    >
-                      {row.status}
-                    </span>
-                  </DataTableCell>
-                  <DataTableCell className="text-muted">
-                    {new Date(row.created_at).toLocaleDateString(localeToBcp47(locale))}
-                  </DataTableCell>
-                  <DataTableCell>
-                    <div className="flex gap-2">
-                      <RowActionButton
-                        variant="success"
-                        onClick={() => void approveSubmission(row.id)}
-                        disabled={row.status === 'approved'}
-                      >
-                        {t('admin.rulesets.approveAction')}
-                      </RowActionButton>
-                      <RowActionButton
-                        variant="danger"
-                        onClick={() => setRejectTarget(row.id)}
-                        disabled={row.status === 'rejected'}
-                      >
-                        {t('admin.rulesets.rejectAction')}
-                      </RowActionButton>
-                    </div>
-                  </DataTableCell>
-                </DataTableRow>
-              ))}
-            </tbody>
-          </DataTable>
-        )}
-      </section>
 
       {/* ── Curated rulesets section ───────────────────────────────────── */}
       <section>
@@ -563,7 +280,7 @@ export default function AdminRulesetsPage() {
                           ? t('admin.rulesets.viewAction')
                           : t('admin.rulesets.shared.actions.edit')}
                       </Link>
-                      {/* R3: org-submitted rows show Approve/Reject actions. */}
+                      {/* Org-submitted rows show Approve/Reject actions. */}
                       {row.submitted_for_review_at && (
                         <>
                           <RowActionButton
@@ -633,20 +350,7 @@ export default function AdminRulesetsPage() {
         )}
       </section>
 
-      <PromptDialog
-        open={rejectTarget !== null}
-        title={t('admin.rulesets.rejectAction')}
-        description={t('admin.rulesets.rejectReasonPrompt')}
-        placeholder={t('admin.rulesets.rejectReasonPrompt')}
-        confirmLabel={t('admin.rulesets.rejectAction')}
-        danger
-        multiline
-        busy={actionBusy}
-        onCancel={() => setRejectTarget(null)}
-        onConfirm={(reason) => void confirmReject(reason)}
-      />
-
-      {/* R3: per-row reject for org-submitted curated rulesets. */}
+      {/* Per-row reject for org-submitted curated rulesets. */}
       <PromptDialog
         open={rejectSubmissionTarget !== null}
         title={t('admin.rulesets.rejectAction')}
@@ -670,55 +374,6 @@ export default function AdminRulesetsPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
       />
-
-      <ConfirmDialog
-        open={bulkConfirmOpen}
-        title={t('admin.rulesets.bulkApproveTitle')}
-        description={t('admin.rulesets.bulkApproveConfirm', { count: String(selection.count) })}
-        confirmLabel={t('admin.rulesets.approveAction')}
-        busy={actionBusy}
-        onCancel={() => setBulkConfirmOpen(false)}
-        onConfirm={() => void bulkApprove()}
-      />
-
-      <PromptDialog
-        open={bulkRejectOpen}
-        title={t('admin.rulesets.bulkRejectTitle')}
-        description={t('admin.rulesets.bulkRejectConfirm', { count: String(selection.count) })}
-        placeholder={t('admin.rulesets.rejectReasonPrompt')}
-        confirmLabel={t('admin.rulesets.rejectAction')}
-        danger
-        multiline
-        busy={actionBusy}
-        onCancel={() => setBulkRejectOpen(false)}
-        onConfirm={(reason) => void bulkReject(reason)}
-      />
-
-      <BulkActionBar
-        count={selection.count}
-        itemLabel={{
-          singular: t('admin.rulesets.bulkUnitSingular'),
-          plural: t('admin.rulesets.bulkUnitPlural'),
-        }}
-        onClear={() => selection.clear()}
-      >
-        <button
-          type="button"
-          onClick={() => setBulkConfirmOpen(true)}
-          disabled={actionBusy}
-          className="rounded-md bg-success px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-success-hover disabled:opacity-50"
-        >
-          {t('admin.rulesets.bulkApproveAction')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setBulkRejectOpen(true)}
-          disabled={actionBusy}
-          className="rounded-md bg-danger px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-danger-hover disabled:opacity-50"
-        >
-          {t('admin.rulesets.bulkRejectAction')}
-        </button>
-      </BulkActionBar>
     </main>
   );
 }

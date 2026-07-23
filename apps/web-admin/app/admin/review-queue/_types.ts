@@ -3,7 +3,6 @@ export interface ReviewQueueItem {
     | 'deletion'
     | 'exchange_edit'
     | 'club_review'
-    | 'ruleset_submission'
     | 'league_tournament_request'
     | 'league_membership_request';
   id: string;

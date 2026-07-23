@@ -2,7 +2,7 @@
  * review-queue.service.test.ts
  *
  * Tests:
- *   1. listAll returns aggregated items from all 4 sources sorted by createdAt desc,
+ *   1. listAll returns aggregated items from all 3 sources sorted by createdAt desc,
  *      default to pending.
  *   2. listAll with typeFilter='deletion' only queries deletion_requests.
  *   3. approve(deletion) requires typedConfirmation='DELETE' — throws BadRequestException.
@@ -63,18 +63,6 @@ function makeClubReviewRow(overrides: Record<string, unknown> = {}): Record<stri
   });
 }
 
-function makeRulesetRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return makeRow({
-    code: 'hema',
-    version: '1.0',
-    display_name: 'HEMA Ruleset',
-    description: null,
-    submitted_by_user_id: 'user-1',
-    package_ref: null,
-    ...overrides,
-  });
-}
-
 // ── Supabase mock factory ─────────────────────────────────────────────────────
 
 function makeSupabaseMock(tableData: Record<string, unknown[]>) {
@@ -121,13 +109,6 @@ function makeMockExchangeEditService() {
   };
 }
 
-function makeMockRulesetsService() {
-  return {
-    approveRuleset: vi.fn().mockResolvedValue(undefined),
-    rejectRuleset: vi.fn().mockResolvedValue(undefined),
-  };
-}
-
 function makeMockEventsService() {
   return {};
 }
@@ -155,16 +136,14 @@ function makeMockUserDirectory() {
 describe('ReviewQueueService', () => {
   let service: ReviewQueueService;
   let mockExchangeEditService: ReturnType<typeof makeMockExchangeEditService>;
-  let mockRulesetsService: ReturnType<typeof makeMockRulesetsService>;
 
-  // ── 1. listAll aggregates all 4 sources, defaults to pending ─────────────────
+  // ── 1. listAll aggregates all 3 sources, defaults to pending ─────────────────
 
-  it('listAll returns aggregated items from all 4 sources sorted by createdAt desc, default to pending', async () => {
+  it('listAll returns aggregated items from all 3 sources sorted by createdAt desc, default to pending', async () => {
     const tableData: Record<string, unknown[]> = {
       deletion_requests: [makeDeletionRow({ created_at: '2026-01-03T00:00:00.000Z' })],
       exchange_edit_requests: [makeExchangeRow({ created_at: '2026-01-04T00:00:00.000Z' })],
       club_review_requests: [makeClubReviewRow({ created_at: '2026-01-02T00:00:00.000Z' })],
-      ruleset_submissions: [makeRulesetRow({ created_at: '2026-01-01T00:00:00.000Z' })],
       fighters: [],
       organizations: [],
       events: [],
@@ -173,12 +152,10 @@ describe('ReviewQueueService', () => {
     };
     const supabase = makeSupabaseMock(tableData);
     mockExchangeEditService = makeMockExchangeEditService();
-    mockRulesetsService = makeMockRulesetsService();
     service = new ReviewQueueService(
       supabase as never,
       makeMockEventsService() as never,
       mockExchangeEditService as never,
-      mockRulesetsService as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -186,20 +163,18 @@ describe('ReviewQueueService', () => {
 
     const result = await service.listAll(null, null);
 
-    // Should have 4 items
-    expect(result).toHaveLength(4);
+    // Should have 3 items
+    expect(result).toHaveLength(3);
 
     // Should be sorted descending by createdAt
     expect(result[0]!.type).toBe('exchange_edit'); // 2026-01-04
     expect(result[1]!.type).toBe('deletion'); // 2026-01-03
     expect(result[2]!.type).toBe('club_review'); // 2026-01-02
-    expect(result[3]!.type).toBe('ruleset_submission'); // 2026-01-01
 
     // The status filter 'pending' should have been applied (eq('status', 'pending') called)
     expect(supabase._fromMock).toHaveBeenCalledWith('deletion_requests');
     expect(supabase._fromMock).toHaveBeenCalledWith('exchange_edit_requests');
     expect(supabase._fromMock).toHaveBeenCalledWith('club_review_requests');
-    expect(supabase._fromMock).toHaveBeenCalledWith('ruleset_submissions');
   });
 
   // ── 2. listAll with typeFilter='deletion' only queries deletion_requests ─────
@@ -217,7 +192,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -232,7 +206,6 @@ describe('ReviewQueueService', () => {
     const calledTables = supabase._fromMock.mock.calls.map(([t]: [string]) => t);
     expect(calledTables).not.toContain('exchange_edit_requests');
     expect(calledTables).not.toContain('club_review_requests');
-    expect(calledTables).not.toContain('ruleset_submissions');
   });
 
   // ── 2b. listAll includes league_tournament_request rows under "all" ─────────
@@ -274,7 +247,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -300,7 +272,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       leagues as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -324,7 +295,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       membership as never,
       makeMockUserDirectory() as never,
@@ -343,7 +313,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -399,7 +368,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -451,7 +419,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -477,7 +444,7 @@ describe('ReviewQueueService', () => {
 
   // ── countPending — drives the sidebar badge + bell pill ────────────────────
 
-  it('countPending sums head-only counts across all six review sources', async () => {
+  it('countPending sums head-only counts across all five review sources', async () => {
     // The bell polls this every 60s; the implementation must use
     // Supabase's head-count form (.select('id', { count, head: true })
     // .eq('status', …)) so no row data is transferred. Mock returns a
@@ -486,7 +453,6 @@ describe('ReviewQueueService', () => {
       deletion_requests: 3,
       exchange_edit_requests: 2,
       club_review_requests: 1,
-      ruleset_submissions: 0,
       league_tournament_links: 4,
       league_membership_requests: 1,
     };
@@ -505,7 +471,6 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
@@ -514,14 +479,13 @@ describe('ReviewQueueService', () => {
     const total = await service.countPending();
 
     expect(total).toBe(11);
-    // All six sources were polled.
+    // All five sources were polled.
     const calledTables = fromMock.mock.calls.map(([t]) => t);
     expect(calledTables).toEqual(
       expect.arrayContaining([
         'deletion_requests',
         'exchange_edit_requests',
         'club_review_requests',
-        'ruleset_submissions',
         'league_tournament_links',
         'league_membership_requests',
       ]),
@@ -555,14 +519,13 @@ describe('ReviewQueueService', () => {
       supabase as never,
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
-      makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
       makeMockMembershipRequestsService() as never,
       makeMockUserDirectory() as never,
     );
 
     const total = await service.countPending();
-    // Five working sources × 2 + one failing source × 0 = 10.
-    expect(total).toBe(10);
+    // Four working sources × 2 + one failing source × 0 = 8.
+    expect(total).toBe(8);
   });
 });

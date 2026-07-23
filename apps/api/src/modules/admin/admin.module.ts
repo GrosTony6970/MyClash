@@ -14,7 +14,6 @@ import { AdminBackupsService } from './backups.service';
 import { AdminDashboardStatsService } from './admin-dashboard-stats.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import { AdminOrganizationsService } from './admin-organizations.service';
-import { AdminRulesetsService } from './admin-rulesets.service';
 import { AdminUsersService } from './admin-users.service';
 import { AuditLogAdminController } from './audit-log.controller';
 import { ClaimRequestsAdminController } from './claim-requests.controller';
@@ -37,7 +36,6 @@ import { PlatformAISettingsController } from './platform-ai-settings.controller'
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 import { PlatformAIUsageController } from './platform-ai-usage.controller';
 import { PublicFeatureFlagsController } from './public-feature-flags.controller';
-import { RulesetsAdminController } from './rulesets.controller';
 import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
@@ -50,7 +48,6 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
   controllers: [
     OrganizationsAdminController,
     UsersAdminController,
-    RulesetsAdminController,
     CustomRulesetsAdminController,
     OrgCustomRulesetsController,
     FeatureFlagsAdminController,
@@ -74,7 +71,6 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     ClaimRequestsService,
     AdminOrganizationsService,
     AdminUsersService,
-    AdminRulesetsService,
     CustomRulesetsService,
     AdminDashboardStatsService,
     AdminFeatureFlagsService,

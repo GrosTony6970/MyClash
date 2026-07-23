@@ -48,7 +48,8 @@ export class ReviewQueueController {
   @ApiQuery({
     name: 'type',
     required: false,
-    description: 'deletion | exchange_edit | club_review | ruleset_submission',
+    description:
+      'deletion | exchange_edit | club_review | league_tournament_request | league_membership_request',
   })
   @ApiQuery({
     name: 'status',

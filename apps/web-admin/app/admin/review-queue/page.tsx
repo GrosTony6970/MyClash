@@ -15,7 +15,6 @@ type TabValue =
   | 'deletion'
   | 'exchange_edit'
   | 'club_review'
-  | 'ruleset_submission'
   | 'league_tournament_request'
   | 'league_membership_request';
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
@@ -30,7 +29,6 @@ const TABS: Tab[] = [
   { value: 'deletion', label: t('admin.reviewQueue.tabDeletions') },
   { value: 'exchange_edit', label: t('admin.reviewQueue.tabExchangeEdits') },
   { value: 'club_review', label: t('admin.reviewQueue.tabClubReviews') },
-  { value: 'ruleset_submission', label: t('admin.reviewQueue.tabRulesetSubmissions') },
   // Falls back to a hard-coded label if the i18n key isn't seeded yet; the
   // key is added below in en.json / fr.json (review-queue scope).
   {
@@ -152,7 +150,6 @@ export default function ReviewQueuePage() {
       deletion: 0,
       exchange_edit: 0,
       club_review: 0,
-      ruleset_submission: 0,
     };
     for (const item of pendingItems) {
       counts[item.type] = (counts[item.type] ?? 0) + 1;

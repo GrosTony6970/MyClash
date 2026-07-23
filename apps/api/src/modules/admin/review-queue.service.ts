@@ -2,7 +2,7 @@
  * review-queue.service.ts — Unified super-admin review queue
  *
  * Aggregates 5 request types (deletion, exchange_edit, club_review,
- * ruleset_submission, league_tournament_request) into a single
+ * league_tournament_request, league_membership_request) into a single
  * normalised list and dispatches approve/reject actions to the
  * appropriate type-specific handler.
  */
@@ -13,7 +13,6 @@ import { EventsService } from '../events/events.service';
 import { LeagueMembershipRequestsService } from '../leagues/league-membership-requests.service';
 import { LeaguesService } from '../leagues/leagues.service';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
-import { AdminRulesetsService } from './admin-rulesets.service';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -23,7 +22,6 @@ export interface ReviewQueueItem {
     | 'deletion'
     | 'exchange_edit'
     | 'club_review'
-    | 'ruleset_submission'
     | 'league_tournament_request'
     | 'league_membership_request';
   id: string;
@@ -54,7 +52,6 @@ export class ReviewQueueService {
     private readonly supabase: SupabaseService,
     private readonly eventsService: EventsService,
     private readonly exchangeEditService: ExchangeEditRequestsAdminService,
-    private readonly rulesetsService: AdminRulesetsService,
     private readonly leaguesService: LeaguesService,
     private readonly membershipRequestsService: LeagueMembershipRequestsService,
     private readonly userDirectory: UserDirectoryService,
@@ -68,39 +65,29 @@ export class ReviewQueueService {
   ): Promise<ReviewQueueItem[]> {
     const effectiveStatus = statusFilter === null ? 'pending' : statusFilter;
 
-    const [
-      deletions,
-      exchanges,
-      clubReviews,
-      rulesets,
-      leagueTournamentReqs,
-      leagueMembershipReqs,
-    ] = await Promise.all([
-      !typeFilter || typeFilter === 'deletion'
-        ? this.fetchDeletions(effectiveStatus)
-        : Promise.resolve([] as ReviewQueueItem[]),
-      !typeFilter || typeFilter === 'exchange_edit'
-        ? this.fetchExchangeEdits(effectiveStatus)
-        : Promise.resolve([] as ReviewQueueItem[]),
-      !typeFilter || typeFilter === 'club_review'
-        ? this.fetchClubReviews(effectiveStatus)
-        : Promise.resolve([] as ReviewQueueItem[]),
-      !typeFilter || typeFilter === 'ruleset_submission'
-        ? this.fetchRulesetSubmissions(effectiveStatus)
-        : Promise.resolve([] as ReviewQueueItem[]),
-      !typeFilter || typeFilter === 'league_tournament_request'
-        ? this.fetchLeagueTournamentRequests(effectiveStatus)
-        : Promise.resolve([] as ReviewQueueItem[]),
-      !typeFilter || typeFilter === 'league_membership_request'
-        ? this.fetchLeagueMembershipRequests(effectiveStatus)
-        : Promise.resolve([] as ReviewQueueItem[]),
-    ]);
+    const [deletions, exchanges, clubReviews, leagueTournamentReqs, leagueMembershipReqs] =
+      await Promise.all([
+        !typeFilter || typeFilter === 'deletion'
+          ? this.fetchDeletions(effectiveStatus)
+          : Promise.resolve([] as ReviewQueueItem[]),
+        !typeFilter || typeFilter === 'exchange_edit'
+          ? this.fetchExchangeEdits(effectiveStatus)
+          : Promise.resolve([] as ReviewQueueItem[]),
+        !typeFilter || typeFilter === 'club_review'
+          ? this.fetchClubReviews(effectiveStatus)
+          : Promise.resolve([] as ReviewQueueItem[]),
+        !typeFilter || typeFilter === 'league_tournament_request'
+          ? this.fetchLeagueTournamentRequests(effectiveStatus)
+          : Promise.resolve([] as ReviewQueueItem[]),
+        !typeFilter || typeFilter === 'league_membership_request'
+          ? this.fetchLeagueMembershipRequests(effectiveStatus)
+          : Promise.resolve([] as ReviewQueueItem[]),
+      ]);
 
     const all = [
       ...deletions,
       ...exchanges,
       ...clubReviews,
-      ...rulesets,
       ...leagueTournamentReqs,
       ...leagueMembershipReqs,
     ];
@@ -125,9 +112,6 @@ export class ReviewQueueService {
         break;
       case 'club_review':
         await this.approveClubReview(id, actorUserId);
-        break;
-      case 'ruleset_submission':
-        await this.rulesetsService.approveRuleset(id, actorUserId);
         break;
       case 'league_tournament_request':
         await this.leaguesService.reviewTournamentLink(id, { status: 'approved' }, actorUserId);
@@ -186,9 +170,6 @@ export class ReviewQueueService {
           'club_review_request',
         );
         break;
-      case 'ruleset_submission':
-        await this.rulesetsService.rejectRuleset(id, { reason: rejectionReason }, actorUserId);
-        break;
       case 'league_tournament_request':
         await this.leaguesService.reviewTournamentLink(id, { status: 'rejected' }, actorUserId);
         await this.writeAuditLog(
@@ -221,7 +202,7 @@ export class ReviewQueueService {
   // ── countPending ─────────────────────────────────────────────────────────────
 
   /**
-   * Total pending items across the six review-queue sources. Drives the
+   * Total pending items across the five review-queue sources. Drives the
    * sidebar badge + the header notification-bell pill — both poll this
    * via /admin/notifications/summary on a 60 s cadence so the call must
    * stay cheap: each source uses Supabase's `head: true, count: 'exact'`
@@ -237,7 +218,6 @@ export class ReviewQueueService {
       { table: 'deletion_requests', status: 'pending' },
       { table: 'exchange_edit_requests', status: 'pending' },
       { table: 'club_review_requests', status: 'pending' },
-      { table: 'ruleset_submissions', status: 'pending' },
       // league_tournament_links + league_membership_requests use 'requested'
       // as the wire word for pending — match listAll's translation.
       { table: 'league_tournament_links', status: 'requested' },
@@ -436,56 +416,6 @@ export class ReviewQueueService {
         reviewedByName: revUser?.name ?? null,
         reviewedByEmail: revUser?.email ?? null,
         reviewedAt: null,
-        createdAt: r['created_at'] as string,
-      };
-    });
-  }
-
-  private async fetchRulesetSubmissions(statusFilter: string): Promise<ReviewQueueItem[]> {
-    let q = this.supabase.service
-      .from('ruleset_submissions')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (statusFilter !== 'all') q = q.eq('status', statusFilter) as typeof q;
-
-    const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
-    const rows = (data ?? []) as Record<string, unknown>[];
-
-    const userIds = [
-      ...new Set([
-        ...rows
-          .map((r) => r['submitted_by_user_id'] as string | null)
-          .filter((id): id is string => Boolean(id)),
-        ...rows
-          .map((r) => r['reviewed_by_user_id'] as string | null)
-          .filter((id): id is string => Boolean(id)),
-      ]),
-    ];
-    const userMap = await this.userDirectory.resolveUsers(userIds);
-
-    return rows.map((r) => {
-      const submitterId = r['submitted_by_user_id'] as string | null;
-      const reqUser = submitterId ? userMap.get(submitterId) : null;
-      const revId = (r['reviewed_by_user_id'] as string | null) ?? null;
-      const revUser = revId ? userMap.get(revId) : null;
-      return {
-        type: 'ruleset_submission' as const,
-        id: r['id'] as string,
-        status: r['status'] as ReviewQueueItem['status'],
-        targetLabel: `${r['display_name'] as string} v${r['version'] as string}`,
-        targetHref: null,
-        requesterUserId: submitterId ?? '',
-        requesterName: reqUser?.name ?? null,
-        requesterEmail: reqUser?.email ?? null,
-        organizationId: null,
-        organizationName: null,
-        reason: (r['description'] as string | null) ?? null,
-        rejectionReason: (r['rejection_reason'] as string | null) ?? null,
-        reviewedByUserId: revId,
-        reviewedByName: revUser?.name ?? null,
-        reviewedByEmail: revUser?.email ?? null,
-        reviewedAt: (r['reviewed_at'] as string | null) ?? null,
         createdAt: r['created_at'] as string,
       };
     });
