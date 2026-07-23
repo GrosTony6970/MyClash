@@ -50,13 +50,14 @@ describe('event nav taxonomy', () => {
     ...EVENT_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href)),
   ];
 
-  it('covers exactly the 19 expected routes', () => {
+  it('covers exactly the 20 expected routes', () => {
     const expected = [
       '',
       'persons',
       'clubs',
       'referees',
       'staff',
+      'live',
       'tournaments',
       'pools',
       'bracket',

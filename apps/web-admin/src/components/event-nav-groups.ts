@@ -43,6 +43,7 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
     key: 'competition',
     headingKey: 'organizer.shell.eventGroups.competition',
     items: [
+      { href: 'live', labelKey: 'organizer.eventHub.sections.live', badge: 'LV' },
       { href: 'tournaments', labelKey: 'organizer.shell.nav.tournaments', badge: 'TR' },
       // Badge PL (not P) to disambiguate from Participants in the People group.
       { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'PL' },
