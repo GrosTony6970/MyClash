@@ -4383,6 +4383,13 @@ export const en = {
         advanced: 'Advanced',
         locks: 'Auto-lock',
         recap: 'Recap',
+        drift: {
+          title: 'The effective rules changed since they were last saved',
+          body: 'The scoring or penalty rules in effect for this tournament no longer match the fingerprint stamped when it was last configured — most often because a platform-level rule (such as the built-in penalty ruleset) was edited. Acknowledge to update the fingerprint once you have reviewed the current settings.',
+          acknowledge: 'Acknowledge',
+          acknowledged: 'Ruleset fingerprint updated.',
+          acknowledgeError: 'Could not update the fingerprint. Please try again.',
+        },
         lockHelp: {
           intro:
             'Locks completed pools or brackets after a delay so referees cannot keep editing them. This is a tournament-level setting, separate from the ruleset.',
@@ -10583,6 +10590,13 @@ export const fr = {
         advanced: 'Avance',
         locks: 'Verrouillage auto',
         recap: 'Recap',
+        drift: {
+          title: 'Les regles effectives ont change depuis le dernier enregistrement',
+          body: 'Les regles de score ou de penalite en vigueur pour ce tournoi ne correspondent plus a l empreinte enregistree lors de la derniere configuration — le plus souvent parce qu une regle de la plateforme (comme le bareme de penalites integre) a ete modifiee. Confirmez pour mettre a jour l empreinte apres avoir verifie les parametres actuels.',
+          acknowledge: 'Confirmer',
+          acknowledged: 'Empreinte du bareme mise a jour.',
+          acknowledgeError: 'Impossible de mettre a jour l empreinte. Veuillez reessayer.',
+        },
         lockHelp: {
           intro:
             'Verrouille les poules ou tableaux termines apres un delai pour empecher les arbitres de continuer a les modifier. Reglage au niveau du tournoi, distinct du bareme.',

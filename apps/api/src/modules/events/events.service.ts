@@ -3498,4 +3498,64 @@ export class EventsService {
     if (!data) throw new NotFoundException(`Event ${eventId} not found`);
     return data;
   }
+
+  /**
+   * Assert the caller is at least an org admin for a tournament's org. Shared
+   * by the ruleset-drift read + acknowledge endpoints.
+   */
+  private async assertTournamentAdmin(tournamentId: string, userId: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const event = await this.getEventById((data as { event_id: string }).event_id);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+  }
+
+  /**
+   * Read-only ruleset-drift check powering the organizer settings banner.
+   * `drifted` is true when the tournament's effective (scoring, penalty)
+   * behaviour changed since its content hash was last stamped — realistically a
+   * super-admin editing the never-frozen built-in penalty ruleset. A hash-
+   * compute failure is reported as not-drifted so an out-of-domain stored config
+   * never 500s the settings page.
+   */
+  async getTournamentRulesetDrift(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{ drifted: boolean }> {
+    await this.assertTournamentAdmin(tournamentId, userId);
+    if (!this.rulesetHash) return { drifted: false };
+    try {
+      const { stored, current } = await this.rulesetHash.describeTournamentDrift(tournamentId);
+      // A never-stamped tournament (stored == null — a legacy row, or one whose
+      // best-effort stamp failed) has no baseline to drift FROM: report it as
+      // not-drifted rather than flagging a change that never happened.
+      return { drifted: stored != null && stored !== current };
+    } catch {
+      return { drifted: false };
+    }
+  }
+
+  /**
+   * Acknowledge ruleset drift: recompute + persist the tournament's content hash
+   * so the stored fingerprint matches current effective behaviour, clearing the
+   * banner. The organizer accepts the out-of-band change (e.g. an updated
+   * built-in penalty) as applying to this tournament.
+   */
+  async acknowledgeTournamentRulesetDrift(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{ drifted: boolean }> {
+    await this.assertTournamentAdmin(tournamentId, userId);
+    await this.stampTournamentContentHash(tournamentId);
+    return { drifted: false };
+  }
 }

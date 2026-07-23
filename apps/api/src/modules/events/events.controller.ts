@@ -482,6 +482,47 @@ export class EventsController {
     return this.events.previewRepinBucketDiff(id, { rulesetCode, rulesetVersion }, userId);
   }
 
+  /**
+   * GET /api/v1/tournaments/:id/ruleset-drift
+   *
+   * Read-only integrity check for the organizer settings banner: whether the
+   * tournament's effective (scoring, penalty) behaviour has drifted from its
+   * stored content-hash stamp (realistically, a super-admin edited the never-
+   * frozen built-in penalty ruleset).
+   */
+  @Get('tournaments/:id/ruleset-drift')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Whether the tournament ruleset behaviour has drifted (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getTournamentRulesetDrift(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.getTournamentRulesetDrift(id, userId);
+  }
+
+  /**
+   * POST /api/v1/tournaments/:id/acknowledge-ruleset-drift
+   *
+   * Re-stamp the content hash so the stored fingerprint matches current
+   * effective behaviour, clearing the drift banner.
+   */
+  @Post('tournaments/:id/acknowledge-ruleset-drift')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Acknowledge ruleset drift by re-stamping the content hash (org admin+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async acknowledgeTournamentRulesetDrift(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.acknowledgeTournamentRulesetDrift(id, userId);
+  }
+
   /** DELETE /api/v1/tournaments/:id */
   @Delete('tournaments/:id')
   @HttpCode(HttpStatus.OK)

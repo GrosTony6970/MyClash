@@ -11,6 +11,7 @@ import { DisplayTab } from './_components/DisplayTab';
 import { AdvancedTab } from './_components/AdvancedTab';
 import { LocksTab } from './_components/LocksTab';
 import { RecapTab } from './_components/RecapTab';
+import { RulesetDriftBanner } from './_components/RulesetDriftBanner';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 
 type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks' | 'recap';
@@ -64,6 +65,8 @@ export default function TournamentSettingsPage() {
           subtitle={t('organizer.tournaments.settings.subtitle')}
         />
       </div>
+
+      <RulesetDriftBanner tournamentId={params.tournamentId} />
 
       <div className="mt-6 grid grid-cols-[200px_1fr] gap-8">
         <nav
