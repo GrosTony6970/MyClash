@@ -9238,7 +9238,9 @@ export interface components {
       dayStartTime: string;
       dayEndTime: string;
       parallelLiceCount: number;
-      matchDurationMinutes: number;
+      poolMatchDurationMinutes: number;
+      eliminationMatchDurationMinutes: number;
+      finalsMatchDurationMinutes: number;
       matchGapSeconds: number;
       minRestMinutes: number;
       breakBetweenSessionsMinutes: number;

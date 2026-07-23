@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProgrammeService, decidePoolAffinity } from './programme.service';
-import type { SaveProgrammeDto } from './dto/programme.dto';
+import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -110,6 +110,39 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
       },
     ],
     ...overrides,
+  };
+}
+
+/** A bracket match row as PostgREST returns it to loadBracketMatches. */
+function mkBracketMatch(id: string, label: string, slotId: string) {
+  return {
+    id,
+    red_registration_id: `${id}-red`,
+    blue_registration_id: `${id}-blue`,
+    pool_id: null,
+    match_number_label: label,
+    phase_id: 'p1',
+    bracket_slot_id: slotId,
+  };
+}
+
+/** Baseline suggest config with distinct pool / elimination / finals durations. */
+function suggestCfg(): SuggestProgrammeDto {
+  return {
+    dayStartTime: '08:00',
+    dayEndTime: '20:00',
+    parallelLiceCount: 2,
+    poolMatchDurationMinutes: 5,
+    eliminationMatchDurationMinutes: 8,
+    finalsMatchDurationMinutes: 10,
+    matchGapSeconds: 0,
+    minRestMinutes: 10,
+    breakBetweenSessionsMinutes: 10,
+    middayBreakStart: '12:00',
+    middayBreakEnd: '13:00',
+    registrationDurationMinutes: 30,
+    gearCheckDurationMinutes: 15,
+    refereeMeetingDurationMinutes: 15,
   };
 }
 
@@ -383,7 +416,9 @@ describe('ProgrammeService', () => {
       dayStartTime: '08:00',
       dayEndTime: '18:00',
       parallelLiceCount: 1,
-      matchDurationMinutes: 5,
+      poolMatchDurationMinutes: 5,
+      eliminationMatchDurationMinutes: 8,
+      finalsMatchDurationMinutes: 10,
       matchGapSeconds: 15,
       minRestMinutes: 10,
       breakBetweenSessionsMinutes: 10,
@@ -396,6 +431,65 @@ describe('ProgrammeService', () => {
 
     expect(suggestion.blocks.length).toBeGreaterThan(0);
     expect(suggestion.blocks.some((b) => b.blockType === 'workshop')).toBe(false);
+  });
+
+  it('carves the final round into a separate Finals block at the finals duration', async () => {
+    // A 4-match single-elim: two semis (round 1) + final + bronze (round 2).
+    // The final round (gold + bronze) becomes its own 'finals' block at the
+    // finals duration; the earlier rounds stay in the 'bracket' block.
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }, { id: 'l2' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1', name: 'Longsword' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'p1', type: 'single_elim' }], error: null })) // stats phases
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'p1', type: 'single_elim' }], error: null })) // loadBracketMatches phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            mkBracketMatch('m1', 'SF1', 's1'),
+            mkBracketMatch('m2', 'SF2', 's2'),
+            mkBracketMatch('m3', 'F', 's3'),
+            mkBracketMatch('m4', 'BM', 's4'),
+          ],
+          error: null,
+        }),
+      ) // bracket matches
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 's1', round: 1, position: 1 },
+            { id: 's2', round: 1, position: 2 },
+            { id: 's3', round: 2, position: 1 },
+            { id: 's4', round: 2, position: 2 },
+          ],
+          error: null,
+        }),
+      ); // bracket_slots coords
+
+    const suggestion = await service.suggest('event-1', suggestCfg());
+
+    const bracket = suggestion.blocks.find((b) => b.competitionPhase === 'bracket');
+    const finals = suggestion.blocks.find((b) => b.competitionPhase === 'finals');
+    expect(bracket?.matchDurationMinutes).toBe(8);
+    expect(bracket?.label).toBe('Longsword — Bracket');
+    expect(finals?.matchDurationMinutes).toBe(10);
+    expect(finals?.label).toBe('Longsword — Finals');
+  });
+
+  it('emits only a Finals block when the whole bracket is a single final match', async () => {
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1', name: 'Rapier' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'p1', type: 'single_elim' }], error: null })) // stats phases
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'p1', type: 'single_elim' }], error: null })) // loadBracketMatches phases
+      .mockReturnValueOnce(makeChain({ data: [mkBracketMatch('m1', 'F', 's1')], error: null })) // bracket matches
+      .mockReturnValueOnce(makeChain({ data: [{ id: 's1', round: 1, position: 1 }], error: null })); // coords
+
+    const suggestion = await service.suggest('event-1', suggestCfg());
+
+    expect(suggestion.blocks.some((b) => b.competitionPhase === 'bracket')).toBe(false);
+    expect(
+      suggestion.blocks.find((b) => b.competitionPhase === 'finals')?.matchDurationMinutes,
+    ).toBe(10);
   });
 
   it('rejects competition blocks with zero match duration before deleting saved blocks', async () => {
@@ -465,6 +559,83 @@ describe('ProgrammeService', () => {
 
     expect(result.matchesScheduled).toBe(1);
     expect(fromMock).toHaveBeenCalledWith('matches');
+  });
+
+  it('keeps the final round in a lone bracket block when no finals block exists (legacy programme)', async () => {
+    // A pre-per-phase-durations programme has a single 'bracket' block covering
+    // the whole bracket. Without a sibling 'finals' block the bracket must still
+    // schedule the final round (gold + bronze), not drop it as unscheduled.
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Bracket',
+        competition_id: 'tournament-1',
+        competition_phase: 'bracket',
+        workshop_id: null,
+        lice_count: 2,
+        start_time: '10:00',
+        end_time: '14:00',
+        match_gap_seconds: 0,
+        match_duration_minutes: 8,
+        generated_at: null,
+      },
+    ];
+    const upsertChain = makeChain({
+      data: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'm4' }],
+      error: null,
+    });
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 'lice-1', name: 'Lice 1', sort_order: 0, venue_id: null },
+            { id: 'lice-2', name: 'Lice 2', sort_order: 1, venue_id: null },
+          ],
+          error: null,
+        }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'p1', type: 'single_elim' }], error: null })) // loadBracketMatches phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            mkBracketMatch('m1', 'SF1', 's1'),
+            mkBracketMatch('m2', 'SF2', 's2'),
+            mkBracketMatch('m3', 'F', 's3'),
+            mkBracketMatch('m4', 'BM', 's4'),
+          ],
+          error: null,
+        }),
+      ) // bracket matches
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 's1', round: 1, position: 1 },
+            { id: 's2', round: 1, position: 2 },
+            { id: 's3', round: 2, position: 1 },
+            { id: 's4', round: 2, position: 2 },
+          ],
+          error: null,
+        }),
+      ) // bracket_slots coords
+      .mockReturnValueOnce(upsertChain) // matches UPSERT
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
+      .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+    await service.generate('event-1');
+
+    const upsertArg = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
+    const scheduledIds = upsertArg.map((r) => r.id);
+    expect(scheduledIds).toContain('m3'); // gold final
+    expect(scheduledIds).toContain('m4'); // bronze
+    expect(scheduledIds).toHaveLength(4);
   });
 
   // Generate's matches UPSERT silently swallowed any DB-side rejection

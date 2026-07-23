@@ -63,7 +63,12 @@ export interface SuggestConfig {
   dayStartTime: string;
   dayEndTime: string;
   parallelLiceCount: number;
-  matchDurationMinutes: number;
+  /** Duration of a pool match, in minutes (drives the Pools bars). */
+  poolMatchDurationMinutes: number;
+  /** Duration of a non-final bracket match, in minutes (drives the Bracket bars). */
+  eliminationMatchDurationMinutes: number;
+  /** Duration of a final-round match — gold + bronze (drives the Finals bars). */
+  finalsMatchDurationMinutes: number;
   matchGapSeconds: number;
   minRestMinutes: number;
   breakBetweenSessionsMinutes: number;

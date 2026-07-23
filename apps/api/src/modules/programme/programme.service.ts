@@ -41,6 +41,20 @@ function trimSeconds(raw: string | null | undefined): string {
   return /^\d{2}:\d{2}:/.test(raw) ? raw.slice(0, 5) : raw;
 }
 
+/** A bracket (non-pool) match hydrated with its resolved bracket coordinates. */
+interface BracketMatchRow {
+  id: string;
+  red_registration_id: string;
+  blue_registration_id: string;
+  pool_id: string | null;
+  pool_sort_order: number | null;
+  match_number_label: string | null;
+  phase_id: string;
+  phase_type: string | null;
+  bracket_round: number | null;
+  bracket_position: number | null;
+}
+
 function computeNeededMin(
   matchCount: number,
   parallelLice: number,
@@ -195,7 +209,9 @@ export class ProgrammeService {
       dayStartTime: dto.dayStartTime,
       dayEndTime: dto.dayEndTime,
       parallelLiceCount: dto.parallelLiceCount,
-      matchDurationMinutes: dto.matchDurationMinutes,
+      poolMatchDurationMinutes: dto.poolMatchDurationMinutes,
+      eliminationMatchDurationMinutes: dto.eliminationMatchDurationMinutes,
+      finalsMatchDurationMinutes: dto.finalsMatchDurationMinutes,
       matchGapSeconds: dto.matchGapSeconds,
       minRestMinutes: dto.minRestMinutes,
       breakBetweenSessionsMinutes: dto.breakBetweenSessionsMinutes,
@@ -234,6 +250,8 @@ export class ProgrammeService {
        *  one-pool-per-lice bottleneck estimate. */
       poolPerPoolCounts: number[];
       bracketMatchCount: number;
+      /** Final-round bracket matches (gold + bronze) — carved into a Finals block. */
+      finalsMatchCount: number;
     }
     const tournamentStats: TournamentStats[] = [];
 
@@ -245,7 +263,6 @@ export class ProgrammeService {
       const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
 
       const poolPhaseIds = phases.filter((p) => p.type === 'pool').map((p) => p.id);
-      const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
 
       let poolMatchCount = 0;
       let poolPerPoolCounts: number[] = [];
@@ -281,14 +298,14 @@ export class ProgrammeService {
         }
       }
 
-      let bracketMatchCount = 0;
-      if (bracketPhaseIds.length > 0) {
-        const { count } = await this.supabase.service
-          .from('matches')
-          .select('id', { count: 'exact', head: true })
-          .in('phase_id', bracketPhaseIds);
-        bracketMatchCount = count ?? 0;
-      }
+      // Bracket matches, split into elimination (earlier rounds) and finals
+      // (the highest round — gold + bronze). Shares loadBracketMatches with
+      // fetchCompetitionMatches so the estimate and the grid agree on which
+      // matches are finals.
+      const { rows: bracketRows, finalRound } = await this.loadBracketMatches(t.id);
+      const bracketMatchCount = bracketRows.length;
+      const finalsMatchCount =
+        finalRound == null ? 0 : bracketRows.filter((r) => r.bracket_round === finalRound).length;
 
       tournamentStats.push({
         id: t.id,
@@ -296,6 +313,7 @@ export class ProgrammeService {
         poolMatchCount,
         poolPerPoolCounts,
         bracketMatchCount,
+        finalsMatchCount,
       });
     }
 
@@ -423,7 +441,7 @@ export class ProgrammeService {
       const { minutes: neededMin, licesUsed } = poolBottleneckMinutes(
         t.poolPerPoolCounts,
         parallelLice,
-        cfg.matchDurationMinutes,
+        cfg.poolMatchDurationMinutes,
         cfg.matchGapSeconds,
       );
       const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
@@ -439,7 +457,7 @@ export class ProgrammeService {
           startTime: minToTime(cursor),
           endTime: minToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: cfg.matchDurationMinutes,
+          matchDurationMinutes: cfg.poolMatchDurationMinutes,
           minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
@@ -462,14 +480,22 @@ export class ProgrammeService {
       advance(cfg.breakBetweenSessionsMinutes);
     }
 
-    // Bracket sessions
-    for (const t of tournamentStats) {
-      if (t.bracketMatchCount === 0) continue;
+    // Bracket sessions — elimination rounds run at the elimination duration;
+    // the final round (gold + bronze) is carved into its own Finals block at
+    // the finals duration so it can be scheduled at its longer clock length.
+    const pushBracketBlock = (
+      t: (typeof tournamentStats)[number],
+      matchCount: number,
+      durationMin: number,
+      phase: 'bracket' | 'finals',
+      labelSuffix: string,
+    ): void => {
+      if (matchCount === 0) return;
       maybeInsertMidday();
       const neededMin = computeNeededMin(
-        t.bracketMatchCount,
+        matchCount,
         parallelLice,
-        cfg.matchDurationMinutes,
+        durationMin,
         cfg.matchGapSeconds,
       );
       const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
@@ -477,20 +503,33 @@ export class ProgrammeService {
         {
           dayIndex,
           blockType: 'competition',
-          label: `${t.name} — Bracket`,
+          label: `${t.name} — ${labelSuffix}`,
           competitionId: t.id,
-          competitionPhase: 'bracket',
+          competitionPhase: phase,
           workshopId: null,
           liceCount: parallelLice,
           startTime: minToTime(cursor),
           endTime: minToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: cfg.matchDurationMinutes,
+          matchDurationMinutes: durationMin,
           minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
       );
       advance(Math.ceil(neededMin));
+    };
+
+    for (const t of tournamentStats) {
+      if (t.bracketMatchCount === 0) continue;
+      const eliminationMatchCount = t.bracketMatchCount - t.finalsMatchCount;
+      pushBracketBlock(
+        t,
+        eliminationMatchCount,
+        cfg.eliminationMatchDurationMinutes,
+        'bracket',
+        'Bracket',
+      );
+      pushBracketBlock(t, t.finalsMatchCount, cfg.finalsMatchDurationMinutes, 'finals', 'Finals');
     }
 
     return { blocks, warnings };
@@ -575,6 +614,22 @@ export class ProgrammeService {
       }
     }
 
+    // Tournaments that have a dedicated `finals` competition block. Only for
+    // these does a `bracket` block hand its final round off to the finals block;
+    // a legacy programme with a lone `bracket` block (pre per-phase durations)
+    // keeps every bracket match so the final round is still scheduled, not
+    // orphaned. Freshly-suggested programmes always have both blocks.
+    const tournamentsWithFinalsBlock = new Set(
+      (blocksData ?? [])
+        .filter(
+          (b) =>
+            (b as Record<string, unknown>)['block_type'] === 'competition' &&
+            (b as Record<string, unknown>)['competition_phase'] === 'finals' &&
+            (b as Record<string, unknown>)['competition_id'],
+        )
+        .map((b) => String((b as Record<string, unknown>)['competition_id'])),
+    );
+
     let matchesScheduled = 0;
     // Workshops are no longer scheduled by the programme generator (own board).
     const workshopSessionsCreated = 0;
@@ -620,6 +675,9 @@ export class ProgrammeService {
         const matches = await this.fetchCompetitionMatches(
           block.competitionId,
           block.competitionPhase,
+          {
+            splitFinals: tournamentsWithFinalsBlock.has(block.competitionId),
+          },
         );
         // Restrict this block's lices to its phase's assigned venue, if any
         // (pool block → Pools venue; bracket/finals block → Bracket venue).
@@ -1325,6 +1383,7 @@ export class ProgrammeService {
   private async fetchCompetitionMatches(
     tournamentId: string,
     phase: string | null,
+    opts?: { splitFinals?: boolean },
   ): Promise<
     Array<{
       id: string;
@@ -1339,13 +1398,12 @@ export class ProgrammeService {
       bracket_position: number | null;
     }>
   > {
-    const { data: phasesData } = await this.supabase.service
-      .from('phases')
-      .select('id, type')
-      .eq('tournament_id', tournamentId);
-    const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
-
     if (phase === 'pool') {
+      const { data: phasesData } = await this.supabase.service
+        .from('phases')
+        .select('id, type')
+        .eq('tournament_id', tournamentId);
+      const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
       const poolPhaseIds = phases.filter((p) => p.type === 'pool').map((p) => p.id);
       if (poolPhaseIds.length === 0) return [];
 
@@ -1386,47 +1444,20 @@ export class ProgrammeService {
         bracket_position: null,
       }));
     } else {
-      const bracketPhases = phases.filter((p) => p.type !== 'pool');
-      const bracketPhaseIds = bracketPhases.map((p) => p.id);
-      if (bracketPhaseIds.length === 0) return [];
-      const phaseTypeById = new Map(bracketPhases.map((p) => [p.id, p.type]));
-
-      const { data: matchesData } = await this.supabase.service
-        .from('matches')
-        .select(
-          'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id',
-        )
-        .in('phase_id', bracketPhaseIds)
-        .order('match_number_label', { ascending: true });
-      const rows = (matchesData ?? []) as Array<{
-        id: string;
-        red_registration_id: string;
-        blue_registration_id: string;
-        pool_id: string | null;
-        match_number_label: string | null;
-        phase_id: string;
-        bracket_slot_id: string | null;
-      }>;
-      // Join bracket_slots so the scheduler can keep each QF sub-tree on one
-      // lice (branch-aware). Skips the query entirely when no slot ids exist.
-      const coords = await this.loadBracketCoords(
-        rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
-      );
-      return rows.map((r) => {
-        const c = r.bracket_slot_id ? coords.get(r.bracket_slot_id) : undefined;
-        return {
-          id: r.id,
-          red_registration_id: r.red_registration_id,
-          blue_registration_id: r.blue_registration_id,
-          pool_id: r.pool_id,
-          pool_sort_order: null,
-          match_number_label: r.match_number_label,
-          phase_id: r.phase_id,
-          phase_type: phaseTypeById.get(r.phase_id) ?? null,
-          bracket_round: c?.round ?? null,
-          bracket_position: c?.position ?? null,
-        };
-      });
+      // Partition the bracket by final round so a 'bracket' block schedules the
+      // elimination rounds and a 'finals' block schedules only the final round
+      // (gold + bronze) — same classification the estimate used, so the two
+      // blocks never fetch the same match twice.
+      const { rows, finalRound } = await this.loadBracketMatches(tournamentId);
+      if (phase === 'finals') {
+        return finalRound == null ? [] : rows.filter((r) => r.bracket_round === finalRound);
+      }
+      // 'bracket' (elimination): exclude the final round ONLY when a sibling
+      // finals block will schedule it (opts.splitFinals). Without one — a legacy
+      // programme with a lone bracket block, or no resolvable round — keep every
+      // match so the final round is scheduled here rather than orphaned.
+      if (!opts?.splitFinals || finalRound == null) return rows;
+      return rows.filter((r) => r.bracket_round !== finalRound);
     }
   }
 
@@ -1445,6 +1476,72 @@ export class ProgrammeService {
       map.set(s.id, { round: s.round, position: s.position });
     }
     return map;
+  }
+
+  /**
+   * Load every non-pool (bracket) match for a tournament with its bracket
+   * round resolved, plus the tournament's `finalRound` = the highest round
+   * present. A match is a "finals" match (gold final + bronze, or the
+   * double-elim grand final / reset) iff `bracket_round === finalRound`;
+   * everything else — including matches with no resolvable round — is an
+   * "elimination" match. Single source of truth so the block-time estimate
+   * (`buildSuggestion`) and the block→match routing (`fetchCompetitionMatches`)
+   * classify finals identically and never double-schedule. `finalRound` is
+   * null when no rounds resolve, which disables the finals split entirely.
+   */
+  private async loadBracketMatches(tournamentId: string): Promise<{
+    rows: BracketMatchRow[];
+    finalRound: number | null;
+  }> {
+    const { data: phasesData } = await this.supabase.service
+      .from('phases')
+      .select('id, type')
+      .eq('tournament_id', tournamentId);
+    const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
+    const bracketPhases = phases.filter((p) => p.type !== 'pool');
+    const bracketPhaseIds = bracketPhases.map((p) => p.id);
+    if (bracketPhaseIds.length === 0) return { rows: [], finalRound: null };
+    const phaseTypeById = new Map(bracketPhases.map((p) => [p.id, p.type]));
+
+    const { data: matchesData } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id',
+      )
+      .in('phase_id', bracketPhaseIds)
+      .order('match_number_label', { ascending: true });
+    const raw = (matchesData ?? []) as Array<{
+      id: string;
+      red_registration_id: string;
+      blue_registration_id: string;
+      pool_id: string | null;
+      match_number_label: string | null;
+      phase_id: string;
+      bracket_slot_id: string | null;
+    }>;
+    // Join bracket_slots so the scheduler can keep each QF sub-tree on one
+    // lice (branch-aware) and so the final round is identifiable.
+    const coords = await this.loadBracketCoords(
+      raw.map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
+    );
+    const rows: BracketMatchRow[] = raw.map((r) => {
+      const c = r.bracket_slot_id ? coords.get(r.bracket_slot_id) : undefined;
+      return {
+        id: r.id,
+        red_registration_id: r.red_registration_id,
+        blue_registration_id: r.blue_registration_id,
+        pool_id: r.pool_id,
+        pool_sort_order: null,
+        match_number_label: r.match_number_label,
+        phase_id: r.phase_id,
+        phase_type: phaseTypeById.get(r.phase_id) ?? null,
+        bracket_round: c?.round ?? null,
+        bracket_position: c?.position ?? null,
+      };
+    });
+    const rounds = rows.map((r) => r.bracket_round).filter((r): r is number => r != null);
+    const finalRound = rounds.length > 0 ? Math.max(...rounds) : null;
+    return { rows, finalRound };
   }
 
   private validateBlocks(blocks: SaveProgrammeDto['blocks']): void {

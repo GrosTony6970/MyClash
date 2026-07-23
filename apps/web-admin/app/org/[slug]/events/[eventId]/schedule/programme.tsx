@@ -31,7 +31,9 @@ interface SuggestConfig {
   dayStartTime: string;
   dayEndTime: string;
   parallelLiceCount: number;
-  matchDurationMinutes: number;
+  poolMatchDurationMinutes: number;
+  eliminationMatchDurationMinutes: number;
+  finalsMatchDurationMinutes: number;
   matchGapSeconds: number;
   minRestMinutes: number;
   breakBetweenSessionsMinutes: number;
@@ -48,7 +50,9 @@ const DEFAULT_CONFIG: SuggestConfig = {
   dayStartTime: '08:00',
   dayEndTime: '19:00',
   parallelLiceCount: 0,
-  matchDurationMinutes: 5,
+  poolMatchDurationMinutes: 5,
+  eliminationMatchDurationMinutes: 8,
+  finalsMatchDurationMinutes: 10,
   matchGapSeconds: 10,
   minRestMinutes: 10,
   breakBetweenSessionsMinutes: 10,
@@ -505,7 +509,9 @@ export function ProgrammePlanner({
               ['dayStart', 'dayStartTime', 'time'],
               ['dayEnd', 'dayEndTime', 'time'],
               ['parallelLices', 'parallelLiceCount', 'number'],
-              ['matchDuration', 'matchDurationMinutes', 'number'],
+              ['poolMatchDuration', 'poolMatchDurationMinutes', 'number'],
+              ['eliminationMatchDuration', 'eliminationMatchDurationMinutes', 'number'],
+              ['finalsMatchDuration', 'finalsMatchDurationMinutes', 'number'],
               ['matchGap', 'matchGapSeconds', 'number'],
               ['minRest', 'minRestMinutes', 'number'],
               ['breakBetweenSessions', 'breakBetweenSessionsMinutes', 'number'],
