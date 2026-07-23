@@ -199,7 +199,7 @@ function BoardRowView({
           {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
         </Link>
       ) : (
-        <span className="flex-1 truncate text-muted">{t('organizer.live.idle')}</span>
+        <span className="flex-1 truncate text-muted">{t('organizer.live.state.idle')}</span>
       )}
       <span className="w-24 shrink-0 text-muted">
         {cm ? `${cm.round ? `R${cm.round} · ` : ''}${cm.status}` : ''}
@@ -210,7 +210,7 @@ function BoardRowView({
             {row.scorer.name}
           </Link>
         ) : (
-          t('organizer.live.noScorer')
+          t('organizer.live.state.no_scorer')
         )}
       </span>
       <span className="w-24 shrink-0 text-muted">
@@ -220,7 +220,7 @@ function BoardRowView({
             ? `✖ ${row.health.outboxDepth}q·${row.health.rejectedCount}r`
             : row.health.outboxDepth > 0
               ? `▲ ${row.health.outboxDepth}q`
-              : t('organizer.live.synced')}
+              : t('organizer.live.state.synced')}
       </span>
       <span className="w-32 shrink-0">
         {row.attention && row.scorer ? (

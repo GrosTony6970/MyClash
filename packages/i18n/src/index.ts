@@ -4713,10 +4713,11 @@ export const en = {
       sortWorst: 'Worst first',
       healthyFold: '{count} pistes synced',
       staleRefresh: "Couldn't refresh — retrying",
-      idle: 'Idle',
-      noScorer: 'No scorer',
+      // Compact health-cell text. Deliberately distinct from state.unknown
+      // ('Health unknown'), which is the dot's fuller aria label. idle/
+      // no_scorer/synced were byte-identical duplicates of state.* and were
+      // removed — those cells now read straight from organizer.live.state.*.
       unknown: 'Unknown',
-      synced: 'Synced',
       nextLabel: 'Next',
       ack: 'Ack',
       reason: { medic: 'Medic', head_ref: 'Head ref', dispute: 'Dispute' },
@@ -10953,10 +10954,7 @@ export const fr = {
       sortWorst: 'Problèmes en premier',
       healthyFold: '{count} pistes synchronisées',
       staleRefresh: 'Actualisation impossible — nouvelle tentative',
-      idle: 'Inactif',
-      noScorer: 'Aucun marqueur',
       unknown: 'Inconnu',
-      synced: 'Synchronisé',
       nextLabel: 'Suivant',
       ack: 'OK',
       reason: { medic: 'Médecin', head_ref: 'Arbitre principal', dispute: 'Litige' },
