@@ -1044,6 +1044,7 @@ export const en = {
       memberEventsTitle: 'Events in this league',
       downloadReport: 'Download final report (CSV)',
       printableReport: 'Printable report',
+      pendingNote: '{count} linked tournament(s) still awaiting results — not counted yet.',
     },
     competitorHome: {
       nextMatch: 'Next match',
@@ -1763,6 +1764,7 @@ export const en = {
       colParticipations: 'Participations',
       colMedals: 'Medals',
       colAvgDoubleHits: 'Avg double hits',
+      pendingNote: '{count} linked tournament(s) awaiting results — not counted yet.',
       newPageTitle: 'Create league',
       basicsHeading: 'Basics',
       nameLabel: 'Name *',
@@ -7282,6 +7284,8 @@ export const fr = {
       memberEventsTitle: 'Evenements de cette ligue',
       downloadReport: 'Telecharger le rapport final (CSV)',
       printableReport: 'Rapport imprimable',
+      pendingNote:
+        '{count} tournoi(s) lié(s) en attente de résultats — pas encore comptabilisé(s).',
     },
     competitorHome: {
       nextMatch: 'Prochain combat',
@@ -8010,6 +8014,8 @@ export const fr = {
       colParticipations: 'Participations',
       colMedals: 'Médailles',
       colAvgDoubleHits: 'Moy. coups doubles',
+      pendingNote:
+        '{count} tournoi(s) lié(s) en attente de résultats — pas encore comptabilisé(s).',
       newPageTitle: 'Créer une ligue',
       basicsHeading: 'Informations de base',
       nameLabel: 'Nom *',

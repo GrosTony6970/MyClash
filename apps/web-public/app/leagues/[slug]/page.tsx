@@ -34,6 +34,7 @@ interface Standings {
     tournaments?: { name?: string | null; events?: { name?: string | null } | null } | null;
   }>;
   rows: StandingRow[];
+  pendingTournaments?: Array<{ tournamentId: string; name: string; eventName: string }>;
 }
 
 async function fetchLeague(apiUrl: string, slug: string): Promise<League | null> {
@@ -120,6 +121,7 @@ export default async function PublicLeagueStandingsPage({
   ]);
   const columns = standings?.columns ?? [];
   const rows = standings?.rows ?? [];
+  const pendingTournaments = standings?.pendingTournaments ?? [];
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
@@ -197,6 +199,12 @@ export default async function PublicLeagueStandingsPage({
             ))}
           </ul>
         </section>
+      )}
+
+      {pendingTournaments.length > 0 && (
+        <p className="rounded-lg border border-dashed border-border bg-background px-4 py-3 text-sm text-muted">
+          {t('publicApp.leagues.pendingNote', { count: pendingTournaments.length })}
+        </p>
       )}
 
       {rows.length === 0 ? (

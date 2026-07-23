@@ -1366,10 +1366,35 @@ export class LeaguesService {
       .eq('league_id', leagueId)
       .eq('status', 'approved');
 
+    // Approved tournaments that have contributed no results yet — i.e. not
+    // decided (bracket final unsettled / pool-only still in play). Derived
+    // cheaply from persisted state: recompute writes league_tournament_results
+    // only for decided tournaments, so an approved link with no results row is
+    // still awaiting results. One extra SELECT, no per-tournament recompute.
+    const { data: resultRows } = await this.supabase.service
+      .from('league_tournament_results')
+      .select('tournament_id')
+      .eq('league_id', leagueId);
+    const countedTournamentIds = new Set(
+      ((resultRows ?? []) as Row[]).map((row) => String(row['tournament_id'])),
+    );
+    const pendingTournaments = ((links ?? []) as Row[])
+      .filter((link) => !countedTournamentIds.has(String(link['tournament_id'])))
+      .map((link) => {
+        const tournament = (link['tournaments'] as Row | null) ?? null;
+        const event = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
+        return {
+          tournamentId: String(link['tournament_id']),
+          name: tournament ? String(tournament['name'] ?? '') : '',
+          eventName: event ? String(event['name'] ?? '') : '',
+        };
+      });
+
     return {
       league,
       columns: links ?? [],
       rows: data ?? [],
+      pendingTournaments,
     };
   }
 

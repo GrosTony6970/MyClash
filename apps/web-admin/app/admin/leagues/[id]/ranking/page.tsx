@@ -44,6 +44,7 @@ interface StandingsPayload {
     } | null;
   }>;
   rows: RankingRow[];
+  pendingTournaments?: Array<{ tournamentId: string; name: string; eventName: string }>;
 }
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -133,6 +134,12 @@ export default function AdminLeagueRankingPage() {
       {loading && (
         <div className="rounded-lg border border-border bg-surface p-12 text-center text-sm text-muted">
           {t('admin.adminLeagues.loading')}
+        </div>
+      )}
+
+      {!loading && data && (data.pendingTournaments?.length ?? 0) > 0 && (
+        <div className="mb-4 rounded-md border border-dashed border-border bg-background px-4 py-3 text-sm text-muted">
+          {t('admin.adminLeagues.pendingNote', { count: data.pendingTournaments!.length })}
         </div>
       )}
 
