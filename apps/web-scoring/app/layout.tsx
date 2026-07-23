@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { MaintenanceBanner } from '@myclash/ui';
+import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getServerT, resolveServerLocale } from '../src/i18n/server-locale';
 import '../src/styles/globals.css';
@@ -86,6 +87,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <I18nProvider locale={locale}>
           <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
           {children}
+          <HeartbeatRunner />
         </I18nProvider>
         {/* Service worker registration */}
         <script
