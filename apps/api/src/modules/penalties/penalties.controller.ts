@@ -112,12 +112,17 @@ export class PenaltiesController {
   }
 
   @Delete('penalty-rulesets/:id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a custom penalty ruleset (built-in cannot be deleted).' })
+  @ApiOperation({
+    summary:
+      'Delete a custom penalty ruleset (built-in cannot be deleted). Soft-archives instead of deleting when a tournament or event still pins it.',
+  })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async deleteRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+  async deleteRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ): Promise<{ archived: boolean }> {
     const userId = await getOptionalUserId(req, this.supabase);
-    await this.penalties.deleteRuleset(id, userId);
+    return this.penalties.deleteRuleset(id, userId);
   }
 
   @Post('penalty-rulesets/:id/publish')

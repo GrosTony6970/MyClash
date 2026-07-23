@@ -144,7 +144,14 @@ export default function OrgPenaltyRulesetsPage() {
         credentials: 'include',
       });
       if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.shared.actions.delete'));
+        // The API soft-archives (keeps it resolvable) instead of deleting when a
+        // tournament still pins the ruleset — tell the operator which happened.
+        const body = (await res.json().catch(() => null)) as { archived?: boolean } | null;
+        toast.success(
+          body?.archived
+            ? t('admin.rulesets.shared.toast.archived')
+            : t('admin.rulesets.shared.toast.deleted'),
+        );
         setDeleteTarget(null);
         refresh();
       } else {

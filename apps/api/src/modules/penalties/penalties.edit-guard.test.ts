@@ -91,7 +91,7 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
     expect(supabase.updated.penalty_rulesets?.[0]).toMatchObject({ name: 'Fixed built-in' });
   });
 
-  it('blocks deleting a referenced custom ruleset', async () => {
+  it('soft-archives a referenced custom ruleset instead of deleting it (delist ≠ delete)', async () => {
     const supabase = fakeSupabase({
       penalty_rulesets: { maybeSingle: customRow() },
       tournaments: { count: 1 },
@@ -99,13 +99,17 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
     });
     const service = new PenaltiesService(supabase as never);
 
-    await expect(service.deleteRuleset('pr-1', 'user-1')).rejects.toThrow(
-      /in use by a tournament or event/i,
-    );
+    const result = await service.deleteRuleset('pr-1', 'user-1');
+
+    // Archived, not deleted — the row stays resolvable for the pinned tournament.
+    expect(result).toEqual({ archived: true });
     expect(supabase.deleted).not.toContain('penalty_rulesets');
+    expect(supabase.updated.penalty_rulesets?.[0]).toMatchObject({
+      archived_at: expect.any(String),
+    });
   });
 
-  it('allows deleting an unreferenced custom ruleset', async () => {
+  it('hard-deletes an unreferenced custom ruleset', async () => {
     const supabase = fakeSupabase({
       penalty_rulesets: { maybeSingle: customRow() },
       tournaments: { count: 0 },
@@ -113,7 +117,10 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
     });
     const service = new PenaltiesService(supabase as never);
 
-    await service.deleteRuleset('pr-1', 'user-1');
+    const result = await service.deleteRuleset('pr-1', 'user-1');
+
+    expect(result).toEqual({ archived: false });
     expect(supabase.deleted).toContain('penalty_rulesets');
+    expect(supabase.updated.penalty_rulesets).toBeUndefined();
   });
 });

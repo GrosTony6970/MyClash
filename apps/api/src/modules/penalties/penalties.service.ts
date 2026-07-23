@@ -431,7 +431,7 @@ export class PenaltiesService {
    * owning org's admins (or super-admin). `match_penalties.ruleset_id`
    * is ON DELETE SET NULL, so historic penalty records survive.
    */
-  async deleteRuleset(id: string, userId?: string): Promise<void> {
+  async deleteRuleset(id: string, userId?: string): Promise<{ archived: boolean }> {
     const { data: existing, error: readErr } = await this.supabase.service
       .from('penalty_rulesets')
       .select('id, owner_organization_id, built_in')
@@ -446,13 +446,21 @@ export class PenaltiesService {
     }
     await this.assertUserCanManageOrg(row['owner_organization_id'] as string, userId);
 
-    // Same immutability guard as updateRuleset: deleting a pinned ruleset would
-    // silently fall its tournaments back to the built-in — a definition change
-    // under a running tournament. Block it; duplicate + re-pin to replace.
+    // Delist ≠ delete: a penalty ruleset a tournament or event still pins must
+    // resolve forever. getEffectiveRuleset* reads the live row by id and the pin
+    // FK is ON DELETE SET NULL, so a hard delete would silently fall those
+    // tournaments back to the built-in — a sanction change under recorded
+    // results. Soft-archive instead: the row leaves every Manage list, catalog
+    // and pin dropdown but stays resolvable by id. Only an unreferenced ruleset
+    // is truly deleted. Mirrors the scoring custom_rulesets delist behaviour.
     if (await this.isPenaltyRulesetReferenced(id)) {
-      throw new ConflictException(
-        'This penalty ruleset is in use by a tournament or event and cannot be deleted. Re-pin those tournaments to another ruleset first.',
-      );
+      const now = new Date().toISOString();
+      const { error: archErr } = await this.supabase.service
+        .from('penalty_rulesets')
+        .update({ archived_at: now, updated_at: now })
+        .eq('id', id);
+      if (archErr) throw new BadRequestException(archErr.message);
+      return { archived: true };
     }
 
     const { error: delErr } = await this.supabase.service
@@ -460,6 +468,7 @@ export class PenaltiesService {
       .delete()
       .eq('id', id);
     if (delErr) throw new BadRequestException(delErr.message);
+    return { archived: false };
   }
 
   // ── R3: "Submit for sharing" promotion workflow ──────────────────────────
@@ -601,6 +610,10 @@ export class PenaltiesService {
       .from('penalty_rulesets')
       .select('*')
       .or(`built_in.eq.true,owner_organization_id.eq.${orgId}`)
+      // Archived rulesets stay resolvable for tournaments that pin them but must
+      // not reappear in the Manage list or the tournament pin dropdown this feeds
+      // (delist ≠ delete).
+      .is('archived_at', null)
       .order('built_in', { ascending: false });
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
@@ -626,6 +639,9 @@ export class PenaltiesService {
       // Built-in (any org can adopt) OR another org's approved-public row. The
       // and(...) branch excludes this org's own public rows — Manage shows those.
       .or(`built_in.eq.true,and(public_visibility.eq.true,owner_organization_id.neq.${orgId})`)
+      // An archived shared ruleset leaves the Discover catalog too — it can no
+      // longer be adopted, only resolved for tournaments already pinned to it.
+      .is('archived_at', null)
       .order('built_in', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
