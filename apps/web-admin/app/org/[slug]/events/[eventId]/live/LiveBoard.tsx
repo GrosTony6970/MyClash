@@ -134,7 +134,10 @@ function BoardRowView({
   const cm = row.currentMatch;
   return (
     <li className={`flex items-center gap-3 py-2 text-sm ${dim}`}>
-      <span className={`h-3 w-3 shrink-0 rounded-full ${DOT[state]}`} aria-label={state} />
+      <span
+        className={`h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
+        aria-label={t(`organizer.live.state.${state}`)}
+      />
       <Link
         href={`/org/${slug}/events/${eventId}/schedule`}
         className="w-16 shrink-0 font-semibold text-foreground hover:underline"

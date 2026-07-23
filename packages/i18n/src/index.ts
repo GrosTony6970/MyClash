@@ -4719,6 +4719,15 @@ export const en = {
       nextLabel: 'Next',
       ack: 'Ack',
       reason: { medic: 'Medic', head_ref: 'Head ref', dispute: 'Dispute' },
+      state: {
+        attention: 'Needs attention',
+        no_scorer: 'No scorer',
+        stuck: 'Sync stuck',
+        stale: 'Sync lagging',
+        unknown: 'Health unknown',
+        synced: 'Synced',
+        idle: 'Idle',
+      },
     },
     eventStats: {
       title: 'Statistics',
@@ -10949,6 +10958,15 @@ export const fr = {
       nextLabel: 'Suivant',
       ack: 'OK',
       reason: { medic: 'Médecin', head_ref: 'Arbitre principal', dispute: 'Litige' },
+      state: {
+        attention: 'À traiter',
+        no_scorer: 'Aucun marqueur',
+        stuck: 'Sync bloquée',
+        stale: 'Sync en retard',
+        unknown: 'État inconnu',
+        synced: 'Synchronisé',
+        idle: 'Inactif',
+      },
     },
     eventStats: {
       title: 'Statistiques',
