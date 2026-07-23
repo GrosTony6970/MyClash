@@ -1,0 +1,39 @@
+import { describe, expect, it, vi } from 'vitest';
+import { StaffService } from './staff.service';
+
+const req = { cookies: {} } as never;
+
+describe('StaffService.recordHeartbeat', () => {
+  it('stamps the metrics + last_seen_at onto the caller staff account', async () => {
+    const updates: Record<string, unknown>[] = [];
+    const service = {
+      from: vi.fn(() => {
+        const chain: Record<string, unknown> = {
+          update: vi.fn((patch: Record<string, unknown>) => {
+            updates.push(patch);
+            return chain;
+          }),
+          eq: vi.fn(() => chain),
+          then: (r: (v: { data: null; error: null }) => void) => r({ data: null, error: null }),
+        };
+        return chain;
+      }),
+    };
+    const svc = new StaffService({ service } as never, {} as never, {} as never);
+    vi.spyOn(
+      svc as never as { requireStaffFromRequest: () => Promise<{ id: string; event_id: string }> },
+      'requireStaffFromRequest',
+    ).mockResolvedValue({ id: 'a1', event_id: 'E1' });
+
+    await expect(
+      svc.recordHeartbeat(req, { outboxDepth: 3, oldestPendingAgeSec: 42, rejectedCount: 1 }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(updates[0]).toMatchObject({
+      outbox_depth: 3,
+      oldest_pending_age_seconds: 42,
+      rejected_count: 1,
+    });
+    expect(typeof updates[0]!['last_seen_at']).toBe('string');
+  });
+});

@@ -20,6 +20,7 @@ import {
   CreateStaffAccountDto,
   ResetStaffPinDto,
   SetStaffLicesDto,
+  StaffHeartbeatDto,
   StaffLoginDto,
   UpdateStaffAccountDto,
 } from './dto';
@@ -174,6 +175,13 @@ export class StaffController {
   @ApiOperation({ summary: 'List Lices assigned to the current local event staff session' })
   async assignedLices(@Req() req: FastifyRequest) {
     return this.staff.listAssignedLices(req);
+  }
+
+  @Post('staff/heartbeat')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Report scoring-tablet sync health for the Live board' })
+  async heartbeat(@Body() dto: StaffHeartbeatDto, @Req() req: FastifyRequest) {
+    return this.staff.recordHeartbeat(req, dto);
   }
 
   @Get('staff/lices/:liceId/current-match')

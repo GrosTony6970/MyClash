@@ -26,6 +26,7 @@ import type {
   CreateStaffAccountDto,
   ResetStaffPinDto,
   SetStaffLicesDto,
+  StaffHeartbeatDto,
   StaffLoginDto,
   UpdateStaffAccountDto,
 } from './dto';
@@ -222,6 +223,27 @@ export class StaffService {
   async listAssignedLices(req: FastifyRequest) {
     const staff = await this.requireStaffFromRequest(req);
     return this.getAssignedLices(staff.id);
+  }
+
+  /**
+   * Stamps the scoring tablet's sync-health metrics + last_seen_at onto the
+   * caller's own staff account. Consumed by the organizer Live board
+   * (getLiveBoard) to surface offline/backlogged scorers.
+   */
+  async recordHeartbeat(req: FastifyRequest, dto: StaffHeartbeatDto): Promise<{ ok: true }> {
+    const staff = await this.requireStaffFromRequest(req);
+    const { error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .update({
+        last_seen_at: new Date().toISOString(),
+        outbox_depth: dto.outboxDepth,
+        oldest_pending_age_seconds: dto.oldestPendingAgeSec,
+        rejected_count: dto.rejectedCount,
+      })
+      .eq('event_id', staff.event_id)
+      .eq('id', staff.id);
+    if (error) throw new BadRequestException(error.message);
+    return { ok: true };
   }
 
   async getAssignedLiceCurrent(req: FastifyRequest, liceId: string) {

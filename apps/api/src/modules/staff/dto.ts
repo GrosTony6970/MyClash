@@ -63,3 +63,12 @@ const staffLoginSchema = z
   })
   .strict();
 export class StaffLoginDto extends createZodDto(staffLoginSchema) {}
+
+const staffHeartbeatSchema = z
+  .object({
+    outboxDepth: z.number().int().min(0),
+    oldestPendingAgeSec: z.number().int().min(0),
+    rejectedCount: z.number().int().min(0),
+  })
+  .strict();
+export class StaffHeartbeatDto extends createZodDto(staffHeartbeatSchema) {}
