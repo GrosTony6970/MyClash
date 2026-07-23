@@ -23,7 +23,11 @@ import { AIDataQualityService } from '../modules/admin/ai-data-quality.service';
 export const DATA_QUALITY_DETERMINISTIC_QUEUE = 'data-quality-deterministic';
 export const DATA_QUALITY_DETERMINISTIC_JOB = 'scan';
 
-const CRON_ACTOR_ID = 'system:cron';
+// The cron has no human actor. `ai_data_quality_scans.actor_user_id` is a
+// nullable UUID FK to auth.users, so "no user" is NULL — not a sentinel
+// string. (A previous 'system:cron' sentinel made every insert throw
+// "invalid input syntax for type uuid".)
+const CRON_ACTOR_ID = null;
 
 @Processor(DATA_QUALITY_DETERMINISTIC_QUEUE)
 @Injectable()

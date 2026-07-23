@@ -39,6 +39,21 @@ type AIRanking = {
 
 const FALLBACK_AI_SUMMARY = 'AI summary unavailable.';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Coerce an actor identifier to a value the UUID `actor_user_id`
+ * columns (scans, usage log) will accept. The daily cron has no human
+ * actor, and the controller falls back to the string 'unknown' when
+ * identity is unresolved — neither is a UUID, and Postgres rejects the
+ * insert outright ("invalid input syntax for type uuid"). Anything that
+ * isn't a UUID is stored as NULL; both columns are nullable FKs to
+ * auth.users, and NULL already means "no linked user".
+ */
+function toActorUuid(actorUserId: string | null): string | null {
+  return actorUserId && UUID_RE.test(actorUserId) ? actorUserId : null;
+}
+
 /**
  * Cap how many candidates we feed to the LLM ranker. The deterministic
  * scan ignores this cap (it doesn't cost per call). With 5 finder
@@ -170,7 +185,7 @@ export class AIDataQualityService {
    * daily cron; the operator gets a stable baseline before any
    * AI-assisted review.
    */
-  async runDeterministicScan(actorUserId: string): Promise<{
+  async runDeterministicScan(actorUserId: string | null): Promise<{
     scanId: string;
     candidateCount: number;
     findingCount: number;
@@ -259,7 +274,7 @@ export class AIDataQualityService {
       .from('ai_data_quality_findings')
       .update({
         status,
-        reviewed_by_user_id: reviewerUserId,
+        reviewed_by_user_id: toActorUuid(reviewerUserId),
         reviewed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -271,11 +286,11 @@ export class AIDataQualityService {
     return data;
   }
 
-  private async createScan(actorUserId: string): Promise<{ id: string }> {
+  private async createScan(actorUserId: string | null): Promise<{ id: string }> {
     const { data, error } = await this.supabase.service
       .from('ai_data_quality_scans')
       .insert({
-        actor_user_id: actorUserId,
+        actor_user_id: toActorUuid(actorUserId),
         status: 'running',
         started_at: new Date().toISOString(),
       })
@@ -785,7 +800,7 @@ export class AIDataQualityService {
     keyId?: string,
   ): Promise<void> {
     await this.supabase.service.from('platform_ai_usage_log').insert({
-      actor_user_id: actorUserId,
+      actor_user_id: toActorUuid(actorUserId),
       feature: 'super_admin_data_quality',
       provider,
       platform_ai_key_id: keyId ?? null,

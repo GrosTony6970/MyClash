@@ -138,7 +138,8 @@ describe('AIDataQualityService', () => {
       mockPlatformAI as never,
       mockFlags as never,
     );
-    const result = await service.startScan('actor-1');
+    const actorUuid = '22222222-2222-4222-8222-222222222222';
+    const result = await service.startScan(actorUuid);
 
     expect(result.scanId).toBe('scan-1');
     expect(result.findingCount).toBeGreaterThanOrEqual(2);
@@ -147,7 +148,7 @@ describe('AIDataQualityService', () => {
     expect(usageInsert.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         feature: 'super_admin_data_quality',
-        actor_user_id: 'actor-1',
+        actor_user_id: actorUuid,
       }),
     );
     const persisted = findingsUpsert.upsert.mock.calls[0]?.[0] as Array<{ finding_type: string }>;
@@ -403,15 +404,80 @@ describe('AIDataQualityService', () => {
       mockFlags as never,
     );
 
-    await service.updateFindingStatus('finding-1', 'dismissed', 'actor-1');
+    const reviewerUuid = '33333333-3333-4333-8333-333333333333';
+    await service.updateFindingStatus('finding-1', 'dismissed', reviewerUuid);
 
     expect(update.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'dismissed',
-        reviewed_by_user_id: 'actor-1',
+        reviewed_by_user_id: reviewerUuid,
       }),
     );
     expect(update.eq).toHaveBeenCalledWith('id', 'finding-1');
+  });
+
+  // ── Cron / system actor: no auth.users row ──────────────────────────────
+  // Regression: the daily cron passed the sentinel string 'system:cron'
+  // (and the controller falls back to 'unknown') straight into the UUID
+  // `actor_user_id` column, so every unattended scan died with
+  // "invalid input syntax for type uuid". A non-UUID actor must be
+  // normalised to NULL — the column is a nullable FK to auth.users.
+  it('stores a null actor_user_id when the scan has no real user (cron)', async () => {
+    const scanInsert = chain({ id: 'scan-cron' });
+    const noop = chain([]);
+    fromMock.mockImplementation((table: string) =>
+      table === 'ai_data_quality_scans' ? scanInsert : noop,
+    );
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
+
+    await service.runDeterministicScan(null);
+
+    expect(scanInsert.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ actor_user_id: null, status: 'running' }),
+    );
+  });
+
+  it('normalises a non-UUID actor id (e.g. "system:cron" / "unknown") to null', async () => {
+    const scanInsert = chain({ id: 'scan-sentinel' });
+    const noop = chain([]);
+    fromMock.mockImplementation((table: string) =>
+      table === 'ai_data_quality_scans' ? scanInsert : noop,
+    );
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
+
+    await service.runDeterministicScan('system:cron');
+
+    expect(scanInsert.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ actor_user_id: null }),
+    );
+  });
+
+  it('preserves a valid UUID actor id (manual super-admin run)', async () => {
+    const actorUuid = '11111111-1111-4111-8111-111111111111';
+    const scanInsert = chain({ id: 'scan-manual' });
+    const noop = chain([]);
+    fromMock.mockImplementation((table: string) =>
+      table === 'ai_data_quality_scans' ? scanInsert : noop,
+    );
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
+
+    await service.runDeterministicScan(actorUuid);
+
+    expect(scanInsert.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ actor_user_id: actorUuid }),
+    );
   });
 });
 
