@@ -15,9 +15,16 @@ import {
  * rendering — intended, since the rendered output is locale-specific.
  */
 export async function resolveServerLocale(): Promise<Locale> {
-  const cookie = (await cookies()).get(LOCALE_COOKIE)?.value ?? null;
-  const acceptLanguage = (await headers()).get('accept-language');
-  return negotiateLocale({ cookie, acceptLanguage });
+  try {
+    const cookie = (await cookies()).get(LOCALE_COOKIE)?.value ?? null;
+    const acceptLanguage = (await headers()).get('accept-language');
+    return negotiateLocale({ cookie, acceptLanguage });
+  } catch {
+    // No request scope (e.g. the stats-render perf harness renders the page
+    // directly) — Next 16 throws on cookies()/headers() there. Locale is a
+    // non-critical enhancement, so fall back to default rather than crash.
+    return negotiateLocale({ cookie: null, acceptLanguage: null });
+  }
 }
 
 /**
