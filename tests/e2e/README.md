@@ -78,6 +78,11 @@ end prints links to the tournament / schedule / referees / workshops tabs.
 It **scores matches**, so the event can no longer be hard-deleted (by the
 recorded-results guard) — keep it for inspection or recreate the env.
 
+Each workshop also gets a **random set of attendees** enrolled (most seats filled,
+some waitlisted), with David / Robin / Anthony each guaranteed a seat in a workshop
+they don't teach — via the organizer enroll endpoint
+`POST /workshop-sessions/:id/enrollments/:personId` (workshop_lead+).
+
 Every completed match is driven through the match clock (`start → adjust → end`),
 giving `matches.duration_active_ms` a realistic **random 5–10 min** active time —
 the one field every referee time stat reads. Without it, "Average/Total time

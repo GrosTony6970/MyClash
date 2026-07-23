@@ -19,7 +19,9 @@ import { runContext } from './_context';
  *     with the real qualifiers
  *   - a separate workshop venue (Gymnase des Cerisiers, 1 area) + 6 workshops
  *     spread evenly across both days (3/day), each 2h, with a 12:00–14:00 midday
- *     break, each with a randomly-picked instructor; all published
+ *     break, each with a randomly-picked instructor; all published — and a random
+ *     set of attendees enrolled per workshop (most seats filled, some waitlisted),
+ *     including David / Robin / Anthony each in a workshop they don't teach
  *   - tournaments + event published
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
@@ -818,7 +820,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // many doubles, and it is reachable for pool matches only (gated by
   // `allowDoubleOut`) — a null winner can't advance a bracket slot. Set to the
   // first 2 NON-scripted Longsword pool matches at play time (scripted matches are
-  // forced shutout wins), so `doubleOuts > 0` always holds.
+  // forced 8–3 wins), so `doubleOuts > 0` always holds.
   let doubleOutMatchIds = new Set<string>();
   let played = 0;
   let exchangesPosted = 0;
@@ -830,7 +832,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const blue = m.blue_registration_id;
     if (!red || !blue || m.status === 'completed') return; // bye or already played
 
-    // ── Scripted competitors sweep their Longsword pool (shutout → top-2 seed). ──
+    // ── Scripted competitors sweep their Longsword pool (8–3 wins → top-2 seed). ──
     const poolScriptedRegIds = [davidRegId, robinRegId].filter((x): x is string => Boolean(x));
     const scriptedSide: 'red' | 'blue' | null = poolScriptedRegIds.includes(red)
       ? 'red'
@@ -847,7 +849,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       let sq = 1;
       let sclk = 4_000 + Math.floor(Math.random() * 8_000);
       for (let i = 0; i < 8; i++) {
-        // 8–0 shutout → 0 hits received, no doubles → maximal TF_v1 ratio.
+        // 8 clean hits landed → targetPoints 8 (they still win convincingly).
         await exchange(m.id, {
           sequence: sq++,
           type: 'clean',
@@ -858,8 +860,23 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         sclk += gapMs();
         exchangesPosted++;
       }
+      for (let i = 0; i < 3; i++) {
+        // 3 clean hits RECEIVED → timesHit 3. This caps the TF_v1 ranking score at
+        // (winBonus + 8) / 3 = 11/3 ≈ 3.67 (≤ 4.5). The old 8–0 shutout left
+        // timesHit 0, so the score fell back to the raw numerator (~77). They still
+        // post the top score, keeping the 1–2 seeds + opposite-half bracket path.
+        await exchange(m.id, {
+          sequence: sq++,
+          type: 'clean',
+          firstStrikerColor: lColor,
+          firstStrikeValue: 1,
+          clockTimeMs: sclk,
+        });
+        sclk += gapMs();
+        exchangesPosted++;
+      }
       for (let a = 0; a < 2; a++) {
-        // ≥2 afterblows, opponent-struck net-zero (1-1) → scripted timesHit stays 0.
+        // ≥2 afterblows, opponent-struck net-zero (1-1) → no extra timesHit.
         await exchange(m.id, {
           sequence: sq++,
           type: 'afterblow',
@@ -1535,6 +1552,13 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
 
   let wMade = 0;
   const createdWorkshopIds: string[] = [];
+  // Session id + capacity + the (regular) instructor's person id per workshop, so
+  // the enrollment pass below can fill seats and skip the teacher's own session.
+  const workshopSessions: Array<{
+    sessionId: string;
+    capacity: number;
+    teacherPersonId: string | null;
+  }> = [];
   for (let i = 0; i < 6; i++) {
     const instructor = instructors[i % Math.max(instructors.length, 1)];
     const ok = await step(`workshop ${i + 1}`, async () => {
@@ -1575,7 +1599,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       const day = WS_DAYS[i % 2];
       const startHhmm = WS_START_HHMM[Math.floor(i / 2)];
       const endHhmm = `${String(Number(startHhmm.slice(0, 2)) + WS_DURATION_MIN / 60).padStart(2, '0')}:00`;
-      await post(`workshops/${workshopId}/sessions`, {
+      const sessRes = await post(`workshops/${workshopId}/sessions`, {
         data: {
           startTime: zonedToUtcIso(day, startHhmm, EVENT_TZ),
           endTime: zonedToUtcIso(day, endHhmm, EVENT_TZ),
@@ -1583,6 +1607,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
           areaId: areaIds.length ? areaIds[0] : undefined,
         },
       });
+      if (sessRes.ok()) {
+        const sessionId = ((await sessRes.json()) as { id: string }).id;
+        workshopSessions.push({
+          sessionId,
+          capacity: 12 + i * 2,
+          teacherPersonId: instructor?.id ?? null,
+        });
+      }
       await patch(`workshops/${workshopId}`, { data: { status: 'published' } });
       return true;
     });
@@ -1602,6 +1634,50 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     console.log(
       `    ↳ tagged ${extraInstructors.map((p) => p.familyName).join(', ')} as instructors`,
     );
+    return true;
+  });
+
+  // ── Workshop attendees: fill most of each workshop's seats with a random subset
+  //    of the roster, and guarantee David / Robin / Anthony each attend a workshop
+  //    they don't teach. Uses the organizer enroll endpoint
+  //    (POST workshop-sessions/:id/enrollments/:personId). The enroll service's
+  //    instructor-self-enrollment guard 403s a teacher's own session — those are
+  //    skipped best-effort. Enrolling past capacity auto-waitlists.
+  await step('workshop enrollments (fill most seats)', async () => {
+    const rosterIds = persons.map((p) => p.id);
+    let confirmed = 0;
+    let waitlisted = 0;
+    for (const ws of workshopSessions) {
+      const eligible = rosterIds.filter((id) => id !== ws.teacherPersonId);
+      for (let k = eligible.length - 1; k > 0; k--) {
+        const j = Math.floor(Math.random() * (k + 1));
+        [eligible[k], eligible[j]] = [eligible[j]!, eligible[k]!];
+      }
+      // 60–110% of capacity → busy rosters, some overflow onto the waitlist.
+      const target = Math.min(
+        eligible.length,
+        Math.round(ws.capacity * (0.6 + Math.random() * 0.5)),
+      );
+      for (const personId of eligible.slice(0, target)) {
+        const r = await post(`workshop-sessions/${ws.sessionId}/enrollments/${personId}`);
+        if (!r.ok()) continue;
+        const body = (await r.json()) as { status?: string };
+        if (body.status === 'confirmed') confirmed++;
+        else waitlisted++;
+      }
+    }
+    // The three scripted people MUST attend — enroll each in the first workshop
+    // they don't teach (their own session 403s and is skipped).
+    for (const p of [david, robin, anthony].filter((x): x is Person => x !== null)) {
+      for (const ws of workshopSessions) {
+        const r = await post(`workshop-sessions/${ws.sessionId}/enrollments/${p.id}`);
+        if (r.ok()) {
+          console.log(`    ↳ ${p.givenName} ${p.familyName} enrolled in a workshop`);
+          break;
+        }
+      }
+    }
+    console.log(`  ✓ workshop enrollments: ${confirmed} confirmed, ${waitlisted} waitlisted`);
     return true;
   });
 
