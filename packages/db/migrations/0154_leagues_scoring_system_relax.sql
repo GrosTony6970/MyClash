@@ -1,0 +1,23 @@
+-- Migration 0154: relax the leagues.scoring_system CHECK.
+--
+-- Migration 0015 constrained the column to IN ('ffamhe_tf_2026', 'custom'), but
+-- that predates the registry: 0068 introduced arbitrary league_scoring_systems
+-- codes, and 0087 backfilled the column to 'code@version' form (e.g.
+-- 'ffamhe_tf_2026@1.0.0'). Both a non-legacy registry code and any '@version'
+-- suffix violate the original CHECK, so version-pinning could never land in the
+-- column and selecting a second scoring system would 400 on write.
+--
+-- Validity is enforced in the application instead: LeaguesService funnels every
+-- write through normalizeScoringConfig, and LeagueScoringService.resolveConfig
+-- looks the code up in the league_scoring_systems registry (an unknown code
+-- degrades to zero points, never a crash). This matches how the rest of the
+-- ruleset family already treats identifiers as free text — tournaments.
+-- ruleset_version and the penalty_ruleset_version columns carry no enum CHECK.
+--
+-- A foreign key to league_scoring_systems.code is NOT viable: 'custom' is not a
+-- registry row and 'code@version' is not a bare code, so the reference stays a
+-- soft, app-validated one. The column keeps its NOT NULL + DEFAULT 'ffamhe_tf_2026'.
+--
+-- No RLS change: this only drops a column constraint on an existing table.
+
+ALTER TABLE leagues DROP CONSTRAINT IF EXISTS leagues_scoring_system_check;
