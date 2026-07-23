@@ -248,11 +248,19 @@ export default function AdminRulesetsPage() {
                   </DataTableCell>
                   <DataTableCell>
                     <RulesetBadge
-                      variant={row.status === 'published' ? 'published' : 'draft'}
+                      variant={
+                        row.status === 'published'
+                          ? 'published'
+                          : row.status === 'archived'
+                            ? 'archived'
+                            : 'draft'
+                      }
                       label={
                         row.status === 'published'
                           ? t('admin.rulesets.shared.badges.published')
-                          : t('admin.rulesets.shared.badges.draft')
+                          : row.status === 'archived'
+                            ? t('admin.rulesets.shared.badges.archived')
+                            : t('admin.rulesets.shared.badges.draft')
                       }
                     />
                   </DataTableCell>

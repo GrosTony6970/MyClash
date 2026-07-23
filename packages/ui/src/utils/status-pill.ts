@@ -195,6 +195,7 @@ export type RulesetVariant =
   | 'default'
   | 'published'
   | 'draft'
+  | 'archived'
   | 'pendingReview';
 
 export function rulesetSemantic(variant: string): StatusSemantic {
@@ -203,6 +204,8 @@ export function rulesetSemantic(variant: string): StatusSemantic {
     case 'builtin':
     case 'default':
       return 'ready';
+    case 'archived':
+      return 'archived';
     case 'pendingReview':
       return 'paused';
     case 'draft':

@@ -32,6 +32,8 @@ interface PenaltyRulesetRow {
   /** R3: sharing-request lifecycle for org-submitted promotion requests. */
   public_visibility_request_status: 'pending' | 'approved' | 'rejected' | null;
   public_visibility_request_reason: string | null;
+  /** Soft-archive timestamp (mig 0153): set when delisted while still referenced. */
+  archived_at: string | null;
   updated_at: string;
 }
 
@@ -353,14 +355,22 @@ export default function AdminPenaltyRulesetsPage() {
                   </span>
                 </DataTableCell>
                 <DataTableCell>
-                  <RulesetBadge
-                    variant={row.built_in ? 'builtin' : 'custom'}
-                    label={
-                      row.built_in
-                        ? t('admin.rulesets.shared.badges.builtin')
-                        : t('admin.rulesets.shared.badges.custom')
-                    }
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RulesetBadge
+                      variant={row.built_in ? 'builtin' : 'custom'}
+                      label={
+                        row.built_in
+                          ? t('admin.rulesets.shared.badges.builtin')
+                          : t('admin.rulesets.shared.badges.custom')
+                      }
+                    />
+                    {row.archived_at && (
+                      <RulesetBadge
+                        variant="archived"
+                        label={t('admin.rulesets.shared.badges.archived')}
+                      />
+                    )}
+                  </div>
                 </DataTableCell>
                 <DataTableCell className="text-xs text-foreground-secondary">
                   {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}

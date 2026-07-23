@@ -9,6 +9,7 @@
  * Variants:
  *   - builtin / default / published → 'ready'  (the platform endorses it)
  *   - draft / custom                → 'pending' (still mutable)
+ *   - archived                      → 'archived' (delisted; stone/grey)
  *   - pendingReview                 → 'paused' (waiting on review;
  *                                     kept as an uppercase flag so it
  *                                     reads as urgent, not quiet)
@@ -22,6 +23,7 @@ export type RulesetBadgeVariant =
   | 'default'
   | 'published'
   | 'draft'
+  | 'archived'
   | 'pendingReview';
 
 const BASE_CLASS = 'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium';

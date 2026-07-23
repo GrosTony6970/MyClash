@@ -2540,6 +2540,7 @@ export const en = {
           default: '★ Default',
           published: 'Published',
           draft: 'Draft',
+          archived: 'Archived',
         },
         confirmDelete:
           'This removes the ruleset from your list. If a tournament still uses it, it is archived (kept for those results) instead of deleted. Continue?',
@@ -8747,6 +8748,7 @@ export const fr = {
           default: '★ Defaut',
           published: 'Publie',
           draft: 'Brouillon',
+          archived: 'Archive',
         },
         confirmDelete:
           'Cela retire le bareme de votre liste. Si un tournoi l’utilise encore, il est archive (conserve pour ces resultats) au lieu d’etre supprime. Continuer ?',

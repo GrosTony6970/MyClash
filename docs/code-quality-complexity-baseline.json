@@ -354,7 +354,7 @@
     "apps/web-admin/app/admin/rulesets/league/_components/VersionHistory.tsx:37",
     "apps/web-admin/app/admin/rulesets/penalty/[id]/edit/page.tsx:43",
     "apps/web-admin/app/admin/rulesets/penalty/new/page.tsx:25",
-    "apps/web-admin/app/admin/rulesets/penalty/page.tsx:40",
+    "apps/web-admin/app/admin/rulesets/penalty/page.tsx:42",
     "apps/web-admin/app/admin/rulesets/scoring/[id]/edit/page.tsx:68",
     "apps/web-admin/app/admin/rulesets/scoring/new/page.tsx:16",
     "apps/web-admin/app/admin/rulesets/scoring/page.tsx:40",
