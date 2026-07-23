@@ -135,9 +135,10 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
             <button
               type="button"
               onClick={() => setShowHealthy((v) => !v)}
+              aria-expanded={showHealthy}
               className="mt-2 flex w-full items-center gap-2 py-2 text-sm text-muted"
             >
-              <span className="h-2.5 w-2.5 rounded-full bg-success" />
+              <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-success" />
               {t('organizer.live.healthyFold', { count: healthy.length })}
               <span aria-hidden>{showHealthy ? '▾' : '▸'}</span>
             </button>
@@ -234,7 +235,7 @@ function BoardRowView({
           '—'
         )}
       </span>
-      <span className="w-20 shrink-0 text-right text-muted">
+      <span className="w-20 shrink-0 truncate text-right text-muted">
         {row.nextUp ? (
           <Link
             href={`/org/${slug}/events/${eventId}/schedule`}
