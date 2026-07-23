@@ -75,6 +75,32 @@ function makeFullChain(result: unknown) {
   return chain as unknown as Record<string, ReturnType<typeof vi.fn>>;
 }
 
+// The public read-paths now resolve a ruleset label (resolveRulesetLabel →
+// custom_rulesets) and disclose any mid-event re-pin (loadLatestRulesetRepin →
+// tournament_ruleset_repins) as order-independent SIDE lookups. Threading them
+// through each test's carefully-sequenced mockReturnValueOnce queue is brittle:
+// a single misaligned/overflowing query throws mid-test, and vi.clearAllMocks()
+// clears call history but NOT the pending once-queue, so the leftover chains
+// corrupt every downstream test. These tables carry no fixture in the read-path
+// tests, so we intercept them by NAME and answer "nothing custom" (→ built-in
+// label, no re-pin) while the real business queries drain from an ordered queue.
+const RULESET_RESOLUTION_TABLES = new Set([
+  'custom_rulesets',
+  'custom_ruleset_versions',
+  'penalty_rulesets',
+  'tournament_ruleset_repins',
+]);
+
+// A supabase.from() dispatcher: business queries come off `queue` in order
+// (preserving each test's sequenced returns), ruleset-resolution lookups are
+// answered by name so adding/removing a side-query never shifts the queue.
+function dispatchWithRulesetResolution(queue: unknown[]) {
+  return (table: string): unknown => {
+    if (RULESET_RESOLUTION_TABLES.has(table)) return makeFullChain({ data: null, error: null });
+    return queue.shift() ?? makeAwaitableChain({ data: [], error: null });
+  };
+}
+
 describe('EventsService', () => {
   let service: EventsService;
 
@@ -1613,7 +1639,7 @@ describe('EventsService', () => {
         },
         error: null,
       });
-      fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(tournamentChain);
+      fromMock.mockImplementation(dispatchWithRulesetResolution([eventChain, tournamentChain]));
 
       const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
 
@@ -1675,14 +1701,17 @@ describe('EventsService', () => {
       // Referees fetch fires only when there are pools — pools is empty so
       // referee_assignments shouldn't be queried at all in this test. We
       // assert that below.
-      fromMock
-        .mockReturnValueOnce(eventChain)
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(phasesChain)
-        .mockReturnValueOnce(participantCountChain)
-        .mockReturnValueOnce(waitlistCountChain)
-        .mockReturnValueOnce(completedMatchCountChain)
-        .mockReturnValueOnce(poolsChain);
+      fromMock.mockImplementation(
+        dispatchWithRulesetResolution([
+          eventChain,
+          tournamentChain,
+          phasesChain,
+          participantCountChain,
+          waitlistCountChain,
+          completedMatchCountChain,
+          poolsChain,
+        ]),
+      );
 
       const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
 
@@ -1745,16 +1774,19 @@ describe('EventsService', () => {
       const waitlistCountChain = makeAwaitableChain({ count: 0, error: null });
       const completedMatchCountChain = makeAwaitableChain({ count: 0, error: null });
 
-      fromMock
-        .mockReturnValueOnce(eventChain)
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(phasesChain)
-        .mockReturnValueOnce(participantCountChain)
-        .mockReturnValueOnce(waitlistCountChain)
-        .mockReturnValueOnce(completedMatchCountChain)
-        .mockReturnValueOnce(poolsChain)
-        .mockReturnValueOnce(refereesChain)
-        .mockReturnValueOnce(poolMatchesChain);
+      fromMock.mockImplementation(
+        dispatchWithRulesetResolution([
+          eventChain,
+          tournamentChain,
+          phasesChain,
+          participantCountChain,
+          waitlistCountChain,
+          completedMatchCountChain,
+          poolsChain,
+          refereesChain,
+          poolMatchesChain,
+        ]),
+      );
 
       await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
 
@@ -1877,19 +1909,22 @@ describe('EventsService', () => {
         error: null,
       });
 
-      fromMock
-        .mockReturnValueOnce(eventChain)
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(phasesChain)
-        .mockReturnValueOnce(participantCountChain)
-        .mockReturnValueOnce(waitlistCountChain)
-        .mockReturnValueOnce(completedMatchCountChain)
-        .mockReturnValueOnce(bracketSlotsChain)
-        .mockReturnValueOnce(bracketMatchesChain)
-        .mockReturnValueOnce(bracketRegsChain)
-        .mockReturnValueOnce(refereeAssignmentsChain)
-        .mockReturnValueOnce(globalPersonsChain)
-        .mockReturnValueOnce(refereeSkillsChain);
+      fromMock.mockImplementation(
+        dispatchWithRulesetResolution([
+          eventChain,
+          tournamentChain,
+          phasesChain,
+          participantCountChain,
+          waitlistCountChain,
+          completedMatchCountChain,
+          bracketSlotsChain,
+          bracketMatchesChain,
+          bracketRegsChain,
+          refereeAssignmentsChain,
+          globalPersonsChain,
+          refereeSkillsChain,
+        ]),
+      );
 
       const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
 
@@ -2250,12 +2285,15 @@ describe('EventsService', () => {
       const participantCountChain = makeAwaitableChain({ count: 23, error: null });
       // NEW — registrations COUNT for waitlistCount (status='waitlist').
       const waitlistCountChain = makeAwaitableChain({ count: 4, error: null });
-      fromMock
-        .mockReturnValueOnce(eventChain)
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(phasesChain)
-        .mockReturnValueOnce(participantCountChain)
-        .mockReturnValueOnce(waitlistCountChain);
+      fromMock.mockImplementation(
+        dispatchWithRulesetResolution([
+          eventChain,
+          tournamentChain,
+          phasesChain,
+          participantCountChain,
+          waitlistCountChain,
+        ]),
+      );
 
       const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
 
