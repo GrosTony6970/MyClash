@@ -27,6 +27,12 @@ import { runContext } from './_context';
  * E2E_PACE_MS (e.g. 550) to pace under the limit from a non-whitelisted IP. It
  * is gated off normal/CI runs.
  *
+ * Every completed match is driven through the match clock (start → adjust → end)
+ * so `matches.duration_active_ms` gets a realistic random 5–10 min active time —
+ * that is the single field every referee time stat reads ("Average/Total time
+ * refereed" on /me/profile?tab=referee, admin "Avg time"). The status PATCH never
+ * writes it, so without this those tiles read None/—. No real wall-clock wait.
+ *
  * Set E2E_LIVE_SIDESWORD=1 to leave the Sidesword bracket AT the semi-finals and
  * run ONE semifinal LIVE (real wall-clock time) as the final step — so the public
  * event-home "Live now" section can be watched climbing. Longsword still plays to
@@ -784,6 +790,27 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // and the bracket programme block below so they agree.
   const bracketStartHour = (name: string) => (name.startsWith('Longsword') ? '09' : '13');
 
+  // ── Match clock: give every completed match a realistic ACTIVE duration so the
+  //    referee time stats populate. Referee "Average/Total time" reads exactly one
+  //    field — matches.duration_active_ms — which ONLY the clock's `end` action
+  //    writes; the status PATCH never does. `adjust_time` folds a client value
+  //    straight into activeMs and `end` materialises it, so start → adjust(5–10 min)
+  //    → end sets a real duration with no wall-clock wait. clockEnd is best-effort:
+  //    an auto-completed match (double-out / forfeit) may have ended its clock via
+  //    the scoring service already, making a second `end` a harmless no-op.
+  const clockStart = (mid: string) => post(`matches/${mid}/clock`, { data: { action: 'start' } });
+  const clockAdjust = (mid: string, ms: number) =>
+    post(`matches/${mid}/clock/adjust`, { data: { adjustmentMs: ms } });
+  const clockEnd = async (mid: string): Promise<void> => {
+    try {
+      await post(`matches/${mid}/clock`, { data: { action: 'end' } });
+    } catch {
+      // best-effort — the match may have auto-ended its clock already
+    }
+  };
+  // Refereeing time per match: a random 5–10 minutes (never a fixed value).
+  const matchDurationMs = () => 300_000 + Math.floor(Math.random() * 300_001); // 5..10 min
+
   const blackCarded = new Set<string>(); // registrations already black-carded (avoid 2nd → DQ)
   // A couple of pool matches end in a "double out": posting DOUBLE_CAP doubles
   // auto-completes the match as a 0–0 double loss (both fighters lose,
@@ -812,7 +839,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         : null;
     if (scriptedSide) {
       matchBaseMs = baseMsOf(m.id, WS_DAYS[0]!, '09:00', idx * 90_000);
-      await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
+      await clockStart(m.id);
+      await clockAdjust(m.id, matchDurationMs());
       const wColor = scriptedSide;
       const lColor = scriptedSide === 'red' ? 'blue' : 'red';
       const wReg = scriptedSide === 'red' ? red : blue;
@@ -846,13 +874,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       await patch(`matches/${m.id}/status`, {
         data: { status: 'completed', winnerRegistrationId: wReg },
       });
+      await clockEnd(m.id);
       played++;
       return;
     }
 
     // Pools were scheduled on day 1 → use their real scheduled_at as the clock base.
     matchBaseMs = baseMsOf(m.id, WS_DAYS[0]!, '09:00', idx * 90_000);
-    await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
+    await clockStart(m.id);
+    await clockAdjust(m.id, matchDurationMs());
 
     if (allowDoubleOut && doubleOutMatchIds.has(m.id)) {
       let dclock = 10_000;
@@ -861,6 +891,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         dclock += 20_000;
         exchangesPosted++;
       }
+      await clockEnd(m.id);
       doubleOuts++;
       played++;
       return; // the 4th double auto-completed the match as a 0–0 double loss
@@ -959,6 +990,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     if (idx % 41 === 0 && blackEntries.length && !blackCarded.has(loserReg)) {
       blackCarded.add(loserReg);
       await card(loserReg, pickEntry(blackEntries));
+      await clockEnd(m.id);
       played++;
       return; // forfeit auto-completed the match (winner = opponent)
     }
@@ -974,6 +1006,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     await patch(`matches/${m.id}/status`, {
       data: { status: 'completed', winnerRegistrationId: winnerReg },
     });
+    await clockEnd(m.id);
     played++;
   };
 
@@ -1136,7 +1169,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const red = s.redRegistrationId!;
     const blue = s.blueRegistrationId!;
     matchBaseMs = baseMs; // brackets are scheduled only after play → computed day-2 slot
-    await patch(`matches/${mid}/status`, { data: { status: 'running' } });
+    await clockStart(mid);
+    await clockAdjust(mid, matchDurationMs());
 
     const winnerColor: 'red' | 'blue' =
       forcedWinnerReg === red
@@ -1235,6 +1269,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     await patch(`matches/${mid}/status`, {
       data: { status: 'completed', winnerRegistrationId: winnerReg },
     });
+    await clockEnd(mid);
     return { winnerName };
   };
 
@@ -1349,7 +1384,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       const redName = sf.redFighterName ?? 'RED';
       const blueName = sf.blueFighterName ?? 'BLUE';
       matchBaseMs = Date.now(); // anchor occurred_at to NOW so it reads as live
-      await reqOk(await patch(`matches/${mid}/status`, { data: { status: 'running' } }));
+      // Start the clock (not just status): its live-ticking clock reads as a real
+      // in-progress bout. No adjust/end — it stays running, so duration_active_ms
+      // correctly remains null until the match actually ends.
+      await reqOk(await clockStart(mid));
       console.log(
         `    ● ${name} semifinal is now LIVE: ${redName} vs ${blueName} (match ${mid.slice(0, 8)})`,
       );

@@ -78,6 +78,13 @@ end prints links to the tournament / schedule / referees / workshops tabs.
 It **scores matches**, so the event can no longer be hard-deleted (by the
 recorded-results guard) — keep it for inspection or recreate the env.
 
+Every completed match is driven through the match clock (`start → adjust → end`),
+giving `matches.duration_active_ms` a realistic **random 5–10 min** active time —
+the one field every referee time stat reads. Without it, "Average/Total time
+refereed" (`/me/profile?tab=referee`) and the admin referee-workload "Avg time"
+column render _None/—_. It costs ~2 extra API calls per match and adds no real
+wall-clock time.
+
 ### Watch the "Live now" section update in real time
 
 `E2E_LIVE_SIDESWORD=1` (with `E2E_POPULATE=1`) leaves the **Sidesword** bracket at
