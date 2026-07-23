@@ -35,6 +35,20 @@ describe('computeHeartbeatMetrics', () => {
     expect(m.oldestPendingAgeSec).toBe(40);
   });
 
+  it('uses the oldest entry regardless of array order (oldest first)', () => {
+    const m = computeHeartbeatMetrics(
+      [entry({ createdAt: NOW - 40_000 }), entry({ createdAt: NOW - 5_000 })],
+      NOW,
+    );
+    // Oldest is now the FIRST element — a last-element bug would report 5, not 40.
+    expect(m.oldestPendingAgeSec).toBe(40);
+  });
+
+  it('never reports a negative age when an entry timestamp is in the future', () => {
+    const m = computeHeartbeatMetrics([entry({ createdAt: NOW + 5_000 })], NOW);
+    expect(m.oldestPendingAgeSec).toBe(0);
+  });
+
   it(`counts entries stuck at >= ${STUCK_ATTEMPTS} attempts as rejected`, () => {
     const m = computeHeartbeatMetrics(
       [
