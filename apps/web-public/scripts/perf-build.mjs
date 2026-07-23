@@ -20,11 +20,24 @@ rmSync(new URL('../.next/', import.meta.url), {
   force: true,
 });
 
+// The next.config production guard requires these NEXT_PUBLIC_* vars, but the
+// perf build uses mocked data and never reaches real services — fill obvious
+// placeholders when absent locally; CI's real values take precedence.
+const PERF_BUILD_ENV = {
+  NEXT_PUBLIC_API_URL: 'http://localhost:4000',
+  NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:54321',
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: 'perf-build-placeholder-anon-key',
+};
+const placeholders = Object.fromEntries(
+  Object.entries(PERF_BUILD_ENV).filter(([key]) => !process.env[key]),
+);
+
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const result = spawnSync(pnpm, ['run', 'build'], {
   cwd: appDir,
   env: {
     ...process.env,
+    ...placeholders,
     MYCLASH_NEXT_OUTPUT: 'default',
   },
   shell: process.platform === 'win32',
