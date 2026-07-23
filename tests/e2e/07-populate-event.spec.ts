@@ -26,8 +26,23 @@ import { runContext } from './_context';
  * skip it. By default this runs UNPACED (fast) assuming a whitelisted IP — set
  * E2E_PACE_MS (e.g. 550) to pace under the limit from a non-whitelisted IP. It
  * is gated off normal/CI runs.
+ *
+ * Set E2E_LIVE_SIDESWORD=1 to leave the Sidesword bracket AT the semi-finals and
+ * run ONE semifinal LIVE (real wall-clock time) as the final step — so the public
+ * event-home "Live now" section can be watched climbing. Longsword still plays to
+ * a champion. E2E_LIVE_DURATION_S (default 240) tunes how long it climbs before it
+ * is left running.
  */
 const POPULATE = ['1', 'true', 'yes'].includes((process.env.E2E_POPULATE ?? '').toLowerCase());
+// Live demo mode: leave the Sidesword bracket AT the semi-finals and run ONE
+// semifinal in real wall-clock time (a clean hit every ~6–22s), then leave it
+// RUNNING — so the public event-home "Live now" section can be watched climbing
+// via realtime. Longsword still plays through to a champion (the "finished"
+// reference). Duration/score bounds are configurable; it stays live at the end.
+const LIVE_SIDESWORD = ['1', 'true', 'yes'].includes(
+  (process.env.E2E_LIVE_SIDESWORD ?? '').toLowerCase(),
+);
+const LIVE_DURATION_S = Number(process.env.E2E_LIVE_DURATION_S ?? '240') || 240;
 const SKILLS = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
 const COLORS = ['red', 'blue', 'green', 'amber', 'violet', 'teal', 'orange', 'gold'];
 const WS_LEVELS = ['all', 'beginner', 'intermediate', 'advanced'];
@@ -1223,17 +1238,26 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     return { winnerName };
   };
 
-  const playBracket = async (tid: string, name: string): Promise<number> => {
+  const playBracket = async (
+    tid: string,
+    name: string,
+    opts: { stopBeforeSemis?: boolean } = {},
+  ): Promise<number> => {
     // Bracket is already populated + scheduled (above) — play it straight through.
     let bracket = await readBracket(tid);
     const finalRound = Math.max(...bracket.slots.map((s) => s.round));
     const rounds = [...new Set(bracket.slots.map((s) => s.round))]
       .filter((r) => r >= 1)
       .sort((a, b) => a - b);
+    // Live mode stops before the semi-finals. Final + bronze share the last round
+    // (positions 1 & 2), so the semis are finalRound-1; playing up to there leaves
+    // the semis/final/bronze for liveRunSemifinal to drive one semi live.
+    const semifinalRound = opts.stopBeforeSemis ? finalRound - 1 : null;
     let played = 0;
     let champion: string | null = null;
 
     for (const round of rounds) {
+      if (semifinalRound !== null && round >= semifinalRound) break;
       bracket = await readBracket(tid); // pick up winners auto-advanced from prior round
       const slots = bracket.slots
         .filter((s) => s.round === round)
@@ -1295,6 +1319,75 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     return played;
   };
 
+  // ── Live semifinal: set one semifinal RUNNING and post its exchanges in REAL
+  //    wall-clock time (a clean hit every gapMs), then leave it running so the
+  //    public "Live now" card can be watched climbing via realtime. Occurred_at is
+  //    anchored to NOW (not a scheduled slot) so it reads as happening live. ──────
+  const liveRunSemifinal = async (tid: string, name: string): Promise<void> => {
+    await step(`${name}: LIVE semifinal (~${LIVE_DURATION_S}s, then left running)`, async () => {
+      // Poll the first semifinal slot until the quarter-final winners have
+      // advanced into it (auto-advance is fire-and-forget).
+      let bracket = await readBracket(tid);
+      const semifinalRound = Math.max(...bracket.slots.map((s) => s.round)) - 1;
+      const findSf = (b: typeof bracket) =>
+        b.slots.find((s) => s.round === semifinalRound && s.position === 1) ?? null;
+      let sf = findSf(bracket);
+      for (
+        let tries = 0;
+        tries < 30 && (!sf || !sf.matchId || !sf.redRegistrationId || !sf.blueRegistrationId);
+        tries++
+      ) {
+        await new Promise((r) => setTimeout(r, 500));
+        bracket = await readBracket(tid);
+        sf = findSf(bracket) ?? sf;
+      }
+      if (!sf || !sf.matchId || !sf.redRegistrationId || !sf.blueRegistrationId) {
+        throw new Error('semifinal not populated (quarter-finals may not have advanced)');
+      }
+
+      const mid = sf.matchId;
+      const redName = sf.redFighterName ?? 'RED';
+      const blueName = sf.blueFighterName ?? 'BLUE';
+      matchBaseMs = Date.now(); // anchor occurred_at to NOW so it reads as live
+      await reqOk(await patch(`matches/${mid}/status`, { data: { status: 'running' } }));
+      console.log(
+        `    ● ${name} semifinal is now LIVE: ${redName} vs ${blueName} (match ${mid.slice(0, 8)})`,
+      );
+
+      // Post clean hits with REAL delays until the duration elapses (or a safety
+      // score cap), then STOP posting but leave the match running.
+      const startedAt = Date.now();
+      let seq = 1;
+      let clock = 3_000;
+      let rp = 0;
+      let bp = 0;
+      while (Date.now() - startedAt < LIVE_DURATION_S * 1_000 && Math.max(rp, bp) < 20) {
+        const wait = gapMs(); // 6..22s between actions, like a real bout
+        await new Promise((r) => setTimeout(r, wait));
+        clock += wait;
+        const color: 'red' | 'blue' = Math.random() < 0.5 ? 'red' : 'blue';
+        const value = Math.random() < 0.3 ? 2 : 1;
+        await exchange(mid, {
+          sequence: seq++,
+          type: 'clean',
+          firstStrikerColor: color,
+          firstStrikeValue: value,
+          clockTimeMs: clock,
+        });
+        if (color === 'red') rp += value;
+        else bp += value;
+        exchangesPosted++;
+        console.log(
+          `      ${new Date().toLocaleTimeString()}  ${redName} ${rp} – ${bp} ${blueName}`,
+        );
+      }
+      console.log(
+        `  ✓ ${name}: semifinal LEFT RUNNING at ${rp}–${bp} — it stays live for spectators`,
+      );
+      return true;
+    });
+  };
+
   // ── Populate each bracket from the pool results (seeds R1 into pre-created rows) ─
   for (const t of [long, side].filter((x) => x.id)) {
     const name = t === long ? 'Longsword Open' : 'Sidesword Open';
@@ -1354,7 +1447,11 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // ── Play each bracket down to a champion (occurred_at = real scheduled_at + clock) ─
   for (const t of [long, side].filter((x) => x.id)) {
     const name = t === long ? 'Longsword Open' : 'Sidesword Open';
-    bracketPlayed += await playBracket(t.id, name);
+    // In live mode, stop the Sidesword bracket at the semis; liveRunSemifinal
+    // (after publish) drives one semifinal in real time. Longsword plays through.
+    bracketPlayed += await playBracket(t.id, name, {
+      stopBeforeSemis: LIVE_SIDESWORD && t === side,
+    });
   }
   console.log(
     `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
@@ -1476,6 +1573,16 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     );
   }
   await step('publish event', async () => reqOk(await post(`events/${eventId}/publish`)));
+
+  // ── Live semifinal LAST: the event + tournaments are now published, so the
+  //    public event-home can be watched as this Sidesword semifinal climbs. ───────
+  if (LIVE_SIDESWORD && side.id) {
+    console.log(
+      `\n[e2e] ▶ watch it live on your PUBLIC app: /e/${eventSlugSet ?? '<slug>'}/home` +
+        ` (and /e/${eventSlugSet ?? '<slug>'}/live)\n`,
+    );
+    await liveRunSemifinal(side.id, 'Sidesword Open');
+  }
 
   console.log(
     `\n[e2e] populated demo data — inspect it:\n` +

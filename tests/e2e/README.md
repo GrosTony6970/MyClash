@@ -78,6 +78,20 @@ end prints links to the tournament / schedule / referees / workshops tabs.
 It **scores matches**, so the event can no longer be hard-deleted (by the
 recorded-results guard) — keep it for inspection or recreate the env.
 
+### Watch the "Live now" section update in real time
+
+`E2E_LIVE_SIDESWORD=1` (with `E2E_POPULATE=1`) leaves the **Sidesword** bracket at
+the semi-finals and, as the last step, runs **one semifinal live** — posting a
+clean hit every ~6–22s in real wall-clock time and then leaving the match
+**running**. With the event published, open the public `/e/<slug>/home` (or
+`/e/<slug>/live`) and watch the "Live now" card climb. Longsword still plays
+through to a champion (the finished reference). `E2E_LIVE_DURATION_S` (default
+`240`) tunes how long it climbs.
+
+```bash
+E2E_POPULATE=1 E2E_LIVE_SIDESWORD=1 pnpm test:e2e:prod tests/e2e/07-*.spec.ts
+```
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
