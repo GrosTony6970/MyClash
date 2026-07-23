@@ -516,6 +516,23 @@ export class WorkshopsController {
     await this.enrollment.cancel(id, personId);
   }
 
+  @Post('workshop-sessions/:id/enrollments/:personId')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Enroll a specified person into a session — organizer adds an attendee (workshop_lead+). Waitlisted if full.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async enrollPerson(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.workshops.authorizeSession(id, await getUserId(req, this.supabase));
+    return this.enrollment.enroll(id, personId);
+  }
+
   @Post('workshop-sessions/:id/promote/:userId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Promote waitlisted person to confirmed (workshop_lead+)' })
