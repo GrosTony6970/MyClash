@@ -54,6 +54,7 @@ export const en = {
       },
       liveNow: 'Live now',
       scheduleHighlights: 'Schedule highlights',
+      viewLiveBoard: 'View full live board',
       eventHero: 'Event hero',
       matchVersus: '{red} vs {blue}',
       participants: {
@@ -6273,6 +6274,7 @@ export const fr = {
       },
       liveNow: 'En direct',
       scheduleHighlights: 'Temps forts du programme',
+      viewLiveBoard: 'Voir le tableau en direct',
       eventHero: "Bannière de l'événement",
       matchVersus: '{red} vs {blue}',
       participants: {

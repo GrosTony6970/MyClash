@@ -17,6 +17,7 @@ import { EventBackLink } from './_components/EventBackLink';
 import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
 import { TournamentCard } from './_components/TournamentCard';
 import { WorkshopCard } from './_components/WorkshopCard';
+import { LiveNowSection } from './_components/LiveNowSection';
 import {
   fetchHighlights,
   fetchParticipantsCounts,
@@ -55,8 +56,6 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
 
   const tz = event?.timezone ?? 'Europe/Paris';
   const isCompleted = event?.status === 'completed';
-  const live = highlights.filter((m) => m.status === 'running');
-  const upcoming = highlights.filter((m) => m.status === 'scheduled').slice(0, 5);
 
   // Schedule summary times: tournament side = first pool (earliest scheduled
   // match across tournaments); workshop side = the session window (earliest
@@ -93,7 +92,7 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
         <EventBackLink />
       )}
 
-      {event && <EventHeader event={event} locale={locale} />}
+      {event && <EventHeader event={event} locale={locale} eventSlug={eventSlug} />}
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
@@ -309,85 +308,14 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
         </section>
       )}
 
-      {!isCompleted && live.length > 0 && (
-        <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-success">
-            <span className="inline-block h-2 w-2 rounded-full bg-success motion-safe:animate-pulse" />
-            {tr('publicApp.eventHome.liveNow')}
-          </h2>
-          <div className="flex flex-col gap-3">
-            {live.map((m) => (
-              <Link
-                key={m.id}
-                href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-success/40 bg-surface p-4 shadow-sm transition-colors hover:border-success focus:outline-none focus:ring-2 focus:ring-accent/40"
-              >
-                <p className="mb-2 text-xs text-muted">
-                  {m.tournamentName} · {m.matchNumberLabel}
-                  {m.liceName && ` · ${m.liceName}`}
-                </p>
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-foreground">{m.redFighterName ?? '?'}</p>
-                  <p className="text-2xl font-black tabular-nums text-foreground">
-                    <span className={m.redScore > m.blueScore ? 'text-success' : undefined}>
-                      {m.redScore}
-                    </span>
-                    <span className="mx-1.5 text-muted">–</span>
-                    <span className={m.blueScore > m.redScore ? 'text-success' : undefined}>
-                      {m.blueScore}
-                    </span>
-                  </p>
-                  <p className="font-bold text-foreground">{m.blueFighterName ?? '?'}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!isCompleted && upcoming.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-            {tr('publicApp.eventHome.scheduleHighlights')}
-          </h2>
-          <div className="flex flex-col gap-2">
-            {upcoming.map((m) => (
-              <Link
-                key={m.id}
-                href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-border bg-surface px-4 py-3 shadow-sm transition-colors hover:border-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {tr('publicApp.eventHome.matchVersus', {
-                        red: m.redFighterName ?? '?',
-                        blue: m.blueFighterName ?? '?',
-                      })}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {m.tournamentName} · {m.matchNumberLabel}
-                    </p>
-                  </div>
-                  {m.scheduledAt && (
-                    <span className="rounded-md bg-border px-2 py-1 font-mono text-xs text-foreground-secondary">
-                      {formatInZone(
-                        m.scheduledAt,
-                        tz,
-                        {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        },
-                        tag,
-                      )}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
+      {!isCompleted && (
+        <LiveNowSection
+          eventSlug={eventSlug}
+          initialHighlights={highlights}
+          workshops={workshops}
+          tz={tz}
+          nowIso={new Date().toISOString()}
+        />
       )}
 
       {isCompleted && (

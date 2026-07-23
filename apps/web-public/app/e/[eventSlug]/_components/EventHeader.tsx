@@ -9,6 +9,7 @@
  * Presentational + a colocated `fetchEventInfo` loader. No hooks, so it renders
  * in both server (PublicHome) and client (workshop detail) components.
  */
+import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
@@ -94,7 +95,16 @@ export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise
   }
 }
 
-export function EventHeader({ event, locale }: { event: EventInfo; locale: Locale }) {
+export function EventHeader({
+  event,
+  locale,
+  eventSlug,
+}: {
+  event: EventInfo;
+  locale: Locale;
+  /** When set and the event is running, the "Live now" pill links to the live board. */
+  eventSlug?: string;
+}) {
   // Pure translator from the passed locale — EventHeader renders in both server
   // (event pages) and client (workshop detail) contexts, so it can use neither
   // the async server `t` nor the useI18n() hook.
@@ -135,12 +145,22 @@ export function EventHeader({ event, locale }: { event: EventInfo; locale: Local
               {formatDateRange(event.startDate, event.endDate, locale)}
             </p>
 
-            {event.status === 'running' && (
-              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-success/60 bg-success/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
-                {t('publicApp.eventHome.liveNow')}
-              </span>
-            )}
+            {event.status === 'running' &&
+              (eventSlug ? (
+                <Link
+                  href={`/e/${eventSlug}/live`}
+                  aria-label={t('publicApp.eventHome.viewLiveBoard')}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-success/60 bg-success/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-success transition-colors hover:bg-success/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-success/40"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
+                  {t('publicApp.eventHome.liveNow')}
+                </Link>
+              ) : (
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-success/60 bg-success/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-success">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
+                  {t('publicApp.eventHome.liveNow')}
+                </span>
+              ))}
 
             {event.publicLandingMd && (
               <div className="prose prose-sm mt-4 max-w-none whitespace-pre-line text-sm leading-relaxed text-foreground-secondary">

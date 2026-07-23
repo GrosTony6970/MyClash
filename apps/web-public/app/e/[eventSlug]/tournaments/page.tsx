@@ -37,7 +37,7 @@ export default async function TournamentsListPage({ params }: Props) {
         label={tr('publicApp.eventHome.backToHome')}
         className="mb-1"
       />
-      {event && <EventHeader event={event} locale={locale} />}
+      {event && <EventHeader event={event} locale={locale} eventSlug={eventSlug} />}
       <section>
         <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.section.tournaments')}

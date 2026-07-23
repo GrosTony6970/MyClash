@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { EventBackLink } from './_components/EventBackLink';
+import { LiveMatchCard } from './_components/LiveMatchCard';
 import { getServerApiUrl } from '@/lib/api-url';
 import { resolveServerLocale } from '@/i18n/server-locale';
 
@@ -105,29 +106,7 @@ export async function AccompanistHome({ eventSlug }: Props) {
           </h2>
           <div className="flex flex-col gap-3">
             {live.map((m) => (
-              <Link
-                key={m.id}
-                href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-success/40 bg-surface p-4 transition-colors hover:border-success focus:outline-none focus:ring-2 focus:ring-accent/40"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs text-muted">{m.matchNumberLabel}</p>
-                  {m.liceName && <p className="text-xs text-muted">{m.liceName}</p>}
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-foreground">{m.redFighterName ?? '?'}</p>
-                  <p className="text-2xl font-black tabular-nums text-foreground">
-                    <span className={m.redScore > m.blueScore ? 'text-success' : undefined}>
-                      {m.redScore}
-                    </span>
-                    <span className="mx-1.5 text-muted">–</span>
-                    <span className={m.blueScore > m.redScore ? 'text-success' : undefined}>
-                      {m.blueScore}
-                    </span>
-                  </p>
-                  <p className="font-bold text-foreground">{m.blueFighterName ?? '?'}</p>
-                </div>
-              </Link>
+              <LiveMatchCard key={m.id} match={m} href={`/e/${eventSlug}/match/${m.id}`} />
             ))}
           </div>
         </section>
