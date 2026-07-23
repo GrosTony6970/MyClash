@@ -141,16 +141,27 @@ function BoardRowView({
       >
         {row.lice.name}
       </Link>
-      <span className="flex-1 truncate text-foreground">
-        {cm
-          ? `${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`
-          : t('organizer.live.idle')}
-      </span>
+      {cm ? (
+        <Link
+          href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}
+          className="flex-1 truncate text-foreground hover:underline"
+        >
+          {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
+        </Link>
+      ) : (
+        <span className="flex-1 truncate text-muted">{t('organizer.live.idle')}</span>
+      )}
       <span className="w-24 shrink-0 text-muted">
         {cm ? `${cm.round ? `R${cm.round} · ` : ''}${cm.status}` : ''}
       </span>
-      <span className="w-28 shrink-0 text-muted">
-        {row.scorer ? row.scorer.name : t('organizer.live.noScorer')}
+      <span className="w-28 shrink-0 truncate text-muted">
+        {row.scorer ? (
+          <Link href={`/org/${slug}/events/${eventId}/staff`} className="hover:underline">
+            {row.scorer.name}
+          </Link>
+        ) : (
+          t('organizer.live.noScorer')
+        )}
       </span>
       <span className="w-24 shrink-0 text-muted">
         {row.health === null
@@ -170,6 +181,19 @@ function BoardRowView({
           >
             {t(`organizer.live.reason.${row.attention.reason}`)} · {t('organizer.live.ack')}
           </button>
+        ) : (
+          '—'
+        )}
+      </span>
+      <span className="w-20 shrink-0 text-right text-muted">
+        {row.nextUp ? (
+          <Link
+            href={`/org/${slug}/events/${eventId}/schedule`}
+            className="hover:underline"
+            title={t('organizer.live.nextLabel')}
+          >
+            {row.nextUp.label}
+          </Link>
         ) : (
           '—'
         )}
