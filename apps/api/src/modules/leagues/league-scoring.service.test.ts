@@ -255,4 +255,53 @@ describe('LeagueScoringService', () => {
       ]),
     ).toThrow('Unlinked Fighter');
   });
+
+  describe('medal derivation from resultKind', () => {
+    const input = (
+      fighterId: string,
+      finalRank: number,
+      resultKind: TournamentContributionInput['resultKind'],
+    ): TournamentContributionInput => ({
+      leagueId: 'league-1',
+      tournamentId: 'tournament-1',
+      eventId: 'event-1',
+      fighterId,
+      fighterName: fighterId,
+      clubName: null,
+      clubCity: null,
+      weapon: 'Longsword',
+      groupName: 'Open',
+      finalRank,
+      resultKind,
+      doubleHits: 0,
+    });
+
+    it('maps bracket result kinds to the real podium', () => {
+      const rows = service.toTournamentContributions(baseConfig, [
+        input('champ', 1, 'champion'),
+        input('runner', 2, 'runnerUp'),
+        input('bronze', 3, 'third'),
+        input('fourth', 4, 'fourth'),
+      ]);
+      expect(rows.map((r) => r.medal)).toEqual(['gold', 'silver', 'bronze', null]);
+    });
+
+    it('gives NO medal to a 3rd place with no bronze match (resultKind round)', () => {
+      // A semi-final loser ranked 3rd WITHOUT a playoff is 'round', not 'third'
+      // — awarding bronze here was the old bug.
+      const [row] = service.toTournamentContributions(baseConfig, [input('sf-loser', 3, 'round')]);
+      expect(row?.medal).toBeNull();
+    });
+
+    it('falls back to place 1/2/3 for pool-only and legacy rank-only inputs', () => {
+      const pool = service.toTournamentContributions(baseConfig, [
+        input('p1', 1, 'pool'),
+        input('p3', 3, 'pool'),
+      ]);
+      expect(pool.map((r) => r.medal)).toEqual(['gold', 'bronze']);
+      // resultKind omitted entirely (legacy contribution) → rank-based medal.
+      const [legacy] = service.toTournamentContributions(baseConfig, [input('l2', 2, undefined)]);
+      expect(legacy?.medal).toBe('silver');
+    });
+  });
 });

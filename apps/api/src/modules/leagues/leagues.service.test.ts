@@ -1387,3 +1387,90 @@ describe('LeaguesService.removeUserRole lockout guards', () => {
     expect(chains.get('league_user_roles')?.delete).toHaveBeenCalled();
   });
 });
+
+describe('LeaguesService placement-driven contributions', () => {
+  const config = {
+    scoringSystem: 'ffamhe_tf_2026',
+    rankingDimensions: 'weapon',
+    tieBreakers: ['total_points'],
+  };
+
+  it('maps each registration to its authoritative placement and skips unplaced ones', () => {
+    const service = new LeaguesService({} as never, {} as never, {} as never);
+    const tournament = { id: 't1', event_id: 'e1', weapon: 'Longsword' };
+    const registrations = [
+      { id: 'reg-a', persons: { global_person_id: 'gp-a', given_name: 'Ann', family_name: 'A' } },
+      { id: 'reg-b', persons: { global_person_id: 'gp-b', given_name: 'Bob', family_name: 'B' } },
+      { id: 'reg-c', persons: { global_person_id: 'gp-c', given_name: 'Cy', family_name: 'C' } },
+    ];
+    const placements = {
+      byRegistrationId: new Map<string, { place: number; resultKind: string }>([
+        ['reg-a', { place: 1, resultKind: 'champion' }],
+        ['reg-b', { place: 2, resultKind: 'runnerUp' }],
+        // reg-c has NO placement → must be skipped.
+      ]),
+    };
+    const doubleHits = new Map([['reg-a', 2]]);
+
+    const inputs = (
+      service as unknown as {
+        toContributionInputs: (
+          leagueId: string,
+          tournament: unknown,
+          groupName: string | null,
+          registrations: unknown[],
+          doubleHits: Map<string, number>,
+          placements: unknown,
+        ) => Array<Record<string, unknown>>;
+      }
+    ).toContributionInputs('L1', tournament, 'Open', registrations, doubleHits, placements);
+
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toMatchObject({
+      fighterId: 'gp-a',
+      fighterName: 'Ann A',
+      finalRank: 1,
+      resultKind: 'champion',
+      weapon: 'Longsword',
+      groupName: 'Open',
+      doubleHits: 2,
+    });
+    expect(inputs[1]).toMatchObject({ fighterId: 'gp-b', finalRank: 2, resultKind: 'runnerUp' });
+    expect(inputs.map((i) => i['fighterId'])).not.toContain('gp-c');
+  });
+
+  it('contributes nothing while the tournament is undecided (scoring engine untouched)', async () => {
+    const tournamentsChain = chain({
+      data: {
+        id: 't1',
+        event_id: 'e1',
+        weapon: 'Longsword',
+        events: { organization_id: 'org-1', is_test_event: false },
+      },
+      error: null,
+    });
+    const supabase = { service: { from: vi.fn(() => tournamentsChain) } };
+    const placement = {
+      getTournamentPlacements: vi
+        .fn()
+        .mockResolvedValue({ decided: false, byRegistrationId: new Map(), ordered: [] }),
+    };
+    const scoring = { toTournamentContributions: vi.fn() };
+    const service = new LeaguesService(
+      supabase as never,
+      {} as never,
+      scoring as never,
+      placement as never,
+    );
+
+    const result = await (
+      service as unknown as {
+        computeTournamentContributions: (l: string, t: string, c: unknown) => Promise<unknown[]>;
+      }
+    ).computeTournamentContributions('L1', 't1', config);
+
+    expect(result).toEqual([]);
+    expect(placement.getTournamentPlacements).toHaveBeenCalledWith('t1');
+    expect(scoring.toTournamentContributions).not.toHaveBeenCalled();
+  });
+});

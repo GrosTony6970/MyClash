@@ -15,6 +15,9 @@ import {
   type TournamentContributionInput,
 } from './league.types';
 import { LeagueScoringService } from './league-scoring.service';
+// Value import (NOT `import type`) — DI-injected, so the runtime needs the
+// class metadata preserved.
+import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
 import type {
   AddLeagueOrganizationRoleDto,
   AddLeagueUserRoleDto,
@@ -40,6 +43,10 @@ export class LeaguesService {
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
     private readonly scoring: LeagueScoringService,
+    // Optional so existing unit tests that construct LeaguesService with three
+    // args (none of which exercise recompute) keep working; provided by
+    // LeaguesModule in production. Recompute contributes nothing without it.
+    private readonly placement?: TournamentPlacementService,
   ) {}
 
   async listPublic(seasonYear?: number) {
@@ -1411,6 +1418,16 @@ export class LeaguesService {
     // tournament — so a recompute (incl. the one triggered when an event is
     // flagged test) is self-healing and league_tournament_results stays clean.
     if (tournament['is_test_event'] === true) return [];
+    // No placement service wired (only in some unit constructions) → nothing to
+    // score. Production always injects it.
+    if (!this.placement) return [];
+    // Resolve the authoritative placement FIRST. Not decided yet (bracket final
+    // unsettled, or a pool-only tournament still in play) → contribute nothing,
+    // and skip the identity/match/exchange reads entirely. Like a test event,
+    // this self-heals: rows are deleted until the tournament decides, so league
+    // points never reflect a mid-play snapshot.
+    const placements = await this.placement.getTournamentPlacements(tournamentId);
+    if (!placements.decided) return [];
     const [registrations, matches, groupName] = await Promise.all([
       this.listRegistrationsWithIdentity(tournamentId),
       this.listMatchesForTournament(tournamentId),
@@ -1420,15 +1437,64 @@ export class LeaguesService {
     const exchanges =
       matchIds.length === 0 ? [] : await this.listRowsIn('exchanges', 'match_id', matchIds);
     const doubleHits = this.doubleHitsByRegistration(matches, exchanges);
-    const rankedInputs = this.rankTournament(
+    const inputs = this.toContributionInputs(
       leagueId,
       tournament,
       groupName,
       registrations,
-      matches,
       doubleHits,
+      placements,
     );
-    return this.scoring.toTournamentContributions(config, rankedInputs);
+    return this.scoring.toTournamentContributions(config, inputs);
+  }
+
+  /**
+   * Build one league contribution per registration from the authoritative
+   * tournament placement (the SAME `computeFinalRanking` the public tournament
+   * page and fighter profiles use). `finalRank` + `resultKind` come from the
+   * shared placement; identity (global_person_id) + double-hits stay sourced
+   * here. Registrations with no placement (didn't compete / not in the ranked
+   * field) are skipped.
+   */
+  private toContributionInputs(
+    leagueId: string,
+    tournament: Row,
+    groupName: string | null,
+    registrations: Row[],
+    doubleHits: Map<string, number>,
+    placements: { byRegistrationId: Map<string, { place: number; resultKind: string }> },
+  ): TournamentContributionInput[] {
+    const inputs: TournamentContributionInput[] = [];
+    for (const registration of registrations) {
+      const registrationId = String(registration['id']);
+      const placement = placements.byRegistrationId.get(registrationId);
+      if (!placement) continue;
+      const person = registration['persons'] as Row | null;
+      const fighter = registration['global_persons'] as Row | null;
+      const name =
+        String(fighter?.['display_name'] ?? '').trim() ||
+        `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim() ||
+        registrationId;
+      inputs.push({
+        leagueId,
+        tournamentId: String(tournament['id']),
+        eventId: String(tournament['event_id']),
+        fighterId:
+          ((registration['persons'] as { global_person_id?: string | null } | null)
+            ?.global_person_id ??
+            null) ||
+          null,
+        fighterName: name,
+        clubName: null,
+        clubCity: null,
+        weapon: (tournament['weapon'] as string | null) ?? null,
+        groupName,
+        finalRank: placement.place,
+        resultKind: placement.resultKind as TournamentContributionInput['resultKind'],
+        doubleHits: doubleHits.get(registrationId) ?? 0,
+      });
+    }
+    return inputs;
   }
 
   private async lookupLinkGroupName(
@@ -1443,79 +1509,6 @@ export class LeaguesService {
       .maybeSingle();
     const link = data as { league_groups?: { name?: string } | null } | null;
     return link?.league_groups?.name ?? null;
-  }
-
-  private rankTournament(
-    leagueId: string,
-    tournament: Row,
-    groupName: string | null,
-    registrations: Row[],
-    matches: Row[],
-    doubleHits: Map<string, number>,
-  ): TournamentContributionInput[] {
-    const stats = new Map<string, { wins: number; pointsFor: number; pointsAgainst: number }>();
-    for (const registration of registrations) {
-      stats.set(String(registration['id']), { wins: 0, pointsFor: 0, pointsAgainst: 0 });
-    }
-    for (const match of matches) {
-      if (match['status'] !== 'completed') continue;
-      const redId = String(match['red_registration_id'] ?? '');
-      const blueId = String(match['blue_registration_id'] ?? '');
-      const red = stats.get(redId);
-      const blue = stats.get(blueId);
-      if (!red || !blue) continue;
-      const redScore = Number(match['red_score'] ?? 0);
-      const blueScore = Number(match['blue_score'] ?? 0);
-      red.pointsFor += redScore;
-      red.pointsAgainst += blueScore;
-      blue.pointsFor += blueScore;
-      blue.pointsAgainst += redScore;
-      if (match['winner_registration_id'] === redId) red.wins += 1;
-      if (match['winner_registration_id'] === blueId) blue.wins += 1;
-    }
-
-    return registrations
-      .map((registration) => {
-        const stat = stats.get(String(registration['id'])) ?? {
-          wins: 0,
-          pointsFor: 0,
-          pointsAgainst: 0,
-        };
-        return { registration, stat };
-      })
-      .sort((a, b) => {
-        if (b.stat.wins !== a.stat.wins) return b.stat.wins - a.stat.wins;
-        const aDiff = a.stat.pointsFor - a.stat.pointsAgainst;
-        const bDiff = b.stat.pointsFor - b.stat.pointsAgainst;
-        if (bDiff !== aDiff) return bDiff - aDiff;
-        if (b.stat.pointsFor !== a.stat.pointsFor) return b.stat.pointsFor - a.stat.pointsFor;
-        return Number(a.registration['seed'] ?? 9999) - Number(b.registration['seed'] ?? 9999);
-      })
-      .map(({ registration }, index) => {
-        const person = registration['persons'] as Row | null;
-        const fighter = registration['global_persons'] as Row | null;
-        const name =
-          String(fighter?.['display_name'] ?? '').trim() ||
-          `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim() ||
-          String(registration['id']);
-        return {
-          leagueId,
-          tournamentId: String(tournament['id']),
-          eventId: String(tournament['event_id']),
-          fighterId:
-            ((registration['persons'] as { global_person_id?: string | null } | null)
-              ?.global_person_id ??
-              null) ||
-            null,
-          fighterName: name,
-          clubName: null,
-          clubCity: null,
-          weapon: (tournament['weapon'] as string | null) ?? null,
-          groupName,
-          finalRank: index + 1,
-          doubleHits: doubleHits.get(String(registration['id'])) ?? 0,
-        };
-      });
   }
 
   private doubleHitsByRegistration(matches: Row[], exchanges: Row[]): Map<string, number> {

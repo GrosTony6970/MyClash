@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { TournamentPlacementModule } from '../tournament-placement/tournament-placement.module';
 import { SupabaseService } from '../supabase/supabase.service';
 import { LeagueMembershipRequestsController } from './league-membership-requests.controller';
 import { LeagueMembershipRequestsService } from './league-membership-requests.service';
@@ -8,7 +9,10 @@ import { LeaguesController } from './leagues.controller';
 import { LeaguesService } from './leagues.service';
 
 @Module({
-  imports: [OrganizationsModule],
+  // TournamentPlacementModule provides the shared placement service so league
+  // scoring derives each fighter's finish from the same computeFinalRanking the
+  // public tournament page + fighter profiles use.
+  imports: [OrganizationsModule, TournamentPlacementModule],
   controllers: [LeaguesController, LeagueMembershipRequestsController],
   providers: [
     // useFactory so Nest injects only SupabaseService — the constructor

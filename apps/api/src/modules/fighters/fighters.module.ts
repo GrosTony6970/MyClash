@@ -9,13 +9,12 @@ import { FightersService } from './fighters.service';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { FighterMergeService } from './merge.service';
 import { CsvImportService } from '../persons/csv-import.service';
-import { PhasesModule } from '../phases/phases.module';
-import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
+import { TournamentPlacementModule } from '../tournament-placement/tournament-placement.module';
 
 @Module({
-  // PhasesModule + PoolStandingsModule provide the bracket + pool-standings
-  // services used to compute career placements (computeFinalRanking parity).
-  imports: [HemaRatingsModule, AdminModule, PhasesModule, PoolStandingsModule],
+  // TournamentPlacementModule provides the shared placement service used to
+  // compute career placements (computeFinalRanking parity with leagues + public).
+  imports: [HemaRatingsModule, AdminModule, TournamentPlacementModule],
   controllers: [FightersController, WeaponsController, GlobalPersonsController],
   providers: [FightersService, FighterMergeService, CsvImportService],
   exports: [FightersService],

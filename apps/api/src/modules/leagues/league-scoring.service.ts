@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import type { FinalRankingResultKind } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import type {
   LeagueRankingRow,
@@ -152,7 +153,7 @@ export class LeagueScoringService {
         groupName: input.groupName,
         finalRank,
         leaguePoints: this.pointsForRank(config, finalRank),
-        medal: medalForRank(finalRank),
+        medal: medalFor(input.resultKind, finalRank),
         doubleHits: Math.max(0, Number(input.doubleHits) || 0),
       };
     });
@@ -254,7 +255,21 @@ function normalizeDimension(value: string | null | undefined): string {
   );
 }
 
-function medalForRank(rank: number): LeagueTournamentContribution['medal'] {
+/**
+ * Medal from the tournament finish. Bracket results follow the real podium:
+ * champion/runnerUp/third → gold/silver/bronze, and a semi-final loser placed
+ * 3rd/4th WITHOUT a bronze match ('round'/'fourth') earns no medal. Pool-only
+ * tournaments ('pool') and legacy/rank-only inputs (resultKind undefined) fall
+ * back to place 1/2/3 → gold/silver/bronze.
+ */
+function medalFor(
+  resultKind: FinalRankingResultKind | undefined,
+  rank: number,
+): LeagueTournamentContribution['medal'] {
+  if (resultKind === 'champion') return 'gold';
+  if (resultKind === 'runnerUp') return 'silver';
+  if (resultKind === 'third') return 'bronze';
+  if (resultKind === 'fourth' || resultKind === 'round') return null;
   if (rank === 1) return 'gold';
   if (rank === 2) return 'silver';
   if (rank === 3) return 'bronze';

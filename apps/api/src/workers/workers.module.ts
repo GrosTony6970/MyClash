@@ -80,7 +80,12 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
       name: TLS_CERT_MONITOR_QUEUE,
     }),
     SupabaseModule,
-    LeaguesModule,
+    // forwardRef breaks the WorkersModule → LeaguesModule → TournamentPlacementModule
+    // → PhasesModule → RefereesModule → WorkersModule cycle. EventStatusTickerWorker
+    // constructor-injects LeaguesService.recomputeForEvent; LeaguesModule only became
+    // part of a cycle once league scoring started reading the bracket (Phases) for
+    // placement. Same post-graph-resolution deferral as AdminModule below.
+    forwardRef(() => LeaguesModule),
     // forwardRef breaks the WorkersModule → AdminModule → MatchesModule
     // → WorkersModule cycle. AdminModule's services (AIDataQualityService,
     // AdminFeatureFlagsService) are constructor-injected into workers, but

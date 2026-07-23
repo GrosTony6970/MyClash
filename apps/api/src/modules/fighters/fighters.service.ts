@@ -5,16 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { computeFinalRanking, type PoolEntry, type RankingSlot } from '@myclash/types';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { replaceFighterWeaponsFromCell } from './weapon-import.util';
-// Value imports (NOT `import type`) — these are DI-injected, so the runtime
-// needs the class metadata preserved.
-import { PhasesService } from '../phases/phases.service';
-import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
+// Value import (NOT `import type`) — DI-injected, so the runtime needs the
+// class metadata preserved.
+import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
 import type {
   CreateFighterDto,
   CreateGlobalPersonDto,
@@ -130,10 +128,9 @@ export class FightersService {
     private readonly csvImport: CsvImportService,
     private readonly hemaRatings?: HemaRatingsService,
     // Optional like hemaRatings: provided by FightersModule, but tests may
-    // construct the service without them — placement computation degrades to
-    // null rather than throwing.
-    private readonly phases?: PhasesService,
-    private readonly poolStandings?: PoolStandingsService,
+    // construct the service without it — placement computation degrades to an
+    // empty map rather than throwing.
+    private readonly placement?: TournamentPlacementService,
   ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
@@ -786,138 +783,44 @@ export class FightersService {
   }
 
   /**
-   * For each tournament the fighter competed in, compute their final placement
-   * using the SAME shared `computeFinalRanking` the public tournament page uses
-   * — so the number on the profile matches the number on the bracket.
-   * Best-effort per tournament: any failure leaves that placement unset rather
-   * than breaking dashboard load. Requires the phases + pool-standings services
-   * (provided in production; absent in some unit tests).
+   * For each tournament the fighter competed in, look up their final placement
+   * from the shared `TournamentPlacementService` — the SAME `computeFinalRanking`
+   * the public tournament page and league scoring use, so the number on the
+   * profile matches the bracket. Best-effort per tournament: a failing lookup
+   * leaves that placement unset rather than breaking dashboard load. The service
+   * is optional (absent in some unit tests → no placements).
    *
    * Callers pass only registrations the fighter actually fought in. Whether a
-   * placement is *awarded* turns on the tournament being decided (see
-   * `computeOnePlacement`), never on `tournaments.status` — nothing sets that
-   * to `completed` automatically, so gating on it left every medal at zero.
+   * placement is *awarded* turns on the tournament being decided (the service
+   * returns `decided:false` until the Final is settled), never on
+   * `tournaments.status` — nothing sets that to `completed` automatically.
    */
   private async computeTournamentPlacements(
     registrations: CareerRegistrationInput[],
   ): Promise<Map<string, TournamentPlacement>> {
     const placements = new Map<string, TournamentPlacement>();
-    if (!this.phases || !this.poolStandings) return placements;
+    if (!this.placement) return placements;
 
-    // Per-build memo for the "every match played?" probe — a fighter's
-    // registrations cluster onto a handful of tournaments.
-    const fullyPlayed = new Map<string, boolean>();
+    // Per-build memo — a fighter's registrations cluster onto a handful of
+    // tournaments, so fetch each tournament's full-field placement once.
+    const byTournament = new Map<string, Map<string, TournamentPlacement>>();
     for (const registration of registrations) {
-      try {
-        const placement = await this.computeOnePlacement(
-          registration.tournamentId,
-          registration.id,
-          fullyPlayed,
-        );
-        if (placement) placements.set(registration.id, placement);
-      } catch {
-        // A single tournament's bracket/standings failing must never break the
-        // whole career dashboard — skip and move on.
+      let byRegistrationId = byTournament.get(registration.tournamentId);
+      if (!byRegistrationId) {
+        try {
+          const result = await this.placement.getTournamentPlacements(registration.tournamentId);
+          byRegistrationId = result.byRegistrationId;
+        } catch {
+          // A single tournament's bracket/standings failing must never break the
+          // whole career dashboard — skip and move on.
+          byRegistrationId = new Map<string, TournamentPlacement>();
+        }
+        byTournament.set(registration.tournamentId, byRegistrationId);
       }
+      const placement = byRegistrationId.get(registration.id);
+      if (placement) placements.set(registration.id, placement);
     }
     return placements;
-  }
-
-  /** Placement of one registration in one tournament, mirroring the public
-   *  FinalRankingTab (bracket slots + overall pool standings → computeFinalRanking).
-   *  Falls back to the overall pool rank for pool-only tournaments.
-   *
-   *  Only ever returns a placement for a DECIDED tournament, so a medal can't be
-   *  awarded mid-play: `computeFinalRanking` already yields [] until the Final is
-   *  settled, and the pool fallback below is fenced to pool-only tournaments whose
-   *  matches are all in. */
-  private async computeOnePlacement(
-    tournamentId: string,
-    registrationId: string,
-    fullyPlayed: Map<string, boolean>,
-  ): Promise<TournamentPlacement | null> {
-    let rows: StandingsRow[] = [];
-    try {
-      const standings = (await this.poolStandings!.getPoolStandings(tournamentId, 'overall')) as {
-        rows?: StandingsRow[];
-      };
-      rows = standings.rows ?? [];
-    } catch {
-      rows = [];
-    }
-    const poolEntries: PoolEntry[] = rows.map((row) => {
-      const rawScore = row.stats?.['score'];
-      const score = typeof rawScore === 'number' ? rawScore : Number(rawScore);
-      return {
-        registrationId: row.registrationId,
-        fighterName: row.displayName,
-        clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
-        poolScore: Number.isFinite(score) ? score : null,
-      };
-    });
-
-    const bracket = await this.phases!.getTournamentBracket(tournamentId);
-    const hasBracket = Boolean(bracket?.slots?.length);
-    if (bracket?.slots?.length) {
-      const slots: RankingSlot[] = bracket.slots.map((slot) => ({
-        id: slot.id,
-        round: slot.round,
-        position: slot.position,
-        status: slot.status,
-        redRegistrationId: slot.redRegistrationId ?? null,
-        blueRegistrationId: slot.blueRegistrationId ?? null,
-        redFighterName: slot.redFighterName ?? null,
-        blueFighterName: slot.blueFighterName ?? null,
-        redClubAbbrev: slot.redClubAbbrev ?? null,
-        blueClubAbbrev: slot.blueClubAbbrev ?? null,
-        redScore: slot.redScore ?? null,
-        blueScore: slot.blueScore ?? null,
-        winnerRegistrationId: slot.winnerRegistrationId ?? null,
-      }));
-      // 2-arg call (no explicit bronzeSlotId) to match the public FinalRankingTab.
-      const ranking = computeFinalRanking(slots, poolEntries);
-      const entry = ranking.find((e) => e.registrationId === registrationId);
-      if (entry) {
-        return { place: entry.place, resultKind: entry.resultKind, totalRanked: ranking.length };
-      }
-    }
-
-    // A bracket that exists but isn't decided yet has NO placement — falling back
-    // to pool rank here would crown the mid-event pool leader (a bracket entrant
-    // can still lose in the quarters). computeFinalRanking returning [] is exactly
-    // that "not decided" signal, so bail rather than guess.
-    if (hasBracket) return null;
-
-    // Pool-only tournament: the overall pool rank IS the final result — but only
-    // once every match is in, otherwise the standings are a mid-play snapshot.
-    if (!(await this.isTournamentFullyPlayed(tournamentId, fullyPlayed))) return null;
-    const row = rows.find((r) => r.registrationId === registrationId);
-    if (row && Number.isFinite(row.rank)) {
-      return { place: row.rank, resultKind: 'pool', totalRanked: rows.length };
-    }
-    return null;
-  }
-
-  /** True when a tournament has no unfinished match left (voided ones don't
-   *  block). The `cache` is per career build, NOT on the service — this is a
-   *  singleton, so instance-level memoisation would freeze a mid-play verdict
-   *  and the medal would never appear. */
-  private async isTournamentFullyPlayed(
-    tournamentId: string,
-    cache: Map<string, boolean>,
-  ): Promise<boolean> {
-    const cached = cache.get(tournamentId);
-    if (cached !== undefined) return cached;
-
-    const { count, error } = await this.supabase.service
-      .from('matches')
-      .select('id, phases!inner(tournament_id)', { count: 'exact', head: true })
-      .eq('phases.tournament_id', tournamentId)
-      .not('status', 'in', '("completed","voided")');
-    // On error, assume NOT decided — better a missing medal than a wrong one.
-    const decided = !error && (count ?? 1) === 0;
-    cache.set(tournamentId, decided);
-    return decided;
   }
 
   async promote(dto: PromoteFighterDto, claimedUserId: string) {

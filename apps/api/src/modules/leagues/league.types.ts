@@ -1,3 +1,5 @@
+import type { FinalRankingResultKind } from '@myclash/types';
+
 /**
  * Stored on `leagues.scoring_system`. The literals 'ffamhe_tf_2026' and
  * 'custom' are the legacy hard-coded values; any other lowercase code is
@@ -30,6 +32,12 @@ export interface TournamentContributionInput {
   /** League-defined group name (from league_groups). Replaces tournament.category. */
   groupName: string | null;
   finalRank: number;
+  /** How this fighter finished, from the shared `computeFinalRanking`. Drives the
+   *  medal: champion/runnerUp/third → gold/silver/bronze, so a semi-final loser
+   *  placed 3rd with no bronze match ('round') gets no phantom medal. Optional so
+   *  callers that only know a rank (pool-only, legacy tests) fall back to
+   *  rank 1/2/3 → medal. */
+  resultKind?: FinalRankingResultKind;
   doubleHits: number;
 }
 
