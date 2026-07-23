@@ -4,8 +4,9 @@ import { StaffService } from './staff.service';
 const req = { cookies: {} } as never;
 
 describe('StaffService.recordHeartbeat', () => {
-  it('stamps the metrics + last_seen_at onto the caller staff account', async () => {
+  it('stamps the metrics + last_seen_at, scoped to the caller staff account', async () => {
     const updates: Record<string, unknown>[] = [];
+    const eqCalls: Array<[string, unknown]> = [];
     const service = {
       from: vi.fn(() => {
         const chain: Record<string, unknown> = {
@@ -13,7 +14,10 @@ describe('StaffService.recordHeartbeat', () => {
             updates.push(patch);
             return chain;
           }),
-          eq: vi.fn(() => chain),
+          eq: vi.fn((column: string, value: unknown) => {
+            eqCalls.push([column, value]);
+            return chain;
+          }),
           then: (r: (v: { data: null; error: null }) => void) => r({ data: null, error: null }),
         };
         return chain;
@@ -35,5 +39,10 @@ describe('StaffService.recordHeartbeat', () => {
       rejected_count: 1,
     });
     expect(typeof updates[0]!['last_seen_at']).toBe('string');
+
+    // The write must be scoped to the caller's OWN account — both the event
+    // and the account id — never a cross-event or cross-account write.
+    expect(eqCalls).toContainEqual(['event_id', 'E1']);
+    expect(eqCalls).toContainEqual(['id', 'a1']);
   });
 });
