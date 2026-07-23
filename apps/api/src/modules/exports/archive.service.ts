@@ -178,6 +178,7 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'referee_compensation_payments',
   'exchange_edit_requests',
   'deletion_requests',
+  'tournament_ruleset_repins', // mid-event re-pin audit; governance log, not archived event data
   'organizer_ai_assistant_drafts',
   'organizer_chat_conversations',
   'organizer_chat_messages',
