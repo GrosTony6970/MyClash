@@ -15,6 +15,12 @@ import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffJwtService } from './staff-jwt.service';
+import {
+  assembleBoardRows,
+  type BoardAccountInput,
+  type BoardRow,
+  type RawBoardMatch,
+} from './live-board';
 import { normalizeTournamentLockConfig } from '../events/tournament-config';
 import type {
   CreateStaffAccountDto,
@@ -223,6 +229,87 @@ export class StaffService {
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
     return this.getCurrentForLiceId(liceId);
+  }
+
+  /**
+   * Live control-room board: one row per lice, carrying the current match's
+   * server-derived score, the assigned scorer, tablet sync health, and the
+   * scorer's needs-attention flag. Event-scoped (not match-scoped): resolve the
+   * event's organization and require an org role, mirroring the scoring helpers.
+   */
+  async getLiveBoard(req: FastifyRequest, eventId: string): Promise<{ rows: BoardRow[] }> {
+    const userId = await this.getSupabaseUserId(req);
+    if (!userId) throw new UnauthorizedException('Organizer session required');
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
+
+    const { data: lices, error: liceErr } = await this.supabase.service
+      .from('lices')
+      .select('id,name,sort_order')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true });
+    if (liceErr) throw new BadRequestException(liceErr.message);
+    const liceRows = (lices ?? []) as Array<{ id: string; name: string; sort_order: number }>;
+    const liceIds = liceRows.map((l) => l.id);
+
+    let matches: RawBoardMatch[] = [];
+    if (liceIds.length > 0) {
+      const { data, error } = await this.supabase.service
+        .from('matches')
+        .select(
+          'id,lice_id,status,red_score,blue_score,match_number_label,bracket_slots(round),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+        )
+        .in('lice_id', liceIds)
+        .in('status', ['running', 'paused', 'scheduled'])
+        .order('status', { ascending: true })
+        .order('scheduled_at', { ascending: true, nullsFirst: false });
+      if (error) throw new BadRequestException(error.message);
+      matches = (data ?? []) as unknown as RawBoardMatch[];
+    }
+
+    const { data: accounts, error: accErr } = await this.supabase.service
+      .from('event_staff_accounts')
+      .select(
+        'id,display_name,last_seen_at,outbox_depth,oldest_pending_age_seconds,rejected_count,needs_attention,needs_attention_reason',
+      )
+      .eq('event_id', eventId);
+    if (accErr) throw new BadRequestException(accErr.message);
+
+    const assignments = await this.listAssignmentsForEvent(eventId);
+
+    const rows = assembleBoardRows({
+      lices: liceRows,
+      matches,
+      accounts: (accounts ?? []) as unknown as BoardAccountInput[],
+      assignments: assignments.map((a) => ({
+        staff_account_id: a.staff_account_id,
+        lice_id: a.lice_id,
+      })),
+    });
+    return { rows };
+  }
+
+  /**
+   * Clear a scorer's needs-attention flag from the Live board. The only
+   * in-board write; same event-scoped org-role gate as {@link getLiveBoard}.
+   */
+  async acknowledgeAttention(
+    req: FastifyRequest,
+    eventId: string,
+    staffAccountId: string,
+  ): Promise<{ ok: true }> {
+    const userId = await this.getSupabaseUserId(req);
+    if (!userId) throw new UnauthorizedException('Organizer session required');
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
+
+    const { error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .update({ needs_attention: false, needs_attention_reason: null })
+      .eq('event_id', eventId)
+      .eq('id', staffAccountId);
+    if (error) throw new BadRequestException(error.message);
+    return { ok: true };
   }
 
   async authorizeMatchScoring(req: FastifyRequest, matchId: string): Promise<ScoringActor> {

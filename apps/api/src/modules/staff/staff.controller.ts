@@ -108,6 +108,29 @@ export class StaffController {
     return this.staff.setLices(eventId, staffAccountId, dto, userId);
   }
 
+  @Get('events/:eventId/live-board')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Live control-room board: per-lice score + scorer + tablet health' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async liveBoard(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    return this.staff.getLiveBoard(req, eventId);
+  }
+
+  @Post('events/:eventId/live/attention/:staffAccountId/ack')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Acknowledge (clear) a scorer needs-attention flag from the Live board',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'staffAccountId', type: 'string', format: 'uuid' })
+  async ackAttention(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('staffAccountId', ParseUUIDPipe) staffAccountId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.staff.acknowledgeAttention(req, eventId, staffAccountId);
+  }
+
   @Public()
   @Post('staff-auth/login')
   @HttpCode(HttpStatus.OK)
