@@ -20,11 +20,9 @@ type T = ReturnType<typeof useI18n>['t'];
 function LiceRealtime({
   liceId,
   onChange,
-  onDrop,
 }: {
   liceId: string;
   onChange: (c: MatchChange) => void;
-  onDrop: () => void;
 }) {
   useRealtimeWithFallback({
     channelName: `live-board-lice:${liceId}`,
@@ -40,7 +38,9 @@ function LiceRealtime({
         status: n['status'] as string,
       });
     },
-    onFallbackPoll: onDrop, // socket down → force a structural refetch
+    // useLiveBoard already runs the 7s structural poll; the per-lice channel
+    // is a score-cell overlay only, so its socket-down fallback is a no-op.
+    onFallbackPoll: () => {},
     fallbackPollMs: 7000,
   });
   return null;
@@ -58,7 +58,7 @@ const DOT: Record<HealthState, string> = {
 
 export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) {
   const { t } = useI18n();
-  const { rows, error, refetch, acknowledge, applyMatchChange } = useLiveBoard(eventId);
+  const { rows, error, acknowledge, applyMatchChange } = useLiveBoard(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
   const [showHealthy, setShowHealthy] = useState(false);
 
@@ -74,12 +74,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
     <div className="p-4">
       {/* per-lice realtime subscribers (render nothing) */}
       {rows.map((r) => (
-        <LiceRealtime
-          key={r.lice.id}
-          liceId={r.lice.id}
-          onChange={applyMatchChange}
-          onDrop={() => void refetch()}
-        />
+        <LiceRealtime key={r.lice.id} liceId={r.lice.id} onChange={applyMatchChange} />
       ))}
 
       <div className="mb-4 flex items-center justify-between">
