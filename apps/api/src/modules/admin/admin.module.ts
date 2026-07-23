@@ -39,6 +39,8 @@ import { PublicFeatureFlagsController } from './public-feature-flags.controller'
 import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
+import { AdminTlsStatusService } from './tls-status.service';
+import { TlsStatusAdminController } from './tls-status.controller';
 import { UsersAdminController } from './users.controller';
 import { WeaponsAdminController } from './weapons/weapons-admin.controller';
 import { WeaponsAdminService } from './weapons/weapons-admin.service';
@@ -56,6 +58,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     PlatformLogAdminController,
     ExchangeEditRequestsAdminController,
     SystemVersionsAdminController,
+    TlsStatusAdminController,
     BackupsAdminController,
     PlatformAISettingsController,
     PlatformAIKeysController,
@@ -87,6 +90,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
       useFactory: (supabase: SupabaseService) => new AdminSystemActionsService(supabase),
       inject: [SupabaseService],
     },
+    AdminTlsStatusService,
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
     ModelSyncService,
@@ -100,6 +104,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AdminFeatureFlagsService,
     AIDataQualityService,
     LeagueScoringSystemsService,
+    AdminTlsStatusService,
   ],
 })
 export class AdminModule {}

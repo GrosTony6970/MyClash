@@ -118,4 +118,51 @@ describe('AdminSystemActionsService', () => {
       ServiceUnavailableException,
     );
   });
+
+  describe('renewCertificates', () => {
+    it('calls the dedicated renew-certs route with bearer auth and audits the action', async () => {
+      const calls: { url: string; init: RequestInit }[] = [];
+      const fetchImpl = (async (url: string, init?: RequestInit) => {
+        calls.push({ url, init: init ?? {} });
+        return new Response(
+          JSON.stringify({ ok: true, service: 'traefik', action: 'renew-certs', exitCode: 0 }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+      const service = makeService(fetchImpl);
+
+      const result = await service.renewCertificates('tony-user-id');
+
+      expect(result.ok).toBe(true);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]!.url).toBe('http://ops-runner:4075/operations/renew-certs');
+      expect(calls[0]!.init.method).toBe('POST');
+      expect((calls[0]!.init.headers as Record<string, string>)['authorization']).toBe(
+        'Bearer shhh',
+      );
+      expect(audits).toHaveLength(1);
+      expect(audits[0]).toMatchObject({
+        actor_user_id: 'tony-user-id',
+        action: 'system.tls.renew',
+        entity_type: 'system_tls',
+        entity_id: 'traefik',
+      });
+    });
+
+    it('throws 503 when the ops-runner is not configured', async () => {
+      const service = new AdminSystemActionsService(supabaseStub as never, {
+        opsRunnerUrl: '',
+        opsRunnerSecret: '',
+        fetchImpl: vi.fn() as unknown as typeof fetch,
+      });
+      await expect(service.renewCertificates('actor')).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('surfaces ops-runner failures as ServiceUnavailableException and does not audit', async () => {
+      const fetchImpl = vi.fn(async () => new Response('nope', { status: 500 }));
+      const service = makeService(fetchImpl as unknown as typeof fetch);
+      await expect(service.renewCertificates('actor')).rejects.toThrow(ServiceUnavailableException);
+      expect(audits).toHaveLength(0);
+    });
+  });
 });

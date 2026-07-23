@@ -113,6 +113,10 @@ const server = createServer(async (req, res) => {
       );
       return;
     }
+    if (req.method === 'POST' && url.pathname === '/operations/renew-certs') {
+      sendJson(res, 200, await runCertRenewal());
+      return;
+    }
     if (req.method === 'GET' && url.pathname.startsWith('/operations/')) {
       const id = path.basename(url.pathname);
       sendJson(res, operations.has(id) ? 200 : 404, operations.get(id) ?? { error: 'not_found' });
@@ -651,6 +655,32 @@ async function runContainerAction(service, action) {
     ok: result.code === 0,
     service,
     action,
+    exitCode: result.code,
+    stdout: result.stdout.slice(-4000),
+    stderr: result.stderr.slice(-4000),
+    timedOut: result.timedOut ?? false,
+  };
+}
+
+/**
+ * Force a Let's Encrypt renewal attempt by restarting Traefik. On boot Traefik
+ * re-runs its ACME resolver and renews any cert already inside its ~30-day
+ * window; `acme.json` is never touched, so there is no LE rate-limit risk.
+ *
+ * This is a deliberate, single-purpose exception to the RESTARTABLE_SERVICES
+ * allowlist (which excludes `traefik` on purpose): it can only *restart*
+ * Traefik — never stop it — so HTTPS returns within a couple of seconds.
+ */
+async function runCertRenewal() {
+  const result = await spawnCaptureWithTimeout(
+    'docker',
+    ['compose', ...COMPOSE_FLAGS, 'restart', 'traefik'],
+    30_000,
+  );
+  return {
+    ok: result.code === 0,
+    service: 'traefik',
+    action: 'renew-certs',
     exitCode: result.code,
     stdout: result.stdout.slice(-4000),
     stderr: result.stderr.slice(-4000),

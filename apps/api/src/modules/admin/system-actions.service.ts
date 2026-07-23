@@ -45,6 +45,15 @@ export interface ComponentActionResult {
   error?: string;
 }
 
+export interface CertRenewalResult {
+  ok: boolean;
+  exitCode?: number;
+  stdout?: string;
+  stderr?: string;
+  timedOut?: boolean;
+  error?: string;
+}
+
 type FetchLike = typeof fetch;
 
 export interface AdminSystemActionsServiceOptions {
@@ -141,6 +150,52 @@ export class AdminSystemActionsService {
         timedOut: result.timedOut ?? false,
       },
     );
+
+    return result;
+  }
+
+  /**
+   * Force a Let's Encrypt renewal attempt by restarting Traefik via the
+   * ops-runner's dedicated `/operations/renew-certs` route. Traefik re-runs its
+   * ACME resolver on boot and renews any cert already inside its ~30-day window;
+   * `acme.json` is left untouched, so there's no LE rate-limit risk.
+   *
+   * Note the container-lifecycle allowlist deliberately excludes `traefik`
+   * (restarting it via the generic `/containers` route is blocked) — this is the
+   * one sanctioned, restart-only path, so we call the purpose-built endpoint.
+   */
+  async renewCertificates(actorUserId: string): Promise<CertRenewalResult> {
+    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
+      throw new ServiceUnavailableException('Certificate renewal requires the ops-runner sidecar.');
+    }
+
+    let result: CertRenewalResult;
+    try {
+      const response = await this.fetchImpl(`${this.opsRunnerUrl}/operations/renew-certs`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
+        signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        const message = await response.text().catch(() => '');
+        throw new ServiceUnavailableException(
+          message || `ops-runner returned ${response.status} for cert renewal.`,
+        );
+      }
+      result = (await response.json()) as CertRenewalResult;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'ops-runner request failed';
+      this.logger.warn(`Certificate renewal failed via ops-runner — ${message}`);
+      throw err instanceof ServiceUnavailableException
+        ? err
+        : new ServiceUnavailableException(message);
+    }
+
+    await this.writeAuditLog(actorUserId, 'system.tls.renew', 'system_tls', 'traefik', {
+      ok: result.ok,
+      exitCode: result.exitCode,
+      timedOut: result.timedOut ?? false,
+    });
 
     return result;
   }

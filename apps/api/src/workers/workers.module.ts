@@ -26,6 +26,7 @@ import {
   NotificationSchedulerWorker,
   WebPushSender,
 } from './notification-scheduler.worker';
+import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor.worker';
 
 @Module({
   imports: [
@@ -75,6 +76,9 @@ import {
         backoff: { type: 'exponential', delay: 60_000 },
       },
     }),
+    BullModule.registerQueue({
+      name: TLS_CERT_MONITOR_QUEUE,
+    }),
     SupabaseModule,
     LeaguesModule,
     // forwardRef breaks the WorkersModule → AdminModule → MatchesModule
@@ -95,6 +99,7 @@ import {
     NotificationSchedulerService,
     NotificationSchedulerWorker,
     WebPushSender,
+    TlsCertMonitorWorker,
   ],
   exports: [
     BullModule,

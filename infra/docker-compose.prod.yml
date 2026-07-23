@@ -327,6 +327,9 @@ services:
       MAIL_FROM: ${MAIL_FROM}
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
       DOMAIN: ${DOMAIN}
+      # Days-until-expiry threshold below which the TLS monitor + admin card
+      # flag a certificate as "expiring soon" (default 21).
+      TLS_CERT_MIN_DAYS: ${TLS_CERT_MIN_DAYS:-21}
       TZ: ${TZ}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
@@ -547,6 +550,10 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN: ${DOMAIN}
+      # The daily TLS certificate monitor (BullMQ job) can run in this container;
+      # it emails LETSENCRYPT_EMAIL on trouble and flags certs within N days.
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      TLS_CERT_MIN_DAYS: ${TLS_CERT_MIN_DAYS:-21}
       TZ: ${TZ}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
