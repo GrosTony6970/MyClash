@@ -16,9 +16,13 @@ const HEARTBEAT_MS = 20_000;
 export function useHeartbeat(): void {
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
 
     async function send(): Promise<void> {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      // Skip if the previous send is still in flight (a slow fetch must not
+      // stack a second POST on the next tick) or if we're offline.
+      if (inFlight || !navigator.onLine) return;
+      inFlight = true;
       try {
         const entries = await getAllPending();
         const metrics = computeHeartbeatMetrics(entries, Date.now());
@@ -31,6 +35,8 @@ export function useHeartbeat(): void {
         });
       } catch {
         // best-effort telemetry; never surface
+      } finally {
+        inFlight = false;
       }
     }
 
