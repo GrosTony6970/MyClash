@@ -182,6 +182,7 @@ function BoardRowView({
   return (
     <li className={`flex items-center gap-3 py-2 text-sm ${dim}`}>
       <span
+        role="img"
         className={`h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
         aria-label={t(`organizer.live.state.${state}`)}
       />
@@ -275,6 +276,7 @@ function BoardCard({
     <li className="flex flex-col gap-1.5 py-3">
       <div className="flex items-center gap-2">
         <span
+          role="img"
           className={`h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
           aria-label={t(`organizer.live.state.${state}`)}
         />
@@ -287,7 +289,7 @@ function BoardCard({
         {row.nextUp && (
           <Link
             href={`/org/${slug}/events/${eventId}/matches/${row.nextUp.matchId}`}
-            className="shrink-0 truncate text-xs text-muted hover:underline"
+            className="shrink-0 text-xs text-muted hover:underline"
             title={t('organizer.live.nextLabel')}
           >
             {t('organizer.live.nextLabel')} · {row.nextUp.label}
