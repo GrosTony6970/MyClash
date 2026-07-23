@@ -56,3 +56,14 @@ export function sortBoardRows(rows: BoardRow[], mode: 'piste' | 'worst'): BoardR
     return d !== 0 ? d : a.lice.sortOrder - b.lice.sortOrder;
   });
 }
+
+/** Split rows into problems (anything not fully fine) and healthy (synced/idle). */
+export function partitionByHealth(rows: BoardRow[]): { problems: BoardRow[]; healthy: BoardRow[] } {
+  const problems: BoardRow[] = [];
+  const healthy: BoardRow[] = [];
+  for (const row of rows) {
+    const s = deriveHealthState(row);
+    (s === 'synced' || s === 'idle' ? healthy : problems).push(row);
+  }
+  return { problems, healthy };
+}

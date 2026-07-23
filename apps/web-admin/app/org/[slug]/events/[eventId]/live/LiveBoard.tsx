@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useLiveBoard } from './useLiveBoard';
-import { deriveHealthState, sortBoardRows, type HealthState } from './live-board-state';
+import {
+  deriveHealthState,
+  partitionByHealth,
+  sortBoardRows,
+  type HealthState,
+} from './live-board-state';
 import type { BoardRow, MatchChange } from './types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -55,12 +60,14 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
   const { t } = useI18n();
   const { rows, error, refetch, acknowledge, applyMatchChange } = useLiveBoard(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
+  const [showHealthy, setShowHealthy] = useState(false);
 
   if (error === 'forbidden')
     return <p className="p-6 text-muted">{t('organizer.live.forbidden')}</p>;
   if (!rows) return <p className="p-6 text-muted">{t('common.loading')}</p>;
 
   const sorted = sortBoardRows(rows, mode);
+  const { problems, healthy } = partitionByHealth(sorted);
   const attentionCount = rows.filter((r) => r.attention).length;
 
   return (
@@ -100,7 +107,8 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
         <p className="mb-2 text-xs text-warning">{t('organizer.live.staleRefresh')}</p>
       )}
 
-      <ul className="divide-y divide-border">
+      {/* Wide table: every piste, all breakpoints ≥ md */}
+      <ul className="hidden divide-y divide-border md:block">
         {sorted.map((row) => (
           <BoardRowView
             key={row.lice.id}
@@ -112,6 +120,49 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
           />
         ))}
       </ul>
+
+      {/* Phone: problems first; healthy pistes folded away */}
+      <div className="md:hidden">
+        <ul className="divide-y divide-border">
+          {problems.map((row) => (
+            <BoardRowView
+              key={row.lice.id}
+              row={row}
+              slug={slug}
+              eventId={eventId}
+              onAck={(id) => void acknowledge(id)}
+              t={t}
+            />
+          ))}
+        </ul>
+        {healthy.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowHealthy((v) => !v)}
+              className="mt-2 flex w-full items-center gap-2 py-2 text-sm text-muted"
+            >
+              <span className="h-2.5 w-2.5 rounded-full bg-success" />
+              {t('organizer.live.healthyFold', { count: healthy.length })}
+              <span aria-hidden>{showHealthy ? '▾' : '▸'}</span>
+            </button>
+            {showHealthy && (
+              <ul className="divide-y divide-border opacity-60">
+                {healthy.map((row) => (
+                  <BoardRowView
+                    key={row.lice.id}
+                    row={row}
+                    slug={slug}
+                    eventId={eventId}
+                    onAck={(id) => void acknowledge(id)}
+                    t={t}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveHealthState, sortBoardRows } from './live-board-state';
+import { deriveHealthState, partitionByHealth, sortBoardRows } from './live-board-state';
 import type { BoardRow } from './types';
 
 function mk(over: Partial<BoardRow>): BoardRow {
@@ -69,5 +69,25 @@ describe('sortBoardRows', () => {
   });
   it('worst-first floats problems to the top', () => {
     expect(sortBoardRows([a, b], 'worst').map((r) => r.lice.id)).toEqual(['B', 'A']);
+  });
+});
+
+describe('partitionByHealth', () => {
+  const healthy1 = mk({ lice: { id: 'A', name: 'P1', sortOrder: 0 } }); // synced
+  const idle = mk({ lice: { id: 'B', name: 'P2', sortOrder: 1 }, currentMatch: null }); // idle
+  const problem = mk({
+    lice: { id: 'C', name: 'P3', sortOrder: 2 },
+    attention: { reason: 'medic' },
+  });
+
+  it('buckets synced and idle rows as healthy, everything else as problems', () => {
+    const { problems, healthy } = partitionByHealth([healthy1, problem, idle]);
+    expect(healthy.map((r) => r.lice.id)).toEqual(['A', 'B']);
+    expect(problems.map((r) => r.lice.id)).toEqual(['C']);
+  });
+
+  it('preserves input order within each bucket', () => {
+    const { healthy } = partitionByHealth([idle, healthy1]);
+    expect(healthy.map((r) => r.lice.id)).toEqual(['B', 'A']);
   });
 });
