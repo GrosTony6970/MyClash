@@ -47,6 +47,21 @@ interface StandingsPayload {
   pendingTournaments?: Array<{ tournamentId: string; name: string; eventName: string }>;
 }
 
+interface ClubRow {
+  clubId: string;
+  name: string;
+  city: string | null;
+  totalPoints: number;
+  memberCount: number;
+  medalCount: number;
+  topMembers: Array<{ fighterId: string; name: string; points: number }>;
+}
+
+interface ClubStandingsPayload {
+  clubs: ClubRow[];
+  unaffiliated: { totalPoints: number; memberCount: number; medalCount: number } | null;
+}
+
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 function fighterDisplayName(row: RankingRow): string {
@@ -66,6 +81,7 @@ export default function AdminLeagueRankingPage() {
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
   const [data, setData] = useState<StandingsPayload | null>(null);
+  const [clubData, setClubData] = useState<ClubStandingsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +110,23 @@ export default function AdminLeagueRankingPage() {
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [leagueId, t]);
+
+  useEffect(() => {
+    if (!leagueId) return;
+    const controller = new AbortController();
+    // Club standings are supplementary: on failure the sub-table just stays
+    // hidden, so this fetch never surfaces an error into the main page state.
+    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/club-standings`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<ClubStandingsPayload>) : null))
+      .then((payload) => setClubData(payload))
+      .catch(() => {
+        /* ignore — supplementary data */
+      });
+    return () => controller.abort();
+  }, [leagueId]);
 
   // Group rows by ranking_group_key so leagues with weapon_category
   // dimension render one sub-table per group.
@@ -215,6 +248,66 @@ export default function AdminLeagueRankingPage() {
             </section>
           ))}
         </div>
+      )}
+
+      {!loading && clubData && clubData.clubs.length > 0 && (
+        <section className="mt-8 overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
+          <header className="border-b border-border bg-background px-4 py-2 text-xs font-semibold uppercase tracking-wider text-foreground-secondary">
+            {t('admin.adminLeagues.clubStandingsTitle')}
+          </header>
+          <table className="w-full min-w-[640px] text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3 w-16 text-center">{t('admin.adminLeagues.colRank')}</th>
+                <th className="px-4 py-3">{t('admin.adminLeagues.clubStandingsClub')}</th>
+                <th className="px-4 py-3 text-center">
+                  {t('admin.adminLeagues.clubStandingsMembers')}
+                </th>
+                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colMedals')}</th>
+                <th className="px-4 py-3 text-center">{t('admin.adminLeagues.colPoints')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clubData.clubs.map((club, index) => (
+                <tr key={club.clubId} className="border-b border-border">
+                  <td className="px-4 py-3 text-center font-mono font-semibold text-foreground-secondary tabular-nums">
+                    {index + 1}
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-foreground">{club.name}</p>
+                    {club.city && <p className="mt-0.5 text-xs text-muted">{club.city}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
+                    {club.memberCount}
+                  </td>
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
+                    {club.medalCount}
+                  </td>
+                  <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">
+                    {club.totalPoints}
+                  </td>
+                </tr>
+              ))}
+              {clubData.unaffiliated && (
+                <tr className="border-b border-border bg-background/40 text-muted">
+                  <td className="px-4 py-3 text-center">—</td>
+                  <td className="px-4 py-3 italic">
+                    {t('admin.adminLeagues.clubStandingsUnaffiliated')}
+                  </td>
+                  <td className="px-4 py-3 text-center tabular-nums">
+                    {clubData.unaffiliated.memberCount}
+                  </td>
+                  <td className="px-4 py-3 text-center tabular-nums">
+                    {clubData.unaffiliated.medalCount}
+                  </td>
+                  <td className="px-4 py-3 text-center tabular-nums">
+                    {clubData.unaffiliated.totalPoints}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
       )}
     </main>
   );

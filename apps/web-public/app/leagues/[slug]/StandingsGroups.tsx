@@ -18,7 +18,10 @@ export interface LeagueStandingRow {
   double_hit_average: string;
   decidingTiebreak?: LeagueDecidingTiebreak | null;
   per_tournament: Array<{ tournamentId: string; finalRank: number; leaguePoints: number }>;
-  fighters?: {
+  // The fighter identity embed. The FK column is `fighter_id`, but migration
+  // 0023 renamed the fighters table to global_persons, so PostgREST returns the
+  // embed under `global_persons`.
+  global_persons?: {
     display_name?: string | null;
     clubs?: { name?: string | null; city?: string | null } | null;
   };
@@ -41,7 +44,7 @@ function formatGroupKey(key: string): string {
     .join(' · ');
 }
 
-function rankBadge(rank: number): React.ReactNode {
+export function rankBadge(rank: number): React.ReactNode {
   const token = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null;
   if (!token) {
     return <span className="text-sm font-semibold tabular-nums text-muted">{rank}</span>;
@@ -100,7 +103,7 @@ export async function StandingsGroups({
             {champions.length > 0 && (
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {champions.map((row) => {
-                  const club = row.fighters?.clubs?.name;
+                  const club = row.global_persons?.clubs?.name;
                   return (
                     <li
                       key={`champion-${row.id}`}
@@ -120,7 +123,7 @@ export async function StandingsGroups({
                           {t('publicApp.leagues.championLabel')}
                         </p>
                         <p className="truncate font-semibold text-foreground">
-                          {row.fighters?.display_name ?? '—'}
+                          {row.global_persons?.display_name ?? '—'}
                         </p>
                         {club && <p className="truncate text-xs text-muted">{club}</p>}
                       </div>
@@ -168,7 +171,7 @@ export async function StandingsGroups({
                         <td className="px-3 py-2 align-top">{rankBadge(row.rank)}</td>
                         <td className="px-3 py-2 align-top">
                           <p className="font-medium text-foreground">
-                            {row.fighters?.display_name ?? '—'}
+                            {row.global_persons?.display_name ?? '—'}
                           </p>
                           {showTiebreak && (
                             <p className="mt-0.5 text-xs text-muted">
@@ -181,7 +184,7 @@ export async function StandingsGroups({
                           )}
                         </td>
                         <td className="px-3 py-2 align-top text-foreground-secondary">
-                          {row.fighters?.clubs?.name ?? '—'}
+                          {row.global_persons?.clubs?.name ?? '—'}
                         </td>
                         <td className="px-3 py-2 align-top text-right font-semibold tabular-nums text-foreground">
                           {row.total_points}

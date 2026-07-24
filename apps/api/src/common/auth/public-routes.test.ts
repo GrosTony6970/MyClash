@@ -91,6 +91,7 @@ const EXPECTED_PUBLIC = [
   'GET /fighters/:slug/rating-history',
   'GET /fighters/:slug/referee-stats',
   'GET /leagues',
+  'GET /leagues/:leagueId/club-standings',
   'GET /leagues/:leagueId/final-report.csv',
   'GET /leagues/:leagueId/final-report.print.html',
   'GET /leagues/:leagueId/member-events',

@@ -70,6 +70,41 @@ describe('LeaguesController auth', () => {
     );
   });
 
+  it('serves public club standings without requiring auth', async () => {
+    const clubStandings = vi.fn().mockResolvedValue({ clubs: [], unaffiliated: null });
+    const getAuthUser = vi.fn();
+    const controller = new LeaguesController(
+      { clubStandings } as never,
+      { getAuthUser, anon: { auth: { getUser: vi.fn() } } } as never,
+    );
+
+    await controller.clubStandings('44444444-4444-4444-8444-444444444444', { group: 'longsword' });
+
+    expect(getAuthUser).not.toHaveBeenCalled();
+    expect(clubStandings).toHaveBeenCalledWith('44444444-4444-4444-8444-444444444444', 'longsword');
+  });
+
+  it('resolves the caller from the admin cookie for admin club standings', async () => {
+    const adminClubStandings = vi.fn().mockResolvedValue({ clubs: [], unaffiliated: null });
+    const getAuthUser = vi.fn().mockResolvedValue({ id: 'user-5' });
+    const controller = new LeaguesController(
+      { adminClubStandings } as never,
+      { getAuthUser, anon: { auth: { getUser: vi.fn() } } } as never,
+    );
+
+    await controller.adminClubStandings('55555555-5555-4555-8555-555555555555', {}, {
+      cookies: { 'sb-access-token': 'cookie-token' },
+      headers: {},
+    } as never);
+
+    expect(getAuthUser).toHaveBeenCalledWith('cookie-token');
+    expect(adminClubStandings).toHaveBeenCalledWith(
+      '55555555-5555-4555-8555-555555555555',
+      'user-5',
+      undefined,
+    );
+  });
+
   it('rejects invalid tokens instead of passing anonymous to league mutations', async () => {
     const create = vi.fn();
     const controller = new LeaguesController(

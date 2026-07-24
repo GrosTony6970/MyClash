@@ -16,6 +16,7 @@ import {
 } from './league.types';
 import { LeagueScoringService } from './league-scoring.service';
 import { attachDecidingTiebreaks } from './league-standings-rows';
+import { aggregateClubStandings } from './league-club-standings';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
@@ -1404,6 +1405,42 @@ export class LeaguesService {
       rows,
       pendingTournaments,
     };
+  }
+
+  /**
+   * Club / team standings, aggregated at read time from `league_rankings`
+   * (no new table). Public-gated exactly like `standings`.
+   */
+  async clubStandings(leagueId: string, group?: string) {
+    const league = await this.getLeagueById(leagueId);
+    if (league['public_visibility'] !== true || league['status'] !== 'published') {
+      throw new NotFoundException(`League ${leagueId} not found`);
+    }
+    return this.fetchClubStandingsPayload(league, leagueId, group);
+  }
+
+  /**
+   * Admin-side club standings — manage-gated instead of public-visibility gated,
+   * mirroring the `standings` / `adminStandings` split.
+   */
+  async adminClubStandings(leagueId: string, userId: string, group?: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const league = await this.getLeagueById(leagueId);
+    return this.fetchClubStandingsPayload(league, leagueId, group);
+  }
+
+  private async fetchClubStandingsPayload(league: Row, leagueId: string, group?: string) {
+    let q = this.supabase.service
+      .from('league_rankings')
+      .select(
+        'fighter_id, ranking_group_key, total_points, medal_count, global_persons(display_name, club_id, clubs(id, name, city))',
+      )
+      .eq('league_id', leagueId);
+    if (group) q = q.eq('ranking_group_key', group) as typeof q;
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    const { clubs, unaffiliated } = aggregateClubStandings((data ?? []) as Row[]);
+    return { league, clubs, unaffiliated };
   }
 
   async finalReportCsv(leagueId: string): Promise<string> {

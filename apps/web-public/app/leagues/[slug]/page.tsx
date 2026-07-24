@@ -8,6 +8,11 @@ import {
   type LeagueStandingRow,
   type LeagueStandingsColumn,
 } from './StandingsGroups';
+import {
+  ClubStandingsSection,
+  type ClubStandingRow,
+  type UnaffiliatedBucket,
+} from './ClubStandingsSection';
 
 interface League {
   id: string;
@@ -44,6 +49,23 @@ async function fetchStandings(apiUrl: string, leagueId: string): Promise<Standin
     });
     if (!res.ok) return null;
     return (await res.json()) as Standings;
+  } catch {
+    return null;
+  }
+}
+
+interface ClubStandings {
+  clubs: ClubStandingRow[];
+  unaffiliated: UnaffiliatedBucket | null;
+}
+
+async function fetchClubStandings(apiUrl: string, leagueId: string): Promise<ClubStandings | null> {
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/leagues/${leagueId}/club-standings`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ClubStandings;
   } catch {
     return null;
   }
@@ -88,12 +110,15 @@ export default async function PublicLeagueStandingsPage({
   const apiUrl = getServerApiUrl();
   const league = await fetchLeague(apiUrl, slug);
   if (!league) notFound();
-  const [standings, memberEvents] = await Promise.all([
+  const [standings, clubStandings, memberEvents] = await Promise.all([
     fetchStandings(apiUrl, league.id),
+    fetchClubStandings(apiUrl, league.id),
     fetchMemberEvents(apiUrl, league.id),
   ]);
   const columns = standings?.columns ?? [];
   const rows = standings?.rows ?? [];
+  const clubs = clubStandings?.clubs ?? [];
+  const unaffiliated = clubStandings?.unaffiliated ?? null;
   const pendingTournaments = standings?.pendingTournaments ?? [];
   const isFinalized = Boolean(standings?.league?.finalized_at ?? league.finalized_at);
 
@@ -203,7 +228,10 @@ export default async function PublicLeagueStandingsPage({
           {t('publicApp.leagues.empty')}
         </div>
       ) : (
-        <StandingsGroups rows={rows} columns={columns} />
+        <>
+          <StandingsGroups rows={rows} columns={columns} />
+          <ClubStandingsSection clubs={clubs} unaffiliated={unaffiliated} />
+        </>
       )}
     </main>
   );

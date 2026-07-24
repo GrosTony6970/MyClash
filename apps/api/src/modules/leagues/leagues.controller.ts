@@ -195,6 +195,33 @@ export class LeaguesController {
     return this.leagues.adminStandings(leagueId, userId, query.group);
   }
 
+  @Public()
+  @Get('leagues/:leagueId/club-standings')
+  @ApiOperation({ summary: 'Get public league club / team standings' })
+  @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
+  async clubStandings(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Query() query: LeagueStandingsQueryDto,
+  ) {
+    return this.leagues.clubStandings(leagueId, query.group);
+  }
+
+  @Get('admin/leagues/:leagueId/club-standings')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Get league club standings for the admin Ranking page (auth-gated on league-manage permissions)',
+  })
+  @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
+  async adminClubStandings(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Query() query: LeagueStandingsQueryDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.adminClubStandings(leagueId, userId, query.group);
+  }
+
   @Post('admin/leagues')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
