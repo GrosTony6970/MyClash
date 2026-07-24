@@ -10,7 +10,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminModule } from '../modules/admin/admin.module';
 import { LeaguesModule } from '../modules/leagues/leagues.module';
-import { NotificationEventsService } from '../modules/notifications/event-handlers/notification-events.service';
+import { NotificationSchedulingModule } from '../modules/notifications/notification-scheduling.module';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
 import {
   DATA_QUALITY_DETERMINISTIC_QUEUE,
@@ -18,14 +18,7 @@ import {
 } from './data-quality-deterministic.worker';
 import { EVENT_ARCHIVE_QUEUE, EventArchiveWorker } from './event-archive.worker';
 import { EVENT_STATUS_TICK_QUEUE, EventStatusTickerWorker } from './event-status-ticker.worker';
-import { FollowNotificationSchedulerService } from './follow-notification-scheduler.worker';
 import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
-import {
-  NOTIFICATION_QUEUE,
-  NotificationSchedulerService,
-  NotificationSchedulerWorker,
-  WebPushSender,
-} from './notification-scheduler.worker';
 import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor.worker';
 
 @Module({
@@ -61,9 +54,6 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
       },
     }),
     BullModule.registerQueue({
-      name: NOTIFICATION_QUEUE,
-    }),
-    BullModule.registerQueue({
       name: EVENT_STATUS_TICK_QUEUE,
     }),
     BullModule.registerQueue({
@@ -80,12 +70,19 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
       name: TLS_CERT_MONITOR_QUEUE,
     }),
     SupabaseModule,
-    // forwardRef breaks the WorkersModule → LeaguesModule → TournamentPlacementModule
-    // → PhasesModule → RefereesModule → WorkersModule cycle. EventStatusTickerWorker
-    // constructor-injects LeaguesService.recomputeForEvent; LeaguesModule only became
-    // part of a cycle once league scoring started reading the bracket (Phases) for
-    // placement. Same post-graph-resolution deferral as AdminModule below.
-    forwardRef(() => LeaguesModule),
+    // The notification-scheduling subsystem (enqueue services + NOTIFICATION_QUEUE
+    // + delivery worker) lives in this leaf module. Re-exported below so the
+    // feature modules that import WorkersModule for notifications keep resolving
+    // them. Extracting it is what lets RefereesModule depend on the leaf instead
+    // of WorkersModule, breaking the former
+    //   WorkersModule → LeaguesModule → TournamentPlacementModule → PhasesModule
+    //     → RefereesModule → WorkersModule
+    // cycle. EventStatusTickerWorker still constructor-injects LeaguesService, so
+    // the Workers → Leagues edge remains — but it is now a dead-end (nothing under
+    // Leagues loops back to Workers), so a plain import is correct; see
+    // module-graph.test.ts.
+    NotificationSchedulingModule,
+    LeaguesModule,
     // forwardRef breaks the WorkersModule → AdminModule → MatchesModule
     // → WorkersModule cycle. AdminModule's services (AIDataQualityService,
     // AdminFeatureFlagsService) are constructor-injected into workers, but
@@ -99,18 +96,12 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     EventStatusTickerWorker,
     EventArchiveWorker,
     DataQualityDeterministicWorker,
-    FollowNotificationSchedulerService,
-    NotificationEventsService,
-    NotificationSchedulerService,
-    NotificationSchedulerWorker,
-    WebPushSender,
     TlsCertMonitorWorker,
   ],
-  exports: [
-    BullModule,
-    FollowNotificationSchedulerService,
-    NotificationEventsService,
-    NotificationSchedulerService,
-  ],
+  // Re-export the leaf so consumers importing WorkersModule still resolve the
+  // notification services. BullModule stays exported for the queues Workers
+  // still registers (hema-ratings, event-status-tick, event-archive,
+  // data-quality, tls-cert-monitor).
+  exports: [BullModule, NotificationSchedulingModule],
 })
 export class WorkersModule {}

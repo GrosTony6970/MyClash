@@ -163,4 +163,28 @@ describe('NestJS module graph', () => {
         'inject RulesetResolver via RulesetResolverModule instead.',
     ).not.toContain('MatchesModule');
   });
+
+  /**
+   * The generic cycle test above passes as long as SOME edge in a cycle is
+   * forwardRef'd — it strips those edges and cannot tell a correct break from a
+   * useless one. That blind spot is exactly how the Referees→Workers cycle
+   * shipped: a forwardRef sat on the wrong edge (Workers→Leagues), silencing the
+   * static graph while the real undefined stayed on the plain Referees→Workers
+   * import, crashing the API only at boot. This assertion pins the structural
+   * fix — Referees depends on the NotificationSchedulingModule leaf, never the
+   * whole WorkersModule — so a regression fails here instead of in production.
+   */
+  it('RefereesModule reaches notification services without importing WorkersModule', () => {
+    const graph = buildGraph();
+    const referees = graph.get('RefereesModule') ?? [];
+
+    expect(referees).toContain('NotificationSchedulingModule');
+    expect(
+      referees,
+      'Importing WorkersModule here reintroduces the boot-crashing cycle ' +
+        'WorkersModule → LeaguesModule → TournamentPlacementModule → PhasesModule → ' +
+        'RefereesModule → WorkersModule. Depend on the NotificationSchedulingModule ' +
+        'leaf for notification services instead.',
+    ).not.toContain('WorkersModule');
+  });
 });
