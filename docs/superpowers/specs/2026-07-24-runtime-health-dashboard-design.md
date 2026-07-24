@@ -148,7 +148,11 @@ registered in WorkersModule.
 - **Fixed 5-min BullMQ tick** (repeatable, `onModuleInit`). Decouples scheduling from the
   user-configurable cadence — no job re-registration when settings change.
 - Each tick: read settings fresh; if disabled or `now - lastCheckAt < check_interval_minutes`,
-  skip. Otherwise collect metrics and derive per-metric status.
+  skip. Otherwise collect metrics and derive per-metric status. The `check_interval_minutes`
+  throttle applies **only while quiet** (no metric currently warning/critical/unavailable);
+  while a metric is actively alerting, the monitor re-checks on every fixed 5-min tick instead,
+  deliberately overriding the configured interval so recovery/re-arm is detected promptly
+  (the extra collector load during an incident is an accepted cost).
 - **Alert matrix:** healthy → card only; warning → `logger.warn`; critical →
   `logger.warn` + email to `recipient_emails` via `MailService.sendNotification` (subject/body
   list the critical metrics + values + link to `admin.${DOMAIN}/admin/system-versions`). If

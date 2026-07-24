@@ -96,4 +96,39 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
     const state = JSON.parse(store.get('runtime-health:alert-state') as string);
     expect(state.lastCriticalKeys).toEqual([]);
   });
+
+  it('emails on an unavailable metric (bucketed at the critical tier)', async () => {
+    const unavailable = { ...healthy, database: { status: 'unavailable' } };
+    const { worker, mail } = makeDeps({ snapshot: unavailable });
+    const result = await worker.tick(Date.now());
+    expect(result.emailed).toBe(true);
+    expect(mail.sendNotification).toHaveBeenCalledOnce();
+    expect(result.criticalKeys).toContain('database');
+  });
+
+  it('fails closed (never emails) when the de-dup store read fails', async () => {
+    const mail = { sendNotification: vi.fn(async () => undefined) };
+    const redis = {
+      get: async () => {
+        throw new Error('conn refused');
+      },
+      set: async () => undefined,
+      del: async () => undefined,
+    };
+    const worker = new RuntimeHealthMonitorWorker(
+      { add: async () => undefined } as never,
+      { collect: async () => ({ checkedAt: 'now', overall: 'critical', ...dbCritical }) } as never,
+      {
+        getSettings: async () => ({
+          ...DEFAULT_ALERT_SETTINGS,
+          recipientEmails: ['ops@x.io'],
+        }),
+      } as never,
+      mail as never,
+      redis as never,
+    );
+    const result = await worker.tick(Date.now());
+    expect(result.emailed).toBe(false);
+    expect(mail.sendNotification).not.toHaveBeenCalled();
+  });
 });

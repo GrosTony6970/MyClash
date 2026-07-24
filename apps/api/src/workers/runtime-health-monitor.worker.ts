@@ -74,7 +74,7 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     const settings = await this.settingsService.getSettings();
     if (!settings.enabled) return { ran: false, emailed: false, criticalKeys: [] };
 
-    const state = await this.readState();
+    const { state, ok: stateOk } = await this.readState();
     // Throttle full checks to checkIntervalMinutes ONLY while quiet (no active
     // alert). Once something is flagged, re-check on every fixed 5-min tick
     // regardless of the operator's interval, so recovery (re-arm) is caught
@@ -94,7 +94,14 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
 
     const alertKeys = settings.emailLevel === 'warning' ? warningKeys : criticalKeys;
     let emailed = false;
-    if (alertKeys.length > 0) {
+    if (!stateOk) {
+      // Fail-closed: a de-dup-store read failure must never cause an email —
+      // we can't tell whether this alert set was already emailed, and a flaky
+      // Redis would otherwise re-email on every single tick.
+      if (alertKeys.length > 0) {
+        this.logger.warn('De-dup state unavailable; suppressing alert emails this tick');
+      }
+    } else if (alertKeys.length > 0) {
       const isNewSet = !sameSet(alertKeys, state.lastCriticalKeys);
       const cooldownElapsed = now - state.lastEmailedAt >= settings.cooldownMinutes * 60_000;
       if (isNewSet || cooldownElapsed) {
@@ -102,17 +109,28 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
       }
     }
 
-    await this.writeState({
-      lastCriticalKeys: alertKeys,
-      lastEmailedAt: emailed ? now : alertKeys.length === 0 ? 0 : state.lastEmailedAt,
-      lastCheckedAt: now,
-    });
+    if (stateOk) {
+      // Don't persist state built on a failed read — it would be misleading
+      // (we only have the empty fallback, not the real last-known set). This is
+      // best-effort anyway: writeState() below already no-ops if the store is
+      // down, so skipping it here just avoids writing a false "no prior alert".
+      await this.writeState({
+        lastCriticalKeys: alertKeys,
+        lastEmailedAt: emailed ? now : alertKeys.length === 0 ? 0 : state.lastEmailedAt,
+        lastCheckedAt: now,
+      });
+    }
 
     return { ran: true, emailed, criticalKeys };
   }
 
   private keysAtLeast(snapshot: RuntimeHealthResponseDto, level: 'warning' | 'critical'): string[] {
-    const bad: MetricStatus[] = level === 'critical' ? ['critical'] : ['warning', 'critical'];
+    // 'unavailable' (collector threw / subsystem unreachable) is bucketed at the
+    // CRITICAL tier: a dead subsystem is at least as bad as a critical reading, so
+    // it must page at the default emailLevel='critical' rather than being gated
+    // behind emailLevel='warning'.
+    const bad: MetricStatus[] =
+      level === 'critical' ? ['critical', 'unavailable'] : ['warning', 'critical', 'unavailable'];
     return METRIC_KEYS.filter((k) => bad.includes(statusOf(snapshot, k)));
   }
 
@@ -143,15 +161,27 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     }
   }
 
-  private async readState(): Promise<AlertState> {
+  /**
+   * `ok: false` iff the Redis `get` itself threw (store unreachable/errored) —
+   * distinct from "no state yet" (empty store, healthy read) or "state
+   * unparseable" (both treated as `ok: true` with the empty fallback). Callers
+   * MUST treat `ok: false` as fail-closed: never email on that path, since we
+   * cannot tell whether the current alert set was already emailed.
+   */
+  private async readState(): Promise<{ state: AlertState; ok: boolean }> {
     const empty: AlertState = { lastCriticalKeys: [], lastEmailedAt: 0, lastCheckedAt: 0 };
-    if (!this.redis) return empty;
-    const raw = await this.redis.get(STATE_KEY).catch(() => null);
-    if (!raw) return empty;
+    if (!this.redis) return { state: empty, ok: true };
+    let raw: string | null;
     try {
-      return { ...empty, ...(JSON.parse(raw) as AlertState) };
+      raw = await this.redis.get(STATE_KEY);
     } catch {
-      return empty;
+      return { state: empty, ok: false };
+    }
+    if (!raw) return { state: empty, ok: true };
+    try {
+      return { state: { ...empty, ...(JSON.parse(raw) as AlertState) }, ok: true };
+    } catch {
+      return { state: empty, ok: true };
     }
   }
 
