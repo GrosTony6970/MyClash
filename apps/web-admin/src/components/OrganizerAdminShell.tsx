@@ -83,6 +83,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // this org's own Leagues entry, so offering /leagues for those would just be
   // a second door to the same room.
   const [hasLeagueRoles, setHasLeagueRoles] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
   const switcherRef = useRef<HTMLDivElement>(null);
 
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -141,8 +142,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           window.location.replace('/login');
           return;
         }
-        const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1];
+        const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1] & {
+          user?: { email?: string };
+        };
         setHasLeagueRoles(Boolean(data?.admin?.hasLeagueRoles));
+        setEmail(data?.user?.email ?? null);
         const decision = resolveAuthDecision(slug, data);
         if (decision.kind === 'unauthenticated') {
           window.location.replace('/login');
@@ -447,6 +451,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     </button>
   );
 
+  const accountFooter = email ? (
+    <div className="px-3">
+      <p className="text-[0.7rem] text-muted">{t('organizer.shell.loggedAs')}</p>
+      <p className="truncate text-xs font-semibold text-foreground" title={email}>
+        {email}
+      </p>
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <a
@@ -495,6 +508,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+          {accountFooter}
           <LanguageSwitcher className="px-3" />
           {logoutAction}
         </div>
@@ -589,6 +603,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
             <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+              {accountFooter}
               <LanguageSwitcher className="px-3" />
               {logoutAction}
             </div>

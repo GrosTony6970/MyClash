@@ -126,6 +126,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -160,6 +161,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
 
         const data = (await res.json()) as {
           type?: string;
+          user?: { email?: string };
           admin?: { isSuperAdmin?: boolean };
         };
         if (data.type !== 'claimed' || !data.admin?.isSuperAdmin) {
@@ -167,6 +169,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           return;
         }
         setIsSuperAdmin(true);
+        setEmail(data.user?.email ?? null);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -272,6 +275,15 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
     </button>
   );
 
+  const accountFooter = email ? (
+    <div className="px-3">
+      <p className="text-[0.7rem] text-muted">{t('admin.shell.loggedAs')}</p>
+      <p className="truncate text-xs font-semibold text-foreground" title={email}>
+        {email}
+      </p>
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <a
@@ -305,6 +317,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+          {accountFooter}
           <LanguageSwitcher className="px-3" />
           {logoutAction}
         </div>
@@ -379,6 +392,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
             <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+              {accountFooter}
               <LanguageSwitcher className="px-3" />
               {logoutAction}
             </div>

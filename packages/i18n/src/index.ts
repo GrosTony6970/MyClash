@@ -2114,6 +2114,7 @@ export const en = {
       logout: 'Log out',
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of super-admin',
+      loggedAs: 'Logged in as',
       sectionOverview: 'Overview',
       sectionContent: 'Content',
       sectionOperations: 'Operations',
@@ -4211,6 +4212,7 @@ export const en = {
       logout: 'Log out',
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of organizer admin',
+      loggedAs: 'Logged in as',
       skipToContent: 'Skip to main content',
       eventSwitcher: {
         openLabel: 'Switch event',
@@ -8406,6 +8408,7 @@ export const fr = {
       logout: 'Se deconnecter',
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: 'Se deconnecter du super-admin',
+      loggedAs: 'Connecté en tant que',
       sectionOverview: 'Vue generale',
       sectionContent: 'Contenu',
       sectionOperations: 'Operations',
@@ -10521,6 +10524,7 @@ export const fr = {
       logout: 'Se deconnecter',
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: "Se deconnecter de l'administration organisateur",
+      loggedAs: 'Connecté en tant que',
       skipToContent: 'Aller au contenu principal',
       eventSwitcher: {
         openLabel: 'Changer d evenement',
