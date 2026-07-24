@@ -5,6 +5,7 @@ import { ConfirmDialog, useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { TlsCertificatesCard } from './TlsCertificatesCard';
+import { RuntimeHealthCard } from './RuntimeHealthCard';
 
 /**
  * Formats an ISO timestamp as a locale-aware "long date + short time" string
@@ -364,6 +365,9 @@ export default function AdminSystemVersionsPage() {
           </div>
           <div className="mt-5">
             <TlsCertificatesCard />
+          </div>
+          <div className="mt-5">
+            <RuntimeHealthCard />
           </div>
         </>
       ) : null}
