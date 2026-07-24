@@ -6,10 +6,15 @@
  */
 
 import { forwardRef, Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Queue } from 'bullmq';
 import { AdminModule } from '../modules/admin/admin.module';
+import { AdminRuntimeHealthService } from '../modules/admin/runtime-health.service';
+import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-health-alert-settings.service';
+import { createRuntimeHealthRedis } from '../modules/admin/runtime-health/redis-connection';
 import { LeaguesModule } from '../modules/leagues/leagues.module';
+import { MailService } from '../modules/mail/mail.service';
 import { NotificationSchedulingModule } from '../modules/notifications/notification-scheduling.module';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
 import {
@@ -19,6 +24,10 @@ import {
 import { EVENT_ARCHIVE_QUEUE, EventArchiveWorker } from './event-archive.worker';
 import { EVENT_STATUS_TICK_QUEUE, EventStatusTickerWorker } from './event-status-ticker.worker';
 import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
+import {
+  RUNTIME_HEALTH_MONITOR_QUEUE,
+  RuntimeHealthMonitorWorker,
+} from './runtime-health-monitor.worker';
 import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor.worker';
 
 @Module({
@@ -69,6 +78,9 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     BullModule.registerQueue({
       name: TLS_CERT_MONITOR_QUEUE,
     }),
+    BullModule.registerQueue({
+      name: RUNTIME_HEALTH_MONITOR_QUEUE,
+    }),
     SupabaseModule,
     // The notification-scheduling subsystem (enqueue services + NOTIFICATION_QUEUE
     // + delivery worker) lives in this leaf module. Re-exported below so the
@@ -97,6 +109,33 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     EventArchiveWorker,
     DataQualityDeterministicWorker,
     TlsCertMonitorWorker,
+    {
+      provide: RuntimeHealthMonitorWorker,
+      // useFactory because the worker's 5th constructor param is a raw ioredis
+      // connection (not a Nest-tokened provider) — a plain provider would fail
+      // DI on that param. Mirrors AdminSystemActionsService's factory pattern.
+      useFactory: (
+        queue: Queue,
+        runtimeHealth: AdminRuntimeHealthService,
+        settings: RuntimeHealthAlertSettingsService,
+        mail: MailService,
+        config: ConfigService,
+      ) =>
+        new RuntimeHealthMonitorWorker(
+          queue,
+          runtimeHealth,
+          settings,
+          mail,
+          createRuntimeHealthRedis(config),
+        ),
+      inject: [
+        getQueueToken(RUNTIME_HEALTH_MONITOR_QUEUE),
+        AdminRuntimeHealthService,
+        RuntimeHealthAlertSettingsService,
+        MailService,
+        ConfigService,
+      ],
+    },
   ],
   // Re-export the leaf so consumers importing WorkersModule still resolve the
   // notification services. BullModule stays exported for the queues Workers
