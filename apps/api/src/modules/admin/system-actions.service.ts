@@ -54,6 +54,14 @@ export interface CertRenewalResult {
   error?: string;
 }
 
+export interface DiskUsageResult {
+  mountpoint: string;
+  sizeBytes: number;
+  usedBytes: number;
+  availBytes: number;
+  usePercent: number;
+}
+
 type FetchLike = typeof fetch;
 
 export interface AdminSystemActionsServiceOptions {
@@ -198,6 +206,38 @@ export class AdminSystemActionsService {
     });
 
     return result;
+  }
+
+  /** Read-only host disk usage via the ops-runner's GET /disk route. */
+  async getDiskUsage(): Promise<DiskUsageResult> {
+    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
+      throw new ServiceUnavailableException('Disk usage requires the ops-runner sidecar.');
+    }
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.opsRunnerUrl}/disk`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
+        signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'ops-runner request failed';
+      throw new ServiceUnavailableException(message);
+    }
+    if (!response.ok) {
+      const message = await response.text().catch(() => '');
+      throw new ServiceUnavailableException(
+        message || `ops-runner returned ${response.status} for disk usage.`,
+      );
+    }
+    const body = (await response.json()) as DiskUsageResult;
+    return {
+      mountpoint: body.mountpoint,
+      sizeBytes: body.sizeBytes,
+      usedBytes: body.usedBytes,
+      availBytes: body.availBytes,
+      usePercent: body.usePercent,
+    };
   }
 
   private async writeAuditLog(

@@ -165,4 +165,36 @@ describe('AdminSystemActionsService', () => {
       expect(audits).toHaveLength(0);
     });
   });
+
+  describe('getDiskUsage', () => {
+    it('returns parsed disk usage from the ops-runner', async () => {
+      const fetchImpl = (async () =>
+        new Response(
+          JSON.stringify({
+            generatedAt: 'now',
+            filesystem: '/dev/sda1',
+            mountpoint: '/srv/myclash',
+            sizeBytes: 50000000000,
+            usedBytes: 32000000000,
+            availBytes: 18000000000,
+            usePercent: 65,
+          }),
+          { status: 200 },
+        )) as unknown as typeof fetch;
+      const service = makeService(fetchImpl);
+
+      const result = await service.getDiskUsage();
+
+      expect(result.usePercent).toBe(65);
+      expect(result.mountpoint).toBe('/srv/myclash');
+    });
+
+    it('throws ServiceUnavailable when ops-runner is not configured', async () => {
+      const service = new AdminSystemActionsService(supabaseStub as never, {
+        opsRunnerUrl: '',
+        opsRunnerSecret: '',
+      });
+      await expect(service.getDiskUsage()).rejects.toThrow(ServiceUnavailableException);
+    });
+  });
 });
