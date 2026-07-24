@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AIUsageModule } from '../ai-usage/ai-usage.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { MatchesModule } from '../matches/matches.module';
@@ -36,6 +37,14 @@ import { PlatformAISettingsController } from './platform-ai-settings.controller'
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 import { PlatformAIUsageController } from './platform-ai-usage.controller';
 import { PublicFeatureFlagsController } from './public-feature-flags.controller';
+import { RuntimeHealthAdminController } from './runtime-health.controller';
+import { AdminRuntimeHealthService } from './runtime-health.service';
+import { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
+import { createRuntimeHealthRedis } from './runtime-health/redis-connection';
+import { collectDb } from './runtime-health/db-collector';
+import { collectRedis } from './runtime-health/redis-collector';
+import { collectQueues } from './runtime-health/queue-collector';
+import { collectDisk } from './runtime-health/disk-collector';
 import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
@@ -69,6 +78,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     LeagueScoringSystemsController,
     ClaimRequestsAdminController,
     WeaponsAdminController,
+    RuntimeHealthAdminController,
   ],
   providers: [
     ClaimRequestsService,
@@ -98,6 +108,30 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     LeagueScoringSystemsService,
     WeaponsAdminService,
     SuperAdminGuard,
+    RuntimeHealthAlertSettingsService,
+    {
+      provide: AdminRuntimeHealthService,
+      useFactory: (
+        settings: RuntimeHealthAlertSettingsService,
+        supabase: SupabaseService,
+        systemActions: AdminSystemActionsService,
+        config: ConfigService,
+      ) => {
+        const redis = createRuntimeHealthRedis(config);
+        return new AdminRuntimeHealthService(settings, {
+          collectDb: () => collectDb(supabase),
+          collectRedis: () => collectRedis(redis),
+          collectQueues: () => collectQueues(redis),
+          collectDisk: () => collectDisk(systemActions),
+        });
+      },
+      inject: [
+        RuntimeHealthAlertSettingsService,
+        SupabaseService,
+        AdminSystemActionsService,
+        ConfigService,
+      ],
+    },
   ],
   exports: [
     SuperAdminGuard,
@@ -105,6 +139,8 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AIDataQualityService,
     LeagueScoringSystemsService,
     AdminTlsStatusService,
+    AdminRuntimeHealthService,
+    RuntimeHealthAlertSettingsService,
   ],
 })
 export class AdminModule {}
