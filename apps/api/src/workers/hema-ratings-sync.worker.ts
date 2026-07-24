@@ -18,8 +18,9 @@
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import { AdminFeatureFlagsService } from '../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import {
@@ -49,7 +50,7 @@ export const HEMA_RATINGS_JOB = 'sync';
 
 @Processor(HEMA_RATINGS_QUEUE)
 @Injectable()
-export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
+export class HemaRatingsSyncWorker extends SentryReportingWorkerHost implements OnModuleInit {
   private readonly logger = new Logger(HemaRatingsSyncWorker.name);
 
   constructor(

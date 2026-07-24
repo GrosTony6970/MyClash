@@ -74,6 +74,21 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
+  // ── Source-map upload ──────────────────────────────────────────────────
+  // Without these, client-side stack traces arrive in Sentry MINIFIED and
+  // unreadable. Upload is gated on SENTRY_AUTH_TOKEN (build-time only — set in
+  // the Dockerfile builder stage, never at runtime): when it's unset (local /
+  // dev builds) the plugin skips upload and the build stays green. `org` is the
+  // Sentry organisation slug — confirm the real value with the owner.
+  org: 'myclash',
+  project: 'web-admin',
+  authToken: process.env['SENTRY_AUTH_TOKEN'],
+  // Match the release the runtime tags events with (GIT_COMMIT) so uploaded
+  // maps resolve for that release; falls back to plugin auto-detection when
+  // SENTRY_RELEASE is unset (dev).
+  release: { name: process.env['SENTRY_RELEASE'] },
+  // Don't ship the generated .map files in the public bundle.
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   silent: true,
   telemetry: false,
   webpack: {

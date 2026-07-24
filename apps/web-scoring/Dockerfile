@@ -40,6 +40,11 @@ ARG NEXT_PUBLIC_SENTRY_DSN_SCORING
 ARG SENTRY_ENVIRONMENT=production
 ARG SENTRY_RELEASE
 ARG SENTRY_TRACES_SAMPLE_RATE=0
+# Source-map upload token (build-time ONLY). Deliberately NOT set in the runner
+# stage or any runtime `environment:` block — it must never ship in the final
+# image or reach the browser. Empty in dev ⇒ the Sentry plugin skips upload and
+# the build stays green.
+ARG SENTRY_AUTH_TOKEN
 # Asset prefix mirrors the Traefik /scoring sub-path mount on both
 # admin.${DOMAIN} and scoring.${DOMAIN}. Must persist into the
 # `next build` invocation so next.config.ts picks it up.
@@ -53,6 +58,7 @@ ENV NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
 ENV SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
 ENV SENTRY_RELEASE=${SENTRY_RELEASE}
 ENV SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 
 COPY tsconfig.base.json tsconfig.lib.json ./
 COPY eslint.config.mjs ./

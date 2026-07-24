@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
+import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import * as webPush from 'web-push';
 import { MailService } from '../modules/mail/mail.service';
 import { SupabaseService } from '../modules/supabase/supabase.service';
@@ -367,7 +368,7 @@ export class NotificationSchedulerService {
 
 @Processor(NOTIFICATION_QUEUE)
 @Injectable()
-export class NotificationSchedulerWorker extends WorkerHost {
+export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   private readonly logger = new Logger(NotificationSchedulerWorker.name);
 
   constructor(

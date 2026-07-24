@@ -50,6 +50,11 @@ ARG NEXT_PUBLIC_SENTRY_DSN_PUBLIC
 ARG SENTRY_ENVIRONMENT=production
 ARG SENTRY_RELEASE
 ARG SENTRY_TRACES_SAMPLE_RATE=0
+# Source-map upload token (build-time ONLY). Deliberately NOT set in the runner
+# stage or any runtime `environment:` block — it must never ship in the final
+# image or reach the browser. Empty in dev ⇒ the Sentry plugin skips upload and
+# the build stays green.
+ARG SENTRY_AUTH_TOKEN
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_SENTRY_DSN_PUBLIC=${NEXT_PUBLIC_SENTRY_DSN_PUBLIC}
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
@@ -58,6 +63,7 @@ ENV NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
 ENV SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
 ENV SENTRY_RELEASE=${SENTRY_RELEASE}
 ENV SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 
 COPY tsconfig.base.json tsconfig.lib.json ./
 COPY eslint.config.mjs ./

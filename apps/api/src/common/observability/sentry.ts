@@ -45,6 +45,31 @@ export function captureApiException(
   });
 }
 
+/** Minimal structural view of a BullMQ Job — avoids coupling observability to bullmq. */
+export interface WorkerJobLike {
+  id?: string | number;
+  name?: string;
+  queueName?: string;
+  attemptsMade?: number;
+}
+
+/**
+ * Report a failed BullMQ job to Sentry. BullMQ swallows processor rejections
+ * (no HTTP request → the exception filter never runs; the promise is handled →
+ * no `unhandledRejection`), so without this hook background-job failures are
+ * invisible in Sentry. Reuses `captureApiException` for the redacted-context +
+ * enabled-guard path. No-ops when Sentry is disabled.
+ */
+export function captureWorkerJobFailure(job: WorkerJobLike, error: unknown): void {
+  captureApiException(error, {
+    source: 'bullmq',
+    queue: job?.queueName,
+    jobName: job?.name,
+    jobId: job?.id,
+    attemptsMade: job?.attemptsMade,
+  });
+}
+
 function parseSampleRate(value: string | undefined): number {
   if (!value) return 0;
   const parsed = Number(value);

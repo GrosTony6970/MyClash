@@ -24,9 +24,10 @@
  */
 
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import { LeaguesService } from '../modules/leagues/leagues.service';
 
 export const EVENT_STATUS_TICK_QUEUE = 'event-status-ticker';
@@ -34,7 +35,7 @@ export const EVENT_STATUS_TICK_JOB = 'tick';
 
 @Processor(EVENT_STATUS_TICK_QUEUE)
 @Injectable()
-export class EventStatusTickerWorker extends WorkerHost implements OnModuleInit {
+export class EventStatusTickerWorker extends SentryReportingWorkerHost implements OnModuleInit {
   private readonly logger = new Logger(EventStatusTickerWorker.name);
 
   constructor(

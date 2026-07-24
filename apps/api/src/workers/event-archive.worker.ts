@@ -20,16 +20,17 @@
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
 export const EVENT_ARCHIVE_QUEUE = 'event-archive';
 export const EVENT_ARCHIVE_JOB = 'archive';
 
 @Processor(EVENT_ARCHIVE_QUEUE)
 @Injectable()
-export class EventArchiveWorker extends WorkerHost implements OnModuleInit {
+export class EventArchiveWorker extends SentryReportingWorkerHost implements OnModuleInit {
   private readonly logger = new Logger(EventArchiveWorker.name);
 
   constructor(

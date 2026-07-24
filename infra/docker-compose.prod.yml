@@ -602,6 +602,9 @@ services:
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+        # Build-time ONLY (source-map upload). Never mirrored into the
+        # environment: block below — it must not ship in the image / reach browsers.
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
     container_name: myclash-web-public
     restart: unless-stopped
     environment:
@@ -709,6 +712,9 @@ services:
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+        # Build-time ONLY (source-map upload). Never mirrored into the
+        # environment: block below — it must not ship in the image / reach browsers.
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
         # Mounted under /scoring on both admin.${DOMAIN} (via the
         # myclash-admin-scoring stripprefix router) and scoring.${DOMAIN}
         # (via the myclash-scoring-prefixed sibling router below). Next
@@ -803,6 +809,9 @@ services:
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+        # Build-time ONLY (source-map upload). Never mirrored into the
+        # environment: block below — it must not ship in the image / reach browsers.
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
     container_name: myclash-web-admin
     restart: unless-stopped
     environment:

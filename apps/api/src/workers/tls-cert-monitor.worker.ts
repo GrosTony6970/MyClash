@@ -22,10 +22,11 @@
  */
 
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { Job, Queue } from 'bullmq';
 import { AdminTlsStatusService } from '../modules/admin/tls-status.service';
+import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import type { TlsCertStatusDto } from '../modules/admin/dto/tls-status.dto';
 import { MailService } from '../modules/mail/mail.service';
 
@@ -34,7 +35,7 @@ export const TLS_CERT_MONITOR_JOB = 'check';
 
 @Processor(TLS_CERT_MONITOR_QUEUE)
 @Injectable()
-export class TlsCertMonitorWorker extends WorkerHost implements OnModuleInit {
+export class TlsCertMonitorWorker extends SentryReportingWorkerHost implements OnModuleInit {
   private readonly logger = new Logger(TlsCertMonitorWorker.name);
 
   constructor(

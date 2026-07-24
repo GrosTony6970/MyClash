@@ -28,6 +28,8 @@ const requiredEnvKeys = [
   'SENTRY_ENVIRONMENT',
   'SENTRY_RELEASE',
   'SENTRY_TRACES_SAMPLE_RATE',
+  // Build-time source-map upload token (kept empty in the example).
+  'SENTRY_AUTH_TOKEN',
 ];
 
 const failures = [];
@@ -61,6 +63,20 @@ for (const [pkg, dep] of [
 ]) {
   const json = JSON.parse(readFileSync(pkg, 'utf8'));
   if (!json.dependencies?.[dep]) failures.push(`${pkg} is missing ${dep}`);
+}
+
+// Each Next app must wire Sentry source-map upload, otherwise client-side
+// stack traces land in Sentry minified/unreadable. Gated on SENTRY_AUTH_TOKEN
+// at build time (empty ⇒ upload skipped, build stays green).
+for (const cfg of [
+  'apps/web-public/next.config.ts',
+  'apps/web-admin/next.config.ts',
+  'apps/web-scoring/next.config.ts',
+]) {
+  const source = readFileSync(cfg, 'utf8');
+  if (!source.includes('authToken')) {
+    failures.push(`${cfg} must configure Sentry source-map upload (authToken)`);
+  }
 }
 
 const loggingSource = readFileSync(

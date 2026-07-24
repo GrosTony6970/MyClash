@@ -16,9 +16,10 @@
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { AIDataQualityService } from '../modules/admin/ai-data-quality.service';
+import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
 export const DATA_QUALITY_DETERMINISTIC_QUEUE = 'data-quality-deterministic';
 export const DATA_QUALITY_DETERMINISTIC_JOB = 'scan';
@@ -31,7 +32,10 @@ const CRON_ACTOR_ID = null;
 
 @Processor(DATA_QUALITY_DETERMINISTIC_QUEUE)
 @Injectable()
-export class DataQualityDeterministicWorker extends WorkerHost implements OnModuleInit {
+export class DataQualityDeterministicWorker
+  extends SentryReportingWorkerHost
+  implements OnModuleInit
+{
   private readonly logger = new Logger(DataQualityDeterministicWorker.name);
 
   constructor(
