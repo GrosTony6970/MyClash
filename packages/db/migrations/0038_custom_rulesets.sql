@@ -1,9 +1,8 @@
 -- 0038_custom_rulesets.sql
 -- Curated ruleset registry: super-admins can author custom rulesets via the UI.
 -- A row's (code, version) maps to a Ruleset plugin instance at runtime:
---  - is_system rows mirror the in-code plugins (TF_v1, TF_v1_no_afterblow,
---    Generic_PointsCap) for display purposes; runtime always resolves these
---    through the code registry.
+--  - is_system rows mirror the in-code plugins (TF_v1, Generic_PointsCap) for
+--    display purposes; runtime always resolves these through the code registry.
 --  - Non-system rows store a JSON AST + constants + tie-breakers that the
 --    FormulaRuleset factory uses at runtime to build a Ruleset plugin.
 
@@ -35,7 +34,7 @@ DROP POLICY IF EXISTS "custom_rulesets_super_admin_all" ON custom_rulesets;
 CREATE POLICY "custom_rulesets_super_admin_all" ON custom_rulesets
   FOR ALL USING (is_super_admin()) WITH CHECK (is_super_admin());
 
--- Seed the three code-plugin rulesets as display-only system rows.
+-- Seed the two code-plugin rulesets as display-only system rows.
 -- Their formula/constants/tiebreakers fields are nominal — the runtime always
 -- prefers the in-code plugin for these codes.
 INSERT INTO custom_rulesets
@@ -43,14 +42,10 @@ INSERT INTO custom_rulesets
 VALUES
   -- Name is the code ("TF_v1"); the human blurb lives in the description
   -- (TF = Tournois Fédéraux FFAMHE, not the old mis-expansion "Tournoi de
-  -- Frappe"). Seeded correctly here, so the 0050 rename and the 0070
-  -- description-clear are now no-ops on a fresh apply.
+  -- Frappe").
   ('TF_v1', '1.0.0', 'TF_v1',
     '(Tournois Fédéraux FFAMHE 2025-2026-2027)',
     'published', '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, TRUE, TRUE),
-  ('TF_v1_no_afterblow', '1.0.0', 'TF v1 (no afterblow)',
-    'TF v1 variant without afterblow scoring.',
-    'published', '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, FALSE, TRUE),
   ('Generic_PointsCap', '1.0.0', 'Generic points cap',
     'Simple highest-score-wins until the points cap is reached.',
     'published', '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, FALSE, TRUE)
