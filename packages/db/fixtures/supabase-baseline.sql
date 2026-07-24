@@ -2,9 +2,10 @@
 --
 -- Minimal Supabase-compatibility baseline so `scripts/replay-db-migrations.mjs`
 -- can replay every MyClash migration against a vanilla postgres image (e.g.
--- `postgres:16`) that has none of the objects the Supabase Postgres image ships
--- with. `pnpm db:migrations:replay` applies this automatically before the
--- migrations; you only need it by hand if you replay migrations yourself.
+-- `postgres:17` — production runs Postgres 17) that has none of the objects the
+-- Supabase Postgres image ships with. `pnpm db:migrations:replay` applies this
+-- automatically before the migrations; you only need it by hand if you replay
+-- migrations yourself.
 --
 -- Why it is needed (what a vanilla postgres lacks):
 --   * Roles `anon` / `authenticated` / `service_role`. Migration 0002 already

@@ -20,8 +20,9 @@ Phase 4 production-readiness review, last updated 2026-05-12.
 in production that database is the Supabase Postgres image — which ships roles
 (`anon`, `authenticated`, `service_role`), an `auth` schema with `auth.users` and
 the `auth.uid()` / `auth.jwt()` / `auth.role()` helpers, and the extensions the
-migrations rely on. A plain `postgres:16` container has none of the roles or
-`auth.users`, so the replay would die at migration `0011` (the first
+migrations rely on. A plain `postgres:17` container (production runs Postgres 17)
+has none of the roles or `auth.users`, so the replay would die at migration
+`0011` (the first
 `CREATE POLICY ... TO service_role`) and later at the first
 `REFERENCES auth.users(id)`.
 
@@ -36,14 +37,14 @@ at a real Supabase database is a harmless no-op.
 Full run against a throwaway container:
 
 ```bash
-docker run -d --name myclash-replay-pg16 \
+docker run -d --name myclash-replay-pg17 \
   -e POSTGRES_PASSWORD=dev-password -e POSTGRES_DB=myclash_replay \
-  -p 55432:5432 postgres:16
+  -p 55432:5432 postgres:17
 
 DATABASE_URL="postgres://postgres:dev-password@localhost:55432/myclash_replay" \
   pnpm db:migrations:replay
 
-docker rm -f myclash-replay-pg16
+docker rm -f myclash-replay-pg17
 ```
 
 Each run needs a **fresh** database — the migrations are not re-runnable in place
