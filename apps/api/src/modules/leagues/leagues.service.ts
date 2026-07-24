@@ -1280,6 +1280,10 @@ export class LeaguesService {
     for (const link of (links ?? []) as Row[]) {
       const league = link['leagues'] as Row | null;
       if (!league) continue;
+      // Freeze: a finalized season's standings must not move as late linked
+      // events tick over, so skip it entirely — no results rewrite, no ranking
+      // recompute. Reopen (clears finalized_at) lets recompute resume.
+      if (league['finalized_at']) continue;
       const config = await this.scoring.resolveConfig(
         normalizeScoringConfig(league['scoring_config']),
       );
@@ -1306,6 +1310,14 @@ export class LeaguesService {
   async recomputeLeagueRankings(leagueId: string, userId?: string) {
     if (userId) await this.assertCanManageLeague(leagueId, userId);
     const league = await this.getLeagueById(leagueId);
+    // Freeze guard: a finalized season's table is frozen — refuse to recompute
+    // it (the manual-recompute endpoint surfaces this as a 400). recomputeForEvent
+    // already skips finalized leagues, so its internal calls never reach here.
+    if (league['finalized_at']) {
+      throw new BadRequestException(
+        'This league season is finalized. Reopen it before recomputing rankings.',
+      );
+    }
     const config = await this.scoring.resolveConfig(
       normalizeScoringConfig(league['scoring_config']),
     );
@@ -1441,6 +1453,138 @@ export class LeaguesService {
     if (error) throw new BadRequestException(error.message);
     const { clubs, unaffiliated } = aggregateClubStandings((data ?? []) as Row[]);
     return { league, clubs, unaffiliated };
+  }
+
+  // ── Season lifecycle: clone + finalize ──────────────────────────────────────
+
+  /**
+   * Roll a league into a new season: create a NEW league copying the
+   * configuration (name, scoring, description, logo) and the management
+   * structure (groups, org roles, user roles), but NONE of the results —
+   * league_tournament_links, league_tournament_results and league_rankings are
+   * deliberately not copied, so the new season starts empty. The clone starts as
+   * a draft; the operator publishes it when ready.
+   */
+  async clone(leagueId: string, dto: { seasonYear: number; name?: string }, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const source = await this.getLeagueById(leagueId);
+    const name = (dto.name?.trim() || String(source['name'] ?? '')).trim();
+    if (name.length < 2) throw new BadRequestException('League name is required');
+    const slug = await this.generateUniqueLeagueSlug(name, dto.seasonYear);
+
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .insert({
+        name,
+        slug,
+        season_year: dto.seasonYear,
+        description: source['description'] ?? null,
+        logo_url: source['logo_url'] ?? null,
+        scoring_system: source['scoring_system'],
+        scoring_config: source['scoring_config'],
+        created_by_user_id: userId,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message.includes('duplicate')) throw new ConflictException('League slug exists');
+      throw new BadRequestException(error.message);
+    }
+    const newLeagueId = String((data as Row)['id']);
+
+    // Copy groups (name + sort_order) — NOT tournament links / results / rankings.
+    const groups = await this.listRows('league_groups', 'league_id', leagueId);
+    if (groups.length > 0) {
+      const { error: groupErr } = await this.supabase.service.from('league_groups').insert(
+        groups.map((g) => ({
+          league_id: newLeagueId,
+          name: String(g['name'] ?? ''),
+          sort_order: Number(g['sort_order'] ?? 0),
+        })),
+      );
+      if (groupErr) throw new BadRequestException(groupErr.message);
+    }
+
+    // Copy organization roles verbatim.
+    const orgRoles = await this.listRows('league_organization_roles', 'league_id', leagueId);
+    if (orgRoles.length > 0) {
+      const { error: orgErr } = await this.supabase.service
+        .from('league_organization_roles')
+        .insert(
+          orgRoles.map((r) => ({
+            league_id: newLeagueId,
+            organization_id: String(r['organization_id']),
+            role: String(r['role']),
+          })),
+        );
+      if (orgErr) throw new BadRequestException(orgErr.message);
+    }
+
+    // Copy user roles, then guarantee the cloner keeps an owner grant so they can
+    // manage the new season even if they only reached the source via their org
+    // or as a super admin (no direct row to copy). Deduped by user so the batch
+    // never carries the same user twice.
+    const userRoles = await this.listRows('league_user_roles', 'league_id', leagueId);
+    const roleByUser = new Map<string, string>();
+    for (const r of userRoles) roleByUser.set(String(r['user_id']), String(r['role']));
+    if (!roleByUser.has(userId)) roleByUser.set(userId, 'owner');
+    const { error: userErr } = await this.supabase.service.from('league_user_roles').insert(
+      [...roleByUser.entries()].map(([user_id, role]) => ({
+        league_id: newLeagueId,
+        user_id,
+        role,
+      })),
+    );
+    if (userErr) throw new BadRequestException(userErr.message);
+
+    return data;
+  }
+
+  /** Freeze a season: stamp finalized_at so recompute stops moving the table. */
+  async finalize(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    return this.setFinalizedAt(leagueId, new Date().toISOString());
+  }
+
+  /** Reopen a finalized season: clear finalized_at so recompute resumes. */
+  async reopen(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    return this.setFinalizedAt(leagueId, null);
+  }
+
+  private async setFinalizedAt(leagueId: string, value: string | null) {
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .update({ finalized_at: value, updated_at: new Date().toISOString() })
+      .eq('id', leagueId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  /**
+   * A slug not yet taken by another league: the toSlug of the name, then the
+   * name + season year, then a numbered suffix on that — mirroring the admin
+   * toSlug helper with a season/-2 de-dup suffix on conflict.
+   */
+  private async generateUniqueLeagueSlug(name: string, seasonYear: number): Promise<string> {
+    const base = slugifyLeagueName(name) || 'league';
+    const { data } = await this.supabase.service
+      .from('leagues')
+      .select('slug')
+      .ilike('slug', `${base}%`);
+    const taken = new Set(((data ?? []) as Row[]).map((row) => String(row['slug'])));
+    for (const candidate of [base, `${base}-${seasonYear}`]) {
+      if (!taken.has(candidate)) return candidate;
+    }
+    let n = 2;
+    let candidate = `${base}-${seasonYear}-${n}`;
+    while (taken.has(candidate)) {
+      n += 1;
+      candidate = `${base}-${seasonYear}-${n}`;
+    }
+    return candidate;
   }
 
   async finalReportCsv(leagueId: string): Promise<string> {
@@ -1803,6 +1947,20 @@ function normalizeScoringConfig(input: unknown): LeagueScoringConfig {
     customPointsByRank: source.customPointsByRank,
     tieBreakers,
   };
+}
+
+/**
+ * Slugify a league name — the API-side twin of the admin `toSlug`
+ * (apps/web-admin/app/admin/leagues/league-utils.ts): NFD-strip accents,
+ * lowercase, non-alphanumerics to hyphens, trim leading/trailing hyphens.
+ */
+function slugifyLeagueName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function csv(value: unknown): string {

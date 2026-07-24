@@ -60,6 +60,17 @@ const updateLeagueSchema = z
   .strict();
 export class UpdateLeagueDto extends createZodDto(updateLeagueSchema) {}
 
+const cloneLeagueSchema = z
+  .object({
+    // The new season year for the cloned league. Required — cloning is a
+    // roll-into-new-season action, so a distinct year is the whole point.
+    seasonYear: z.number().int().min(2000).max(2100),
+    // Optional override for the clone's name; defaults to the source name.
+    name: z.string().min(2).max(200).optional(),
+  })
+  .strict();
+export class CloneLeagueDto extends createZodDto(cloneLeagueSchema) {}
+
 const addLeagueOrganizationRoleSchema = z
   .object({
     organizationId: z.uuid(),

@@ -105,6 +105,44 @@ describe('LeaguesController auth', () => {
     );
   });
 
+  it('clones a league into a new season, resolving the caller from the admin cookie', async () => {
+    const clone = vi.fn().mockResolvedValue({ id: 'new-league' });
+    const getAuthUser = vi.fn().mockResolvedValue({ id: 'user-6' });
+    const controller = new LeaguesController(
+      { clone } as never,
+      { getAuthUser, anon: { auth: { getUser: vi.fn() } } } as never,
+    );
+
+    await controller.cloneLeague('66666666-6666-4666-8666-666666666666', { seasonYear: 2027 }, {
+      cookies: { 'sb-access-token': 'cookie-token' },
+      headers: {},
+    } as never);
+
+    expect(getAuthUser).toHaveBeenCalledWith('cookie-token');
+    expect(clone).toHaveBeenCalledWith(
+      '66666666-6666-4666-8666-666666666666',
+      { seasonYear: 2027 },
+      'user-6',
+    );
+  });
+
+  it('finalizes and reopens a league season', async () => {
+    const finalize = vi.fn().mockResolvedValue({ id: 'L1', finalized_at: 'now' });
+    const reopen = vi.fn().mockResolvedValue({ id: 'L1', finalized_at: null });
+    const getAuthUser = vi.fn().mockResolvedValue({ id: 'user-7' });
+    const controller = new LeaguesController(
+      { finalize, reopen } as never,
+      { getAuthUser, anon: { auth: { getUser: vi.fn() } } } as never,
+    );
+    const req = { cookies: { 'sb-access-token': 'cookie-token' }, headers: {} } as never;
+
+    await controller.finalizeLeague('77777777-7777-4777-8777-777777777777', req);
+    await controller.reopenLeague('77777777-7777-4777-8777-777777777777', req);
+
+    expect(finalize).toHaveBeenCalledWith('77777777-7777-4777-8777-777777777777', 'user-7');
+    expect(reopen).toHaveBeenCalledWith('77777777-7777-4777-8777-777777777777', 'user-7');
+  });
+
   it('rejects invalid tokens instead of passing anonymous to league mutations', async () => {
     const create = vi.fn();
     const controller = new LeaguesController(

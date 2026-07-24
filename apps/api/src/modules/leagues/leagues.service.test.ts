@@ -1474,3 +1474,292 @@ describe('LeaguesService placement-driven contributions', () => {
     expect(scoring.toTournamentContributions).not.toHaveBeenCalled();
   });
 });
+
+// ── Season lifecycle: clone + finalize ──────────────────────────────────────
+
+describe('LeaguesService.clone', () => {
+  function build(opts: {
+    source: Record<string, unknown>;
+    existingSlugs?: string[];
+    groups?: unknown[];
+    orgRoles?: unknown[];
+    userRoles?: unknown[];
+  }) {
+    const inserts: Record<string, unknown[]> = {};
+    const leaguesInsert: Record<string, unknown>[] = [];
+    const touched = new Set<string>();
+
+    const childChain = (table: string, rows: unknown[]) => {
+      const c: Record<string, ReturnType<typeof vi.fn>> = {};
+      c['select'] = vi.fn(() => c);
+      c['eq'] = vi.fn(() => Promise.resolve({ data: rows, error: null }));
+      c['insert'] = vi.fn((payload: unknown) => {
+        (inserts[table] ??= []).push(payload);
+        return Promise.resolve({ data: payload, error: null });
+      });
+      return c;
+    };
+
+    const supabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          touched.add(table);
+          if (table === 'platform_roles') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi
+                .fn()
+                .mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+            };
+          }
+          if (table === 'leagues') {
+            return {
+              select: vi.fn((cols: string) => {
+                if (cols === 'slug') {
+                  return {
+                    ilike: vi.fn().mockResolvedValue({
+                      data: (opts.existingSlugs ?? []).map((s) => ({ slug: s })),
+                      error: null,
+                    }),
+                  };
+                }
+                return {
+                  eq: vi.fn().mockReturnThis(),
+                  maybeSingle: vi.fn().mockResolvedValue({ data: opts.source, error: null }),
+                };
+              }),
+              insert: vi.fn((payload: Record<string, unknown>) => {
+                leaguesInsert.push(payload);
+                return {
+                  select: vi.fn().mockReturnThis(),
+                  single: vi
+                    .fn()
+                    .mockResolvedValue({ data: { id: 'new-league', ...payload }, error: null }),
+                };
+              }),
+            };
+          }
+          if (table === 'league_groups') return childChain(table, opts.groups ?? []);
+          if (table === 'league_organization_roles') return childChain(table, opts.orgRoles ?? []);
+          if (table === 'league_user_roles') return childChain(table, opts.userRoles ?? []);
+          return childChain(table, []);
+        }),
+      },
+    };
+    const service = new LeaguesService(
+      supabase as never,
+      { assertOrgRole: vi.fn() } as never,
+      {} as never,
+    );
+    return { service, inserts, leaguesInsert, touched };
+  }
+
+  it('copies config + groups + roles into a new season and never copies links, results or rankings', async () => {
+    const { service, inserts, leaguesInsert, touched } = build({
+      source: {
+        id: 'L1',
+        name: 'Coupe de France',
+        slug: 'coupe-de-france',
+        season_year: 2026,
+        description: 'desc',
+        logo_url: 'logo.png',
+        scoring_system: 'ffamhe_tf_2026',
+        scoring_config: {
+          scoringSystem: 'ffamhe_tf_2026',
+          rankingDimensions: 'weapon',
+          tieBreakers: ['total_points'],
+        },
+      },
+      existingSlugs: ['coupe-de-france'], // base taken → expect the season suffix
+      groups: [
+        { id: 'g1', name: 'Open', sort_order: 0 },
+        { id: 'g2', name: 'Women', sort_order: 1 },
+      ],
+      orgRoles: [{ organization_id: 'org-1', role: 'owner' }],
+      userRoles: [{ user_id: 'u-existing', role: 'admin' }],
+    });
+
+    await service.clone('L1', { seasonYear: 2027 }, 'cloner-1');
+
+    expect(leaguesInsert).toHaveLength(1);
+    expect(leaguesInsert[0]).toMatchObject({
+      name: 'Coupe de France',
+      slug: 'coupe-de-france-2027',
+      season_year: 2027,
+      description: 'desc',
+      logo_url: 'logo.png',
+      scoring_system: 'ffamhe_tf_2026',
+      scoring_config: expect.objectContaining({ scoringSystem: 'ffamhe_tf_2026' }),
+      created_by_user_id: 'cloner-1',
+    });
+    // Clone starts as a draft — never sets status/public_visibility.
+    expect(leaguesInsert[0]).not.toHaveProperty('status');
+    expect(leaguesInsert[0]).not.toHaveProperty('public_visibility');
+
+    expect(inserts['league_groups']?.[0]).toEqual([
+      { league_id: 'new-league', name: 'Open', sort_order: 0 },
+      { league_id: 'new-league', name: 'Women', sort_order: 1 },
+    ]);
+    expect(inserts['league_organization_roles']?.[0]).toEqual([
+      { league_id: 'new-league', organization_id: 'org-1', role: 'owner' },
+    ]);
+    // Existing user roles copied + cloner guaranteed an owner grant.
+    expect(inserts['league_user_roles']?.[0]).toEqual([
+      { league_id: 'new-league', user_id: 'u-existing', role: 'admin' },
+      { league_id: 'new-league', user_id: 'cloner-1', role: 'owner' },
+    ]);
+    // Results / links / rankings are never read or written.
+    expect(touched.has('league_tournament_links')).toBe(false);
+    expect(touched.has('league_tournament_results')).toBe(false);
+    expect(touched.has('league_rankings')).toBe(false);
+  });
+
+  it("preserves the cloner's existing role instead of forcing owner", async () => {
+    const { service, inserts } = build({
+      source: {
+        id: 'L1',
+        name: 'Ligue',
+        slug: 'ligue',
+        scoring_system: 'custom',
+        scoring_config: {},
+      },
+      userRoles: [{ user_id: 'cloner-1', role: 'admin' }],
+    });
+    await service.clone('L1', { seasonYear: 2027 }, 'cloner-1');
+    expect(inserts['league_user_roles']?.[0]).toEqual([
+      { league_id: 'new-league', user_id: 'cloner-1', role: 'admin' },
+    ]);
+  });
+
+  it('uses the bare toSlug when the base slug is free', async () => {
+    const { service, leaguesInsert } = build({
+      source: { id: 'L1', name: 'Nouvelle Ligue', scoring_system: 'custom', scoring_config: {} },
+    });
+    await service.clone('L1', { seasonYear: 2027 }, 'cloner-1');
+    expect(leaguesInsert[0]).toMatchObject({ slug: 'nouvelle-ligue' });
+  });
+});
+
+describe('LeaguesService.finalize / reopen', () => {
+  function build() {
+    const updates: Record<string, unknown>[] = [];
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'platform_roles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+          };
+        }
+        return {
+          update: vi.fn((payload: Record<string, unknown>) => {
+            updates.push(payload);
+            return {
+              eq: vi.fn().mockReturnThis(),
+              select: vi.fn().mockReturnThis(),
+              single: vi.fn().mockResolvedValue({ data: { id: 'L1' }, error: null }),
+            };
+          }),
+        };
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, updates };
+  }
+
+  it('finalize stamps a finalized_at timestamp', async () => {
+    const { service, updates } = build();
+    await service.finalize('L1', 'user-1');
+    expect(updates[0]!['finalized_at']).toEqual(expect.any(String));
+  });
+
+  it('reopen clears finalized_at', async () => {
+    const { service, updates } = build();
+    await service.reopen('L1', 'user-1');
+    expect(updates[0]).toMatchObject({ finalized_at: null });
+  });
+});
+
+describe('LeaguesService recompute freeze guard', () => {
+  it('refuses to recompute a finalized league (manual recompute → 400)', async () => {
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'leagues') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'L1', finalized_at: '2026-07-24T00:00:00Z', scoring_config: {} },
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }),
+    };
+    const scoring = { resolveConfig: vi.fn() };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      {} as never,
+      scoring as never,
+    );
+
+    await expect(service.recomputeLeagueRankings('L1')).rejects.toBeInstanceOf(BadRequestException);
+    // Guard trips before any scoring resolution.
+    expect(scoring.resolveConfig).not.toHaveBeenCalled();
+  });
+
+  it('recomputeForEvent skips a finalized league without rewriting its results', async () => {
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'tournaments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [{ id: 't1' }], error: null }),
+          };
+        }
+        if (table === 'league_tournament_links') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  league_id: 'L1',
+                  tournament_id: 't1',
+                  leagues: { id: 'L1', finalized_at: '2026-07-24T00:00:00Z', scoring_config: {} },
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }),
+    };
+    const scoring = { resolveConfig: vi.fn() };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      {} as never,
+      scoring as never,
+    );
+
+    const result = await service.recomputeForEvent('ev-1');
+    expect(result).toEqual({ eventId: 'ev-1', recomputedLeagues: [] });
+    expect(scoring.resolveConfig).not.toHaveBeenCalled();
+  });
+});

@@ -20,6 +20,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   AddLeagueOrganizationRoleDto,
   AddLeagueUserRoleDto,
+  CloneLeagueDto,
   CreateLeagueDto,
   LeagueGroupDto,
   LeagueStandingsQueryDto,
@@ -253,6 +254,44 @@ export class LeaguesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.leagues.delete(leagueId, userId);
+  }
+
+  @Post('admin/leagues/:leagueId/clone')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Clone a league into a new season — copies config, groups and roles, but no tournament links or results',
+  })
+  async cloneLeague(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Body() dto: CloneLeagueDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.clone(leagueId, dto, userId);
+  }
+
+  @Post('admin/leagues/:leagueId/finalize')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Finalize (freeze) a league season so its standings stop drifting' })
+  async finalizeLeague(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.finalize(leagueId, userId);
+  }
+
+  @Post('admin/leagues/:leagueId/reopen')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reopen a finalized league season so recompute resumes' })
+  async reopenLeague(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.reopen(leagueId, userId);
   }
 
   @Delete('admin/leagues/:leagueId/events/:eventId/tournament-links')

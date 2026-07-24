@@ -9,6 +9,7 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
+  Modal,
   RowActionButton,
   SortableHeader,
   rowActionClasses,
@@ -26,6 +27,9 @@ interface League {
   public_visibility: boolean;
   logo_url: string | null;
   scoring_system: string;
+  // Set once the season is finalized (migration 0155). Frozen standings still
+  // stay published/public — this is a soft marker, not a status change.
+  finalized_at?: string | null;
   scoring_config: {
     scoringSystem?: 'ffamhe_tf_2026' | 'custom';
     rankingDimensions?: 'weapon' | 'weapon_category';
@@ -144,6 +148,75 @@ export default function AdminLeaguesPage() {
         ),
       );
       toast.success(t('admin.adminLeagues.statusUpdated'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // ── Clone to a new season ──────────────────────────────────────────────────
+  const [cloneTarget, setCloneTarget] = useState<League | null>(null);
+  const [cloneYear, setCloneYear] = useState<number>(new Date().getFullYear());
+  const [cloneName, setCloneName] = useState('');
+  const [cloneBusy, setCloneBusy] = useState(false);
+
+  function openClone(league: League) {
+    setCloneTarget(league);
+    setCloneYear(league.season_year + 1);
+    setCloneName(league.name);
+  }
+
+  async function submitClone() {
+    if (!cloneTarget) return;
+    setCloneBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${cloneTarget.id}/clone`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seasonYear: cloneYear, name: cloneName.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.common.updateFailed'));
+      }
+      const created = (await res.json()) as League;
+      setLeagues((prev) => [created, ...prev]);
+      toast.success(t('admin.adminLeagues.toastCloned', { name: created.name, year: cloneYear }));
+      setCloneTarget(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setCloneBusy(false);
+    }
+  }
+
+  async function toggleFinalize(league: League) {
+    const finalize = !league.finalized_at;
+    setBusyId(league.id);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/admin/leagues/${league.id}/${finalize ? 'finalize' : 'reopen'}`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.common.updateFailed'));
+      }
+      const updated = (await res.json()) as League;
+      setLeagues((prev) =>
+        prev.map((l) => (l.id === league.id ? { ...l, finalized_at: updated.finalized_at } : l)),
+      );
+      toast.success(
+        finalize ? t('admin.adminLeagues.toastFinalized') : t('admin.adminLeagues.toastReopened'),
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
       setError(msg);
@@ -399,7 +472,14 @@ export default function AdminLeaguesPage() {
                   )}
                 </DataTableCell>
                 <DataTableCell>
-                  <p className="font-medium text-foreground">{league.name}</p>
+                  <p className="flex items-center gap-2 font-medium text-foreground">
+                    {league.name}
+                    {league.finalized_at && (
+                      <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                        {t('admin.adminLeagues.finalizedBadge')}
+                      </span>
+                    )}
+                  </p>
                   <p className="mt-0.5 font-mono text-xs text-muted">/{league.slug}</p>
                 </DataTableCell>
                 <DataTableCell>{league.season_year}</DataTableCell>
@@ -429,13 +509,27 @@ export default function AdminLeaguesPage() {
                 </DataTableCell>
                 <DataTableCell>{league.public_visibility ? 'Yes' : 'No'}</DataTableCell>
                 <DataTableCell>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/admin/leagues/${league.id}/edit`}
                       className={rowActionClasses('edit')}
                     >
                       {t('admin.adminLeagues.editAction')}
                     </Link>
+                    <RowActionButton
+                      onClick={() => openClone(league)}
+                      disabled={busyId === league.id}
+                    >
+                      {t('admin.adminLeagues.cloneAction')}
+                    </RowActionButton>
+                    <RowActionButton
+                      onClick={() => void toggleFinalize(league)}
+                      disabled={busyId === league.id}
+                    >
+                      {league.finalized_at
+                        ? t('admin.adminLeagues.reopenAction')
+                        : t('admin.adminLeagues.finalizeAction')}
+                    </RowActionButton>
                     <RowActionButton
                       variant="danger"
                       onClick={() => setPendingDelete(league)}
@@ -463,6 +557,61 @@ export default function AdminLeaguesPage() {
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void confirmDelete()}
       />
+
+      <Modal
+        open={cloneTarget !== null}
+        onClose={() => setCloneTarget(null)}
+        busy={cloneBusy}
+        title={t('admin.adminLeagues.cloneDialogTitle')}
+        description={t('admin.adminLeagues.cloneDialogDescription')}
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setCloneTarget(null)}
+              disabled={cloneBusy}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:opacity-50"
+            >
+              {t('admin.adminLeagues.cloneCancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void submitClone()}
+              disabled={cloneBusy}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-50"
+            >
+              {t('admin.adminLeagues.cloneConfirm')}
+            </button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-foreground">
+              {t('admin.adminLeagues.cloneYearLabel')}
+            </span>
+            <input
+              type="number"
+              value={cloneYear}
+              min={2000}
+              max={2100}
+              onChange={(e) => setCloneYear(Number(e.target.value))}
+              className="rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-foreground">
+              {t('admin.adminLeagues.cloneNameLabel')}
+            </span>
+            <input
+              type="text"
+              value={cloneName}
+              onChange={(e) => setCloneName(e.target.value)}
+              className="rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+            />
+          </label>
+        </div>
+      </Modal>
     </main>
   );
 }
