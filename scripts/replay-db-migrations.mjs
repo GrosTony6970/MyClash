@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres from 'postgres';
 
@@ -12,6 +12,11 @@ if (!databaseUrl) {
 
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
+// Supabase-compatibility baseline (roles + auth.users + auth.role()) so the
+// replay works against a vanilla postgres image. Idempotent + non-destructive,
+// so applying it against a real Supabase DB is a harmless no-op — see the file
+// header and docs/DATABASE_REVIEW.md.
+const baselinePath = join(root, 'packages', 'db', 'fixtures', 'supabase-baseline.sql');
 const files = readdirSync(migrationsDir)
   .filter((name) => /^\d{4}_.+\.sql$/.test(name))
   .sort();
@@ -19,6 +24,11 @@ const files = readdirSync(migrationsDir)
 const sql = postgres(databaseUrl, { max: 1, idle_timeout: 5, connect_timeout: 10 });
 
 try {
+  if (existsSync(baselinePath)) {
+    process.stdout.write('Applying Supabase baseline (roles + auth stubs)... ');
+    await sql.unsafe(readFileSync(baselinePath, 'utf8'));
+    process.stdout.write('ok\n');
+  }
   for (const file of files) {
     const migrationSql = readFileSync(join(migrationsDir, file), 'utf8');
     process.stdout.write(`Applying ${file}... `);

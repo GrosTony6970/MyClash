@@ -10,9 +10,45 @@ Phase 4 production-readiness review, last updated 2026-05-12.
 
 - `pnpm db:review` checks migration ordering, required Phase 4 artifacts, RLS coverage for table declarations, critical extensions, and idempotence/index-review warnings.
 - `pnpm db:perf:fixture` verifies the committed synthetic event fixture and EXPLAIN workload are in sync with the generator.
-- `pnpm db:migrations:replay` replays every migration into a disposable database when `DATABASE_URL` is explicitly provided.
+- `pnpm db:migrations:replay` replays every migration into a disposable database when `DATABASE_URL` is explicitly provided. See [Migration replay on a vanilla Postgres](#migration-replay-on-a-vanilla-postgres) for the Supabase-compatibility baseline it applies first.
 - `pnpm db:perf:explain` runs the committed EXPLAIN workload against a disposable database after applying `packages/db/fixtures/phase4_synthetic.sql`.
 - `pnpm --filter @myclash/db test` covers RLS logic, including recent service-role-only tables.
+
+## Migration replay on a vanilla Postgres
+
+`pnpm db:migrations:replay` is meant to run against a **disposable** database, and
+in production that database is the Supabase Postgres image — which ships roles
+(`anon`, `authenticated`, `service_role`), an `auth` schema with `auth.users` and
+the `auth.uid()` / `auth.jwt()` / `auth.role()` helpers, and the extensions the
+migrations rely on. A plain `postgres:16` container has none of the roles or
+`auth.users`, so the replay would die at migration `0011` (the first
+`CREATE POLICY ... TO service_role`) and later at the first
+`REFERENCES auth.users(id)`.
+
+`packages/db/fixtures/supabase-baseline.sql` supplies that missing baseline —
+the three roles, a minimal `auth.users`, and an `auth.role()` shim (migration
+`0002` self-creates the `auth` schema + `auth.uid()`/`auth.jwt()`). The replay
+script applies it automatically before the first migration. Every statement is
+idempotent and non-destructive (roles created only when absent, `auth.role()`
+created only when the real Supabase function is missing), so pointing the replay
+at a real Supabase database is a harmless no-op.
+
+Full run against a throwaway container:
+
+```bash
+docker run -d --name myclash-replay-pg16 \
+  -e POSTGRES_PASSWORD=dev-password -e POSTGRES_DB=myclash_replay \
+  -p 55432:5432 postgres:16
+
+DATABASE_URL="postgres://postgres:dev-password@localhost:55432/myclash_replay" \
+  pnpm db:migrations:replay
+
+docker rm -f myclash-replay-pg16
+```
+
+Each run needs a **fresh** database — the migrations are not re-runnable in place
+(older ones are not fully idempotent), so recreate the container (or drop/create
+the database) between attempts rather than replaying twice into the same one.
 
 ## Rollback And Backup
 
