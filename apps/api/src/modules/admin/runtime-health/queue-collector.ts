@@ -2,7 +2,7 @@ import { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 
 export const RUNTIME_HEALTH_QUEUE_NAMES = [
-  'hema-ratings',
+  'hema-ratings-sync',
   'notification-scheduler',
   'event-status-ticker',
   'event-archive',

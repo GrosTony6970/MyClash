@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { collectQueues } from './queue-collector';
+import { collectQueues, RUNTIME_HEALTH_QUEUE_NAMES } from './queue-collector';
 
 describe('collectQueues', () => {
+  it('watches the real hema-ratings-sync queue name (regression guard for phantom hema-ratings)', () => {
+    expect([...RUNTIME_HEALTH_QUEUE_NAMES]).toEqual([
+      'hema-ratings-sync',
+      'notification-scheduler',
+      'event-status-ticker',
+      'event-archive',
+      'data-quality-deterministic',
+      'tls-cert-monitor',
+      'runtime-health-monitor',
+    ]);
+  });
+
   it('sums waiting + failed across queues and returns per-queue rows', async () => {
     const counts: Record<
       string,
