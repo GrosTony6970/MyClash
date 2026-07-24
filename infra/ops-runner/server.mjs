@@ -75,6 +75,10 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, await statusResponse());
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/disk') {
+      sendJson(res, 200, await diskResponse());
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/backups') {
       sendJson(res, 200, await backupsResponse());
       return;
@@ -164,6 +168,34 @@ async function statusResponse() {
     lastBackup: deriveLastBackup(history, backups[0] ?? null),
     runningOperation,
   };
+}
+
+/**
+ * Parse `df -P -B1 <dir>` output (POSIX format, sizes in bytes). The data row
+ * may wrap if the filesystem name is long, but `-P` guarantees a single row.
+ */
+export function parseDfOutput(stdout) {
+  const lines = String(stdout).trim().split(/\r?\n/);
+  const dataLine = lines[lines.length - 1];
+  const cols = dataLine.trim().split(/\s+/);
+  // Filesystem 1B-blocks Used Available Capacity% Mounted-on
+  const [filesystem, size, used, avail, capacity, ...mount] = cols;
+  return {
+    filesystem,
+    sizeBytes: Number(size),
+    usedBytes: Number(used),
+    availBytes: Number(avail),
+    usePercent: Number(String(capacity).replace('%', '')),
+    mountpoint: mount.join(' '),
+  };
+}
+
+async function diskResponse() {
+  const result = await spawnCapture('df', ['-P', '-B1', ROOT_DIR]);
+  if (result.code !== 0) {
+    throw new Error(result.stderr || 'df failed');
+  }
+  return { generatedAt: new Date().toISOString(), ...parseDfOutput(result.stdout) };
 }
 
 async function backupsResponse() {
