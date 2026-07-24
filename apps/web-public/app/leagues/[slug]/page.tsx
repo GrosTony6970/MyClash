@@ -3,6 +3,11 @@ import { notFound } from 'next/navigation';
 import { accentClassFor } from '@myclash/ui';
 import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
+import {
+  StandingsGroups,
+  type LeagueStandingRow,
+  type LeagueStandingsColumn,
+} from './StandingsGroups';
 
 interface League {
   id: string;
@@ -10,30 +15,15 @@ interface League {
   season_year: number;
   description: string | null;
   logo_url: string | null;
-}
-
-interface StandingRow {
-  id: string;
-  ranking_group_key: string;
-  rank: number;
-  total_points: number;
-  participation_count: number;
-  medal_count: number;
-  double_hit_average: string;
-  per_tournament: Array<{ tournamentId: string; finalRank: number; leaguePoints: number }>;
-  fighters?: {
-    display_name?: string | null;
-    clubs?: { name?: string | null; city?: string | null } | null;
-  };
+  // Set once a season is finalized (migration 0155). Optional so the page keeps
+  // working against an API that predates the column.
+  finalized_at?: string | null;
 }
 
 interface Standings {
   league: League;
-  columns: Array<{
-    tournament_id: string;
-    tournaments?: { name?: string | null; events?: { name?: string | null } | null } | null;
-  }>;
-  rows: StandingRow[];
+  columns: LeagueStandingsColumn[];
+  rows: LeagueStandingRow[];
   pendingTournaments?: Array<{ tournamentId: string; name: string; eventName: string }>;
 }
 
@@ -88,23 +78,6 @@ function initialsFor(name: string | null | undefined): string {
   return value.slice(0, 2).toUpperCase();
 }
 
-function rankBadge(rank: number): React.ReactNode {
-  const token = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null;
-  if (!token) {
-    return <span className="text-sm font-semibold tabular-nums text-muted">{rank}</span>;
-  }
-  return (
-    <span
-      className={[
-        'inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm tabular-nums',
-        accentClassFor(token),
-      ].join(' ')}
-    >
-      {rank}
-    </span>
-  );
-}
-
 export default async function PublicLeagueStandingsPage({
   params,
 }: {
@@ -122,6 +95,7 @@ export default async function PublicLeagueStandingsPage({
   const columns = standings?.columns ?? [];
   const rows = standings?.rows ?? [];
   const pendingTournaments = standings?.pendingTournaments ?? [];
+  const isFinalized = Boolean(standings?.league?.finalized_at ?? league.finalized_at);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
@@ -146,15 +120,32 @@ export default async function PublicLeagueStandingsPage({
           </div>
         )}
         <div className="flex-1">
-          <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
-            {league.name}
-          </h1>
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
+              {league.name}
+            </h1>
+            {isFinalized && (
+              <span
+                className={[
+                  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm',
+                  accentClassFor('gold'),
+                ].join(' ')}
+              >
+                {t('publicApp.leagues.seasonFinalized')}
+              </span>
+            )}
+          </div>
           {league.season_year != null && (
             <p className="text-sm tabular-nums text-muted">{league.season_year}</p>
           )}
           {league.description && (
             <p className="mt-2 max-w-prose text-sm leading-6 text-foreground-secondary">
               {league.description}
+            </p>
+          )}
+          {isFinalized && (
+            <p className="mt-2 text-sm text-foreground-secondary">
+              {t('publicApp.leagues.seasonFinalizedNote')}
             </p>
           )}
           {rows.length > 0 && (
@@ -212,56 +203,7 @@ export default async function PublicLeagueStandingsPage({
           {t('publicApp.leagues.empty')}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="bg-background text-foreground-secondary">
-              <tr className="text-xs font-semibold uppercase tracking-wider">
-                <th className="px-3 py-2 text-left">{t('publicApp.leagues.rankColumn')}</th>
-                <th className="px-3 py-2 text-left">{t('publicApp.leagues.fighterColumn')}</th>
-                <th className="px-3 py-2 text-left">{t('publicApp.leagues.clubColumn')}</th>
-                <th className="px-3 py-2 text-right">{t('publicApp.leagues.totalPointsColumn')}</th>
-                {columns.map((column) => (
-                  <th key={column.tournament_id} className="px-3 py-2 text-left">
-                    {column.tournaments?.events?.name ?? column.tournaments?.name ?? '—'}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-foreground">
-              {rows.map((row) => (
-                <tr key={row.id} className="border-t border-border even:bg-background/50">
-                  <td className="px-3 py-2">{rankBadge(row.rank)}</td>
-                  <td className="px-3 py-2 font-medium text-foreground">
-                    {row.fighters?.display_name ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-foreground-secondary">
-                    {row.fighters?.clubs?.name ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-foreground">
-                    {row.total_points}
-                  </td>
-                  {columns.map((column) => {
-                    const result = row.per_tournament.find(
-                      (item) => item.tournamentId === column.tournament_id,
-                    );
-                    return (
-                      <td
-                        key={column.tournament_id}
-                        className="px-3 py-2 tabular-nums text-foreground-secondary"
-                      >
-                        {result ? (
-                          `${result.finalRank} / ${result.leaguePoints}`
-                        ) : (
-                          <span className="text-muted">{t('publicApp.leagues.dnp')}</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <StandingsGroups rows={rows} columns={columns} />
       )}
     </main>
   );

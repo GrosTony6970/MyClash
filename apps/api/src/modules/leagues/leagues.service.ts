@@ -15,6 +15,7 @@ import {
   type TournamentContributionInput,
 } from './league.types';
 import { LeagueScoringService } from './league-scoring.service';
+import { attachDecidingTiebreaks } from './league-standings-rows';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
@@ -1390,10 +1391,17 @@ export class LeaguesService {
         };
       });
 
+    // Per-row deciding tie-breaker: for each fighter, the first configured
+    // tie-breaker key on which they differ from the fighter directly above them
+    // in the same ranking group. Read-time derivation over the already-sorted
+    // rows — no migration; every value it needs is on the row already.
+    const tieBreakers = normalizeScoringConfig(league['scoring_config']).tieBreakers;
+    const rows = attachDecidingTiebreaks((data ?? []) as Row[], tieBreakers);
+
     return {
       league,
       columns: links ?? [],
-      rows: data ?? [],
+      rows,
       pendingTournaments,
     };
   }

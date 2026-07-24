@@ -1045,6 +1045,17 @@ export const en = {
       downloadReport: 'Download final report (CSV)',
       printableReport: 'Printable report',
       pendingNote: '{count} linked tournament(s) still awaiting results — not counted yet.',
+      medalsColumn: 'Medals',
+      championLabel: 'Champion',
+      seasonFinalized: 'Season finalized',
+      seasonFinalizedNote: 'These standings are final and frozen.',
+      tiebreakChip: 'Edged out on {label} ({mine} vs {theirs})',
+      tiebreak: {
+        total_points: 'points',
+        participation_count: 'participations',
+        medal_count: 'medals',
+        double_hit_average: 'double-hit average',
+      },
     },
     competitorHome: {
       nextMatch: 'Next match',
@@ -7286,6 +7297,17 @@ export const fr = {
       printableReport: 'Rapport imprimable',
       pendingNote:
         '{count} tournoi(s) lié(s) en attente de résultats — pas encore comptabilisé(s).',
+      medalsColumn: 'Médailles',
+      championLabel: 'Champion',
+      seasonFinalized: 'Saison clôturée',
+      seasonFinalizedNote: 'Ce classement est final et figé.',
+      tiebreakChip: 'Départagé sur {label} ({mine} contre {theirs})',
+      tiebreak: {
+        total_points: 'les points',
+        participation_count: 'les participations',
+        medal_count: 'les médailles',
+        double_hit_average: 'la moyenne de coups doubles',
+      },
     },
     competitorHome: {
       nextMatch: 'Prochain combat',
