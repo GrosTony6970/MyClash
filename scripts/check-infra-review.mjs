@@ -827,10 +827,15 @@ if (adminRootPageText.includes('admin.home.placeholder')) {
   errors.push('apps/web-admin/app/page.tsx must not render admin.home.placeholder.');
 }
 requireContains(publicEventRootPageText, 'apps/web-public/app/e/[eventSlug]/page.tsx', "redirect(`/e/${eventSlug}/home`)");
+// The routing lives in resolveLanding() (a discriminated-union resolver) rather
+// than inline window.location writes: super-admins with no org → /admin,
+// org members → their org, dual-role (super-admin + org) → the workspace
+// chooser, and the terminal no-workspace state. Assert the resolver's shape.
 requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'data.admin?.isSuperAdmin');
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "window.location.href = '/admin'");
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'window.location.href = `/org/${firstOrganization.slug}`');
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'setNoWorkspace(true)');
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "href: '/admin'");
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'href: `/org/${firstOrg.slug}`');
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "kind: 'chooser'");
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "setMode('noWorkspace')");
 if (/T-105 follow-up|Org slug lookup will be wired|Redirecting to your dashboard[â€¦…]/u.test(adminDashboardPageText)) {
   errors.push('apps/web-admin/app/dashboard/page.tsx must not leave authenticated users on the old endless redirect placeholder.');
 }

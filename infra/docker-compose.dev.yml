@@ -297,6 +297,7 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+        NEXT_PUBLIC_ADMIN_URL: https://admin.myclash.localhost
     container_name: myclash-dev-web-public
     restart: unless-stopped
     environment:

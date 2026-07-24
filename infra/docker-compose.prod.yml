@@ -587,6 +587,9 @@ services:
         # via the myclash-public-api Traefik router (see api service labels).
         # Avoids the api.${DOMAIN} cross-origin path entirely.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_PUBLIC}
+        # Cross-app link target for competitors who also hold an organiser /
+        # super-admin grant (SiteHeader + PublicPersonalShell "Admin workspace").
+        NEXT_PUBLIC_ADMIN_URL: https://admin.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}

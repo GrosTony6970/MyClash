@@ -83,6 +83,9 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // this org's own Leagues entry, so offering /leagues for those would just be
   // a second door to the same room.
   const [hasLeagueRoles, setHasLeagueRoles] = useState(false);
+  // Super-admins are allowed into any org (see organizer-auth-decision) — surface
+  // a "Platform admin" link so the dual-role operator can jump back to /admin.
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const switcherRef = useRef<HTMLDivElement>(null);
 
@@ -146,6 +149,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           user?: { email?: string };
         };
         setHasLeagueRoles(Boolean(data?.admin?.hasLeagueRoles));
+        setIsSuperAdmin(Boolean(data?.admin?.isSuperAdmin));
         setEmail(data?.user?.email ?? null);
         const decision = resolveAuthDecision(slug, data);
         if (decision.kind === 'unauthenticated') {
@@ -424,6 +428,23 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             {renderNavItem(
               { href: '/leagues', labelKey: 'organizer.shell.nav.myLeagues', badge: 'ML' },
               pickActiveHref(pathname, [{ href: '/leagues' }]),
+            )}
+          </div>
+        </div>
+      )}
+
+      {/*
+        Same rationale as the /leagues entry above: an absolute '/admin' href
+        kept OUTSIDE orgNavItems so joinPath can't rewrite it into
+        '/org/{slug}/admin'. Only shown to super-admins, the workspace switch
+        back to the platform console.
+      */}
+      {isSuperAdmin && (
+        <div className="border-t border-border pt-5">
+          <div className="flex flex-col gap-1">
+            {renderNavItem(
+              { href: '/admin', labelKey: 'organizer.shell.nav.platformAdmin', badge: 'PA' },
+              pickActiveHref(pathname, [{ href: '/admin' }]),
             )}
           </div>
         </div>

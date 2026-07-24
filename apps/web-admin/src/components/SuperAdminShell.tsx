@@ -127,6 +127,10 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  // First org this super-admin also belongs to (if any). Drives the "switch to
+  // event organiser" workspace link — the escape hatch for the sole operator
+  // who is both platform super-admin and a tournament organiser.
+  const [organizerSlug, setOrganizerSlug] = useState<string | null>(null);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -162,7 +166,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         const data = (await res.json()) as {
           type?: string;
           user?: { email?: string };
-          admin?: { isSuperAdmin?: boolean };
+          admin?: { isSuperAdmin?: boolean; organizations?: Array<{ slug?: string }> };
         };
         if (data.type !== 'claimed' || !data.admin?.isSuperAdmin) {
           window.location.replace('/login');
@@ -170,6 +174,8 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         }
         setIsSuperAdmin(true);
         setEmail(data.user?.email ?? null);
+        const firstOrg = data.admin?.organizations?.find((org) => Boolean(org.slug));
+        setOrganizerSlug(firstOrg?.slug ?? null);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -196,6 +202,28 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <nav aria-label={t('admin.shell.navigationLabel')} className="flex flex-col gap-6">
+      {organizerSlug && (
+        <div className="border-b border-border pb-5">
+          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
+            {t('admin.shell.sectionWorkspace')}
+          </p>
+          <div className="flex flex-col gap-1">
+            <Link
+              href={`/org/${organizerSlug}`}
+              onClick={() => setOpen(false)}
+              className="group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
+            >
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold group-hover:border-muted"
+                aria-hidden="true"
+              >
+                EO
+              </span>
+              <span>{t('admin.shell.nav.switchToOrganizer')}</span>
+            </Link>
+          </div>
+        </div>
+      )}
       {navSections.map((section, idx) => (
         <div key={section.headingKey} className={idx === 0 ? '' : 'border-t border-border pt-5'}>
           {idx > 0 && (

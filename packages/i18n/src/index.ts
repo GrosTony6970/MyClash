@@ -81,6 +81,7 @@ export const en = {
       unknownEvent: 'Untitled event',
       signIn: 'Sign in',
       signedInFallback: 'Your account',
+      adminWorkspace: 'Admin workspace',
       searchLabel: 'Search events',
       searchPlaceholder: 'Filter by event, organisation, or location…',
       sectionLive: 'Live now',
@@ -197,6 +198,7 @@ export const en = {
       checkingSession: 'Checking your session...',
       viaGoogle: 'via Google',
       loggedAs: 'Logged in as',
+      adminWorkspaceSection: 'Workspace',
       nav: {
         dashboard: 'Dashboard',
         fighter: 'Fighter profile',
@@ -210,6 +212,7 @@ export const en = {
         security: 'Security',
         events: 'Public events',
         instructor: 'Instructor',
+        adminWorkspace: 'Admin workspace',
       },
     },
     me: {
@@ -2115,6 +2118,7 @@ export const en = {
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of super-admin',
       loggedAs: 'Logged in as',
+      sectionWorkspace: 'Workspace',
       sectionOverview: 'Overview',
       sectionContent: 'Content',
       sectionOperations: 'Operations',
@@ -2143,6 +2147,7 @@ export const en = {
         aiModels: 'Model Catalog',
         dataQuality: 'Data Quality',
         hemaRatings: 'HEMA Ratings',
+        switchToOrganizer: 'Event organiser',
       },
     },
     hemaRatings: {
@@ -2194,6 +2199,15 @@ export const en = {
       noWorkspaceTitle: 'No admin workspace found',
       noWorkspaceDescription:
         'This account is signed in, but it is not linked to a super-admin role or an organization.',
+      chooser: {
+        title: 'Choose your workspace',
+        subtitle:
+          'You have access to both. Pick where to go — you can switch any time from the sidebar.',
+        platformAdmin: 'Platform Admin',
+        platformAdminDesc: 'Moderate organizations, accounts, and platform-wide settings.',
+        eventOrganiser: 'Event organiser',
+        eventOrganiserDesc: 'Run your tournaments, events, and referees.',
+      },
       statsLoading: 'Loading platform statistics...',
       statsLoadError: 'Could not load platform statistics.',
       statsAccessDenied: 'Access denied. Super admin required.',
@@ -4232,6 +4246,7 @@ export const en = {
         eventOverview: 'Event overview',
         tournaments: 'Tournaments',
         clubs: 'Clubs',
+        platformAdmin: 'Platform admin',
       },
     },
     penaltyReviews: {
@@ -6338,6 +6353,7 @@ export const fr = {
       unknownEvent: 'Evenement sans titre',
       signIn: 'Se connecter',
       signedInFallback: 'Mon compte',
+      adminWorkspace: 'Espace admin',
       searchLabel: 'Rechercher un evenement',
       searchPlaceholder: 'Filtrer par evenement, organisation ou lieu…',
       sectionLive: 'En direct',
@@ -6456,6 +6472,7 @@ export const fr = {
       checkingSession: 'Verification de votre session...',
       viaGoogle: 'via Google',
       loggedAs: 'Connecté en tant que',
+      adminWorkspaceSection: 'Espace de travail',
       nav: {
         dashboard: 'Tableau de bord',
         fighter: 'Profil combattant',
@@ -6469,6 +6486,7 @@ export const fr = {
         security: 'Sécurité',
         events: 'Evenements publics',
         instructor: 'Instructeur',
+        adminWorkspace: 'Espace admin',
       },
     },
     me: {
@@ -8409,6 +8427,7 @@ export const fr = {
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: 'Se deconnecter du super-admin',
       loggedAs: 'Connecté en tant que',
+      sectionWorkspace: 'Espace de travail',
       sectionOverview: 'Vue generale',
       sectionContent: 'Contenu',
       sectionOperations: 'Operations',
@@ -8437,6 +8456,7 @@ export const fr = {
         aiModels: 'Catalogue de modeles',
         dataQuality: 'Qualite des donnees',
         hemaRatings: 'HEMA Ratings',
+        switchToOrganizer: 'Organisateur',
       },
     },
     hemaRatings: {
@@ -8488,6 +8508,16 @@ export const fr = {
       noWorkspaceTitle: 'Aucun espace admin trouve',
       noWorkspaceDescription:
         "Ce compte est connecte, mais il n'est lie a aucun role super-admin ni a aucune organisation.",
+      chooser: {
+        title: 'Choisissez votre espace',
+        subtitle:
+          'Vous avez acces aux deux. Choisissez ou aller — vous pouvez changer a tout moment depuis le menu.',
+        platformAdmin: 'Super Admin',
+        platformAdminDesc:
+          'Moderer les organisations, les comptes et les parametres de la plateforme.',
+        eventOrganiser: 'Organisateur',
+        eventOrganiserDesc: 'Gerer vos tournois, evenements et arbitres.',
+      },
       statsLoading: 'Chargement des statistiques plateforme...',
       statsLoadError: 'Impossible de charger les statistiques plateforme.',
       statsAccessDenied: 'Acces refuse. Super-admin requis.',
@@ -10544,6 +10574,7 @@ export const fr = {
         eventOverview: 'Vue evenement',
         tournaments: 'Tournois',
         clubs: 'Clubs',
+        platformAdmin: 'Super admin',
       },
     },
     penaltyReviews: {

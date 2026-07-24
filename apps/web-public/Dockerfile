@@ -41,6 +41,9 @@ FROM deps AS builder
 ENV NODE_OPTIONS=--disable-warning=DEP0205
 ARG GIT_COMMIT=unknown
 ARG NEXT_PUBLIC_API_URL
+# Cross-app switch target for competitors who also hold an organiser/super-admin
+# grant (rendered by SiteHeader + PublicPersonalShell). Inlined by `next build`.
+ARG NEXT_PUBLIC_ADMIN_URL
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SENTRY_DSN_PUBLIC

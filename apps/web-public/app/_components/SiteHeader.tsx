@@ -39,8 +39,10 @@ function readAuthServerSnapshot(): AuthState {
 export function SiteHeader() {
   const authState = useSyncExternalStore(subscribeAuth, readAuthSnapshot, readAuthServerSnapshot);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const apiUrl = getPublicApiUrl();
+  const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] ?? 'https://admin.myclash.fr';
 
   // Fetch the display name once the client knows the user is signed in. The
   // setState lives in the async .then (not the effect body), so it doesn't trip
@@ -61,6 +63,33 @@ export function SiteHeader() {
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
       });
+
+    // Admin-access probe — a competitor who also holds an organiser/super-admin
+    // grant gets an "Admin workspace" switch (they land here on the public root
+    // after an admin Google login, so the affordance must live on this header).
+    fetch(`${apiUrl}/api/v1/me`, { credentials: 'include', signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          admin?: {
+            isSuperAdmin?: boolean;
+            organizations?: Array<{ slug: string }>;
+            hasLeagueRoles?: boolean;
+          };
+        };
+        setHasAdminAccess(
+          Boolean(
+            data.admin &&
+            (data.admin.isSuperAdmin ||
+              (data.admin.organizations?.length ?? 0) > 0 ||
+              data.admin.hasLeagueRoles),
+          ),
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+
     return () => controller.abort();
   }, [authState, apiUrl]);
 
@@ -114,6 +143,14 @@ export function SiteHeader() {
 
           {authState === 'signed-in' && (
             <div className="flex items-center gap-2">
+              {hasAdminAccess && (
+                <a
+                  href={`${adminUrl}/dashboard`}
+                  className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-semibold text-accent transition hover:bg-accent/20 focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  {t('publicApp.home.adminWorkspace')}
+                </a>
+              )}
               <Link
                 href="/me"
                 className="rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent"

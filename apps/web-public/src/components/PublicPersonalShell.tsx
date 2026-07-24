@@ -41,7 +41,12 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   );
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  // True when this competitor account also holds a super-admin / organiser /
+  // league grant — drives the "switch to admin workspace" escape hatch for the
+  // user who signs in on the public app but manages tournaments on admin.
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const apiUrl = getPublicApiUrl();
+  const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] ?? 'https://admin.myclash.fr';
   const notificationsUnread = useUnreadBroadcasts(apiUrl);
 
   useEffect(() => {
@@ -61,6 +66,11 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
           type?: string;
           user?: { email?: string; display_name?: string; photo_url?: string };
           person?: { given_name?: string; family_name?: string };
+          admin?: {
+            isSuperAdmin?: boolean;
+            organizations?: Array<{ slug: string }>;
+            hasLeagueRoles?: boolean;
+          };
         };
         if (data.type !== 'claimed') {
           window.location.replace('/login');
@@ -73,6 +83,14 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
           .trim();
         setDisplayName(data.user?.display_name || personName || data.user?.email || null);
         setPhotoUrl(data.user?.photo_url ?? null);
+        setHasAdminAccess(
+          Boolean(
+            data.admin &&
+            (data.admin.isSuperAdmin ||
+              (data.admin.organizations?.length ?? 0) > 0 ||
+              data.admin.hasLeagueRoles),
+          ),
+        );
         setReady(true);
       })
       .catch((error: unknown) => {
@@ -171,6 +189,31 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         })}
       </nav>
       <MyEventsNav onNavigate={() => setOpen(false)} />
+      {/*
+        Cross-domain switch to the admin/organiser workspace. A plain <a> (not a
+        Next <Link>) because admin.${DOMAIN} is a separate app; the shared
+        .${DOMAIN} session cookie carries the auth across. Target /dashboard so
+        dual-role users hit the Platform / Event-organiser chooser there.
+      */}
+      {hasAdminAccess && (
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
+            {t('publicApp.personalShell.adminWorkspaceSection')}
+          </p>
+          <a
+            href={`${adminUrl}/dashboard`}
+            className="group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
+          >
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold group-hover:border-muted"
+              aria-hidden="true"
+            >
+              AW
+            </span>
+            <span>{t('publicApp.personalShell.nav.adminWorkspace')}</span>
+          </a>
+        </div>
+      )}
     </>
   );
 
