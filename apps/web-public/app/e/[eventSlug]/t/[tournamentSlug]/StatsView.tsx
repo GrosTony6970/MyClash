@@ -1,0 +1,425 @@
+/**
+ * StatsView — pure presentational tournament-stats UI.
+ *
+ * Reproduces the lyonamhe.fr/resultat_fal2026.html layout:
+ *   - Overview hero numbers
+ *   - Exchange-type distribution bar
+ *   - Top blow-ratio fighters + deep-target hunters
+ *   - Point-value (1pt/2pt/3pt) distribution
+ *   - Per-fighter detailed table (Dbl / ✓1 / ✓1-1 / ✓2 / ✓2-1 / ✗… / Total / Ratio)
+ *
+ * Hook-free, so it renders in BOTH a server component (the standalone `/stats`
+ * route) and a client component (the inline `StatsTab`). Data + a `t` translator
+ * come in as props; there is no page-chrome (`<main>`, page title, back-link) —
+ * that belongs to the caller.
+ *
+ * Note: hit_ratio is BLOW-based (mode-independent) per the data model.
+ */
+
+import type { TranslationValues } from '@myclash/i18n';
+import type { FighterStats, Overview, TargetValueStats } from './stats-data';
+
+/** Structural translator type — satisfied by both `getServerT()` and `useI18n().t`. */
+type Translator = (key: string, values?: TranslationValues) => string;
+
+interface Props {
+  overview: Overview | null;
+  fighters: FighterStats[];
+  targets: TargetValueStats;
+  /** CSS colour string for section headings (tournament accent, or a fallback). */
+  accentColor: string;
+  t: Translator;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(n: number | null): string {
+  if (n === null || n === undefined) return '—';
+  return String(n);
+}
+
+function fmtRatio(n: number | null): string {
+  if (n === null || n === undefined) return '—';
+  return n.toFixed(3);
+}
+
+function pct(n: number, total: number): string {
+  if (total === 0) return '0%';
+  return `${Math.round((n / total) * 100)}%`;
+}
+
+// ── Component ───────────────────────────────────────────────────────────────────
+
+export function StatsView({ overview, fighters, targets, accentColor, t }: Props) {
+  // Sort fighters by hit_ratio desc (blow-based, mode-independent)
+  const sorted = [...fighters].sort((a, b) => (b.hitRatio ?? -1) - (a.hitRatio ?? -1));
+
+  // Show value-3 columns only when the ruleset produced 3-pt hits (migration 0136).
+  const hasV3 = fighters.some(
+    (f) => f.hitsGiven3 + f.afterblowGiven3 + f.hitsReceived3 + f.afterblowReceived3 > 0,
+  );
+
+  // Point-value distribution (1pt/2pt/3pt) for the stacked bar.
+  const targetTotal = targets.distribution.reduce((s, d) => s + d.cleanHits, 0);
+  const DIST_COLORS = ['bg-amber-600', 'bg-red-800', 'bg-purple-700', 'bg-emerald-700'];
+
+  // Exchange type distribution
+  const totalClean = fighters.reduce((s, f) => s + f.hitsGiven1 + f.hitsGiven2, 0) / 2; // each exchange counted twice (attacker + defender)
+  const totalAfterblows =
+    fighters.reduce((s, f) => s + f.afterblowGiven1 + f.afterblowGiven2, 0) / 2;
+  const totalDoubles = overview?.doublesCount ?? 0;
+  const totalEx = overview?.exchangeCount ?? 1;
+
+  const headingStyle = { color: accentColor };
+
+  return (
+    <div>
+      {/* ── Hero numbers ── */}
+      {overview && (
+        <div className="grid grid-cols-2 gap-3 mb-8 sm:grid-cols-4">
+          {[
+            {
+              label: t('publicApp.tournamentStats.heroParticipants'),
+              value: overview.participantCount,
+            },
+            { label: t('publicApp.tournamentStats.heroMatches'), value: overview.matchCount },
+            { label: t('publicApp.tournamentStats.heroExchanges'), value: overview.exchangeCount },
+            {
+              label: t('publicApp.tournamentStats.heroDoubles'),
+              value: `${overview.doublesCount} (${overview.doublesPercent}%)`,
+            },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-surface border border-border rounded-xl p-4 text-center">
+              <p className="text-2xl font-black text-foreground">{value}</p>
+              <p className="text-xs text-muted mt-0.5 uppercase tracking-wide">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Exchange distribution ── */}
+      {overview && overview.exchangeCount > 0 && (
+        <section className="mb-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+            {t('publicApp.tournamentStats.exchangeDistribution')}
+          </h2>
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
+              {[
+                {
+                  n: totalClean,
+                  color: 'bg-green-700',
+                  label: t('publicApp.tournamentStats.exchangeClean'),
+                },
+                {
+                  n: totalAfterblows,
+                  color: 'bg-orange-700',
+                  label: t('publicApp.tournamentStats.exchangeAfterblow'),
+                },
+                {
+                  n: totalDoubles,
+                  color: 'bg-red-800',
+                  label: t('publicApp.tournamentStats.exchangeDouble'),
+                },
+              ].map(({ n, color }) => (
+                <div
+                  key={color}
+                  className={`${color} transition-all`}
+                  style={{ width: `${(n / totalEx) * 100}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex gap-4 text-xs text-muted">
+              <span>
+                <span className="inline-block w-2 h-2 rounded-full bg-green-700 mr-1" />
+                {t('publicApp.tournamentStats.exchangeClean')} {pct(totalClean, totalEx)}
+              </span>
+              <span>
+                <span className="inline-block w-2 h-2 rounded-full bg-orange-700 mr-1" />
+                {t('publicApp.tournamentStats.exchangeAfterblow')} {pct(totalAfterblows, totalEx)}
+              </span>
+              <span>
+                <span className="inline-block w-2 h-2 rounded-full bg-red-800 mr-1" />
+                {t('publicApp.tournamentStats.exchangeDouble')} {pct(totalDoubles, totalEx)}
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Top 5 by blow ratio ── */}
+      {overview && overview.topFighters.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+            {t('publicApp.tournamentStats.topFightersTitle')}
+          </h2>
+          <div className="flex flex-col gap-2">
+            {overview.topFighters.map((f, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3"
+              >
+                <span className="text-muted font-bold w-5 text-right text-sm">{i + 1}</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground text-sm">{f.name}</p>
+                  {f.club && <p className="text-xs text-muted">{f.club}</p>}
+                </div>
+                <div className="text-right">
+                  <p className="font-mono font-bold text-foreground">{fmtRatio(f.hitRatio)}</p>
+                  <p className="text-xs text-muted">
+                    {f.blowsGiven}↑ {f.blowsReceived}↓
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted mt-2">
+            {t('publicApp.tournamentStats.topFightersCaption')}
+          </p>
+        </section>
+      )}
+
+      {/* ── Deep-target hunters ── */}
+      {targets.hunters.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-1" style={headingStyle}>
+            {t('publicApp.tournamentStats.deepTargetsTitle')}
+          </h2>
+          <p className="text-xs text-muted mb-3">
+            {t('publicApp.tournamentStats.deepTargetsCaption', { points: targets.maxValue ?? 0 })}
+          </p>
+          <div className="flex flex-col gap-2">
+            {targets.hunters.map((h, i) => (
+              <div
+                key={h.personId}
+                className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3"
+              >
+                <span className="text-muted font-bold w-5 text-right text-sm">{i + 1}</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground text-sm">{h.name}</p>
+                  {h.club && <p className="text-xs text-muted">{h.club}</p>}
+                </div>
+                <p className="font-mono font-bold text-foreground">{h.cleanHits}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Target zones (1pt / 2pt / 3pt distribution) ── */}
+      {targetTotal > 0 && (
+        <section className="mb-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+            {t('publicApp.tournamentStats.pointDistributionTitle')}
+          </h2>
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-2">
+              {targets.distribution.map((d, i) => (
+                <div
+                  key={d.value}
+                  className={`${DIST_COLORS[i % DIST_COLORS.length]} transition-all`}
+                  style={{ width: `${(d.cleanHits / targetTotal) * 100}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-4 text-xs text-muted">
+              {targets.distribution.map((d, i) => (
+                <span key={d.value}>
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${DIST_COLORS[i % DIST_COLORS.length]} mr-1`}
+                  />
+                  {t('publicApp.tournamentStats.pointDistributionSegment', { points: d.value })}{' '}
+                  {pct(d.cleanHits, targetTotal)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Per-fighter detailed table ── */}
+      {sorted.length > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+            {t('publicApp.tournamentStats.detailedStats')}
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted">
+                  <th className="text-left py-2 pr-3 font-medium">
+                    {t('publicApp.tournamentStats.colFighter')}
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium"
+                    title={t('publicApp.tournamentStats.colDoublesTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colDoubles')}
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-green-700"
+                    title={t('publicApp.tournamentStats.colClean1GivenTitle')}
+                  >
+                    ✓1
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-orange-600"
+                    title={t('publicApp.tournamentStats.colAfterblow1GivenTitle')}
+                  >
+                    ✓1-1
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-green-700"
+                    title={t('publicApp.tournamentStats.colClean2GivenTitle')}
+                  >
+                    ✓2
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-orange-600"
+                    title={t('publicApp.tournamentStats.colAfterblow2GivenTitle')}
+                  >
+                    ✓2-1
+                  </th>
+                  {hasV3 && (
+                    <>
+                      <th className="text-center py-2 px-1.5 font-medium text-green-700">✓3</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-orange-600">✓3-1</th>
+                    </>
+                  )}
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-red-600"
+                    title={t('publicApp.tournamentStats.colClean1ReceivedTitle')}
+                  >
+                    ✗1
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-red-400"
+                    title={t('publicApp.tournamentStats.colAfterblow1ReceivedTitle')}
+                  >
+                    ✗1-1
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-red-600"
+                    title={t('publicApp.tournamentStats.colClean2ReceivedTitle')}
+                  >
+                    ✗2
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium text-red-400"
+                    title={t('publicApp.tournamentStats.colAfterblow2ReceivedTitle')}
+                  >
+                    ✗2-1
+                  </th>
+                  {hasV3 && (
+                    <>
+                      <th className="text-center py-2 px-1.5 font-medium text-red-600">✗3</th>
+                      <th className="text-center py-2 px-1.5 font-medium text-red-400">✗3-1</th>
+                    </>
+                  )}
+                  <th
+                    className="text-center py-2 px-1.5 font-medium"
+                    title={t('publicApp.tournamentStats.colTotalTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colTotal')}
+                  </th>
+                  <th
+                    className="text-center py-2 px-1.5 font-medium"
+                    title={t('publicApp.tournamentStats.colDoublePctTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colDoublePct')}
+                  </th>
+                  <th
+                    className="text-right py-2 pl-2 font-medium"
+                    title={t('publicApp.tournamentStats.colRatioTitle')}
+                  >
+                    {t('publicApp.tournamentStats.colRatio')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((f, idx) => (
+                  <tr
+                    key={f.registrationId}
+                    className={[
+                      'border-b border-border/60',
+                      idx === 0 ? 'font-medium text-foreground' : 'text-foreground',
+                    ].join(' ')}
+                  >
+                    <td className="py-2 pr-3">
+                      <p className="font-medium leading-tight">
+                        {f.givenName} {f.familyName}
+                      </p>
+                      {f.clubName && <p className="text-muted text-xs">{f.clubName}</p>}
+                    </td>
+                    <td className="text-center py-2 px-1.5">{fmt(f.doubles)}</td>
+                    <td className="text-center py-2 px-1.5 text-green-700">{fmt(f.hitsGiven1)}</td>
+                    <td className="text-center py-2 px-1.5 text-orange-600">
+                      {fmt(f.afterblowGiven1)}
+                    </td>
+                    <td className="text-center py-2 px-1.5 text-green-700">{fmt(f.hitsGiven2)}</td>
+                    <td className="text-center py-2 px-1.5 text-orange-600">
+                      {fmt(f.afterblowGiven2)}
+                    </td>
+                    {hasV3 && (
+                      <>
+                        <td className="text-center py-2 px-1.5 text-green-700">
+                          {fmt(f.hitsGiven3)}
+                        </td>
+                        <td className="text-center py-2 px-1.5 text-orange-600">
+                          {fmt(f.afterblowGiven3)}
+                        </td>
+                      </>
+                    )}
+                    <td className="text-center py-2 px-1.5 text-red-600">{fmt(f.hitsReceived1)}</td>
+                    <td
+                      className="text-center py-2 px-1.5 text-red-400"
+                      title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
+                    >
+                      {fmt(f.afterblowReceived1)}
+                    </td>
+                    <td className="text-center py-2 px-1.5 text-red-600">{fmt(f.hitsReceived2)}</td>
+                    <td
+                      className="text-center py-2 px-1.5 text-red-400"
+                      title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
+                    >
+                      {fmt(f.afterblowReceived2)}
+                    </td>
+                    {hasV3 && (
+                      <>
+                        <td className="text-center py-2 px-1.5 text-red-600">
+                          {fmt(f.hitsReceived3)}
+                        </td>
+                        <td className="text-center py-2 px-1.5 text-red-400">
+                          {fmt(f.afterblowReceived3)}
+                        </td>
+                      </>
+                    )}
+                    <td className="text-center py-2 px-1.5">{fmt(f.totalExchanges)}</td>
+                    <td className="text-center py-2 px-1.5">
+                      {f.totalExchanges > 0
+                        ? `${Math.round((f.doubles / f.totalExchanges) * 100)}%`
+                        : '0%'}
+                    </td>
+                    <td className="text-right py-2 pl-2 font-mono font-bold">
+                      {fmtRatio(f.hitRatio)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted mt-2">
+            {t('publicApp.tournamentStats.detailedStatsCaption')}
+          </p>
+        </section>
+      )}
+
+      {fighters.length === 0 && (
+        <div className="text-center py-16">
+          <p className="text-4xl mb-3">📊</p>
+          <p className="text-muted text-sm">{t('publicApp.tournamentStats.emptyState')}</p>
+        </div>
+      )}
+    </div>
+  );
+}

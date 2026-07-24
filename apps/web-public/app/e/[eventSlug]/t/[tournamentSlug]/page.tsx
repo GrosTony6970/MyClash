@@ -24,6 +24,7 @@ import { TournamentTabs, type TabKey } from './TournamentTabs';
 import { PoolsCompositionView } from './PoolsCompositionView';
 import { ParticipantsTab, type ParticipantsTabEntry } from './ParticipantsTab';
 import { FinalRankingTab } from './FinalRankingTab';
+import { StatsTab } from './StatsTab';
 import { derivePodium, colorTokenToHex, type TournamentData } from './tournament-data';
 
 // Re-exported so the sibling tab components keep importing these types from
@@ -194,6 +195,10 @@ export default async function TournamentPage({ params }: Props) {
   // `tournament.status === 'completed'`; otherwise placeholder. Hidden
   // while still draft.
   const finalRankingTabVisible = !isDraft;
+  // Statistics tab is visible once public (mirrors bracket/finalranking). The
+  // panel fetches on demand and renders its own empty state when there are no
+  // exchanges yet, so no need to gate on match data here.
+  const statsTabVisible = !isDraft;
 
   // Default tab adapts to status. Falls back to the first visible tab
   // when the preferred default isn't available yet.
@@ -205,6 +210,7 @@ export default async function TournamentPage({ params }: Props) {
     bracket: bracketTabVisible,
     podium: podiumTabVisible,
     finalranking: finalRankingTabVisible,
+    stats: statsTabVisible,
   };
   const preferredDefault: TabKey =
     tournament.status === 'completed'
@@ -220,6 +226,7 @@ export default async function TournamentPage({ params }: Props) {
     'bracket',
     'podium',
     'finalranking',
+    'stats',
   ];
   const defaultTab: TabKey = visibleByKey[preferredDefault]
     ? preferredDefault
@@ -329,10 +336,6 @@ export default async function TournamentPage({ params }: Props) {
       <TournamentTabs
         defaultTab={defaultTab}
         colorToken={tournamentColor}
-        trailingLink={{
-          href: `/e/${eventSlug}/t/${tournamentSlug}/stats`,
-          label: t('publicApp.tournament.tabs.stats'),
-        }}
         tabs={[
           {
             key: 'participants',
@@ -441,6 +444,15 @@ export default async function TournamentPage({ params }: Props) {
                 bracketSlots={bracketSlots}
               />
             ),
+          },
+          {
+            key: 'stats',
+            label: t('publicApp.tournament.tabs.stats'),
+            visible: statsTabVisible,
+            // Load-on-demand: StatsTab fetches the stats projections client-side
+            // only when the tab is first opened, so the main tournament page
+            // load stays light.
+            panel: <StatsTab tournamentId={tournament.id} accentColor={accentColor} />,
           },
         ]}
       />

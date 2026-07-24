@@ -12,7 +12,6 @@
  * client-component RSC boundary the rest of the page doesn't need.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
@@ -23,7 +22,8 @@ export type TabKey =
   | 'standings'
   | 'bracket'
   | 'podium'
-  | 'finalranking';
+  | 'finalranking'
+  | 'stats';
 
 interface TabDef {
   key: TabKey;
@@ -42,12 +42,6 @@ interface Props {
    * configured color.
    */
   colorToken?: string | null;
-  /**
-   * Optional route link rendered at the end of the tab strip, styled like
-   * an inactive tab — for surfaces that live on their own route instead of
-   * a hash panel (the Statistics page).
-   */
-  trailingLink?: { href: string; label: string } | null;
 }
 
 // Map a color token to the (border + text) Tailwind class pair used
@@ -67,9 +61,10 @@ const TAB_ORDER: TabKey[] = [
   'bracket',
   'podium',
   'finalranking',
+  'stats',
 ];
 
-export function TournamentTabs({ defaultTab, tabs, colorToken, trailingLink }: Props) {
+export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   const { t: tr } = useI18n();
   // Memoise so the derived arrays keep a stable identity across this client
   // component's internal re-renders (state / i18n context). `switchTo` depends
@@ -90,6 +85,7 @@ export function TournamentTabs({ defaultTab, tabs, colorToken, trailingLink }: P
     bracket: null,
     podium: null,
     finalranking: null,
+    stats: null,
   });
 
   // Sync from URL hash on mount + listen for back/forward.
@@ -171,14 +167,6 @@ export function TournamentTabs({ defaultTab, tabs, colorToken, trailingLink }: P
             </button>
           );
         })}
-        {trailingLink && (
-          <Link
-            href={trailingLink.href}
-            className="-mb-px border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-foreground-secondary transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-          >
-            {trailingLink.label} →
-          </Link>
-        )}
       </div>
 
       {visibleTabs.map((tab) => {
