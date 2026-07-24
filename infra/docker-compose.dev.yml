@@ -154,7 +154,9 @@ services:
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://myclash.localhost
-      GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://app.myclash.localhost,https://admin.myclash.localhost,https://scoring.myclash.localhost,https://api.myclash.localhost/api/v1/auth/callback,http://localhost:3001/auth/oauth/callback,http://localhost:3003/auth/oauth/callback,http://localhost:3003/signup/oauth/callback
+      # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
+      # query string instead of falling back to GOTRUE_SITE_URL. Host-locked.
+      GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://app.myclash.localhost,https://admin.myclash.localhost,https://scoring.myclash.localhost,https://api.myclash.localhost/api/v1/auth/callback,http://localhost:3001/auth/oauth/callback,http://localhost:3003/auth/oauth/callback,http://localhost:3003/signup/oauth/callback,https://admin.myclash.localhost/**,https://app.myclash.localhost/**,https://scoring.myclash.localhost/**
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       GOTRUE_JWT_EXP: 3600
       GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'

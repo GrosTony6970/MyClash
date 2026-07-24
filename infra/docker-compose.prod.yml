@@ -138,7 +138,12 @@ services:
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://app.${DOMAIN}
-      GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback
+      # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
+      # query string. Without them GoTrue rejects the redirect_to and falls back
+      # to GOTRUE_SITE_URL (app.${DOMAIN}) — which stranded admin Google logins
+      # on the public app. Host-locked to our own subdomains: no cross-host
+      # open-redirect. The explicit callback paths above are kept as belt-and-braces.
+      GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback,https://admin.${DOMAIN}/**,https://app.${DOMAIN}/**,https://scoring.${DOMAIN}/**
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
       # The API keeps sessions alive for ~30 days by exchanging the refresh
