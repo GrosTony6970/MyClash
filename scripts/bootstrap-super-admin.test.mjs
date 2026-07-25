@@ -18,6 +18,9 @@ function makeSqlMock() {
     if (sql.includes('SELECT id FROM organizations')) {
       return [{ id: 'org-existing' }];
     }
+    if (sql.includes('DELETE FROM organization_members')) {
+      return [{ organization_id: 'org-existing' }];
+    }
     if (sql.includes('RETURNING id')) {
       return [{ id: 'org-created' }];
     }
@@ -54,7 +57,7 @@ test('syncs password for an existing super admin user', async () => {
     passwordSynced: true,
     passwordVerified: true,
     roleSynced: true,
-    orgMembershipSynced: true,
+    orgMembershipRemoved: true,
     userId: 'user-existing',
     email: 'admin@myclash.fr',
     orgId: 'org-existing',
@@ -79,11 +82,63 @@ test('syncs password for an existing super admin user', async () => {
   assert.equal(gotrueCalls.some((call) => call.path === '/admin/user/user-existing'), false);
   assert.equal(runSql.calls.length, 3);
   assert.match(runSql.calls[0].sql, /ON CONFLICT \(user_id\) DO UPDATE SET role = EXCLUDED\.role/);
-  assert.match(
-    runSql.calls[2].sql,
-    /ON CONFLICT \(organization_id, user_id\) DO UPDATE SET role = EXCLUDED\.role/,
-  );
+  // A super-admin must never be an org member: the bootstrap un-seeds the legacy
+  // `owner` membership instead of granting one.
+  assert.match(runSql.calls[2].sql, /DELETE FROM organization_members/);
+  assert.deepEqual(runSql.calls[2].params, ['org-existing', 'user-existing']);
   assert.equal(JSON.stringify(result).includes('super-secret-password'), false);
+});
+
+test('never grants the super admin an organization membership', async () => {
+  const gotrue = async (method, path) => {
+    if (method === 'GET') {
+      return {
+        ok: true,
+        data: { users: [{ id: 'user-existing', email: 'admin@myclash.fr' }] },
+      };
+    }
+    if (method === 'PUT' && path === '/admin/users/user-existing') {
+      return { ok: true, data: { id: 'user-existing' } };
+    }
+    if (method === 'POST' && path === '/token?grant_type=password') {
+      return { ok: true, data: { access_token: 'verified-token' } };
+    }
+    throw new Error(`Unexpected GoTrue call: ${method} ${path}`);
+  };
+  const runSql = makeSqlMock();
+
+  await bootstrapSuperAdmin({ env: baseEnv, gotrue, runSql });
+
+  assert.equal(
+    runSql.calls.some((call) => /INSERT INTO organization_members/.test(call.sql)),
+    false,
+  );
+});
+
+test('reports orgMembershipRemoved false when there was nothing to un-seed', async () => {
+  const gotrue = async (method, path) => {
+    if (method === 'GET') {
+      return {
+        ok: true,
+        data: { users: [{ id: 'user-existing', email: 'admin@myclash.fr' }] },
+      };
+    }
+    if (method === 'PUT' && path === '/admin/users/user-existing') {
+      return { ok: true, data: { id: 'user-existing' } };
+    }
+    if (method === 'POST' && path === '/token?grant_type=password') {
+      return { ok: true, data: { access_token: 'verified-token' } };
+    }
+    throw new Error(`Unexpected GoTrue call: ${method} ${path}`);
+  };
+  const runSql = async (sql) => {
+    if (sql.includes('SELECT id FROM organizations')) return [{ id: 'org-existing' }];
+    return [];
+  };
+
+  const result = await bootstrapSuperAdmin({ env: baseEnv, gotrue, runSql });
+
+  assert.equal(result.orgMembershipRemoved, false);
 });
 
 test('creates the super admin when no user exists', async () => {

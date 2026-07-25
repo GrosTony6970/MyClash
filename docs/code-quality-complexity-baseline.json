@@ -686,12 +686,12 @@
     "packages/ui/src/components/bracket/MatchCard.tsx:261",
     "packages/ui/src/components/bracket/MatchCard.tsx:59",
     "packages/ui/src/utils/exchange-timeline.ts:134",
-    "scripts/bootstrap-super-admin.mjs:98",
+    "scripts/bootstrap-super-admin.mjs:102",
     "scripts/create-demo-org.mjs:67",
     "scripts/ensure-prod-env.mjs:194",
     "scripts/generate-system-versions.mjs:36",
     "scripts/run-e2e.mjs:90",
-    "scripts/seed-min.ts:57",
+    "scripts/seed-min.ts:58",
     "tests/e2e/global-setup.ts:25",
     "tests/e2e/global-teardown.ts:20"
   ]

@@ -62,6 +62,8 @@ const adminDashboardPagePath = path.join(
   'dashboard',
   'page.tsx',
 );
+const bootstrapSuperAdminScriptPath = path.join(rootDir, 'scripts', 'bootstrap-super-admin.mjs');
+const seedMinScriptPath = path.join(rootDir, 'scripts', 'seed-min.ts');
 const superAdminPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'page.tsx');
 const superAdminOrganizationsPagePath = path.join(
   rootDir,
@@ -443,6 +445,8 @@ const publicPersonalShellText = await readFile(publicPersonalShellPath, 'utf8');
 const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
 const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
 const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
+const bootstrapSuperAdminScriptText = await readFile(bootstrapSuperAdminScriptPath, 'utf8');
+const seedMinScriptText = await readFile(seedMinScriptPath, 'utf8');
 const superAdminPageText = await readFile(superAdminPagePath, 'utf8');
 const superAdminOrganizationsPageText = await readFile(superAdminOrganizationsPagePath, 'utf8');
 const superAdminOrganizationDetailPageText = await readFile(
@@ -838,6 +842,21 @@ requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx',
 requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "setMode('noWorkspace')");
 if (/T-105 follow-up|Org slug lookup will be wired|Redirecting to your dashboard[â€¦…]/u.test(adminDashboardPageText)) {
   errors.push('apps/web-admin/app/dashboard/page.tsx must not leave authenticated users on the old endless redirect placeholder.');
+}
+// The seed scripts must NOT make the bootstrap super admin an org member. That
+// row contradicts the API invariant (OrganizationsService.assertNotSuperAdmin /
+// AdminUsersService.assertNotSuperAdmin) and made the super admin land on the
+// dual-role workspace chooser instead of /admin. They un-seed it instead.
+for (const [label, text] of [
+  ['scripts/bootstrap-super-admin.mjs', bootstrapSuperAdminScriptText],
+  ['scripts/seed-min.ts', seedMinScriptText],
+]) {
+  requireContains(text, label, 'DELETE FROM organization_members');
+  if (/INSERT INTO organization_members/u.test(text)) {
+    errors.push(
+      `${label} must not grant the super admin an organization membership — a super-admin is platform-scoped (see OrganizationsService.assertNotSuperAdmin).`,
+    );
+  }
 }
 requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'getAdminLandingContext');
 requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'platform_roles');

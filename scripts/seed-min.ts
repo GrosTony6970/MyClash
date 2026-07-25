@@ -7,8 +7,9 @@
  * Creates:
  *   1. A super admin user in Supabase Auth
  *   2. A platform_roles row granting super_admin
- *   3. One organization ("MyClash HQ")
- *   4. One organizer user (the super admin is also the org owner)
+ *   3. One organization ("MyClash HQ") — deliberately WITHOUT an owner, because a
+ *      super-admin must never be an org member (the API enforces this). Assign an
+ *      owner from /admin/organizations if you want to organise events with it.
  *
  * Usage:
  *   pnpm seed:min
@@ -131,15 +132,27 @@ async function main() {
       ok(`Created organization: ${ORG_NAME} / ${ORG_SLUG} (${orgId})`);
     }
 
-    // ── 4. Organization membership (owner) ──────────────────────────────────
+    // ── 4. Organization membership (none — un-seed any legacy row) ──────────
     hdr('Organization membership');
 
-    await sql`
-      INSERT INTO organization_members (organization_id, user_id, role)
-      VALUES (${orgId}, ${adminUserId}, 'owner')
-      ON CONFLICT (organization_id, user_id) DO NOTHING
+    // A super-admin is platform-scoped and must NOT appear in any org's member
+    // list — the API enforces this (OrganizationsService.assertNotSuperAdmin,
+    // AdminUsersService.assertNotSuperAdmin). This seed used to grant an `owner`
+    // membership here, which contradicted that invariant and made /dashboard
+    // show the dual-role workspace chooser instead of /admin. The org stays and
+    // is simply ownerless — a state the admin UI already renders.
+    //
+    // Scoped to this org on purpose: a membership deliberately created in some
+    // OTHER org survives re-seeding, which keeps the dual-role chooser testable.
+    const removedMemberships = await sql`
+      DELETE FROM organization_members
+      WHERE organization_id = ${orgId} AND user_id = ${adminUserId}
+      RETURNING organization_id
     `;
-    ok(`organization_members: ${adminUserId} is owner of ${ORG_SLUG}`);
+    if (removedMemberships.length > 0) {
+      warn(`Removed legacy super-admin membership on ${ORG_SLUG}`);
+    }
+    ok(`organization_members: ${ORG_SLUG} has no super-admin member (platform-scoped)`);
 
     // ── Summary ─────────────────────────────────────────────────────────────
     hdr('Seed complete');
@@ -153,6 +166,7 @@ async function main() {
     console.log(`    Name:  ${ORG_NAME}`);
     console.log(`    Slug:  ${ORG_SLUG}`);
     console.log(`    ID:    ${orgId}`);
+    console.log('    Owner: none — assign one from /admin/organizations');
     console.log();
     warn('Change the admin password before going to production!');
     console.log();

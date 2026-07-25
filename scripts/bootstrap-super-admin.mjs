@@ -2,7 +2,9 @@
 /**
  * scripts/bootstrap-super-admin.mjs
  *
- * Creates and maintains the initial super admin account.
+ * Creates and maintains the initial super admin account, plus the protected
+ * MyClash HQ platform organization (created WITHOUT an owner — a super-admin
+ * must never be an org member).
  * Idempotent: safe to run on every deploy. If the account already exists,
  * its password is synced from SEED_ADMIN_PASSWORD.
  *
@@ -14,7 +16,9 @@
  *   SEED_ADMIN_PASSWORD       - Password for the super admin
  *
  * Outputs JSON to stdout:
- *   { "created": true|false, "passwordSynced": true|false, "passwordVerified": true|false, "userId": "...", "email": "..." }
+ *   { "created": true|false, "passwordSynced": true|false, "passwordVerified": true|false,
+ *     "roleSynced": true, "orgMembershipRemoved": true|false, "userId": "...",
+ *     "email": "...", "orgId": "..." }
  *
  * Exit codes:
  *   0 - success
@@ -185,10 +189,21 @@ export async function bootstrapSuperAdmin({
     orgId = newOrg.id;
   }
 
-  await runSql(
-    `INSERT INTO organization_members (organization_id, user_id, role)
-     VALUES ($1, $2, 'owner')
-     ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+  // A super-admin is platform-scoped and must NOT appear in any org's member
+  // list — the API enforces this (OrganizationsService.assertNotSuperAdmin,
+  // AdminUsersService.assertNotSuperAdmin). This script used to seed an `owner`
+  // membership on MyClash HQ, which contradicted that invariant and made
+  // /dashboard show the dual-role workspace chooser instead of /admin. Un-seed
+  // it here so existing deployments self-heal on the next deploy. MyClash HQ
+  // itself stays (it is the protected platform org) and is simply ownerless —
+  // a state the admin UI already renders (`noOwnerColumn` + "no owner" badge).
+  //
+  // Scoped to `orgId` on purpose: a membership deliberately created in some
+  // OTHER org survives redeploys, which keeps the dual-role chooser testable.
+  const removedMemberships = await runSql(
+    `DELETE FROM organization_members
+     WHERE organization_id = $1 AND user_id = $2
+     RETURNING organization_id`,
     [orgId, userId],
   );
 
@@ -197,7 +212,7 @@ export async function bootstrapSuperAdmin({
     passwordSynced,
     passwordVerified: true,
     roleSynced: true,
-    orgMembershipSynced: true,
+    orgMembershipRemoved: removedMemberships.length > 0,
     userId,
     email: ADMIN_EMAIL,
     orgId,
