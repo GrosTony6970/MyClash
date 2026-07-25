@@ -151,9 +151,18 @@ describe('AIDataQualityService', () => {
         actor_user_id: actorUuid,
       }),
     );
-    const persisted = findingsUpsert.upsert.mock.calls[0]?.[0] as Array<{ finding_type: string }>;
+    const persisted = findingsUpsert.upsert.mock.calls[0]?.[0] as Array<{
+      finding_type: string;
+      evidence_json?: { reasons?: string[] };
+    }>;
     expect(persisted.map((f) => f.finding_type)).toContain('global_person_duplicate');
     expect(persisted.map((f) => f.finding_type)).toContain('club_duplicate');
+    // Regression guard: club name is embedded from clubs.name via the club_id
+    // FK and flattened to `club_name`, so the same-club dedup signal fires.
+    // Selecting a bare (non-existent) `club_name` column would 400 the whole
+    // query and this reason would never appear.
+    const gpDuplicate = persisted.find((f) => f.finding_type === 'global_person_duplicate');
+    expect(gpDuplicate?.evidence_json?.reasons).toContain('same_club_name');
   });
 
   it('keeps deterministic findings when AI returns invalid JSON', async () => {

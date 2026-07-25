@@ -302,19 +302,31 @@ export class AIDataQualityService {
   }
 
   private async loadGlobalPersons(): Promise<GlobalPersonRow[]> {
+    // global_persons has NO `club_name` column — the club name lives on
+    // clubs.name via the club_id FK. Embed it and flatten to `club_name` so the
+    // same-club dedup heuristic + evidence keep working. (Selecting a bare
+    // `club_name` 400s the whole query against real PostgREST.)
     const { data, error } = await this.supabase.service
       .from('global_persons')
       .select(
-        'id, given_name, family_name, display_name, hema_ratings_id, claimed_by_user_id, club_name, is_referee, merged_into_id, deleted_at',
+        'id, given_name, family_name, display_name, hema_ratings_id, claimed_by_user_id, club_id, clubs(name), is_referee, merged_into_id, deleted_at',
       );
     if (error) throw new BadRequestException(error.message);
-    return (data ?? []) as GlobalPersonRow[];
+    const rows = (data ?? []) as Array<
+      GlobalPersonRow & { clubs?: { name: string | null } | { name: string | null }[] | null }
+    >;
+    return rows.map(({ clubs, ...person }) => {
+      const club = Array.isArray(clubs) ? clubs[0] : clubs;
+      return { ...person, club_name: club?.name ?? null };
+    });
   }
 
   private async loadClubs(): Promise<ClubRow[]> {
     const { data, error } = await this.supabase.service
       .from('clubs')
-      .select('id, name, abbreviation, city, country_code, verified, unverified');
+      // No `verified` column exists — verification is derived from the
+      // `unverified` TEXT flag ('true'/'false') below.
+      .select('id, name, abbreviation, city, country_code, unverified');
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as ClubRow[];
   }
@@ -905,8 +917,10 @@ export class AIDataQualityService {
       abbreviation: club.abbreviation ?? null,
       city: club.city ?? null,
       countryCode: club.country_code ?? null,
-      verified: Boolean(club.verified),
-      unverified: Boolean(club.unverified),
+      // `unverified` is a TEXT flag ('true'/'false'), so compare the string —
+      // Boolean('false') is truthy and would mislabel every club.
+      verified: club.unverified === 'false',
+      unverified: club.unverified === 'true',
     };
   }
 }
@@ -930,8 +944,7 @@ type ClubRow = {
   abbreviation?: string | null;
   city?: string | null;
   country_code?: string | null;
-  verified?: boolean | null;
-  unverified?: boolean | null;
+  unverified?: string | null;
 };
 
 type RefereeQualificationRow = {
