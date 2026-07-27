@@ -19,8 +19,11 @@ import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
 import { RequestDeletionModal } from '../_components/RequestDeletionModal';
 import { EventLogoCard } from './_components/EventLogoCard';
+import { ReadinessChip, ReadinessPanel } from './_components/ReadinessPanel';
+import { PublishReadinessDialog } from './_components/PublishReadinessDialog';
 import { formatCountOfMax } from './format-count-of-max';
 import { eventVisibility } from './event-visibility';
+import { isOutstanding, type ReadinessReport } from './readiness-copy';
 
 interface Tournament {
   id: string;
@@ -134,6 +137,9 @@ export default function EventDetailPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
+  const [publishConfirm, setPublishConfirm] = useState(false);
   const [tournamentBusy, setTournamentBusy] = useState<string | null>(null);
   const [tournamentError, setTournamentError] = useState<string | null>(null);
   const [visibilityBusy, setVisibilityBusy] = useState(false);
@@ -168,9 +174,27 @@ export default function EventDetailPage() {
         setStatsError(err instanceof Error ? err.message : t('common.error'));
       });
 
+  // Readiness is its own request so a slow or failing checklist never delays
+  // the numbers, and vice versa.
+  const reloadReadiness = (signal?: AbortSignal) =>
+    fetch(`${apiUrl}/api/v1/events/${eventId}/readiness`, {
+      credentials: 'include',
+      ...(signal ? { signal } : {}),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(t('organizer.readiness.loadError'));
+        setReadiness((await res.json()) as ReadinessReport);
+        setReadinessError(null);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setReadinessError(err instanceof Error ? err.message : t('common.error'));
+      });
+
   useEffect(() => {
     const controller = new AbortController();
     void reloadStats(controller.signal);
+    void reloadReadiness(controller.signal);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, apiUrl, t]);
@@ -223,11 +247,30 @@ export default function EventDetailPage() {
     }
   }
 
-  async function toggleEventVisibility() {
+  const outstandingChecks = readiness?.checks.filter(isOutstanding).length ?? 0;
+
+  /**
+   * Publishing with outstanding readiness items warns first; unpublishing and
+   * a clean checklist go straight through. The warning never blocks — the
+   * dialog's primary action is "publish anyway".
+   */
+  function requestVisibilityToggle() {
     const status = stats?.event?.status;
     if (!status) return;
     const { mode } = eventVisibility(status);
     if (!mode) return; // only draft ↔ published is toggleable
+    if (mode === 'publish' && readiness && outstandingChecks > 0) {
+      setPublishConfirm(true);
+      return;
+    }
+    void applyVisibilityToggle();
+  }
+
+  async function applyVisibilityToggle() {
+    const status = stats?.event?.status;
+    if (!status) return;
+    const { mode } = eventVisibility(status);
+    if (!mode) return;
     setVisibilityBusy(true);
     setStatsError(null);
     try {
@@ -239,11 +282,14 @@ export default function EventDetailPage() {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? t('organizer.events.visibilityError'));
       }
-      await reloadStats();
+      await Promise.all([reloadStats(), reloadReadiness()]);
     } catch (err) {
       setStatsError(err instanceof Error ? err.message : t('organizer.events.visibilityError'));
     } finally {
       setVisibilityBusy(false);
+      // Closed on failure too: the error banner sits behind the dialog, so
+      // leaving it open would show a spinner stopping and nothing else.
+      setPublishConfirm(false);
     }
   }
 
@@ -407,15 +453,18 @@ export default function EventDetailPage() {
             </p>
           )}
         </div>
-        {event?.status && (
-          <span
-            className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
-              statusPillTone(tournamentStatusSemantic(event.status), 'light').className
-            }`}
-          >
-            {event.status}
-          </span>
-        )}
+        <div className="flex w-fit flex-wrap items-center gap-2">
+          {readiness && <ReadinessChip level={readiness.worst} />}
+          {event?.status && (
+            <span
+              className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
+                statusPillTone(tournamentStatusSemantic(event.status), 'light').className
+              }`}
+            >
+              {event.status}
+            </span>
+          )}
+        </div>
       </div>
 
       {statsError && (
@@ -456,7 +505,7 @@ export default function EventDetailPage() {
                   vis.isPublic ? t('organizer.events.setDraft') : t('organizer.events.setPublic')
                 }
                 disabled={!vis.canToggle || isReadOnly || visibilityBusy}
-                onClick={() => void toggleEventVisibility()}
+                onClick={() => requestVisibilityToggle()}
                 className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
                   vis.isPublic ? 'bg-success' : 'bg-border'
                 }`}
@@ -471,6 +520,18 @@ export default function EventDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      <ReadinessPanel report={readiness} error={readinessError} slug={slug} eventId={eventId} />
+
+      {readiness && (
+        <PublishReadinessDialog
+          open={publishConfirm}
+          report={readiness}
+          busy={visibilityBusy}
+          onCancel={() => setPublishConfirm(false)}
+          onConfirm={() => void applyVisibilityToggle()}
+        />
       )}
 
       <section className="mb-8">

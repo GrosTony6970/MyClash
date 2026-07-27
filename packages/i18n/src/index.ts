@@ -4495,6 +4495,74 @@ export const en = {
       logoWrongType: 'Logo must be a PNG, JPEG, or WebP image.',
       logoEmpty: 'No logo uploaded yet.',
     },
+    readiness: {
+      title: 'Readiness',
+      loadError: 'Could not load the readiness checklist.',
+      allClear: 'Nothing outstanding. This event is ready to run.',
+      outstanding: '{count} item(s) still need attention.',
+      eventLevel: 'Event',
+      fix: 'Fix',
+      view: 'View',
+      level: {
+        ok: 'Ready',
+        warn: 'Needs attention',
+        critical: 'Blocking',
+        info: 'For information',
+      },
+      publishTitle: 'Publish before everything is ready?',
+      publishDescription:
+        '{count} item(s) are still outstanding. Publishing is fine — this is only so nothing surprises you later.',
+      publishAnyway: 'Publish anyway',
+      publishHint:
+        'Publishing opens the event on the public site. You can keep working on any of these afterwards.',
+      check: {
+        tournaments: {
+          label: 'Tournaments',
+          ok: '{count} tournament(s) created.',
+          critical: 'No tournaments yet — an event needs at least one to run.',
+        },
+        pistes: {
+          label: 'Pistes',
+          ok: '{count} piste(s) configured.',
+          warn: 'No pistes yet. Nothing can be given a time and a place until there is at least one.',
+        },
+        ruleset: {
+          label: 'Ruleset',
+          info: 'Fights will be scored by {ruleset}.',
+          warn: 'No scoring ruleset pinned. Matches will fall back to the default.',
+        },
+        fighters: {
+          label: 'Fighters',
+          ok: '{count} fighter(s) registered.',
+          critical:
+            '{count} fighter(s) registered. Pools and brackets need at least 2 before they can be generated.',
+        },
+        format: {
+          label: 'Format',
+          warn: 'No pools or bracket generated yet — this tournament has no format.',
+        },
+        pools: {
+          label: 'Pools',
+          ok: '{count} pool(s) generated.',
+          warn: 'The pool phase exists but no pools have been generated.',
+          info: 'No pool phase — this tournament goes straight to the bracket.',
+        },
+        poolReferees: {
+          label: 'Pool referees',
+          ok: 'Every pool has a referee.',
+          warn: '{missing} of {total} pool(s) have no referee assigned.',
+        },
+        schedule: {
+          label: 'Schedule',
+          ok: 'Every pool fight has a piste and a time.',
+          warn: '{unscheduled} of {total} pool fight(s) are missing a piste or a time.',
+        },
+        bracket: {
+          label: 'Bracket',
+          info: 'Fills from the pool standings once pools finish — usually on day two. Nothing to do now.',
+        },
+      },
+    },
     tournaments: {
       title: 'Tournaments',
       description: 'Manage tournaments for {event}.',
@@ -10901,6 +10969,74 @@ export const fr = {
       logoTooLarge: 'Le logo doit faire 10 Mo maximum.',
       logoWrongType: 'Le logo doit etre une image PNG, JPEG ou WebP.',
       logoEmpty: 'Aucun logo televerse.',
+    },
+    readiness: {
+      title: 'Etat de preparation',
+      loadError: 'Impossible de charger la liste de controle.',
+      allClear: 'Rien en attente. Cet evenement est pret a tourner.',
+      outstanding: '{count} point(s) demandent encore votre attention.',
+      eventLevel: 'Evenement',
+      fix: 'Corriger',
+      view: 'Voir',
+      level: {
+        ok: 'Pret',
+        warn: 'A verifier',
+        critical: 'Bloquant',
+        info: 'Pour information',
+      },
+      publishTitle: 'Publier avant que tout soit pret ?',
+      publishDescription:
+        '{count} point(s) restent en attente. Publier reste possible - ceci sert juste a eviter les mauvaises surprises.',
+      publishAnyway: 'Publier quand meme',
+      publishHint:
+        "Publier ouvre l'evenement sur le site public. Vous pourrez continuer a travailler sur ces points ensuite.",
+      check: {
+        tournaments: {
+          label: 'Tournois',
+          ok: '{count} tournoi(s) crees.',
+          critical: 'Aucun tournoi - un evenement en demande au moins un pour tourner.',
+        },
+        pistes: {
+          label: 'Pistes',
+          ok: '{count} piste(s) configurees.',
+          warn: "Aucune piste. Rien ne peut recevoir d'horaire ni de lieu tant qu'il n'y en a pas au moins une.",
+        },
+        ruleset: {
+          label: 'Reglement',
+          info: 'Les combats seront scores selon {ruleset}.',
+          warn: 'Aucun reglement de score fixe. Les matchs utiliseront celui par defaut.',
+        },
+        fighters: {
+          label: 'Combattants',
+          ok: '{count} combattant(s) inscrits.',
+          critical:
+            '{count} combattant(s) inscrits. Il en faut au moins 2 pour generer les poules et le tableau.',
+        },
+        format: {
+          label: 'Format',
+          warn: "Ni poules ni tableau generes - ce tournoi n'a pas encore de format.",
+        },
+        pools: {
+          label: 'Poules',
+          ok: '{count} poule(s) generees.',
+          warn: "La phase de poules existe mais aucune poule n'a ete generee.",
+          info: 'Pas de phase de poules - ce tournoi passe directement au tableau.',
+        },
+        poolReferees: {
+          label: 'Arbitres de poule',
+          ok: 'Chaque poule a un arbitre.',
+          warn: '{missing} poule(s) sur {total} sans arbitre assigne.',
+        },
+        schedule: {
+          label: 'Planning',
+          ok: 'Chaque combat de poule a une piste et un horaire.',
+          warn: '{unscheduled} combat(s) de poule sur {total} sans piste ou sans horaire.',
+        },
+        bracket: {
+          label: 'Tableau',
+          info: 'Se remplit depuis le classement des poules une fois celles-ci terminees - en general le deuxieme jour. Rien a faire pour le moment.',
+        },
+      },
     },
     tournaments: {
       title: 'Tournois',
