@@ -34,6 +34,9 @@ interface RefereeHistoryEntry {
   }[];
   redFighterName: string | null;
   blueFighterName: string | null;
+  redScore: number | null;
+  blueScore: number | null;
+  winner: 'red' | 'blue' | null;
 }
 
 interface RefereeStats {
@@ -137,6 +140,13 @@ interface RefereeMatchRow {
   matchId: string;
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** Final score per side; null means unresolved, which renders as "-" rather
+   *  than a 0 that would read as a genuine shutout. */
+  redScore: number | null;
+  blueScore: number | null;
+  /** Winning side, from the match's recorded winner — null on a draw or an
+   *  undecided match. Never inferred from the scores (forfeits invert them). */
+  winner: 'red' | 'blue' | null;
   /** The viewer's own role for this match (null when unresolved). */
   viewerRole: SkillRef | null;
   coReferees: CoRefereeChipData[];
@@ -208,6 +218,9 @@ function buildRefereeTree(history: RefereeHistoryEntry[], unknown: string): Even
         matchId: entry.matchId,
         redFighterName: entry.redFighterName,
         blueFighterName: entry.blueFighterName,
+        redScore: entry.redScore,
+        blueScore: entry.blueScore,
+        winner: entry.winner,
         viewerRole,
         coReferees: (entry.coReferees ?? []).map((coRef) => ({
           personId: coRef.personId,
@@ -662,54 +675,149 @@ function SkillStat({
   );
 }
 
-/** One refereed match: fighters + the viewer's own role on the left, the
- *  co-referees (name + skill badge) on the right. */
+/** One refereed match: the two fighters stacked on the left, each in their
+ *  corner colour with their score, and the whole referee crew — the viewer
+ *  first — as identical pills on the right. */
 function MatchRow({ match, t }: { match: RefereeMatchRow; t: TFn }) {
-  const red = match.redFighterName ?? t('common.unknown');
-  const blue = match.blueFighterName ?? t('common.unknown');
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-      <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-foreground-secondary">
-        <span className="min-w-0">
-          {t('publicApp.fighterProfile.refereeMatchVersus', { red, blue })}
-        </span>
+    <li className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+      <span className="flex min-w-0 flex-1 basis-48 flex-col gap-px">
+        <FighterLine
+          side="red"
+          name={match.redFighterName}
+          score={match.redScore}
+          isWinner={match.winner === 'red'}
+          t={t}
+        />
+        <FighterLine
+          side="blue"
+          name={match.blueFighterName}
+          score={match.blueScore}
+          isWinner={match.winner === 'blue'}
+          t={t}
+        />
+      </span>
+      <span
+        className="flex flex-wrap items-center gap-1.5"
+        aria-label={t('publicApp.fighterProfile.refereeCoReferees')}
+      >
         {match.viewerRole && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-            {t('publicApp.fighterProfile.refereeYourRole')}
-            <SkillBadge color={match.viewerRole.color} label={match.viewerRole.name} size="xs" />
+          <RefereeChip
+            name={t('publicApp.fighterProfile.refereeYouChip')}
+            skillName={match.viewerRole.name}
+            skillColor={match.viewerRole.color}
+            isSelf
+          />
+        )}
+        {match.coReferees.length > 0 ? (
+          match.coReferees.map((coRef) => (
+            <RefereeChip
+              key={coRef.personId}
+              name={coRef.name ?? t('common.unknown')}
+              skillName={coRef.skillName}
+              skillColor={coRef.skillColor}
+            />
+          ))
+        ) : (
+          <span className="text-[11px] text-muted">
+            {t('publicApp.fighterProfile.refereeSoloMatch')}
           </span>
         )}
       </span>
-      {match.coReferees.length > 0 ? (
-        <span
-          className="flex flex-wrap items-center gap-1.5"
-          aria-label={t('publicApp.fighterProfile.refereeCoReferees')}
-        >
-          {match.coReferees.map((coRef) => (
-            <CoRefereeChip key={coRef.personId} coRef={coRef} t={t} />
-          ))}
-        </span>
-      ) : (
-        <span className="text-[11px] text-muted">
-          {t('publicApp.fighterProfile.refereeSoloMatch')}
-        </span>
-      )}
     </li>
   );
 }
 
-/** A co-referee's name paired with their referee-skill badge. Renders the
- *  human-readable name only (never the id); the badge is omitted when the
- *  co-referee has no resolved skill. */
-function CoRefereeChip({ coRef, t }: { coRef: CoRefereeChipData; t: TFn }) {
+/**
+ * Per-side presentation. Painted from the `corner-red`/`corner-blue` semantic
+ * tokens rather than the tournament's configured side colours: the
+ * referee-stats payload carries no scoring config, so `sideStyle()` has nothing
+ * to resolve here — the same reasoning the public match page documents.
+ */
+const SIDE_STYLE = {
+  red: { tint: 'bg-corner-red/10', stripe: 'bg-corner-red', label: 'scoring.liveMatch.red' },
+  blue: { tint: 'bg-corner-blue/10', stripe: 'bg-corner-blue', label: 'scoring.liveMatch.blue' },
+} as const;
+
+/** One fighter's line: a corner-coloured stripe + soft tint, the name, and the
+ *  score — mirroring the bracket MatchCard's FighterRow. The winner is
+ *  emphasised; a null score shows "-" so "unknown" stays distinct from a
+ *  genuine 0. */
+function FighterLine({
+  side,
+  name,
+  score,
+  isWinner,
+  t,
+}: {
+  side: 'red' | 'blue';
+  name: string | null;
+  score: number | null;
+  isWinner: boolean;
+  t: TFn;
+}) {
+  const style = SIDE_STYLE[side];
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-1.5 py-0.5">
-      <span className="text-[11px] text-foreground-secondary">
-        {coRef.name ?? t('common.unknown')}
+    <span className={`flex min-h-[22px] items-stretch overflow-hidden rounded-sm ${style.tint}`}>
+      <span aria-hidden="true" className={`w-[3px] shrink-0 ${style.stripe}`} />
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2">
+        <span
+          className={[
+            'min-w-0 truncate text-xs',
+            isWinner ? 'font-bold text-foreground' : 'text-foreground-secondary',
+          ].join(' ')}
+        >
+          {/* The stripe is decorative, so the side is spelled out for readers
+              that never see it. */}
+          <span className="sr-only">{t(style.label)}: </span>
+          {name ?? t('common.unknown')}
+        </span>
+        <span
+          className={[
+            'shrink-0 font-mono text-xs tabular-nums',
+            isWinner ? 'font-bold text-foreground' : 'text-muted',
+          ].join(' ')}
+        >
+          {score ?? '-'}
+        </span>
       </span>
-      {coRef.skillName && coRef.skillColor && (
-        <SkillBadge color={coRef.skillColor} label={coRef.skillName} size="xs" />
-      )}
+    </span>
+  );
+}
+
+/** One referee on a match: their name paired with their referee-skill badge.
+ *  The viewer and their co-referees share this component so the crew reads as
+ *  one row of identical pills; `isSelf` only tints it with the accent, the
+ *  same self-marking convention the bracket and final-ranking tables use.
+ *  Renders the human-readable name only (never the id); the badge is omitted
+ *  when the referee has no resolved skill. */
+function RefereeChip({
+  name,
+  skillName,
+  skillColor,
+  isSelf = false,
+}: {
+  name: string;
+  skillName: string | null;
+  skillColor: string | null;
+  isSelf?: boolean;
+}) {
+  return (
+    <span
+      className={[
+        'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5',
+        isSelf ? 'border-accent/40 bg-accent/10' : 'border-border bg-background',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'text-[11px]',
+          isSelf ? 'font-semibold text-accent' : 'text-foreground-secondary',
+        ].join(' ')}
+      >
+        {name}
+      </span>
+      {skillName && skillColor && <SkillBadge color={skillColor} label={skillName} size="xs" />}
     </span>
   );
 }

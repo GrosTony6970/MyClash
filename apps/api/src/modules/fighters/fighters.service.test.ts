@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FightersService, parseBoolCell } from './fighters.service';
-import { buildRefereeStats, type RefereeAssignmentInput } from './referee-stats';
+import {
+  buildRefereeStats,
+  type MatchFighters,
+  type RefereeAssignmentInput,
+} from './referee-stats';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -512,19 +516,31 @@ describe('FightersService', () => {
     });
   });
 
-  describe('fetchFighterNamesByMatch', () => {
+  describe('fetchMatchFightersByMatch', () => {
     type Resolver = {
-      fetchFighterNamesByMatch: (
-        ids: string[],
-      ) => Promise<Map<string, { redName: string | null; blueName: string | null }>>;
+      fetchMatchFightersByMatch: (ids: string[]) => Promise<Map<string, MatchFighters>>;
     };
 
     it('resolves red/blue fighter names per match with global display-name fallback', async () => {
       const matchesChain = makeChain({ data: null, error: null });
       matchesChain.in.mockResolvedValue({
         data: [
-          { id: 'm1', red_registration_id: 'r1', blue_registration_id: 'r2' },
-          { id: 'm2', red_registration_id: 'r3', blue_registration_id: null },
+          {
+            id: 'm1',
+            red_registration_id: 'r1',
+            blue_registration_id: 'r2',
+            red_score: 5,
+            blue_score: 3,
+            winner_registration_id: 'r1',
+          },
+          {
+            id: 'm2',
+            red_registration_id: 'r3',
+            blue_registration_id: null,
+            red_score: 0,
+            blue_score: 0,
+            winner_registration_id: null,
+          },
         ],
         error: null,
       });
@@ -548,15 +564,53 @@ describe('FightersService', () => {
 
       fromMock.mockReturnValueOnce(matchesChain).mockReturnValueOnce(regsChain);
 
-      const result = await (service as unknown as Resolver).fetchFighterNamesByMatch(['m1', 'm2']);
+      const result = await (service as unknown as Resolver).fetchMatchFightersByMatch(['m1', 'm2']);
 
-      expect(result.get('m1')).toEqual({ redName: 'Anna Red', blueName: 'Blue GP' });
-      // Missing blue registration → null; red resolves normally.
-      expect(result.get('m2')).toEqual({ redName: 'Cara Solo', blueName: null });
+      expect(result.get('m1')).toEqual({
+        redName: 'Anna Red',
+        blueName: 'Blue GP',
+        redScore: 5,
+        blueScore: 3,
+        winner: 'red',
+      });
+      // Missing blue registration → null; red resolves normally. No
+      // winner_registration_id → winner null even though the scores are equal.
+      expect(result.get('m2')).toEqual({
+        redName: 'Cara Solo',
+        blueName: null,
+        redScore: 0,
+        blueScore: 0,
+        winner: null,
+      });
+    });
+
+    it('reads the winner from winner_registration_id, not from the higher score', async () => {
+      // A forfeit: blue is the recorded winner while trailing 5–1.
+      const matchesChain = makeChain({ data: null, error: null });
+      matchesChain.in.mockResolvedValue({
+        data: [
+          {
+            id: 'm1',
+            red_registration_id: 'r1',
+            blue_registration_id: 'r2',
+            red_score: 5,
+            blue_score: 1,
+            winner_registration_id: 'r2',
+          },
+        ],
+        error: null,
+      });
+      const regsChain = makeChain({ data: null, error: null });
+      regsChain.in.mockResolvedValue({ data: [], error: null });
+      fromMock.mockReturnValueOnce(matchesChain).mockReturnValueOnce(regsChain);
+
+      const result = await (service as unknown as Resolver).fetchMatchFightersByMatch(['m1']);
+
+      expect(result.get('m1')).toMatchObject({ redScore: 5, blueScore: 1, winner: 'blue' });
     });
 
     it('returns an empty map (and issues no query) when there are no matches', async () => {
-      const result = await (service as unknown as Resolver).fetchFighterNamesByMatch([]);
+      const result = await (service as unknown as Resolver).fetchMatchFightersByMatch([]);
       expect(result.size).toBe(0);
       expect(fromMock).not.toHaveBeenCalled();
     });

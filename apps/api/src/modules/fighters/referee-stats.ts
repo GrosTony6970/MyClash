@@ -50,6 +50,19 @@ export interface RefereeSkillInfo {
   skillColor: string;
 }
 
+/**
+ * Per-match fighter identity and result. `winner` is resolved upstream from
+ * `matches.winner_registration_id` — NOT by comparing the scores, which would
+ * mis-call forfeits (won on a lower score) and draws (equal, no winner).
+ */
+export interface MatchFighters {
+  redName: string | null;
+  blueName: string | null;
+  redScore: number | null;
+  blueScore: number | null;
+  winner: 'red' | 'blue' | null;
+}
+
 export interface RefereeStatsInput {
   userId: string;
   assignments: RefereeAssignmentInput[];
@@ -58,8 +71,8 @@ export interface RefereeStatsInput {
   buddiesByUserId?: Record<string, RefereeBuddyInput>;
   includePrivateDetails?: boolean;
   skillsByRole?: Map<string, RefereeSkillInfo>;
-  /** Per-match red/blue fighter display names (private/`/me` path only). */
-  fighterNamesByMatchId?: Map<string, { redName: string | null; blueName: string | null }>;
+  /** Per-match fighters, scores and winner (private/`/me` path only). */
+  matchFightersByMatchId?: Map<string, MatchFighters>;
 }
 
 /** A referee who officiated the same match as the viewer, with their skill. */
@@ -98,6 +111,11 @@ export interface RefereeHistoryEntry {
   /** Fighter display names for this match (null when unresolved). */
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** Final score per side, and which side won. All null when the match could
+   *  not be resolved; `winner` is also null on a draw or an undecided match. */
+  redScore: number | null;
+  blueScore: number | null;
+  winner: 'red' | 'blue' | null;
 }
 
 export interface RefereeStats {
@@ -192,7 +210,7 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               assignment.role && input.skillsByRole
                 ? (input.skillsByRole.get(assignment.role) ?? null)
                 : null;
-            const fighters = input.fighterNamesByMatchId?.get(assignment.matchId) ?? null;
+            const fighters = input.matchFightersByMatchId?.get(assignment.matchId) ?? null;
             return {
               matchId: assignment.matchId,
               role: assignment.role,
@@ -214,6 +232,9 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               coReferees: buildCoReferees(assignmentsByMatch.get(assignment.matchId) ?? [], input),
               redFighterName: fighters?.redName ?? null,
               blueFighterName: fighters?.blueName ?? null,
+              redScore: fighters?.redScore ?? null,
+              blueScore: fighters?.blueScore ?? null,
+              winner: fighters?.winner ?? null,
             };
           }),
         }

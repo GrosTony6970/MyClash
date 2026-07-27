@@ -35,6 +35,7 @@ import {
 } from './fighter-career';
 import {
   buildRefereeStats,
+  type MatchFighters,
   type RefereeAssignmentInput,
   type RefereeMatchDurationInput,
   type RefereePenaltyInput,
@@ -1377,8 +1378,8 @@ export class FightersService {
     const skillsByRole = includePrivateDetails
       ? await this.fetchRefereeSkillsByRole(allAssignments)
       : undefined;
-    const fighterNamesByMatchId = includePrivateDetails
-      ? await this.fetchFighterNamesByMatch(matchIds)
+    const matchFightersByMatchId = includePrivateDetails
+      ? await this.fetchMatchFightersByMatch(matchIds)
       : undefined;
 
     return buildRefereeStats({
@@ -1389,25 +1390,29 @@ export class FightersService {
       buddiesByUserId,
       includePrivateDetails,
       skillsByRole,
-      fighterNamesByMatchId,
+      matchFightersByMatchId,
     });
   }
 
   /**
-   * Batched match_id → { redName, blueName } fighter display names. Resolves
-   * matches → registrations → persons → global_persons (same "Given Family"
-   * with global display-name fallback pattern as public-schedule's
+   * Batched match_id → per-side fighter name, score and the winning side.
+   * Resolves matches → registrations → persons → global_persons (same "Given
+   * Family" with global display-name fallback pattern as public-schedule's
    * resolveRegistrationNames). Used only on the private `/me` referee path.
+   *
+   * The winner is derived from `winner_registration_id`, never by comparing
+   * scores — a forfeit or a walkover can be won on a lower score, and a draw
+   * has equal scores with no winner at all.
    */
-  private async fetchFighterNamesByMatch(
-    matchIds: string[],
-  ): Promise<Map<string, { redName: string | null; blueName: string | null }>> {
-    const result = new Map<string, { redName: string | null; blueName: string | null }>();
+  private async fetchMatchFightersByMatch(matchIds: string[]): Promise<Map<string, MatchFighters>> {
+    const result = new Map<string, MatchFighters>();
     if (matchIds.length === 0) return result;
 
     const { data: matchRows } = await this.supabase.service
       .from('matches')
-      .select('id, red_registration_id, blue_registration_id')
+      .select(
+        'id, red_registration_id, blue_registration_id, red_score, blue_score, winner_registration_id',
+      )
       .in('id', matchIds);
     const matches = (matchRows ?? []) as Row[];
 
@@ -1418,35 +1423,55 @@ export class FightersService {
           .filter((id): id is string => typeof id === 'string' && id.length > 0),
       ),
     ];
-
-    const namesByReg = new Map<string, string>();
-    if (regIds.length > 0) {
-      const { data: regRows } = await this.supabase.service
-        .from('registrations')
-        .select('id, persons ( given_name, family_name, global_persons ( display_name ) )')
-        .in('id', regIds);
-      for (const row of (regRows ?? []) as Row[]) {
-        const personRaw = row['persons'];
-        const person = (Array.isArray(personRaw) ? personRaw[0] : personRaw) as Row | null;
-        if (!person) continue;
-        const given = String(person['given_name'] ?? '').trim();
-        const family = String(person['family_name'] ?? '').trim();
-        const gpRaw = person['global_persons'];
-        const gp = (Array.isArray(gpRaw) ? gpRaw[0] : gpRaw) as { display_name?: string } | null;
-        const name = `${given} ${family}`.trim() || (gp?.display_name ?? '').trim();
-        if (name) namesByReg.set(String(row['id']), name);
-      }
-    }
+    const namesByReg = await this.fetchNamesByRegistration(regIds);
 
     for (const row of matches) {
       const redReg = row['red_registration_id'] as string | null;
       const blueReg = row['blue_registration_id'] as string | null;
+      const winnerReg = row['winner_registration_id'] as string | null;
       result.set(String(row['id']), {
         redName: redReg ? (namesByReg.get(redReg) ?? null) : null,
         blueName: blueReg ? (namesByReg.get(blueReg) ?? null) : null,
+        redScore: Number(row['red_score'] ?? 0),
+        blueScore: Number(row['blue_score'] ?? 0),
+        winner:
+          winnerReg && winnerReg === redReg
+            ? 'red'
+            : winnerReg && winnerReg === blueReg
+              ? 'blue'
+              : null,
       });
     }
     return result;
+  }
+
+  /**
+   * Batched registration_id → fighter display name, resolving
+   * registrations → persons → global_persons. Prefers the local "Given Family"
+   * and falls back to the global display name — the same pattern as
+   * public-schedule's resolveRegistrationNames. Registrations whose name can't
+   * be resolved are simply absent from the map.
+   */
+  private async fetchNamesByRegistration(regIds: string[]): Promise<Map<string, string>> {
+    const namesByReg = new Map<string, string>();
+    if (regIds.length === 0) return namesByReg;
+
+    const { data: regRows } = await this.supabase.service
+      .from('registrations')
+      .select('id, persons ( given_name, family_name, global_persons ( display_name ) )')
+      .in('id', regIds);
+    for (const row of (regRows ?? []) as Row[]) {
+      const personRaw = row['persons'];
+      const person = (Array.isArray(personRaw) ? personRaw[0] : personRaw) as Row | null;
+      if (!person) continue;
+      const given = String(person['given_name'] ?? '').trim();
+      const family = String(person['family_name'] ?? '').trim();
+      const gpRaw = person['global_persons'];
+      const gp = (Array.isArray(gpRaw) ? gpRaw[0] : gpRaw) as { display_name?: string } | null;
+      const name = `${given} ${family}`.trim() || (gp?.display_name ?? '').trim();
+      if (name) namesByReg.set(String(row['id']), name);
+    }
+    return namesByReg;
   }
 
   private async fetchRefereeSkillsByRole(

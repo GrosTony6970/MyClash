@@ -46,9 +46,15 @@ describe('buildRefereeStats', () => {
         ],
         ['arbitre_table', { skillId: 'arbitre_table', skillName: 'Table', skillColor: 'purple' }],
       ]),
-      fighterNamesByMatchId: new Map([
-        ['match-1', { redName: 'Red One', blueName: 'Blue One' }],
-        ['match-2', { redName: 'Red Two', blueName: 'Blue Two' }],
+      matchFightersByMatchId: new Map([
+        [
+          'match-1',
+          { redName: 'Red One', blueName: 'Blue One', redScore: 5, blueScore: 3, winner: 'red' },
+        ],
+        [
+          'match-2',
+          { redName: 'Red Two', blueName: 'Blue Two', redScore: 2, blueScore: 2, winner: null },
+        ],
       ]),
     });
 
@@ -91,6 +97,9 @@ describe('buildRefereeStats', () => {
     expect(stats.history?.[0]).toMatchObject({
       redFighterName: 'Red One',
       blueFighterName: 'Blue One',
+      redScore: 5,
+      blueScore: 3,
+      winner: 'red',
     });
     // match-2: only buddy-1 (declarant) refereed alongside the viewer.
     expect(stats.history?.[1]?.coReferees).toEqual([
@@ -102,9 +111,13 @@ describe('buildRefereeStats', () => {
         skillColor: 'blue',
       },
     ]);
+    // A draw carries both scores but no winning side.
     expect(stats.history?.[1]).toMatchObject({
       redFighterName: 'Red Two',
       blueFighterName: 'Blue Two',
+      redScore: 2,
+      blueScore: 2,
+      winner: null,
     });
   });
 
@@ -140,7 +153,7 @@ describe('buildRefereeStats', () => {
     expect(coRefs[1]).toMatchObject({ personId: 'buddy-z', skillName: 'Table' });
   });
 
-  it('defaults co-referees to [] and fighter names to null when detail maps are absent', () => {
+  it('defaults co-referees to [] and fighters/scores to null when detail maps are absent', () => {
     const stats = buildRefereeStats({
       userId: 'user-ref',
       assignments: [
@@ -153,9 +166,14 @@ describe('buildRefereeStats', () => {
       includePrivateDetails: true,
     });
 
+    // An unresolved match yields null scores, NOT 0 — the FE renders "-" for
+    // "we don't know" and must keep that distinct from a genuine 0.
     expect(stats.history?.[0]).toMatchObject({
       redFighterName: null,
       blueFighterName: null,
+      redScore: null,
+      blueScore: null,
+      winner: null,
     });
     // A co-referee with a custom (unmapped) skill still surfaces, name resolved,
     // skill name/color null but the raw role kept as skillId.
