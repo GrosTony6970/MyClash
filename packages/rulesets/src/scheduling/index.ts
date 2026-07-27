@@ -4,7 +4,7 @@
 export { snakeSeed, sortBySkill, computePoolSizes } from './snake-seeding';
 export type { Fighter, PoolAssignment } from './snake-seeding';
 
-export { localSearch, computeCost, buildCostReport } from './local-search';
+export { localSearch, computeCost, buildCostReport, mulberry32 } from './local-search';
 export type { PoolAssignmentSettings, CostReport } from './local-search';
 
 export { bergerSchedule, totalMatches, totalRounds } from './berger';

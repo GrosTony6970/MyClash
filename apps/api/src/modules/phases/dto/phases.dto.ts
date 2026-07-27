@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { SEEDING_STRATEGIES } from './reseed-bracket.dto';
 
 const generatePoolsSchema = z
   .object({
@@ -61,11 +62,12 @@ const generateBracketSchema = z
     /** Phase ID of the pool phase to read standings from */
     poolPhaseId: z.uuid().optional(),
     /**
-     * Seeding strategy for filling Round 1 slots. `snake` (default) uses the
-     * existing snake-seeding helper. The other three are accepted by the DTO
-     * but raise HTTP 501 until the corresponding helpers ship.
+     * Seeding strategy stamped onto the phase config. generateBracket only
+     * builds the bracket STRUCTURE — the strategy is consumed later by
+     * populateBracket (and by an explicit reseed), which is where the R1 rank
+     * order is actually resolved. See r1-ranking.ts.
      */
-    seedingStrategy: z.enum(['snake', 'by-rating', 'random', 'by-pool-rank']).optional(),
+    seedingStrategy: z.enum(SEEDING_STRATEGIES).optional(),
   })
   .strict();
 export class GenerateBracketDto extends createZodDto(generateBracketSchema) {}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ConflictException, NotImplementedException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { PhasesService } from './phases.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -540,19 +540,53 @@ describe('PhasesService', () => {
       });
     });
 
-    it('throws 501 NotImplementedException for unimplemented seeding strategies', async () => {
-      // The 501 throws before any Supabase call, so no mocks are needed —
-      // and crucially, no mockReturnValueOnce must be queued or it would
-      // leak into subsequent tests.
-      await expect(
-        service.generateBracket('tournament-1', { seedingStrategy: 'by-rating' }, false),
-      ).rejects.toThrow(NotImplementedException);
-      await expect(
-        service.generateBracket('tournament-1', { seedingStrategy: 'random' }, false),
-      ).rejects.toThrow(NotImplementedException);
-      await expect(
-        service.generateBracket('tournament-1', { seedingStrategy: 'by-pool-rank' }, false),
-      ).rejects.toThrow(NotImplementedException);
+    it('accepts every seeding strategy and stamps it onto config_json', async () => {
+      // generateBracket builds the STRUCTURE only — it must not resolve a rank
+      // order, so a non-default strategy is stored verbatim and consumed later
+      // by populateBracket. This replaces the old 501 guard.
+      for (const strategy of ['by-rating', 'random', 'by-pool-rank'] as const) {
+        fromMock.mockReset();
+        const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
+        const phaseCheckChain = makeChain({ data: null, error: null });
+        phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+        const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
+        const phaseInsertChain = makeChain({ data: null, error: null });
+        phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
+        const defaultChain = makeChain({ data: null, error: null });
+        const phaseReadChain = makeChain({ data: null, error: null });
+        phaseReadChain.maybeSingle.mockResolvedValue({
+          data: {
+            id: 'phase-new',
+            type: 'single_elim',
+            visibility_status: 'hidden',
+            config_json: { bracketSize: 8, seedingStrategy: strategy },
+          },
+          error: null,
+        });
+        const slotsReadChain = makeAwaitableChain({ data: [], error: null });
+
+        fromMock
+          .mockReturnValueOnce(phaseCheckChain)
+          .mockReturnValueOnce(regsChain)
+          .mockReturnValueOnce(phaseInsertChain)
+          .mockReturnValueOnce(defaultChain)
+          .mockReturnValueOnce(phaseReadChain)
+          .mockReturnValueOnce(slotsReadChain)
+          .mockReturnValue(defaultChain);
+
+        const result = await service.generateBracket(
+          'tournament-1',
+          { seedingStrategy: strategy },
+          false,
+        );
+
+        expect(phaseInsertChain.insert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            config_json: expect.objectContaining({ seedingStrategy: strategy }),
+          }),
+        );
+        expect((result as { seedingStrategy: string }).seedingStrategy).toBe(strategy);
+      }
     });
 
     it('persists seedingStrategy and grandFinalReset into phases.config_json', async () => {
@@ -868,10 +902,86 @@ describe('PhasesService', () => {
   });
 
   describe('reseedBracketRoundOne', () => {
-    it('throws 501 for unimplemented strategies', async () => {
+    /**
+     * Name-dispatched `from` rather than an ordered mockReturnValueOnce queue:
+     * matchRulesetForTournament issues its own lookups mid-flow, so any
+     * position-based sequence desyncs the moment that helper changes.
+     */
+    function mockReseedTables(overrides: {
+      phaseConfig?: Record<string, unknown>;
+      registrations?: Array<{ id: string; seed: number | null; bib_number: number | null }>;
+    }) {
+      const phasesChain = makeChain({ data: null, error: null });
+      phasesChain.maybeSingle
+        .mockResolvedValueOnce({
+          data: {
+            id: 'phase-1',
+            type: 'single_elim',
+            tournament_id: 'tournament-1',
+            visibility_status: 'hidden',
+            tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: { config_json: overrides.phaseConfig ?? {} },
+          error: null,
+        });
+
+      const slotsChain = makeAwaitableChain({ data: [], error: null });
+      const regsChain = makeAwaitableChain({
+        data: overrides.registrations ?? [
+          { id: 'r1', seed: 1, bib_number: null },
+          { id: 'r2', seed: 2, bib_number: null },
+        ],
+        error: null,
+      });
+      const fallback = makeChain({ data: null, error: null });
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'phases') return phasesChain;
+        if (table === 'bracket_slots') return slotsChain;
+        if (table === 'registrations') return regsChain;
+        return fallback;
+      });
+      return { phasesChain, regsChain };
+    }
+
+    it('persists a reproducible PRNG seed for a random reseed', async () => {
+      const { phasesChain } = mockReseedTables({});
+
+      await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'random' });
+
+      const updateArg = phasesChain.update.mock.calls.at(-1)?.[0] as {
+        config_json: Record<string, unknown>;
+      };
+      expect(updateArg.config_json['seedingStrategy']).toBe('random');
+      // Without a stored seed the draw could never be replayed after a dispute.
+      expect(typeof updateArg.config_json['seedingRandomSeed']).toBe('number');
+    });
+
+    it('reads registrations with the rating embed only for by-rating', async () => {
+      const { regsChain } = mockReseedTables({});
+      await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' });
+      expect(regsChain.select).toHaveBeenCalledWith(
+        'id, seed, bib_number, persons(global_persons(hema_ratings_id))',
+      );
+
+      vi.clearAllMocks();
+      const plain = mockReseedTables({});
+      await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'snake' });
+      expect(plain.regsChain.select).toHaveBeenCalledWith('id, seed, bib_number');
+    });
+
+    it('refuses by-pool-rank rather than silently falling back to registration seed', async () => {
+      // This service instance has no PoolStandingsService, which stands in for
+      // "no pool results to seed from". The whole point of the strategy is that
+      // it fails loudly instead of degrading to seed order.
+      mockReseedTables({});
+
       await expect(
-        service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' }),
-      ).rejects.toThrow(NotImplementedException);
+        service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-pool-rank' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('refuses when any R1 match has started', async () => {

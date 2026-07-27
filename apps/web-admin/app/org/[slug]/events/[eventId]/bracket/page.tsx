@@ -691,17 +691,20 @@ export default function BracketPage() {
             : (errBody?.message ?? t('admin.common.populateFailed'));
         throw new Error(msg);
       }
-      // The BE returns `source: 'pool-standings' | 'registration-seed'`.
-      // Branch the success toast so straight-to-bracket tournaments
-      // (source=registration-seed) get an honest message instead of
-      // the misleading "from pool standings" text.
+      // `source` names the ORDERING the BE actually applied, not just the
+      // table the fighters came from — a shuffled draw must not be reported
+      // as "from pool standings".
       const result = (await res.json().catch(() => ({}))) as {
-        source?: 'pool-standings' | 'registration-seed';
+        source?: 'pool-standings' | 'registration-seed' | 'rating' | 'random';
       };
       const successKey =
         result.source === 'registration-seed'
           ? 'organizer.bracket.autoPopulateSuccessFromSeed'
-          : 'organizer.bracket.autoPopulateSuccess';
+          : result.source === 'rating'
+            ? 'organizer.bracket.autoPopulateSuccessFromRating'
+            : result.source === 'random'
+              ? 'organizer.bracket.autoPopulateSuccessFromRandom'
+              : 'organizer.bracket.autoPopulateSuccess';
       setPopulateMessage(t(successKey));
       refreshBracket();
     } catch (err) {
@@ -1172,18 +1175,11 @@ export default function BracketPage() {
                   onChange={(e) => setSeedingStrategy(e.target.value as SeedingStrategy)}
                   className="border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent"
                 >
-                  <option value="snake">
-                    {t('organizer.phaseVisibility.seedingStrategySnake')}
-                  </option>
-                  <option value="by-rating" disabled>
-                    {t('organizer.phaseVisibility.seedingStrategyByRating')}
-                  </option>
-                  <option value="random" disabled>
-                    {t('organizer.phaseVisibility.seedingStrategyRandom')}
-                  </option>
-                  <option value="by-pool-rank" disabled>
-                    {t('organizer.phaseVisibility.seedingStrategyByPoolRank')}
-                  </option>
+                  {SEEDING_STRATEGIES.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
+                    </option>
+                  ))}
                 </select>
               </div>
               {phaseType === 'double_elim' && (
@@ -1774,7 +1770,7 @@ export default function BracketPage() {
             className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 ring-accent mb-4"
           >
             {SEEDING_STRATEGIES.map((s) => (
-              <option key={s} value={s} disabled={s !== 'snake'}>
+              <option key={s} value={s}>
                 {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
               </option>
             ))}

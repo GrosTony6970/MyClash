@@ -84,7 +84,13 @@ export function computeCost(
 
 // ── Seeded PRNG (deterministic) ───────────────────────────────────────────────
 
-function mulberry32(seed: number) {
+/**
+ * Deterministic PRNG. Exported because bracket R1 `random` seeding needs the
+ * same guarantee pool local-search does: a draw nobody can re-derive is not
+ * defensible after a dispute, so the caller stores the seed alongside the
+ * result and can replay it.
+ */
+export function mulberry32(seed: number) {
   return function () {
     seed |= 0;
     seed = (seed + 0x6d2b79f5) | 0;

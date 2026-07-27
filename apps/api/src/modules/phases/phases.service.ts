@@ -8,7 +8,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  NotImplementedException,
   Optional,
 } from '@nestjs/common';
 import {
@@ -30,7 +29,7 @@ import type {
   UpdatePhaseVisibilityDto,
 } from './dto/phases.dto';
 import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
-import type { ReseedBracketDto } from './dto/reseed-bracket.dto';
+import type { ReseedBracketDto, SeedingStrategy } from './dto/reseed-bracket.dto';
 import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 // Value import (not `import type`): NestJS DI dependency. A type-only import is
 // erased at runtime so the @Optional() param silently resolves to `undefined`.
@@ -46,6 +45,15 @@ import {
   parseSeed,
   type RankedRegistration,
 } from './bracket-r1-seeding';
+import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from './r1-ranking';
+
+/**
+ * Where a bracket's Round-1 rank order came from. The FE branches its success
+ * toast on this, so it names the ORDERING, not just the table the fighters
+ * were read from — "populated from pool standings" would be a lie for a draw
+ * that was actually shuffled.
+ */
+type R1RankingSource = 'pool-standings' | 'registration-seed' | 'rating' | 'random';
 // Value import (not `import type`): NestJS DI dependency. Type-only erases the
 // runtime metadata, so poolStandings resolved to `undefined` — which made
 // computePoolGate vacuously "complete" and populateBracket fall back to
@@ -368,12 +376,9 @@ export class PhasesService {
   async generateBracket(tournamentId: string, dto: GenerateBracketDto, force = false) {
     const phaseType = dto.phaseType ?? 'single_elim';
     const isDoubleElim = phaseType === 'double_elim';
+    // Stamped onto config_json only. generateBracket builds the STRUCTURE;
+    // populateBracket resolves the rank order from this value later.
     const seedingStrategy = dto.seedingStrategy ?? 'snake';
-    if (seedingStrategy !== 'snake') {
-      throw new NotImplementedException(
-        `Seeding strategy "${seedingStrategy}" is not yet implemented`,
-      );
-    }
     const grandFinalReset = isDoubleElim ? (dto.grandFinalReset ?? false) : false;
 
     // Check for existing elim phase
@@ -741,15 +746,12 @@ export class PhasesService {
    *
    * Re-applies Round 1 seeding without regenerating the bracket structure.
    * Refuses when any R1 match has already started (status != 'scheduled').
-   * Today only `snake` is implemented; the other strategies return 501.
+   *
+   * Unlike populateBracket, a `random` reseed always draws a FRESH PRNG seed —
+   * the operator pressing this button is asking for a new draw, not a replay of
+   * the stored one. The seed used is persisted and audit-logged either way.
    */
   async reseedBracketRoundOne(phaseId: string, actorUserId: string, dto: ReseedBracketDto) {
-    if (dto.strategy !== 'snake') {
-      throw new NotImplementedException(
-        `Seeding strategy "${dto.strategy}" is not yet implemented`,
-      );
-    }
-
     const phase = await this.getPhaseForVisibility(phaseId);
     const phaseType = phase['type'] as string;
     if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
@@ -806,38 +808,38 @@ export class PhasesService {
       }
     }
 
-    // Re-fetch seeded registrations in seed order.
-    const { data: seededRegs } = await this.supabase.service
-      .from('registrations')
-      .select('id, seed, bib_number')
-      .eq('tournament_id', tournamentId)
-      .in('status', ['registered', 'checked_in', 'done'])
-      .order('seed', { ascending: true, nullsFirst: false });
-    const ordered = (seededRegs ?? []) as Array<{
-      id: string;
-      seed: number | null;
-      bib_number: number | null;
-    }>;
-
-    // Build seed → registrationId map (snake: respect existing seed order).
-    const bySeed = new Map<number, string>();
-    ordered.forEach((reg, idx) => {
-      const seedNum = reg.seed ?? reg.bib_number ?? idx + 1;
-      bySeed.set(seedNum, reg.id);
-    });
+    // Resolve the rank order for the chosen strategy.
+    let rankings: RankedRegistration[];
+    let usedRandomSeed: number | undefined;
+    if (dto.strategy === 'by-pool-rank') {
+      rankings = await this.rankFromCompletedPools(tournamentId);
+    } else {
+      // No stored seed passed on purpose: a reseed is a new draw.
+      const resolved = await this.resolveRegistrationRanking(tournamentId, dto.strategy, {});
+      rankings = resolved.rankings;
+      usedRandomSeed = resolved.randomSeed;
+    }
 
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
 
-    // For each R1 slot, recompute red/blue from the slot's intended seeds.
-    // The generator already encodes the standard distribution (seed K vs
-    // seed size+1−K, seeds 1 & 2 in opposite halves) in source_a_ref/
-    // source_b_ref ("seed N"); map seed K → the registration seeded K. The old
-    // (2P−1, 2P) math ignored those labels and paired adjacent seeds.
+    // Map rank K onto the slot side labelled "seed K". The generator already
+    // encodes the standard distribution (seed K vs seed size+1−K, seeds 1 & 2
+    // in opposite halves) in source_a_ref/source_b_ref, so every strategy
+    // shares this one placement step.
+    const plan = buildR1SeedingPlan(
+      rankings,
+      slots.map((s) => ({
+        id: s.id,
+        position: s.position,
+        seedA: parseSeed(s.source_a_ref),
+        seedB: parseSeed(s.source_b_ref),
+      })),
+    );
+    const planBySlotId = new Map(plan.map((p) => [p.slotId, p]));
+
     for (const slot of slots) {
-      const homeSeed = parseSeed(slot.source_a_ref);
-      const awaySeed = parseSeed(slot.source_b_ref);
-      const regA = homeSeed == null ? null : (bySeed.get(homeSeed) ?? null);
-      const regB = awaySeed == null ? null : (bySeed.get(awaySeed) ?? null);
+      const regA = planBySlotId.get(slot.id)?.registrationAId ?? null;
+      const regB = planBySlotId.get(slot.id)?.registrationBId ?? null;
       const { error: updateErr } = await this.supabase.service
         .from('bracket_slots')
         .update({ registration_a_id: regA, registration_b_id: regB })
@@ -881,6 +883,9 @@ export class PhasesService {
     const config = ((phaseRow as { config_json?: Record<string, unknown> })?.config_json ??
       {}) as Record<string, unknown>;
     config['seedingStrategy'] = dto.strategy;
+    if (usedRandomSeed !== undefined) {
+      config['seedingRandomSeed'] = usedRandomSeed;
+    }
     await this.supabase.service.from('phases').update({ config_json: config }).eq('id', phaseId);
 
     await this.supabase.service.from('audit_log').insert({
@@ -888,7 +893,11 @@ export class PhasesService {
       action: 'phase.bracket_reseeded',
       entity_type: 'phase',
       entity_id: phaseId,
-      payload_json: { strategy: dto.strategy, r1SlotCount: slots.length },
+      payload_json: {
+        strategy: dto.strategy,
+        r1SlotCount: slots.length,
+        randomSeed: usedRandomSeed ?? null,
+      },
     });
 
     return { phaseId, strategy: dto.strategy, r1SlotCount: slots.length };
@@ -922,7 +931,7 @@ export class PhasesService {
      * (no pool phase → registration-seed fallback) don't display the
      * misleading "Bracket populated from pool standings" message.
      */
-    source: 'pool-standings' | 'registration-seed';
+    source: R1RankingSource;
   }> {
     // 1. Bracket phase + auth context (joined via tournaments + events).
     const { data: bracketPhase } = await this.supabase.service
@@ -1019,8 +1028,12 @@ export class PhasesService {
       }
     }
 
-    // 6. Resolve rankings: pool standings (gated on completion) or
-    //    registration seed fallback.
+    // 6. Resolve rankings. The strategy stamped by generateBracket decides the
+    //    ORDER; the pool-completion gate below still decides the TIMING for
+    //    every strategy, because a tournament with pools populates its bracket
+    //    after pools regardless of how the fighters are ranked (and the
+    //    auto-hook depends on that gate firing exactly once).
+    const strategy = (config['seedingStrategy'] as SeedingStrategy | undefined) ?? 'snake';
     const { data: poolPhase } = await this.supabase.service
       .from('phases')
       .select('id')
@@ -1029,7 +1042,8 @@ export class PhasesService {
       .maybeSingle();
 
     let rankings: RankedRegistration[] = [];
-    let source: 'pool-standings' | 'registration-seed' = 'pool-standings';
+    let source: R1RankingSource = 'pool-standings';
+    let usedRandomSeed: number | undefined;
 
     if (poolPhase && this.poolStandings) {
       // Need per-pool data to (a) check completion + (b) feed the
@@ -1071,7 +1085,16 @@ export class PhasesService {
         throw new ConflictException('Pools have not finished yet');
       }
 
-      if (seedingMode === 'top-n-per-pool') {
+      if (strategy === 'by-rating' || strategy === 'random') {
+        // Pools decided WHEN we populate; these strategies decide the order
+        // from data that has nothing to do with pool results.
+        const resolved = await this.resolveRegistrationRanking(tournamentId, strategy, {
+          randomSeed: config['seedingRandomSeed'] as number | undefined,
+        });
+        rankings = resolved.rankings;
+        source = resolved.source;
+        usedRandomSeed = resolved.randomSeed;
+      } else if (seedingMode === 'top-n-per-pool') {
         const topN =
           dto.topNPerPool ??
           (perPool.length > 0 ? Math.floor((slots.length * 2) / perPool.length) : 0);
@@ -1096,28 +1119,24 @@ export class PhasesService {
         rankings = rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId }));
       }
     } else {
-      // No pool phase → registration seed fallback (mirrors the
-      // legacy generateBracket behaviour for straight-to-bracket
-      // tournaments). FE branches the success toast on `source` so
-      // the operator sees an honest "from registration seed" message
-      // instead of the pool-standings text.
-      source = 'registration-seed';
-      const { data: seededRegs } = await this.supabase.service
-        .from('registrations')
-        .select('id, seed, bib_number')
-        .eq('tournament_id', tournamentId)
-        .in('status', ['registered', 'checked_in', 'done'])
-        .order('seed', { ascending: true, nullsFirst: false });
-      rankings = (
-        (seededRegs ?? []) as Array<{
-          id: string;
-          seed: number | null;
-          bib_number: number | null;
-        }>
-      ).map((reg, idx) => ({
-        rank: reg.seed ?? reg.bib_number ?? idx + 1,
-        registrationId: reg.id,
-      }));
+      // No pool phase → rank straight from registrations. `by-pool-rank` is
+      // the one strategy that cannot degrade here: an operator who explicitly
+      // asked to seed from pool rank must not silently get registration order
+      // instead. Refusing is the entire behavioural difference between
+      // `by-pool-rank` and the default.
+      if (strategy === 'by-pool-rank') {
+        throw new BadRequestException(
+          'Seeding strategy "by-pool-rank" requires a pool phase — this tournament has none. Pick another strategy or generate pools first.',
+        );
+      }
+      // FE branches the success toast on `source` so straight-to-bracket
+      // tournaments see an honest message instead of the pool-standings text.
+      const resolved = await this.resolveRegistrationRanking(tournamentId, strategy, {
+        randomSeed: config['seedingRandomSeed'] as number | undefined,
+      });
+      rankings = resolved.rankings;
+      source = resolved.source;
+      usedRandomSeed = resolved.randomSeed;
     }
 
     // 7. Compute the plan + apply per-slot updates + match upsert.
@@ -1175,6 +1194,11 @@ export class PhasesService {
     if (seedingMode === 'top-n-per-pool' && dto.topNPerPool !== undefined) {
       config['populateTopNPerPool'] = dto.topNPerPool;
     }
+    // Persist the PRNG seed so the auto-hook reapplying this draw reproduces
+    // it exactly, and so the draw can be replayed if it is ever contested.
+    if (usedRandomSeed !== undefined) {
+      config['seedingRandomSeed'] = usedRandomSeed;
+    }
     await this.supabase.service.from('phases').update({ config_json: config }).eq('id', phaseId);
 
     // 9. Advance bye slots so single-side R1 slots cascade.
@@ -1193,11 +1217,15 @@ export class PhasesService {
         topNPerPool: dto.topNPerPool ?? null,
         slotsSeeded,
         rankingsCount: rankings.length,
+        strategy,
+        source,
+        // Recorded so a contested draw can be replayed exactly.
+        randomSeed: usedRandomSeed ?? null,
       },
     });
 
     this.logger.log(
-      `Populated bracket (phase=${phaseId}, mode=${seedingMode}, slotsSeeded=${slotsSeeded}, source=${source})`,
+      `Populated bracket (phase=${phaseId}, mode=${seedingMode}, strategy=${strategy}, slotsSeeded=${slotsSeeded}, source=${source})`,
     );
     return { phaseId, seedingMode, slotsSeeded, source };
   }
@@ -1251,6 +1279,98 @@ export class PhasesService {
         }),
       })),
     };
+  }
+
+  /**
+   * Overall pool-standings order, for an explicit `by-pool-rank` reseed.
+   *
+   * Throws rather than degrading: the operator picked this strategy precisely
+   * to assert "seed from how they placed in pools", so incomplete pools are an
+   * error, not a cue to fall back to registration order.
+   */
+  private async rankFromCompletedPools(tournamentId: string): Promise<RankedRegistration[]> {
+    if (!this.poolStandings) {
+      throw new BadRequestException('Pool standings are unavailable — cannot seed by pool rank.');
+    }
+    const byPoolResponse = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
+    const perPool = 'pools' in byPoolResponse ? byPoolResponse.pools : [];
+    if (perPool.length === 0) {
+      throw new BadRequestException(
+        'Seeding strategy "by-pool-rank" requires pool results — this tournament has no pool data.',
+      );
+    }
+    if (!perPool.every((p) => p.status === 'completed')) {
+      throw new ConflictException('Pools have not finished yet');
+    }
+    const overallResponse = await this.poolStandings.getPoolStandings(tournamentId, 'overall');
+    const rows = 'rows' in overallResponse ? overallResponse.rows : [];
+    return rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId }));
+  }
+
+  /**
+   * Load the registrations eligible for bracket seeding, in seed order.
+   *
+   * `withRatings` gates a `persons → global_persons` embed that only
+   * `by-rating` needs — the default path keeps its narrow select so the common
+   * case doesn't pay for a two-level join.
+   */
+  private async loadSeedableRegistrations(
+    tournamentId: string,
+    opts: { withRatings: boolean },
+  ): Promise<SeedableRegistration[]> {
+    const select = opts.withRatings
+      ? 'id, seed, bib_number, persons(global_persons(hema_ratings_id))'
+      : 'id, seed, bib_number';
+    const { data } = await this.supabase.service
+      .from('registrations')
+      .select(select)
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in', 'done'])
+      .order('seed', { ascending: true, nullsFirst: false });
+    return ((data ?? []) as unknown as Array<Record<string, unknown>>).map((row) => {
+      // registrations.person_id is a plain FK, so `persons` embeds as an
+      // object, not an array (see the embed-flip trap in the docs).
+      const person = row['persons'] as {
+        global_persons?: { hema_ratings_id?: string | null } | null;
+      } | null;
+      return {
+        id: row['id'] as string,
+        seed: (row['seed'] as number | null) ?? null,
+        bibNumber: (row['bib_number'] as number | null) ?? null,
+        hemaRatingsId: person?.global_persons?.hema_ratings_id ?? null,
+      };
+    });
+  }
+
+  /**
+   * Resolve the R1 rank order for the strategies that read registrations
+   * rather than pool standings (`snake`, `by-rating`, `random`).
+   *
+   * `by-pool-rank` never reaches here — callers that have no pool standings to
+   * offer reject it outright, which is the whole point of the option: it makes
+   * the otherwise-silent fallback to registration seed an explicit error.
+   *
+   * Returns the PRNG seed actually used for `random` so the caller can persist
+   * it. A draw nobody can replay is not defensible when someone contests it.
+   */
+  private async resolveRegistrationRanking(
+    tournamentId: string,
+    strategy: SeedingStrategy,
+    opts: { randomSeed?: number },
+  ): Promise<{ rankings: RankedRegistration[]; source: R1RankingSource; randomSeed?: number }> {
+    const regs = await this.loadSeedableRegistrations(tournamentId, {
+      withRatings: strategy === 'by-rating',
+    });
+
+    if (strategy === 'by-rating') {
+      const ratings = await this.weightedRatingsForTournament(tournamentId);
+      return { rankings: rankByRating(regs, ratings), source: 'rating' };
+    }
+    if (strategy === 'random') {
+      const randomSeed = opts.randomSeed ?? Math.floor(Math.random() * 0x7fffffff);
+      return { rankings: rankRandom(regs, randomSeed), source: 'random', randomSeed };
+    }
+    return { rankings: rankBySeed(regs), source: 'registration-seed' };
   }
 
   private async weightedRatingsForTournament(tournamentId: string): Promise<Map<string, number>> {
