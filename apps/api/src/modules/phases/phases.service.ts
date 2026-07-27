@@ -34,6 +34,7 @@ import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 // Value import (not `import type`): NestJS DI dependency. A type-only import is
 // erased at runtime so the @Optional() param silently resolves to `undefined`.
 import { BracketAdvanceService } from './bracket-advance.service';
+import { placeholderMatchRow } from './bracket-placeholder-match';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
@@ -430,6 +431,11 @@ export class PhasesService {
 
     let configJson: Record<string, unknown>;
     let slotInserts: Array<Record<string, unknown>>;
+    // Absolute round of the double-elim reset slot, when one is generated.
+    // The reset is CONDITIONAL — it is only played when the losers-bracket
+    // entrant wins the grand final — so unlike every other slot it must NOT
+    // get a placeholder match at generation time.
+    let resetRound: number | null = null;
 
     if (isDoubleElim) {
       let bracket: ReturnType<typeof doubleElimBracket>;
@@ -440,18 +446,22 @@ export class PhasesService {
       }
       configJson = {
         bracketSize: bracket.bracketSize,
-        mainBracketSize: bracket.bracketSize,
+        mainBracketSize: bracket.mainBracketSize,
         fighterCount: bracket.fighterCount,
+        // Always 0 — a double-elim bracket is trimmed by a round-0 play-in
+        // rather than padded with byes, because a bye has no loser and the
+        // losers bracket feeds off `loser of WBR1Px`.
         byeCount: bracket.byeCount,
-        byeSeedCount: bracket.byeCount,
-        playInMatchCount: 0,
-        hasPlayInRound: false,
+        byeSeedCount: bracket.byeSeedCount,
+        playInMatchCount: bracket.playInMatchCount,
+        hasPlayInRound: bracket.hasPlayInRound,
         wbRounds: bracket.wbRounds,
         lbRounds: bracket.lbRounds,
         autoAdvance: true,
         grandFinalReset,
         seedingStrategy,
       };
+      if (grandFinalReset) resetRound = bracket.wbRounds + bracket.lbRounds + 2;
       slotInserts = bracket.slots.map((slot) => ({
         phase_id: '__PHASE_ID__',
         round: slot.round,
@@ -541,7 +551,7 @@ export class PhasesService {
       }
     }
 
-    await this.createInitialBracketMatches(insertedSlots ?? []);
+    await this.createInitialBracketMatches(insertedSlots ?? [], resetRound);
 
     // Note: bye advancement moved to populateBracket — it only
     // makes sense once R1 has registrations.
@@ -557,7 +567,10 @@ export class PhasesService {
     return this.getTournamentBracket(tournamentId);
   }
 
-  private async createInitialBracketMatches(insertedSlots: unknown[]): Promise<void> {
+  private async createInitialBracketMatches(
+    insertedSlots: unknown[],
+    resetRound: number | null = null,
+  ): Promise<void> {
     // Pre-create a placeholder matches row for EVERY non-bye bracket
     // slot at generation time, regardless of whether its registrations
     // are resolved yet. Downstream slots whose fighters won't be known
@@ -569,9 +582,13 @@ export class PhasesService {
     // The schedule grid keys off `matches` rows existing; pre-creating
     // them is what lets an operator drag every R2/QF/SF/F/Bronze slot
     // onto the day's grid before any match has been played.
+    // The double-elim reset slot is the one exception: it is only played
+    // when the losers-bracket entrant wins the grand final, so it stays
+    // match-less until BracketAdvanceService decides it is needed.
     const readySlots = (insertedSlots as Array<Record<string, unknown>>).filter(
       (slot) =>
         slot['source_b_type'] !== 'bye' &&
+        (resetRound === null || slot['round'] !== resetRound) &&
         typeof slot['id'] === 'string' &&
         typeof slot['phase_id'] === 'string',
     );
@@ -584,24 +601,9 @@ export class PhasesService {
       readySlots[0]!['phase_id'] as string,
     );
 
-    const matchInserts = readySlots.map((slot) => ({
-      phase_id: slot['phase_id'],
-      bracket_slot_id: slot['id'],
-      red_registration_id:
-        typeof slot['registration_a_id'] === 'string' ? slot['registration_a_id'] : null,
-      blue_registration_id:
-        typeof slot['registration_b_id'] === 'string' ? slot['registration_b_id'] : null,
-      ...rulesetStamp,
-      status: 'scheduled',
-      red_score: 0,
-      blue_score: 0,
-      // Stamp the bracket-local match number so buildRoundCode renders
-      // the same canonical code (LSW-R16-M1) the bracket view shows.
-      // Without this stamp the scoreboard fell through to B{round}.
-      match_number_label: typeof slot['position'] === 'number' ? String(slot['position']) : null,
-    }));
-
-    const { error } = await this.supabase.service.from('matches').insert(matchInserts);
+    const { error } = await this.supabase.service
+      .from('matches')
+      .insert(readySlots.map((slot) => placeholderMatchRow(slot, rulesetStamp)));
     if (error) throw new BadRequestException(error.message);
   }
 

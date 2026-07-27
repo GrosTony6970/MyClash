@@ -17,7 +17,11 @@ export {
 } from './single-elim';
 export type { BracketSlot, SingleElimBracket, SingleElimOptions } from './single-elim';
 
-export { MAX_DOUBLE_ELIM_BRACKET_SIZE, doubleElimBracket } from './double-elim';
+export {
+  MAX_DOUBLE_ELIM_BRACKET_SIZE,
+  doubleElimBracket,
+  totalDoubleElimMatches,
+} from './double-elim';
 export type {
   DoubleElimBracket,
   DoubleElimSlot,

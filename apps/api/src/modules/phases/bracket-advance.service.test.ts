@@ -1,24 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BracketAdvanceService } from './bracket-advance.service';
+import { buildSelfRef, grandFinalEndsBracket, resolveLoser } from './bracket-refs';
 import { singleElimBracket } from '@myclash/rulesets/dist/scheduling/index';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>;
 
-// ── buildSelfRef (tested via reflection since it's private) ──────────────────
+// ── buildSelfRef ──────────────────────────────────────────────────────────────
 
-describe('BracketAdvanceService.buildSelfRef', () => {
-  const service = new BracketAdvanceService(null as never);
-  // Access private method via type cast
+describe('buildSelfRef', () => {
   const bsr = (r: number, p: number, type: string, cfg: Record<string, unknown>): string =>
-    (service as unknown as Record<string, (...args: unknown[]) => string>)['buildSelfRef']!(
-      r,
-      p,
-      type,
-      cfg,
-    );
+    buildSelfRef(r, p, type, cfg);
 
   it('single_elim: round 1 pos 1 → R1P1', () => {
     expect(bsr(1, 1, 'single_elim', {})).toBe('R1P1');
@@ -45,14 +39,86 @@ describe('BracketAdvanceService.buildSelfRef', () => {
   it('double_elim: reset round (wbRounds+lbRounds+2) → GFRESET', () => {
     expect(bsr(9, 1, 'double_elim', { wbRounds: 3, lbRounds: 4 })).toBe('GFRESET');
   });
+
+  it('double_elim: play-in round 0 → WBR0P1, which is what WB-R1 slots point at', () => {
+    // doubleElimBracket emits `winner of WBR0P{n}` on the WB-R1 slots fed by
+    // the play-in. A bare `R0P1` here would never match and the play-in
+    // winners would never enter the bracket.
+    expect(bsr(0, 1, 'double_elim', { wbRounds: 3, lbRounds: 4 })).toBe('WBR0P1');
+  });
+});
+
+// ── grandFinalEndsBracket ─────────────────────────────────────────────────────
+
+describe('grandFinalEndsBracket', () => {
+  const ends = (
+    phaseType: string,
+    cfg: Row,
+    slot: { round: number; registration_a_id: string | null },
+    match: { winner_registration_id: string | null },
+  ): boolean => grandFinalEndsBracket(phaseType, cfg, slot, match);
+
+  // wbRounds=3, lbRounds=4 → GF is round 8, reset is round 9.
+  const cfg = { wbRounds: 3, lbRounds: 4, grandFinalReset: true };
+  const gf = { round: 8, registration_a_id: 'wb-entrant' };
+
+  it('ends the bracket when the winners-bracket entrant wins the grand final', () => {
+    expect(ends('double_elim', cfg, gf, { winner_registration_id: 'wb-entrant' })).toBe(true);
+  });
+
+  it('does NOT end the bracket when the losers-bracket entrant wins', () => {
+    expect(ends('double_elim', cfg, gf, { winner_registration_id: 'lb-entrant' })).toBe(false);
+  });
+
+  it('never fires when the reset is disabled — there is nothing downstream anyway', () => {
+    expect(
+      ends('double_elim', { ...cfg, grandFinalReset: false }, gf, {
+        winner_registration_id: 'wb-entrant',
+      }),
+    ).toBe(false);
+  });
+
+  it('never fires on a non-grand-final round', () => {
+    expect(
+      ends(
+        'double_elim',
+        cfg,
+        { round: 7, registration_a_id: 'wb-entrant' },
+        {
+          winner_registration_id: 'wb-entrant',
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it('never fires for single_elim', () => {
+    expect(ends('single_elim', cfg, gf, { winner_registration_id: 'wb-entrant' })).toBe(false);
+  });
+
+  it('does not end the bracket when the winner is unknown', () => {
+    // A null winner must never be treated as "side A won" — that would
+    // silently skip advancement for an undecided match.
+    expect(
+      ends(
+        'double_elim',
+        cfg,
+        { round: 8, registration_a_id: null },
+        {
+          winner_registration_id: null,
+        },
+      ),
+    ).toBe(false);
+  });
 });
 
 // ── resolveLoser ──────────────────────────────────────────────────────────────
 
-describe('BracketAdvanceService.resolveLoser', () => {
-  const service = new BracketAdvanceService(null as never);
-  const rl = (match: Row): string =>
-    (service as unknown as Record<string, (...args: unknown[]) => string>)['resolveLoser']!(match);
+describe('resolveLoser', () => {
+  const rl = (match: {
+    winner_registration_id: string;
+    red_registration_id: string;
+    blue_registration_id: string;
+  }): string => resolveLoser(match);
 
   it('returns blue when red wins', () => {
     expect(
@@ -123,6 +189,77 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
     const downstreamQuery = calls.filter((c) => c === 'from(bracket_slots)');
     // Only 1 bracket_slots call (loading the slot) — no downstream query
     expect(downstreamQuery.length).toBe(1);
+  });
+
+  /**
+   * The reset slot must not be filled when the winners-bracket entrant wins
+   * the grand final. If it were, a match that must never be played would
+   * appear on the schedule AND — because the reset sits at the bracket's
+   * highest round, permanently incomplete — computeFinalRanking would find
+   * no decided final and return an empty ranking for the whole tournament.
+   */
+  describe('double_elim grand final with reset enabled', () => {
+    const mockFor = (winner: string) => {
+      const calls: string[] = [];
+      const mockSupabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            calls.push(`from(${table})`);
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              or: vi.fn().mockResolvedValue({ data: [], error: null }),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data:
+                  table === 'matches'
+                    ? {
+                        id: 'm-gf',
+                        bracket_slot_id: 'gf',
+                        winner_registration_id: winner,
+                        red_registration_id: 'wb-entrant',
+                        blue_registration_id: 'lb-entrant',
+                      }
+                    : table === 'bracket_slots'
+                      ? {
+                          id: 'gf',
+                          round: 8,
+                          position: 1,
+                          phase_id: 'ph1',
+                          source_b_type: 'winner_of',
+                          registration_a_id: 'wb-entrant',
+                          registration_b_id: 'lb-entrant',
+                        }
+                      : {
+                          id: 'ph1',
+                          type: 'double_elim',
+                          config_json: {
+                            autoAdvance: true,
+                            grandFinalReset: true,
+                            wbRounds: 3,
+                            lbRounds: 4,
+                          },
+                        },
+                error: null,
+              }),
+            };
+          }),
+        },
+      };
+      return { calls, mockSupabase };
+    };
+
+    it('skips the reset when the winners-bracket entrant wins', async () => {
+      const { calls, mockSupabase } = mockFor('wb-entrant');
+      await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
+      // One bracket_slots read (loading the GF slot), no downstream query.
+      expect(calls.filter((c) => c === 'from(bracket_slots)').length).toBe(1);
+    });
+
+    it('advances into the reset when the losers-bracket entrant wins', async () => {
+      const { calls, mockSupabase } = mockFor('lb-entrant');
+      await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
+      expect(calls.filter((c) => c === 'from(bracket_slots)').length).toBe(2);
+    });
   });
 
   it('does not throw when match has no bracket_slot_id', async () => {

@@ -1,13 +1,12 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { matchRulesetForPhase } from './match-ruleset';
-
-interface PhaseConfig {
-  autoAdvance?: boolean;
-  grandFinalReset?: boolean;
-  wbRounds?: number;
-  lbRounds?: number;
-}
+import {
+  buildSelfRef,
+  grandFinalEndsBracket,
+  resolveLoser,
+  type PhaseConfig,
+} from './bracket-refs';
 
 @Injectable()
 export class BracketAdvanceService {
@@ -31,8 +30,10 @@ export class BracketAdvanceService {
       const config = (phase.config_json ?? {}) as PhaseConfig;
       if (config.autoAdvance === false) return;
 
-      const selfRef = this.buildSelfRef(slot.round, slot.position, phase.type as string, config);
-      const loserRegId = this.resolveLoser({
+      if (grandFinalEndsBracket(phase.type as string, config, slot, match)) return;
+
+      const selfRef = buildSelfRef(slot.round, slot.position, phase.type as string, config);
+      const loserRegId = resolveLoser({
         winner_registration_id: match.winner_registration_id,
         red_registration_id: match.red_registration_id,
         blue_registration_id: match.blue_registration_id,
@@ -63,7 +64,7 @@ export class BracketAdvanceService {
 
       for (const slot of byeSlots) {
         const s = slot as { round: number; position: number; registration_a_id: string };
-        const selfRef = this.buildSelfRef(s.round, s.position, phase.type as string, config);
+        const selfRef = buildSelfRef(s.round, s.position, phase.type as string, config);
         await this.advanceFromSlot(phaseId, selfRef, s.registration_a_id, null);
       }
     } catch (err) {
@@ -300,33 +301,6 @@ export class BracketAdvanceService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-
-  private buildSelfRef(
-    round: number,
-    position: number,
-    phaseType: string,
-    config: PhaseConfig,
-  ): string {
-    if (phaseType === 'single_elim') return `R${round}P${position}`;
-
-    // double_elim
-    const wbRounds = config.wbRounds ?? 0;
-    const lbRounds = config.lbRounds ?? 0;
-    if (round <= wbRounds) return `WBR${round}P${position}`;
-    if (round <= wbRounds + lbRounds) return `LBR${round - wbRounds}P${position}`;
-    if (round === wbRounds + lbRounds + 1) return 'GF';
-    return 'GFRESET';
-  }
-
-  private resolveLoser(match: {
-    winner_registration_id: string;
-    red_registration_id: string;
-    blue_registration_id: string;
-  }): string {
-    return match.winner_registration_id === match.red_registration_id
-      ? match.blue_registration_id
-      : match.red_registration_id;
-  }
 
   private async loadMatch(matchId: string) {
     const { data } = await this.supabase.service

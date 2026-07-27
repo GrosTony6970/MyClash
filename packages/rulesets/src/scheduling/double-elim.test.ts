@@ -1,5 +1,46 @@
 import { describe, it, expect } from 'vitest';
-import { MAX_DOUBLE_ELIM_BRACKET_SIZE, doubleElimBracket } from './double-elim';
+import {
+  MAX_DOUBLE_ELIM_BRACKET_SIZE,
+  doubleElimBracket,
+  totalDoubleElimMatches,
+  type DoubleElimBracket,
+  type DoubleElimSlot,
+} from './double-elim';
+
+/**
+ * Every slot's canonical self-reference, mirroring
+ * `BracketAdvanceService.buildSelfRef` exactly. Advancement is driven by
+ * string matching between a completed slot's self-ref and downstream
+ * `source_*_ref` values, so a ref that names a slot which doesn't exist is
+ * a permanent deadlock, not a cosmetic bug.
+ */
+function selfRef(slot: DoubleElimSlot, b: DoubleElimBracket): string {
+  if (slot.round <= b.wbRounds) return `WBR${slot.round}P${slot.position}`;
+  if (slot.round <= b.wbRounds + b.lbRounds) {
+    return `LBR${slot.round - b.wbRounds}P${slot.position}`;
+  }
+  return slot.round === b.wbRounds + b.lbRounds + 1 ? 'GF' : 'GFRESET';
+}
+
+/** Assert every advancement ref resolves to a slot that actually exists. */
+function expectRefsResolve(b: DoubleElimBracket): void {
+  const known = new Set(b.slots.map((s) => selfRef(s, b)));
+  for (const slot of b.slots) {
+    for (const ref of [slot.homeSource, slot.awaySource]) {
+      const advance = /^(?:winner|loser) of (.+)$/.exec(ref);
+      if (advance) {
+        expect(known, `${ref} (from ${selfRef(slot, b)}) must name a real slot`).toContain(
+          advance[1]!,
+        );
+        continue;
+      }
+      const seed = /^seed (\d+)$/.exec(ref);
+      expect(seed, `unrecognised source ref "${ref}"`).not.toBeNull();
+      expect(Number(seed![1])).toBeGreaterThanOrEqual(1);
+      expect(Number(seed![1])).toBeLessThanOrEqual(b.fighterCount);
+    }
+  }
+}
 
 describe('doubleElimBracket', () => {
   describe('structure: 8 fighters', () => {
@@ -10,6 +51,7 @@ describe('doubleElimBracket', () => {
       expect(b.bracketSize).toBe(8);
       expect(b.fighterCount).toBe(8);
       expect(b.byeCount).toBe(0);
+      expect(b.hasPlayInRound).toBe(false);
       expect(b.wbRounds).toBe(3);
       expect(b.lbRounds).toBe(4);
     });
@@ -22,6 +64,21 @@ describe('doubleElimBracket', () => {
       expect(wbSlots.length).toBe(7);
       expect(lbSlots.length).toBe(6);
       expect(gfSlots.length).toBe(1);
+    });
+
+    /**
+     * Guards against the "5 losers-bracket rounds" shape some tournament
+     * write-ups describe for an 8-player draw. The correct LB is 4 rounds
+     * (2, 2, 1, 1); a 5-round LB would push the total to 16 matches.
+     */
+    it('LB is 4 rounds of 2/2/1/1 — not 5 rounds', () => {
+      const lbCounts = Array.from(
+        { length: b.lbRounds },
+        (_, i) =>
+          b.slots.filter((s) => s.section === 'LB' && s.round === b.wbRounds + i + 1).length,
+      );
+      expect(lbCounts).toEqual([2, 2, 1, 1]);
+      expect(b.slots.length).toBe(14);
     });
 
     it('WB-R1 uses seed sources', () => {
@@ -92,20 +149,61 @@ describe('doubleElimBracket', () => {
     });
   });
 
-  describe('bye handling: 5 fighters → bracket size 8', () => {
+  describe('play-in: 5 fighters → bracket size 4', () => {
     const b = doubleElimBracket(5);
 
-    it('has 3 byes', () => {
-      expect(b.byeCount).toBe(3);
+    it('trims DOWN to the lower power of two and never pads with byes', () => {
+      expect(b.bracketSize).toBe(4);
+      expect(b.byeCount).toBe(0);
+      expect(b.playInMatchCount).toBe(1);
+      expect(b.hasPlayInRound).toBe(true);
+      expect(b.byeSeedCount).toBe(3);
     });
 
-    it('bye WB-R1 slots have null seeds and bye source types', () => {
-      const byeSlots = b.slots.filter((s) => s.round === 1 && s.isBye);
-      expect(byeSlots.length).toBe(3);
-      for (const slot of byeSlots) {
-        const hasByeA = slot.sourceAType === 'bye';
-        const hasByeB = slot.sourceBType === 'bye';
-        expect(hasByeA || hasByeB).toBe(true);
+    it('round 0 pairs the lowest direct seed against the lowest qualifier', () => {
+      const r0 = b.slots.filter((s) => s.round === 0);
+      expect(r0.length).toBe(1);
+      expect(r0[0]!.homeSource).toBe('seed 4');
+      expect(r0[0]!.awaySource).toBe('seed 5');
+      expect(r0[0]!.section).toBe('WB');
+    });
+
+    it('WB-R1 reads the play-in winner with a WB-prefixed ref', () => {
+      const r1 = b.slots.filter((s) => s.round === 1);
+      const fromPlayIn = r1
+        .flatMap((s) => [s.homeSource, s.awaySource])
+        .filter((r) => /R0P/.test(r));
+      // The WB prefix is mandatory: buildSelfRef stamps a completed round-0
+      // slot as WBR0P{n}, so a bare `winner of R0P1` would never match.
+      expect(fromPlayIn).toEqual(['winner of WBR0P1']);
+    });
+  });
+
+  describe('play-in: 12 fighters → bracket size 8', () => {
+    const b = doubleElimBracket(12);
+
+    it('has 4 play-in matches feeding a full 8-fighter WB', () => {
+      expect(b.bracketSize).toBe(8);
+      expect(b.playInMatchCount).toBe(4);
+      expect(b.byeSeedCount).toBe(4);
+      expect(b.byeCount).toBe(0);
+    });
+
+    /**
+     * The regression this whole slice exists for. Before the play-in model,
+     * a 12-fighter field padded to 16 with 4 byes, and all 4 LB-R1 slots
+     * referenced `loser of WBR1Px` where Px was a bye — a permanent stall.
+     */
+    it('no LB slot depends on a match that will never be played', () => {
+      const wbR1Refs = new Set(
+        b.slots.filter((s) => s.round === 1).map((s) => `WBR1P${s.position}`),
+      );
+      const lbR1 = b.slots.filter((s) => s.section === 'LB' && s.round === b.wbRounds + 1);
+      expect(lbR1.length).toBeGreaterThan(0);
+      for (const slot of lbR1) {
+        for (const ref of [slot.homeSource, slot.awaySource]) {
+          expect(wbR1Refs).toContain(/^loser of (.+)$/.exec(ref)![1]!);
+        }
       }
     });
   });
@@ -166,22 +264,112 @@ describe('doubleElimBracket', () => {
     });
   });
 
+  describe('two fighters (no losers bracket at all)', () => {
+    const b = doubleElimBracket(2, { grandFinalReset: true });
+
+    it('has zero LB rounds and reads the second chance off the WB final', () => {
+      expect(b.wbRounds).toBe(1);
+      expect(b.lbRounds).toBe(0);
+      const gf = b.slots.find((s) => s.section === 'GF')!;
+      // `winner of LBR0P1` would name a slot that does not exist.
+      expect(gf.awaySource).toBe('loser of WBR1P1');
+      expect(gf.sourceBType).toBe('loser_of');
+    });
+
+    it('still resolves every ref', () => {
+      expectRefsResolve(b);
+    });
+  });
+
+  describe('invariants across every field size', () => {
+    const sizes = Array.from({ length: 63 }, (_, i) => i + 2); // 2..64
+
+    it('every advancement ref resolves to a real slot', () => {
+      for (const n of sizes) {
+        expectRefsResolve(doubleElimBracket(n));
+        expectRefsResolve(doubleElimBracket(n, { grandFinalReset: true }));
+      }
+    });
+
+    it('never emits a bye', () => {
+      for (const n of sizes) {
+        const b = doubleElimBracket(n);
+        expect(b.byeCount).toBe(0);
+        for (const slot of b.slots) {
+          expect(slot.isBye).toBe(false);
+          expect(slot.sourceAType).not.toBe('bye');
+          expect(slot.sourceBType).not.toBe('bye');
+        }
+      }
+    });
+
+    it('every seed 1..N is placed exactly once', () => {
+      for (const n of sizes) {
+        const b = doubleElimBracket(n);
+        const seeds = b.slots
+          .flatMap((s) => [s.homeSource, s.awaySource])
+          .map((ref) => /^seed (\d+)$/.exec(ref))
+          .filter((m): m is RegExpExecArray => m !== null)
+          .map((m) => Number(m[1]));
+        expect(seeds.slice().sort((a, c) => a - c)).toEqual(
+          Array.from({ length: n }, (_, i) => i + 1),
+        );
+      }
+    });
+
+    it('slot count matches totalDoubleElimMatches', () => {
+      for (const n of sizes) {
+        expect(doubleElimBracket(n).slots.length).toBe(totalDoubleElimMatches(n));
+        expect(doubleElimBracket(n, { grandFinalReset: true }).slots.length).toBe(
+          totalDoubleElimMatches(n, { grandFinalReset: true }),
+        );
+      }
+    });
+
+    it('main bracket is 2*bracketSize-2 matches, play-ins are additive', () => {
+      // Play-in losers exit after ONE loss, so the 2N-2 rule applies to the
+      // main bracket only — 12 fighters is 4 + 14, not 22.
+      expect(totalDoubleElimMatches(8)).toBe(14);
+      expect(totalDoubleElimMatches(8, { grandFinalReset: true })).toBe(15);
+      expect(totalDoubleElimMatches(12)).toBe(18);
+      expect(totalDoubleElimMatches(5)).toBe(7);
+    });
+  });
+
   describe('error cases', () => {
     it('throws for fewer than 2 fighters', () => {
       expect(() => doubleElimBracket(1)).toThrow();
     });
 
     it('throws for non-power-of-2 bracketSize', () => {
-      expect(() => doubleElimBracket(8, { bracketSize: 6 })).toThrow();
+      expect(() => doubleElimBracket(8, { bracketSize: 6 })).toThrow('power of 2');
     });
 
-    it('throws if bracketSize < fighterCount', () => {
-      expect(() => doubleElimBracket(10, { bracketSize: 8 })).toThrow();
+    it('refuses a bracket larger than the field — that means byes', () => {
+      expect(() => doubleElimBracket(5, { bracketSize: 8 })).toThrow('full bracket');
+    });
+
+    it('refuses a field the play-in round cannot absorb', () => {
+      // 20 fighters into a bracket of 8 would need 12 play-in matches for 8 seats.
+      expect(() => doubleElimBracket(20, { bracketSize: 8 })).toThrow('2 x bracketSize');
+    });
+
+    it('allows cutting down to a smaller bracket via the play-in', () => {
+      const b = doubleElimBracket(10, { bracketSize: 8 });
+      expect(b.bracketSize).toBe(8);
+      expect(b.playInMatchCount).toBe(2);
+      expectRefsResolve(b);
     });
 
     it('caps bracket size at 128', () => {
-      expect(() => doubleElimBracket(MAX_DOUBLE_ELIM_BRACKET_SIZE + 1)).toThrow('128');
-      expect(() => doubleElimBracket(16, { bracketSize: 256 })).toThrow('128');
+      expect(() => doubleElimBracket(MAX_DOUBLE_ELIM_BRACKET_SIZE * 2)).toThrow('128');
+      expect(() => doubleElimBracket(256, { bracketSize: 256 })).toThrow('128');
+    });
+
+    it('absorbs a field just over the cap with a play-in rather than throwing', () => {
+      const b = doubleElimBracket(MAX_DOUBLE_ELIM_BRACKET_SIZE + 1);
+      expect(b.bracketSize).toBe(MAX_DOUBLE_ELIM_BRACKET_SIZE);
+      expect(b.playInMatchCount).toBe(1);
     });
   });
 });
