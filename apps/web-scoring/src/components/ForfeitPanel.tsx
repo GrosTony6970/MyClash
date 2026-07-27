@@ -82,26 +82,26 @@ export function ForfeitPanel({
   const forfeitingName = fighter === 'red' ? redName : blueName;
 
   return (
-    <section className="text-slate-900">
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+    <section className="text-foreground">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
         {t('scoring.forfeits.title')}
       </h3>
       {error && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <p className="mb-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
           {error}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label
           htmlFor={fighterId}
-          className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          className="text-xs font-semibold uppercase tracking-wide text-muted"
         >
           {t('scoring.forfeits.fighter')}
           <select
             id={fighterId}
             value={fighter}
             onChange={(event) => setFighter(event.target.value as FighterColor)}
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
           >
             <option value="red">{redName}</option>
             <option value="blue">{blueName}</option>
@@ -109,14 +109,14 @@ export function ForfeitPanel({
         </label>
         <label
           htmlFor={reasonId}
-          className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          className="text-xs font-semibold uppercase tracking-wide text-muted"
         >
           {t('scoring.forfeits.reason')}
           <select
             id={reasonId}
             value={reason}
             onChange={(event) => setReason(event.target.value as ForfeitReason)}
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
           >
             {REASONS.map((item) => (
               <option key={item} value={item}>
@@ -129,7 +129,7 @@ export function ForfeitPanel({
       {ASK_CONTINUE.has(reason) && (
         <label
           htmlFor={canContinueId}
-          className="mt-3 flex items-center gap-2 text-sm text-slate-700"
+          className="mt-3 flex items-center gap-2 text-sm text-foreground-secondary"
         >
           <input
             id={canContinueId}
@@ -147,14 +147,14 @@ export function ForfeitPanel({
         value={note}
         onChange={(event) => setNote(event.target.value)}
         placeholder={t('scoring.forfeits.note')}
-        className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+        className="mt-3 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
       />
       {/* Neutral trigger — the danger-red only appears on the confirm step (P0-2/P0-3). */}
       <button
         type="button"
         disabled={disabled || submitting}
         onClick={() => setConfirmOpen(true)}
-        className="mt-3 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
+        className="mt-3 w-full rounded-lg bg-strong px-4 py-2 text-sm font-bold text-strong-foreground hover:bg-strong-hover disabled:opacity-40"
       >
         {submitting ? t('scoring.forfeits.recording') : t('scoring.forfeits.record')}
       </button>

@@ -16,7 +16,7 @@ Tablet-first, and locked down for it:
 
 ```ts
 export const viewport: Viewport = {
-  themeColor: '#c0392b',
+  themeColor: '#b91c1c',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -32,15 +32,22 @@ Density is the **inverse** of admin: fewer things, larger. If admin is 200 rows,
 
 ## Scopes
 
-| Region                       | Scope               | Result                         |
-| ---------------------------- | ------------------- | ------------------------------ |
-| Everything — set on `<body>` | `data-theme="dark"` | **The only globally dark app** |
+| Region                                                                    | Scope                | Result                                      |
+| ------------------------------------------------------------------------- | -------------------- | ------------------------------------------- |
+| Default — set on `<body>`                                                 | `data-theme="dark"`  | **The only globally dark app**              |
+| `/lices/[liceId]`, `MatchHeader`, `MatchCorrectionsDrawer` (+ its panels) | `data-theme="light"` | Light chrome nested inside the dark default |
 
 ```tsx
 <body data-theme="dark" className="bg-background text-foreground min-h-screen">
 ```
 
 Dark here is not a preference. It's a sports hall with overhead lighting and a tablet held at an angle — high contrast, low glare. Because the scope is on `<body>`, every semantic class in the app resolves to the dark set automatically; the chrome uses the _same_ classes as the other two apps.
+
+**But the app is a hybrid, not uniformly dark.** The operator's call: _light chrome, dark scoring area_, for visual unity with admin. The scoring pad (`MatchView`, `ScoringColumn`, `ScoringCenterControls`) is dark — that's the surface you read mid-exchange. The match list for a piste, the match header and the corrections drawer are **light** — you read those between bouts, and they're the ones that look like the admin app.
+
+Custom properties inherit, so a light region nested under the dark `<body>` needs a real selector to override with. That is what `[data-theme='light']` in `theme.css` is for, and it is the reason those surfaces exist at all in token form: before it, "light" was inexpressible and every one of them hardcoded `slate-*`. `theme-scope-parity.test.ts` asserts the light scope restores every token the dark scope sets — a token added to one and forgotten in the other leaks the wrong value into a nested region.
+
+> **Loose end:** `/lices` (the list of your pistes) is still dark while `/lices/[liceId]` (the matches on one piste) is light, so tapping from one to the other flashes. Not resolved here — it needs a call on which of the two is the "chrome" screen.
 
 Scoring never sets `data-accent`. The accent is red.
 
@@ -60,7 +67,6 @@ Scoring never sets `data-accent`. The accent is red.
 
 ## Deviations on this surface
 
-- `themeColor: '#c0392b'` (`app/layout.tsx:26`) and `manifest.json:8` use the legacy red — see [D2](known-deviations.md#d2--four-reds-c0392b-is-the-products-other-red).
-- [D8](known-deviations.md#d8--bare-z--and-rounded--numbers)
+- None outstanding. [D2](known-deviations.md#d2--four-reds-c0392b-is-the-products-other-red) (legacy red in `themeColor` / `manifest.json`) and [D8](known-deviations.md#d8--bare-z--and-rounded--numbers) are both resolved for this surface; `manifest.json` `background_color` is now the real `--color-background` value.
 
 > **Fixed:** this app previously loaded **no fonts at all** — it imported `theme.css` but never defined `--font-fraunces`/`--font-geist`/`--font-jetbrains`, so the tablet rendered display type in Georgia and body in system sans. Valid CSS, correct colours, silently wrong type. `pnpm design:lint` now asserts every app defines the font variables it references.

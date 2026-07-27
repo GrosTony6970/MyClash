@@ -225,20 +225,24 @@ export function MatchCorrectionsDrawer({
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- backdrop click-to-dismiss is a mouse convenience; keyboard close is the header button.
     <div className="fixed inset-0 z-sidebar flex justify-end bg-black/50" onClick={onClose}>
+      {/* data-theme='light' — part of the app's light chrome (see MatchHeader).
+          The body scope is dark and tokens inherit, so the drawer needs its own
+          scope or every semantic class here resolves dark. */}
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation keeps a click inside the drawer from closing it; not an interactive control. */}
       <aside
+        data-theme="light"
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-white text-slate-900 shadow-2xl"
+        className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-surface text-foreground shadow-2xl"
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-4 py-3">
           <h2 className="text-base font-bold uppercase tracking-wide">
             {t('scoring.lice.matchActions')}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-300 px-2 py-1 text-sm font-bold hover:bg-slate-50"
+            className="rounded-lg border border-border px-2 py-1 text-sm font-bold hover:bg-background"
           >
             ✕
           </button>
@@ -246,17 +250,17 @@ export function MatchCorrectionsDrawer({
 
         <div className="flex flex-col gap-4 p-4">
           {!online && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
               {t('scoring.corrections.onlineOnly')}
             </p>
           )}
           {locked && (
-            <p className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-700">
+            <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
               {t('scoring.corrections.locked')}
             </p>
           )}
           {error && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <p className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
               {error}
             </p>
           )}
@@ -267,7 +271,7 @@ export function MatchCorrectionsDrawer({
               type="button"
               disabled={disabled}
               onClick={() => void post(`/api/v1/matches/${matchId}/swap-fighter-color`)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
             >
               {t('scoring.corrections.swapColor')}
             </button>
@@ -275,7 +279,7 @@ export function MatchCorrectionsDrawer({
               type="button"
               disabled={disabled}
               onClick={() => void post(`/api/v1/matches/${matchId}/swap-fighter-side`)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
             >
               {t('scoring.corrections.swapSide')}
             </button>
@@ -283,7 +287,7 @@ export function MatchCorrectionsDrawer({
 
           {/* Time adjust */}
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">
               {t('scoring.corrections.adjustSeconds')}
             </p>
             <div className="grid grid-cols-[1fr_auto_auto] gap-2">
@@ -292,7 +296,7 @@ export function MatchCorrectionsDrawer({
                 min={1}
                 value={adjustSeconds}
                 onChange={(e) => setAdjustSeconds(parseInt(e.target.value, 10) || 1)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-border px-3 py-2 text-sm"
                 aria-label={t('scoring.corrections.adjustSeconds')}
               />
               <button
@@ -310,7 +314,7 @@ export function MatchCorrectionsDrawer({
                     reason: reason || t('scoring.corrections.defaultReason'),
                   })
                 }
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
               >
                 {t('scoring.corrections.addTime')}
               </button>
@@ -329,7 +333,7 @@ export function MatchCorrectionsDrawer({
                     reason: reason || t('scoring.corrections.defaultReason'),
                   })
                 }
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
               >
                 {t('scoring.corrections.subtractTime')}
               </button>
@@ -338,14 +342,14 @@ export function MatchCorrectionsDrawer({
 
           {/* Exchange editor */}
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">
               {t('scoring.corrections.selectExchange')}
             </p>
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <select
                 value={effectiveExchangeId}
                 onChange={(e) => setSelectedExchangeId(e.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-border px-3 py-2 text-sm"
               >
                 <option value="">{t('scoring.corrections.selectExchange')}</option>
                 {exchangeOptions.map((ev) => (
@@ -358,7 +362,7 @@ export function MatchCorrectionsDrawer({
                 type="button"
                 disabled={disabled || !effectiveExchangeId}
                 onClick={() => void editSelectedExchange()}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
               >
                 {t('scoring.corrections.editAsNoExchange')}
               </button>
@@ -371,11 +375,11 @@ export function MatchCorrectionsDrawer({
             onChange={(e) => setReason(e.target.value)}
             placeholder={t('scoring.corrections.reason')}
             aria-label={t('scoring.corrections.reason')}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-border px-3 py-2 text-sm"
           />
 
           {/* Forfeit — consolidated here (no longer a bottom panel). */}
-          <div className="border-t border-slate-200 pt-4">
+          <div className="border-t border-border pt-4">
             <ForfeitPanel
               matchId={matchId}
               apiUrl={apiUrl}
@@ -389,29 +393,29 @@ export function MatchCorrectionsDrawer({
           </div>
 
           {/* Direct card — manual card issuance as chips (not solid bars). */}
-          <div className="border-t border-slate-200 pt-4">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
               {t('scoring.lice.directCardSection')}
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
                 {t('scoring.forfeits.fighter')}
                 <select
                   value={dcFighter}
                   onChange={(e) => setDcFighter(e.target.value as 'red' | 'blue')}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
                 >
                   <option value="red">{redName}</option>
                   <option value="blue">{blueName}</option>
                 </select>
               </label>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
                 {t('scoring.lice.directCardReason')}
                 <input
                   value={dcReason}
                   onChange={(e) => setDcReason(e.target.value)}
                   placeholder={t('scoring.lice.directCardReason')}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
                 />
               </label>
             </div>
@@ -425,7 +429,7 @@ export function MatchCorrectionsDrawer({
                   type="button"
                   disabled={disabled || dcReason.trim().length === 0}
                   onClick={() => requestDirectCard(card)}
-                  className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border-2 bg-white px-2 py-2 text-xs font-bold uppercase text-slate-900 hover:bg-slate-50 disabled:opacity-40"
+                  className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border-2 bg-surface px-2 py-2 text-xs font-bold uppercase text-foreground hover:bg-background disabled:opacity-40"
                   style={{ borderColor: DIRECT_CARD_HEX[card] }}
                 >
                   <span
@@ -439,8 +443,8 @@ export function MatchCorrectionsDrawer({
           </div>
 
           {/* Danger zone */}
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-red-700">
+          <div className="rounded-lg border border-danger/40 bg-danger/10 p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-danger">
               {t('scoring.corrections.resetMatch')}
             </p>
             <input
@@ -448,7 +452,7 @@ export function MatchCorrectionsDrawer({
               onChange={(e) => setResetText(e.target.value)}
               placeholder={t('scoring.corrections.resetConfirmation')}
               aria-label={t('scoring.corrections.resetConfirmation')}
-              className="mb-2 w-full rounded-lg border border-red-300 bg-white px-3 py-2 text-sm"
+              className="mb-2 w-full rounded-lg border border-danger/50 bg-surface px-3 py-2 text-sm"
             />
             <button
               type="button"
@@ -459,7 +463,7 @@ export function MatchCorrectionsDrawer({
                   reason: reason || t('scoring.corrections.defaultReason'),
                 })
               }
-              className="w-full rounded-lg border border-red-600 bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-40"
+              className="w-full rounded-lg border border-danger bg-danger px-3 py-2 text-sm font-bold text-danger-foreground hover:bg-danger-hover disabled:opacity-40"
             >
               {t('scoring.corrections.resetMatch')}
             </button>

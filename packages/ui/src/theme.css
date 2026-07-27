@@ -191,6 +191,56 @@
   --color-corner-blue: #3b82f6; /* blue-500 */
 }
 
+/* Light surface, as an explicit scope.
+ *
+ * @theme puts the light values on :root, which is enough while dark is only
+ * ever applied at the top of a tree. web-scoring breaks that assumption: it
+ * sets data-theme='dark' on <body>, but its match LIST and match CHROME are
+ * light surfaces (you read them between bouts, under hall lighting) while the
+ * scoring pad stays dark for glare. Custom properties inherit, so nesting a
+ * light region inside the dark body needs a real selector to override with —
+ * without this block, data-theme='light' is a no-op and those regions have to
+ * hardcode raw palette classes, which is exactly how they ended up untokenized.
+ *
+ * INVARIANT: this block must restore every token [data-theme='dark'] sets.
+ * Anything added there and forgotten here leaks dark values into a light
+ * region. The two lists are checked against each other by
+ * theme-scope-parity.test.ts. */
+[data-theme='light'] {
+  --color-background: #fafaf9; /* stone-50 */
+  --color-surface: #ffffff; /* white */
+  --color-foreground: #0f172a; /* slate-900 */
+  --color-foreground-secondary: #475569; /* slate-600 */
+  --color-muted: #64748b; /* slate-500 */
+  --color-border: #e7e5e4; /* stone-200 */
+  --color-gold: #f59e0b; /* gold-500 */
+  --color-gold-text: #92400e; /* amber-800 */
+
+  --color-danger: #dc2626; /* red-600 */
+  --color-success: #15803d; /* green-700 */
+  --color-warning: #b45309; /* amber-700 */
+  --color-instructor: #7c3aed; /* violet-600 */
+  --color-info: #2563eb; /* blue-600 */
+
+  --color-danger-foreground: #ffffff;
+  --color-success-foreground: #ffffff;
+  --color-warning-foreground: #ffffff;
+  --color-info-foreground: #ffffff;
+  --color-instructor-foreground: #ffffff;
+
+  --color-danger-hover: #b91c1c; /* red-700 */
+  --color-success-hover: #166534; /* green-800 */
+  --color-warning-hover: #92400e; /* amber-800 */
+  --color-info-hover: #1d4ed8; /* blue-700 */
+
+  --color-strong: #0f172a; /* slate-900 */
+  --color-strong-foreground: #ffffff;
+  --color-strong-hover: #020617; /* slate-950 */
+
+  --color-corner-red: #dc2626; /* red-600 */
+  --color-corner-blue: #2563eb; /* blue-600 */
+}
+
 /* Personal-space accent — blue (web-public /me + auth). Default accent is red. */
 [data-accent='personal'] {
   --color-accent: #1d4ed8; /* blue-700 */

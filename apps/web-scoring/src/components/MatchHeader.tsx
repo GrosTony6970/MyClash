@@ -9,10 +9,11 @@
  *   ↗ External display
  *   [ NEXT-MATCH tile ]
  *
- * The header sits in light surfaces (white background, slate borders)
- * even though the central scoring zone below stays dark — operator
- * decided "hybrid: light chrome, dark scoring area" for visual unity
- * with the admin app.
+ * The header sits in light surfaces even though the central scoring zone
+ * below stays dark — operator decided "hybrid: light chrome, dark scoring
+ * area" for visual unity with the admin app. That is why the root element
+ * carries data-theme='light': the app body is dark, and semantic tokens
+ * inherit, so a light region needs its own scope to override with.
  */
 
 import { useEffect } from 'react';
@@ -101,12 +102,19 @@ export function MatchHeader({
   // stays a <Link> for SPA navigation.
   const backIsExternal = isExternalHref(resolvedBackHref);
   const backClassName =
-    'inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50';
+    'inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background';
   const redStyle = sideStyle(config, 'red');
   const blueStyle = sideStyle(config, 'blue');
 
   return (
-    <header className="border-b border-slate-200 bg-white text-slate-900 px-4 py-3">
+    // data-theme='light' because the app body is dark but this chrome is a
+    // light surface — you read it between bouts, not mid-exchange. Without the
+    // scope the dark tokens inherit straight through, which is why this file
+    // used to hardcode slate-*.
+    <header
+      data-theme="light"
+      className="border-b border-border bg-surface text-foreground px-4 py-3"
+    >
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">
         {/* Left: back link + previous-match tile */}
         <div className="flex flex-col items-start gap-2">
@@ -123,22 +131,20 @@ export function MatchHeader({
           {previous && (
             <Link
               href={buildMatchHref(previous.id)}
-              className="block w-full max-w-[280px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-left hover:border-slate-500 hover:bg-slate-50"
+              className="block w-full max-w-[280px] rounded-lg border border-border bg-surface px-3 py-2 text-left hover:border-muted hover:bg-background"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
                 ◂ {t('scoring.lice.previousMatchLabel')}
               </p>
               <p className="mt-0.5 text-sm font-semibold leading-tight">
                 <span style={{ color: redStyle.border }}>● </span>
                 {previous.redName}
-                {previous.redClub && <span className="text-slate-500"> · {previous.redClub}</span>}
+                {previous.redClub && <span className="text-muted"> · {previous.redClub}</span>}
               </p>
               <p className="text-sm font-semibold leading-tight">
                 <span style={{ color: blueStyle.border }}>● </span>
                 {previous.blueName}
-                {previous.blueClub && (
-                  <span className="text-slate-500"> · {previous.blueClub}</span>
-                )}
+                {previous.blueClub && <span className="text-muted"> · {previous.blueClub}</span>}
               </p>
             </Link>
           )}
@@ -147,35 +153,33 @@ export function MatchHeader({
         {/* Centre: match code pill + full fighter names + corrections */}
         <div className="flex flex-col items-center gap-1.5">
           {matchCode && (
-            <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-0.5 font-mono text-sm font-bold tracking-widest text-amber-700">
+            <span className="rounded-full border border-warning/40 bg-warning/10 px-3 py-0.5 font-mono text-sm font-bold tracking-widest text-warning">
               {matchCode}
             </span>
           )}
           {bestOf > 1 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-50 px-3 py-0.5 text-xs font-bold text-sky-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-info/40 bg-info/10 px-3 py-0.5 text-xs font-bold text-info">
               {t('scoring.rounds.counter', {
                 current: String(currentRound),
                 total: String(bestOf),
               })}
               <span className="font-semibold tabular-nums">
                 <span style={{ color: redStyle.border }}>{redRoundWins}</span>
-                <span className="mx-0.5 text-slate-400">–</span>
+                <span className="mx-0.5 text-muted">–</span>
                 <span style={{ color: blueStyle.border }}>{blueRoundWins}</span>
               </span>
             </span>
           )}
-          {contextLine && (
-            <span className="text-xs font-semibold text-slate-500">{contextLine}</span>
-          )}
-          <p className="text-base font-semibold text-slate-900">
+          {contextLine && <span className="text-xs font-semibold text-muted">{contextLine}</span>}
+          <p className="text-base font-semibold text-foreground">
             <span style={{ color: redStyle.border }}>{redName}</span>{' '}
-            <span className="text-slate-500">{t('scoring.lice.vs')}</span>{' '}
+            <span className="text-muted">{t('scoring.lice.vs')}</span>{' '}
             <span style={{ color: blueStyle.border }}>{blueName}</span>
           </p>
           <button
             type="button"
             onClick={onOpenCorrections}
-            className="mt-1 inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+            className="mt-1 inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
           >
             ⋯ {t('scoring.lice.matchActions')}
           </button>
@@ -187,7 +191,7 @@ export function MatchHeader({
             <button
               type="button"
               onClick={() => openScoreboardPopup(displayUrl)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
             >
               ↗ {t('scoring.lice.externalDisplay')}
             </button>
@@ -196,20 +200,20 @@ export function MatchHeader({
           {next && (
             <Link
               href={buildMatchHref(next.id)}
-              className="block w-full max-w-[280px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-left hover:border-slate-500 hover:bg-slate-50"
+              className="block w-full max-w-[280px] rounded-lg border border-border bg-surface px-3 py-2 text-left hover:border-muted hover:bg-background"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
                 {t('scoring.lice.nextMatchLabel')} ▸
               </p>
               <p className="mt-0.5 text-sm font-semibold leading-tight">
                 <span style={{ color: redStyle.border }}>● </span>
                 {next.redName}
-                {next.redClub && <span className="text-slate-500"> · {next.redClub}</span>}
+                {next.redClub && <span className="text-muted"> · {next.redClub}</span>}
               </p>
               <p className="text-sm font-semibold leading-tight">
                 <span style={{ color: blueStyle.border }}>● </span>
                 {next.blueName}
-                {next.blueClub && <span className="text-slate-500"> · {next.blueClub}</span>}
+                {next.blueClub && <span className="text-muted"> · {next.blueClub}</span>}
               </p>
             </Link>
           )}

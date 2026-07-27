@@ -97,13 +97,20 @@ export default function LiceMatchListPage({ params }: Props) {
   }
 
   return (
-    <main id="main-content" className="min-h-screen flex flex-col bg-stone-50 text-slate-900">
+    // data-theme='light' — this is the app's light chrome (see MatchHeader:
+    // "hybrid: light chrome, dark scoring area"). The body scope is dark and
+    // tokens inherit, so the light region needs its own scope to override with.
+    <main
+      id="main-content"
+      data-theme="light"
+      className="min-h-screen flex flex-col bg-background text-foreground"
+    >
       {/* Network status */}
       <div
         className={`px-4 py-1 text-xs font-bold text-center ${
           networkStatus === 'online'
-            ? 'bg-green-100 text-green-700'
-            : 'bg-red-100 text-red-700 animate-pulse'
+            ? 'bg-success/15 text-success'
+            : 'bg-muted/20 text-muted animate-pulse'
         }`}
       >
         {networkStatus === 'online'
@@ -112,11 +119,11 @@ export default function LiceMatchListPage({ params }: Props) {
       </div>
 
       {/* Light chrome header */}
-      <header className="border-b border-slate-200 bg-white px-4 py-3">
+      <header className="border-b border-border bg-surface px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           <Link
             href="/lices"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
           >
             ← {t('scoring.lice.yourLices')}
           </Link>
@@ -130,7 +137,7 @@ export default function LiceMatchListPage({ params }: Props) {
       <div className="flex-1 p-4 max-w-3xl w-full mx-auto">
         {data?.current && (
           <section className="mb-6">
-            <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
               {t('scoring.lice.live')}
             </h2>
             <MatchCard match={data.current} />
@@ -138,11 +145,11 @@ export default function LiceMatchListPage({ params }: Props) {
         )}
 
         <section>
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
             {t('scoring.lice.nextMatchLabel')}
           </h2>
           {data?.queue.length === 0 && (
-            <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
+            <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-muted">
               {t('scoring.lice.noNextMatch')}
             </p>
           )}
@@ -169,13 +176,13 @@ function MatchCard({ match }: { match: QueueMatch }) {
   return (
     <Link
       href={`/matches/${match.id}`}
-      className={`block rounded-xl border bg-white px-4 py-3 transition-colors hover:border-slate-500 hover:bg-slate-50 ${
-        isLive ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
+      className={`block rounded-xl border bg-surface px-4 py-3 transition-colors hover:border-muted hover:bg-background ${
+        isLive ? 'border-warning bg-warning/10' : 'border-border'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500">
+          <p className="font-mono text-xs font-bold uppercase tracking-widest text-muted">
             {match.roundCode ?? match.matchNumberLabel ?? '—'}
           </p>
           <p className="mt-1 text-base font-semibold leading-tight">
@@ -188,9 +195,9 @@ function MatchCard({ match }: { match: QueueMatch }) {
           </p>
         </div>
         <div className="text-right">
-          {time && <p className="font-mono text-sm tabular-nums text-slate-500">{time}</p>}
+          {time && <p className="font-mono text-sm tabular-nums text-muted">{time}</p>}
           {isLive && (
-            <span className="mt-1 inline-block rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">
+            <span className="mt-1 inline-block rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-warning-foreground">
               LIVE
             </span>
           )}

@@ -61,6 +61,11 @@ interface ScoringColumnProps {
   penaltiesRefreshKey: number;
 }
 
+// raw-color-exempt -- penalty-card colours are DOMAIN values, not decoration:
+// a yellow card is yellow on any surface, in any theme, at every event in the
+// world. Same rule as the fighter corners (see theme.css) — themeing these
+// would misreport a sanction. Kept literal rather than tokenized because they
+// must never follow a [data-theme] scope.
 const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   yellow: 'bg-yellow-500',
   red: 'bg-red-600',

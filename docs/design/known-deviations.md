@@ -8,9 +8,24 @@ Each entry names the rule it breaks, the files that break it, and why it hasn't 
 
 ---
 
-## D1 — residual: ★ rating glyphs are below the non-text contrast floor
+## D1 — FIXED: ★ rating glyphs were below the non-text contrast floor
 
-**Status: the text failures are FIXED (2026-07-17). This is what is left.**
+**Status: FIXED (2026-07-27). The three sites now use `text-gold-text`.**
+
+The entry below argued `gold-text` "would render brown stars" and held out for a
+darker stroke instead. That traded a real, measurable 1.4.11 failure for an
+aesthetic preference, and nobody was ever going to own the stroke work. The
+resolution came from the token file's own reasoning: `theme.css` documents
+`--color-gold-text` as gold that "a component can use on either surface and
+always be legible", the dark scope aliases it straight back to the bright
+`#fbbf24`, and `referees/page.tsx` already used it elsewhere in the same file.
+So the glyphs are text-tier, not fill-tier — no third gold token needed.
+
+The alternative considered and rejected: amber-600 `#d97706`, which computes to
+**3.05:1** — clearing the floor by 0.05, close enough that any future
+background tweak silently re-breaks it.
+
+**Original entry**, kept because the reasoning is still the useful part:
 
 `--color-gold` (`#f59e0b`) is **2.06:1** against a light page. That clears nothing, but the three remaining light-surface `text-gold` sites are all ★ rating glyphs, not prose:
 
@@ -54,7 +69,7 @@ Also unified: the 5 transactional-email CTA backgrounds (`mail.service.ts` — a
 
 **Applied migrations `0001_init.sql:183` and `0085` still contain `#c0392b`** — never edited, by rule (the ledger checksums them). They are history, not live config.
 
-**Adjacent, left alone (not `#c0392b`, its own decision):** `apps/web-scoring/public/manifest.json` `background_color: "#1a1a2e"` is an untokenized dark navy matching no token (`dark-background` is `#0f172a`). Changing it shifts the PWA splash — flag, don't bundle.
+**Adjacent, now also FIXED (2026-07-27):** `apps/web-scoring/public/manifest.json` `background_color` was `#1a1a2e`, an untokenized dark navy matching no token. Now `#0f172a`, the real dark `--color-background`, so the PWA splash matches the app it opens into.
 
 ---
 
@@ -102,7 +117,7 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 - **`FoilMark` / FormField input border** `text-slate-300` / `border-slate-300` (`#cbd5e1`): **no token has this value.** The system has no control-border tier distinct from the card hairline, and no placeholder tier (`slate-400`). Adding those tiers is a token decision.
 - **`FormField`** (its only consumer is the design-system showcase, not shipped chrome): its error text is `text-red-700` = accent-exact, but an error should be `text-danger` — the value-matching token and the correct token disagree. Wants the semantic fix, not a value-preserving swap.
 - **`Button` status variants** (`danger`, `gold`, secondary, …) stay raw **on purpose**: they render in web-scoring (dark), and a solid `bg-danger`/`bg-gold` fill there was tuned for _text_ contrast, so tokenizing the fill naively would break legibility. Needs status-fill tokens distinct from status-text.
-- **`Button.tsx:69` `ring-offset-gray-900`** is a live focus-state bug: on light admin pages it paints a near-black halo around a focused button. Independent of tokenization.
+- ~~**`Button.tsx:69` `ring-offset-gray-900`**~~ **FIXED (2026-07-27)** — it was painting a near-black halo around every focused button on the light admin pages. Now `ring-offset-background`, which tracks the `[data-theme]` scope instead of assuming one. The ring hue went `ring-amber-400` → `ring-gold` in the same pass: identical on dark, a deeper amber-500 on light where it needs the contrast.
 - **`Card` `CardBody`** the removed `#d1d5db` fallback shows the original intent was a _muted_ body; the var choice (`--color-foreground`) silently flattened title and body to one colour. `CardBody` should probably be `foreground-secondary` — a deliberate (visible) change, so deferred.
 
 ---
@@ -143,9 +158,26 @@ The stage is deliberately deeper than `dark-background` (`#0f172a`) so the corne
 
 **Left on bare numbers on purpose (~47 sites):** private, self-contained stacking ladders where a page-level name would *mis*describe the element. The largest is the schedule grid (`grid.tsx`): its `z-10` time-label column < `z-20` resize handles < `z-30` venue header cells is an internal ladder, not the page's header/sticky layers. Renaming those to `z-header`/`z-sticky` would be value-identical but semantically wrong, and would invite someone to "fix" the grid against the page's z-order. Also left: a handful of dropdown menus rendered _inside_ an already-stacked fixed parent (their number only competes with a sibling backdrop, so the page-level token doesn't apply). New code should use the named tokens; a number that is part of a local ladder is fine.
 
-**Latent bug the audit found, NOT fixed here:** `BulkActionBar.tsx:46` (`z-30`, top-sticky) ties with the fixed shell header (also `z-30`) and, being later in the DOM, paints over it when pinned — its own deviation, needs a real fix not a rename.
+**Latent bug the audit found — FIXED (2026-07-27):** `BulkActionBar.tsx:46` (`z-30`, top-sticky) tied with the fixed shell header (also `z-30`) and, being later in the DOM, painted over it when pinned. Now `z-sticky` (20), which is what a sticky sub-header is: it slides **under** the page header. The `bottom-floating` variant took the value-preserving rename `z-40` → `z-sidebar` at the same time.
 
 Radius is **not** a deviation: `rounded-md/lg/xl/full` is the vocabulary, deliberately un-aliased (see `DESIGN.md` → Shapes).
+
+---
+
+## D9 — `/lices` is dark, `/lices/[liceId]` is light
+
+Found 2026-07-27 while tokenizing web-scoring, **not resolved**.
+
+That app is a deliberate hybrid — light chrome, dark scoring area (see
+`web-scoring.md`). The split is fine. What isn't: the two piste screens sit on
+opposite sides of it. `/lices` (the list of your pistes) is dark, and
+`/lices/[liceId]` (the matches on one piste) is light, so tapping from one to
+the other flashes white.
+
+It reads as an accident of which screen got written when, not a decision.
+Resolving it needs a call on which one is "chrome" — most likely both, since
+neither is a surface you read mid-exchange. Left alone here because flipping a
+screen the operator uses at every event is their call, not a sweep's.
 
 ---
 

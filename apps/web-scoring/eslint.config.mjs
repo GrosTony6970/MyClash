@@ -6,6 +6,7 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
+import noRawPaletteColorRule from '../../eslint-rules/no-raw-palette-color.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -18,6 +19,7 @@ export default tseslint.config(
         rules: {
           'no-literal-string': noLiteralStringRule,
           'no-literal-locale': noLiteralLocaleRule,
+          'no-raw-palette-color': noRawPaletteColorRule,
         },
       },
     },
@@ -36,6 +38,9 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
       'myclash/no-literal-locale': 'error',
+      // This app is the reason the rule exists — it sets data-theme on <body>,
+      // so a raw palette class here silently ignores the scope it renders in.
+      'myclash/no-raw-palette-color': 'error',
     },
     languageOptions: {
       parserOptions: {
