@@ -20,7 +20,8 @@
   "dependencies": {
     "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
-    "@myclash/types": "workspace:^"
+    "@myclash/types": "workspace:^",
+    "lucide-react": "^1.27.0"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.0.0",

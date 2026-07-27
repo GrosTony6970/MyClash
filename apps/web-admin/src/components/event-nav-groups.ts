@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { NavIconName } from '@myclash/ui';
 
 /**
  * Thematic grouping of the event-scoped admin sidebar. The flat list of
@@ -13,7 +14,12 @@ import { useSyncExternalStore } from 'react';
 export interface EventNavItem {
   readonly href: string;
   readonly labelKey: string;
-  readonly badge: string;
+  /**
+   * Semantic slug resolved to a glyph by `<NavIcon>` at render time — this
+   * file stays pure data (no JSX) so its unit test can import it in a plain
+   * node environment.
+   */
+  readonly icon: NavIconName;
 }
 
 export interface EventNavGroup {
@@ -25,7 +31,7 @@ export interface EventNavGroup {
 export const EVENT_NAV_OVERVIEW: EventNavItem = {
   href: '',
   labelKey: 'organizer.shell.nav.eventOverview',
-  badge: 'E',
+  icon: 'eventOverview',
 };
 
 export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
@@ -33,48 +39,65 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
     key: 'people',
     headingKey: 'organizer.shell.eventGroups.people',
     items: [
-      { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', badge: 'P' },
-      { href: 'clubs', labelKey: 'organizer.shell.nav.clubs', badge: 'CL' },
-      { href: 'referees', labelKey: 'organizer.eventHub.sections.referees', badge: 'J' },
-      { href: 'staff', labelKey: 'organizer.eventHub.sections.staff', badge: 'ST' },
+      { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', icon: 'persons' },
+      { href: 'clubs', labelKey: 'organizer.shell.nav.clubs', icon: 'clubs' },
+      { href: 'referees', labelKey: 'organizer.eventHub.sections.referees', icon: 'referees' },
+      { href: 'staff', labelKey: 'organizer.eventHub.sections.staff', icon: 'staff' },
     ],
   },
   {
     key: 'competition',
     headingKey: 'organizer.shell.eventGroups.competition',
     items: [
-      { href: 'live', labelKey: 'organizer.eventHub.sections.live', badge: 'LV' },
-      { href: 'tournaments', labelKey: 'organizer.shell.nav.tournaments', badge: 'TR' },
-      // Badge PL (not P) to disambiguate from Participants in the People group.
-      { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'PL' },
-      { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
+      { href: 'live', labelKey: 'organizer.eventHub.sections.live', icon: 'live' },
+      { href: 'tournaments', labelKey: 'organizer.shell.nav.tournaments', icon: 'tournaments' },
+      { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', icon: 'pools' },
+      { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', icon: 'bracket' },
       {
         href: 'finalranking',
         labelKey: 'organizer.eventHub.sections.finalRanking',
-        badge: 'FR',
+        icon: 'finalRanking',
       },
       // Second-black-card disqualification review queue (write-only state
       // machine before this page existed — the DQ rule never enforced).
-      { href: 'penalties', labelKey: 'organizer.eventHub.sections.penalties', badge: 'PE' },
-      { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
-      { href: 'statistics', labelKey: 'organizer.eventHub.sections.statistics', badge: 'STA' },
+      { href: 'penalties', labelKey: 'organizer.eventHub.sections.penalties', icon: 'penalties' },
+      { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', icon: 'schedule' },
+      {
+        href: 'statistics',
+        labelKey: 'organizer.eventHub.sections.statistics',
+        icon: 'statistics',
+      },
     ],
   },
   {
     key: 'programme',
     headingKey: 'organizer.shell.eventGroups.programme',
-    items: [{ href: 'workshops', labelKey: 'organizer.eventHub.sections.workshops', badge: 'W' }],
+    items: [
+      { href: 'workshops', labelKey: 'organizer.eventHub.sections.workshops', icon: 'workshops' },
+    ],
   },
   {
     key: 'admin',
     headingKey: 'organizer.shell.eventGroups.admin',
     items: [
-      { href: 'compensation', labelKey: 'organizer.eventHub.sections.compensation', badge: 'C' },
-      { href: 'notifications', labelKey: 'organizer.eventHub.sections.notifications', badge: 'N' },
-      { href: 'theme', labelKey: 'organizer.eventHub.sections.theme', badge: 'T' },
-      { href: 'archive', labelKey: 'organizer.archive.navLabel', badge: 'A' },
-      { href: 'ai-assistant', labelKey: 'organizer.eventHub.sections.aiAssistant', badge: 'AI' },
-      { href: 'chat', labelKey: 'organizer.eventHub.sections.chat', badge: 'CH' },
+      {
+        href: 'compensation',
+        labelKey: 'organizer.eventHub.sections.compensation',
+        icon: 'compensation',
+      },
+      {
+        href: 'notifications',
+        labelKey: 'organizer.eventHub.sections.notifications',
+        icon: 'notifications',
+      },
+      { href: 'theme', labelKey: 'organizer.eventHub.sections.theme', icon: 'theme' },
+      { href: 'archive', labelKey: 'organizer.archive.navLabel', icon: 'archive' },
+      {
+        href: 'ai-assistant',
+        labelKey: 'organizer.eventHub.sections.aiAssistant',
+        icon: 'aiAssistant',
+      },
+      { href: 'chat', labelKey: 'organizer.eventHub.sections.chat', icon: 'chat' },
     ],
   },
 ];

@@ -11,6 +11,9 @@ export type { PillProps, PillVariant } from './components/Pill';
 export { GoogleIcon } from './components/GoogleIcon';
 export type { GoogleIconProps } from './components/GoogleIcon';
 
+export { NavIcon, NAV_ICON_NAMES, NAV_ICON_GLYPHS } from './components/NavIcon';
+export type { NavIconProps, NavIconName } from './components/NavIcon';
+
 export { Input } from './components/Input';
 export type { InputProps } from './components/Input';
 

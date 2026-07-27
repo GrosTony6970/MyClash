@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useFocusTrap } from '@myclash/ui';
+import { NavIcon, useFocusTrap, type NavIconName } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import {
@@ -15,7 +15,7 @@ import {
 interface NavItem {
   href: string;
   labelKey: string;
-  badge: string;
+  icon: NavIconName;
 }
 
 interface NavSection {
@@ -30,9 +30,9 @@ interface NavSection {
  *
  *   1. Overview        — single dashboard entry.
  *   2. Content         — orgs, users, profiles, clubs, leagues, rulesets.
- *   3. Operations      — review queue, frozen results.
- *   4. Platform health — audit log, system versions, backups, HEMA ratings.
- *   5. AI              — dashboard, keys, budget, model catalog, data quality.
+ *   3. Operations      — review queue, frozen results, profile claims, ratings.
+ *   4. Platform health — system, backups, audit log.
+ *   5. AI              — dashboard, keys, model catalog, budget, data quality.
  *   6. Settings        — feature flags.
  *
  * `isActive()` exact-matches /admin and /admin/ai so those landing entries
@@ -41,22 +41,30 @@ interface NavSection {
 const navSections: readonly NavSection[] = [
   {
     headingKey: 'admin.shell.sectionOverview',
-    items: [{ href: '/admin', labelKey: 'admin.shell.nav.overview', badge: 'O' }],
+    items: [{ href: '/admin', labelKey: 'admin.shell.nav.overview', icon: 'overview' }],
   },
   {
     headingKey: 'admin.shell.sectionContent',
     items: [
-      { href: '/admin/organizations', labelKey: 'admin.shell.nav.organizations', badge: 'OR' },
-      { href: '/admin/users', labelKey: 'admin.shell.nav.users', badge: 'PA' },
-      { href: '/admin/fighters', labelKey: 'admin.shell.nav.globalProfiles', badge: 'GP' },
-      { href: '/admin/clubs', labelKey: 'admin.shell.nav.clubs', badge: 'C' },
-      { href: '/admin/leagues', labelKey: 'admin.shell.nav.leagues', badge: 'L' },
+      {
+        href: '/admin/organizations',
+        labelKey: 'admin.shell.nav.organizations',
+        icon: 'organizations',
+      },
+      { href: '/admin/users', labelKey: 'admin.shell.nav.users', icon: 'accounts' },
+      {
+        href: '/admin/fighters',
+        labelKey: 'admin.shell.nav.globalProfiles',
+        icon: 'globalProfiles',
+      },
+      { href: '/admin/clubs', labelKey: 'admin.shell.nav.clubs', icon: 'clubs' },
+      { href: '/admin/leagues', labelKey: 'admin.shell.nav.leagues', icon: 'leagues' },
       // Single side-menu entry; the page redirects to /scoring and the
       // RulesetsTopNav pills handle the Scoring | Penalty tab switch.
       // The isActive() check uses startsWith('/admin/rulesets') so the
       // link stays highlighted on both sub-routes.
-      { href: '/admin/rulesets', labelKey: 'admin.shell.nav.rulesets', badge: 'R' },
-      { href: '/admin/weapons', labelKey: 'admin.shell.nav.weapons', badge: 'W' },
+      { href: '/admin/rulesets', labelKey: 'admin.shell.nav.rulesets', icon: 'rulesets' },
+      { href: '/admin/weapons', labelKey: 'admin.shell.nav.weapons', icon: 'weapons' },
     ],
   },
   {
@@ -65,12 +73,12 @@ const navSections: readonly NavSection[] = [
       {
         href: '/admin/review-queue',
         labelKey: 'admin.reviewQueue.navTitle',
-        badge: 'RQ',
+        icon: 'reviewQueue',
       },
       {
         href: '/admin/exchange-edit-requests',
         labelKey: 'admin.shell.nav.frozenResults',
-        badge: 'FR',
+        icon: 'frozenResults',
       },
       // Global-person claim queue (the /me "§8 fallback" when a profile has
       // no email) — without this entry the queue was reachable only by URL
@@ -78,17 +86,24 @@ const navSections: readonly NavSection[] = [
       {
         href: '/admin/global-persons/pending-claims',
         labelKey: 'admin.shell.nav.pendingClaims',
-        badge: 'PC',
+        icon: 'pendingClaims',
       },
+      // Ratings sits with Operations, not Platform health: syncing HEMA
+      // Ratings is a recurring operator chore, not a signal about whether
+      // the platform itself is healthy.
+      { href: '/admin/hema-ratings', labelKey: 'admin.shell.nav.hemaRatings', icon: 'ratings' },
     ],
   },
   {
     headingKey: 'admin.shell.sectionPlatformHealth',
     items: [
-      { href: '/admin/audit-log', labelKey: 'admin.shell.nav.auditLog', badge: 'A' },
-      { href: '/admin/system-versions', labelKey: 'admin.shell.nav.systemVersions', badge: 'S' },
-      { href: '/admin/backups', labelKey: 'admin.shell.nav.backups', badge: 'B' },
-      { href: '/admin/hema-ratings', labelKey: 'admin.shell.nav.hemaRatings', badge: 'HR' },
+      {
+        href: '/admin/system-versions',
+        labelKey: 'admin.shell.nav.systemVersions',
+        icon: 'system',
+      },
+      { href: '/admin/backups', labelKey: 'admin.shell.nav.backups', icon: 'backups' },
+      { href: '/admin/audit-log', labelKey: 'admin.shell.nav.auditLog', icon: 'auditLog' },
     ],
   },
   {
@@ -97,17 +112,22 @@ const navSections: readonly NavSection[] = [
     // stays /admin/data-quality — only the sidebar grouping moved.
     headingKey: 'admin.shell.sectionAI',
     items: [
-      { href: '/admin/ai', labelKey: 'admin.shell.nav.aiDashboard', badge: 'AI' },
-      { href: '/admin/ai/keys', labelKey: 'admin.shell.nav.aiKeys', badge: 'AK' },
-      { href: '/admin/ai/budget', labelKey: 'admin.shell.nav.aiBudget', badge: 'AB' },
-      { href: '/admin/ai/models', labelKey: 'admin.shell.nav.aiModels', badge: 'AM' },
-      { href: '/admin/data-quality', labelKey: 'admin.shell.nav.dataQuality', badge: 'DQ' },
+      { href: '/admin/ai', labelKey: 'admin.shell.nav.aiDashboard', icon: 'ai' },
+      { href: '/admin/ai/keys', labelKey: 'admin.shell.nav.aiKeys', icon: 'aiKeys' },
+      // Model catalog directly under the keys it is configured with.
+      { href: '/admin/ai/models', labelKey: 'admin.shell.nav.aiModels', icon: 'aiModels' },
+      { href: '/admin/ai/budget', labelKey: 'admin.shell.nav.aiBudget', icon: 'aiBudget' },
+      { href: '/admin/data-quality', labelKey: 'admin.shell.nav.dataQuality', icon: 'dataQuality' },
     ],
   },
   {
     headingKey: 'admin.shell.sectionSettings',
     items: [
-      { href: '/admin/feature-flags', labelKey: 'admin.shell.nav.featureFlags', badge: 'FF' },
+      {
+        href: '/admin/feature-flags',
+        labelKey: 'admin.shell.nav.featureFlags',
+        icon: 'featureFlags',
+      },
     ],
   },
 ];
@@ -213,12 +233,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
               onClick={() => setOpen(false)}
               className="group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
             >
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold group-hover:border-muted"
-                aria-hidden="true"
-              >
-                EO
-              </span>
+              <NavIcon name="switchWorkspace" />
               <span>{t('admin.shell.nav.switchToOrganizer')}</span>
             </Link>
           </div>
@@ -234,9 +249,8 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-1">
             {section.items.map((item) => {
               const active = isActive(pathname, item.href);
-              // The Review-Queue entry gets a numeric pill on top of
-              // its standard badge when count > 0. Other entries keep
-              // their plain abbreviation pill.
+              // The Review-Queue entry gets a numeric pill at the end of the
+              // row when count > 0; every other entry is icon + label only.
               const count =
                 item.href === '/admin/review-queue' ? (notifications?.reviewQueue ?? 0) : 0;
               return (
@@ -251,17 +265,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
                       : 'text-muted hover:bg-foreground/10 hover:text-foreground',
                   ].join(' ')}
                 >
-                  <span
-                    className={[
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
-                      active
-                        ? 'border-foreground/30 bg-foreground/15 text-foreground'
-                        : 'border-border bg-background text-gold group-hover:border-muted',
-                    ].join(' ')}
-                    aria-hidden="true"
-                  >
-                    {item.badge}
-                  </span>
+                  <NavIcon name={item.icon} />
                   <span>{t(item.labelKey)}</span>
                   {count > 0 && (
                     <span
@@ -293,12 +297,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         void handleLogout();
       }}
     >
-      <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold"
-        aria-hidden="true"
-      >
-        LO
-      </span>
+      <NavIcon name="logout" />
       <span>{loggingOut ? t('admin.shell.loggingOut') : t('admin.shell.logout')}</span>
     </button>
   );

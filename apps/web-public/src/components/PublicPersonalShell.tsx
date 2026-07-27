@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Avatar } from '@myclash/ui';
+import { Avatar, NavIcon, type NavIconName } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 import { getPublicApiUrl } from '../lib/api-url';
 import { BottomNav } from './BottomNav';
@@ -12,16 +12,20 @@ import { MyEventsNav } from './me/MyEventsNav';
 import { useUnreadBroadcasts } from './me/useUnreadBroadcasts';
 
 const navItems = [
-  { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', badge: 'D' },
-  { href: '/me/profile', labelKey: 'publicApp.personalShell.nav.profile', badge: 'P' },
-  { href: '/me/follows', labelKey: 'publicApp.personalShell.nav.people', badge: 'Pe' },
-  { href: '/me/leagues', labelKey: 'publicApp.personalShell.nav.leagues', badge: 'L' },
-  { href: '/me/notifications', labelKey: 'publicApp.personalShell.nav.notifications', badge: 'N' },
-  { href: '/me/settings', labelKey: 'publicApp.personalShell.nav.settings', badge: 'St' },
-  { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
-  { href: '/me/events', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
-  { href: '/me/instructor', labelKey: 'publicApp.personalShell.nav.instructor', badge: 'In' },
-] as const;
+  { href: '/me', labelKey: 'publicApp.personalShell.nav.dashboard', icon: 'eventOverview' },
+  { href: '/me/profile', labelKey: 'publicApp.personalShell.nav.profile', icon: 'profile' },
+  { href: '/me/follows', labelKey: 'publicApp.personalShell.nav.people', icon: 'persons' },
+  { href: '/me/leagues', labelKey: 'publicApp.personalShell.nav.leagues', icon: 'leagues' },
+  {
+    href: '/me/notifications',
+    labelKey: 'publicApp.personalShell.nav.notifications',
+    icon: 'notifications',
+  },
+  { href: '/me/settings', labelKey: 'publicApp.personalShell.nav.settings', icon: 'settings' },
+  { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', icon: 'security' },
+  { href: '/me/events', labelKey: 'publicApp.personalShell.nav.events', icon: 'events' },
+  { href: '/me/instructor', labelKey: 'publicApp.personalShell.nav.instructor', icon: 'workshops' },
+] as const satisfies readonly { href: string; labelKey: string; icon: NavIconName }[];
 
 function isActive(pathname: string, href: string) {
   // Exact-match the index + the events list: inside an event the MyEventsNav
@@ -164,17 +168,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
                   : 'text-muted hover:bg-foreground/10 hover:text-foreground',
               ].join(' ')}
             >
-              <span
-                className={[
-                  'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
-                  active
-                    ? 'border-foreground/30 bg-foreground/15 text-foreground'
-                    : 'border-border bg-background text-gold group-hover:border-muted',
-                ].join(' ')}
-                aria-hidden="true"
-              >
-                {item.badge}
-              </span>
+              <NavIcon name={item.icon} />
               <span>{t(item.labelKey)}</span>
               {item.href === '/me/notifications' && notificationsUnread > 0 && (
                 <span
@@ -204,12 +198,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
             href={`${adminUrl}/dashboard`}
             className="group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
           >
-            <span
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold group-hover:border-muted"
-              aria-hidden="true"
-            >
-              AW
-            </span>
+            <NavIcon name="switchWorkspace" />
             <span>{t('publicApp.personalShell.nav.adminWorkspace')}</span>
           </a>
         </div>
@@ -240,12 +229,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         void handleLogout();
       }}
     >
-      <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold"
-        aria-hidden="true"
-      >
-        LO
-      </span>
+      <NavIcon name="logout" />
       <span>
         {loggingOut ? t('publicApp.personalShell.loggingOut') : t('publicApp.personalShell.logout')}
       </span>

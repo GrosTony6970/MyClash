@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useFocusTrap } from '@myclash/ui';
+import { NavIcon, useFocusTrap, type NavIconName } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
@@ -15,32 +15,34 @@ import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event
 const orgNavItems = [
   // `exact` so the org Overview (root) doesn't prefix-match and stay
   // highlighted on every `/org/{slug}/...` sub-route (incl. event pages).
-  { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O', exact: true },
+  { href: '', labelKey: 'organizer.shell.nav.overview', icon: 'overview', exact: true },
   // `exact` prevents the events list from staying highlighted once
   // the operator drills into an event — sub-routes
   // `/org/{slug}/events/{eventId}/...` belong to the Event section.
-  { href: 'events', labelKey: 'organizer.shell.nav.events', badge: 'EV', exact: true },
+  { href: 'events', labelKey: 'organizer.shell.nav.events', icon: 'events', exact: true },
   // Single "Rulesets" entry — the page redirects to /scoring and the
   // RulesetsTopNav pill at the top of each tab handles Scoring | Penalty
   // switching. pickActiveHref() uses startsWith() so the link stays
   // highlighted whether the operator is on /scoring or /penalty.
-  { href: 'rulesets', labelKey: 'organizer.shell.nav.rulesets', badge: 'R' },
+  { href: 'rulesets', labelKey: 'organizer.shell.nav.rulesets', icon: 'rulesets' },
   // Org-level league management (approve requests, groups, ruleset, roles) for
   // leagues this org administers. `exact: false` so per-league sub-routes
   // (`/org/{slug}/leagues/{leagueId}`) keep the entry highlighted.
-  { href: 'leagues', labelKey: 'organizer.shell.nav.leagues', badge: 'L' },
+  { href: 'leagues', labelKey: 'organizer.shell.nav.leagues', icon: 'leagues' },
   // Org profile + members self-service (name/logo/contact, add/remove
   // members) — before this entry only super-admins could edit an org.
   // pickActiveHref longest-match keeps it distinct from settings/ai.
-  { href: 'settings', labelKey: 'organizer.shell.nav.orgSettings', badge: 'OS' },
-  { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
+  // `members`, not a settings cog: the route is /settings but the entry the
+  // operator reads is "Members" — the org profile + member list.
+  { href: 'settings', labelKey: 'organizer.shell.nav.orgSettings', icon: 'members' },
+  { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', icon: 'ai' },
   // Compensation is unified under each event (Compensation plan + Referee
   // compensation tabs); no standalone org-settings entry.
   // Venues are org-level — operators manage the catalogue from this
   // entry. The event sidebar no longer surfaces venues; the
   // workshop + session venue pickers consume the org catalogue
   // directly.
-  { href: 'venues', labelKey: 'organizer.shell.nav.venues', badge: 'V' },
+  { href: 'venues', labelKey: 'organizer.shell.nav.venues', icon: 'venues' },
 ] as const;
 
 // Flat list of every event-scoped nav item (overview + all themed groups).
@@ -246,7 +248,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   }
 
   const renderNavItem = (
-    item: { href: string; labelKey: string; badge: string },
+    item: { href: string; labelKey: string; icon: NavIconName },
     activeHref: string | null,
   ) => {
     const active = item.href === activeHref;
@@ -262,17 +264,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             : 'text-muted hover:bg-foreground/10 hover:text-foreground',
         ].join(' ')}
       >
-        <span
-          className={[
-            'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
-            active
-              ? 'border-foreground/30 bg-foreground/15 text-foreground'
-              : 'border-border bg-background text-gold group-hover:border-muted',
-          ].join(' ')}
-          aria-hidden="true"
-        >
-          {item.badge}
-        </span>
+        <NavIcon name={item.icon} />
         <span>{t(item.labelKey)}</span>
       </Link>
     );
@@ -426,7 +418,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         <div className="border-t border-border pt-5">
           <div className="flex flex-col gap-1">
             {renderNavItem(
-              { href: '/leagues', labelKey: 'organizer.shell.nav.myLeagues', badge: 'ML' },
+              { href: '/leagues', labelKey: 'organizer.shell.nav.myLeagues', icon: 'leagues' },
               pickActiveHref(pathname, [{ href: '/leagues' }]),
             )}
           </div>
@@ -443,7 +435,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         <div className="border-t border-border pt-5">
           <div className="flex flex-col gap-1">
             {renderNavItem(
-              { href: '/admin', labelKey: 'organizer.shell.nav.platformAdmin', badge: 'PA' },
+              {
+                href: '/admin',
+                labelKey: 'organizer.shell.nav.platformAdmin',
+                icon: 'switchWorkspace',
+              },
               pickActiveHref(pathname, [{ href: '/admin' }]),
             )}
           </div>
@@ -462,12 +458,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         void handleLogout();
       }}
     >
-      <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background text-[0.65rem] font-bold text-gold"
-        aria-hidden="true"
-      >
-        LO
-      </span>
+      <NavIcon name="logout" />
       <span>{loggingOut ? t('organizer.shell.loggingOut') : t('organizer.shell.logout')}</span>
     </button>
   );

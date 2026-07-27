@@ -1,4 +1,5 @@
 import { messages } from '@myclash/i18n';
+import { NAV_ICON_NAMES } from '@myclash/ui';
 import { describe, expect, it } from 'vitest';
 import {
   EVENT_NAV_GROUPS,
@@ -84,6 +85,23 @@ describe('event nav taxonomy', () => {
     for (const g of EVENT_NAV_GROUPS) {
       expect(g.items.length).toBeGreaterThan(0);
       expect(g.headingKey.startsWith('organizer.shell.eventGroups.')).toBe(true);
+    }
+  });
+
+  it('declares an icon on every entry', () => {
+    const iconless = [EVENT_NAV_OVERVIEW, ...EVENT_NAV_GROUPS.flatMap((g) => g.items)]
+      .filter((item) => !NAV_ICON_NAMES.includes(item.icon))
+      .map((item) => item.href);
+    expect(iconless).toEqual([]);
+  });
+
+  it('never repeats an icon inside one group', () => {
+    // Two rows in the same group wearing the same glyph is the copy-paste the
+    // old two-letter badges kept producing (`P` participants vs `PL` pools).
+    // Across groups a repeat is fine and deliberate.
+    for (const g of EVENT_NAV_GROUPS) {
+      const icons = g.items.map((i) => i.icon);
+      expect(new Set(icons).size, `duplicate icon in group "${g.key}"`).toBe(icons.length);
     }
   });
 });
