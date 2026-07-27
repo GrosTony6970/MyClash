@@ -221,6 +221,13 @@ jobs:
         if: '!cancelled()'
         run: pnpm perf:review
 
+      # Root-level scripts/ is outside the turbo workspace graph, so
+      # `turbo run test` never covered it. Three of these tests had rotted
+      # against current behaviour precisely because nothing ran them.
+      - name: Test repo scripts
+        if: '!cancelled()'
+        run: pnpm test:scripts
+
       - name: Check formatting
         if: '!cancelled()'
         run: pnpm format:check

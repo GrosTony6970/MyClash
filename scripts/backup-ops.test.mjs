@@ -6,7 +6,9 @@ import test from 'node:test';
 
 import {
   backupSetsFromArtifacts,
+  DEFAULT_BACKUP_SCHEDULE,
   nextBackupRun,
+  normalizeBackupSchedule,
   readBackupSchedule,
   listLocalBackupArtifacts,
   parseAwsS3List,
@@ -62,13 +64,12 @@ test('reads missing backup schedule as default 03:00 UTC', async () => {
 
   const schedule = await readBackupSchedule(rootDir);
 
-  assert.deepEqual(schedule, {
-    enabled: true,
-    hourUtc: 3,
-    minuteUtc: 0,
-    timezoneLabel: 'UTC',
-    updatedAt: null,
-  });
+  // Compare against the exported default rather than a hand-copied literal.
+  // The literal version of this rotted the moment the schedule gained
+  // frequency / dayOfWeek / dayOfMonth / retention fields, and nothing caught
+  // it because nothing ran these tests. This asserts the CONTRACT — "no file
+  // on disk yields the documented default" — which cannot drift.
+  assert.deepEqual(schedule, DEFAULT_BACKUP_SCHEDULE);
   assert.equal(nextBackupRun(schedule, new Date('2026-05-18T02:30:00Z')), '2026-05-18T03:00:00.000Z');
 });
 
@@ -91,7 +92,11 @@ test('persists editable backup schedule', async () => {
 });
 
 test('detects scheduled backup minute once per run key', () => {
-  const schedule = { enabled: true, hourUtc: 3, minuteUtc: 0, timezoneLabel: 'UTC', updatedAt: null };
+  // Built through normalizeBackupSchedule, not hand-rolled. A literal object
+  // silently omitted `frequency`, so slotMatches fell through its switch to
+  // `default: return false` and the test failed against perfectly correct
+  // production code.
+  const schedule = normalizeBackupSchedule({ hourUtc: 3, minuteUtc: 0 });
 
   const first = shouldRunScheduledBackup(schedule, new Date('2026-05-18T03:00:05Z'));
   const duplicate = shouldRunScheduledBackup(

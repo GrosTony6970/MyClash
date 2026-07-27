@@ -91,7 +91,15 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   assert.equal(result.created, true);
   assert.equal(values.get('DOMAIN'), 'example.org');
   assert.equal(values.get('SUPABASE_URL'), 'https://app.example.org');
-  assert.equal(values.get('NEXT_PUBLIC_API_URL'), 'https://api.example.org');
+  // The single NEXT_PUBLIC_API_URL was split into three per-app vars, so this
+  // used to assert on a variable the script no longer writes (and read back the
+  // untouched localhost sample value). Assert the per-service routing the
+  // script actually establishes: admin and public stay same-origin with their
+  // own UI host so the browser does not preflight every fetch; only scoring
+  // uses the dedicated api. subdomain.
+  assert.equal(values.get('NEXT_PUBLIC_API_URL_ADMIN'), 'https://admin.example.org');
+  assert.equal(values.get('NEXT_PUBLIC_API_URL_PUBLIC'), 'https://app.example.org');
+  assert.equal(values.get('NEXT_PUBLIC_API_URL_SCORING'), 'https://api.example.org');
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
   assert.match(values.get('TRAEFIK_DASHBOARD_AUTH'), /^admin:\{SHA\}.+/);
