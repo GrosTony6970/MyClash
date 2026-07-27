@@ -33,6 +33,13 @@ const extensions = new Set([
   '.yaml',
   '.yml',
 ]);
+// Same rationale as the tool-cache entries in ignoredDirs, but these need a
+// PATH prefix rather than a directory name: `plans` / `specs` / `archive` are
+// far too generic to ignore as bare segment names. These hold session planning
+// artefacts, whose prose discusses TODOs — including, unavoidably, sentences
+// asserting a plan contains none ("Placeholder scan: No TBD/TODO"). That is a
+// claim about debt, not debt, and it cannot be fixed by adding a task marker.
+const ignoredPathPrefixes = ['docs/superpowers/'];
 const allowedPathSuffixes = new Set([
   'docs/pre-production-review-plan.md',
   'docs/CODE_QUALITY_REVIEW.md',
@@ -67,6 +74,7 @@ function normalize(path) {
 const violations = [];
 for (const file of walk(root).filter(hasAllowedExtension)) {
   const repoPath = normalize(file);
+  if (ignoredPathPrefixes.some((prefix) => repoPath.startsWith(prefix))) continue;
   const source = readFileSync(file, 'utf8');
   source.split(/\r?\n/).forEach((line, index) => {
     // Case-SENSITIVE on purpose. The debt marker is conventionally uppercase, and

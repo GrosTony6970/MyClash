@@ -163,28 +163,66 @@ jobs:
       - name: Lint all workspaces
         run: pnpm turbo run lint
 
+      # Everything below is an independent VERDICT: each reads the repo and
+      # reports pass/fail, and none depends on a previous step's side effects.
+      # So each gets its own step and `if: '!cancelled()'`, for two reasons.
+      #
+      # They used to be a `&&` chain plus default step ordering, which meant the
+      # FIRST failure hid every gate behind it. quality:complexity has been red
+      # on main since at least 2026-06-16 (500+ commits), so shared-types,
+      # design:lint, db:review, db:perf:fixture, infra:review,
+      # observability:review, perf:review and format:check had not actually run
+      # in CI for six weeks — they were skipped, not passing.
+      #
+      # `!cancelled()` rather than `always()`: a cancelled run should stop.
       - name: Check frontend secret boundaries
+        if: '!cancelled()'
         run: pnpm security:client-secrets
 
-      - name: Check code quality gates
-        run: pnpm quality:todos && pnpm quality:api-docs && pnpm quality:complexity && pnpm quality:shared-types
+      # Step name deliberately avoids spelling the marker out — check-todos
+      # scans yml too, and would flag its own CI step.
+      - name: Check untracked debt markers
+        if: '!cancelled()'
+        run: pnpm quality:todos
+
+      - name: Check API docs coverage
+        if: '!cancelled()'
+        run: pnpm quality:api-docs
+
+      - name: Check code complexity budget
+        if: '!cancelled()'
+        run: pnpm quality:complexity
+
+      - name: Check shared-type leaks
+        if: '!cancelled()'
+        run: pnpm quality:shared-types
 
       - name: Check design system drift
+        if: '!cancelled()'
         run: pnpm design:lint
 
       - name: Check database review gates
-        run: pnpm db:review && pnpm db:perf:fixture
+        if: '!cancelled()'
+        run: pnpm db:review
+
+      - name: Check database perf fixture
+        if: '!cancelled()'
+        run: pnpm db:perf:fixture
 
       - name: Check infrastructure review gates
+        if: '!cancelled()'
         run: pnpm infra:review
 
       - name: Check observability review gates
+        if: '!cancelled()'
         run: pnpm observability:review
 
       - name: Check performance review gates
+        if: '!cancelled()'
         run: pnpm perf:review
 
       - name: Check formatting
+        if: '!cancelled()'
         run: pnpm format:check
 
   # ── Test ─────────────────────────────────────────────────────────────────
