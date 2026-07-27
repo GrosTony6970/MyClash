@@ -206,30 +206,36 @@ export function FighterStatsPanel({ fighter, career, refereeStats }: FighterStat
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border border-border bg-background px-3 py-2">
           <p className="text-[11px] uppercase tracking-widest text-muted">
-            {t('publicApp.fighterProfile.hemaRank')}
+            {statTab === 'global'
+              ? t('publicApp.fighterProfile.hemaRankBest')
+              : t('publicApp.fighterProfile.hemaRank')}
           </p>
           {hema != null ? (
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-base font-black tabular-nums text-foreground">
-                {hema.rank != null ? `#${hema.rank}` : '—'}
-              </span>
-              <span className="text-xs text-muted">
-                {t('publicApp.fighterProfile.hemaRatingValue', {
-                  rating: Math.round(hema.weightedRating),
-                })}
-              </span>
-              {hemaHref && (
-                <a
-                  href={hemaHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={t('publicApp.fighterProfile.hemaProfileLink')}
-                  className="ml-auto text-xs font-semibold text-accent hover:underline"
-                >
-                  ↗
-                </a>
-              )}
-            </div>
+            <>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-base font-black tabular-nums text-foreground">
+                  {hema.rank != null ? `#${hema.rank}` : '—'}
+                </span>
+                <span className="text-xs text-muted">
+                  {t('publicApp.fighterProfile.hemaRatingValue', {
+                    rating: Math.round(hema.weightedRating),
+                  })}
+                </span>
+                {hemaHref && (
+                  <a
+                    href={hemaHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t('publicApp.fighterProfile.hemaProfileLink')}
+                    className="ml-auto text-xs font-semibold text-accent hover:underline"
+                  >
+                    ↗
+                  </a>
+                )}
+              </div>
+              {/* The rank is always one weapon's, even on Global (top-rated row) — name it. */}
+              <p className="mt-0.5 truncate text-xs text-muted">{hema.weapon}</p>
+            </>
           ) : (
             <p className="mt-1 text-sm text-muted">
               {ratings.length === 0

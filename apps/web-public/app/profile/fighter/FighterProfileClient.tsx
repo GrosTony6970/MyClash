@@ -1665,16 +1665,20 @@ function FighterStatsCard({
               {t('publicApp.fighterProfile.hemaRank')}
             </p>
             {hema != null ? (
-              <div className="mt-1 flex items-baseline gap-3">
-                <span className="text-xl font-black tabular-nums text-foreground">
-                  {hema.rank != null ? `#${hema.rank}` : '—'}
-                </span>
-                <span className="text-sm text-muted">
-                  {t('publicApp.fighterProfile.hemaRatingValue', {
-                    rating: Math.round(hema.weightedRating),
-                  })}
-                </span>
-              </div>
+              <>
+                <div className="mt-1 flex items-baseline gap-3">
+                  <span className="text-xl font-black tabular-nums text-foreground">
+                    {hema.rank != null ? `#${hema.rank}` : '—'}
+                  </span>
+                  <span className="text-sm text-muted">
+                    {t('publicApp.fighterProfile.hemaRatingValue', {
+                      rating: Math.round(hema.weightedRating),
+                    })}
+                  </span>
+                </div>
+                {/* The matched row can be more specific than the picked weapon — name it. */}
+                <p className="mt-0.5 truncate text-xs text-muted">{hema.weapon}</p>
+              </>
             ) : (
               <p className="mt-1 text-sm text-muted">
                 {dashboard.hemaRatings == null
