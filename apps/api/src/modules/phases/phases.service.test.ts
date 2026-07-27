@@ -643,6 +643,68 @@ describe('PhasesService', () => {
       expect((result as { seedingStrategy: string }).seedingStrategy).toBe('snake');
     });
 
+    /**
+     * Table-name dispatch rather than ordered mockReturnValueOnce: this path
+     * fans out to phases / bracket_slots / matches in an order that shifts
+     * whenever a lookup is added, and an ordered queue silently desyncs.
+     */
+    it('generates a play-in round and leaves the conditional reset match uncreated', async () => {
+      const twelveRegs = Array.from({ length: 12 }, (_, i) => ({ id: `r${i}` }));
+      const inserts: Record<string, unknown[]> = { bracket_slots: [], matches: [] };
+      let slotRows: Array<Record<string, unknown>> = [];
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'registrations') return makeAwaitableChain({ data: twelveRegs, error: null });
+        if (table === 'bracket_slots') {
+          const chain = makeAwaitableChain({ data: slotRows, error: null });
+          chain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
+            inserts['bracket_slots']!.push(...rows);
+            // Echo the rows back with ids, the way PostgREST's insert().select() does.
+            slotRows = rows.map((r, i) => ({ ...r, id: `slot-${i}` }));
+            return makeAwaitableChain({ data: slotRows, error: null });
+          }) as never;
+          return chain;
+        }
+        if (table === 'matches') {
+          const chain = makeAwaitableChain({ data: [], error: null });
+          chain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
+            inserts['matches']!.push(...rows);
+            return makeAwaitableChain({ data: rows, error: null });
+          }) as never;
+          return chain;
+        }
+        // phases: the existence check must miss, later reads return the phase.
+        const chain = makeChain({ data: null, error: null });
+        chain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
+        chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+        return chain;
+      });
+
+      await service.generateBracket(
+        'tournament-1',
+        { phaseType: 'double_elim', grandFinalReset: true },
+        false,
+      );
+
+      const slots = inserts['bracket_slots'] as Array<{ round: number; source_a_ref: string }>;
+      // 12 fighters trim to an 8-bracket, so 4 play-in matches sit at round 0.
+      expect(slots.filter((s) => s.round === 0).length).toBe(4);
+      // No byes: a bye has no loser, and the losers bracket feeds off WB losers.
+      expect(slots.some((s) => s.source_a_ref === 'bye')).toBe(false);
+
+      // wbRounds=3, lbRounds=4 → GF is round 8 and the reset round 9. The reset
+      // is only PLAYED when the losers-bracket entrant wins the grand final, so
+      // it must not get a placeholder match at generation time.
+      const resetSlotIds = slotRows.filter((r) => r['round'] === 9).map((r) => r['id']);
+      expect(resetSlotIds.length).toBe(1);
+      const matchSlotIds = (inserts['matches'] as Array<{ bracket_slot_id: string }>).map(
+        (m) => m.bracket_slot_id,
+      );
+      expect(matchSlotIds).not.toContain(resetSlotIds[0]);
+      // Every other slot does get one.
+      expect(matchSlotIds.length).toBe(slotRows.length - 1);
+    });
+
     it('captures bronzeSlotId on single-elim and exposes it on the bracket read', async () => {
       const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
 

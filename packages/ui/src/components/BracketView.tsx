@@ -119,9 +119,13 @@ export function BracketView({
         bracketRound: slot.round,
         bracketSize,
         matchNumber: slot.position,
+        // Double-elim cards need section-aware labels: the winners final, the
+        // grand final and its reset would otherwise all render as "F".
+        wbRounds: isDoubleElim ? (bracketConfig?.wbRounds ?? null) : null,
+        lbRounds: isDoubleElim ? (bracketConfig?.lbRounds ?? null) : null,
       });
     },
-    [weapon, bracketSize],
+    [weapon, bracketSize, isDoubleElim, bracketConfig?.wbRounds, bracketConfig?.lbRounds],
   );
 
   const layout = isDoubleElim ? (

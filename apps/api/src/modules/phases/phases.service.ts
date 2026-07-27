@@ -440,7 +440,11 @@ export class PhasesService {
     if (isDoubleElim) {
       let bracket: ReturnType<typeof doubleElimBracket>;
       try {
-        bracket = doubleElimBracket(qualifyCount, bracketOptions);
+        // grandFinalReset MUST reach the generator, not just config_json: it is
+        // what emits the RESET slot. Stamping the flag without passing it here
+        // left the option enabled everywhere in the UI while the slot it
+        // controls was never created.
+        bracket = doubleElimBracket(qualifyCount, { ...bracketOptions, grandFinalReset });
       } catch (error) {
         throw new BadRequestException(error instanceof Error ? error.message : 'Invalid bracket');
       }
