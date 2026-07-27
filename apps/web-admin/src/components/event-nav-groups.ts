@@ -58,6 +58,13 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.finalRanking',
         icon: 'finalRanking',
       },
+      // Sits with the results rather than with the exports on the archive page:
+      // organisers reach for it straight after the final ranking is settled.
+      {
+        href: 'hema-ratings',
+        labelKey: 'organizer.eventHub.sections.hemaRatings',
+        icon: 'ratings',
+      },
       // Second-black-card disqualification review queue (write-only state
       // machine before this page existed — the DQ rule never enforced).
       { href: 'penalties', labelKey: 'organizer.eventHub.sections.penalties', icon: 'penalties' },

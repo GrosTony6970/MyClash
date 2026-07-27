@@ -1,10 +1,10 @@
 /**
  * exports.controller.ts — T-1004
  *
- * GET /api/v1/events/:eventId/exports/fighters.csv       — HEMA Ratings fighters
- * GET /api/v1/events/:eventId/exports/full.csv           — all matches + exchanges
- * GET /api/v1/events/:eventId/exports/full.json          — full event JSON
- * GET /api/v1/tournaments/:tournamentId/exports/results.csv — HEMA Ratings results
+ * GET /api/v1/events/:eventId/exports/hema-ratings.zip     — HEMA Ratings submission bundle
+ * GET /api/v1/events/:eventId/exports/hema-ratings/preview — its pre-flight check
+ * GET /api/v1/events/:eventId/exports/full.csv             — all matches + exchanges
+ * GET /api/v1/events/:eventId/exports/full.json            — full event JSON
  */
 
 import {
@@ -55,55 +55,38 @@ export class ExportsController {
     private readonly archives: ArchiveService,
   ) {}
 
-  // ── HEMA Ratings: fighters.csv ────────────────────────────────────────────
+  // ── HEMA Ratings: submission bundle ───────────────────────────────────────
 
-  @Get('events/:eventId/exports/fighters.csv')
-  @ApiOperation({ summary: 'HEMA Ratings fighters.csv export' })
+  @Get('events/:eventId/exports/hema-ratings.zip')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'HEMA Ratings submission bundle (fighters + clubs + tournaments)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async fightersCsv(
+  async hemaRatingsZip(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    // This export contains event roster data, so it is organizer-only.
+    // This bundle contains event roster data, so it is organizer-only.
     const userId = await getUserId(req, this.supabase);
     await this.archives.assertEventAdmin(eventId, userId);
-    const csv = await this.exports.generateFightersCsv(eventId);
+    const { filename, buffer } = await this.exports.generateHemaRatingsZip(eventId);
     void reply
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', 'attachment; filename="fighters.csv"')
-      .send(csv);
+      .header('Content-Type', 'application/zip')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(buffer);
   }
 
-  // ── HEMA Ratings: tournament results CSV ──────────────────────────────────
-
-  @Get('tournaments/:tournamentId/exports/results.csv')
-  @ApiOperation({ summary: 'HEMA Ratings tournament results CSV export' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async resultsCsv(
-    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+  @Get('events/:eventId/exports/hema-ratings/preview')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Pre-flight check for the HEMA Ratings submission bundle' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async hemaRatingsPreview(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
-    @Res() reply: FastifyReply,
   ) {
     const userId = await getUserId(req, this.supabase);
-    await this.archives.assertTournamentAdmin(tournamentId, userId);
-    // Get tournament slug for filename
-    const { data: tournament } = await this.supabase.service
-      .from('tournaments')
-      .select('slug')
-      .eq('id', tournamentId)
-      .maybeSingle();
-
-    const slug = (tournament as { slug: string } | null)?.slug ?? tournamentId;
-    const { filename, content } = await this.exports.generateTournamentResultsCsv(
-      tournamentId,
-      slug,
-    );
-
-    void reply
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', `attachment; filename="${filename}"`)
-      .send(content);
+    await this.archives.assertEventAdmin(eventId, userId);
+    return this.exports.previewHemaRatingsSubmission(eventId);
   }
 
   // ── Full CSV export ───────────────────────────────────────────────────────

@@ -254,20 +254,8 @@ export default function OrganizerArchivePage() {
               >
                 {t('organizer.archive.downloadRankings')}
               </a>
-              <a
-                href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/results.csv`}
-                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
-              >
-                {t('organizer.archive.downloadResults')}
-              </a>
             </>
           )}
-          <a
-            href={`${apiUrl}/api/v1/events/${eventId}/exports/fighters.csv`}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
-          >
-            {t('organizer.archive.downloadFighters')}
-          </a>
           <a
             href={`${apiUrl}/api/v1/events/${eventId}/exports/full.csv`}
             className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
@@ -281,6 +269,16 @@ export default function OrganizerArchivePage() {
             {t('organizer.archive.downloadFullJson')}
           </a>
         </div>
+
+        <p className="mt-4 text-sm text-muted">
+          {t('organizer.archive.hemaRatingsHint')}{' '}
+          <Link
+            href={`/org/${slug}/events/${eventId}/hema-ratings`}
+            className="font-semibold text-accent underline"
+          >
+            {t('organizer.archive.hemaRatingsLink')}
+          </Link>
+        </p>
       </section>
 
       <form onSubmit={previewRestore} className="rounded-lg border border-border p-4">

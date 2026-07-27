@@ -7736,15 +7736,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/events/{eventId}/exports/fighters.csv': {
+  '/api/v1/events/{eventId}/exports/hema-ratings.zip': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** HEMA Ratings fighters.csv export */
-    get: operations['ExportsController_fightersCsv'];
+    /** HEMA Ratings submission bundle (fighters + clubs + tournaments) */
+    get: operations['ExportsController_hemaRatingsZip'];
     put?: never;
     post?: never;
     delete?: never;
@@ -7753,15 +7753,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/tournaments/{tournamentId}/exports/results.csv': {
+  '/api/v1/events/{eventId}/exports/hema-ratings/preview': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** HEMA Ratings tournament results CSV export */
-    get: operations['ExportsController_resultsCsv'];
+    /** Pre-flight check for the HEMA Ratings submission bundle */
+    get: operations['ExportsController_hemaRatingsPreview'];
     put?: never;
     post?: never;
     delete?: never;
@@ -21239,7 +21239,7 @@ export interface operations {
       };
     };
   };
-  ExportsController_fightersCsv: {
+  ExportsController_hemaRatingsZip: {
     parameters: {
       query?: never;
       header?: never;
@@ -21258,12 +21258,12 @@ export interface operations {
       };
     };
   };
-  ExportsController_resultsCsv: {
+  ExportsController_hemaRatingsPreview: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tournamentId: string;
+        eventId: string;
       };
       cookie?: never;
     };
