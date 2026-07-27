@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { doubleElimPodiumFields, refineDoubleElimPodium } from './double-elim-podium';
 import { SEEDING_STRATEGIES } from './reseed-bracket.dto';
 
 const generatePoolsSchema = z
@@ -51,7 +52,7 @@ const generateBracketSchema = z
      */
     grandFinalReset: z.boolean().optional(),
     /**
-     * Number of fighters to qualify from pool phase (top N by standings).
+     * Number of fighters to qualify from the pool phase (top N by standings).
      * Defaults to next power of 2 ≤ total pool finishers.
      */
     qualifyCount: z.number().int().min(2).optional(),
@@ -68,8 +69,10 @@ const generateBracketSchema = z
      * order is actually resolved. See r1-ranking.ts.
      */
     seedingStrategy: z.enum(SEEDING_STRATEGIES).optional(),
+    ...doubleElimPodiumFields,
   })
-  .strict();
+  .strict()
+  .superRefine(refineDoubleElimPodium);
 export class GenerateBracketDto extends createZodDto(generateBracketSchema) {}
 
 const updatePhaseVisibilitySchema = z

@@ -94,6 +94,8 @@ export default function PersonalTournamentPage() {
     phaseType: data.phaseType,
     wbRounds: data.wbRounds,
     lbRounds: data.lbRounds,
+    secondChanceTarget: data.secondChanceTarget,
+    bronzeMatch: data.bronzeMatch,
   });
   const podiumDecided = !!(podium?.gold && podium.silver);
   const tournamentColor = tournament.color ?? null;
@@ -244,6 +246,9 @@ export default function PersonalTournamentPage() {
                   phaseType={data.phaseType}
                   wbRounds={data.wbRounds}
                   lbRounds={data.lbRounds}
+                  secondChanceTarget={data.secondChanceTarget}
+                  bronzeMatch={data.bronzeMatch}
+                  repechageEntryRound={data.repechageEntryRound}
                   highlightRegistrationId={highlightRegistrationId}
                 />
               ),

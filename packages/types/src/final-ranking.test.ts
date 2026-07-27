@@ -1,31 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinalRanking, type PoolEntry, type RankingSlot } from './final-ranking';
-
-let seq = 0;
-function mk(
-  round: number,
-  position: number,
-  red: string,
-  redScore: number,
-  blue: string,
-  blueScore: number,
-  id?: string,
-): RankingSlot {
-  return {
-    id: id ?? `slot-${seq++}`,
-    round,
-    position,
-    status: 'completed',
-    redRegistrationId: red,
-    blueRegistrationId: blue,
-    redFighterName: red.toUpperCase(),
-    blueFighterName: blue.toUpperCase(),
-    redClubAbbrev: null,
-    blueClubAbbrev: null,
-    redScore,
-    blueScore,
-  };
-}
+import { computeFinalRanking, type RankingSlot } from './final-ranking';
+import { POOL, mk, poolEntry, resetSlotIds } from './final-ranking-test-helpers';
 
 // 8-fighter single-elim: QF (round 1) → SF (round 2) → Final (round 3, pos 1)
 // + Bronze (round 3, pos 2). Winner = higher score.
@@ -33,7 +8,7 @@ function mk(
 // Pool scores: G (8) ranks above C (7) — so the no-bronze path puts G 3rd,
 // while the bronze match (c>g) puts C 3rd. QF losers: f>h>b>d by pool score.
 function buildSlots(): { slots: RankingSlot[]; bronzeId: string } {
-  seq = 0;
+  resetSlotIds(0);
   const slots = [
     mk(1, 1, 'a', 5, 'b', 2),
     mk(1, 2, 'c', 5, 'd', 1),
@@ -47,26 +22,6 @@ function buildSlots(): { slots: RankingSlot[]; bronzeId: string } {
   slots.push(bronze);
   return { slots, bronzeId: bronze.id };
 }
-
-function poolEntry(reg: string, score: number): PoolEntry {
-  return {
-    registrationId: reg,
-    fighterName: reg.toUpperCase(),
-    clubAbbrev: null,
-    poolScore: score,
-  };
-}
-
-const POOL: PoolEntry[] = [
-  poolEntry('a', 10),
-  poolEntry('e', 9),
-  poolEntry('g', 8),
-  poolEntry('c', 7),
-  poolEntry('f', 3.0),
-  poolEntry('h', 2.5),
-  poolEntry('b', 2.0),
-  poolEntry('d', 1.0),
-];
 
 describe('computeFinalRanking', () => {
   it('ranks champion, runner-up, bronze 3rd/4th, then earlier rounds by pool score', () => {
@@ -162,7 +117,7 @@ describe('computeFinalRanking', () => {
 const DE_SHAPE = { phaseType: 'double_elim' as const, wbRounds: 3, lbRounds: 4 };
 
 function buildDoubleElim(gfWinnerIsWb = true): RankingSlot[] {
-  seq = 100;
+  resetSlotIds(100);
   return [
     mk(1, 1, 'a', 5, 'b', 2),
     mk(1, 2, 'c', 5, 'd', 1),

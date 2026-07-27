@@ -9,7 +9,7 @@
  */
 
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { formatRoundCode } from '@myclash/types';
+import { formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
 import { createStoredZip } from '../../common/stored-zip';
 import {
   buildSubmission,
@@ -227,6 +227,10 @@ export class ExportsService {
         bracketRound: typeof bracketSlot?.round === 'number' ? bracketSlot.round : null,
         bracketSize,
         matchNumber: matchLabel || null,
+        // Without the WB/LB split a double-elim bracket falls back to
+        // single-elim labels, so the winners final, the grand final and the
+        // reset all export as "F".
+        ...roundCodeShapeFromConfig(phaseConfig),
       });
 
       lines.push(

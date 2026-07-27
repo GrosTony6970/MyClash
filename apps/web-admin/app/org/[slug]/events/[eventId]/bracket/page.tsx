@@ -27,6 +27,13 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { diffRoleAssignments } from './diff-role-assignments';
+import { deriveDoubleElimPodium } from './derive-de-podium';
+import {
+  DoubleElimPodiumOptions,
+  podiumFromBracket,
+  podiumPayload,
+  type PodiumOptionsValue,
+} from './DoubleElimPodiumOptions';
 
 interface Tournament {
   id: string;
@@ -48,6 +55,10 @@ interface BracketResult {
   lbRounds?: number | null;
   autoAdvance?: boolean;
   grandFinalReset?: boolean;
+  secondChanceTarget?: 'gold' | 'bronze';
+  bronzeMatch?: boolean;
+  repechageEntrySize?: number | null;
+  repechageEntryRound?: number | null;
   seedingStrategy?: string;
   bronzeSlotId?: string | null;
   totalSlots: number;
@@ -210,8 +221,16 @@ export default function BracketPage() {
   const [qualifyCount, setQualifyCount] = useState<number | ''>('');
   const [bracketSize, setBracketSize] = useState<number | ''>('');
   const [phaseType, setPhaseType] = useState<'single_elim' | 'double_elim'>('single_elim');
-  const [grandFinalReset, setGrandFinalReset] = useState(false);
   const [seedingStrategy, setSeedingStrategy] = useState<SeedingStrategy>('snake');
+  // Double-elim podium model. `grandFinalReset` lives in here rather than as a
+  // standalone flag because it is only meaningful in gold mode — the API
+  // rejects the pairing, so the form has to hold them together.
+  const [newPodium, setNewPodium] = useState<PodiumOptionsValue>({
+    secondChanceTarget: 'gold',
+    grandFinalReset: false,
+    bronzeMatch: true,
+    repechageEntrySize: null,
+  });
 
   // Override modal
   const [overrideModal, setOverrideModal] = useState<OverrideModalState | null>(null);
@@ -289,7 +308,12 @@ export default function BracketPage() {
   const [pickerFilter, setPickerFilter] = useState('');
 
   // Configuration card (post-generation edit)
-  const [editGrandFinalReset, setEditGrandFinalReset] = useState(false);
+  const [editPodium, setEditPodium] = useState<PodiumOptionsValue>({
+    secondChanceTarget: 'gold',
+    grandFinalReset: false,
+    bronzeMatch: true,
+    repechageEntrySize: null,
+  });
   const [configSaving, setConfigSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
 
@@ -406,7 +430,7 @@ export default function BracketPage() {
     setBracket(null);
     setBracketPhaseId(null);
     setExistingBracket(false);
-    setEditGrandFinalReset(false);
+    setEditPodium(podiumFromBracket({}));
     setTournamentWeapon(null);
     setRedColor('red');
     setBlueColor('blue');
@@ -429,7 +453,7 @@ export default function BracketPage() {
           setBracketPhaseId(data.phaseId);
           setExistingBracket(true);
           if (data.phaseType === 'double_elim') setPhaseType('double_elim');
-          setEditGrandFinalReset(Boolean(data.grandFinalReset));
+          setEditPodium(podiumFromBracket(data));
         }
       })
       .catch(() => undefined);
@@ -626,7 +650,10 @@ export default function BracketPage() {
       const body: Record<string, unknown> = { phaseType, seedingStrategy };
       if (qualifyCount !== '') body['qualifyCount'] = qualifyCount;
       if (bracketSize !== '') body['bracketSize'] = bracketSize;
-      if (phaseType === 'double_elim') body['grandFinalReset'] = grandFinalReset;
+      // Only the fields that apply in the chosen mode: the API REJECTS a
+      // grand-final reset in bronze mode and a bronze match in gold mode
+      // rather than ignoring them, so sending both would 400.
+      if (phaseType === 'double_elim') Object.assign(body, podiumPayload(newPodium));
 
       const res = await fetch(
         `${apiUrl}/api/v1/tournaments/${selectedTournament}/generate-bracket${force ? '?force=true' : ''}`,
@@ -652,7 +679,7 @@ export default function BracketPage() {
       setBracket(result);
       setBracketPhaseId(result.phaseId);
       setExistingBracket(true);
-      setEditGrandFinalReset(Boolean(result.grandFinalReset));
+      setEditPodium(podiumFromBracket(result));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.common.generationFailed'));
     } finally {
@@ -859,7 +886,10 @@ export default function BracketPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ grandFinalReset: editGrandFinalReset }),
+        // Only `grandFinalReset` is editable in place — the podium model and
+        // the cutoff reshape the losers bracket, so the API refuses them here
+        // and the form locks them.
+        body: JSON.stringify({ grandFinalReset: editPodium.grandFinalReset }),
       });
       if (res.status === 409) {
         setConfigError(t('organizer.phaseVisibility.configLocked'));
@@ -930,24 +960,9 @@ export default function BracketPage() {
       };
     }
     if (bracket.phaseType === 'double_elim') {
-      // Nobody plays for bronze in double elim: 3rd is whoever lost the losers
-      // final, 4th the LB semi's loser. Gold/silver come from the last PLAYED
-      // grand final — an enabled-but-unplayed reset must not blank the podium.
-      const gfRound = (bracket.wbRounds ?? 0) + (bracket.lbRounds ?? 0) + 1;
-      const at = (round: number) => bracket.slots.find((s) => s.round === round) ?? null;
-      const reset = at(gfRound + 1);
-      const final = reset && reset.status === 'completed' ? reset : at(gfRound);
-      const lbFinal = at(gfRound - 1);
-      const lbSemi = at(gfRound - 2);
-      const done = (slot: BracketSlotData | null) => slot?.status === 'completed';
       return {
         bronzeMatch: null as BracketSlotData | null,
-        podium: {
-          gold: done(final) ? winnerName(final!) : null,
-          silver: done(final) ? loserName(final!) : null,
-          bronze: done(lbFinal) ? loserName(lbFinal!) : null,
-          fourth: done(lbSemi) ? loserName(lbSemi!) : null,
-        } as PodiumData,
+        podium: deriveDoubleElimPodium(bracket, { winnerName, loserName }),
       };
     }
     const bronze = bracket.bronzeSlotId
@@ -1208,17 +1223,7 @@ export default function BracketPage() {
               </div>
               {phaseType === 'double_elim' && (
                 <>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={grandFinalReset}
-                      onChange={(e) => setGrandFinalReset(e.target.checked)}
-                      className="rounded"
-                    />
-                    <span className="text-foreground-secondary">
-                      {t('organizer.bracketPage.grandFinalReset')}
-                    </span>
-                  </label>
+                  <DoubleElimPodiumOptions value={newPodium} onChange={setNewPodium} t={t} />
                   {/* A field that isn't a power of two is trimmed by a play-in
                       round. Its losers are OUT after one loss, which surprises
                       organisers who expect double elim to mean two lives for
@@ -1266,19 +1271,6 @@ export default function BracketPage() {
                 </p>
                 <p className="font-mono text-foreground">{bracket.phaseType}</p>
               </div>
-              {bracket.phaseType === 'double_elim' && (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={editGrandFinalReset}
-                    onChange={(e) => setEditGrandFinalReset(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-foreground-secondary">
-                    {t('organizer.phaseVisibility.configGrandFinalReset')}
-                  </span>
-                </label>
-              )}
               {bracket.phaseType === 'double_elim' && (
                 <button
                   onClick={() => void saveBracketConfig()}
@@ -1383,9 +1375,21 @@ export default function BracketPage() {
               </div>
             </div>
             {bracket.phaseType === 'double_elim' && (
-              <p className="mt-3 text-xs text-muted">
-                {t('organizer.phaseVisibility.configGrandFinalResetHint')}
-              </p>
+              <>
+                {/* Same controls as the generate form, so the podium model an
+                    existing bracket was built with stays visible. Everything
+                    but the grand-final reset is locked: those options decide
+                    which slots exist. */}
+                <DoubleElimPodiumOptions
+                  value={editPodium}
+                  onChange={setEditPodium}
+                  t={t}
+                  structuralLocked
+                />
+                <p className="mt-3 text-xs text-muted">
+                  {t('organizer.phaseVisibility.configGrandFinalResetHint')}
+                </p>
+              </>
             )}
             {configError && <p className="mt-2 text-sm text-danger">{configError}</p>}
             {reseedMessage && <p className="mt-2 text-sm text-success">{reseedMessage}</p>}

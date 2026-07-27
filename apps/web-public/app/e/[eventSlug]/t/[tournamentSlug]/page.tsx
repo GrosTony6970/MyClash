@@ -160,8 +160,17 @@ export default async function TournamentPage({ params }: Props) {
     phaseType,
     wbRounds,
     lbRounds,
+    secondChanceTarget,
+    bronzeMatch,
+    repechageEntryRound,
   } = data;
-  const podium = derivePodium(bracketSlots, { phaseType, wbRounds, lbRounds });
+  const podium = derivePodium(bracketSlots, {
+    phaseType,
+    wbRounds,
+    lbRounds,
+    secondChanceTarget,
+    bronzeMatch,
+  });
   const podiumDecided = !!(podium?.gold && podium.silver);
   const fighterCount = pools.reduce(
     (n, pool) => n + (pool.members?.length ?? pool.standings.length),
@@ -451,6 +460,9 @@ export default async function TournamentPage({ params }: Props) {
                 phaseType={phaseType}
                 wbRounds={wbRounds}
                 lbRounds={lbRounds}
+                secondChanceTarget={secondChanceTarget}
+                bronzeMatch={bronzeMatch}
+                repechageEntryRound={repechageEntryRound}
               />
             ),
           },

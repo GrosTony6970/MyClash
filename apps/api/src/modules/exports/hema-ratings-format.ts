@@ -101,9 +101,9 @@ export function matchOutcome(
 
 /**
  * Round label in HEMA Ratings' own vocabulary ("Final", "Semi Final",
- * "Bronze Final", "Pool 1"), which differs from the MyClash-native names in
- * export-round-names.ts ("Gold Medal Match", "Pools"). Kept separate rather
- * than parameterised so neither namer can drift into the other's output.
+ * "Bronze Final", "Pool 1"), which differs from the short operator-facing
+ * codes `formatRoundCode` emits ("LSW-B-WBF-M1"). Kept separate rather than
+ * parameterised so neither namer can drift into the other's output.
  */
 export function hemaRatingsRound(
   match: Pick<
@@ -135,6 +135,15 @@ function singleElimRound(matchLabel: string | null): string {
   return matchLabel ?? 'Elimination';
 }
 
+/** Winners-bracket depth label, given how many fighters remain at that round. */
+function winnersRound(round: number, wbRounds: number): string {
+  const left = 2 ** (wbRounds - round + 1);
+  if (left === 2) return 'Winners Final';
+  if (left === 4) return 'Winners Semi Final';
+  if (left === 8) return 'Winners Quarter Final';
+  return `Winners Round of ${left}`;
+}
+
 function doubleElimRound(
   match: Pick<SubmissionMatch, 'phaseConfig' | 'bracketRound' | 'matchLabel'>,
 ): string {
@@ -146,13 +155,19 @@ function doubleElimRound(
     return match.matchLabel ?? 'Elimination';
   }
   if (round === 0) return 'Play-ins';
-  if (round <= wbRounds) {
-    const left = 2 ** (wbRounds - round + 1);
-    if (left === 2) return 'Winners Final';
-    if (left === 4) return 'Winners Semi Final';
-    if (left === 8) return 'Winners Quarter Final';
-    return `Winners Round of ${left}`;
+
+  // Bronze mode has no grand final: the WINNERS-bracket final decides the
+  // title, and the repechage's last round is the bronze match. Naming those
+  // "Winners Final" and "Losers Round 3" would understate both to a rating
+  // system that reads the stage name.
+  if (config['secondChanceTarget'] === 'bronze') {
+    if (round === wbRounds) return 'Final';
+    if (round < wbRounds) return winnersRound(round, wbRounds);
+    const isBronzeMatch = config['bronzeMatch'] !== false && round === wbRounds + lbRounds;
+    return isBronzeMatch ? 'Bronze Final' : `Losers Round ${round - wbRounds}`;
   }
+
+  if (round <= wbRounds) return winnersRound(round, wbRounds);
   if (round <= wbRounds + lbRounds) return `Losers Round ${round - wbRounds}`;
   return round === wbRounds + lbRounds + 1 ? 'Final' : 'Final (reset)';
 }

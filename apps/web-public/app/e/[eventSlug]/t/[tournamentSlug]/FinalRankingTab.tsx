@@ -41,6 +41,12 @@ interface Props {
   phaseType?: 'single_elim' | 'double_elim';
   wbRounds?: number | null;
   lbRounds?: number | null;
+  /** Bronze mode reads gold/silver off the winners-bracket final instead of a
+   *  grand final, and a repechage cutoff makes pre-cutoff winners-bracket
+   *  losses final — both change the order, so both must reach the ranking. */
+  secondChanceTarget?: 'gold' | 'bronze' | null;
+  bronzeMatch?: boolean | null;
+  repechageEntryRound?: number | null;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -68,6 +74,9 @@ export function FinalRankingTab({
   phaseType,
   wbRounds,
   lbRounds,
+  secondChanceTarget,
+  bronzeMatch,
+  repechageEntryRound,
   highlightRegistrationId,
 }: Props) {
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
@@ -134,7 +143,14 @@ export function FinalRankingTab({
     rankingSlots,
     poolEntries,
     null,
-    rankingBracketShape({ phaseType, wbRounds, lbRounds }),
+    rankingBracketShape({
+      phaseType,
+      wbRounds,
+      lbRounds,
+      secondChanceTarget,
+      bronzeMatch,
+      repechageEntryRound,
+    }),
   );
 
   if (ranking.length === 0) {

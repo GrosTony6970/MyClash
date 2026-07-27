@@ -3,14 +3,17 @@
  *
  * Double-elimination bracket generator.
  *
- * Pure function — no DB, no I/O.
+ * Pure function — no DB, no I/O. All sizing, validation and option-conflict
+ * rules live in `double-elim-shape.ts`; this file assembles slots from the
+ * resolved shape.
  *
  * Structure:
  *   Play-in (R0):         optional, trims the field to a power of two
  *   Winners Bracket (WB): log2(bracketSize) rounds
- *   Losers Bracket (LB):  2 * (log2(bracketSize) - 1) rounds
- *   Grand Final (GF):     1 slot
- *   Reset (optional):     1 slot
+ *   Losers Bracket (LB):  the repechage — see `double-elim-shape.ts` for how a
+ *                         cutoff and bronze mode re-index and truncate it
+ *   Grand Final (GF):     1 slot   (gold mode only)
+ *   Reset (optional):     1 slot   (gold mode only)
  *
  * Round numbering (absolute):
  *   Play-in:     0
@@ -20,10 +23,10 @@
  *   Reset:       wbRounds+lbRounds+2  (only if grandFinalReset=true)
  *
  * LB round pattern:
- *   LB-R1 (drop):   losers from WB-R1 face each other
- *   LB-R2 (mixed):  LB survivors vs WB-R2 losers
+ *   LB-R1 (drop):   losers from WB round `repechageEntryRound` face each other
+ *   LB-R2 (mixed):  LB survivors vs the next WB round's losers
  *   LB-R3 (consol): LB survivors consolidate
- *   LB-R4 (mixed):  LB survivors vs WB-R3 losers
+ *   LB-R4 (mixed):  LB survivors vs the next WB round's losers
  *   ... alternating consolidation and mixed rounds
  *
  * NO BYES. A double-elimination bracket cannot carry byes in WB-R1: the LB
@@ -37,6 +40,7 @@
  * round must disclose this.
  */
 
+import { resolveDoubleElimShape } from './double-elim-shape';
 import {
   buildFinalsSlots,
   buildLosersSlots,
@@ -45,7 +49,15 @@ import {
 } from './double-elim-slots';
 import type { DoubleElimSlot } from './double-elim-slots';
 
+export {
+  MAX_DOUBLE_ELIM_BRACKET_SIZE,
+  resolveDoubleElimShape,
+  isPowerOf2,
+} from './double-elim-shape';
+export type { DoubleElimOptions, DoubleElimShape, SecondChanceTarget } from './double-elim-shape';
 export type { SlotSourceType, DoubleElimSlot } from './double-elim-slots';
+
+import type { DoubleElimOptions, SecondChanceTarget } from './double-elim-shape';
 
 export interface DoubleElimBracket {
   /** Main bracket size — always a power of two, always full. */
@@ -63,99 +75,40 @@ export interface DoubleElimBracket {
   /** True when round-0 play-in slots are present. */
   hasPlayInRound: boolean;
   wbRounds: number;
+  /** Losers-bracket rounds actually generated (after any bronze truncation). */
   lbRounds: number;
+  /** Whether the losers bracket plays for gold or for bronze. */
+  secondChanceTarget: SecondChanceTarget;
+  /** Bronze mode only: is the last LB round a played bronze match? */
+  bronzeMatch: boolean;
+  /** Effective second-chance cutoff — equals `bracketSize` when unrestricted. */
+  repechageEntrySize: number;
+  /** First WB round whose losers drop into the LB (1 when unrestricted). */
+  repechageEntryRound: number;
+  /** Whether a conditional grand-final reset slot was emitted. */
+  grandFinalReset: boolean;
   slots: DoubleElimSlot[];
 }
-
-export interface DoubleElimOptions {
-  /**
-   * Override the main bracket size. Must be a power of 2.
-   *
-   * Unlike single-elim, it may NOT exceed `fighterCount`: a bracket larger
-   * than the field can only be filled with byes, which deadlocks the losers
-   * bracket. Cutting DOWN to a smaller bracket is allowed (the surplus
-   * fighters play a round-0 play-in), bounded by
-   * `fighterCount <= 2 * bracketSize` so the play-in fits in one round.
-   */
-  bracketSize?: number;
-  /** Whether to include a grand final reset slot. Default: false. */
-  grandFinalReset?: boolean;
-}
-
-export const MAX_DOUBLE_ELIM_BRACKET_SIZE = 128;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function isPowerOf2(n: number): boolean {
-  return n >= 1 && (n & (n - 1)) === 0;
-}
-
-/** Highest power of 2 strictly below n. */
-function highestPowerOf2Below(n: number): number {
-  let p = 1;
-  while (p * 2 < n) p <<= 1;
-  return p;
-}
-
-/** Resolve the main bracket size, validating any explicit override. */
-function resolveBracketSize(fighterCount: number, options: DoubleElimOptions): number {
-  if (options.bracketSize === undefined) {
-    return isPowerOf2(fighterCount) ? fighterCount : highestPowerOf2Below(fighterCount);
-  }
-
-  const bracketSize = options.bracketSize;
-  if (bracketSize < 2 || !isPowerOf2(bracketSize)) {
-    throw new Error(`bracketSize must be a power of 2 (got ${bracketSize})`);
-  }
-  if (bracketSize > fighterCount) {
-    throw new Error(
-      `bracketSize (${bracketSize}) must be <= fighterCount (${fighterCount}) — ` +
-        'double elimination requires a full bracket, because byes in the winners ' +
-        'bracket leave the losers bracket unfillable',
-    );
-  }
-  if (fighterCount > bracketSize * 2) {
-    throw new Error(
-      `fighterCount (${fighterCount}) must be <= 2 x bracketSize (${bracketSize}) — ` +
-        'the play-in round cannot absorb more than one extra fighter per seat',
-    );
-  }
-  return bracketSize;
-}
-
-// ── Main function ─────────────────────────────────────────────────────────────
 
 /**
  * Generate a double-elimination bracket for N fighters.
  *
  * @param fighterCount  Number of qualified fighters
- * @param options       Optional overrides
+ * @param options       Podium model, repechage cutoff, sizing overrides
  * @returns             Complete bracket structure
  */
 export function doubleElimBracket(
   fighterCount: number,
   options: DoubleElimOptions = {},
 ): DoubleElimBracket {
-  if (fighterCount < 2) throw new Error('Need at least 2 fighters for a bracket');
-
-  const bracketSize = resolveBracketSize(fighterCount, options);
-
-  if (bracketSize > MAX_DOUBLE_ELIM_BRACKET_SIZE) {
-    throw new Error(`bracketSize must be <= ${MAX_DOUBLE_ELIM_BRACKET_SIZE} (got ${bracketSize})`);
-  }
-
-  const playInMatchCount = fighterCount - bracketSize;
-  const hasPlayInRound = playInMatchCount > 0;
-  // Top seeds that skip the play-in and enter WB-R1 directly.
-  const byeSeedCount = hasPlayInRound ? bracketSize - playInMatchCount : 0;
-  const wbRounds = Math.log2(bracketSize);
-  const lbRounds = 2 * (wbRounds - 1);
+  const shape = resolveDoubleElimShape(fighterCount, options);
+  const { bracketSize, byeSeedCount, hasPlayInRound, wbRounds, lbRounds } = shape;
 
   const slots: DoubleElimSlot[] = [
-    ...buildPlayInSlots(fighterCount, byeSeedCount, playInMatchCount),
+    ...buildPlayInSlots(fighterCount, byeSeedCount, shape.playInMatchCount),
     ...buildWinnersSlots(bracketSize, byeSeedCount, hasPlayInRound, wbRounds),
-    ...buildLosersSlots(bracketSize, wbRounds, lbRounds),
-    ...buildFinalsSlots(wbRounds, lbRounds, options.grandFinalReset === true),
+    ...buildLosersSlots(shape.repechageEntrySize, shape.repechageEntryRound, wbRounds, lbRounds),
+    ...buildFinalsSlots(wbRounds, lbRounds, shape.grandFinalReset, shape.secondChanceTarget),
   ];
 
   return {
@@ -164,10 +117,15 @@ export function doubleElimBracket(
     fighterCount,
     byeCount: 0,
     byeSeedCount,
-    playInMatchCount,
+    playInMatchCount: shape.playInMatchCount,
     hasPlayInRound,
     wbRounds,
     lbRounds,
+    secondChanceTarget: shape.secondChanceTarget,
+    bronzeMatch: shape.bronzeMatch,
+    repechageEntrySize: shape.repechageEntrySize,
+    repechageEntryRound: shape.repechageEntryRound,
+    grandFinalReset: shape.grandFinalReset,
     slots,
   };
 }
@@ -175,16 +133,24 @@ export function doubleElimBracket(
 /**
  * Total matches in a double-elimination bracket.
  *
- * The main bracket is 2*bracketSize - 2 (every fighter but the champion is
- * eliminated by a second loss, and the champion may concede one). Play-in
- * matches are additive: their losers go out after a single loss, so they do
- * NOT follow the 2N-2 rule that applies to the main bracket.
+ * Deliberately a CLOSED FORM rather than a slot count, so it independently
+ * cross-checks the generator instead of restating it — the simulation test
+ * asserts the two agree, which is what catches a mis-shaped ladder.
+ *
+ *   Play-in   playInMatchCount   (losers go out on one loss — additive, and
+ *                                 outside the 2N-2 rule)
+ *   WB        bracketSize - 1
+ *   LB        K - 2, less 1 per bronze-mode truncation. A full repechage takes
+ *             K - 1 entrants down to a single survivor.
+ *   Finals    1 grand final (+1 reset), gold mode only.
  */
 export function totalDoubleElimMatches(
   fighterCount: number,
   options: DoubleElimOptions = {},
 ): number {
-  const bracketSize = resolveBracketSize(fighterCount, options);
-  const playInMatchCount = fighterCount - bracketSize;
-  return playInMatchCount + (2 * bracketSize - 2) + (options.grandFinalReset === true ? 1 : 0);
+  const shape = resolveDoubleElimShape(fighterCount, options);
+  const truncation = shape.secondChanceTarget === 'bronze' ? (shape.bronzeMatch ? 1 : 2) : 0;
+  const lbMatches = shape.repechageEntrySize - 2 - truncation;
+  const finals = shape.secondChanceTarget === 'bronze' ? 0 : 1 + (shape.grandFinalReset ? 1 : 0);
+  return shape.playInMatchCount + (shape.bracketSize - 1) + lbMatches + finals;
 }

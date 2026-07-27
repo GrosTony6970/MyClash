@@ -35,6 +35,11 @@ import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 // erased at runtime so the @Optional() param silently resolves to `undefined`.
 import { BracketAdvanceService } from './bracket-advance.service';
 import { placeholderMatchRow } from './bracket-placeholder-match';
+import {
+  doubleElimConfigJson,
+  doubleElimOptionsFromDto,
+  structuralConfigChanges,
+} from './double-elim-config';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
@@ -380,7 +385,6 @@ export class PhasesService {
     // Stamped onto config_json only. generateBracket builds the STRUCTURE;
     // populateBracket resolves the rank order from this value later.
     const seedingStrategy = dto.seedingStrategy ?? 'snake';
-    const grandFinalReset = isDoubleElim ? (dto.grandFinalReset ?? false) : false;
 
     // Check for existing elim phase
     const { data: existing } = await this.supabase.service
@@ -440,32 +444,20 @@ export class PhasesService {
     if (isDoubleElim) {
       let bracket: ReturnType<typeof doubleElimBracket>;
       try {
-        // grandFinalReset MUST reach the generator, not just config_json: it is
-        // what emits the RESET slot. Stamping the flag without passing it here
-        // left the option enabled everywhere in the UI while the slot it
-        // controls was never created.
-        bracket = doubleElimBracket(qualifyCount, { ...bracketOptions, grandFinalReset });
+        // The podium options MUST reach the generator, not just config_json:
+        // they are what emit (or omit) the reset and grand-final slots and what
+        // size the losers bracket. Stamping a flag without passing it here left
+        // the option enabled everywhere in the UI while the slot it controls
+        // was never created.
+        bracket = doubleElimBracket(qualifyCount, {
+          ...bracketOptions,
+          ...doubleElimOptionsFromDto(dto),
+        });
       } catch (error) {
         throw new BadRequestException(error instanceof Error ? error.message : 'Invalid bracket');
       }
-      configJson = {
-        bracketSize: bracket.bracketSize,
-        mainBracketSize: bracket.mainBracketSize,
-        fighterCount: bracket.fighterCount,
-        // Always 0 — a double-elim bracket is trimmed by a round-0 play-in
-        // rather than padded with byes, because a bye has no loser and the
-        // losers bracket feeds off `loser of WBR1Px`.
-        byeCount: bracket.byeCount,
-        byeSeedCount: bracket.byeSeedCount,
-        playInMatchCount: bracket.playInMatchCount,
-        hasPlayInRound: bracket.hasPlayInRound,
-        wbRounds: bracket.wbRounds,
-        lbRounds: bracket.lbRounds,
-        autoAdvance: true,
-        grandFinalReset,
-        seedingStrategy,
-      };
-      if (grandFinalReset) resetRound = bracket.wbRounds + bracket.lbRounds + 2;
+      configJson = doubleElimConfigJson(bracket, seedingStrategy);
+      if (bracket.grandFinalReset) resetRound = bracket.wbRounds + bracket.lbRounds + 2;
       slotInserts = bracket.slots.map((slot) => ({
         phase_id: '__PHASE_ID__',
         round: slot.round,
@@ -720,12 +712,32 @@ export class PhasesService {
       );
     }
 
+    const wantsDoubleElimEdit =
+      dto.grandFinalReset !== undefined ||
+      dto.secondChanceTarget !== undefined ||
+      dto.bronzeMatch !== undefined ||
+      dto.repechageEntrySize !== undefined;
+    if (wantsDoubleElimEdit && phaseType !== 'double_elim') {
+      throw new BadRequestException('Podium options only apply to double-elim brackets');
+    }
+
+    // This endpoint updates config_json ONLY — it never rebuilds bracket_slots.
+    // The podium model and the repechage cutoff change which slots exist, so
+    // applying them here would leave a bracket whose stored shape contradicts
+    // its rows. Regenerating is the operation that can do that safely, and it
+    // already has its own confirmation in the UI.
+    const structural = structuralConfigChanges(dto, config);
+    if (structural.length > 0) {
+      throw new ConflictException(
+        `Changing ${structural.join(', ')} reshapes the losers bracket, so it cannot be ` +
+          'edited in place. Regenerate the bracket to apply it.',
+      );
+    }
+
     const next = { ...config };
     if (dto.grandFinalReset !== undefined) {
-      if (phaseType !== 'double_elim') {
-        throw new BadRequestException('grandFinalReset only applies to double-elim brackets');
-      }
       next['grandFinalReset'] = dto.grandFinalReset;
+      await this.syncGrandFinalResetSlot(phaseId, config, dto.grandFinalReset);
     }
 
     const { data: updated, error: updateErr } = await this.supabase.service
@@ -745,6 +757,71 @@ export class PhasesService {
     });
 
     return updated;
+  }
+
+  /**
+   * Add or drop the conditional grand-final reset slot so it matches an edited
+   * `grandFinalReset` flag.
+   *
+   * Slice 1 made the reset slot conditional at GENERATION time but left this
+   * endpoint writing config only, so turning the option on afterwards flipped
+   * the flag without ever creating the slot it controls — the bracket then had
+   * no reset to play and the flag was a lie. The reset slot deliberately
+   * carries no `matches` row (`createInitialBracketMatches` skips it), so
+   * adding or dropping it destroys no history.
+   *
+   * The slot is taken from the generator rather than hand-written here: the
+   * advancement ref strings must agree EXACTLY with what it emits, and a
+   * second copy of them is a silent permanent stall waiting to happen.
+   */
+  private async syncGrandFinalResetSlot(
+    phaseId: string,
+    config: Record<string, unknown>,
+    enabled: boolean,
+  ): Promise<void> {
+    const wbRounds = config['wbRounds'];
+    const lbRounds = config['lbRounds'];
+    const fighterCount = config['fighterCount'];
+    const bracketSize = config['bracketSize'];
+    if (typeof wbRounds !== 'number' || typeof lbRounds !== 'number') return;
+    const resetRound = wbRounds + lbRounds + 2;
+
+    if (!enabled) {
+      await this.supabase.service
+        .from('bracket_slots')
+        .delete()
+        .eq('phase_id', phaseId)
+        .eq('round', resetRound);
+      return;
+    }
+
+    const { data: existing } = await this.supabase.service
+      .from('bracket_slots')
+      .select('id')
+      .eq('phase_id', phaseId)
+      .eq('round', resetRound)
+      .limit(1);
+    if ((existing ?? []).length > 0) return;
+    if (typeof fighterCount !== 'number' || typeof bracketSize !== 'number') return;
+
+    const regenerated = doubleElimBracket(
+      fighterCount,
+      doubleElimOptionsFromDto({ ...config, grandFinalReset: true }, bracketSize),
+    );
+    const reset = regenerated.slots.find((s) => s.section === 'RESET');
+    if (!reset) return;
+
+    await this.supabase.service.from('bracket_slots').insert({
+      phase_id: phaseId,
+      round: reset.round,
+      position: reset.position,
+      source_a_type: reset.sourceAType,
+      source_a_ref: reset.homeSource,
+      source_b_type: reset.sourceBType,
+      source_b_ref: reset.awaySource,
+      registration_a_id: null,
+      registration_b_id: null,
+    });
   }
 
   /**
@@ -1628,6 +1705,10 @@ export class PhasesService {
       lbRounds?: number;
       autoAdvance?: boolean;
       grandFinalReset?: boolean;
+      secondChanceTarget?: 'gold' | 'bronze';
+      bronzeMatch?: boolean;
+      repechageEntrySize?: number | null;
+      repechageEntryRound?: number;
       seedingStrategy?: string;
       bronzeSlotId?: string;
     };
@@ -1656,6 +1737,12 @@ export class PhasesService {
       lbRounds: config.lbRounds ?? null,
       autoAdvance: config.autoAdvance ?? true,
       grandFinalReset: config.grandFinalReset ?? false,
+      // Phases generated before the podium options shipped carry none of these;
+      // the defaults reproduce the classical bracket they were built as.
+      secondChanceTarget: config.secondChanceTarget ?? 'gold',
+      bronzeMatch: config.bronzeMatch ?? false,
+      repechageEntrySize: config.repechageEntrySize ?? null,
+      repechageEntryRound: config.repechageEntryRound ?? 1,
       seedingStrategy: config.seedingStrategy ?? 'snake',
       bronzeSlotId: config.bronzeSlotId ?? null,
       totalSlots: enrichedSlots.length,

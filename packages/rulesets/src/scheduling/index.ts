@@ -21,11 +21,14 @@ export {
   MAX_DOUBLE_ELIM_BRACKET_SIZE,
   doubleElimBracket,
   totalDoubleElimMatches,
+  resolveDoubleElimShape,
 } from './double-elim';
 export type {
   DoubleElimBracket,
   DoubleElimSlot,
   DoubleElimOptions,
+  DoubleElimShape,
+  SecondChanceTarget,
   SlotSourceType,
 } from './double-elim';
 

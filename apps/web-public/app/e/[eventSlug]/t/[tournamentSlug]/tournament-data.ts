@@ -112,6 +112,9 @@ export interface TournamentData {
   phaseType?: 'single_elim' | 'double_elim';
   wbRounds?: number | null;
   lbRounds?: number | null;
+  secondChanceTarget?: 'gold' | 'bronze' | null;
+  bronzeMatch?: boolean | null;
+  repechageEntryRound?: number | null;
 }
 
 /** The bracket shape needed to read a double-elim podium. */
@@ -119,6 +122,9 @@ export interface PodiumShape {
   phaseType?: 'single_elim' | 'double_elim';
   wbRounds?: number | null;
   lbRounds?: number | null;
+  /** Bronze mode has no grand final — the winners-bracket final takes the title. */
+  secondChanceTarget?: 'gold' | 'bronze' | null;
+  bronzeMatch?: boolean | null;
 }
 
 // Recorded winner first — forfeits can award the lower-scored fighter (a
@@ -147,58 +153,89 @@ function loserName(s: BracketSlot | null) {
   return name ? { fighterName: name } : null;
 }
 
+/** Which slots decide each podium place, and how to read them. */
+interface PodiumSlots {
+  final: BracketSlot | null;
+  bronze: BracketSlot | null;
+  fourthSlot: BracketSlot | null;
+  /** True when 3rd/4th are the WINNER/loser of one match rather than the
+   *  LOSERS of two consecutive rounds. */
+  bronzeIsMatch: boolean;
+}
+
 /**
- * Gold/silver/bronze/4th from bracketSlots.
+ * Locate the deciding slots for each podium model.
  *
  * Single-elim: position 1 at maxRound is the final, position 2 (when present)
  * the bronze match.
  *
- * Double-elim: gold/silver come from the last PLAYED grand final — the reset
- * slot exists whenever the option is on but is only played when the
+ * Double-elim, GOLD: gold/silver come from the last PLAYED grand final — the
+ * reset slot exists whenever the option is on but is only played when the
  * losers-bracket entrant wins, so reading maxRound blindly would show an
- * undecided podium forever. Bronze is the losers-bracket final's loser and 4th
- * the LB semi-final's loser, matching computeFinalRanking's ordering.
+ * undecided podium forever. Nobody plays for bronze: 3rd is whoever lost the
+ * losers-bracket final, 4th the LB semi's loser.
+ *
+ * Double-elim, BRONZE: there is no grand final at all. Gold/silver come from
+ * the WINNERS-bracket final, and the repechage's last round IS a bronze match
+ * — so it reads like single-elim's, winner 3rd and loser 4th.
  */
+function podiumSlots(bracketSlots: BracketSlot[], shape?: PodiumShape): PodiumSlots {
+  const at = (round: number, position = 1) =>
+    bracketSlots.find((s) => s.round === round && s.position === position) ?? null;
+
+  if (shape?.phaseType !== 'double_elim') {
+    const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
+    return {
+      final: at(maxRound, 1),
+      bronze: at(maxRound, 2),
+      fourthSlot: null,
+      bronzeIsMatch: true,
+    };
+  }
+
+  const wbRounds = shape.wbRounds ?? 0;
+  const lbRounds = shape.lbRounds ?? 0;
+
+  if (shape.secondChanceTarget === 'bronze') {
+    return {
+      final: at(wbRounds),
+      // With no bronze match the last repechage round leaves TWO survivors who
+      // are separated by pool score — a tiebreak this function has no scores
+      // for. The Final ranking tab is the authority there; the podium summary
+      // shows gold/silver only rather than guessing.
+      bronze: shape.bronzeMatch === false ? null : at(wbRounds + lbRounds),
+      fourthSlot: null,
+      bronzeIsMatch: true,
+    };
+  }
+
+  const gfRound = wbRounds + lbRounds + 1;
+  const reset = at(gfRound + 1);
+  return {
+    final: reset && reset.status === 'completed' ? reset : at(gfRound),
+    bronze: at(gfRound - 1),
+    fourthSlot: at(gfRound - 2),
+    bronzeIsMatch: false,
+  };
+}
+
+/** Gold/silver/bronze/4th from bracketSlots. */
 export function derivePodium(
   bracketSlots: BracketSlot[],
   shape?: PodiumShape,
 ): PodiumData | undefined {
   if (bracketSlots.length === 0) return undefined;
-  const at = (round: number, position = 1) =>
-    bracketSlots.find((s) => s.round === round && s.position === position) ?? null;
-
-  let final: BracketSlot | null;
-  let bronze: BracketSlot | null;
-  let fourthSlot: BracketSlot | null = null;
-
-  if (shape?.phaseType === 'double_elim') {
-    const gfRound = (shape.wbRounds ?? 0) + (shape.lbRounds ?? 0) + 1;
-    const reset = at(gfRound + 1);
-    final = reset && reset.status === 'completed' ? reset : at(gfRound);
-    // In double elim nobody plays for bronze: 3rd is whoever lost the LB final.
-    bronze = at(gfRound - 1);
-    fourthSlot = at(gfRound - 2);
-  } else {
-    const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
-    final = at(maxRound, 1);
-    bronze = at(maxRound, 2);
-  }
+  const { final, bronze, fourthSlot, bronzeIsMatch } = podiumSlots(bracketSlots, shape);
   if (!final && !bronze) return undefined;
-  // Single-elim reads both podium places off the bronze match; double-elim
-  // reads the LOSERS of two different LB rounds.
-  return shape?.phaseType === 'double_elim'
-    ? {
-        gold: winnerName(final),
-        silver: loserName(final),
-        bronze: loserName(bronze),
-        fourth: loserName(fourthSlot),
-      }
-    : {
-        gold: winnerName(final),
-        silver: loserName(final),
-        bronze: winnerName(bronze),
-        fourth: loserName(bronze),
-      };
+
+  return {
+    gold: winnerName(final),
+    silver: loserName(final),
+    // A bronze MATCH gives 3rd to its winner; classical double-elim instead
+    // reads the LOSERS of two consecutive losers-bracket rounds.
+    bronze: bronzeIsMatch ? winnerName(bronze) : loserName(bronze),
+    fourth: bronzeIsMatch ? loserName(bronze) : loserName(fourthSlot),
+  };
 }
 
 /** Tournament brand colour token → hex for the legacy stripe/title paint. */

@@ -961,6 +961,138 @@ describe('PhasesService', () => {
         service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    /**
+     * The podium model and the repechage cutoff decide which slots EXIST, and
+     * this endpoint writes config_json without touching bracket_slots. Applying
+     * them here would leave a bracket whose stored shape contradicts its rows —
+     * so they are refused with a pointer to regenerate instead.
+     */
+    it.each([
+      ['secondChanceTarget', { secondChanceTarget: 'bronze' as const }],
+      ['bronzeMatch', { secondChanceTarget: 'bronze' as const, bronzeMatch: false }],
+      ['repechageEntrySize', { repechageEntrySize: 8 as const }],
+    ])('refuses the in-place %s change and says to regenerate', async (_field, dto) => {
+      const phaseChain = bracketPhase('double_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: { config_json: { bracketSize: 8, wbRounds: 3, lbRounds: 4 } },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(configReadChain)
+        .mockReturnValueOnce(completedCheckChain);
+
+      await expect(service.editBracketConfig('phase-1', 'actor-1', dto)).rejects.toThrow(
+        /Regenerate the bracket/,
+      );
+    });
+
+    it('allows re-sending a structural value that is already stored', async () => {
+      // Not a change, so not a rebuild — the form posts the whole podium struct.
+      const phaseChain = bracketPhase('double_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: { config_json: { bracketSize: 8, secondChanceTarget: 'gold' } },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(configReadChain)
+        .mockReturnValueOnce(completedCheckChain)
+        .mockReturnValueOnce(updateChain)
+        .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+      await expect(
+        service.editBracketConfig('phase-1', 'actor-1', {
+          secondChanceTarget: 'gold',
+          repechageEntrySize: null,
+        }),
+      ).resolves.toMatchObject({ id: 'phase-1' });
+    });
+
+    /**
+     * Slice 1 made the reset slot conditional at GENERATION time but left this
+     * endpoint writing config only — so turning the option on afterwards
+     * flipped the flag without creating the slot it controls, and the bracket
+     * had no reset to play.
+     */
+    it('creates the reset slot when the option is turned on after generation', async () => {
+      const phaseChain = bracketPhase('double_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: {
+          config_json: {
+            bracketSize: 8,
+            fighterCount: 8,
+            wbRounds: 3,
+            lbRounds: 4,
+            grandFinalReset: false,
+          },
+        },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
+      const slotLookupChain = makeAwaitableChain({ data: [], error: null });
+      const slotInsertChain = makeAwaitableChain({ data: null, error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(configReadChain)
+        .mockReturnValueOnce(completedCheckChain)
+        .mockReturnValueOnce(slotLookupChain) // existing reset slot?
+        .mockReturnValueOnce(slotInsertChain) // insert it
+        .mockReturnValueOnce(updateChain)
+        .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+      await service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true });
+
+      // Round 9 = wbRounds(3) + lbRounds(4) + 2, and the refs must match what
+      // the generator emits or advancement silently stalls forever.
+      expect(slotInsertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          round: 9,
+          position: 1,
+          source_a_ref: 'loser of GF',
+          source_b_ref: 'winner of GF',
+        }),
+      );
+    });
+
+    it('drops the reset slot when the option is turned off', async () => {
+      const phaseChain = bracketPhase('double_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: { config_json: { bracketSize: 8, wbRounds: 3, lbRounds: 4, grandFinalReset: true } },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
+      const slotDeleteChain = makeAwaitableChain({ data: null, error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(configReadChain)
+        .mockReturnValueOnce(completedCheckChain)
+        .mockReturnValueOnce(slotDeleteChain)
+        .mockReturnValueOnce(updateChain)
+        .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+      await service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: false });
+
+      expect(slotDeleteChain.delete).toHaveBeenCalled();
+      expect(slotDeleteChain.eq).toHaveBeenCalledWith('round', 9);
+    });
   });
 
   describe('reseedBracketRoundOne', () => {

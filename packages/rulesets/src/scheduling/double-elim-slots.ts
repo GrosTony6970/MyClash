@@ -152,25 +152,35 @@ export function buildWinnersSlots(
   return out;
 }
 
-/** The two source refs for one losers-bracket slot at LB round k, position p. */
+/**
+ * The two source refs for one losers-bracket slot at LB round k, position p.
+ *
+ * `entryRound` is the first WB round whose losers drop in — 1 without a
+ * repechage cutoff, deeper with one. Everything else re-indexes off it: the
+ * drop round reads WB `entryRound`, and each mixed round reads the WB round
+ * exactly k/2 deeper than that.
+ */
 function lbSources(
   k: number,
   pos: number,
+  entryRound: number,
 ): Pick<DoubleElimSlot, 'homeSource' | 'awaySource' | 'sourceAType' | 'sourceBType'> {
   if (k === 1) {
-    // Drop round: position j pairs the WB-R1 losers at positions 2j-1 and 2j.
+    // Drop round: position j pairs the entry-round losers at positions 2j-1, 2j.
     return {
-      homeSource: `loser of WBR1P${2 * pos - 1}`,
-      awaySource: `loser of WBR1P${2 * pos}`,
+      homeSource: `loser of WBR${entryRound}P${2 * pos - 1}`,
+      awaySource: `loser of WBR${entryRound}P${2 * pos}`,
       sourceAType: 'loser_of',
       sourceBType: 'loser_of',
     };
   }
   if (k % 2 === 0) {
-    // Mixed round: LB survivors meet the losers dropping out of WB round k/2+1.
+    // Mixed round: LB survivors meet the losers dropping out of WB round
+    // (entryRound - 1) + k/2 + 1. Both sides have the same match count, so the
+    // positions map 1:1.
     return {
       homeSource: `winner of LBR${k - 1}P${pos}`,
-      awaySource: `loser of WBR${k / 2 + 1}P${pos}`,
+      awaySource: `loser of WBR${entryRound + k / 2}P${pos}`,
       sourceAType: 'winner_of',
       sourceBType: 'loser_of',
     };
@@ -184,28 +194,52 @@ function lbSources(
   };
 }
 
-/** LB round k (1-indexed within the LB) sits at absolute round wbRounds + k. */
+/**
+ * LB round k (1-indexed within the LB) sits at absolute round wbRounds + k —
+ * unchanged by any cutoff, so the advancement ref strings stay stable.
+ *
+ * Match counts key off `repechageEntrySize`, not the bracket size: a cutoff of
+ * K makes the losers bracket structurally identical to a K-sized bracket's LB.
+ * `lbRounds` already carries any bronze-mode truncation.
+ */
 export function buildLosersSlots(
-  bracketSize: number,
+  repechageEntrySize: number,
+  entryRound: number,
   wbRounds: number,
   lbRounds: number,
 ): DoubleElimSlot[] {
   const out: DoubleElimSlot[] = [];
   for (let k = 1; k <= lbRounds; k++) {
-    const matchCount = bracketSize / (4 * Math.pow(2, Math.floor((k - 1) / 2)));
+    const matchCount = repechageEntrySize / (4 * Math.pow(2, Math.floor((k - 1) / 2)));
     for (let pos = 1; pos <= matchCount; pos++) {
-      out.push(slot({ round: wbRounds + k, position: pos, section: 'LB', ...lbSources(k, pos) }));
+      out.push(
+        slot({
+          round: wbRounds + k,
+          position: pos,
+          section: 'LB',
+          ...lbSources(k, pos, entryRound),
+        }),
+      );
     }
   }
   return out;
 }
 
-/** Grand final, plus the conditional reset slot when it is enabled. */
+/**
+ * Grand final, plus the conditional reset slot when it is enabled.
+ *
+ * Returns NOTHING in bronze mode: there, the winners-bracket final decides
+ * gold and silver on its own and the repechage plays for bronze, so the
+ * losers-bracket winner never meets the champion.
+ */
 export function buildFinalsSlots(
   wbRounds: number,
   lbRounds: number,
   grandFinalReset: boolean,
+  secondChanceTarget: 'gold' | 'bronze' = 'gold',
 ): DoubleElimSlot[] {
+  if (secondChanceTarget === 'bronze') return [];
+
   const gfRound = wbRounds + lbRounds + 1;
   // A 2-fighter bracket has no losers bracket at all (lbRounds === 0): the WB
   // final's loser IS the second-chance entrant, so the GF reads its opponent

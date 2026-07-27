@@ -1285,6 +1285,9 @@ export class EventsService {
             phaseType: 'single_elim' as const,
             wbRounds: null,
             lbRounds: null,
+            secondChanceTarget: 'gold' as const,
+            bronzeMatch: null,
+            repechageEntryRound: null,
           };
 
     tournamentHeader['poolCount'] = pools.length;
@@ -2638,11 +2641,21 @@ export class EventsService {
       hasPlayInRound: Boolean(config['hasPlayInRound'] ?? false),
       bracketRounds: Number(config['rounds'] ?? 0),
       // Shape, so the public bracket renders double-elim as WB/LB/GF lanes and
-      // ranks it by losers-bracket exit rather than by first loss.
+      // ranks it by losers-bracket exit rather than by first loss. The podium
+      // fields matter for the SAME reason: in bronze mode gold and silver come
+      // from the winners-bracket final, and with a repechage cutoff the
+      // pre-cutoff winners-bracket losers ARE eliminated on one loss.
       phaseType:
         phase['type'] === 'double_elim' ? ('double_elim' as const) : ('single_elim' as const),
       wbRounds: config['wbRounds'] === undefined ? null : Number(config['wbRounds']),
       lbRounds: config['lbRounds'] === undefined ? null : Number(config['lbRounds']),
+      // Defaults reproduce the classical bracket that phases predating these
+      // options were generated as.
+      secondChanceTarget:
+        config['secondChanceTarget'] === 'bronze' ? ('bronze' as const) : ('gold' as const),
+      bronzeMatch: config['bronzeMatch'] === undefined ? null : Boolean(config['bronzeMatch']),
+      repechageEntryRound:
+        config['repechageEntryRound'] === undefined ? null : Number(config['repechageEntryRound']),
     };
   }
 

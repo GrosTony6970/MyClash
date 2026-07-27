@@ -5651,7 +5651,6 @@ export const en = {
       configBracketSize: 'Bracket size',
       configFighterCount: 'Fighters',
       configPhaseType: 'Phase type',
-      configGrandFinalReset: 'Grand Final reset',
       configGrandFinalResetHint:
         'If on, the lower-bracket winner must beat the upper-bracket winner twice to take the title.',
       configSave: 'Save configuration',
@@ -6137,6 +6136,35 @@ export const en = {
       sizeOverrideLabel: 'Bracket size override (power of 2, max {max})',
       autoOption: 'Auto',
       grandFinalReset: 'Grand final reset',
+      grandFinalResetHelp:
+        'The losers-bracket finalist arrives with one loss, so beating the unbeaten winners-bracket finalist once only levels the tie. With this on, a second grand final decides the title — and it is only played when the losers-bracket fighter wins the first one.',
+      grandFinalResetNotApplicable:
+        'Not applicable: when the repechage plays for bronze there is no grand final to reset.',
+      secondChanceLabel: 'Second chance plays for',
+      secondChanceHelp:
+        'Whether a fighter who loses in the winners bracket can still win the tournament, or can only come back as far as third place.',
+      secondChanceGold: 'Gold — losers bracket into a grand final',
+      secondChanceBronze: 'Bronze — winners final decides gold and silver',
+      secondChanceGoldNote:
+        'The losers bracket runs to a single survivor, who meets the winners-bracket champion in a grand final. Third place goes to the fighter who lost the losers final.',
+      secondChanceBronzeNote:
+        'The winners-bracket final decides gold and silver on its own — its loser takes silver and stops there. The repechage runs one round shorter and plays for bronze.',
+      bronzeMatchLabel: 'Bronze match',
+      bronzeMatchHelp:
+        'Play a match to decide third place. With it off, the repechage stops one round earlier and its two survivors are ranked 3rd and 4th on pool score.',
+      bronzeMatchNotApplicable:
+        'Not applicable: in gold mode third place is already the losers-bracket final’s loser.',
+      bronzeMatchOffNote:
+        'Without a bronze match the last two fighters left in the repechage are ranked 3rd and 4th by pool score, then by name. Third place is never shared.',
+      repechageEntryLabel: 'Second chance from',
+      repechageEntryHelp:
+        'How deep into the winners bracket a defeat still earns a second chance. Fighters knocked out before that depth are eliminated on a single loss.',
+      repechageEntryAll: 'Everyone',
+      repechageEntryLastN: 'Last {n}',
+      repechageEntryNote:
+        'Only fighters still in the winners bracket at the round of {n} drop into the repechage. Anyone knocked out earlier is eliminated on one loss, and is ranked by how far they got.',
+      structuralLockedHint:
+        'The podium model and the second-chance cutoff decide which matches exist, so they cannot be changed on a bracket that has already been generated. Use Regenerate bracket to apply them.',
       playInQualifierNote:
         'A field that is not a power of two plays a qualifying play-in round first. Play-in losers are eliminated and do not enter the losers bracket.',
       generating: 'Generating…',
@@ -12495,7 +12523,6 @@ export const fr = {
       configBracketSize: 'Taille du tableau',
       configFighterCount: 'Combattants',
       configPhaseType: 'Type de phase',
-      configGrandFinalReset: 'Reset de la Grande Finale',
       configGrandFinalResetHint:
         'Si active, le vainqueur du tableau bas doit battre celui du haut deux fois pour s imposer.',
       configSave: 'Enregistrer la configuration',
@@ -12990,6 +13017,35 @@ export const fr = {
       sizeOverrideLabel: 'Taille du tableau forcée (puissance de 2, max {max})',
       autoOption: 'Auto',
       grandFinalReset: 'Grande finale avec reset',
+      grandFinalResetHelp:
+        "Le finaliste du tableau des repêchés arrive avec une défaite : battre une seule fois le finaliste invaincu du tableau principal ne fait qu'égaliser. Avec cette option, une seconde grande finale décide du titre — et elle n'est jouée que si le combattant venu des repêchés gagne la première.",
+      grandFinalResetNotApplicable:
+        "Non applicable : quand les repêchages jouent pour le bronze, il n'y a pas de grande finale à rejouer.",
+      secondChanceLabel: 'La seconde chance joue pour',
+      secondChanceHelp:
+        'Un combattant battu dans le tableau principal peut-il encore gagner le tournoi, ou seulement revenir jusqu’à la troisième place ?',
+      secondChanceGold: 'L’or — repêchages puis grande finale',
+      secondChanceBronze: 'Le bronze — la finale principale décide or et argent',
+      secondChanceGoldNote:
+        'Le tableau des repêchés se joue jusqu’à un seul survivant, qui affronte le vainqueur du tableau principal en grande finale. La troisième place revient au perdant de la finale des repêchés.',
+      secondChanceBronzeNote:
+        'La finale du tableau principal décide seule de l’or et de l’argent — son perdant prend l’argent et s’arrête là. Les repêchages durent un tour de moins et jouent pour le bronze.',
+      bronzeMatchLabel: 'Match pour le bronze',
+      bronzeMatchHelp:
+        'Jouer un match pour désigner le troisième. Sans lui, les repêchages s’arrêtent un tour plus tôt et les deux survivants sont classés 3e et 4e au score de poule.',
+      bronzeMatchNotApplicable:
+        'Non applicable : en mode or, la troisième place revient déjà au perdant de la finale des repêchés.',
+      bronzeMatchOffNote:
+        'Sans match pour le bronze, les deux derniers combattants encore en lice dans les repêchages sont classés 3e et 4e au score de poule, puis par nom. La troisième place n’est jamais partagée.',
+      repechageEntryLabel: 'Seconde chance à partir de',
+      repechageEntryHelp:
+        'Jusqu’à quelle profondeur du tableau principal une défaite donne encore droit à une seconde chance. Les combattants éliminés avant ce stade le sont sur une seule défaite.',
+      repechageEntryAll: 'Tout le monde',
+      repechageEntryLastN: 'Les {n} derniers',
+      repechageEntryNote:
+        'Seuls les combattants encore en lice dans le tableau principal au tour des {n} basculent dans les repêchages. Ceux éliminés plus tôt le sont sur une seule défaite, et sont classés selon la profondeur atteinte.',
+      structuralLockedHint:
+        'Le modèle de podium et le seuil de seconde chance déterminent quels matchs existent : ils ne peuvent pas être modifiés sur un tableau déjà généré. Utilisez Régénérer le tableau pour les appliquer.',
       playInQualifierNote:
         "Un tableau dont l'effectif n'est pas une puissance de deux commence par un tour de qualification. Les perdants de ce tour sont éliminés et n'entrent pas dans le tableau des repêchés.",
       generating: 'Génération…',

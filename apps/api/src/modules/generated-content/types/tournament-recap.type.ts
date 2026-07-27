@@ -61,11 +61,14 @@ export class TournamentRecapType implements ContentTypeDef {
     const standings = await this.events.getPublicTournamentStandings(t.events.slug, t.slug);
     const header = standings.tournament as Record<string, unknown>;
     const slots = (standings as { bracketSlots?: RankingSlot[] }).bracketSlots ?? [];
+    // The cast must expose the WHOLE shape, not just phaseType: narrowing it
+    // dropped wbRounds/lbRounds, which left a double-elim recap ranked as if
+    // its losers bracket were part of the winners tree.
     const podium = computeFinalRanking(
       slots,
       [],
       null,
-      rankingBracketShape(standings as { phaseType?: string | null }),
+      rankingBracketShape(standings as Parameters<typeof rankingBracketShape>[0]),
     )
       .slice(0, 4)
       .map((e) => ({ place: e.place, fighter: e.fighterName, club: e.clubAbbrev ?? null }));

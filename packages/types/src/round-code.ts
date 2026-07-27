@@ -73,6 +73,24 @@ export interface RoundCodeInput {
 }
 
 /**
+ * Pull the double-elim round split out of a `phases.config_json` blob.
+ *
+ * Every caller that has the phase config must spread this into
+ * `formatRoundCode`; omitting it silently downgrades a double-elim bracket to
+ * single-elim labels, which is not an error anywhere — the code just comes out
+ * calling three different rounds "F". Shared so the exchange CSV and the
+ * archive export cannot drift apart on it.
+ */
+export function roundCodeShapeFromConfig(
+  config: Record<string, unknown> | null | undefined,
+): Pick<RoundCodeInput, 'wbRounds' | 'lbRounds'> {
+  return {
+    wbRounds: typeof config?.['wbRounds'] === 'number' ? config['wbRounds'] : null,
+    lbRounds: typeof config?.['lbRounds'] === 'number' ? config['lbRounds'] : null,
+  };
+}
+
+/**
  * Bracket-position label for one round of a DOUBLE-elimination bracket.
  *
  * Absolute rounds run play-in(0) → WB(1..wbRounds) → LB(next lbRounds) →

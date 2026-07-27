@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { formatRoundCode } from '@myclash/types';
+import { formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
 import { createStoredZip } from '../../common/stored-zip';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -891,14 +891,19 @@ export class ArchiveService {
     }
     // bracketSize lives on phases.config_json (bracketSize, or
     // mainBracketSize for double-elim); no tournaments.bracket_size
-    // column exists at the SQL level.
+    // column exists at the SQL level. The WB/LB split comes from the same
+    // blob and must travel with it — without it an archived double-elim
+    // bracket exports single-elim round codes, labelling the winners final,
+    // the grand final and the reset all as "F".
     const bracketSizeByPhaseId = new Map<string, number | null>();
+    const roundShapeByPhaseId = new Map<string, ReturnType<typeof roundCodeShapeFromConfig>>();
     for (const phase of tables.phases) {
       const phaseType = (phase['type'] as string | null | undefined) ?? null;
       if (phaseType === 'pool') continue;
       const cfg = (phase['config_json'] as Record<string, unknown> | null | undefined) ?? null;
       const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
       bracketSizeByPhaseId.set(phase['id'] as string, typeof size === 'number' ? size : null);
+      roundShapeByPhaseId.set(phase['id'] as string, roundCodeShapeFromConfig(cfg));
     }
 
     const out = new Map<string, string>();
@@ -923,6 +928,7 @@ export class ArchiveService {
           bracketRound,
           bracketSize,
           matchNumber: (match['match_number_label'] as string | null) ?? null,
+          ...(phaseId !== null ? (roundShapeByPhaseId.get(phaseId) ?? {}) : {}),
         }),
       );
     }
