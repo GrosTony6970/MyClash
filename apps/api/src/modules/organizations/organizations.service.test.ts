@@ -68,10 +68,16 @@ describe('OrganizationsService', () => {
   });
 
   describe('getPublicBySlug', () => {
-    function mockOrg(row: Record<string, unknown> | null) {
+    function mockOrg(row: Record<string, unknown> | null, followerCount = 0) {
       const chain = makeChain({ data: null, error: null });
       chain.maybeSingle.mockResolvedValue({ data: row, error: null });
       fromMock.mockReturnValueOnce(chain);
+      // Only an active org reaches the follower-count query. That one is
+      // awaited directly off .eq(), with no terminal call.
+      if (row && row['status'] === 'active') {
+        const countChain = makeAwaitableChain({ count: followerCount, error: null });
+        fromMock.mockReturnValueOnce(countChain);
+      }
       return chain;
     }
 
@@ -86,7 +92,7 @@ describe('OrganizationsService', () => {
     };
 
     it('returns only the fields the public page renders', async () => {
-      mockOrg(active);
+      mockOrg(active, 42);
 
       const result = await service.getPublicBySlug('lyon-amhe');
 
@@ -96,7 +102,19 @@ describe('OrganizationsService', () => {
         slug: 'lyon-amhe',
         logoUrl: 'https://cdn/lyon.png',
         brandColor: '#b91c1c',
+        followerCount: 42,
       });
+    });
+
+    it('exposes the follower COUNT but never the follower list', async () => {
+      // The count is an aggregate read through the service key; the rows stay
+      // owner-only under RLS. Who follows an organiser is not public.
+      const chain = mockOrg(active, 7);
+      const result = (await service.getPublicBySlug('lyon-amhe')) as Record<string, unknown>;
+
+      expect(result['followerCount']).toBe(7);
+      expect(result).not.toHaveProperty('followers');
+      expect(chain.select).toHaveBeenCalledWith('id, name, slug, logo_url, brand_color, status');
     });
 
     it('never leaks contact_email or status to an anonymous caller', async () => {

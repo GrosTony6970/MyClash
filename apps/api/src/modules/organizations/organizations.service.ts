@@ -105,12 +105,21 @@ export class OrganizationsService {
       throw new NotFoundException(`Organization "${slug}" not found`);
     }
 
+    // Aggregate only. Read through the service key precisely so the count can
+    // be public while the follower LIST stays owner-only under RLS — who
+    // follows an organiser is nobody else's business.
+    const { count } = await this.supabase.service
+      .from('organization_follows')
+      .select('id', { count: 'exact', head: true })
+      .eq('followed_organization_id', org.id);
+
     return {
       id: org.id,
       name: org.name,
       slug: org.slug,
       logoUrl: org.logo_url,
       brandColor: org.brand_color,
+      followerCount: count ?? 0,
     };
   }
 

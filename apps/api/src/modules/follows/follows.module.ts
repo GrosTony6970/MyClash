@@ -4,11 +4,12 @@ import { AuthModule } from '../auth/auth.module';
 import { PersonsModule } from '../persons/persons.module';
 import { FollowsController } from './follows.controller';
 import { FollowsService } from './follows.service';
+import { OrganizationFollowsService } from './organization-follows.service';
 
 @Module({
   imports: [AuthModule, PersonsModule, WorkersModule],
   controllers: [FollowsController],
-  providers: [FollowsService],
-  exports: [FollowsService],
+  providers: [FollowsService, OrganizationFollowsService],
+  exports: [FollowsService, OrganizationFollowsService],
 })
 export class FollowsModule {}
