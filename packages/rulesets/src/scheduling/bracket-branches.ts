@@ -14,7 +14,14 @@
  * The theoretical round size (`2^(maxRound - r)`) — not the surviving slot
  * count — drives the spread round so byes don't shift it.
  *
- * Pure: no I/O. Single-elimination only (the caller gates double-elim out).
+ * DOUBLE ELIMINATION spreads only the winners bracket. The losers bracket and
+ * the grand final(s) join the converge unit, ordered by round, because an LB
+ * round consumes the losers dropping out of a specific WB round — running the
+ * LB in parallel with the WB it feeds off would schedule matches before their
+ * entrants are known. Converge runs after the anchors on the last anchor's
+ * lice, which is exactly the ordering that dependency needs.
+ *
+ * Pure: no I/O.
  */
 
 export interface BracketSlotInput {
@@ -46,10 +53,43 @@ function ordered(slots: BracketSlotInput[]): string[] {
     .map((s) => s.matchId);
 }
 
+export interface GroupBracketBranchesOptions {
+  /** Double-elim round split from `phases.config_json`. Omit for single-elim. */
+  wbRounds?: number | null;
+  lbRounds?: number | null;
+}
+
 export function groupBracketBranches(
   slots: BracketSlotInput[],
   liceCount: number,
+  options: GroupBracketBranchesOptions = {},
 ): GroupBracketBranchesResult {
+  const { wbRounds, lbRounds } = options;
+  const isDoubleElim =
+    typeof wbRounds === 'number' && wbRounds > 0 && typeof lbRounds === 'number' && lbRounds >= 0;
+
+  if (!isDoubleElim) return spreadBranches(slots, liceCount);
+
+  // Spread the winners bracket only; everything downstream of it (losers
+  // bracket, grand final, reset) converges in round order.
+  const wb = spreadBranches(
+    slots.filter((s) => s.round <= wbRounds),
+    liceCount,
+  );
+  const downstream = slots.filter((s) => s.round > wbRounds);
+  const convergeIds = [
+    ...(wb.units.find((u) => u.kind === 'converge')?.matchIds ?? []),
+    ...ordered(downstream),
+  ];
+
+  const units = wb.units.filter((u) => u.kind === 'anchor');
+  if (convergeIds.length > 0) {
+    units.push({ kind: 'converge', anchor: null, matchIds: convergeIds });
+  }
+  return { units, spreadRound: wb.spreadRound, orphans: [] };
+}
+
+function spreadBranches(slots: BracketSlotInput[], liceCount: number): GroupBracketBranchesResult {
   if (slots.length === 0) return { units: [], spreadRound: 0, orphans: [] };
 
   const rounds = slots.map((s) => s.round);

@@ -12,7 +12,7 @@ import type { Match as RulesetMatch } from '@myclash/rulesets';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
-import { buildRoundCode } from './round-code.helper';
+import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
@@ -173,6 +173,10 @@ export class MatchesService {
     // falling back to B{round}. Stored at bracket-generation time in
     // phases.config_json.
     let bracketSize: number | null = null;
+    // Double-elim split, from the same config blob — without it the winners
+    // final, the grand final and its reset would all render the same label.
+    let wbRounds: number | null = null;
+    let lbRounds: number | null = null;
     if (row.bracket_round !== null && row.phase_id) {
       const { data: phaseRow } = await this.supabase.service
         .from('phases')
@@ -182,6 +186,7 @@ export class MatchesService {
       const cfg = (phaseRow as { config_json?: Record<string, unknown> } | null)?.config_json;
       const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
       if (typeof size === 'number') bracketSize = size;
+      ({ wbRounds, lbRounds } = bracketCodeConfig(cfg));
     }
 
     // Pool sort_order isn't projected by vw_tournament_query_matches, so
@@ -203,6 +208,8 @@ export class MatchesService {
       poolNumber,
       bracketRound: row.bracket_round,
       bracketSize,
+      wbRounds,
+      lbRounds,
       matchNumberLabel: row.match_number_label,
       roundNumber: null,
     });

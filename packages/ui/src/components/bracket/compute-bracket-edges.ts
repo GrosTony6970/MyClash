@@ -22,16 +22,29 @@ import type { BracketSlotData } from './types';
  * edges come straight from them — the authoritative bracket structure.
  * This is what makes a play-in round connect correctly: position-pairing
  * assumes each round is a clean halving of the next, which a play-in
- * round (e.g. R0=2 → R1=8) is not. The strict regex only matches
- * single-elim refs; double-elim refs are WB/LB-prefixed, so its lanes
- * fall through to position-pairing unchanged.
+ * round (e.g. R0=2 → R1=8) is not.
+ *
+ * Double-elim refs are WB/LB-prefixed, and LB refs number their rounds
+ * RELATIVE to the losers bracket while the slots carry absolute rounds. Pass
+ * `refPrefix` + `roundOffset` per lane so those refs resolve too; without them
+ * a double-elim lane silently fell back to position-pairing and mis-drew the
+ * play-in feed.
  */
-const WINNER_REF = /^winner of R(\d+)P(\d+)$/;
+export interface BracketEdgeOptions {
+  /** Ref namespace for this lane: '' for single-elim, 'WB' / 'LB' per lane. */
+  refPrefix?: '' | 'WB' | 'LB';
+  /** Added to a ref's round number to reach the slot's ABSOLUTE round.
+   *  Losers-bracket refs count from 1, so this is wbRounds for the LB lane. */
+  roundOffset?: number;
+}
 
 export function computeBracketEdges(
   slots: BracketSlotData[],
   roundNumbers: readonly number[],
+  options: BracketEdgeOptions = {},
 ): ConnectorEdge[] {
+  const { refPrefix = '', roundOffset = 0 } = options;
+  const winnerRef = new RegExp(`^winner of ${refPrefix}R(\\d+)P(\\d+)$`);
   // Prefer the generator's advancement refs when present — exact
   // structure, including the irregular play-in → first-round feeds.
   const idByRoundPos = new Map<string, string>();
@@ -40,10 +53,10 @@ export function computeBracketEdges(
   let sawRef = false;
   for (const s of slots) {
     for (const ref of [s.source_a_ref, s.source_b_ref]) {
-      const m = ref?.match(WINNER_REF);
+      const m = ref?.match(winnerRef);
       if (!m) continue;
       sawRef = true;
-      const fromId = idByRoundPos.get(`${Number(m[1])}:${Number(m[2])}`);
+      const fromId = idByRoundPos.get(`${Number(m[1]) + roundOffset}:${Number(m[2])}`);
       if (fromId) refEdges.push({ from: fromId, to: s.id, kind: 'winner' });
     }
   }

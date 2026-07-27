@@ -63,6 +63,34 @@ export interface RoundCodeInput {
   bracketSize: number | null;
   /** Match number to display — match_number_label || round_number || ''. */
   matchNumber: number | string | null | undefined;
+  /**
+   * Double-elim round split (`phases.config_json`). When present, the round
+   * label names the SECTION as well as the depth — a double-elim bracket has
+   * three different rounds that a single-elim label would all call "F".
+   */
+  wbRounds?: number | null;
+  lbRounds?: number | null;
+}
+
+/**
+ * Bracket-position label for one round of a DOUBLE-elimination bracket.
+ *
+ * Absolute rounds run play-in(0) → WB(1..wbRounds) → LB(next lbRounds) →
+ * GF → GFRESET. Without this, the winners-bracket final was labelled plain
+ * `F` (indistinguishable from the actual grand final) and every losers /
+ * grand-final round fell through to a bare `B<n>` — so the schedule sidebar
+ * read "Round 5", "Round 8".
+ */
+export function doubleElimRoundLabel(round: number, wbRounds: number, lbRounds: number): string {
+  if (round === 0) return 'PI';
+  if (round <= wbRounds) {
+    // Depth within the winners bracket, prefixed so it can't be mistaken for
+    // the grand final. 2^(wbRounds - round + 1) fighters remain at this round.
+    const suffix = bracketRoundLabel(round, 2 ** wbRounds);
+    return `WB${suffix}`;
+  }
+  if (round <= wbRounds + lbRounds) return `LB${round - wbRounds}`;
+  return round === wbRounds + lbRounds + 1 ? 'GF' : 'GFR';
 }
 
 /**
@@ -103,7 +131,11 @@ export function formatRoundCode(input: RoundCodeInput): string {
   if (input.poolNumber !== null && input.poolNumber !== undefined) {
     middle = [`P${input.poolNumber}`];
   } else if (input.bracketRound !== null && input.bracketRound !== undefined) {
-    if (input.bracketRound === 0) {
+    // A double-elim bracket needs section-aware labels: three of its rounds
+    // would otherwise all read as a single-elim "F".
+    if (input.wbRounds && input.lbRounds !== null && input.lbRounds !== undefined) {
+      middle = ['B', doubleElimRoundLabel(input.bracketRound, input.wbRounds, input.lbRounds)];
+    } else if (input.bracketRound === 0) {
       middle = ['B', 'PI'];
     } else {
       middle = ['B', bracketRoundLabel(input.bracketRound, input.bracketSize)];

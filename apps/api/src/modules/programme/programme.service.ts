@@ -67,9 +67,11 @@ function computeNeededMin(
 
 /**
  * Pick the scheduler affinity for a competition block. Pools stay strict
- * (whole pool on one lice). A single-elim bracket with derivable slot
- * coordinates uses branch-aware grouping (each quarter-final sub-tree on one
- * lice); anything else (double-elim, swiss, no tree) falls back to greedy.
+ * (whole pool on one lice). An elimination bracket with derivable slot
+ * coordinates uses branch-aware grouping — each quarter-final sub-tree on one
+ * lice for single-elim, the winners-bracket sub-trees for double-elim (its
+ * losers bracket converges, since it consumes WB losers). Anything else
+ * (swiss, no tree) falls back to greedy.
  */
 export function decidePoolAffinity(input: {
   isPool: boolean;
@@ -81,9 +83,10 @@ export function decidePoolAffinity(input: {
 }): 'strict' | 'off' | 'bracket-branch' {
   if (input.isPool) return 'strict';
   const hasTree = input.matches.some((m) => m.bracket_round != null && m.bracket_position != null);
-  const allSingleElim =
-    input.matches.length > 0 && input.matches.every((m) => m.phase_type === 'single_elim');
-  return hasTree && allSingleElim ? 'bracket-branch' : 'off';
+  const allElim =
+    input.matches.length > 0 &&
+    input.matches.every((m) => m.phase_type === 'single_elim' || m.phase_type === 'double_elim');
+  return hasTree && allElim ? 'bracket-branch' : 'off';
 }
 
 @Injectable()
@@ -1143,12 +1146,15 @@ export class ProgrammeService {
       }
     }
 
+    const bracketSlotIds = rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id);
     const coords =
       dto.mode === 'bracket-branch'
-        ? await this.loadBracketCoords(
-            rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
-          )
+        ? await this.loadBracketCoords(bracketSlotIds)
         : new Map<string, { round: number; position: number }>();
+    const shape =
+      dto.mode === 'bracket-branch'
+        ? await this.loadBracketShape(bracketSlotIds)
+        : { wbRounds: null, lbRounds: null };
 
     const result = scheduleMatches(
       rows.map((r) => {
@@ -1161,6 +1167,8 @@ export class ProgrammeService {
           matchNumberLabel: r.match_number_label,
           bracketRound: c?.round ?? null,
           bracketPosition: c?.position ?? null,
+          wbRounds: shape.wbRounds,
+          lbRounds: shape.lbRounds,
         };
       }),
       lices,
@@ -1476,6 +1484,37 @@ export class ProgrammeService {
       map.set(s.id, { round: s.round, position: s.position });
     }
     return map;
+  }
+
+  /**
+   * The double-elim round split for the phase these slots belong to, so branch
+   * grouping spreads only the winners bracket. Null/null for single-elim (and
+   * for any phase whose config predates the split being recorded), which keeps
+   * the single-elim grouping byte-identical.
+   */
+  private async loadBracketShape(
+    slotIds: string[],
+  ): Promise<{ wbRounds: number | null; lbRounds: number | null }> {
+    const none = { wbRounds: null, lbRounds: null };
+    const ids = [...new Set(slotIds)];
+    if (ids.length === 0) return none;
+    const { data: slots } = await this.supabase.service
+      .from('bracket_slots')
+      .select('phase_id')
+      .in('id', ids)
+      .limit(1);
+    const phaseId = (slots ?? [])[0]?.['phase_id'] as string | undefined;
+    if (!phaseId) return none;
+    const { data: phase } = await this.supabase.service
+      .from('phases')
+      .select('type, config_json')
+      .eq('id', phaseId)
+      .maybeSingle();
+    const row = phase as { type?: string; config_json?: Record<string, unknown> } | null;
+    if (row?.type !== 'double_elim') return none;
+    const cfg = row.config_json ?? {};
+    const num = (v: unknown) => (typeof v === 'number' ? v : null);
+    return { wbRounds: num(cfg['wbRounds']), lbRounds: num(cfg['lbRounds']) };
   }
 
   /**

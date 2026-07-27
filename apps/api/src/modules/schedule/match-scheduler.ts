@@ -52,6 +52,10 @@ export interface SchedulerMatch {
    */
   bracketRound?: number | null;
   bracketPosition?: number | null;
+  /** Double-elim round split (`phases.config_json`). Present on double-elim
+   *  matches so branch grouping spreads only the winners bracket. */
+  wbRounds?: number | null;
+  lbRounds?: number | null;
 }
 
 export interface SchedulerLice {
@@ -173,11 +177,15 @@ export function scheduleMatches(
     const byId = new Map(matches.map((m) => [m.id, m]));
     const toUnit = (ids: string[]): SchedulerMatch[] =>
       ids.map((id) => byId.get(id)).filter((m): m is SchedulerMatch => !!m);
+    // All matches in one block share a phase, so the first match carrying the
+    // split defines the bracket's shape.
+    const shaped = matches.find((m) => m.wbRounds != null && m.lbRounds != null);
     const branchUnits = groupBracketBranches(
       matches
         .filter((m) => m.bracketRound != null && m.bracketPosition != null)
         .map((m) => ({ matchId: m.id, round: m.bracketRound!, position: m.bracketPosition! })),
       lices.length,
+      { wbRounds: shaped?.wbRounds ?? null, lbRounds: shaped?.lbRounds ?? null },
     ).units;
     const anchorUnits = branchUnits.filter((u) => u.kind === 'anchor');
     const convergeUnit = branchUnits.find((u) => u.kind === 'converge');

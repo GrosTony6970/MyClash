@@ -923,10 +923,31 @@ export default function BracketPage() {
 
   // Identify the bronze slot and derive the medal podium from the bracket.
   const { bronzeMatch, podium } = useMemo(() => {
-    if (!bracket || bracket.phaseType !== 'single_elim') {
+    if (!bracket) {
       return {
         bronzeMatch: null as BracketSlotData | null,
         podium: undefined as PodiumData | undefined,
+      };
+    }
+    if (bracket.phaseType === 'double_elim') {
+      // Nobody plays for bronze in double elim: 3rd is whoever lost the losers
+      // final, 4th the LB semi's loser. Gold/silver come from the last PLAYED
+      // grand final — an enabled-but-unplayed reset must not blank the podium.
+      const gfRound = (bracket.wbRounds ?? 0) + (bracket.lbRounds ?? 0) + 1;
+      const at = (round: number) => bracket.slots.find((s) => s.round === round) ?? null;
+      const reset = at(gfRound + 1);
+      const final = reset && reset.status === 'completed' ? reset : at(gfRound);
+      const lbFinal = at(gfRound - 1);
+      const lbSemi = at(gfRound - 2);
+      const done = (slot: BracketSlotData | null) => slot?.status === 'completed';
+      return {
+        bronzeMatch: null as BracketSlotData | null,
+        podium: {
+          gold: done(final) ? winnerName(final!) : null,
+          silver: done(final) ? loserName(final!) : null,
+          bronze: done(lbFinal) ? loserName(lbFinal!) : null,
+          fourth: done(lbSemi) ? loserName(lbSemi!) : null,
+        } as PodiumData,
       };
     }
     const bronze = bracket.bronzeSlotId
@@ -1186,17 +1207,26 @@ export default function BracketPage() {
                 </select>
               </div>
               {phaseType === 'double_elim' && (
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={grandFinalReset}
-                    onChange={(e) => setGrandFinalReset(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-foreground-secondary">
-                    {t('organizer.bracketPage.grandFinalReset')}
-                  </span>
-                </label>
+                <>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grandFinalReset}
+                      onChange={(e) => setGrandFinalReset(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-foreground-secondary">
+                      {t('organizer.bracketPage.grandFinalReset')}
+                    </span>
+                  </label>
+                  {/* A field that isn't a power of two is trimmed by a play-in
+                      round. Its losers are OUT after one loss, which surprises
+                      organisers who expect double elim to mean two lives for
+                      everyone, so say it before they generate. */}
+                  <p className="text-xs text-muted">
+                    {t('organizer.bracketPage.playInQualifierNote')}
+                  </p>
+                </>
               )}
               <button
                 onClick={() => void generate(false)}
@@ -1820,7 +1850,7 @@ export default function BracketPage() {
                 </>
               )}
             </div>
-            {podium && bracket.phaseType === 'single_elim' && (
+            {podium && (
               <div className="mb-4 rounded-xl border border-border bg-surface p-4">
                 <MedalPodium
                   podium={podium}

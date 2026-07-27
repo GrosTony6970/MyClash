@@ -46,3 +46,24 @@ describe('parseBracketRound', () => {
     expect(r!.order).toBeGreaterThan(parseBracketRound('LSW-B-F-M1')!.order);
   });
 });
+
+describe('parseBracketRound — double elimination', () => {
+  const parse = (token: string) => parseBracketRound(`LSW-B-${token}-M1`);
+
+  it('labels winners, losers and grand-final rounds distinctly', () => {
+    expect(parse('WBF')?.label).toBe('Winners Final');
+    expect(parse('WBSF')?.label).toBe('Winners Semi-finals');
+    expect(parse('WBR16')?.label).toBe('Winners Round of 16');
+    expect(parse('LB3')?.label).toBe('Losers Round 3');
+    expect(parse('GF')?.label).toBe('Grand Final');
+    expect(parse('GFR')?.label).toBe('Grand Final Reset');
+  });
+
+  it('orders play-ins → winners → losers → grand final', () => {
+    const order = ['PI', 'WBR16', 'WBQF', 'WBSF', 'WBF', 'LB1', 'LB4', 'GF', 'GFR'].map(
+      (tok) => parse(tok)!.order,
+    );
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(new Set(order).size).toBe(order.length);
+  });
+});

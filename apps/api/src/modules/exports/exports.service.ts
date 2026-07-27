@@ -15,6 +15,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { formatRoundCode } from '@myclash/types';
+import { resolveRound } from './export-round-names';
 import { SupabaseService } from '../supabase/supabase.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -99,7 +100,8 @@ export class ExportsService {
         match_number_label,
         red_registration_id, blue_registration_id,
         pools ( name ),
-        phases ( type, sort_order ),
+        bracket_slots ( round ),
+        phases ( type, sort_order, config_json ),
         red_reg:registrations!red_registration_id (
           persons ( given_name, family_name )
         ),
@@ -122,7 +124,12 @@ export class ExportsService {
         persons: { given_name: string; family_name: string } | null;
       } | null;
       const pool = row['pools'] as { name: string } | null;
-      const phase = row['phases'] as { type: string; sort_order: number } | null;
+      const phase = row['phases'] as {
+        type: string;
+        sort_order: number;
+        config_json: Record<string, unknown> | null;
+      } | null;
+      const slot = row['bracket_slots'] as { round: number } | null;
 
       const redName = redReg?.persons
         ? `${redReg.persons.given_name} ${redReg.persons.family_name}`
@@ -135,10 +142,11 @@ export class ExportsService {
       const redRegId = row['red_registration_id'] as string;
       const _blueRegId = row['blue_registration_id'] as string;
 
-      const round = this.resolveRound(
+      const round = resolveRound(
         phase?.type ?? '',
         pool?.name ?? null,
         row['match_number_label'] as string | null,
+        { round: slot?.round ?? null, config: phase?.config_json ?? null },
       );
 
       // Winner is always Fighter1 per HEMA Ratings spec
@@ -324,38 +332,6 @@ export class ExportsService {
    * Bracket matches → "Top 64", "Top 32", "Top 16", "Quarter-finals", "Semi-finals", "Gold Medal Match", "Bronze Medal Match"
    * Uses match_number_label as fallback.
    */
-  private resolveRound(
-    phaseType: string,
-    poolName: string | null,
-    matchLabel: string | null,
-  ): string {
-    if (phaseType === 'pool') {
-      return 'Pools';
-    }
-
-    if (phaseType === 'single_elim') {
-      // Try to infer from match label (e.g. "F" = Gold Medal, "SF1" = Semi-final, "3rd" = Bronze)
-      const label = (matchLabel ?? '').toUpperCase();
-      // Bronze must be checked BEFORE Final (label may contain both "FINAL" and "BRONZE")
-      if (label.includes('BRONZE') || label.includes('3RD') || label.includes('3RD PLACE')) {
-        return 'Bronze Medal Match';
-      }
-      if (label.includes('FINAL') || label === 'F') return 'Gold Medal Match';
-      if (label.includes('SF') || label.includes('SEMI')) return 'Semi-finals';
-      if (label.includes('QF') || label.includes('QUARTER')) return 'Quarter-finals';
-      if (label.includes('R16') || label.includes('TOP16') || label.includes('TOP 16'))
-        return 'Top 16';
-      if (label.includes('R32') || label.includes('TOP32') || label.includes('TOP 32'))
-        return 'Top 32';
-      if (label.includes('R64') || label.includes('TOP64') || label.includes('TOP 64'))
-        return 'Top 64';
-      // Fallback: use the label as-is
-      return matchLabel ?? 'Elimination';
-    }
-
-    return poolName ?? matchLabel ?? 'Unknown';
-  }
-
   private csvEscape(value: string): string {
     if (value.includes(',') || value.includes('"') || value.includes('\n')) {
       return `"${value.replace(/"/g, '""')}"`;

@@ -6117,6 +6117,8 @@ export const en = {
       sizeOverrideLabel: 'Bracket size override (power of 2, max {max})',
       autoOption: 'Auto',
       grandFinalReset: 'Grand final reset',
+      playInQualifierNote:
+        'A field that is not a power of two plays a qualifying play-in round first. Play-in losers are eliminated and do not enter the losers bracket.',
       generating: 'Generating…',
       generateButton: 'Generate bracket',
       regenerateButton: 'Regenerate bracket',
@@ -12901,6 +12903,8 @@ export const fr = {
       sizeOverrideLabel: 'Taille du tableau forcée (puissance de 2, max {max})',
       autoOption: 'Auto',
       grandFinalReset: 'Grande finale avec reset',
+      playInQualifierNote:
+        "Un tableau dont l'effectif n'est pas une puissance de deux commence par un tour de qualification. Les perdants de ce tour sont éliminés et n'entrent pas dans le tableau des repêchés.",
       generating: 'Génération…',
       generateButton: 'Générer le tableau',
       regenerateButton: 'Régénérer le tableau',

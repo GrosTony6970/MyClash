@@ -29,6 +29,9 @@ export function parseBracketRound(roundCode: string | undefined | null): Bracket
 
   if (token === 'PI') return { token, label: 'Play-ins', order: 0 };
 
+  const de = parseDoubleElimToken(token);
+  if (de) return de;
+
   // Named rounds map to a fighters-left count; earlier rounds (more
   // fighters) sort first, so order = 1000 − fightersLeft puts
   // R32 < R16 < QF(8) < SF(4) < F(2), all after play-ins (0).
@@ -56,4 +59,39 @@ export function parseBracketRound(roundCode: string | undefined | null): Bracket
   }
 
   return null;
+}
+
+/**
+ * Double-elim section tokens (WB* / LB<n> / GF / GFR).
+ *
+ * Ordered play-ins → winners bracket → losers bracket → grand final, so the
+ * sidebar reads in the order the day is actually run. Kept well below the
+ * single-elim band (1000+) since the two never mix within one phase.
+ */
+function parseDoubleElimToken(token: string): BracketRound | null {
+  if (token === 'GF') return { token, label: 'Grand Final', order: 900 };
+  if (token === 'GFR') return { token, label: 'Grand Final Reset', order: 901 };
+
+  const lbMatch = /^LB(\d+)$/.exec(token);
+  if (lbMatch) {
+    const k = Number(lbMatch[1]);
+    return { token, label: `Losers Round ${k}`, order: 500 + k };
+  }
+
+  const wbMatch = /^WB(F|SF|QF|R\d+|B\d+)$/.exec(token);
+  if (!wbMatch) return null;
+  const inner = wbMatch[1]!;
+  const NAMED: Record<string, { label: string; left: number }> = {
+    F: { label: 'Winners Final', left: 2 },
+    SF: { label: 'Winners Semi-finals', left: 4 },
+    QF: { label: 'Winners Quarter-finals', left: 8 },
+  };
+  const hit = NAMED[inner];
+  if (hit) return { token, label: hit.label, order: 100 + (1000 - hit.left) / 10 };
+  const r = /^R(\d+)$/.exec(inner);
+  if (r) {
+    const k = Number(r[1]);
+    return { token, label: `Winners Round of ${k}`, order: 100 + (1000 - k) / 10 };
+  }
+  return { token, label: `Winners ${inner}`, order: 199 };
 }

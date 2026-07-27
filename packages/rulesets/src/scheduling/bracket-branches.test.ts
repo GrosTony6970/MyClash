@@ -93,3 +93,57 @@ describe('groupBracketBranches', () => {
     expect(groupBracketBranches([], 4)).toEqual({ units: [], spreadRound: 0, orphans: [] });
   });
 });
+
+describe('groupBracketBranches — double elimination', () => {
+  // 8-fighter double elim: wbRounds=3, lbRounds=4 → WB 1-3, LB 4-7, GF 8.
+  const slots = [
+    ...[1, 2, 3, 4].map((position) => ({ matchId: `wb1p${position}`, round: 1, position })),
+    ...[1, 2].map((position) => ({ matchId: `wb2p${position}`, round: 2, position })),
+    { matchId: 'wb3p1', round: 3, position: 1 },
+    ...[1, 2].map((position) => ({ matchId: `lb1p${position}`, round: 4, position })),
+    ...[1, 2].map((position) => ({ matchId: `lb2p${position}`, round: 5, position })),
+    { matchId: 'lb3p1', round: 6, position: 1 },
+    { matchId: 'lb4p1', round: 7, position: 1 },
+    { matchId: 'gf', round: 8, position: 1 },
+  ];
+  const de = { wbRounds: 3, lbRounds: 4 };
+
+  it('spreads only the winners bracket across lices', () => {
+    const { units } = groupBracketBranches(slots, 2, de);
+    const anchors = units.filter((u) => u.kind === 'anchor');
+    expect(anchors.length).toBe(2);
+    // Every anchored match is a winners-bracket match.
+    for (const u of anchors) {
+      for (const id of u.matchIds) expect(id.startsWith('wb')).toBe(true);
+    }
+  });
+
+  /**
+   * An LB round consumes the losers dropping out of a specific WB round, so the
+   * LB cannot run in parallel with the winners bracket that feeds it. Converge
+   * runs after the anchors, in round order — which is exactly that dependency.
+   */
+  it('converges the losers bracket and grand final in round order', () => {
+    const { units } = groupBracketBranches(slots, 2, de);
+    const converge = units.find((u) => u.kind === 'converge');
+    expect(converge).toBeDefined();
+    expect(converge!.matchIds).toContain('gf');
+    expect(converge!.matchIds).toContain('lb1p1');
+    // Grand final last; every LB match ahead of it.
+    expect(converge!.matchIds.at(-1)).toBe('gf');
+    const lbFirst = converge!.matchIds.indexOf('lb1p1');
+    expect(lbFirst).toBeLessThan(converge!.matchIds.indexOf('lb4p1'));
+  });
+
+  it('assigns every match to exactly one unit', () => {
+    const { units, orphans } = groupBracketBranches(slots, 3, de);
+    const all = units.flatMap((u) => u.matchIds);
+    expect(orphans).toEqual([]);
+    expect(all.length).toBe(slots.length);
+    expect(new Set(all).size).toBe(slots.length);
+  });
+
+  it('is unchanged from the single-elim grouping when no split is passed', () => {
+    expect(groupBracketBranches(slots, 2)).toEqual(groupBracketBranches(slots, 2, {}));
+  });
+});

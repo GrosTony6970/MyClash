@@ -3,7 +3,7 @@ import { formatRoundCode } from '@myclash/types';
 import { MatchCard } from './bracket/MatchCard';
 import { BracketHighlightContext } from './bracket/highlight-context';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
-import { computeBracketEdges } from './bracket/compute-bracket-edges';
+import { computeBracketEdges, type BracketEdgeOptions } from './bracket/compute-bracket-edges';
 import { computeSlotPositions } from './bracket/compute-slot-positions';
 import type { BracketConfig, BracketSlotData, ColorToken, PodiumData } from './bracket/types';
 
@@ -406,6 +406,7 @@ function DoubleElimLayout({
   }, []);
 
   const gfRound = wbRounds + lbRounds + 1;
+  const hasPlayIn = slots.some((s) => s.round === 0);
 
   const wbSlots = slots.filter((s) => s.round <= wbRounds);
   const lbSlots = slots.filter((s) => s.round > wbRounds && s.round <= wbRounds + lbRounds);
@@ -417,10 +418,14 @@ function DoubleElimLayout({
     const wbRoundNumbers = Array.from(new Set(wbSlots.map((s) => s.round))).sort((a, b) => a - b);
     const lbRoundNumbers = Array.from(new Set(lbSlots.map((s) => s.round))).sort((a, b) => a - b);
     return [
-      ...computeBracketEdges(wbSlots, wbRoundNumbers),
-      ...computeBracketEdges(lbSlots, lbRoundNumbers),
+      ...computeBracketEdges(wbSlots, wbRoundNumbers, { refPrefix: 'WB' }),
+      // LB refs count rounds from 1; the slots carry absolute rounds.
+      ...computeBracketEdges(lbSlots, lbRoundNumbers, {
+        refPrefix: 'LB',
+        roundOffset: wbRounds,
+      }),
     ];
-  }, [wbSlots, lbSlots]);
+  }, [wbSlots, lbSlots, wbRounds]);
 
   return (
     <div className="space-y-6 overflow-x-auto pb-6">
@@ -442,6 +447,10 @@ function DoubleElimLayout({
             />
           )}
           accent="text-amber-600"
+          roundLabelFn={(round, idx) =>
+            round === 0 ? 'Play-ins' : `R${idx + (hasPlayIn ? 0 : 1)}`
+          }
+          edgeOptions={{ refPrefix: 'WB' }}
           pitchPx={pitchPx}
           roundGapClass={roundGapClass}
         />
@@ -462,6 +471,7 @@ function DoubleElimLayout({
               />
             )}
             accent="text-blue-600"
+            edgeOptions={{ refPrefix: 'LB', roundOffset: wbRounds }}
             pitchPx={pitchPx}
             roundGapClass={roundGapClass}
           />
@@ -501,6 +511,7 @@ function Lane({
   roundLabelFn,
   pitchPx,
   roundGapClass,
+  edgeOptions,
 }: {
   title: string;
   slots: BracketSlotData[];
@@ -509,6 +520,7 @@ function Lane({
   roundLabelFn?: (round: number, idx: number, total: number) => string;
   pitchPx: number;
   roundGapClass: string;
+  edgeOptions?: BracketEdgeOptions;
 }) {
   const byRound = new Map<number, BracketSlotData[]>();
   for (const s of slots) {
@@ -522,7 +534,7 @@ function Lane({
   // Same parent-midpoint placement as SingleElimLayout, applied
   // per lane. Edges are computed inline because the parent
   // DoubleElimLayout already passes per-lane slot subsets in.
-  const edges = computeBracketEdges(slots, rounds);
+  const edges = computeBracketEdges(slots, rounds, edgeOptions);
   const { positions, columnHeight } = computeSlotPositions(byRound, rounds, edges, pitchPx);
 
   return (

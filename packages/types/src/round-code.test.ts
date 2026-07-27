@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bracketRoundLabel, formatRoundCode, weaponAbbr } from './round-code';
+import { bracketRoundLabel, doubleElimRoundLabel, formatRoundCode, weaponAbbr } from './round-code';
 
 describe('weaponAbbr', () => {
   it('returns canonical abbreviations for the five known weapons', () => {
@@ -250,5 +250,67 @@ describe('formatRoundCode', () => {
         matchNumber: '',
       }),
     ).toBe('LSW');
+  });
+});
+
+// ── Double elimination ───────────────────────────────────────────────────────
+
+describe('doubleElimRoundLabel', () => {
+  // 8-fighter double elim: wbRounds=3, lbRounds=4 → WB 1-3, LB 4-7, GF 8, reset 9.
+  const label = (round: number) => doubleElimRoundLabel(round, 3, 4);
+
+  it('names the winners bracket by depth, prefixed so it is not the grand final', () => {
+    expect(label(1)).toBe('WBQF');
+    expect(label(2)).toBe('WBSF');
+    // The critical one: this is the WINNERS final, not the tournament final.
+    expect(label(3)).toBe('WBF');
+  });
+
+  it('numbers losers rounds LB-relative, not by absolute round', () => {
+    expect(label(4)).toBe('LB1');
+    expect(label(7)).toBe('LB4');
+  });
+
+  it('names the grand final and its reset distinctly', () => {
+    expect(label(8)).toBe('GF');
+    expect(label(9)).toBe('GFR');
+  });
+
+  it('labels the play-in round', () => {
+    expect(label(0)).toBe('PI');
+  });
+
+  it('gives every round of the bracket a distinct label', () => {
+    const labels = Array.from({ length: 10 }, (_, r) => label(r));
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+describe('formatRoundCode — double elimination', () => {
+  it('uses section-aware labels when the round split is supplied', () => {
+    const code = (bracketRound: number) =>
+      formatRoundCode({
+        weapon: 'longsword',
+        poolNumber: null,
+        bracketRound,
+        bracketSize: 8,
+        matchNumber: 1,
+        wbRounds: 3,
+        lbRounds: 4,
+      });
+    expect(code(3)).toBe('LSW-B-WBF-M1');
+    expect(code(5)).toBe('LSW-B-LB2-M1');
+    expect(code(8)).toBe('LSW-B-GF-M1');
+  });
+
+  it('is byte-identical to the single-elim form when no split is supplied', () => {
+    // Regression guard: threading wbRounds/lbRounds through the input must not
+    // change ANY existing single-elim code.
+    for (const round of [0, 1, 2, 3, 4, 5]) {
+      const base = { weapon: 'longsword', poolNumber: null, bracketRound: round, matchNumber: 2 };
+      expect(formatRoundCode({ ...base, bracketSize: 32 })).toBe(
+        formatRoundCode({ ...base, bracketSize: 32, wbRounds: null, lbRounds: null }),
+      );
+    }
   });
 });

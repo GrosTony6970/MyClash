@@ -1666,11 +1666,23 @@ describe('decidePoolAffinity', () => {
     ).toBe('bracket-branch');
   });
 
-  it('falls back to greedy for double-elim even with coordinates', () => {
+  it('uses branch grouping for double-elim too', () => {
+    // Double-elim spreads its WINNERS bracket across lices and converges the
+    // losers bracket (which consumes WB losers, so it cannot run in parallel).
+    // It used to fall back to greedy, which ignored the tree entirely.
     expect(
       decidePoolAffinity({
         isPool: false,
         matches: [{ bracket_round: 1, bracket_position: 1, phase_type: 'double_elim' }],
+      }),
+    ).toBe('bracket-branch');
+  });
+
+  it('falls back to greedy for a non-bracket phase type', () => {
+    expect(
+      decidePoolAffinity({
+        isPool: false,
+        matches: [{ bracket_round: 1, bracket_position: 1, phase_type: 'swiss' }],
       }),
     ).toBe('off');
   });

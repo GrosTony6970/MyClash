@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { buildRoundCode } from '../matches/round-code.helper';
+import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 
 export interface ScheduleGridMatch {
   id: string;
@@ -166,12 +166,19 @@ export class ScheduleGridService {
     if (phases.length === 0) return [];
     const phaseIds = phases.map((p) => p.id);
     const phaseById = new Map(phases.map((p) => [p.id, p]));
-    const bracketSizeByPhaseId = new Map<string, number | null>();
+    // Round-code inputs per bracket phase. Double-elim phases also carry
+    // wbRounds/lbRounds so their codes read WBF / LB3 / GF rather than
+    // labelling three different rounds "F".
+    const codeConfigByPhaseId = new Map<string, ReturnType<typeof bracketCodeConfig>>();
     for (const p of phases) {
       if (p.type === 'pool') continue;
       const cfg = p.config_json ?? null;
+      const resolved = bracketCodeConfig(cfg);
       const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
-      bracketSizeByPhaseId.set(p.id, typeof size === 'number' ? size : null);
+      codeConfigByPhaseId.set(p.id, {
+        ...resolved,
+        bracketSize: typeof size === 'number' ? size : null,
+      });
     }
 
     // 3. Matches under those phases — phase-agnostic (no `eq('type', ...)`).
@@ -269,13 +276,17 @@ export class ScheduleGridService {
       // code uses 1-indexed pool numbers (P1, P2, …).
       const poolNumber = pool && typeof pool.sort_order === 'number' ? pool.sort_order + 1 : null;
 
-      const bracketSize = phase ? (bracketSizeByPhaseId.get(phase.id) ?? null) : null;
+      const codeConfig = (phase ? codeConfigByPhaseId.get(phase.id) : null) ?? {
+        bracketSize: null,
+        wbRounds: null,
+        lbRounds: null,
+      };
 
       const roundCode = buildRoundCode({
         weapon: tournament?.weapon ?? null,
         poolNumber,
         bracketRound: slotSource?.round ?? null,
-        bracketSize,
+        ...codeConfig,
         matchNumberLabel: m.match_number_label,
         roundNumber: null,
       });

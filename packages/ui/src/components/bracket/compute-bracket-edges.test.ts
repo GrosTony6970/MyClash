@@ -181,3 +181,52 @@ describe('computeBracketEdges', () => {
     }
   });
 });
+
+describe('computeBracketEdges — double-elim lanes', () => {
+  const slot = (id: string, round: number, position: number, a?: string, b?: string) =>
+    ({
+      id,
+      round,
+      position,
+      redFighterName: null,
+      blueFighterName: null,
+      redScore: null,
+      blueScore: null,
+      status: 'scheduled',
+      matchId: null,
+      source_a_ref: a ?? null,
+      source_b_ref: b ?? null,
+    }) as never;
+
+  it('resolves WB-prefixed refs, including the play-in feed', () => {
+    // 12 fighters → play-in at round 0 feeding WB-R1.
+    const wb = [
+      slot('pi1', 0, 1, 'seed 5', 'seed 12'),
+      slot('wb1', 1, 1, 'seed 1', 'winner of WBR0P1'),
+      slot('wb2', 2, 1, 'winner of WBR1P1', 'winner of WBR1P2'),
+      slot('wb1b', 1, 2, 'seed 2', 'seed 3'),
+    ];
+    const edges = computeBracketEdges(wb, [0, 1, 2], { refPrefix: 'WB' });
+    // The play-in → WB-R1 edge cannot be inferred by position pairing.
+    expect(edges).toContainEqual({ from: 'pi1', to: 'wb1', kind: 'winner' });
+    expect(edges).toContainEqual({ from: 'wb1', to: 'wb2', kind: 'winner' });
+  });
+
+  it('offsets LB-relative ref rounds onto absolute slot rounds', () => {
+    // wbRounds=3, so LB round 1 sits at absolute round 4.
+    const lb = [
+      slot('lb1', 4, 1, 'loser of WBR1P1', 'loser of WBR1P2'),
+      slot('lb2', 5, 1, 'winner of LBR1P1', 'loser of WBR2P1'),
+    ];
+    const edges = computeBracketEdges(lb, [4, 5], { refPrefix: 'LB', roundOffset: 3 });
+    expect(edges).toContainEqual({ from: 'lb1', to: 'lb2', kind: 'winner' });
+  });
+
+  it('ignores the other lane\u2019s refs rather than mis-linking them', () => {
+    // A WB-namespaced pass must not consume `winner of LBR1P1`.
+    const mixed = [slot('a', 4, 1), slot('b', 5, 1, 'winner of LBR1P1')];
+    const edges = computeBracketEdges(mixed, [4, 5], { refPrefix: 'WB' });
+    // Falls through to position pairing, not a bogus cross-lane edge.
+    expect(edges).toEqual([{ from: 'a', to: 'b', kind: 'winner' }]);
+  });
+});

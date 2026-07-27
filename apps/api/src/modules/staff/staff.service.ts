@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { buildRoundCode } from '../matches/round-code.helper';
+import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 import { bracketRoundLabel } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
@@ -481,6 +481,7 @@ export class StaffService {
       | number
       | undefined;
     const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
+    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
     const red = row['red'] as {
@@ -498,6 +499,8 @@ export class StaffService {
         poolNumber,
         bracketRound,
         bracketSize,
+        wbRounds,
+        lbRounds,
         matchNumberLabel: label,
         roundNumber: null,
       }),
@@ -668,6 +671,7 @@ export class StaffService {
       | number
       | undefined;
     const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
+    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
     const red = row['red'] as { persons?: { given_name?: string; family_name?: string } } | null;
@@ -680,6 +684,8 @@ export class StaffService {
         poolNumber,
         bracketRound,
         bracketSize,
+        wbRounds,
+        lbRounds,
         matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
         roundNumber: null,
       }),
@@ -920,11 +926,14 @@ export class StaffService {
       | number
       | undefined;
     const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
+    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const roundCode = buildRoundCode({
       weapon: tournament?.weapon ?? null,
       poolNumber,
       bracketRound,
       bracketSize,
+      wbRounds,
+      lbRounds,
       matchNumberLabel: (match['match_number_label'] as string | null | undefined) ?? null,
       roundNumber: null,
     });
@@ -1017,6 +1026,7 @@ export class StaffService {
       | number
       | undefined;
     const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
+    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
     const matchNumberLabel = (match['match_number_label'] as string | null | undefined) ?? null;
@@ -1032,6 +1042,8 @@ export class StaffService {
       poolNumber,
       bracketRound,
       bracketSize,
+      wbRounds,
+      lbRounds,
       matchNumberLabel,
       roundNumber: null,
     });
