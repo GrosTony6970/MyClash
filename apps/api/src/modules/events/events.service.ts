@@ -867,12 +867,18 @@ export class EventsService {
       this.countEventLices(eventId),
     ]);
 
+    // Nothing hangs off an event with no phases, and assignments can only
+    // point at a pool or a match — so skip the whole second batch rather than
+    // firing three round-trips whose answers cannot matter.
     const phaseIds = phases.map((phase) => phase.id);
-    const [pools, matches, refereeAssignments] = await Promise.all([
-      this.getPoolsForPhases(phaseIds),
-      this.getMatchScheduleRowsForPhases(phaseIds),
-      this.getLiveRefereeAssignmentScopes(eventId),
-    ]);
+    const [pools, matches, refereeAssignments] =
+      phaseIds.length === 0
+        ? [[], [], []]
+        : await Promise.all([
+            this.getPoolsForPhases(phaseIds),
+            this.getMatchScheduleRowsForPhases(phaseIds),
+            this.getLiveRefereeAssignmentScopes(eventId),
+          ]);
 
     const rows: ReadinessRows = {
       liceCount,

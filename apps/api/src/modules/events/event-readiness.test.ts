@@ -90,15 +90,29 @@ describe('computeEventReadiness — fighters', () => {
 });
 
 describe('computeEventReadiness — ruleset', () => {
-  it('warns when unset, blank or whitespace-only', () => {
+  // `tournaments.ruleset_code` is NOT NULL DEFAULT 'TF_v1' and custom pins
+  // write into the same column, so the row reports which ruleset is in force
+  // rather than pretending it can catch a missing one.
+  it('is informational when set, never a warning', () => {
+    expect(levelOf(readySnapshot(), 'ruleset')).toBe('info');
+  });
+
+  it('carries the code so the row can name it', () => {
+    const snapshot = readySnapshot({ tournaments: [readyTournament({ rulesetCode: 'FAL_2026' })] });
+    expect(find(computeEventReadiness(snapshot).checks, 'ruleset')?.values).toEqual({
+      ruleset: 'FAL_2026',
+    });
+  });
+
+  it('keeps a defensive warn for a blank code, should the column ever go nullable', () => {
     for (const rulesetCode of [null, '', '   ']) {
       const snapshot = readySnapshot({ tournaments: [readyTournament({ rulesetCode })] });
       expect(levelOf(snapshot, 'ruleset')).toBe('warn');
     }
   });
 
-  it('is ok when set', () => {
-    expect(levelOf(readySnapshot(), 'ruleset')).toBe('ok');
+  it('does not let an informational ruleset row drag the roll-up off ok', () => {
+    expect(computeEventReadiness(readySnapshot()).worst).toBe('ok');
   });
 });
 

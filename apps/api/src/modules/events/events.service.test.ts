@@ -2632,9 +2632,10 @@ describe('EventsService', () => {
 
       expect(result.checks.map((c) => c.key)).toEqual(['tournaments', 'pistes']);
       expect(result.worst).toBe('critical');
-      // Nothing hangs off zero tournaments, so no `.in(..., [])` round-trips.
+      // Nothing hangs off zero tournaments, so no `.in(..., [])` round-trips
+      // and no assignment read whose answer could not matter.
       expect(new Set(fromMock.mock.calls.map(([table]) => table))).toEqual(
-        new Set(['events', 'tournaments', 'lices', 'referee_assignments']),
+        new Set(['events', 'tournaments', 'lices']),
       );
     });
 

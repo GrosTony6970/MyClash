@@ -270,7 +270,13 @@ function tournamentChecks(tournament: ReadinessTournamentSnapshot): ReadinessChe
   const checks: ReadinessCheck[] = [
     at({
       key: 'ruleset',
-      level: tournament.rulesetCode?.trim() ? 'ok' : 'warn',
+      // Reports WHICH ruleset will score the fights; it does not gate.
+      // `tournaments.ruleset_code` is TEXT NOT NULL DEFAULT 'TF_v1' and every
+      // custom-ruleset pin writes its code into that same column, so "no
+      // ruleset" is unreachable — a warn here would be a row that claims to
+      // check something it cannot. The blank branch is kept only as a guard
+      // against the column becoming nullable later.
+      level: tournament.rulesetCode?.trim() ? 'info' : 'warn',
       values: { ruleset: tournament.rulesetCode?.trim() ?? '' },
     }),
     at({
