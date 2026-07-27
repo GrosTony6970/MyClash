@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { statusPillTone } from '@myclash/ui';
+import { StatusBadge, statusPillTone } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import {
   isOutstanding,
@@ -113,13 +113,9 @@ function ReadinessGroups({
 export function ReadinessChip({ level }: { level: ReadinessLevel }) {
   const { t } = useI18n();
   return (
-    <span
-      className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
-        statusPillTone(readinessSemantic(level), 'light').className
-      }`}
-    >
+    <StatusBadge semantic={readinessSemantic(level)} size="lg" className="w-fit">
       {t(`organizer.readiness.level.${level}`)}
-    </span>
+    </StatusBadge>
   );
 }
 

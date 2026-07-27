@@ -11,9 +11,6 @@ export type { PillProps, PillVariant } from './components/Pill';
 export { GoogleIcon } from './components/GoogleIcon';
 export type { GoogleIconProps } from './components/GoogleIcon';
 
-export { Badge } from './components/Badge';
-export type { BadgeProps, BadgeVariant } from './components/Badge';
-
 export { Input } from './components/Input';
 export type { InputProps } from './components/Input';
 
@@ -207,7 +204,14 @@ export {
   clockStatusSemantic,
   rulesetSemantic,
 } from './utils/status-pill';
-export type { StatusSemantic, StatusSurface, StatusPillTone } from './utils/status-pill';
+export { statusPillClass } from './utils/status-pill';
+export type {
+  StatusSemantic,
+  StatusSurface,
+  StatusPillTone,
+  StatusPillSize,
+  StatusPillShape,
+} from './utils/status-pill';
 
 export { useNextMatch } from './hooks/useNextMatch';
 export type { NextMatchInfo } from './hooks/useNextMatch';

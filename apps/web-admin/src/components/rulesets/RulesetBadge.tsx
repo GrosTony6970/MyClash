@@ -2,9 +2,9 @@
 
 /**
  * RulesetBadge — status pills across the three ruleset catalogues
- * (Scoring, Penalty, League). Sources its colour from the shared
- * `statusPillTone` palette in `@myclash/ui` so every status pill
- * across the app reads from the same canonical semantic map.
+ * (Scoring, Penalty, League). A thin wrapper over the shared `StatusBadge`:
+ * this file's only job is translating a ruleset variant into a semantic and
+ * attaching the help affordance.
  *
  * Variants:
  *   - builtin / default / published → 'ready'  (the platform endorses it)
@@ -15,7 +15,7 @@
  *                                     reads as urgent, not quiet)
  */
 
-import { rulesetSemantic, statusPillTone, StatusHelp } from '@myclash/ui';
+import { rulesetSemantic, StatusBadge, StatusHelp } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export type RulesetBadgeVariant =
@@ -27,37 +27,28 @@ export type RulesetBadgeVariant =
   | 'archived'
   | 'pendingReview';
 
-const BASE_CLASS = 'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium';
-
 export function RulesetBadge({ variant, label }: { variant: RulesetBadgeVariant; label: string }) {
   const { t } = useI18n();
-  const tone = statusPillTone(rulesetSemantic(variant), 'light');
-  // Every ruleset catalogue renders through here, so the explanation lands on
-  // all three at once. Ruleset variants are the ones that genuinely surprise
-  // people — "archived" delists a ruleset from the pickers but tournaments
-  // that already pinned it keep scoring by it forever.
-  const help = <StatusHelp domain="ruleset" status={variant} t={t} />;
+  // Pending review reads as an urgency flag: square corners, uppercase.
+  // Tone stays canonical (amber) either way.
+  const isFlag = variant === 'pendingReview';
 
-  if (variant === 'pendingReview') {
-    // Pending review reads as an urgency flag: square corners,
-    // uppercase. Tone stays canonical (amber).
-    return (
-      <span className="inline-flex items-center">
-        <span
-          className={`rounded border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tone.className}`}
-        >
-          {label}
-        </span>
-        {help}
-      </span>
-    );
-  }
   return (
     <span className="inline-flex items-center">
-      <span className={`${BASE_CLASS} ${tone.className} ${tone.pulse ? 'animate-pulse' : ''}`}>
+      <StatusBadge
+        semantic={rulesetSemantic(variant)}
+        size="sm"
+        shape={isFlag ? 'flag' : 'pill'}
+        className={isFlag ? 'uppercase tracking-wide' : ''}
+      >
         {label}
-      </span>
-      {help}
+      </StatusBadge>
+      {/* Every ruleset catalogue renders through here, so the explanation
+          lands on all three at once. Ruleset variants are the ones that
+          genuinely surprise people — "archived" delists a ruleset from the
+          pickers but tournaments that already pinned it keep scoring by it
+          forever. */}
+      <StatusHelp domain="ruleset" status={variant} t={t} />
     </span>
   );
 }

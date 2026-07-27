@@ -22,17 +22,29 @@
  *
  * ── What is actually true, as of this writing ───────────────────────────
  *
- * This header used to claim every status pill pipes through these mappers
- * into `StatusBadge`. It does not, and saying so made the gap invisible:
- * `<StatusBadge>` appears on THREE product surfaces, while roughly a dozen
- * others call `statusPillTone` directly and render their own `<span>`. The
- * palette is genuinely shared — the component is not.
+ * This header once claimed every status pill pipes through these mappers
+ * into `StatusBadge`. It did not, and saying so made the gap invisible:
+ * `<StatusBadge>` was on THREE product surfaces while a dozen others called
+ * `statusPillTone` and hand-rolled their own `<span>`. The palette was
+ * genuinely shared; the geometry was not, and the same conceptual chip came
+ * out three different sizes on three different pages.
  *
- * So: every pill DOES go through `statusPillTone`, and no inline
- * status-to-Tailwind map should exist anywhere else. Routing them all
- * through `StatusBadge` is a worthwhile follow-up, not a description of
- * today. `StatusHelp` deliberately drops in beside a chip rather than
- * depending on that consolidation.
+ * Half-fixed, honestly labelled:
+ *
+ *   - Every pill DOES go through `statusPillTone`. No inline
+ *     status-to-Tailwind map should exist anywhere else. That part always
+ *     held and still does.
+ *   - `statusPillClass` now owns the GEOMETRY too, and `StatusBadge` is a
+ *     thin wrapper over it, so there is one place to change a chip.
+ *   - REMAINING: several call sites still build their own `<span>` around
+ *     `statusPillTone`. They render correct colours but their own padding.
+ *     Migrating them to `StatusBadge` is cosmetic churn with no test
+ *     coverage to catch regressions, so it is deliberately left for
+ *     whoever next touches those files.
+ *
+ * Two call sites can never migrate: the tournament and workshop status
+ * pickers are `<select>` elements styled as pills. They take
+ * `statusPillClass` directly — that is what it is for.
  *
  * Note also that the mappers accept more strings than the database can
  * store — `matchStatusSemantic` handles 'ready', 'forfeit' and
@@ -83,6 +95,66 @@ const DARK_TONES: Record<StatusSemantic, string> = {
 export function statusPillTone(semantic: StatusSemantic, surface: StatusSurface): StatusPillTone {
   const className = surface === 'dark' ? DARK_TONES[semantic] : LIGHT_TONES[semantic];
   return { className, pulse: semantic === 'live' };
+}
+
+// ── Chip geometry ─────────────────────────────────────────────────
+
+/**
+ * The three chip footprints that actually exist in this codebase, taken
+ * from the hand-rolled chips rather than invented:
+ *
+ * - `sm` — the table-cell chip (review queue, pool matches, league
+ *   attachment rows, ruleset catalogues).
+ * - `md` — the default, and what `StatusBadge` always rendered.
+ * - `lg` — the page-header chip: bigger, uppercase and letter-spaced, as
+ *   on the event dashboard header.
+ */
+export type StatusPillSize = 'sm' | 'md' | 'lg';
+
+/**
+ * `pill` is the rounded default. `flag` is the squared-off, uppercase
+ * treatment the ruleset catalogues use for "pending review" so it reads as
+ * urgent rather than quiet — a deliberate exception, not a second style.
+ */
+export type StatusPillShape = 'pill' | 'flag';
+
+const SIZE_CLASS: Record<StatusPillSize, string> = {
+  sm: 'px-2 py-0.5 text-xs font-semibold',
+  md: 'px-2.5 py-0.5 text-xs font-semibold leading-5',
+  lg: 'px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em]',
+};
+
+/**
+ * Geometry + palette + the liveness pulse for a status chip, as one class
+ * string.
+ *
+ * Exists because not every status chip can BE a `StatusBadge`. Two of them
+ * are `<select>` elements styled to look like pills (the tournament and
+ * workshop status pickers) — a badge component cannot be a dropdown, but it
+ * can share its styling. Anything rendering a plain chip should use
+ * `StatusBadge` instead of calling this directly.
+ *
+ * Deliberately sets NO display class. `inline-flex` on a `<select>` is
+ * applied but its internal layout stays browser-controlled, and it can shift
+ * the baseline and the dropdown arrow. The caller owns display; `StatusBadge`
+ * adds `inline-flex items-center` for the span case.
+ */
+export function statusPillClass(
+  semantic: StatusSemantic,
+  surface: StatusSurface,
+  options: { size?: StatusPillSize; shape?: StatusPillShape } = {},
+): string {
+  const { size = 'md', shape = 'pill' } = options;
+  const tone = statusPillTone(semantic, surface);
+  return [
+    'border',
+    shape === 'flag' ? 'rounded' : 'rounded-full',
+    SIZE_CLASS[size],
+    tone.className,
+    tone.pulse ? 'animate-pulse' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 // ── Per-domain mappers ────────────────────────────────────────────

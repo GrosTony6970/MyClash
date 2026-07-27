@@ -1,8 +1,14 @@
 import * as React from 'react';
-import { statusPillTone, type StatusSemantic, type StatusSurface } from '../utils/status-pill';
+import {
+  statusPillClass,
+  type StatusPillShape,
+  type StatusPillSize,
+  type StatusSemantic,
+  type StatusSurface,
+} from '../utils/status-pill';
 
 /**
- * StatusBadge — status pill chip.
+ * StatusBadge — THE status pill chip.
  *
  * Two ways to pick the colour:
  *
@@ -20,6 +26,12 @@ import { statusPillTone, type StatusSemantic, type StatusSurface } from '../util
  *      `surface='light'` and routes through the same helper, so the
  *      colours land on the new canonical palette without each call
  *      site needing to change immediately.
+ *
+ * `size` and `shape` exist because the codebase already renders these
+ * shapes by hand — they were reverse-engineered from the real chips, not
+ * invented. See `statusPillClass` for what each one is and where it came
+ * from. A dark-surface sibling component used to exist alongside this one
+ * and was deleted unused; `surface='dark'` covers that case.
  */
 export type StatusBadgeVariant =
   | 'draft'
@@ -55,6 +67,10 @@ export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> 
   semantic?: StatusSemantic;
   /** Surface mode (defaults to `'light'`). */
   surface?: StatusSurface;
+  /** Chip footprint (defaults to `'md'`). */
+  size?: StatusPillSize;
+  /** Rounded pill (default) or the squared-off "flag" used for urgency. */
+  shape?: StatusPillShape;
   /** Legacy — old variant API. Mapped to a semantic internally. */
   variant?: StatusBadgeVariant;
 }
@@ -62,19 +78,19 @@ export interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   semantic,
   surface = 'light',
+  size = 'md',
+  shape = 'pill',
   variant,
   className = '',
   children,
   ...props
 }) => {
   const resolved: StatusSemantic = semantic ?? (variant ? VARIANT_TO_SEMANTIC[variant] : 'pending');
-  const tone = statusPillTone(resolved, surface);
   return (
     <span
       className={[
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold leading-5',
-        tone.className,
-        tone.pulse ? 'animate-pulse' : '',
+        'inline-flex items-center',
+        statusPillClass(resolved, surface, { size, shape }),
         className,
       ]
         .filter(Boolean)

@@ -31,7 +31,7 @@ import {
   TournamentColorDot,
   accentClassFor,
   useConfirm,
-  statusPillTone,
+  statusPillClass,
   workshopStatusSemantic,
 } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
@@ -962,9 +962,9 @@ export default function WorkshopsAdminPage() {
                       value={w.status}
                       onChange={(e) => void changeStatus(w, e.target.value)}
                       aria-label={t('organizer.workshopsPage.statusAria')}
-                      className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                        statusPillTone(workshopStatusSemantic(w.status), 'light').className
-                      }`}
+                      className={`${statusPillClass(workshopStatusSemantic(w.status), 'light', {
+                        size: 'sm',
+                      })} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
                     >
                       {['draft', 'published', 'running', 'completed'].map((s) => (
                         <option key={s} value={s}>
@@ -1573,8 +1573,9 @@ export default function WorkshopsAdminPage() {
   );
 }
 
-// i18n keys for the status <select> option labels; the pill colour comes from
-// the canonical workshopStatusSemantic → statusPillTone helper.
+// i18n keys for the status <select> option labels; the pill styling comes from
+// the canonical workshopStatusSemantic → statusPillClass helper, which a
+// <select> can share even though it can never be a <StatusBadge>.
 const STATUS_KEYS: Record<string, string> = {
   draft: 'organizer.workshopsPage.statusDraft',
   published: 'organizer.workshopsPage.statusPublished',

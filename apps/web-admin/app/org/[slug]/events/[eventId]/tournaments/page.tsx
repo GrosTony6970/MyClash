@@ -9,7 +9,7 @@ import {
   Modal,
   StatusHelp,
   TournamentColorDot,
-  statusPillTone,
+  statusPillClass,
   tournamentStatusSemantic,
 } from '@myclash/ui';
 import Link from 'next/link';
@@ -377,9 +377,10 @@ export default function EventTournamentsPage() {
                         disabled={isReadOnly || busyId === tournament.id}
                         aria-label={t('organizer.tournaments.status')}
                         className={[
-                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
-                          statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
-                            .className,
+                          statusPillClass(tournamentStatusSemantic(tournament.status), 'light', {
+                            size: 'sm',
+                          }),
+                          'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
                         ].join(' ')}
                       >
                         {['draft', 'published', 'running', 'completed', 'archived'].map(
