@@ -2576,7 +2576,7 @@ export const en = {
       timeSimulation: {
         title: 'Time simulation',
         description:
-          'Shift the clock the public app (app.myclash.fr) uses so time-dependent UI — the schedule "Next" / "Live" badges — can be tested on demand. The clock advances forward from the datetime you set. ⚠️ While on, EVERY public visitor sees the simulated time (a badge shows the active value). Turn it off after testing.',
+          'Shift the clock the public app (app.myclash.fr) uses so time-dependent UI can be tested on demand: the personal schedule "Live" / "Next" badges, the event-home "Live now" workshops, and the tournament grid now-line (which also opens on the simulated day). While simulating, a scheduled fight follows its slot time instead of waiting to be started — real statuses still win, so a bout marked running stays Live and a completed one stays past. Live data computed server-side (the /live board, the organizer live banner) keeps the real clock. The clock advances forward from the datetime you set. ⚠️ While on, EVERY public visitor sees the simulated time (a badge shows the active value). Turn it off after testing.',
         targetLabel: 'Simulated "now"',
         targetHelp:
           'The date & time the public app should treat as the current moment. The clock advances forward from here.',
@@ -9370,7 +9370,7 @@ export const fr = {
       timeSimulation: {
         title: 'Simulation temporelle',
         description:
-          'Decale l horloge utilisee par l app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps — les badges « Suivant » / « En direct » du planning. L horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l heure simulee (un badge affiche la valeur active). A desactiver apres les tests.',
+          'Decale l horloge utilisee par l app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l accueil evenement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son creneau au lieu d attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les donnees live calculees cote serveur (le tableau /live, la banniere live organisateur) gardent l horloge reelle. L horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l heure simulee (un badge affiche la valeur active). A desactiver apres les tests.',
         targetLabel: 'Instant simule (« maintenant »)',
         targetHelp:
           'La date et l heure que l app publique doit considerer comme l instant present. L horloge avance a partir de ce point.',

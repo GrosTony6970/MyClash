@@ -31,6 +31,61 @@ describe('classifyTime — fights (status-driven)', () => {
   });
 });
 
+describe('classifyTime — fights under a time simulation (window-driven)', () => {
+  // With a simulated clock, match statuses describe a moment hours away, so a
+  // *scheduled* fight falls back to its slot window — this is what makes the
+  // LIVE / NEXT badges move while simulating.
+  it('is live inside its slot window', () => {
+    expect(
+      classifyTime({ kind: 'fight', startMs: NOW - 1 * MIN, status: 'scheduled' }, NOW, true),
+    ).toBe('live');
+  });
+
+  it('is upcoming before its slot', () => {
+    expect(
+      classifyTime({ kind: 'fight', startMs: NOW + 30 * MIN, status: 'scheduled' }, NOW, true),
+    ).toBe('upcoming');
+  });
+
+  it('is past once the default window has elapsed — so NEXT advances', () => {
+    expect(
+      classifyTime(
+        { kind: 'fight', startMs: NOW - (DEFAULT_DURATION_MS + MIN), status: 'scheduled' },
+        NOW,
+        true,
+      ),
+    ).toBe('past');
+  });
+
+  it('still lets real statuses win — completed stays past, running stays live', () => {
+    expect(
+      classifyTime({ kind: 'fight', startMs: NOW + 60 * MIN, status: 'completed' }, NOW, true),
+    ).toBe('past');
+    expect(
+      classifyTime({ kind: 'fight', startMs: NOW - 60 * MIN, status: 'running' }, NOW, true),
+    ).toBe('live');
+  });
+
+  it('leaves a TBD fight upcoming (it sorts last, so it only becomes NEXT alone)', () => {
+    expect(classifyTime({ kind: 'fight', startMs: null, status: 'scheduled' }, NOW, true)).toBe(
+      'upcoming',
+    );
+  });
+
+  it('is inert when the simulation flag is off — the real-event rule is unchanged', () => {
+    // Same inputs as the "past"/"live" cases above, without the flag.
+    expect(classifyTime({ kind: 'fight', startMs: NOW - 1 * MIN, status: 'scheduled' }, NOW)).toBe(
+      'upcoming',
+    );
+    expect(
+      classifyTime(
+        { kind: 'fight', startMs: NOW - (DEFAULT_DURATION_MS + MIN), status: 'scheduled' },
+        NOW,
+      ),
+    ).toBe('upcoming');
+  });
+});
+
 describe('classifyTime — workshops (window-driven)', () => {
   it('is upcoming before it starts', () => {
     expect(

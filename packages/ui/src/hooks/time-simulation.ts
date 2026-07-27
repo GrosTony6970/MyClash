@@ -11,9 +11,22 @@ import type { PublicFeatureFlagsSnapshot } from '@myclash/feature-flags';
  * carries unparseable timestamps — a safe no-op fallback.
  */
 export function timeSimulationOffsetMs(sim: PublicFeatureFlagsSnapshot['timeSimulation']): number {
-  if (!sim.enabled || !sim.simulatedNowIso || !sim.anchorRealIso) return 0;
-  const target = Date.parse(sim.simulatedNowIso);
-  const anchor = Date.parse(sim.anchorRealIso);
-  if (Number.isNaN(target) || Number.isNaN(anchor)) return 0;
-  return target - anchor;
+  if (!isTimeSimulationActive(sim)) return 0;
+  return Date.parse(sim.simulatedNowIso!) - Date.parse(sim.anchorRealIso!);
+}
+
+/**
+ * Whether a simulation is actually driving the clock — enabled, with both
+ * timestamps present and parseable.
+ *
+ * Deliberately not derived from `timeSimulationOffsetMs(sim) !== 0`:
+ * simulating to roughly the present is a legitimate near-zero offset, and
+ * callers use this to decide whether live *data* can be trusted (see the
+ * fight rule in the personal schedule), not just how far the clock moved.
+ */
+export function isTimeSimulationActive(sim: PublicFeatureFlagsSnapshot['timeSimulation']): boolean {
+  if (!sim.enabled || !sim.simulatedNowIso || !sim.anchorRealIso) return false;
+  return (
+    !Number.isNaN(Date.parse(sim.simulatedNowIso)) && !Number.isNaN(Date.parse(sim.anchorRealIso))
+  );
 }

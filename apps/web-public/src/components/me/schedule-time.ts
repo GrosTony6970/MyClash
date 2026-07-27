@@ -27,12 +27,20 @@ export interface TimeInput {
  * no stored end and reuse the project's 5-minute default. TBD items (no start) are
  * treated as `upcoming` — they sort last, so they only become NEXT when nothing
  * else is upcoming.
+ *
+ * `simulated` marks `now` as coming from the super-admin time simulation rather
+ * than the wall clock. Match statuses are still real, so they'd describe a moment
+ * hours away from the simulated one: a *scheduled* fight then falls back to its
+ * slot window like a workshop, which is what makes LIVE / NEXT move while
+ * simulating. `completed` and `running` remain hard facts and still win.
  */
-export function classifyTime(input: TimeInput, now: number): TemporalState {
+export function classifyTime(input: TimeInput, now: number, simulated = false): TemporalState {
   if (input.kind === 'fight') {
     if (input.status === 'completed') return 'past';
     if (input.status === 'running') return 'live';
-    return 'upcoming';
+    if (!simulated) return 'upcoming';
+    // Fall through to the window rule below (no endMs → start + default duration,
+    // so exactly one fight is LIVE at a given simulated minute).
   }
 
   const start = input.startMs;

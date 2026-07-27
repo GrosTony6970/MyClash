@@ -1,7 +1,7 @@
 'use client';
 
 import { formatInZone } from '@myclash/time';
-import { EmptyState, useNow } from '@myclash/ui';
+import { EmptyState, useClock } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { getPublicApiUrl } from '../../lib/api-url';
@@ -74,10 +74,11 @@ export function ScheduleView({
   const tag = localeTag(locale);
 
   // Live "now" clock so LIVE / NEXT track the current time and advance as the
-  // event unfolds. `useNow` also honours an active super-admin time simulation
-  // (the `time_simulation` feature flag). ScheduleView only ever mounts on the
-  // client, so it never hydrates on the server.
-  const now = useNow(getPublicApiUrl());
+  // event unfolds. `useClock` also honours an active super-admin time simulation
+  // (the `time_simulation` feature flag) and reports it, so fights can fall back
+  // to their scheduled slot while the clock is simulated. ScheduleView only ever
+  // mounts on the client, so it never hydrates on the server.
+  const { nowMs: now, simulated } = useClock(getPublicApiUrl());
 
   // Retractable day + weapon sections. Default expanded (a key present in the set
   // is collapsed); state is in-memory for the tab's lifetime.
@@ -180,6 +181,7 @@ export function ScheduleView({
           status: i.kind === 'fight' ? i.data.status : undefined,
         },
         now,
+        simulated,
       ),
     ]),
   );

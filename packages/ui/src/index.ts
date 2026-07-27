@@ -233,5 +233,6 @@ export type {
 
 export { MaintenanceBanner } from './components/MaintenanceBanner';
 export { useRuntimeFlags, getRuntimeFlagsCached } from './hooks/useRuntimeFlags';
-export { useNow } from './hooks/useNow';
-export { timeSimulationOffsetMs } from './hooks/time-simulation';
+export { useNow, useClock, useClientClock } from './hooks/useNow';
+export type { ClockState } from './hooks/useNow';
+export { timeSimulationOffsetMs, isTimeSimulationActive } from './hooks/time-simulation';

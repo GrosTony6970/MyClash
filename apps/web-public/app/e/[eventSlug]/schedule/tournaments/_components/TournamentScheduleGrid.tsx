@@ -8,7 +8,9 @@
  *
  * Re-skinned in the public app's LIGHT design tokens and stripped of every
  * admin affordance (no drag/resize/edit/generate/sidebar). Blocks link to their
- * tournament; a subtle now-line marks the current time on today's tab.
+ * tournament; a subtle now-line marks the current time on today's tab. "Current"
+ * comes from the shared `useClientClock`, so an active super-admin time
+ * simulation moves both the now-line and the day tab it opens on.
  *
  * Geometry + block model come from the shared @myclash/schedule-core package,
  * so this reads the exact same wall-clock the organizer laid out, in the event
@@ -16,9 +18,15 @@
  */
 
 import Link from 'next/link';
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { formatInZone, zonedDay } from '@myclash/time';
-import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import {
+  accentClassFor,
+  tintBgClassFor,
+  tintBorderClassFor,
+  tintTextClassFor,
+  useClientClock,
+} from '@myclash/ui';
 import {
   computeVenueGroups,
   formatSlotTime,
@@ -33,38 +41,8 @@ import {
   VENUE_HEADER_HEIGHT_PX,
 } from '@myclash/schedule-core';
 import { useI18n } from '@/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 import type { TournamentScheduleData } from '../_lib/schedule-grid-data';
-
-// ── Shared minute clock (lint-safe: useSyncExternalStore, no setState-in-effect,
-//    no network). Server snapshot is 0 so the now-line is absent on SSR and the
-//    first client paint, then appears once the store ticks. ────────────────────
-let clockMs = 0;
-const clockListeners = new Set<() => void>();
-let clockTimer: ReturnType<typeof setInterval> | null = null;
-function subscribeClock(cb: () => void): () => void {
-  clockListeners.add(cb);
-  if (clockTimer === null) {
-    clockMs = Date.now();
-    clockTimer = setInterval(() => {
-      clockMs = Date.now();
-      clockListeners.forEach((l) => l());
-    }, 30_000);
-  }
-  return () => {
-    clockListeners.delete(cb);
-    if (clockListeners.size === 0 && clockTimer !== null) {
-      clearInterval(clockTimer);
-      clockTimer = null;
-    }
-  };
-}
-function useClockMs(): number {
-  return useSyncExternalStore(
-    subscribeClock,
-    () => clockMs,
-    () => 0,
-  );
-}
 
 interface Props {
   data: TournamentScheduleData;
@@ -75,12 +53,23 @@ interface Props {
 export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
   const { t, locale } = useI18n();
   const { tz, days, lices, blocks, breaks, gridEndByDay, tournaments, initialDayIndex } = data;
-  const [activeIndex, setActiveIndex] = useState(initialDayIndex);
-  const clock = useClockMs();
+  // null until the viewer picks a tab themselves — their choice then wins forever.
+  const [pickedDayIndex, setPickedDayIndex] = useState<number | null>(null);
+  const { nowMs: clock, simulated } = useClientClock(getPublicApiUrl());
 
   if (lices.length === 0 || (blocks.length === 0 && breaks.length === 0)) {
     return <p className="text-sm text-muted">{emptyLabel}</p>;
   }
+
+  const nowIso = clock > 0 ? new Date(clock).toISOString() : null;
+
+  // `initialDayIndex` is computed server-side off the real clock, so under a time
+  // simulation it opens the wrong tab and the now-line lands on a day nobody is
+  // looking at. Derive the simulated day in render (no effect, so no
+  // setState-in-effect) and let it win until the viewer picks a tab.
+  const simulatedDay =
+    simulated && nowIso ? days.find((d) => d.dayKey === zonedDay(nowIso, tz)) : undefined;
+  const activeIndex = pickedDayIndex ?? simulatedDay?.index ?? initialDayIndex;
 
   const activeDay = days[activeIndex] ?? days[0]!;
   const dayKey = activeDay.dayKey;
@@ -95,7 +84,6 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
   const rowFor = (slot: number): number => slot + 3;
   const lastRow = gridEndSlot + 3;
 
-  const nowIso = clock > 0 ? new Date(clock).toISOString() : null;
   const nowSlot =
     nowIso && zonedDay(nowIso, tz) === dayKey ? nowSlotForDay(nowIso, dayKey, tz) : null;
 
@@ -112,7 +100,7 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
               <button
                 key={day.dayKey}
                 type="button"
-                onClick={() => setActiveIndex(day.index)}
+                onClick={() => setPickedDayIndex(day.index)}
                 aria-pressed={active}
                 className={[
                   'rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors',
