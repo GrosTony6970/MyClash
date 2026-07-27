@@ -73,6 +73,47 @@ export class OrganizationsService {
     return data;
   }
 
+  /**
+   * Public organiser profile, for /o/[slug].
+   *
+   * A SEPARATE method rather than opening getBySlug up: that one returns
+   * contact_email and status, and neither belongs on an anonymous surface.
+   * This projects only what the public page renders.
+   *
+   * 404s unless the org is active — a pending_approval or suspended
+   * organisation must not get an indexable public page.
+   */
+  async getPublicBySlug(slug: string) {
+    const { data, error } = await this.supabase.service
+      .from('organizations')
+      .select('id, name, slug, logo_url, brand_color, status')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    const org = data as {
+      id: string;
+      name: string;
+      slug: string;
+      logo_url: string | null;
+      brand_color: string | null;
+      status: string | null;
+    } | null;
+    // Same 404 for "no such org" and "not active", so the endpoint doesn't
+    // become a probe for which organisations exist but are unapproved.
+    if (!org || org.status !== 'active') {
+      throw new NotFoundException(`Organization "${slug}" not found`);
+    }
+
+    return {
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      logoUrl: org.logo_url,
+      brandColor: org.brand_color,
+    };
+  }
+
   // ── Create ───────────────────────────────────────────────────────────────────
   // Creates with status='pending_approval' per T-105 AC.
   // (T-009b creates with status='active' for self-service signup — different path)

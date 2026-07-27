@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -60,6 +65,71 @@ describe('OrganizationsService', () => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
     service = new OrganizationsService(mockSupabase as never);
+  });
+
+  describe('getPublicBySlug', () => {
+    function mockOrg(row: Record<string, unknown> | null) {
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: row, error: null });
+      fromMock.mockReturnValueOnce(chain);
+      return chain;
+    }
+
+    const active = {
+      id: 'org-1',
+      name: 'Lyon AMHE',
+      slug: 'lyon-amhe',
+      logo_url: 'https://cdn/lyon.png',
+      brand_color: '#b91c1c',
+      status: 'active',
+      contact_email: 'contact@lyon.example',
+    };
+
+    it('returns only the fields the public page renders', async () => {
+      mockOrg(active);
+
+      const result = await service.getPublicBySlug('lyon-amhe');
+
+      expect(result).toEqual({
+        id: 'org-1',
+        name: 'Lyon AMHE',
+        slug: 'lyon-amhe',
+        logoUrl: 'https://cdn/lyon.png',
+        brandColor: '#b91c1c',
+      });
+    });
+
+    it('never leaks contact_email or status to an anonymous caller', async () => {
+      // The whole reason this is a separate method from getBySlug.
+      mockOrg(active);
+
+      const result = (await service.getPublicBySlug('lyon-amhe')) as Record<string, unknown>;
+
+      expect(result).not.toHaveProperty('contact_email');
+      expect(result).not.toHaveProperty('contactEmail');
+      expect(result).not.toHaveProperty('status');
+    });
+
+    it('404s for an unknown slug', async () => {
+      mockOrg(null);
+      await expect(service.getPublicBySlug('nope')).rejects.toThrow(NotFoundException);
+    });
+
+    it.each(['pending_approval', 'suspended', 'rejected'])(
+      '404s a %s organisation rather than giving it an indexable page',
+      async (status) => {
+        mockOrg({ ...active, status });
+        await expect(service.getPublicBySlug('lyon-amhe')).rejects.toThrow(NotFoundException);
+      },
+    );
+
+    it('gives the same 404 for missing and non-active, so it is not an existence probe', async () => {
+      mockOrg(null);
+      const missing = await service.getPublicBySlug('nope').catch((e: Error) => e.message);
+      mockOrg({ ...active, slug: 'nope', status: 'suspended' });
+      const inactive = await service.getPublicBySlug('nope').catch((e: Error) => e.message);
+      expect(missing).toBe(inactive);
+    });
   });
 
   describe('create', () => {

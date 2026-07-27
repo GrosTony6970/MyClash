@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { Public } from '../../common/auth/public.decorator';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -56,6 +57,22 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'List all organizations (super admin)' })
   async list() {
     return this.orgs.list();
+  }
+
+  /**
+   * GET /api/v1/organizations/public/:slug
+   *
+   * Anonymous organiser profile backing the public /o/[slug] page. Declared
+   * ABOVE @Get(':id') on purpose — Nest matches routes in declaration order, so
+   * a later position would let 'public' be swallowed as an :id (and rejected by
+   * ParseUUIDPipe).
+   */
+  @Public()
+  @Get('public/:slug')
+  @ApiOperation({ summary: 'Public organiser profile by slug (anonymous)' })
+  @ApiParam({ name: 'slug', type: 'string' })
+  async getPublicBySlug(@Param('slug') slug: string) {
+    return this.orgs.getPublicBySlug(slug);
   }
 
   /** GET /api/v1/organizations/slug/:slug */

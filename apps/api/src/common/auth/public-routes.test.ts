@@ -102,6 +102,9 @@ const EXPECTED_PUBLIC = [
   'GET /matches/:id/exchanges',
   'GET /matches/:id/penalties',
   'GET /matches/:id/summary',
+  // Anonymous organiser profile for /o/[slug]. Deliberately NOT
+  // /organizations/slug/:slug — that one returns contact_email + status.
+  'GET /organizations/public/:slug',
   'GET /public/generated-content/:type/:entityId',
   'GET /tournaments/:id/stats/fighters',
   'GET /tournaments/:id/stats/overview',
