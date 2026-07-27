@@ -80,6 +80,19 @@ export class EventsController {
     return this.events.getEventDashboardStats(eventId, userId);
   }
 
+  /** GET /api/v1/events/:eventId/readiness */
+  @Get('events/:eventId/readiness')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Pre-flight checklist for an event's readiness to run" })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getEventReadiness(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.getEventReadiness(eventId, userId);
+  }
+
   /** GET /api/v1/events/:eventId/clubs?scope=all|event&q=... */
   @Get('events/:eventId/clubs')
   @ApiBearerAuth()

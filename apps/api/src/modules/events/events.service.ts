@@ -19,6 +19,11 @@ import { buildRoundCode } from '../matches/round-code.helper';
 import { derivePoolSchedule, type PoolMatchTimeRow } from './pool-schedule';
 import { sideColorsFromScoringConfig } from './side-colors';
 import { nextIsoDay } from './date-window';
+import {
+  buildReadinessSnapshot,
+  computeEventReadiness,
+  type ReadinessRows,
+} from './event-readiness';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import type {
   CreateEventDto,
@@ -833,6 +838,60 @@ export class EventsService {
           assignedRefereeCount: refereeCounts.get(tournament.id) ?? 0,
         };
       }),
+    };
+  }
+
+  /**
+   * Readiness pre-flight for an event: what still stands between it and being
+   * runnable, per tournament. The rules live in `event-readiness.ts`; this
+   * method only gathers the rows they judge.
+   *
+   * A SEPARATE read from `getEventDashboardStats` on purpose. That method is
+   * already long and carries the whole dashboard payload; the readiness panel
+   * loads on its own, and the publish flow wants the checklist without any of
+   * the rest. Same `scorekeeper` gate — readiness is organiser-only detail.
+   */
+  async getEventReadiness(eventId: string, userId: string) {
+    const event = (await this.getEventById(eventId)) as {
+      id: string;
+      organization_id: string;
+      status: string;
+    };
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
+
+    const tournaments = await this.getEventTournaments(eventId);
+    const tournamentIds = tournaments.map((tournament) => tournament.id);
+    const [registrations, phases, liceCount] = await Promise.all([
+      this.getRegistrationsForTournaments(tournamentIds),
+      this.getPhasesForTournaments(tournamentIds),
+      this.countEventLices(eventId),
+    ]);
+
+    const phaseIds = phases.map((phase) => phase.id);
+    const [pools, matches, refereeAssignments] = await Promise.all([
+      this.getPoolsForPhases(phaseIds),
+      this.getMatchScheduleRowsForPhases(phaseIds),
+      this.getLiveRefereeAssignmentScopes(eventId),
+    ]);
+
+    const rows: ReadinessRows = {
+      liceCount,
+      tournaments: tournaments.map((tournament) => ({
+        id: tournament.id,
+        name: tournament.name,
+        ruleset_code: tournament.ruleset_code,
+      })),
+      registrations,
+      phases,
+      pools,
+      matches,
+      refereeAssignments,
+    };
+    return {
+      eventId: event.id,
+      eventStatus: event.status,
+      tournaments: rows.tournaments.map(({ id, name }) => ({ id, name })),
+      ...computeEventReadiness(buildReadinessSnapshot(rows)),
     };
   }
 
@@ -2023,6 +2082,66 @@ export class EventsService {
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as Array<{ person_id: string }>;
+  }
+
+  /** Pistes configured for the event. Readiness only needs how many. */
+  private async countEventLices(eventId: string): Promise<number> {
+    const { data, error } = await this.supabase.service
+      .from('lices')
+      .select('id')
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Array<{ id: string }>).length;
+  }
+
+  private async getPoolsForPhases(phaseIds: string[]) {
+    if (phaseIds.length === 0) return [] as Array<{ id: string; phase_id: string }>;
+    const { data, error } = await this.supabase.service
+      .from('pools')
+      .select('id, phase_id')
+      .in('phase_id', phaseIds);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ id: string; phase_id: string }>;
+  }
+
+  /**
+   * Matches of the given phases with just their scheduling coordinates. A
+   * match is scheduled only with BOTH `lice_id` and `scheduled_at` — either
+   * alone cannot be placed on the board — which is the same predicate the
+   * organizer chat's unscheduled-match tool uses.
+   */
+  private async getMatchScheduleRowsForPhases(phaseIds: string[]) {
+    type Row = {
+      id: string;
+      pool_id: string | null;
+      lice_id: string | null;
+      scheduled_at: string | null;
+    };
+    if (phaseIds.length === 0) return [] as Row[];
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, pool_id, lice_id, scheduled_at')
+      .in('phase_id', phaseIds);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Row[];
+  }
+
+  /**
+   * Referee assignments that still stand for the event, pool- or match-scoped.
+   * The status filter mirrors the public pool footer: a declined or cancelled
+   * row is not cover. Lice-scoped rows are excluded — they staff a piste for a
+   * span of time, not a specific pool, so they cannot answer "is this pool
+   * refereed".
+   */
+  private async getLiveRefereeAssignmentScopes(eventId: string) {
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('pool_id, match_id')
+      .eq('event_id', eventId)
+      .in('scope_type', ['pool', 'match'])
+      .in('status', ['assigned', 'confirmed', 'pending']);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ pool_id: string | null; match_id: string | null }>;
   }
 
   private async countTournamentRefereeAssignments(eventId: string, tournamentIds: string[]) {

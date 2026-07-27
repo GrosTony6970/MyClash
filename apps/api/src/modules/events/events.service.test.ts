@@ -2519,4 +2519,149 @@ describe('EventsService', () => {
       });
     });
   });
+
+  describe('getEventReadiness', () => {
+    const EVENT = { id: 'event-1', organization_id: 'org-1', status: 'draft' };
+
+    /**
+     * Dispatched purely BY TABLE NAME rather than from an ordered queue. The
+     * readiness read fires two `Promise.all` batches, so an ordered queue
+     * would encode the batching order as if it were a contract and break the
+     * moment a lookup moves between batches — see the mock-dispatch note in
+     * the readiness slice. Every table it touches is distinct, so names are
+     * unambiguous, and an unlisted table throws instead of silently
+     * answering `[]` and turning a wrong query into a green test.
+     */
+    function dispatchByTable(tables: Record<string, unknown>) {
+      return (table: string): unknown => {
+        if (!(table in tables)) throw new Error(`unexpected table in readiness read: ${table}`);
+        return makeFullChain({ data: tables[table], error: null });
+      };
+    }
+
+    /** A one-tournament event that passes every check. */
+    function readyTables(overrides: Record<string, unknown> = {}) {
+      return {
+        events: EVENT,
+        tournaments: [{ id: 't1', name: 'Longsword', ruleset_code: 'TF_v1' }],
+        registrations: [
+          { tournament_id: 't1', person_id: 'p1', status: 'confirmed' },
+          { tournament_id: 't1', person_id: 'p2', status: 'confirmed' },
+        ],
+        phases: [{ id: 'ph1', tournament_id: 't1', type: 'pool', config_json: null }],
+        lices: [{ id: 'l1' }],
+        pools: [{ id: 'pool1', phase_id: 'ph1' }],
+        matches: [
+          { id: 'm1', pool_id: 'pool1', lice_id: 'l1', scheduled_at: '2026-08-01T09:00:00Z' },
+        ],
+        referee_assignments: [{ pool_id: 'pool1', match_id: null }],
+        ...overrides,
+      };
+    }
+
+    it('gates on the scorekeeper role before reading anything', async () => {
+      assertOrgRole.mockRejectedValueOnce(new ForbiddenException('nope'));
+      fromMock.mockImplementation(dispatchByTable(readyTables()));
+
+      await expect(service.getEventReadiness('event-1', 'user-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'scorekeeper');
+    });
+
+    it('reports a fully prepared event as ok', async () => {
+      fromMock.mockImplementation(dispatchByTable(readyTables()));
+
+      const result = await service.getEventReadiness('event-1', 'user-1');
+
+      expect(result.worst).toBe('ok');
+      expect(result.counts.warn).toBe(0);
+      expect(result.counts.critical).toBe(0);
+      expect(result.eventId).toBe('event-1');
+      expect(result.eventStatus).toBe('draft');
+      expect(result.tournaments).toEqual([{ id: 't1', name: 'Longsword' }]);
+    });
+
+    it('turns an unstaffed pool into a warn against its tournament', async () => {
+      fromMock.mockImplementation(dispatchByTable(readyTables({ referee_assignments: [] })));
+
+      const result = await service.getEventReadiness('event-1', 'user-1');
+
+      const check = result.checks.find((c) => c.key === 'poolReferees');
+      expect(check).toMatchObject({
+        level: 'warn',
+        tournamentId: 't1',
+        values: { missing: 1, total: 1 },
+      });
+      expect(result.worst).toBe('warn');
+    });
+
+    it('turns a thin field into a critical', async () => {
+      fromMock.mockImplementation(
+        dispatchByTable(
+          readyTables({
+            registrations: [{ tournament_id: 't1', person_id: 'p1', status: 'confirmed' }],
+          }),
+        ),
+      );
+
+      const result = await service.getEventReadiness('event-1', 'user-1');
+
+      expect(result.checks.find((c) => c.key === 'fighters')).toMatchObject({
+        level: 'critical',
+        values: { count: 1 },
+      });
+      expect(result.worst).toBe('critical');
+    });
+
+    it('warns when the event has no pistes', async () => {
+      fromMock.mockImplementation(dispatchByTable(readyTables({ lices: [] })));
+
+      const result = await service.getEventReadiness('event-1', 'user-1');
+
+      expect(result.checks.find((c) => c.key === 'pistes')).toMatchObject({
+        level: 'warn',
+        tournamentId: null,
+      });
+    });
+
+    it('reports an event with no tournaments as critical, skipping the downstream reads', async () => {
+      fromMock.mockImplementation(dispatchByTable(readyTables({ tournaments: [] })));
+
+      const result = await service.getEventReadiness('event-1', 'user-1');
+
+      expect(result.checks.map((c) => c.key)).toEqual(['tournaments', 'pistes']);
+      expect(result.worst).toBe('critical');
+      // Nothing hangs off zero tournaments, so no `.in(..., [])` round-trips.
+      expect(new Set(fromMock.mock.calls.map(([table]) => table))).toEqual(
+        new Set(['events', 'tournaments', 'lices', 'referee_assignments']),
+      );
+    });
+
+    it('reads only live pool- and match-scoped assignments', async () => {
+      const chain = makeFullChain({ data: [], error: null });
+      fromMock.mockImplementation((table: string) =>
+        table === 'referee_assignments'
+          ? chain
+          : dispatchByTable(readyTables())(table as unknown as string),
+      );
+
+      await service.getEventReadiness('event-1', 'user-1');
+
+      expect(chain['in']).toHaveBeenCalledWith('scope_type', ['pool', 'match']);
+      expect(chain['in']).toHaveBeenCalledWith('status', ['assigned', 'confirmed', 'pending']);
+    });
+
+    it('surfaces a query failure rather than reporting a green event', async () => {
+      fromMock.mockImplementation((table: string) =>
+        table === 'lices'
+          ? makeFullChain({ data: null, error: { message: 'lices exploded' } })
+          : dispatchByTable(readyTables())(table as unknown as string),
+      );
+
+      await expect(service.getEventReadiness('event-1', 'user-1')).rejects.toThrow(
+        'lices exploded',
+      );
+    });
+  });
 });

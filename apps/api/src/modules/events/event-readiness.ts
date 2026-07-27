@@ -71,6 +71,158 @@ export interface ReadinessReport {
   counts: Record<ReadinessLevel, number>;
 }
 
+/** Raw rows as the service reads them, before they mean anything. */
+export interface ReadinessRows {
+  liceCount: number;
+  tournaments: Array<{ id: string; name: string; ruleset_code: string | null }>;
+  registrations: Array<{ tournament_id: string; status: string | null }>;
+  phases: Array<{ id: string; tournament_id: string; type: string }>;
+  pools: Array<{ id: string; phase_id: string }>;
+  /** Matches of the event's phases — pool membership is read from `pool_id`. */
+  matches: Array<{
+    id: string;
+    pool_id: string | null;
+    lice_id: string | null;
+    scheduled_at: string | null;
+  }>;
+  /** Live referee assignments (pool- or match-scoped) for the event. */
+  refereeAssignments: Array<{ pool_id: string | null; match_id: string | null }>;
+}
+
+/**
+ * "Active" mirrors `countUniqueActiveFighters` and the dashboard's registered
+ * total: a waitlisted, withdrawn or disqualified entry is not someone who will
+ * step on a piste, so none of them count toward the two-fighter floor.
+ */
+const INACTIVE_REGISTRATION_STATUSES = new Set(['withdrawn', 'disqualified', 'waitlist']);
+
+/**
+ * Fold the raw rows into the per-tournament snapshot the rules run on.
+ *
+ * Pure, and separate from the query layer, because two of the foldings carry
+ * real judgement worth testing without a Supabase mock:
+ *
+ * - **A pool counts as refereed via EITHER scope.** The assignment board
+ *   writes `scope_type='pool'` for a whole pool and `scope_type='match'` for a
+ *   single fight, and `clearPoolAssignments` treats both as belonging to the
+ *   pool. Reading only pool-scoped rows would report an entirely match-refereed
+ *   pool as unstaffed.
+ *
+ * - **A match is scheduled only with BOTH a piste and a time.** Either alone
+ *   cannot be put on the board. Same predicate the organizer chat uses to list
+ *   unscheduled matches.
+ */
+export function buildReadinessSnapshot(rows: ReadinessRows): ReadinessSnapshot {
+  const { phaseTypesByTournament, tournamentByPhase } = indexPhases(rows.phases);
+  const { tournamentByPool, poolIdsByTournament } = indexPools(rows.pools, tournamentByPhase);
+
+  const refereedPoolIds = collectRefereedPoolIds(rows, tournamentByPool);
+  const fighters = countActiveRegistrations(rows.registrations);
+  const poolStats = summarisePoolMatches(rows.matches, tournamentByPool);
+
+  return {
+    liceCount: rows.liceCount,
+    tournaments: rows.tournaments.map((tournament) => {
+      const types = phaseTypesByTournament.get(tournament.id) ?? new Set<string>();
+      const poolIds = poolIdsByTournament.get(tournament.id) ?? [];
+      const stats = poolStats.get(tournament.id);
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        rulesetCode: tournament.ruleset_code,
+        activeFighterCount: fighters.get(tournament.id) ?? 0,
+        hasPoolPhase: types.has('pool'),
+        hasElimPhase: types.has('single_elim') || types.has('double_elim'),
+        poolCount: poolIds.length,
+        poolsWithoutReferee: poolIds.filter((poolId) => !refereedPoolIds.has(poolId)).length,
+        poolMatchCount: stats?.total ?? 0,
+        unscheduledPoolMatchCount: stats?.unscheduled ?? 0,
+      };
+    }),
+  };
+}
+
+function indexPhases(phases: ReadinessRows['phases']): {
+  phaseTypesByTournament: Map<string, Set<string>>;
+  tournamentByPhase: Map<string, string>;
+} {
+  const phaseTypesByTournament = new Map<string, Set<string>>();
+  const tournamentByPhase = new Map<string, string>();
+  for (const phase of phases) {
+    tournamentByPhase.set(phase.id, phase.tournament_id);
+    const types = phaseTypesByTournament.get(phase.tournament_id) ?? new Set<string>();
+    types.add(phase.type);
+    phaseTypesByTournament.set(phase.tournament_id, types);
+  }
+  return { phaseTypesByTournament, tournamentByPhase };
+}
+
+function indexPools(
+  pools: ReadinessRows['pools'],
+  tournamentByPhase: Map<string, string>,
+): { tournamentByPool: Map<string, string>; poolIdsByTournament: Map<string, string[]> } {
+  const tournamentByPool = new Map<string, string>();
+  const poolIdsByTournament = new Map<string, string[]>();
+  for (const pool of pools) {
+    const tournamentId = tournamentByPhase.get(pool.phase_id);
+    if (!tournamentId) continue;
+    tournamentByPool.set(pool.id, tournamentId);
+    poolIdsByTournament.set(tournamentId, [
+      ...(poolIdsByTournament.get(tournamentId) ?? []),
+      pool.id,
+    ]);
+  }
+  return { tournamentByPool, poolIdsByTournament };
+}
+
+/** Pools with at least one live assignment, whether pool- or match-scoped. */
+function collectRefereedPoolIds(
+  rows: ReadinessRows,
+  tournamentByPool: Map<string, string>,
+): Set<string> {
+  const poolByMatch = new Map<string, string>();
+  for (const match of rows.matches) {
+    if (match.pool_id && tournamentByPool.has(match.pool_id)) {
+      poolByMatch.set(match.id, match.pool_id);
+    }
+  }
+  const refereed = new Set<string>();
+  for (const assignment of rows.refereeAssignments) {
+    const poolId =
+      assignment.pool_id ??
+      (assignment.match_id ? poolByMatch.get(assignment.match_id) : undefined);
+    if (poolId) refereed.add(poolId);
+  }
+  return refereed;
+}
+
+function countActiveRegistrations(
+  registrations: ReadinessRows['registrations'],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const registration of registrations) {
+    if (INACTIVE_REGISTRATION_STATUSES.has(registration.status ?? '')) continue;
+    counts.set(registration.tournament_id, (counts.get(registration.tournament_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function summarisePoolMatches(
+  matches: ReadinessRows['matches'],
+  tournamentByPool: Map<string, string>,
+): Map<string, { total: number; unscheduled: number }> {
+  const stats = new Map<string, { total: number; unscheduled: number }>();
+  for (const match of matches) {
+    const tournamentId = match.pool_id ? tournamentByPool.get(match.pool_id) : undefined;
+    if (!tournamentId) continue; // bracket match, or a pool outside this event
+    const entry = stats.get(tournamentId) ?? { total: 0, unscheduled: 0 };
+    entry.total += 1;
+    if (!match.lice_id || !match.scheduled_at) entry.unscheduled += 1;
+    stats.set(tournamentId, entry);
+  }
+  return stats;
+}
+
 /**
  * Severity order for `worst`. `info` sits BELOW `ok`: an event whose only
  * non-ok rows are informational is in better shape than one with real
