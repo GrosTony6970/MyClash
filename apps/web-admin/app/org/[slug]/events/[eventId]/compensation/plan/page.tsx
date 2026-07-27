@@ -1,11 +1,13 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import { useConfirm } from '@myclash/ui';
+import { HelpTooltip, useConfirm } from '@myclash/ui';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationPlan, CompensationPhase } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../../src/components/CompensationTopNav';
+import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
+import { useI18n } from '@/i18n/I18nProvider';
 
 /** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */
 interface RefereeSkill {
@@ -55,6 +57,9 @@ function planToTierRows(plan: CompensationPlan): TierRow[] {
 }
 
 export default function OrgCompensationPlansPage() {
+  // Locale-aware `t` for the new help copy specifically: the module-level
+  // `t` this page imports is bound to EN and would never translate.
+  const { t: translate } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -517,8 +522,9 @@ export default function OrgCompensationPlansPage() {
 
                   {/* Tiers */}
                   <div>
-                    <p className="text-xs font-semibold text-foreground-secondary uppercase tracking-wide mb-2">
+                    <p className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
                       {t('organizer.compensationSettings.tiers')}
+                      <HelpTooltip text={rulesetHelp('compensationTiers', translate)} />
                     </p>
                     <div className="flex flex-col gap-1 mb-2">
                       <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-xs text-muted uppercase tracking-wide mb-1">

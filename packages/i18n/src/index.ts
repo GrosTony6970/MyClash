@@ -2684,6 +2684,30 @@ export const en = {
       tiebreakersHelp:
         'Applied in order when fighters have the same score. Highest = larger values rank higher.',
       tiebreakersEmpty: 'No tie-breakers configured.',
+      deepHelp: {
+        targets:
+          "A target's value is what a clean hit on it adds to the fighter's points, and those points are the TOP half of the pool score. Raising a value raises every score that uses it — it never changes who beat whom, only by how much.",
+        afterblow:
+          'A retaliation landed after being hit. Switching this on changes more than the points: the fighter who struck FIRST is recorded as having been hit, and hits taken are the bottom half of the pool score, so their score drops even when they won the exchange.',
+        afterblowValuation:
+          'Fixed: the retaliation is always worth the same, whatever it landed on — the FFAMHE rule, and one afterblow button per target on the pad. Value of the target hit: it is worth whatever it landed on, which gives the referee the full attacker-by-defender button grid.',
+        afterblowMode:
+          'Full: both fighters keep their button points. Deductive: the retaliation is subtracted from the attacker instead (never below zero) and the fighter who landed it scores nothing — being hit back costs the attacker rather than paying the defender. Exchanges always store the raw buttons, so changing this re-reads every exchange already recorded.',
+        doublePenalty:
+          'What a double hit costs. Whatever you set here becomes the "doublePenalty" variable in the BOTTOM half of the score formula, so doubles push a score down rather than subtracting from points won. A custom formula may only use doubleHits — no other stat means anything in a double-hit penalty.',
+        formula:
+          'The pool score is a RATIO: points won over hits taken plus the double penalty. Two things follow. Anything you want to punish belongs in the bottom half, not subtracted from the top. And when the bottom half is zero — a fighter who took no hits and no doubles at all — the score falls back to the raw top half, so a perfect sweep posts something like 77 instead of a ratio near 3. One hit taken makes the number comparable again.',
+        tiebreakers:
+          'Applied in order, and only between fighters whose score is exactly equal. The first rule that separates two fighters decides it and the rest are never consulted, so the ORDER matters more than which rules you include. Each rule also has a direction — doubles and hits taken almost always want lowest-first.',
+        penaltyCosts:
+          'What each card costs. Once ANY tournament or event pins this ruleset it is frozen — editing is refused outright, not merely deferred, because a cost change would silently rewrite how cards escalate under a running tournament. To change a pinned ruleset, duplicate it, edit the copy and re-pin.',
+        penaltyVersioning:
+          'Publishing takes a snapshot that tournaments can pin. Rolling back restores an older snapshot onto the ruleset — it does not delete anything, and the next publish gets the next version number. Once any tournament or event references this ruleset it can no longer be rolled back at all; duplicate it instead.',
+        seedingStrategy:
+          'Snake spreads pool winners apart. By rating and Random ignore pool results entirely — they order from data that has nothing to do with how the pools went — and Random stores the seed it used, so the same draw can be reproduced. By pool rank is the strict one: it REFUSES to run without a pool phase and finished pools rather than quietly falling back to registration order.',
+        compensationTiers:
+          'Tiers convert the tokens a referee earned across the event into what they are actually paid. The first tier whose range contains their total wins, and a total that falls in a GAP between tiers resolves to nothing at all — only the event’s minimum payout, if you set one, rescues it. The minimum is applied after the cap, so it is honoured even when it exceeds the cap.',
+      },
       systemPanelTitle: 'System ruleset details (read-only)',
       systemPanelWinBonus: 'Win bonus',
       systemPanelDeepTarget: 'Default deep-target value',
@@ -9411,6 +9435,30 @@ export const fr = {
       tiebreakersHelp:
         'Appliques dans l ordre quand les tireurs ont le meme score. Plus haut = les plus grandes valeurs sont mieux classees.',
       tiebreakersEmpty: 'Aucun tie-breaker configure.',
+      deepHelp: {
+        targets:
+          "La valeur d'une cible est ce qu'une touche nette dessus ajoute aux points du tireur, et ces points forment le HAUT du score de poule. Augmenter une valeur augmente tous les scores qui l'utilisent - cela ne change jamais qui a battu qui, seulement de combien.",
+        afterblow:
+          "Une riposte portee apres avoir ete touche. L'activer change plus que les points : le tireur qui a touche EN PREMIER est compte comme ayant ete touche, et les touches recues forment le bas du score de poule - son score baisse donc meme quand il a gagne l'echange.",
+        afterblowValuation:
+          "Valeur fixe : la riposte vaut toujours la meme chose, quelle que soit la cible touchee - la regle FFAMHE, et un seul bouton de riposte par cible sur la tablette. Valeur de la cible touchee : elle vaut ce qu'elle a touche, ce qui donne a l'arbitre la grille complete attaquant par defenseur.",
+        afterblowMode:
+          "Complet : chaque tireur garde les points de ses boutons. Deductif : la riposte est retranchee a l'attaquant (jamais en dessous de zero) et celui qui l'a portee ne marque rien - se faire toucher en retour coute a l'attaquant au lieu de rapporter au defenseur. Les echanges stockent toujours les boutons bruts, donc changer ce mode relit tous les echanges deja enregistres.",
+        doublePenalty:
+          "Ce que coute une double touche. Ce que vous fixez ici devient la variable « doublePenalty » dans le BAS de la formule de score : les doubles tirent donc le score vers le bas au lieu d'etre retranches des points gagnes. Une formule personnalisee ne peut utiliser que doubleHits - aucune autre statistique n'a de sens dans une penalite de double.",
+        formula:
+          "Le score de poule est un RATIO : points gagnes sur touches recues plus la penalite de double. Deux consequences. Ce que vous voulez sanctionner va au denominateur, pas en soustraction au numerateur. Et quand le denominateur vaut zero - un tireur qui n'a recu ni touche ni double - le score retombe sur le numerateur brut : un sans-faute affiche alors quelque chose comme 77 au lieu d'un ratio autour de 3. Une seule touche recue rend le chiffre a nouveau comparable.",
+        tiebreakers:
+          "Appliques dans l'ordre, et seulement entre tireurs a score strictement egal. La premiere regle qui les departage tranche et les suivantes ne sont jamais consultees : l'ORDRE compte donc plus que le choix des regles. Chaque regle a aussi un sens - doubles et touches recues veulent presque toujours le plus petit d'abord.",
+        penaltyCosts:
+          "Ce que coute chaque carton. Des qu'un tournoi ou un evenement fixe ce reglement, il est gele - la modification est refusee, pas simplement differee, car changer un cout reecrirait silencieusement l'escalade des cartons sous un tournoi en cours. Pour modifier un reglement fixe, dupliquez-le, modifiez la copie et refixez-la.",
+        penaltyVersioning:
+          "Publier prend un instantane que les tournois peuvent fixer. Revenir en arriere restaure un instantane plus ancien sur le reglement - rien n'est supprime, et la publication suivante prend le numero de version suivant. Des qu'un tournoi ou un evenement reference ce reglement, le retour arriere devient impossible ; dupliquez-le a la place.",
+        seedingStrategy:
+          "Serpentin repartit les vainqueurs de poule. Par classement et Aleatoire ignorent completement les resultats de poule - ils ordonnent a partir de donnees sans rapport avec le deroulement des poules - et Aleatoire enregistre la graine utilisee, ce qui permet de rejouer le meme tirage. Par rang de poule est le strict : il REFUSE de s'executer sans phase de poules terminee plutot que de retomber silencieusement sur l'ordre d'inscription.",
+        compensationTiers:
+          "Les paliers convertissent les jetons gagnes par un arbitre sur l'evenement en ce qu'il touche reellement. Le premier palier dont la plage contient son total l'emporte, et un total qui tombe dans un TROU entre deux paliers ne donne rien du tout - seul le paiement minimum de l'evenement, si vous en fixez un, le rattrape. Ce minimum est applique apres le plafond, donc il est respecte meme s'il le depasse.",
+      },
       systemPanelTitle: 'Details du ruleset systeme (lecture seule)',
       systemPanelWinBonus: 'Bonus de victoire',
       systemPanelDeepTarget: 'Valeur cible profonde par defaut',

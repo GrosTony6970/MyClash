@@ -8,7 +8,9 @@ import {
   type DoublePenaltySpec,
   type FormulaNode,
 } from '@myclash/rulesets';
+import { HelpTooltip } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
+import { rulesetHelp } from './rulesetHelp';
 import { FormulaEditor } from './FormulaEditor';
 
 interface Props {
@@ -43,25 +45,13 @@ export function DoublePenaltyEditor({ value, onChange, disabled }: Props) {
 
   return (
     <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+      <h3 className="mb-1 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
         {t('admin.rulesets.doublePenaltyTitle')}
+        <HelpTooltip text={rulesetHelp('doublePenalty', t)} />
       </h3>
       <p className="mb-3 text-xs text-muted">{t('admin.rulesets.doublePenaltyHelp')}</p>
 
-      <select
-        value={selection}
-        disabled={disabled}
-        onChange={(e) => onSelect(e.target.value)}
-        className="w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
-      >
-        <option value={NONE}>{t('admin.rulesets.doublePenaltyNone')}</option>
-        {DOUBLE_PENALTY_FORMULA_KEYS.map((key) => (
-          <option key={key} value={key}>
-            {key}
-          </option>
-        ))}
-        <option value={CUSTOM}>{t('admin.rulesets.doublePenaltyCustom')}</option>
-      </select>
+      <PresetSelect value={selection} disabled={disabled} onSelect={onSelect} />
 
       {isAst && (
         <div className="mt-3">
@@ -78,5 +68,34 @@ export function DoublePenaltyEditor({ value, onChange, disabled }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Preset keys plus the two synthetic options (none / author your own). */
+function PresetSelect({
+  value,
+  disabled,
+  onSelect,
+}: {
+  value: string;
+  disabled?: boolean;
+  onSelect: (next: string) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onSelect(e.target.value)}
+      className="w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
+    >
+      <option value={NONE}>{t('admin.rulesets.doublePenaltyNone')}</option>
+      {DOUBLE_PENALTY_FORMULA_KEYS.map((key) => (
+        <option key={key} value={key}>
+          {key}
+        </option>
+      ))}
+      <option value={CUSTOM}>{t('admin.rulesets.doublePenaltyCustom')}</option>
+    </select>
   );
 }

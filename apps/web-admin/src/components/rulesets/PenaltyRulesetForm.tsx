@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { HelpTooltip } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
+import { rulesetHelp } from './rulesetHelp';
 import { PenaltyEntriesEditor, type PenaltyEntryDraft } from './PenaltyEntriesEditor';
 
 export type AccumulationScope = 'match' | 'phase' | 'tournament';
@@ -265,8 +267,9 @@ export function PenaltyRulesetForm({
       </div>
 
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h3 className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.penaltyRulesets.entriesTitle')}
+          <HelpTooltip text={rulesetHelp('penaltyCosts', t)} />
         </h3>
         <p className="mb-2 text-xs text-muted">{t('admin.penaltyRulesets.entriesHelp')}</p>
         <PenaltyEntriesEditor value={entries} disabled={disabled} onChange={setEntries} />

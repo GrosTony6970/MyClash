@@ -1,7 +1,9 @@
 'use client';
 
 import { MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
+import { HelpTooltip } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
+import { rulesetHelp } from './rulesetHelp';
 
 export interface AfterblowGrammar {
   hasAfterblow: boolean;
@@ -75,6 +77,7 @@ function AfterblowDetails({
     <div className="grid gap-3 md:grid-cols-3">
       <label className="block text-xs font-semibold text-foreground-secondary">
         {t('admin.rulesets.afterblowValuationLabel')}
+        <HelpTooltip text={rulesetHelp('afterblowValuation', t)} />
         <select
           value={value.afterblowValuation}
           disabled={disabled}
@@ -103,6 +106,7 @@ function AfterblowDetails({
 
       <label className="block text-xs font-semibold text-foreground-secondary">
         {t('admin.rulesets.afterblowModeLabel')}
+        <HelpTooltip text={rulesetHelp('afterblowMode', t)} />
         <select
           value={value.afterblowMode}
           disabled={disabled}

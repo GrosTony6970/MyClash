@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ConfirmDialog, useToast } from '@myclash/ui';
+import { ConfirmDialog, HelpTooltip, useToast } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
+import { rulesetHelp } from './rulesetHelp';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -124,8 +125,9 @@ export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
   return (
     <section className="mt-8 rounded-md border border-border bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <h2 className="text-sm font-semibold text-foreground-secondary">
+        <h2 className="flex items-center text-sm font-semibold text-foreground-secondary">
           {t('admin.penaltyRulesets.versionHistory.title')} ({versions.length})
+          <HelpTooltip text={rulesetHelp('penaltyVersioning', t)} />
         </h2>
         <button
           type="button"

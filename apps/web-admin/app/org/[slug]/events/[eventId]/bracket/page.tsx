@@ -10,6 +10,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   BracketView,
+  HelpTooltip,
   MedalPodium,
   Modal,
   TournamentColorDot,
@@ -20,6 +21,7 @@ import {
   type PodiumData,
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
+import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
@@ -1167,8 +1169,9 @@ export default function BracketPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                <label className="mb-1 flex items-center text-xs font-medium text-foreground-secondary">
                   {t('organizer.phaseVisibility.seedingStrategyLabel')}
+                  <HelpTooltip text={rulesetHelp('seedingStrategy', t)} />
                 </label>
                 <select
                   value={seedingStrategy}
@@ -1761,8 +1764,9 @@ export default function BracketPage() {
             </>
           }
         >
-          <label className="block text-xs font-medium text-foreground-secondary mb-1">
+          <label className="mb-1 flex items-center text-xs font-medium text-foreground-secondary">
             {t('organizer.phaseVisibility.reseedStrategyLabel')}
+            <HelpTooltip text={rulesetHelp('seedingStrategy', t)} />
           </label>
           <select
             value={reseedStrategy}

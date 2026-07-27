@@ -12,7 +12,9 @@ import {
   type Target,
   type Tiebreaker,
 } from '@myclash/rulesets';
+import { HelpTooltip } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
+import { rulesetHelp } from './rulesetHelp';
 import { RulesetPreviewPanel } from './RulesetPreviewPanel';
 import { FormulaEditor } from './FormulaEditor';
 import { TargetsEditor } from './TargetsEditor';
@@ -277,16 +279,18 @@ export function RulesetForm({
       )}
 
       <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h3 className="mb-1 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.rulesets.targetsTitle')}
+          <HelpTooltip text={rulesetHelp('targets', t)} />
         </h3>
         <p className="mb-3 text-xs text-muted">{t('admin.rulesets.targetsHelp')}</p>
         <TargetsEditor value={targets} onChange={setTargets} disabled={disabled} />
       </div>
 
       <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h3 className="mb-1 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.rulesets.afterblowTitle')}
+          <HelpTooltip text={rulesetHelp('afterblow', t)} />
         </h3>
         <p className="mb-3 text-xs text-muted">{t('admin.rulesets.afterblowHelp')}</p>
         <AfterblowGrammarEditor
@@ -451,8 +455,9 @@ export function RulesetForm({
 
       {!isCoded && (
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+          <h3 className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.formulaTitle')}
+            <HelpTooltip text={rulesetHelp('formula', t)} />
           </h3>
           <p className="mb-2 text-xs text-muted">{t('admin.rulesets.formulaHelp')}</p>
           <FormulaEditor
@@ -468,8 +473,9 @@ export function RulesetForm({
 
       {!isCoded && (
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+          <h3 className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.tiebreakersTitle')}
+            <HelpTooltip text={rulesetHelp('tiebreakers', t)} />
           </h3>
           <p className="mb-2 text-xs text-muted">{t('admin.rulesets.tiebreakersHelp')}</p>
           <TiebreakersEditor
