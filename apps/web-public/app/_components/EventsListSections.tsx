@@ -121,9 +121,18 @@ function SectionHeader({ id, title, count }: { id: string; title: string; count:
   );
 }
 
+/**
+ * Organiser + dates line above each card's title.
+ *
+ * The organiser name is its own link to /o/[slug]. It only works because the
+ * card is no longer an anchor: the card's click target is now the title's
+ * stretched ::after overlay (see CARD_SHELL), and `relative z-10` lifts this
+ * link above that overlay so it wins the click on its own text.
+ */
 function OrganiserEyebrow({ event }: { event: PublicEvent }) {
   const { locale } = useI18n();
   const orgName = event.organizations?.name;
+  const orgSlug = event.organizations?.slug;
   const orgLogo = event.organizations?.logo_url;
   const dateRange = formatDateRange(event, locale);
   if (!orgName && !orgLogo && !dateRange) return null;
@@ -139,12 +148,37 @@ function OrganiserEyebrow({ event }: { event: PublicEvent }) {
           className="h-5 w-5 rounded-full border border-border bg-surface object-contain"
         />
       )}
-      {orgName && <span className="font-semibold text-foreground-secondary">{orgName}</span>}
+      {orgName &&
+        (orgSlug ? (
+          <Link
+            href={`/o/${orgSlug}`}
+            className="relative z-10 font-semibold text-foreground-secondary hover:text-accent hover:underline"
+          >
+            {orgName}
+          </Link>
+        ) : (
+          <span className="font-semibold text-foreground-secondary">{orgName}</span>
+        ))}
       {orgName && dateRange && <span aria-hidden="true">·</span>}
       {dateRange && <span>{dateRange}</span>}
     </div>
   );
 }
+
+/**
+ * Card shell + the overlay that makes the whole card clickable.
+ *
+ * The card used to BE the `<a>`, which is why the organiser inside it could not
+ * link anywhere — nested anchors are invalid HTML and React hydration rejects
+ * them. Instead the shell is a plain box and the event TITLE carries the link,
+ * stretched over the whole card with an empty absolutely-positioned ::after.
+ * One real anchor, named by the event title, with the same click area as
+ * before; anything that needs to stay clickable on top of it (the organiser)
+ * opts out with `relative z-10`.
+ */
+const CARD_SHELL =
+  'group relative rounded-lg border border-border border-l-4 bg-surface p-4 shadow-sm transition-colors hover:border-accent focus-within:border-accent focus-within:ring-2 focus-within:ring-accent';
+const CARD_TITLE_LINK = "block after:absolute after:inset-0 after:content-[''] focus:outline-none";
 
 function EventLogo({ src, alt }: { src: string | null | undefined; alt: string }) {
   if (!src) return null;
@@ -209,20 +243,22 @@ function LiveSection({
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {events.map((event) => (
-            <Link
+            <div
               key={event.slug ?? event.id}
-              href={eventHref(event, personal)}
               style={{ borderLeftColor: orgAccent(event) }}
-              className="group flex min-h-44 flex-col justify-between rounded-lg border border-border border-l-4 bg-surface p-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
+              className={`${CARD_SHELL} flex min-h-44 flex-col justify-between`}
             >
               <div className="flex flex-col gap-3">
                 <OrganiserEyebrow event={event} />
                 <div className="flex items-start gap-3">
                   <EventLogo src={event.logo_url} alt={event.name ?? ''} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-display text-lg font-semibold leading-tight text-foreground">
+                    <Link
+                      href={eventHref(event, personal)}
+                      className={`${CARD_TITLE_LINK} font-display text-lg font-semibold leading-tight text-foreground`}
+                    >
                       {event.name ?? t('publicApp.home.unknownEvent')}
-                    </p>
+                    </Link>
                     {(() => {
                       const place = formatEventLocation(event);
                       return place ? <p className="mt-1 text-sm text-muted">{place}</p> : null;
@@ -237,7 +273,7 @@ function LiveSection({
                   {t('publicApp.home.openEvent')}
                 </span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}
@@ -271,10 +307,9 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
     );
 
   return (
-    <Link
-      href={eventHref(event, personal)}
+    <div
       style={{ borderLeftColor: orgAccent(event) }}
-      className="group flex flex-col gap-3 rounded-lg border border-border border-l-4 bg-surface p-4 shadow-sm transition-colors hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
+      className={`${CARD_SHELL} flex flex-col gap-3`}
     >
       <OrganiserEyebrow event={event} />
       <div
@@ -289,9 +324,12 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
             <span aria-hidden="true" className="hidden md:block" />
           ))}
         <div className="min-w-0">
-          <p className="font-display text-base font-semibold leading-tight text-foreground">
+          <Link
+            href={eventHref(event, personal)}
+            className={`${CARD_TITLE_LINK} font-display text-base font-semibold leading-tight text-foreground`}
+          >
             {event.name ?? t('publicApp.home.unknownEvent')}
-          </p>
+          </Link>
         </div>
         <p className="text-sm text-muted">
           <span className="font-medium text-foreground-secondary md:hidden">
@@ -316,7 +354,7 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
         <div>{trailing}</div>
         <div className="md:justify-self-end">{tag}</div>
       </div>
-    </Link>
+    </div>
   );
 }
 
