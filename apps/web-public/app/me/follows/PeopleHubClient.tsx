@@ -7,10 +7,11 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import FollowsClient from './FollowsClient';
 import { GroupsTab } from './GroupsTab';
+import { OrganizersTab } from './OrganizersTab';
 import { SearchTab } from './SearchTab';
 import { useDirectoryGroups } from './useDirectoryGroups';
 
-type PeopleTab = 'following' | 'search' | 'groups';
+type PeopleTab = 'following' | 'search' | 'groups' | 'organizers';
 
 /**
  * `/me/follows` — the "People" hub. Three tabs over a shared groups store:
@@ -27,7 +28,8 @@ export function PeopleHubClient() {
   const groupsApi = useDirectoryGroups(apiUrl);
 
   const raw = params.get('tab');
-  const tab: PeopleTab = raw === 'search' || raw === 'groups' ? raw : 'following';
+  const tab: PeopleTab =
+    raw === 'search' || raw === 'groups' || raw === 'organizers' ? raw : 'following';
 
   const setTab = (next: PeopleTab) =>
     router.replace(next === 'following' ? '/me/follows' : `/me/follows?tab=${next}`, {
@@ -57,6 +59,7 @@ export function PeopleHubClient() {
             { value: 'following', label: t('publicApp.me.people.tabFollowing') },
             { value: 'search', label: t('publicApp.me.people.tabSearch') },
             { value: 'groups', label: t('publicApp.me.people.tabGroups') },
+            { value: 'organizers', label: t('publicApp.me.people.tabOrganizers') },
           ]}
         />
 
@@ -80,6 +83,13 @@ export function PeopleHubClient() {
           ) : (
             <GroupsTab apiUrl={apiUrl} groupsApi={groupsApi} />
           ))}
+
+        {tab === 'organizers' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-muted">{t('publicApp.me.organizers.subtitle')}</p>
+            <OrganizersTab apiUrl={apiUrl} />
+          </div>
+        )}
       </div>
     </main>
   );

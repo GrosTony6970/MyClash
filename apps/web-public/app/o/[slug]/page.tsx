@@ -20,6 +20,7 @@ import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
 import type { Locale } from '@myclash/i18n';
 import { formatDateRange } from '../../_components/format-date-range';
 import { partitionEvents } from '../../_components/filter-events';
+import { FollowOrganizerButton } from './FollowOrganizerButton';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -31,6 +32,7 @@ interface PublicOrganizer {
   name: string;
   logoUrl: string | null;
   brandColor: string | null;
+  followerCount: number;
 }
 
 interface OrganizerEvent {
@@ -157,6 +159,13 @@ export default async function OrganizerPage({ params }: Props) {
           <p className="mt-1 text-sm text-muted">
             {t('publicApp.organizer.eventCount', { count: events.length })}
           </p>
+          <div className="mt-2">
+            <FollowOrganizerButton
+              organizationId={org.id}
+              slug={org.slug}
+              followerCount={org.followerCount}
+            />
+          </div>
         </div>
         {/* Brand stripe — the organiser's own colour, same accent the landing
             page cards carry. Inline because it is per-row data, not a token. */}

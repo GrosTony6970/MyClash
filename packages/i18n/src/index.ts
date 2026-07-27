@@ -298,6 +298,7 @@ export const en = {
         tabFollowing: 'Following',
         tabSearch: 'Search',
         tabGroups: 'My groups',
+        tabOrganizers: 'Organisers',
         followingSubtitle: 'Everyone you follow — with their live tournament context.',
         searchPlaceholder: 'Search fighters…',
         searchHint: 'Type at least 2 characters to search the directory.',
@@ -321,6 +322,12 @@ export const en = {
         ctxInMinutes: 'in {n} min',
         ctxLastResult: 'Last result',
         notCompeting: 'Not competing right now',
+      },
+      organizers: {
+        subtitle: 'Organisers you follow. You are notified when they publish a new event.',
+        loading: 'Loading organisers…',
+        loadError: 'Could not load the organisers you follow.',
+        empty: 'You are not following any organiser yet.',
       },
       groups: {
         collapse: 'Collapse {name}',
@@ -1226,6 +1233,10 @@ export const en = {
       sectionLeagues: 'Leagues',
       noUpcoming: 'No upcoming events from this organiser right now.',
       pastOverflow: '+{count} more past events',
+      follow: 'Follow',
+      following: 'Following',
+      signInToFollow: 'Sign in to follow',
+      followerCount: '{count} followers',
     },
     tournamentStats: {
       metaTitle: 'Stats',
@@ -6635,6 +6646,7 @@ export const fr = {
         tabFollowing: 'Suivis',
         tabSearch: 'Recherche',
         tabGroups: 'Mes groupes',
+        tabOrganizers: 'Organisateurs',
         followingSubtitle:
           'Toutes les personnes que vous suivez — avec leur contexte de tournoi en direct.',
         searchPlaceholder: 'Rechercher des combattants…',
@@ -6659,6 +6671,13 @@ export const fr = {
         ctxInMinutes: 'dans {n} min',
         ctxLastResult: 'Dernier résultat',
         notCompeting: 'Pas en compétition actuellement',
+      },
+      organizers: {
+        subtitle:
+          'Les organisateurs que vous suivez. Vous êtes notifié quand ils publient un nouvel évènement.',
+        loading: 'Chargement des organisateurs…',
+        loadError: 'Impossible de charger les organisateurs que vous suivez.',
+        empty: 'Vous ne suivez encore aucun organisateur.',
       },
       groups: {
         collapse: 'Réduire {name}',
@@ -7583,6 +7602,10 @@ export const fr = {
       sectionLeagues: 'Ligues',
       noUpcoming: "Aucun évènement à venir chez cet organisateur pour l'instant.",
       pastOverflow: '+{count} autres évènements passés',
+      follow: 'Suivre',
+      following: 'Suivi',
+      signInToFollow: 'Connectez-vous pour suivre',
+      followerCount: '{count} abonnés',
     },
     tournamentStats: {
       metaTitle: 'Statistiques',
