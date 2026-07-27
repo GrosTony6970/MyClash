@@ -100,6 +100,11 @@ export type { FormFieldProps } from './components/FormField';
 export { HelpTooltip } from './components/HelpTooltip';
 export type { HelpTooltipProps } from './components/HelpTooltip';
 
+export { StatusHelp } from './components/StatusHelp';
+export type { StatusHelpProps } from './components/StatusHelp';
+export { hasStatusHelp, statusHelpKeys, statusesWithHelp } from './utils/status-help';
+export type { StatusHelpDomain, StatusHelpKeys } from './utils/status-help';
+
 // ── Phase 2: dialogs + toasts + focus trap ────────────────────────────────
 
 export { ConfirmDialog } from './components/ConfirmDialog';

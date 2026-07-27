@@ -4100,6 +4100,270 @@ export const en = {
       viaSuperAdmin: 'Super admin',
     },
   },
+  statusHelp: {
+    triggerLabel: 'What this status means',
+    fields: {
+      means: 'What it means',
+      next: 'What happens next',
+      who: 'Who can change it',
+    },
+    event: {
+      draft: {
+        means: 'The event exists but nothing about it is on the public site.',
+        next: 'Publishing it makes it visible and lets people find and enter it.',
+        who: 'An organisation admin or owner.',
+      },
+      published: {
+        means: 'The event is live on the public site and open to the world.',
+        next: 'It becomes running on its start date, or you can set it back to draft.',
+        who: 'An organisation admin or owner.',
+      },
+      running: {
+        means: 'The event is under way. Scoring, schedule and live boards are active.',
+        next: 'It moves to completed once the fighting is over.',
+        who: 'An organisation admin or owner.',
+      },
+      completed: {
+        means: 'The event has finished. Results and rankings are final.',
+        next: 'Nothing further, unless you archive it to clear it out of the way.',
+        who: 'An organisation admin or owner.',
+      },
+      archived: {
+        means:
+          'The event is closed and read-only. It stays visible publicly but nothing can be edited.',
+        next: 'It stays as it is. Deleting it needs a deletion request.',
+        who: 'An organisation admin or owner.',
+      },
+    },
+    tournament: {
+      draft: {
+        means: 'This tournament is hidden, even if the event itself is published.',
+        next: 'Publishing it shows it on the event page and opens registration.',
+        who: 'An organisation admin or owner.',
+      },
+      published: {
+        means: 'The tournament is visible on the event page and accepting entries.',
+        next: 'Generate the pools and bracket, then start fighting.',
+        who: 'An organisation admin or owner.',
+      },
+      running: {
+        means: 'Fights are being scored in this tournament right now.',
+        next: 'It moves to completed when the final has been fought.',
+        who: 'An organisation admin or owner.',
+      },
+      completed: {
+        means: 'Every fight is done and the final ranking is settled.',
+        next: 'The results feed fighter statistics and any league it belongs to.',
+        who: 'An organisation admin or owner.',
+      },
+      archived: {
+        means: 'The tournament is read-only and no longer part of day-to-day work.',
+        next: 'It stays as it is, with its results intact.',
+        who: 'An organisation admin or owner.',
+      },
+    },
+    match: {
+      scheduled: {
+        means: 'The fight exists and is waiting. It may or may not have a piste and a time yet.',
+        next: 'A scorekeeper opens it on a piste and starts the clock.',
+        who: 'An organiser assigns the piste and time; a scorekeeper starts it.',
+      },
+      running: {
+        means: 'The clock is going and exchanges are being recorded.',
+        next: 'It pauses between exchanges, and completes when the bout ends.',
+        who: 'The scorekeeper on that piste.',
+      },
+      paused: {
+        means: 'The fight has started but the clock is halted — a break, a discussion, a card.',
+        next: 'The scorekeeper restarts the clock or ends the fight.',
+        who: 'The scorekeeper on that piste.',
+      },
+      completed: {
+        means: 'The fight is over and its score counts towards the standings.',
+        next: 'Nothing, unless an organiser corrects it. Corrections are recorded.',
+        who: 'An organiser, through a match correction.',
+      },
+      voided: {
+        means: 'The fight has been cancelled and counts for nobody.',
+        next: 'It stays out of the standings. A replacement fight has to be created.',
+        who: 'An organiser.',
+      },
+    },
+    workshop: {
+      draft: {
+        means: 'The workshop is not shown on the event page yet.',
+        next: 'Publishing it opens it for enrolment.',
+        who: 'An organisation admin or owner.',
+      },
+      published: {
+        means: 'The workshop is listed publicly and people can enrol.',
+        next: 'It runs at its scheduled time.',
+        who: 'An organisation admin or owner.',
+      },
+      running: {
+        means: 'The workshop is happening now.',
+        next: 'It moves to completed when the session ends.',
+        who: 'An organisation admin or owner.',
+      },
+      completed: {
+        means: 'The workshop has finished.',
+        next: 'Nothing further. Attendance stays on record.',
+        who: 'An organisation admin or owner.',
+      },
+      cancelled: {
+        means: 'The workshop will not take place.',
+        next: 'Enrolled people keep the record but the session will not run.',
+        who: 'An organisation admin or owner.',
+      },
+    },
+    registration: {
+      registered: {
+        means: 'The fighter has a confirmed place in this tournament.',
+        next: 'They check in on the day, then get drawn into a pool.',
+        who: 'An organiser, or the fighter withdrawing themselves.',
+      },
+      checked_in: {
+        means: 'The fighter has physically arrived and been checked in.',
+        next: 'They are ready to be drawn and to fight.',
+        who: 'Anyone on the check-in desk.',
+      },
+      waitlist: {
+        means: 'The tournament is full, so the fighter is holding a numbered place in the queue.',
+        next: 'They move up automatically as places free, in waitlist order.',
+        who: 'An organiser, or the fighter withdrawing themselves.',
+      },
+      withdrawn: {
+        means: 'The fighter has pulled out. They count for nothing in the standings.',
+        next: 'Their place can be given to the first person on the waitlist.',
+        who: 'An organiser, or the fighter themselves.',
+      },
+      disqualified: {
+        means: 'The fighter has been removed from the tournament by decision.',
+        next: 'Their remaining fights are not scored and they hold no ranking.',
+        who: 'An organiser.',
+      },
+    },
+    review: {
+      pending: {
+        means: 'Waiting for somebody to look at it. Nothing has been decided.',
+        next: 'A reviewer approves or rejects it.',
+        who: 'Whoever holds the review queue for this kind of request.',
+      },
+      requested: {
+        means: 'Somebody has asked for this and it is waiting on a decision.',
+        next: 'A reviewer approves or rejects it.',
+        who: 'Whoever holds the review queue for this kind of request.',
+      },
+      approved: {
+        means: 'The request was accepted.',
+        next: 'The change it asked for is now in force.',
+        who: 'A reviewer, though reversing it usually needs a new request.',
+      },
+      linked: {
+        means: 'The request was accepted and joined to an existing record.',
+        next: 'The two are now the same thing everywhere.',
+        who: 'A reviewer.',
+      },
+      rejected: {
+        means: 'The request was turned down.',
+        next: 'Nothing changes. A fresh request can be made.',
+        who: 'A reviewer.',
+      },
+      cancelled: {
+        means: 'The request was called off before anyone decided on it.',
+        next: 'Nothing changes.',
+        who: 'Whoever made the request.',
+      },
+      withdrawn: {
+        means: 'The person who asked has taken the request back.',
+        next: 'Nothing changes.',
+        who: 'Whoever made the request.',
+      },
+    },
+    phaseVisibility: {
+      hidden: {
+        means: 'This phase is not shown on the public event page.',
+        next: 'Publishing it lets spectators follow the pools or bracket live.',
+        who: 'An organisation admin or owner.',
+      },
+      published: {
+        means: 'Spectators can see this phase, including scores as they land.',
+        next: 'You can hide it again at any point.',
+        who: 'An organisation admin or owner.',
+      },
+    },
+    clock: {
+      idle: {
+        means: 'The clock has not been started for this fight.',
+        next: 'Starting it begins the bout and the recorded time.',
+        who: 'The scorekeeper on that piste.',
+      },
+      running: {
+        means: 'Fight time is counting down.',
+        next: 'It halts between exchanges, or runs out and ends the bout.',
+        who: 'The scorekeeper on that piste.',
+      },
+      halted: {
+        means: 'The clock is stopped mid-fight. Time is not counting.',
+        next: 'The scorekeeper restarts it or ends the fight.',
+        who: 'The scorekeeper on that piste.',
+      },
+      ended: {
+        means: 'Fight time is used up.',
+        next: 'The result stands on the score at the moment time ran out.',
+        who: 'Nobody — this is what the clock reaching zero means.',
+      },
+    },
+    ruleset: {
+      builtin: {
+        means: 'One of the rulesets that ships with MyClash. It cannot be edited.',
+        next: 'Fork it if you want to change something; your copy is yours to edit.',
+        who: 'Anyone who can manage rulesets for the organisation.',
+      },
+      default: {
+        means: 'The ruleset used when a tournament does not pin one of its own.',
+        next: 'Pin a different ruleset on the tournament to override it.',
+        who: 'Anyone who can manage the tournament.',
+      },
+      custom: {
+        means: 'A ruleset your organisation wrote or forked.',
+        next: 'Publish it to make it usable on tournaments.',
+        who: 'Anyone who can manage rulesets for the organisation.',
+      },
+      draft: {
+        means: 'Still being written. It cannot be pinned to a tournament yet.',
+        next: 'Publishing it validates the rules and makes it selectable.',
+        who: 'Anyone who can manage rulesets for the organisation.',
+      },
+      pendingReview: {
+        means: 'Submitted for review, waiting on a decision before it can be shared.',
+        next: 'A reviewer approves it or sends it back.',
+        who: 'A MyClash reviewer.',
+      },
+      published: {
+        means: 'Finished and usable. Tournaments can pin it, and its content is frozen.',
+        next: 'Editing it means publishing a new version; pinned tournaments keep the old one.',
+        who: 'Anyone who can manage rulesets for the organisation.',
+      },
+      archived: {
+        means: 'Withdrawn from the pickers, but NOT deleted.',
+        next: 'Tournaments that already pinned it keep scoring by it, forever.',
+        who: 'Anyone who can manage rulesets for the organisation.',
+      },
+    },
+    organization: {
+      active: {
+        means: 'The organisation is operating normally.',
+        next: 'Nothing. This is the ordinary state.',
+        who: 'A MyClash super admin.',
+      },
+      suspended: {
+        means: 'The organisation has been stopped by MyClash. Its people cannot work in it.',
+        next: 'It stays suspended until a super admin lifts it.',
+        who: 'A MyClash super admin.',
+      },
+    },
+  },
   organizer: {
     venues: {
       title: 'Venues',
@@ -10571,6 +10835,271 @@ export const fr = {
       viaDirect: 'Accès direct',
       viaOrg: 'Via {organization}',
       viaSuperAdmin: 'Super admin',
+    },
+  },
+  statusHelp: {
+    triggerLabel: 'Ce que signifie ce statut',
+    fields: {
+      means: 'Ce que cela veut dire',
+      next: 'Ce qui se passe ensuite',
+      who: 'Qui peut le changer',
+    },
+    event: {
+      draft: {
+        means: "L'evenement existe mais rien n'apparait sur le site public.",
+        next: 'Le publier le rend visible et permet aux gens de le trouver et de s y inscrire.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      published: {
+        means: "L'evenement est en ligne sur le site public, ouvert a tous.",
+        next: 'Il passe en cours a sa date de debut, ou vous pouvez le repasser en brouillon.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      running: {
+        means: "L'evenement est en cours. Score, planning et affichage live sont actifs.",
+        next: 'Il passe a termine une fois les combats finis.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      completed: {
+        means: "L'evenement est fini. Resultats et classements sont definitifs.",
+        next: 'Plus rien, sauf si vous l archivez pour le ranger.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      archived: {
+        means:
+          "L'evenement est clos et en lecture seule. Il reste visible publiquement mais rien n'est modifiable.",
+        next: 'Il reste en l etat. Le supprimer demande une demande de suppression.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+    },
+    tournament: {
+      draft: {
+        means: "Ce tournoi est masque, meme si l'evenement est publie.",
+        next: "Le publier l'affiche sur la page de l'evenement et ouvre les inscriptions.",
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      published: {
+        means: "Le tournoi est visible sur la page de l'evenement et accepte les inscriptions.",
+        next: 'Generez les poules et le tableau, puis lancez les combats.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      running: {
+        means: 'Des combats sont en train d etre scores dans ce tournoi.',
+        next: 'Il passe a termine quand la finale a ete combattue.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      completed: {
+        means: 'Tous les combats sont faits et le classement final est etabli.',
+        next: 'Les resultats alimentent les statistiques des combattants et la ligue eventuelle.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      archived: {
+        means: 'Le tournoi est en lecture seule et sort du travail courant.',
+        next: 'Il reste en l etat, resultats compris.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+    },
+    match: {
+      scheduled: {
+        means: 'Le combat existe et attend. Il a ou non une piste et un horaire.',
+        next: 'Un teneur de score l ouvre sur une piste et lance le chrono.',
+        who: 'Un organisateur attribue piste et horaire ; un teneur de score le lance.',
+      },
+      running: {
+        means: 'Le chrono tourne et les echanges sont enregistres.',
+        next: 'Il se met en pause entre les echanges, et se termine a la fin de l assaut.',
+        who: 'Le teneur de score de cette piste.',
+      },
+      paused: {
+        means: 'Le combat a commence mais le chrono est arrete - pause, discussion, carton.',
+        next: 'Le teneur de score relance le chrono ou termine le combat.',
+        who: 'Le teneur de score de cette piste.',
+      },
+      completed: {
+        means: 'Le combat est fini et son score compte pour le classement.',
+        next: 'Plus rien, sauf correction par un organisateur. Les corrections sont tracees.',
+        who: 'Un organisateur, via une correction de match.',
+      },
+      voided: {
+        means: 'Le combat a ete annule et ne compte pour personne.',
+        next: 'Il reste hors du classement. Il faut creer un combat de remplacement.',
+        who: 'Un organisateur.',
+      },
+    },
+    workshop: {
+      draft: {
+        means: "L'atelier n'apparait pas encore sur la page de l'evenement.",
+        next: 'Le publier ouvre les inscriptions.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      published: {
+        means: "L'atelier est visible publiquement et les gens peuvent s'y inscrire.",
+        next: 'Il se deroule a l horaire prevu.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      running: {
+        means: "L'atelier a lieu en ce moment.",
+        next: 'Il passe a termine a la fin de la seance.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      completed: {
+        means: "L'atelier est termine.",
+        next: 'Plus rien. La presence reste enregistree.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      cancelled: {
+        means: "L'atelier n'aura pas lieu.",
+        next: 'Les inscrits gardent la trace mais la seance ne se tiendra pas.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+    },
+    registration: {
+      registered: {
+        means: 'Le combattant a une place confirmee dans ce tournoi.',
+        next: 'Il pointe le jour J, puis est tire dans une poule.',
+        who: 'Un organisateur, ou le combattant qui se retire.',
+      },
+      checked_in: {
+        means: 'Le combattant est arrive sur place et a ete pointe.',
+        next: 'Il est pret a etre tire et a combattre.',
+        who: "Toute personne au bureau d'accueil.",
+      },
+      waitlist: {
+        means: 'Le tournoi est plein, le combattant occupe une place numerotee dans la file.',
+        next: 'Il remonte automatiquement des qu une place se libere, dans l ordre de la file.',
+        who: 'Un organisateur, ou le combattant qui se retire.',
+      },
+      withdrawn: {
+        means: 'Le combattant s est retire. Il ne compte pour rien au classement.',
+        next: 'Sa place peut aller au premier de la liste d attente.',
+        who: 'Un organisateur, ou le combattant lui-meme.',
+      },
+      disqualified: {
+        means: 'Le combattant a ete exclu du tournoi par decision.',
+        next: 'Ses combats restants ne sont pas scores et il n a aucun classement.',
+        who: 'Un organisateur.',
+      },
+    },
+    review: {
+      pending: {
+        means: 'En attente de relecture. Rien n a ete decide.',
+        next: 'Un relecteur approuve ou refuse.',
+        who: 'Celui qui tient la file de relecture pour ce type de demande.',
+      },
+      requested: {
+        means: 'Quelqu un a fait cette demande et elle attend une decision.',
+        next: 'Un relecteur approuve ou refuse.',
+        who: 'Celui qui tient la file de relecture pour ce type de demande.',
+      },
+      approved: {
+        means: 'La demande a ete acceptee.',
+        next: 'Le changement demande est desormais en vigueur.',
+        who: 'Un relecteur, mais revenir dessus demande en general une nouvelle demande.',
+      },
+      linked: {
+        means: 'La demande a ete acceptee et rattachee a une fiche existante.',
+        next: 'Les deux ne font plus qu un partout.',
+        who: 'Un relecteur.',
+      },
+      rejected: {
+        means: 'La demande a ete refusee.',
+        next: 'Rien ne change. Une nouvelle demande reste possible.',
+        who: 'Un relecteur.',
+      },
+      cancelled: {
+        means: 'La demande a ete annulee avant toute decision.',
+        next: 'Rien ne change.',
+        who: 'Celui qui a fait la demande.',
+      },
+      withdrawn: {
+        means: 'Le demandeur a retire sa demande.',
+        next: 'Rien ne change.',
+        who: 'Celui qui a fait la demande.',
+      },
+    },
+    phaseVisibility: {
+      hidden: {
+        means: "Cette phase n'apparait pas sur la page publique de l'evenement.",
+        next: 'La publier permet au public de suivre les poules ou le tableau en direct.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+      published: {
+        means: 'Le public voit cette phase, scores compris au fil des combats.',
+        next: 'Vous pouvez la masquer de nouveau a tout moment.',
+        who: "Un admin ou proprietaire de l'organisation.",
+      },
+    },
+    clock: {
+      idle: {
+        means: "Le chrono n'a pas ete lance pour ce combat.",
+        next: 'Le lancer demarre l assaut et le temps enregistre.',
+        who: 'Le teneur de score de cette piste.',
+      },
+      running: {
+        means: 'Le temps de combat s ecoule.',
+        next: 'Il s arrete entre les echanges, ou arrive a zero et termine l assaut.',
+        who: 'Le teneur de score de cette piste.',
+      },
+      halted: {
+        means: 'Le chrono est arrete en plein combat. Le temps ne defile pas.',
+        next: 'Le teneur de score le relance ou termine le combat.',
+        who: 'Le teneur de score de cette piste.',
+      },
+      ended: {
+        means: 'Le temps de combat est epuise.',
+        next: 'Le resultat tient au score obtenu a l instant ou le temps s est termine.',
+        who: 'Personne - c est ce que veut dire un chrono arrive a zero.',
+      },
+    },
+    ruleset: {
+      builtin: {
+        means: 'Un des reglements livres avec MyClash. Il n est pas modifiable.',
+        next: 'Forkez-le pour changer quelque chose ; votre copie vous appartient.',
+        who: "Toute personne pouvant gerer les reglements de l'organisation.",
+      },
+      default: {
+        means: "Le reglement utilise quand un tournoi n'en fixe aucun.",
+        next: 'Fixez un autre reglement sur le tournoi pour le remplacer.',
+        who: 'Toute personne pouvant gerer le tournoi.',
+      },
+      custom: {
+        means: 'Un reglement ecrit ou forke par votre organisation.',
+        next: 'Publiez-le pour pouvoir l utiliser sur des tournois.',
+        who: "Toute personne pouvant gerer les reglements de l'organisation.",
+      },
+      draft: {
+        means: 'Encore en cours d ecriture. Il ne peut pas encore etre fixe sur un tournoi.',
+        next: 'Le publier valide les regles et le rend selectionnable.',
+        who: "Toute personne pouvant gerer les reglements de l'organisation.",
+      },
+      pendingReview: {
+        means: 'Soumis a relecture, en attente d une decision avant partage.',
+        next: 'Un relecteur l approuve ou le renvoie.',
+        who: 'Un relecteur MyClash.',
+      },
+      published: {
+        means: 'Termine et utilisable. Les tournois peuvent le fixer, et son contenu est gele.',
+        next: 'Le modifier revient a publier une nouvelle version ; les tournois deja fixes gardent l ancienne.',
+        who: "Toute personne pouvant gerer les reglements de l'organisation.",
+      },
+      archived: {
+        means: 'Retire des selecteurs, mais PAS supprime.',
+        next: 'Les tournois qui l ont deja fixe continuent de scorer avec, pour toujours.',
+        who: "Toute personne pouvant gerer les reglements de l'organisation.",
+      },
+    },
+    organization: {
+      active: {
+        means: "L'organisation fonctionne normalement.",
+        next: 'Rien. C est l etat ordinaire.',
+        who: 'Un super admin MyClash.',
+      },
+      suspended: {
+        means:
+          "L'organisation a ete suspendue par MyClash. Ses membres ne peuvent plus y travailler.",
+        next: 'Elle reste suspendue jusqu a ce qu un super admin la reactive.',
+        who: 'Un super admin MyClash.',
+      },
     },
   },
   organizer: {

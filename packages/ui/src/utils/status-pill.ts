@@ -18,10 +18,28 @@
  *
  * Per-domain mappers (`tournamentStatusSemantic`, `matchStatusSemantic`,
  * `phaseVisibilitySemantic`, `clockStatusSemantic`, `rulesetSemantic`)
- * translate a concrete status string to a `StatusSemantic`. Every
- * status pill in the codebase should pipe through one of these
- * mappers → `statusPillTone` → the rendered chip. No inline
- * status-to-Tailwind maps anywhere else.
+ * translate a concrete status string to a `StatusSemantic`.
+ *
+ * ── What is actually true, as of this writing ───────────────────────────
+ *
+ * This header used to claim every status pill pipes through these mappers
+ * into `StatusBadge`. It does not, and saying so made the gap invisible:
+ * `<StatusBadge>` appears on THREE product surfaces, while roughly a dozen
+ * others call `statusPillTone` directly and render their own `<span>`. The
+ * palette is genuinely shared — the component is not.
+ *
+ * So: every pill DOES go through `statusPillTone`, and no inline
+ * status-to-Tailwind map should exist anywhere else. Routing them all
+ * through `StatusBadge` is a worthwhile follow-up, not a description of
+ * today. `StatusHelp` deliberately drops in beside a chip rather than
+ * depending on that consolidation.
+ *
+ * Note also that the mappers accept more strings than the database can
+ * store — `matchStatusSemantic` handles 'ready', 'forfeit' and
+ * 'disqualified' although `matches.status` is CHECK-constrained to
+ * ('scheduled','running','paused','completed','voided'). Harmless in a
+ * colour mapper with a default branch; worth knowing before treating this
+ * list as a status vocabulary.
  */
 
 export type StatusSemantic =
