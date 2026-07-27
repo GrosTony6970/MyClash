@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { computeFinalRanking, type PoolEntry, type RankingSlot } from '@myclash/types';
+import {
+  computeFinalRanking,
+  rankingBracketShape,
+  type PoolEntry,
+  type RankingSlot,
+} from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
 import { PhasesService } from '../phases/phases.service';
@@ -586,8 +591,15 @@ export class PeopleContextService {
               blueScore: slot.blueScore ?? null,
               winnerRegistrationId: slot.winnerRegistrationId ?? null,
             }));
-            // 2-arg call (no explicit bronzeSlotId) to match the public FinalRankingTab.
-            const ranking = computeFinalRanking(slots, poolEntries);
+            // No explicit bronzeSlotId, to match the public FinalRankingTab.
+            // The bracket shape IS passed so double-elim tournaments are ranked
+            // by their losers-bracket exit rather than their first loss.
+            const ranking = computeFinalRanking(
+              slots,
+              poolEntries,
+              null,
+              rankingBracketShape(bracket),
+            );
             for (const entry of ranking) {
               const existing = map.get(entry.registrationId) ?? { poolRank: null, finalRank: null };
               existing.finalRank = {

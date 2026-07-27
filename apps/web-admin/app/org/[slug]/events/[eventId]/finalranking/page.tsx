@@ -19,6 +19,7 @@ import {
   DataTableRow,
   TournamentColorDot,
   computeFinalRanking,
+  rankingBracketShape,
   type FinalRankingEntry,
   type PoolEntry,
   type RankingSlot,
@@ -38,6 +39,10 @@ interface Tournament {
 interface BracketResponse {
   phaseId?: string;
   phaseType?: string;
+  /** Double-elim round split — needed so the ranking places fighters by their
+   *  losers-bracket exit rather than by the round of their first loss. */
+  wbRounds?: number | null;
+  lbRounds?: number | null;
   bronzeSlotId?: string | null;
   slots: RankingSlot[];
 }
@@ -160,7 +165,15 @@ export default function FinalRankingPage() {
     [bracket],
   );
   const ranking = useMemo<FinalRankingEntry[]>(
-    () => (bracket ? computeFinalRanking(bracket.slots, poolEntries, bracket.bronzeSlotId) : []),
+    () =>
+      bracket
+        ? computeFinalRanking(
+            bracket.slots,
+            poolEntries,
+            bracket.bronzeSlotId,
+            rankingBracketShape(bracket),
+          )
+        : [],
     [bracket, poolEntries],
   );
 

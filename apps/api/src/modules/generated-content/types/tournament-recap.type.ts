@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { computeFinalRanking, type RankingSlot } from '@myclash/types';
+import { computeFinalRanking, rankingBracketShape, type RankingSlot } from '@myclash/types';
 import { EventsService } from '../../events/events.service';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -61,7 +61,12 @@ export class TournamentRecapType implements ContentTypeDef {
     const standings = await this.events.getPublicTournamentStandings(t.events.slug, t.slug);
     const header = standings.tournament as Record<string, unknown>;
     const slots = (standings as { bracketSlots?: RankingSlot[] }).bracketSlots ?? [];
-    const podium = computeFinalRanking(slots, [])
+    const podium = computeFinalRanking(
+      slots,
+      [],
+      null,
+      rankingBracketShape(standings as { phaseType?: string | null }),
+    )
       .slice(0, 4)
       .map((e) => ({ place: e.place, fighter: e.fighterName, club: e.clubAbbrev ?? null }));
     return {

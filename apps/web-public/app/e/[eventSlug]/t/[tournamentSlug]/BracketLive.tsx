@@ -36,6 +36,11 @@ interface Props {
   playInMatchCount?: number;
   hasPlayInRound?: boolean;
   rounds: number;
+  /** Bracket format. Double-elim renders as WB / LB / Grand Final lanes; the
+   *  bronze split below applies to single-elim only. */
+  phaseType?: 'single_elim' | 'double_elim';
+  wbRounds?: number | null;
+  lbRounds?: number | null;
   weapon: string | null;
   /** Derived podium (gold/silver/bronze/fourth). Page-level
    *  derivePodium() owns the computation; we only render. */
@@ -63,6 +68,9 @@ interface TournamentDataLike {
   playInMatchCount?: number;
   hasPlayInRound?: boolean;
   bracketRounds: number;
+  phaseType?: 'single_elim' | 'double_elim';
+  wbRounds?: number | null;
+  lbRounds?: number | null;
 }
 
 export function BracketLive({
@@ -76,6 +84,9 @@ export function BracketLive({
   playInMatchCount,
   hasPlayInRound,
   rounds,
+  phaseType = 'single_elim',
+  wbRounds,
+  lbRounds,
   weapon,
   podium,
   podiumDecided,
@@ -222,7 +233,10 @@ export function BracketLive({
   // below the gold final — without this split, both finals collapse
   // to a single card at the SF midpoint and the bronze disappears.
   // Matches the admin bracket page's call shape.
-  const { bronze, mainSlots } = extractBronzeMatch(adminShapeSlots);
+  const isDoubleElim = phaseType === 'double_elim';
+  const { bronze, mainSlots } = isDoubleElim
+    ? { bronze: undefined, mainSlots: adminShapeSlots }
+    : extractBronzeMatch(adminShapeSlots);
 
   return (
     <div
@@ -261,8 +275,10 @@ export function BracketLive({
         bracketSize={bracketSize}
         weapon={weapon}
         bracketConfig={{
-          phaseType: 'single_elim',
+          phaseType,
           rounds,
+          wbRounds: wbRounds ?? undefined,
+          lbRounds: lbRounds ?? undefined,
         }}
         bronzeMatch={bronze}
         onMatchClick={onMatchClick}

@@ -42,7 +42,7 @@ export type {
 export { MedalPodium } from './components/bracket/MedalPodium';
 export type { MedalPodiumProps } from './components/bracket/MedalPodium';
 export { extractBronzeMatch } from './components/bracket/extract-bronze-match';
-export { computeFinalRanking } from './components/bracket/final-ranking';
+export { computeFinalRanking, rankingBracketShape } from './components/bracket/final-ranking';
 export type {
   RankingSlot,
   PoolEntry,

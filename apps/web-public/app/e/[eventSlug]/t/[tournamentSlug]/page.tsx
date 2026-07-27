@@ -157,8 +157,11 @@ export default async function TournamentPage({ params }: Props) {
     playInMatchCount,
     hasPlayInRound,
     bracketRounds,
+    phaseType,
+    wbRounds,
+    lbRounds,
   } = data;
-  const podium = derivePodium(bracketSlots);
+  const podium = derivePodium(bracketSlots, { phaseType, wbRounds, lbRounds });
   const podiumDecided = !!(podium?.gold && podium.silver);
   const fighterCount = pools.reduce(
     (n, pool) => n + (pool.members?.length ?? pool.standings.length),
@@ -406,6 +409,9 @@ export default async function TournamentPage({ params }: Props) {
                   playInMatchCount={playInMatchCount}
                   hasPlayInRound={hasPlayInRound}
                   rounds={bracketRounds}
+                  phaseType={phaseType}
+                  wbRounds={wbRounds}
+                  lbRounds={lbRounds}
                   weapon={tournament.weapon}
                   podium={podium}
                   podiumDecided={podiumDecided}
@@ -442,6 +448,9 @@ export default async function TournamentPage({ params }: Props) {
                 isTournamentCompleted={Boolean(podium?.gold && podium?.silver)}
                 tournamentId={tournament.id}
                 bracketSlots={bracketSlots}
+                phaseType={phaseType}
+                wbRounds={wbRounds}
+                lbRounds={lbRounds}
               />
             ),
           },

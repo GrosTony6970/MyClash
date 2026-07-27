@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import {
   computeFinalRanking,
+  rankingBracketShape,
   type FinalRankingEntry,
   type PoolEntry,
   type RankingSlot,
@@ -35,6 +36,11 @@ interface Props {
   isTournamentCompleted: boolean;
   tournamentId: string;
   bracketSlots: BracketSlot[];
+  /** Bracket format. Double-elim is ranked by losers-bracket exit, not by the
+   *  round of a fighter's first loss. Absent → single-elim. */
+  phaseType?: 'single_elim' | 'double_elim';
+  wbRounds?: number | null;
+  lbRounds?: number | null;
   /** Personal space: mark the viewer's own row with a "YOU" chip. */
   highlightRegistrationId?: string | null;
 }
@@ -59,6 +65,9 @@ export function FinalRankingTab({
   isTournamentCompleted,
   tournamentId,
   bracketSlots,
+  phaseType,
+  wbRounds,
+  lbRounds,
   highlightRegistrationId,
 }: Props) {
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
@@ -121,7 +130,12 @@ export function FinalRankingTab({
   }));
 
   const maxRound = rankingSlots.reduce((m, s) => Math.max(m, s.round), 0);
-  const ranking = computeFinalRanking(rankingSlots, poolEntries);
+  const ranking = computeFinalRanking(
+    rankingSlots,
+    poolEntries,
+    null,
+    rankingBracketShape({ phaseType, wbRounds, lbRounds }),
+  );
 
   if (ranking.length === 0) {
     return (

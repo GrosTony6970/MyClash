@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   computeFinalRanking,
+  rankingBracketShape,
   type FinalRankingResultKind,
   type PoolEntry,
   type RankingSlot,
@@ -99,8 +100,11 @@ export class TournamentPlacementService {
         blueScore: slot.blueScore ?? null,
         winnerRegistrationId: slot.winnerRegistrationId ?? null,
       }));
-      // 2-arg call (no explicit bronzeSlotId) to match the public FinalRankingTab.
-      const ranking = computeFinalRanking(slots, poolEntries);
+      // No explicit bronzeSlotId, to match the public FinalRankingTab. The
+      // bracket shape IS passed: without it a double-elim tournament is ranked
+      // as if a winners-bracket loss eliminated the fighter, and an unplayed
+      // grand-final reset makes the whole ranking come back empty.
+      const ranking = computeFinalRanking(slots, poolEntries, null, rankingBracketShape(bracket));
       if (ranking.length > 0) {
         const totalRanked = ranking.length;
         const byRegistrationId = new Map<string, TournamentPlacement>();

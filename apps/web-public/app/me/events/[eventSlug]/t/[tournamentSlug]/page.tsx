@@ -90,7 +90,11 @@ export default function PersonalTournamentPage() {
       .filter((r) => r.tournamentName === tournament.name && r.bracketSlotId)
       .map((r) => `${r.bracketSlotId}::${r.role ?? ''}`),
   );
-  const podium = derivePodium(bracketSlots);
+  const podium = derivePodium(bracketSlots, {
+    phaseType: data.phaseType,
+    wbRounds: data.wbRounds,
+    lbRounds: data.lbRounds,
+  });
   const podiumDecided = !!(podium?.gold && podium.silver);
   const tournamentColor = tournament.color ?? null;
   const accentColor = colorTokenToHex(tournamentColor);
@@ -212,6 +216,9 @@ export default function PersonalTournamentPage() {
                     playInMatchCount={data.playInMatchCount}
                     hasPlayInRound={data.hasPlayInRound}
                     rounds={bracketRounds}
+                    phaseType={data.phaseType}
+                    wbRounds={data.wbRounds}
+                    lbRounds={data.lbRounds}
                     weapon={tournament.weapon}
                     podium={podium}
                     podiumDecided={podiumDecided}
@@ -234,6 +241,9 @@ export default function PersonalTournamentPage() {
                   isTournamentCompleted={Boolean(podium?.gold && podium?.silver)}
                   tournamentId={tournament.id}
                   bracketSlots={bracketSlots}
+                  phaseType={data.phaseType}
+                  wbRounds={data.wbRounds}
+                  lbRounds={data.lbRounds}
                   highlightRegistrationId={highlightRegistrationId}
                 />
               ),

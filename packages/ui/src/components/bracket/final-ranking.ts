@@ -6,6 +6,8 @@
  */
 export {
   computeFinalRanking,
+  rankingBracketShape,
+  type RankingBracketShape,
   type RankingSlot,
   type PoolEntry,
   type FinalRankingEntry,

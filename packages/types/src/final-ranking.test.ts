@@ -151,3 +151,103 @@ describe('computeFinalRanking', () => {
     expect(ranking[1]?.registrationId).toBe('a');
   });
 });
+
+// ── Double elimination ───────────────────────────────────────────────────────
+
+// 8-fighter double elim. wbRounds=3, lbRounds=4 → WB 1-3, LB 4-7, GF 8, reset 9.
+//   WB R1 (1): a>b, c>d, e>f, g>h      WB R2 (2): a>c, e>g      WB F (3): a>e
+//   LB R1 (4): b>d, f>h                LB R2 (5): c>b, g>f
+//   LB R3 (6): c>g                     LB F  (7): e>c
+// Every WB loser drops to the LB, so nobody is eliminated by a WB loss.
+const DE_SHAPE = { phaseType: 'double_elim' as const, wbRounds: 3, lbRounds: 4 };
+
+function buildDoubleElim(gfWinnerIsWb = true): RankingSlot[] {
+  seq = 100;
+  return [
+    mk(1, 1, 'a', 5, 'b', 2),
+    mk(1, 2, 'c', 5, 'd', 1),
+    mk(1, 3, 'e', 5, 'f', 3),
+    mk(1, 4, 'g', 5, 'h', 2),
+    mk(2, 1, 'a', 5, 'c', 3),
+    mk(2, 2, 'e', 5, 'g', 4),
+    mk(3, 1, 'a', 5, 'e', 4),
+    mk(4, 1, 'b', 5, 'd', 2),
+    mk(4, 2, 'f', 5, 'h', 1),
+    mk(5, 1, 'c', 5, 'b', 3),
+    mk(5, 2, 'g', 5, 'f', 2),
+    mk(6, 1, 'c', 5, 'g', 4),
+    mk(7, 1, 'e', 5, 'c', 3),
+    gfWinnerIsWb ? mk(8, 1, 'a', 5, 'e', 3) : mk(8, 1, 'e', 5, 'a', 3),
+  ];
+}
+
+describe('computeFinalRanking — double elimination', () => {
+  it('places fighters by their LOSERS-bracket exit, not their winners-bracket loss', () => {
+    const ranking = computeFinalRanking(buildDoubleElim(), POOL, null, DE_SHAPE);
+    expect(ranking.map((e) => e.registrationId)).toEqual([
+      'a', // champion — won the grand final
+      'e', // runner-up — lost the WB final, won the LB, lost the GF
+      'c', // 3rd — lost the LB final
+      'g', // 4th — lost LB R3
+      'f', // LB R2 losers, separated by pool score (f 3.0 > b 2.0)
+      'b',
+      'h', // LB R1 losers (h 2.5 > d 1.0)
+      'd',
+    ]);
+  });
+
+  it('does not eliminate anyone at a winners-bracket loss', () => {
+    // b lost in WB round 1 — under the single-elim ordering that put them
+    // last. In double elim they get a second life and finish 6th.
+    const ranking = computeFinalRanking(buildDoubleElim(), POOL, null, DE_SHAPE);
+    const b = ranking.find((e) => e.registrationId === 'b');
+    expect(b?.place).toBe(6);
+    expect(b?.bracketSection).toBe('LB');
+    // LB-relative round, not the absolute round 5.
+    expect(b?.eliminationRound).toBe(2);
+  });
+
+  it('labels the LB-final and LB-semi losers as the podium places', () => {
+    const ranking = computeFinalRanking(buildDoubleElim(), POOL, null, DE_SHAPE);
+    expect(ranking[2]?.resultKind).toBe('third');
+    expect(ranking[3]?.resultKind).toBe('fourth');
+  });
+
+  /**
+   * The regression this fix exists for. The reset slot is generated whenever
+   * the option is on, but is only PLAYED when the losers-bracket entrant wins
+   * the grand final. Reading the highest round found an unplayed reset, so
+   * winnerLoser() returned null and the ENTIRE ranking came back empty —
+   * taking the podium, league standings and career placements with it.
+   */
+  it('ranks normally when an enabled reset was never played', () => {
+    const slots = [...buildDoubleElim(), { ...mk(9, 1, 'e', 0, 'a', 0), status: 'scheduled' }];
+    const ranking = computeFinalRanking(slots, POOL, null, DE_SHAPE);
+    expect(ranking.length).toBe(8);
+    expect(ranking[0]?.registrationId).toBe('a');
+    expect(ranking[1]?.registrationId).toBe('e');
+  });
+
+  it('crowns the reset winner when the reset WAS played', () => {
+    // LB entrant e wins the GF, forcing a reset; a wins the reset.
+    const slots = [...buildDoubleElim(false), mk(9, 1, 'a', 5, 'e', 4)];
+    const ranking = computeFinalRanking(slots, POOL, null, DE_SHAPE);
+    expect(ranking[0]?.registrationId).toBe('a');
+    expect(ranking[1]?.registrationId).toBe('e');
+  });
+
+  it('returns empty while the grand final is undecided', () => {
+    const slots = buildDoubleElim().filter((s) => s.round !== 8);
+    expect(computeFinalRanking(slots, POOL, null, DE_SHAPE)).toEqual([]);
+  });
+
+  it('places play-in losers below every main-bracket fighter', () => {
+    // Two extra fighters knocked out in a round-0 qualifier.
+    const slots = [...buildDoubleElim(), mk(0, 1, 'a', 5, 'x', 1), mk(0, 2, 'b', 5, 'y', 2)];
+    const pool = [...POOL, poolEntry('x', 0.5), poolEntry('y', 0.4)];
+    const ranking = computeFinalRanking(slots, pool, null, DE_SHAPE);
+    const tail = ranking.slice(-2);
+    expect(tail.map((e) => e.registrationId).sort()).toEqual(['x', 'y']);
+    expect(tail.every((e) => e.bracketSection === 'PLAYIN')).toBe(true);
+  });
+});

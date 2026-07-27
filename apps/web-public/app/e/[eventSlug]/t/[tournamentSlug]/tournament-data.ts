@@ -108,45 +108,97 @@ export interface TournamentData {
   playInMatchCount?: number;
   hasPlayInRound?: boolean;
   bracketRounds: number;
+  /** Bracket format. Absent on legacy payloads → single-elim. */
+  phaseType?: 'single_elim' | 'double_elim';
+  wbRounds?: number | null;
+  lbRounds?: number | null;
 }
 
-/** Gold/silver/bronze/4th from bracketSlots — position 1 at maxRound is the
- *  final, position 2 (when present) the bronze match. Undefined when no data. */
-export function derivePodium(bracketSlots: BracketSlot[]): PodiumData | undefined {
+/** The bracket shape needed to read a double-elim podium. */
+export interface PodiumShape {
+  phaseType?: 'single_elim' | 'double_elim';
+  wbRounds?: number | null;
+  lbRounds?: number | null;
+}
+
+// Recorded winner first — forfeits can award the lower-scored fighter (a
+// keep-current injury forfeit stores the pre-forfeit score, even 0-0).
+function winnerSide(s: BracketSlot | null): 'red' | 'blue' | null {
+  if (!s || s.status !== 'completed') return null;
+  if (s.winnerRegistrationId && s.winnerRegistrationId === s.redRegistrationId) return 'red';
+  if (s.winnerRegistrationId && s.winnerRegistrationId === s.blueRegistrationId) return 'blue';
+  const rs = s.redScore ?? 0;
+  const bs = s.blueScore ?? 0;
+  if (rs === bs) return null;
+  return rs > bs ? 'red' : 'blue';
+}
+
+function winnerName(s: BracketSlot | null) {
+  const side = winnerSide(s);
+  if (!side) return null;
+  const name = side === 'red' ? s!.redFighterName : s!.blueFighterName;
+  return name ? { fighterName: name } : null;
+}
+
+function loserName(s: BracketSlot | null) {
+  const side = winnerSide(s);
+  if (!side) return null;
+  const name = side === 'red' ? s!.blueFighterName : s!.redFighterName;
+  return name ? { fighterName: name } : null;
+}
+
+/**
+ * Gold/silver/bronze/4th from bracketSlots.
+ *
+ * Single-elim: position 1 at maxRound is the final, position 2 (when present)
+ * the bronze match.
+ *
+ * Double-elim: gold/silver come from the last PLAYED grand final — the reset
+ * slot exists whenever the option is on but is only played when the
+ * losers-bracket entrant wins, so reading maxRound blindly would show an
+ * undecided podium forever. Bronze is the losers-bracket final's loser and 4th
+ * the LB semi-final's loser, matching computeFinalRanking's ordering.
+ */
+export function derivePodium(
+  bracketSlots: BracketSlot[],
+  shape?: PodiumShape,
+): PodiumData | undefined {
   if (bracketSlots.length === 0) return undefined;
-  const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
-  const final = bracketSlots.find((s) => s.round === maxRound && s.position === 1) ?? null;
-  const bronze = bracketSlots.find((s) => s.round === maxRound && s.position === 2) ?? null;
+  const at = (round: number, position = 1) =>
+    bracketSlots.find((s) => s.round === round && s.position === position) ?? null;
+
+  let final: BracketSlot | null;
+  let bronze: BracketSlot | null;
+  let fourthSlot: BracketSlot | null = null;
+
+  if (shape?.phaseType === 'double_elim') {
+    const gfRound = (shape.wbRounds ?? 0) + (shape.lbRounds ?? 0) + 1;
+    const reset = at(gfRound + 1);
+    final = reset && reset.status === 'completed' ? reset : at(gfRound);
+    // In double elim nobody plays for bronze: 3rd is whoever lost the LB final.
+    bronze = at(gfRound - 1);
+    fourthSlot = at(gfRound - 2);
+  } else {
+    const maxRound = bracketSlots.reduce((m, s) => Math.max(m, s.round), 0);
+    final = at(maxRound, 1);
+    bronze = at(maxRound, 2);
+  }
   if (!final && !bronze) return undefined;
-  // Recorded winner first — forfeits can award the lower-scored fighter (a
-  // keep-current injury forfeit stores the pre-forfeit score, even 0-0).
-  const winnerSide = (s: BracketSlot | null): 'red' | 'blue' | null => {
-    if (!s || s.status !== 'completed') return null;
-    if (s.winnerRegistrationId && s.winnerRegistrationId === s.redRegistrationId) return 'red';
-    if (s.winnerRegistrationId && s.winnerRegistrationId === s.blueRegistrationId) return 'blue';
-    const rs = s.redScore ?? 0;
-    const bs = s.blueScore ?? 0;
-    if (rs === bs) return null;
-    return rs > bs ? 'red' : 'blue';
-  };
-  const winnerName = (s: BracketSlot | null) => {
-    const side = winnerSide(s);
-    if (!side) return null;
-    const name = side === 'red' ? s!.redFighterName : s!.blueFighterName;
-    return name ? { fighterName: name } : null;
-  };
-  const loserName = (s: BracketSlot | null) => {
-    const side = winnerSide(s);
-    if (!side) return null;
-    const name = side === 'red' ? s!.blueFighterName : s!.redFighterName;
-    return name ? { fighterName: name } : null;
-  };
-  return {
-    gold: winnerName(final),
-    silver: loserName(final),
-    bronze: winnerName(bronze),
-    fourth: loserName(bronze),
-  };
+  // Single-elim reads both podium places off the bronze match; double-elim
+  // reads the LOSERS of two different LB rounds.
+  return shape?.phaseType === 'double_elim'
+    ? {
+        gold: winnerName(final),
+        silver: loserName(final),
+        bronze: loserName(bronze),
+        fourth: loserName(fourthSlot),
+      }
+    : {
+        gold: winnerName(final),
+        silver: loserName(final),
+        bronze: winnerName(bronze),
+        fourth: loserName(bronze),
+      };
 }
 
 /** Tournament brand colour token → hex for the legacy stripe/title paint. */

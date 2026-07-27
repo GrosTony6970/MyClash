@@ -1267,7 +1267,9 @@ export class EventsService {
     }
 
     const poolPhase = phaseRows.find((phase) => phase['type'] === 'pool');
-    const bracketPhase = phaseRows.find((phase) => phase['type'] === 'single_elim');
+    const bracketPhase = phaseRows.find(
+      (phase) => phase['type'] === 'single_elim' || phase['type'] === 'double_elim',
+    );
 
     const pools =
       poolPhase && typeof poolPhase['id'] === 'string'
@@ -1276,7 +1278,14 @@ export class EventsService {
     const bracket =
       bracketPhase && typeof bracketPhase['id'] === 'string'
         ? await this.getPublishedBracket(bracketPhase, eventId)
-        : { bracketSlots: [], bracketSize: 0, bracketRounds: 0 };
+        : {
+            bracketSlots: [],
+            bracketSize: 0,
+            bracketRounds: 0,
+            phaseType: 'single_elim' as const,
+            wbRounds: null,
+            lbRounds: null,
+          };
 
     tournamentHeader['poolCount'] = pools.length;
     tournamentHeader['refereeCount'] = pools.reduce(
@@ -1653,7 +1662,9 @@ export class EventsService {
     return tournaments.map((t) => {
       const id = (t['id'] as string) ?? '';
       const phases = phasesByTournament.get(id) ?? [];
-      const bracketPhase = phases.find((p) => p['type'] === 'single_elim');
+      const bracketPhase = phases.find(
+        (p) => p['type'] === 'single_elim' || p['type'] === 'double_elim',
+      );
       const bracketSizeRaw = ((bracketPhase?.['config_json'] as
         | Record<string, unknown>
         | undefined) ?? {})['bracketSize'];
@@ -2488,7 +2499,9 @@ export class EventsService {
     const phaseId = phase['id'] as string;
     const { data, error } = await this.supabase.service
       .from('bracket_slots')
-      .select('id, round, position, registration_a_id, registration_b_id')
+      .select(
+        'id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id',
+      )
       .eq('phase_id', phaseId)
       .order('round', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -2497,6 +2510,8 @@ export class EventsService {
       id: string;
       round: number;
       position: number;
+      source_a_ref: string | null;
+      source_b_ref: string | null;
       registration_a_id: string | null;
       registration_b_id: string | null;
     };
@@ -2605,6 +2620,8 @@ export class EventsService {
         matchId: match?.id ?? null,
         redRegistrationId: s.registration_a_id,
         blueRegistrationId: s.registration_b_id,
+        source_a_ref: s.source_a_ref,
+        source_b_ref: s.source_b_ref,
         liceName: match?.liceName ?? null,
         referees: match?.id ? (refereesByMatch.get(match.id) ?? []) : [],
       };
@@ -2620,6 +2637,12 @@ export class EventsService {
       playInMatchCount: Number(config['playInMatchCount'] ?? 0),
       hasPlayInRound: Boolean(config['hasPlayInRound'] ?? false),
       bracketRounds: Number(config['rounds'] ?? 0),
+      // Shape, so the public bracket renders double-elim as WB/LB/GF lanes and
+      // ranks it by losers-bracket exit rather than by first loss.
+      phaseType:
+        phase['type'] === 'double_elim' ? ('double_elim' as const) : ('single_elim' as const),
+      wbRounds: config['wbRounds'] === undefined ? null : Number(config['wbRounds']),
+      lbRounds: config['lbRounds'] === undefined ? null : Number(config['lbRounds']),
     };
   }
 
