@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
+import { FollowOrganizerButton } from '../../../_components/FollowOrganizerButton';
 
 export interface EventInfo {
   id: string;
@@ -28,6 +29,9 @@ export interface EventInfo {
   heroImageUrl: string | null;
   organizationName: string | null;
   organizationLogoUrl: string | null;
+  /** Both null-safe: the header degrades to plain text without them. */
+  organizationId: string | null;
+  organizationSlug: string | null;
 }
 
 function formatEventPlace(
@@ -60,7 +64,7 @@ export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise
     });
     if (!res.ok) return null;
     const raw = (await res.json()) as Record<string, unknown>;
-    const org = raw['organizations'] as { name?: string; logo_url?: string } | null;
+    const org = raw['organizations'] as { name?: string; slug?: string; logo_url?: string } | null;
     // Supabase projects `themes(*)` either as a single object or as an array
     // depending on the joined cardinality; handle both.
     const themesRaw = raw['themes'] as
@@ -89,6 +93,10 @@ export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise
       heroImageUrl: typeof theme?.hero_image_url === 'string' ? theme.hero_image_url : null,
       organizationName: typeof org?.name === 'string' ? org.name : null,
       organizationLogoUrl: typeof org?.logo_url === 'string' ? org.logo_url : null,
+      // organization_id rides along on the event row itself (the endpoint
+      // selects *), so linking + following needs no API change.
+      organizationId: typeof raw['organization_id'] === 'string' ? raw['organization_id'] : null,
+      organizationSlug: typeof org?.slug === 'string' ? org.slug : null,
     };
   } catch {
     return null;
@@ -136,9 +144,30 @@ export function EventHeader({
               {event.name}
             </h1>
             {event.organizationName && (
-              <p className="text-sm font-semibold text-foreground-secondary">
-                {event.organizationName}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {/* The organiser is a destination, not a label: this and the
+                    /organisers directory are how anyone reaches an organiser
+                    page at all. The landing-page cards can't link here — the
+                    whole card is already an anchor. */}
+                {event.organizationSlug ? (
+                  <Link
+                    href={`/o/${event.organizationSlug}`}
+                    className="text-sm font-semibold text-foreground-secondary hover:text-accent hover:underline"
+                  >
+                    {event.organizationName}
+                  </Link>
+                ) : (
+                  <p className="text-sm font-semibold text-foreground-secondary">
+                    {event.organizationName}
+                  </p>
+                )}
+                {event.organizationId && event.organizationSlug && (
+                  <FollowOrganizerButton
+                    organizationId={event.organizationId}
+                    slug={event.organizationSlug}
+                  />
+                )}
+              </div>
             )}
             {place ? <p className="text-sm text-muted">{place}</p> : null}
             <p className="mt-0.5 text-sm text-muted">

@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see matches/di-wiring.regression.test.ts).
@@ -15,6 +16,10 @@ import type {
   CreateOrganizationDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
+
+/** Page size for the public organiser directory, and its hard cap. */
+const DEFAULT_PUBLIC_ORG_PAGE = 24;
+const MAX_PUBLIC_ORG_PAGE = 50;
 
 const ORG_LOGO_BUCKET = 'event-assets';
 const ORG_LOGO_MAX_BYTES = 10 * 1024 * 1024;
@@ -121,6 +126,111 @@ export class OrganizationsService {
       brandColor: org.brand_color,
       followerCount: count ?? 0,
     };
+  }
+
+  /**
+   * Anonymous organiser directory, for /organisers.
+   *
+   * Same `status='active'` rule as getPublicBySlug, so the list can never
+   * surface an organisation whose profile page would 404.
+   *
+   * Ordered by NAME, deliberately. Sorting by activity or follower count means
+   * counting every active organisation before you can paginate — the counts
+   * live in other tables, so Postgres cannot order by them without a
+   * denormalised column or an RPC. Alphabetical is stable, cheap, and
+   * paginates correctly.
+   *
+   * The two count queries are batched over the page's ids rather than run per
+   * row: a page of 24 organisations costs 3 queries, not 49.
+   */
+  async listPublic(query: { q?: string; limit?: number; offset?: number } = {}) {
+    const limit = Math.min(query.limit ?? DEFAULT_PUBLIC_ORG_PAGE, MAX_PUBLIC_ORG_PAGE);
+    const offset = query.offset ?? 0;
+
+    let q = this.supabase.service
+      .from('organizations')
+      .select('id, name, slug, logo_url, brand_color', { count: 'exact' })
+      .eq('status', 'active')
+      .order('name', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    // Sanitised even though this is a single filter param rather than an
+    // .or() list — PostgREST meta-characters have no business in a name search.
+    const term = query.q ? sanitizePostgrestFilterValue(query.q) : '';
+    if (term) q = q.ilike('name', `%${term}%`) as typeof q;
+
+    const { data, error, count } = await q;
+    if (error) throw new BadRequestException(error.message);
+
+    const rows = (data ?? []) as Array<{
+      id: string;
+      name: string;
+      slug: string;
+      logo_url: string | null;
+      brand_color: string | null;
+    }>;
+    const total = count ?? 0;
+    if (rows.length === 0) return { items: [], total };
+
+    const ids = rows.map((row) => row.id);
+    const [followerCounts, upcomingCounts] = await Promise.all([
+      this.countFollowersByOrg(ids),
+      this.countUpcomingEventsByOrg(ids),
+    ]);
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        logoUrl: row.logo_url,
+        brandColor: row.brand_color,
+        followerCount: followerCounts.get(row.id) ?? 0,
+        upcomingEventCount: upcomingCounts.get(row.id) ?? 0,
+      })),
+      total,
+    };
+  }
+
+  /**
+   * Follower counts for a page of organisations, as one query.
+   *
+   * Aggregate only — the same reasoning as getPublicBySlug: the COUNT is
+   * public, the follower LIST stays owner-only under RLS.
+   */
+  private async countFollowersByOrg(orgIds: string[]): Promise<Map<string, number>> {
+    const { data, error } = await this.supabase.service
+      .from('organization_follows')
+      .select('followed_organization_id')
+      .in('followed_organization_id', orgIds);
+    if (error) throw new BadRequestException(error.message);
+
+    const counts = new Map<string, number>();
+    for (const row of (data ?? []) as Array<{ followed_organization_id: string }>) {
+      counts.set(row.followed_organization_id, (counts.get(row.followed_organization_id) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /**
+   * "Events you could still attend" per organisation: published + running,
+   * test events excluded. Mirrors what the public event list treats as
+   * upcoming, so the number on a directory card matches what /o/[slug] shows.
+   */
+  private async countUpcomingEventsByOrg(orgIds: string[]): Promise<Map<string, number>> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('organization_id')
+      .in('organization_id', orgIds)
+      .in('status', ['published', 'running'])
+      .eq('is_test_event', false);
+    if (error) throw new BadRequestException(error.message);
+
+    const counts = new Map<string, number>();
+    for (const row of (data ?? []) as Array<{ organization_id: string }>) {
+      counts.set(row.organization_id, (counts.get(row.organization_id) ?? 0) + 1);
+    }
+    return counts;
   }
 
   // ── Create ───────────────────────────────────────────────────────────────────

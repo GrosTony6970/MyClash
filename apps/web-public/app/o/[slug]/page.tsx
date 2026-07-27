@@ -20,7 +20,7 @@ import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
 import type { Locale } from '@myclash/i18n';
 import { formatDateRange } from '../../_components/format-date-range';
 import { partitionEvents } from '../../_components/filter-events';
-import { FollowOrganizerButton } from './FollowOrganizerButton';
+import { FollowOrganizerButton } from '../../_components/FollowOrganizerButton';
 
 interface Props {
   params: Promise<{ slug: string }>;

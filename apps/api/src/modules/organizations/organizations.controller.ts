@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   AddMemberDto,
   CreateOrganizationDto,
+  PublicOrganizationQueryDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
 import { OrganizationsService } from './organizations.service';
@@ -57,6 +59,21 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'List all organizations (super admin)' })
   async list() {
     return this.orgs.list();
+  }
+
+  /**
+   * GET /api/v1/organizations/public?q=&limit=&offset=
+   *
+   * Anonymous organiser directory backing /organisers. Active organisations
+   * only, with the same projection as the profile endpoint below — no
+   * contact_email, no status. Declared above @Get(':id') for the same
+   * declaration-order reason as public/:slug.
+   */
+  @Public()
+  @Get('public')
+  @ApiOperation({ summary: 'List public organisers (anonymous, searchable)' })
+  async listPublic(@Query() query: PublicOrganizationQueryDto) {
+    return this.orgs.listPublic(query);
   }
 
   /**

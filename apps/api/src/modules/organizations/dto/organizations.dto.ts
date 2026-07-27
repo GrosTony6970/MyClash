@@ -29,6 +29,23 @@ const updateOrganizationSchema = z
   .strict();
 export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema) {}
 
+/**
+ * Query for the anonymous organiser directory (GET /organizations/public).
+ *
+ * Query values arrive as strings, so the numbers are coerced before their
+ * bounds are checked — same reason as eventQuerySchema.
+ */
+const publicOrganizationQuerySchema = z
+  .object({
+    // Free text over the organisation name only. There is nothing else on the
+    // row worth matching: city/country live on events, not organisations.
+    q: z.string().trim().max(100).optional(),
+    limit: z.coerce.number().min(1).max(50).optional(),
+    offset: z.coerce.number().min(0).optional(),
+  })
+  .strict();
+export class PublicOrganizationQueryDto extends createZodDto(publicOrganizationQuerySchema) {}
+
 const addMemberSchema = z
   .object({
     // Exactly one of userId / email (the service validates the pairing):

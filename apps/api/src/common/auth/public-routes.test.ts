@@ -102,6 +102,9 @@ const EXPECTED_PUBLIC = [
   'GET /matches/:id/exchanges',
   'GET /matches/:id/penalties',
   'GET /matches/:id/summary',
+  // Anonymous organiser directory for /organisers: active organisations only,
+  // same projection as the profile below (no contact_email, no status).
+  'GET /organizations/public',
   // Anonymous organiser profile for /o/[slug]. Deliberately NOT
   // /organizations/slug/:slug — that one returns contact_email + status.
   'GET /organizations/public/:slug',

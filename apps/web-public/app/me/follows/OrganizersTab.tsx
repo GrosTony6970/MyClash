@@ -85,7 +85,23 @@ export function OrganizersTab({ apiUrl }: { apiUrl: string }) {
     return <EmptyState title={t('publicApp.me.organizers.loadError')} />;
   }
   if (orgs.length === 0) {
-    return <EmptyState title={t('publicApp.me.organizers.empty')} />;
+    // This tab only ever lists what you already follow, so with nothing in it
+    // it used to be a dead end — the Follow button lives elsewhere. Point at
+    // the directory instead.
+    return (
+      <EmptyState
+        title={t('publicApp.me.organizers.empty')}
+        description={t('publicApp.me.organizers.emptyHint')}
+        action={
+          <Link
+            href="/organisers"
+            className="rounded-md border border-accent/60 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent/20"
+          >
+            {t('publicApp.me.organizers.browse')}
+          </Link>
+        }
+      />
+    );
   }
 
   return (

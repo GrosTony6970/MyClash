@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { t } from '@myclash/i18n';
+import { useI18n } from '@/i18n/I18nProvider';
 import { EventsListSections } from './EventsListSections';
 import { PublicLeaguesSections, type PublicLeague } from './PublicLeaguesSections';
 import type { WeaponOption } from './EventFilterBar';
@@ -29,6 +31,46 @@ interface PublicEvent {
 
 type Tab = 'events' | 'leagues';
 
+function TabRow({ tab, onSelect }: { tab: Tab; onSelect: (next: Tab) => void }) {
+  // The tab labels use the module-level (English-bound) `t`; the directory link
+  // uses the locale-aware hook rather than inheriting that.
+  const { t: localised } = useI18n();
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="inline-flex self-start rounded-md border border-border bg-surface p-1 shadow-sm">
+        {(
+          [
+            ['events', t('publicApp.home.tabEvents')],
+            ['leagues', t('publicApp.home.tabLeagues')],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSelect(value)}
+            className={[
+              'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
+              tab === value
+                ? 'bg-accent text-accent-foreground'
+                : 'text-foreground-secondary hover:bg-background',
+            ].join(' ')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* The event cards below are anchors end to end, so the organiser name
+          inside a card cannot itself link. This is the way to the directory. */}
+      <Link
+        href="/organisers"
+        className="text-sm font-semibold text-accent hover:text-accent-hover hover:underline"
+      >
+        {localised('publicApp.organisers.browseCta')}
+      </Link>
+    </div>
+  );
+}
+
 export function HomeTabs({
   events,
   leagues,
@@ -45,28 +87,7 @@ export function HomeTabs({
   const [tab, setTab] = useState<Tab>('events');
   return (
     <div className="flex flex-col gap-6">
-      <div className="inline-flex self-start rounded-md border border-border bg-surface p-1 shadow-sm">
-        {(
-          [
-            ['events', t('publicApp.home.tabEvents')],
-            ['leagues', t('publicApp.home.tabLeagues')],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setTab(value)}
-            className={[
-              'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
-              tab === value
-                ? 'bg-accent text-accent-foreground'
-                : 'text-foreground-secondary hover:bg-background',
-            ].join(' ')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <TabRow tab={tab} onSelect={setTab} />
       {tab === 'events' && (
         <EventsListSections
           events={events}
