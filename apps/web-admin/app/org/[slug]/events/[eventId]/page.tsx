@@ -8,6 +8,7 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
+  StatusHelp,
   TournamentColorDot,
   formatCountryName,
   statusPillTone,
@@ -456,12 +457,15 @@ export default function EventDetailPage() {
         <div className="flex w-fit flex-wrap items-center gap-2">
           {readiness && <ReadinessChip level={readiness.worst} />}
           {event?.status && (
-            <span
-              className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
-                statusPillTone(tournamentStatusSemantic(event.status), 'light').className
-              }`}
-            >
-              {event.status}
+            <span className="inline-flex items-center">
+              <span
+                className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
+                  statusPillTone(tournamentStatusSemantic(event.status), 'light').className
+                }`}
+              >
+                {event.status}
+              </span>
+              <StatusHelp domain="event" status={event.status} t={t} />
             </span>
           )}
         </div>

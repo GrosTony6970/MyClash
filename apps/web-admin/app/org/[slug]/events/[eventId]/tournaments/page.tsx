@@ -7,6 +7,7 @@ import {
   DataTableHead,
   DataTableRow,
   Modal,
+  StatusHelp,
   TournamentColorDot,
   statusPillTone,
   tournamentStatusSemantic,
@@ -369,23 +370,28 @@ export default function EventTournamentsPage() {
                     {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
                   </DataTableCell>
                   <DataTableCell>
-                    <select
-                      value={tournament.status}
-                      onChange={(event) => void changeStatus(tournament, event.target.value)}
-                      disabled={isReadOnly || busyId === tournament.id}
-                      aria-label={t('organizer.tournaments.status')}
-                      className={[
-                        'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
-                        statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
-                          .className,
-                      ].join(' ')}
-                    >
-                      {['draft', 'published', 'running', 'completed', 'archived'].map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="inline-flex items-center">
+                      <select
+                        value={tournament.status}
+                        onChange={(event) => void changeStatus(tournament, event.target.value)}
+                        disabled={isReadOnly || busyId === tournament.id}
+                        aria-label={t('organizer.tournaments.status')}
+                        className={[
+                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+                          statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
+                            .className,
+                        ].join(' ')}
+                      >
+                        {['draft', 'published', 'running', 'completed', 'archived'].map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                      <StatusHelp domain="tournament" status={tournament.status} t={t} />
+                    </span>
                   </DataTableCell>
                   <DataTableCell>
                     <div className="flex flex-wrap gap-2">

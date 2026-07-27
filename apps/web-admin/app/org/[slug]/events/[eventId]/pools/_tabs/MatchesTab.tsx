@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { sideStyle, statusPillTone, matchStatusSemantic } from '@myclash/ui';
+import { useI18n } from '@/i18n/I18nProvider';
+import { sideStyle, statusPillTone, matchStatusSemantic, StatusHelp } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
@@ -738,14 +739,21 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
 }
 
 function StatusPill({ status }: { status: string }) {
+  // Locale-aware `t` for the help popover specifically. The module-level `t`
+  // this file imports elsewhere is bound to EN, so a new user-facing string
+  // routed through it would never translate.
+  const { t: translate } = useI18n();
   const tone = statusPillTone(matchStatusSemantic(status), 'light');
   return (
-    <span
-      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${tone.className}${
-        tone.pulse ? ' animate-pulse' : ''
-      }`}
-    >
-      {status}
+    <span className="inline-flex items-center">
+      <span
+        className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
+          tone.className
+        }${tone.pulse ? ' animate-pulse' : ''}`}
+      >
+        {status}
+      </span>
+      <StatusHelp domain="match" status={status} t={translate} />
     </span>
   );
 }

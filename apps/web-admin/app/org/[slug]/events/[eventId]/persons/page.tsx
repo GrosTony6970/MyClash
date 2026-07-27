@@ -7,12 +7,14 @@ import {
   ConfirmDialog,
   Modal,
   SkillBadge,
+  StatusHelp,
   TournamentColorDot,
   fuzzyMatch,
   useConfirm,
   useToast,
 } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import { useI18n } from '@/i18n/I18nProvider';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 import { formatRosterName } from './roster-name';
@@ -97,6 +99,42 @@ const REG_STATUS_COLORS: Record<string, string> = {
   withdrawn: 'bg-danger/10 text-danger',
   disqualified: 'bg-danger/10 text-danger',
 };
+
+/**
+ * One registration chip with its "what does this mean" affordance.
+ *
+ * Extracted from the roster cell so it can take the LOCALE-AWARE `t` from the
+ * provider: the module-level `t` this page imports is bound to EN, so help
+ * routed through it would never reach a French organiser.
+ */
+function RegistrationStatusChip({
+  status,
+  label,
+  tournamentName,
+  color,
+}: {
+  status: string;
+  label: string;
+  tournamentName: string;
+  color?: string | null;
+}) {
+  const { t: translate } = useI18n();
+  return (
+    <span className="inline-flex items-center">
+      <span
+        className={[
+          'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+          REG_STATUS_COLORS[status] ?? '',
+        ].join(' ')}
+        title={tournamentName}
+      >
+        <TournamentColorDot color={color} />
+        {label}
+      </span>
+      <StatusHelp domain="registration" status={status} t={translate} />
+    </span>
+  );
+}
 
 export default function ParticipantsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -1376,19 +1414,17 @@ export default function ParticipantsPage() {
                                     (tour) => tour.id === r.tournamentId,
                                   );
                                   return (
-                                    <span
+                                    <RegistrationStatusChip
                                       key={r.id}
-                                      className={[
-                                        'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
-                                        REG_STATUS_COLORS[r.status] ?? '',
-                                      ].join(' ')}
-                                      title={r.tournamentName}
-                                    >
-                                      <TournamentColorDot color={tour?.color} />
-                                      {activeTab === 'all'
-                                        ? r.tournamentName
-                                        : r.status.replace('_', ' ')}
-                                    </span>
+                                      status={r.status}
+                                      label={
+                                        activeTab === 'all'
+                                          ? r.tournamentName
+                                          : r.status.replace('_', ' ')
+                                      }
+                                      tournamentName={r.tournamentName}
+                                      color={tour?.color}
+                                    />
                                   );
                                 })}
                               </div>
