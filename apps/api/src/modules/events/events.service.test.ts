@@ -128,6 +128,70 @@ describe('EventsService', () => {
     );
   });
 
+  describe('publishEvent — announce exactly once', () => {
+    const EVENT = { id: 'event-1', organization_id: 'org-1', status: 'draft' };
+
+    /**
+     * Name-dispatched, because publishEvent's shape depends on whether the
+     * compare-and-set matched: a first publish issues ONE events update, a
+     * republish issues two. An ordered queue would desync between the cases.
+     */
+    function mockPublish(casReturnsRow: boolean) {
+      const organizerPublishedEvent = vi.fn().mockResolvedValue(undefined);
+      const eventsChain = makeFullChain({ data: EVENT, error: null });
+      // makeFullChain has no `update` — publishEvent is the first test here to
+      // need one.
+      eventsChain['update'] = vi.fn().mockReturnValue(eventsChain);
+      // getEventById → the CAS update → (republish only) the plain update.
+      eventsChain['maybeSingle']!.mockResolvedValueOnce({
+        data: EVENT,
+        error: null,
+      }).mockResolvedValueOnce({ data: casReturnsRow ? EVENT : null, error: null });
+      eventsChain['single']!.mockResolvedValue({ data: EVENT, error: null });
+      fromMock.mockImplementation(() => eventsChain);
+
+      const svc = new EventsService(
+        { service: { from: fromMock } } as never,
+        { assertOrgRole } as never,
+        { organizerPublishedEvent } as never,
+      );
+      return { svc, organizerPublishedEvent, eventsChain };
+    }
+
+    it('announces to followers on the first publish', async () => {
+      const { svc, organizerPublishedEvent, eventsChain } = mockPublish(true);
+
+      await svc.publishEvent('event-1', 'user-1');
+
+      // The guard is the `.is('first_published_at', null)` predicate — only a
+      // row that has never been published matches, so this fires once ever.
+      expect(eventsChain['is']!).toHaveBeenCalledWith('first_published_at', null);
+      expect(organizerPublishedEvent).toHaveBeenCalledWith('event-1');
+    });
+
+    it('does NOT announce on a republish', async () => {
+      // The CAS matched nothing, meaning first_published_at was already set.
+      // Re-spamming every follower because an operator unpublished and
+      // republished is the whole failure this guard exists to prevent.
+      const { svc, organizerPublishedEvent } = mockPublish(false);
+
+      await svc.publishEvent('event-1', 'user-1');
+
+      expect(organizerPublishedEvent).not.toHaveBeenCalled();
+    });
+
+    it('still publishes when the announcement throws', async () => {
+      // The operator pressed publish and the event IS published. Losing the
+      // announcement is a far smaller harm than a 500 that reads as failure.
+      const { svc, organizerPublishedEvent } = mockPublish(true);
+      organizerPublishedEvent.mockRejectedValue(new Error('redis down'));
+
+      await expect(svc.publishEvent('event-1', 'user-1')).resolves.toMatchObject({
+        id: 'event-1',
+      });
+    });
+  });
+
   it('hard deletes an event after org admin authorization', async () => {
     const eventChain = makeChain({
       data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },

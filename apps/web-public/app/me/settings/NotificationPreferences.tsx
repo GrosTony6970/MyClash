@@ -13,6 +13,7 @@ interface Prefs {
   refereeStartingMinutesBefore: number;
   scheduleChanges: boolean;
   resultsPublished: boolean;
+  organizerUpdates: boolean;
   enabled: boolean;
 }
 
@@ -185,6 +186,18 @@ export function NotificationPreferences({ apiUrl }: { apiUrl: string }) {
                   onChange={(v) => void patch({ resultsPublished: v })}
                   disabled={!prefs.enabled}
                   ariaLabel={t('publicApp.meSettings.notif.resultsPublished')}
+                />
+              }
+            />
+            <SettingRow
+              label={t('publicApp.meSettings.notif.organizerUpdates')}
+              description={t('publicApp.meSettings.notif.organizerUpdatesDescription')}
+              control={
+                <Switch
+                  checked={prefs.organizerUpdates}
+                  onChange={(v) => void patch({ organizerUpdates: v })}
+                  disabled={!prefs.enabled}
+                  ariaLabel={t('publicApp.meSettings.notif.organizerUpdates')}
                 />
               }
             />

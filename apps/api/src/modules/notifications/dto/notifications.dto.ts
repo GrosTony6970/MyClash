@@ -23,6 +23,8 @@ const updateNotificationPreferencesSchema = z
     refereeStartingMinutesBefore: z.number().int().min(0).max(240).optional(),
     scheduleChanges: z.boolean().optional(),
     resultsPublished: z.boolean().optional(),
+    /** New event published by an organiser you follow. */
+    organizerUpdates: z.boolean().optional(),
     enabled: z.boolean().optional(),
   })
   .strict();

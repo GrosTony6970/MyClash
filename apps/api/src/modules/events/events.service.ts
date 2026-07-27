@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -104,6 +105,8 @@ export interface EventLogoUpload {
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
@@ -576,6 +579,15 @@ export class EventsService {
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
     if (dto.isTestEvent !== undefined) updates['is_test_event'] = dto.isTestEvent;
 
+    // publishEvent() is the path the admin UI uses, but UpdateEventDto also
+    // accepts status:'published' — so the first-publish stamp has to happen
+    // here too, or an event published this way would never announce (and would
+    // then announce later, wrongly, on its first trip through publishEvent).
+    const firstPublishHere =
+      dto.status === 'published' &&
+      (event as { first_published_at?: string | null }).first_published_at == null;
+    if (firstPublishHere) updates['first_published_at'] = new Date().toISOString();
+
     const wasTest = (event as { is_test_event?: boolean }).is_test_event === true;
     const testFlagChanged = dto.isTestEvent !== undefined && dto.isTestEvent !== wasTest;
 
@@ -596,6 +608,7 @@ export class EventsService {
     if (dto.status === 'completed' || testFlagChanged) {
       await this.leagues?.recomputeForEvent(eventId);
     }
+    if (firstPublishHere) await this.announceFirstPublish(eventId);
     return data;
   }
 
@@ -607,15 +620,55 @@ export class EventsService {
       'admin',
     );
 
+    const nowIso = new Date().toISOString();
+
+    // Compare-and-set on first_published_at: the update only stamps it when it
+    // is still null, so exactly one publish in the event's lifetime returns a
+    // row here. That is what makes the follower announcement fire once —
+    // a republish next month must not re-spam everyone.
+    const { data: firstPublish, error: firstErr } = await this.supabase.service
+      .from('events')
+      .update({ status: 'published', first_published_at: nowIso, updated_at: nowIso })
+      .eq('id', eventId)
+      .is('first_published_at', null)
+      .select('*')
+      .maybeSingle();
+    if (firstErr) throw new BadRequestException(firstErr.message);
+
+    if (firstPublish) {
+      await this.announceFirstPublish(eventId);
+      return firstPublish;
+    }
+
+    // Already published once before — plain status update, no announcement.
     const { data, error } = await this.supabase.service
       .from('events')
-      .update({ status: 'published', updated_at: new Date().toISOString() })
+      .update({ status: 'published', updated_at: nowIso })
       .eq('id', eventId)
       .select('*')
       .single();
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  /**
+   * Notify the organiser's followers about a newly published event.
+   *
+   * Wrapped so a notification failure can never fail the publish: the operator
+   * pressed "publish", and the event IS published — losing the announcement is
+   * a far smaller harm than a 500 that makes them think it did not work.
+   */
+  private async announceFirstPublish(eventId: string): Promise<void> {
+    try {
+      await this.notificationEvents.organizerPublishedEvent(eventId);
+    } catch (err) {
+      this.logger.error(
+        `Failed to announce first publish of event ${eventId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   async unpublishEvent(eventId: string, userId: string) {

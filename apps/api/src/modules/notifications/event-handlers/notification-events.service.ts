@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
 
@@ -8,8 +8,16 @@ interface ContactRow {
   email: string | null;
 }
 
+/**
+ * Cap on a single publish announcement, so one pathological organisation
+ * cannot wedge the publish request that triggers it.
+ */
+export const MAX_PUBLISH_FANOUT = 5000;
+
 @Injectable()
 export class NotificationEventsService {
+  private readonly logger = new Logger(NotificationEventsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly scheduler: NotificationSchedulerService,
@@ -134,6 +142,103 @@ export class NotificationEventsService {
           preference: 'results_published',
         });
       }),
+    );
+  }
+
+  /**
+   * Tell an organiser's followers that they published a new event.
+   *
+   * Called ONLY from the compare-and-set in EventsService.publishEvent /
+   * updateEvent, which stamps events.first_published_at and so guarantees this
+   * runs at most once per event. That guard lives in the DB rather than here
+   * because BullMQ's jobId dedupe expires with removeOnComplete (24h), and an
+   * unpublish/republish a week later would otherwise re-spam every follower.
+   *
+   * The follower queries are inlined rather than delegated to
+   * OrganizationFollowsService so NotificationsModule does not have to depend
+   * on FollowsModule for two selects.
+   */
+  async organizerPublishedEvent(eventId: string): Promise<void> {
+    const { data: event } = await this.supabase.service
+      .from('events')
+      .select('id, name, slug, city, start_date, is_test_event, organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    const row = event as {
+      id: string;
+      name: string | null;
+      slug: string | null;
+      city: string | null;
+      start_date: string | null;
+      is_test_event: boolean | null;
+      organization_id: string | null;
+    } | null;
+    if (!row || !row.organization_id) return;
+    // Test events are invisible on every public surface; they must not
+    // generate notifications either.
+    if (row.is_test_event) return;
+
+    const { data: org } = await this.supabase.service
+      .from('organizations')
+      .select('name')
+      .eq('id', row.organization_id)
+      .maybeSingle();
+    const orgName = (org as { name?: string | null } | null)?.name ?? 'An organiser';
+
+    const { data: follows } = await this.supabase.service
+      .from('organization_follows')
+      .select('follower_user_id')
+      .eq('followed_organization_id', row.organization_id)
+      .eq('notify_new_event', true)
+      .limit(MAX_PUBLISH_FANOUT + 1);
+    let followerIds = ((follows ?? []) as Array<{ follower_user_id: string }>).map(
+      (f) => f.follower_user_id,
+    );
+    if (followerIds.length === 0) return;
+    if (followerIds.length > MAX_PUBLISH_FANOUT) {
+      this.logger.warn(
+        `Organisation ${row.organization_id} has more than ${MAX_PUBLISH_FANOUT} followers; truncating the publish announcement.`,
+      );
+      followerIds = followerIds.slice(0, MAX_PUBLISH_FANOUT);
+    }
+
+    // Batched email resolution. A follower is an auth user and may have no
+    // persons row at all, in which case they simply get push-only — the worker
+    // skips the email fallback when `email` is absent.
+    const { data: contacts } = await this.supabase.service
+      .from('persons')
+      .select('claimed_by_user_id, email')
+      .in('claimed_by_user_id', followerIds);
+    const emailByUser = new Map<string, string>();
+    for (const contact of (contacts ?? []) as Array<{
+      claimed_by_user_id: string | null;
+      email: string | null;
+    }>) {
+      if (
+        contact.claimed_by_user_id &&
+        contact.email &&
+        !emailByUser.has(contact.claimed_by_user_id)
+      ) {
+        emailByUser.set(contact.claimed_by_user_id, contact.email);
+      }
+    }
+
+    const eventName = row.name ?? 'A new event';
+    const detail = [row.start_date, row.city].filter(Boolean).join(' · ');
+    const url = row.slug ? `/e/${row.slug}/home` : '/';
+
+    await this.scheduler.sendImmediateBulk(
+      followerIds.map((userId) => ({
+        kind: 'organizer_published_event' as const,
+        entityId: eventId,
+        userId,
+        title: orgName,
+        body: detail ? `${eventName} — ${detail}` : eventName,
+        url,
+        email: emailByUser.get(userId) ?? null,
+        emailSubject: `${orgName} published ${eventName}`,
+        preference: 'organizer_updates' as const,
+      })),
     );
   }
 

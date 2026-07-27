@@ -758,6 +758,9 @@ export const en = {
         scheduleChangesDescription: 'Get notified when your match or workshop times move.',
         resultsPublished: 'Results published',
         resultsPublishedDescription: 'Get notified when a tournament publishes its results.',
+        organizerUpdates: 'New events from organisers you follow',
+        organizerUpdatesDescription:
+          'Get notified when an organiser you follow publishes a new event.',
         decrease: 'Decrease lead time',
         increase: 'Increase lead time',
         signInRequired: 'Sign in to manage your notification preferences.',
@@ -7114,6 +7117,9 @@ export const fr = {
           'Etre notifie quand vos horaires de match ou d atelier changent.',
         resultsPublished: 'Resultats publies',
         resultsPublishedDescription: 'Etre notifie quand un tournoi publie ses resultats.',
+        organizerUpdates: 'Nouveaux evenements des organisateurs suivis',
+        organizerUpdatesDescription:
+          'Etre notifie quand un organisateur que vous suivez publie un nouvel evenement.',
         decrease: 'Reduire le delai',
         increase: 'Augmenter le delai',
         signInRequired: 'Connectez-vous pour gerer vos preferences de notification.',

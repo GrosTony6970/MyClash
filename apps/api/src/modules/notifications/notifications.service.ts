@@ -14,6 +14,7 @@ export interface NotificationPreferencesResponse {
   refereeStartingMinutesBefore: number;
   scheduleChanges: boolean;
   resultsPublished: boolean;
+  organizerUpdates: boolean;
   enabled: boolean;
 }
 
@@ -23,6 +24,9 @@ const DEFAULT_PREFERENCES: NotificationPreferencesResponse = {
   refereeStartingMinutesBefore: 10,
   scheduleChanges: true,
   resultsPublished: true,
+  // Following an organiser is already an explicit opt-in, so the follow
+  // itself is the consent; this toggle exists to turn it back off.
+  organizerUpdates: true,
   enabled: true,
 };
 
@@ -94,7 +98,7 @@ export class NotificationsService {
     const { data, error } = await this.supabase.service
       .from('notification_preferences')
       .select(
-        'match_starting_minutes_before, workshop_starting_minutes_before, referee_starting_minutes_before, schedule_changes, results_published, enabled',
+        'match_starting_minutes_before, workshop_starting_minutes_before, referee_starting_minutes_before, schedule_changes, results_published, organizer_updates, enabled',
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -122,13 +126,14 @@ export class NotificationsService {
     }
     if (dto.scheduleChanges !== undefined) patch['schedule_changes'] = dto.scheduleChanges;
     if (dto.resultsPublished !== undefined) patch['results_published'] = dto.resultsPublished;
+    if (dto.organizerUpdates !== undefined) patch['organizer_updates'] = dto.organizerUpdates;
     if (dto.enabled !== undefined) patch['enabled'] = dto.enabled;
 
     const { data, error } = await this.supabase.service
       .from('notification_preferences')
       .upsert(patch, { onConflict: 'user_id' })
       .select(
-        'match_starting_minutes_before, workshop_starting_minutes_before, referee_starting_minutes_before, schedule_changes, results_published, enabled',
+        'match_starting_minutes_before, workshop_starting_minutes_before, referee_starting_minutes_before, schedule_changes, results_published, organizer_updates, enabled',
       )
       .single();
 
@@ -160,6 +165,10 @@ export class NotificationsService {
         typeof row['results_published'] === 'boolean'
           ? row['results_published']
           : DEFAULT_PREFERENCES.resultsPublished,
+      organizerUpdates:
+        typeof row['organizer_updates'] === 'boolean'
+          ? row['organizer_updates']
+          : DEFAULT_PREFERENCES.organizerUpdates,
       enabled: typeof row['enabled'] === 'boolean' ? row['enabled'] : DEFAULT_PREFERENCES.enabled,
     };
   }

@@ -115,6 +115,9 @@ describe('NotificationsService', () => {
       refereeStartingMinutesBefore: 10,
       scheduleChanges: true,
       resultsPublished: true,
+      // Defaults ON: following an organiser is already an explicit opt-in, so
+      // the follow itself is the consent and this toggle turns it back off.
+      organizerUpdates: true,
       enabled: true,
     });
   });

@@ -18,7 +18,13 @@ export type ImmediateNotificationKind =
   | 'waitlist_promoted'
   | 'results_published'
   | 'exchange_edit_rejected'
-  | 'organizer_broadcast';
+  | 'organizer_broadcast'
+  // Immediate, NOT a FollowNotificationKind: those three are all scheduled
+  // reminders about a followed PERSON, built exclusively by
+  // FollowNotificationSchedulerService.replaceJob with its hardcoded 3-way
+  // jobId switch. This one fires now, push-first with email fallback and
+  // preference gating — which is exactly what sendImmediate already does.
+  | 'organizer_published_event';
 
 export type FollowNotificationKind =
   | 'follow_match_starting'
@@ -30,7 +36,10 @@ export type NotificationKind =
   | ImmediateNotificationKind
   | FollowNotificationKind;
 
-export type NotificationPreferenceToggle = 'schedule_changes' | 'results_published';
+export type NotificationPreferenceToggle =
+  | 'schedule_changes'
+  | 'results_published'
+  | 'organizer_updates';
 
 export interface ScheduledNotificationJob {
   kind: NotificationKind;
@@ -67,6 +76,7 @@ interface NotificationPreferenceRow {
   referee_starting_minutes_before: string | number | null;
   schedule_changes?: boolean | null;
   results_published?: boolean | null;
+  organizer_updates?: boolean | null;
 }
 
 /**
@@ -179,6 +189,36 @@ export class NotificationSchedulerService {
       removeOnComplete: { age: 86_400 },
       removeOnFail: 100,
     });
+  }
+
+  /**
+   * Enqueue many immediate notifications at once.
+   *
+   * sendImmediate costs TWO Redis round trips per recipient (getJob probe +
+   * add). That is fine for the handful of people affected by a schedule change,
+   * but a publish announcement fans out to every follower — at a thousand
+   * followers the caller would sit on two thousand sequential round trips
+   * inside the HTTP request and the publish button would visibly hang.
+   *
+   * addBulk collapses each chunk into one round trip, and the getJob probe is
+   * dropped: BullMQ already ignores a duplicate explicit jobId, and callers of
+   * this path own a stronger guard anyway (see events.first_published_at).
+   */
+  async sendImmediateBulk(inputs: ScheduledNotificationJob[]): Promise<void> {
+    const CHUNK = 500;
+    for (let i = 0; i < inputs.length; i += CHUNK) {
+      const chunk = inputs.slice(i, i + CHUNK).map((input) => ({
+        name: NOTIFICATION_SEND_JOB,
+        data: input,
+        opts: {
+          jobId: buildNotificationJobId(input.kind, input.entityId, input.userId),
+          delay: 0,
+          removeOnComplete: { age: 86_400 },
+          removeOnFail: 100,
+        },
+      }));
+      await this.queue.addBulk(chunk);
+    }
   }
 
   async scheduleMatchStarting(matchId: string, now = new Date()): Promise<void> {
@@ -440,17 +480,17 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     userId: string,
   ): Promise<Pick<
     NotificationPreferenceRow,
-    'enabled' | 'schedule_changes' | 'results_published'
+    'enabled' | 'schedule_changes' | 'results_published' | 'organizer_updates'
   > | null> {
     const { data } = await this.supabase.service
       .from('notification_preferences')
-      .select('user_id, enabled, schedule_changes, results_published')
+      .select('user_id, enabled, schedule_changes, results_published, organizer_updates')
       .eq('user_id', userId)
       .maybeSingle();
     return (
       (data as Pick<
         NotificationPreferenceRow,
-        'enabled' | 'schedule_changes' | 'results_published'
+        'enabled' | 'schedule_changes' | 'results_published' | 'organizer_updates'
       > | null) ?? null
     );
   }
@@ -459,7 +499,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     job: ScheduledNotificationJob,
     preference: Pick<
       NotificationPreferenceRow,
-      'enabled' | 'schedule_changes' | 'results_published'
+      'enabled' | 'schedule_changes' | 'results_published' | 'organizer_updates'
     > | null,
   ): boolean {
     return Boolean(job.preference && preference?.[job.preference] === false);
