@@ -77,3 +77,9 @@ _bmad/
 # BMad working output (brainstorming memlogs, session artifacts, generated
 # project context). Local thinking, not product code — same reasoning as above.
 _bmad-output/
+
+# HEMA Ratings' own submission templates (Template.xlsx / Explanation.docx),
+# downloaded for reference when building the ratings export. Third-party docs
+# carrying example club and person rows — not our code, and not something to
+# republish from a public repo. Keep them local.
+hemaratings-export/
