@@ -7,12 +7,11 @@ import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import { WorkshopRegisterControls } from '@/components/me/WorkshopRegisterControls';
+import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
-  WorkshopCard,
   groupWorkshopsByDay,
-  workshopDayLabel,
   type WorkshopListItem,
-} from '@/components/workshops/WorkshopCard';
+} from '@/components/workshops/workshop-grouping';
 import { overlaps, toTimed, type TimedItem } from '@/components/me/conflicts';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';

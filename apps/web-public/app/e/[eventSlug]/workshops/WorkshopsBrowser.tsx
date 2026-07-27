@@ -13,14 +13,13 @@ import { useMemo, useState } from 'react';
 import { fuzzyMatch } from '@myclash/ui';
 import { zonedDay, formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
-  WorkshopCard,
   firstSessionStart,
   groupWorkshopsByDay,
-  workshopDayLabel,
   WORKSHOP_UNSCHEDULED,
   type WorkshopListItem,
-} from '@/components/workshops/WorkshopCard';
+} from '@/components/workshops/workshop-grouping';
 
 export type { WorkshopListItem };
 

@@ -10,6 +10,11 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import { buildWorkshopRows } from '@/components/me/workshop-rows';
+import {
+  buildCompetingRows,
+  buildRefereeRows,
+  competingStarts,
+} from '@/components/me/overview-rows';
 import type { MyEvent, MyEventTournament } from '@/components/me/types';
 
 type TFn = ReturnType<typeof useI18n>['t'];
@@ -105,21 +110,18 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
   const slug = myEvent.event.slug;
   const { schedule } = useMySchedule(myEvent.event.id);
 
-  const competing = myEvent.tournaments.filter((tr) => tr.registered);
-  const refereeing = myEvent.refereeOf.map((r) => ({
-    ...r,
-    tournament: myEvent.tournaments.find((tr) => tr.name === r.tournamentName) ?? null,
-  }));
+  // Every section is ordered by time, unscheduled last — see overview-rows.ts.
+  // Competing settles into order once the (separate) schedule fetch resolves.
+  const matches = schedule?.matches ?? [];
+  const competing = buildCompetingRows(myEvent.tournaments, matches);
+  const refereeing = buildRefereeRows(myEvent.refereeOf, myEvent.tournaments);
   // Unified Workshops section: workshops the user TEACHES (instructor) + those
   // they ATTEND (enrolled), merged/deduped/sorted by buildWorkshopRows.
   const workshops = buildWorkshopRows(myEvent.workshopsTeaching, schedule?.workshops ?? [], slug);
 
   // Competing time slot = the span of the user's matches in that tournament.
   const competingSlot = (tr: MyEventTournament): string | null => {
-    const starts = (schedule?.matches ?? [])
-      .filter((m) => m.tournamentName === tr.name && m.scheduledAt)
-      .map((m) => m.scheduledAt as string)
-      .sort();
+    const starts = competingStarts(tr, matches);
     if (starts.length === 0) return null;
     return daySlotLabel(starts[0]!, starts[starts.length - 1]!, tz, tag, t);
   };
@@ -167,7 +169,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
       {refereeing.length > 0 && (
         <>
           <SectionTitle>{t('publicApp.me.hub.refereeing')}</SectionTitle>
-          {refereeing.map((r, i) => {
+          {refereeing.map((r) => {
             const kind = matchKindLabel(t, r.matchKind, r.roundOfCount);
             // Pool phase: `poolName` already reads "Pool N", so the localized
             // "Pool" kind would be redundant ("Pool 1 · Pool"). Drop it there;
@@ -206,14 +208,14 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
               'mb-2.5 block rounded-xl border border-border bg-surface p-4 transition-colors';
             return r.tournament ? (
               <Link
-                key={i}
+                key={r.id}
                 href={`/me/events/${slug}/t/${r.tournament.slug}${matchKindHash(r.matchKind)}`}
                 className={`${cardClass} hover:border-accent`}
               >
                 {inner}
               </Link>
             ) : (
-              <div key={i} className={cardClass}>
+              <div key={r.id} className={cardClass}>
                 {inner}
               </div>
             );

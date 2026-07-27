@@ -47,6 +47,9 @@ export interface MyEventTournament {
 }
 
 export interface MyEventRefereeOf {
+  /** referee_assignments.id — stable render key (the row has no other identity:
+   *  a pool "Déclarant" carries no match id, so two pool duties would collide). */
+  id: string;
   tournamentName: string | null;
   poolName: string | null;
   role: string | null;
@@ -334,6 +337,7 @@ export class MeEventsService {
       entry.roles.isReferee = true;
       entry.counts.refereeSlots += 1;
       entry.refereeOf.push({
+        id: a.id,
         tournamentName: a.tournamentName,
         poolName: a.poolName,
         role: a.role,
@@ -501,6 +505,7 @@ export class MeEventsService {
 
   private async fetchRefereeAssignments(globalPersonId: string | null): Promise<
     Array<{
+      id: string;
       event: MyEventInfo | null;
       role: string | null;
       tournamentName: string | null;
@@ -521,7 +526,7 @@ export class MeEventsService {
       .from('referee_assignments')
       .select(
         `
-        role, starts_at, ends_at, pool_id,
+        id, role, starts_at, ends_at, pool_id,
         events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
         pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
         matches (
@@ -533,7 +538,10 @@ export class MeEventsService {
         lices ( name, venues ( name ) )
       `,
       )
-      .eq('person_id', globalPersonId);
+      .eq('person_id', globalPersonId)
+      // Chronological is the only order that makes sense for a duty list; without
+      // this the rows come back in Postgres heap order.
+      .order('starts_at', { ascending: true, nullsFirst: false });
     const rows = Array.isArray(data) ? (data as Row[]) : [];
 
     const assignments = rows.map((r) => {
@@ -546,6 +554,7 @@ export class MeEventsService {
       const phaseType = (phase?.['type'] as string | undefined) ?? null;
       const config = (phase?.['config_json'] as { bracketSize?: number } | null) ?? null;
       return {
+        id: String(r['id'] ?? ''),
         event: this.mapEvent(one(r['events'])),
         role: (r['role'] as string | null) ?? null,
         tournamentName:
@@ -638,6 +647,7 @@ export class MeEventsService {
     }
 
     return assignments.map((a) => ({
+      id: a.id,
       event: a.event,
       role: a.role,
       tournamentName: a.tournamentName,

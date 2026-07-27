@@ -42,6 +42,9 @@ export interface ScheduleMatch {
 }
 
 export interface RefereeSlot {
+  /** referee_assignments.id — stable render key. `matchId` is '' for every
+   *  pool-/lice-scoped row, so it cannot serve as one. */
+  id: string;
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
@@ -238,7 +241,7 @@ export class PublicScheduleService {
       .from('referee_assignments')
       .select(
         `
-        role, starts_at, ends_at, pool_id,
+        id, role, starts_at, ends_at, pool_id,
         pools ( id, name, phases ( type, config_json, visibility_status, tournaments ( name, slug ) ) ),
         lices ( name ),
         matches (
@@ -250,7 +253,10 @@ export class PublicScheduleService {
       `,
       )
       .eq('person_id', globalPersonId)
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      // Base order for the pool-/lice-scoped rows; match-scoped rows are
+      // re-sorted below on their match time, which SQL can't reach from here.
+      .order('starts_at', { ascending: true, nullsFirst: false });
 
     if (!data) return [];
 
@@ -285,6 +291,7 @@ export class PublicScheduleService {
       if (phase && phase.visibility_status !== 'published') return [];
 
       return {
+        id: String(a['id'] ?? ''),
         matchId: (match?.['id'] as string) ?? '',
         matchNumberLabel: (match?.['match_number_label'] as string | null) ?? '',
         scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
@@ -371,8 +378,19 @@ export class PublicScheduleService {
       }
     }
 
+    // Chronological. The display time is the match's `scheduled_at` for a
+    // match-scoped row and the assignment's own `starts_at` for a pool-/lice-
+    // scoped one, so neither column alone can order the mixed list in SQL.
+    // Same key as the schedule view uses (`scheduledAt ?? startsAt`); undated last.
+    const startMs = (s: RawSlot): number => {
+      const iso = s.scheduledAt ?? s.startsAt;
+      return iso ? new Date(iso).getTime() : Number.POSITIVE_INFINITY;
+    };
+    raw.sort((a, b) => startMs(a) - startMs(b));
+
     return raw.map(
       (s): RefereeSlot => ({
+        id: s.id,
         matchId: s.matchId,
         matchNumberLabel: s.matchNumberLabel,
         scheduledAt: s.scheduledAt,

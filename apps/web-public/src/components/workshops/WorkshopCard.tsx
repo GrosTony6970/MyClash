@@ -3,38 +3,17 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
-import { formatInZone, localeToBcp47, zonedDay } from '@myclash/time';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
+import { WORKSHOP_UNSCHEDULED, type WorkshopListItem } from './workshop-grouping';
 
 type TFn = ReturnType<typeof useI18n>['t'];
 
-export interface WorkshopListItem {
-  id: string;
-  slug: string;
-  title: string;
-  shortDescription: string | null;
-  descriptionMd: string | null;
-  category: string | null;
-  level: string | null;
-  weapon: string | null;
-  language: string | null;
-  color: string | null;
-  coverImageUrl: string | null;
-  capacity: number | null;
-  durationMinutes: number | null;
-  sessions: Array<{
-    id: string;
-    startsAt: string | null;
-    endsAt: string | null;
-    locationLabel: string | null;
-    venue: { name: string } | null;
-    area: { name: string } | null;
-    capacity: number | null;
-    confirmedCount: number;
-    status?: string | null;
-  }>;
-  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
-}
+// The list shape and its day grouping live in the framework-free
+// `workshop-grouping` module; re-exported here so existing importers of this
+// component keep working.
+export type { WorkshopDayGroup, WorkshopListItem } from './workshop-grouping';
+export { firstSessionStart, groupWorkshopsByDay, WORKSHOP_UNSCHEDULED } from './workshop-grouping';
 
 /** Spots-left / almost-full / full pill — same thresholds as the public catalog. */
 export function capacityBadge(confirmed: number, capacity: number, t: TFn): ReactNode {
@@ -56,45 +35,6 @@ export function capacityBadge(confirmed: number, capacity: number, t: TFn): Reac
       {t('publicApp.workshops.spotsLeft', { count: capacity - confirmed })}
     </span>
   );
-}
-
-/** Earliest scheduled session ISO for a workshop, or null when unscheduled. */
-export function firstSessionStart(w: WorkshopListItem): string | null {
-  const dated = w.sessions
-    .map((s) => s.startsAt)
-    .filter((v): v is string => Boolean(v))
-    .sort();
-  return dated[0] ?? null;
-}
-
-export const WORKSHOP_UNSCHEDULED = '__unscheduled__';
-
-export interface WorkshopDayGroup {
-  key: string;
-  repIso: string | null;
-  items: WorkshopListItem[];
-}
-
-/** Group workshops by their earliest session's day (event tz); scheduled days
- *  ascending, the unscheduled bucket last. Shared by the public catalog and the
- *  personal-space workshops tab. */
-export function groupWorkshopsByDay(list: WorkshopListItem[], tz: string): WorkshopDayGroup[] {
-  const byDay = new Map<string, WorkshopListItem[]>();
-  const repByDay = new Map<string, string>();
-  for (const w of list) {
-    const start = firstSessionStart(w);
-    const key = zonedDay(start, tz) ?? WORKSHOP_UNSCHEDULED;
-    const arr = byDay.get(key) ?? [];
-    arr.push(w);
-    byDay.set(key, arr);
-    if (start) {
-      const existing = repByDay.get(key);
-      if (!existing || start < existing) repByDay.set(key, start);
-    }
-  }
-  const keys = [...byDay.keys()].filter((k) => k !== WORKSHOP_UNSCHEDULED).sort();
-  if (byDay.has(WORKSHOP_UNSCHEDULED)) keys.push(WORKSHOP_UNSCHEDULED);
-  return keys.map((key) => ({ key, repIso: repByDay.get(key) ?? null, items: byDay.get(key)! }));
 }
 
 /** Day-group heading label, e.g. "samedi 22 mai" (rendered uppercase by CSS). */

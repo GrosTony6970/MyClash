@@ -22,6 +22,9 @@ export interface ScheduleMatch {
 }
 
 export interface RefereeSlot {
+  /** referee_assignments.id — stable render key. `matchId` is '' for every
+   *  pool-/lice-scoped row, so it cannot serve as one. */
+  id: string;
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
@@ -101,6 +104,9 @@ export interface MyEventTournament {
 }
 
 export interface MyEventRefereeOf {
+  /** referee_assignments.id — stable render key (a pool-scoped duty carries no
+   *  match id, so two pool duties would otherwise collide). */
+  id: string;
   tournamentName: string | null;
   poolName: string | null;
   role: string | null;

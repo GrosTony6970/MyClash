@@ -41,6 +41,9 @@ interface ScheduleMatch {
 interface PersonSchedule {
   matches: ScheduleMatch[];
   refereeSlots: Array<{
+    /** referee_assignments.id — `matchId` is '' for every pool-scoped duty, so
+     *  it cannot key the list. */
+    id: string;
     matchId: string;
     matchNumberLabel: string;
     scheduledAt: string | null;
@@ -356,7 +359,7 @@ export default function PersonProfilePage() {
           <div className="flex flex-col gap-2">
             {schedule.refereeSlots.map((s) => (
               <div
-                key={s.matchId}
+                key={s.id}
                 className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3"
               >
                 <div>
