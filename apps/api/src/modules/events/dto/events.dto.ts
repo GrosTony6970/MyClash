@@ -84,6 +84,33 @@ const eventQuerySchema = z
      * time deterministically.
      */
     cursor: z.string().optional(),
+    /**
+     * Free text over the event name, city, country and the ORGANISER's name.
+     * The organiser term can't ride in the same PostgREST `.or()` as the event
+     * columns (there is no cross-table OR), so the service resolves it to a
+     * bounded id list first — see listEvents.
+     */
+    q: z.string().trim().max(100).optional(),
+    /** ISO 3166-1 alpha-2. events.country stores the code, not the name. */
+    country: z.string().trim().length(2).optional(),
+    /**
+     * weapon_catalog SLUG (what GET /weapons returns). There is no
+     * events.weapon — weapon lives on tournaments, so this filters through an
+     * inner embed. An unknown slug yields an empty list rather than a 400:
+     * these are bookmarked, shared public URLs, and a retired weapon should
+     * degrade to "no results", not an error page.
+     */
+    weapon: z.string().trim().max(100).optional(),
+    /** Inclusive window start, YYYY-MM-DD. Matches events that OVERLAP it. */
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    /** Inclusive window end, YYYY-MM-DD. */
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   })
   .strict();
 export class EventQueryDto extends createZodDto(eventQuerySchema) {}

@@ -39,8 +39,23 @@ function makeAwaitableChain(result: unknown) {
     or: vi.fn(),
     limit: vi.fn(),
     lt: vi.fn(),
+    gte: vi.fn(),
+    ilike: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
   });
-  for (const key of ['select', 'eq', 'in', 'neq', 'order', 'is', 'or', 'limit', 'lt']) {
+  for (const key of [
+    'select',
+    'eq',
+    'in',
+    'neq',
+    'order',
+    'is',
+    'or',
+    'limit',
+    'lt',
+    'gte',
+    'ilike',
+  ]) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -1491,6 +1506,140 @@ describe('EventsService', () => {
       const pub = result.find((r) => r.id === 'event-pub');
       expect(pub?.leagues.map((l) => l.id).sort()).toEqual(['L1', 'L2']);
       expect(result.find((r) => r.id === 'event-pub-2')?.leagues).toEqual([]);
+    });
+
+    it('leaves the select string untouched when no weapon filter is applied', async () => {
+      // Locks the hot path: adding the !inner embed unconditionally would make
+      // every public list request pay for a join it does not need.
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      await service.listEvents({ country: 'FR', from: '2026-01-01' });
+
+      expect(chain.select).toHaveBeenCalledWith(
+        '*, organizations(name, slug, logo_url, brand_color)',
+      );
+    });
+
+    it('filters by weapon through an inner tournaments embed and strips it from the payload', async () => {
+      const weaponChain = makeAwaitableChain({ data: { name: 'Longsword' }, error: null });
+      const eventsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'event-ls',
+            name: 'Lyon Spring',
+            // The embed the !inner filter injects — a filter mechanism, not
+            // part of the public contract.
+            tournaments: [{ weapon: 'Longsword' }],
+          },
+        ],
+        error: null,
+      });
+      const tournamentsChain = makeAwaitableChain({ data: [], error: null });
+      fromMock
+        .mockReturnValueOnce(weaponChain)
+        .mockReturnValueOnce(eventsChain)
+        .mockReturnValueOnce(tournamentsChain);
+
+      const result = (await service.listEvents({ weapon: 'longsword' })) as Array<
+        Record<string, unknown>
+      >;
+
+      expect(eventsChain.select).toHaveBeenCalledWith(
+        '*, organizations(name, slug, logo_url, brand_color), tournaments!inner(weapon)',
+      );
+      // Exact eq on the canonical catalog NAME — tournaments.weapon is
+      // canonicalised on write, so this is both correct and indexable.
+      expect(eventsChain.eq).toHaveBeenCalledWith('tournaments.weapon', 'Longsword');
+      expect(result[0]).not.toHaveProperty('tournaments');
+    });
+
+    it('returns an empty list for an unknown weapon slug without querying events', async () => {
+      // These are bookmarked, shared URLs. A retired weapon should read as
+      // "no results", not an error page.
+      const weaponChain = makeAwaitableChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(weaponChain);
+
+      const result = await service.listEvents({ weapon: 'no-such-weapon' });
+
+      expect(result).toEqual([]);
+      expect(fromMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('folds a matching organiser into the free-text OR as a bounded id list', async () => {
+      const orgChain = makeAwaitableChain({
+        data: [{ id: 'org-1' }, { id: 'org-2' }],
+        error: null,
+      });
+      const eventsChain = makeAwaitableChain({ data: [], error: null });
+      // events is queried first (the builder is constructed before the
+      // free-text clauses resolve), then organizations.
+      fromMock.mockReturnValueOnce(eventsChain).mockReturnValueOnce(orgChain);
+
+      await service.listEvents({ q: 'lyon' });
+
+      // The org term cannot ride in the same .or() as the event columns —
+      // PostgREST has no cross-table OR — so it arrives pre-resolved.
+      expect(orgChain.limit).toHaveBeenCalledWith(50);
+      const orArg = eventsChain.or.mock.calls[0]?.[0] as string;
+      expect(orArg).toContain('name.ilike.%lyon%');
+      expect(orArg).toContain('city.ilike.%lyon%');
+      expect(orArg).toContain('organization_id.in.(org-1,org-2)');
+    });
+
+    it('omits the organisation clause when no organiser matches', async () => {
+      const orgChain = makeAwaitableChain({ data: [], error: null });
+      const eventsChain = makeAwaitableChain({ data: [], error: null });
+      // events is queried first (the builder is constructed before the
+      // free-text clauses resolve), then organizations.
+      fromMock.mockReturnValueOnce(eventsChain).mockReturnValueOnce(orgChain);
+
+      await service.listEvents({ q: 'zzzz' });
+
+      expect(eventsChain.or.mock.calls[0]?.[0]).not.toContain('organization_id.in.');
+    });
+
+    it('strips PostgREST metacharacters out of the free-text term', async () => {
+      // A `,` or `)` would close the in.() list early and inject a sibling
+      // filter, broadening the WHERE clause past what the query intended.
+      const orgChain = makeAwaitableChain({ data: [{ id: 'org-1' }], error: null });
+      const eventsChain = makeAwaitableChain({ data: [], error: null });
+      // events is queried first (the builder is constructed before the
+      // free-text clauses resolve), then organizations.
+      fromMock.mockReturnValueOnce(eventsChain).mockReturnValueOnce(orgChain);
+
+      await service.listEvents({ q: 'ly,on)(*' });
+
+      const orArg = eventsChain.or.mock.calls[0]?.[0] as string;
+      expect(orArg).toContain('name.ilike.%lyon%');
+      expect(orArg).not.toMatch(/lyon[,)(*]/);
+      // The only parens/commas left are the ones this method wrote itself.
+      expect(orArg).toBe(
+        'name.ilike.%lyon%,city.ilike.%lyon%,country.ilike.%lyon%,organization_id.in.(org-1)',
+      );
+    });
+
+    it('applies the date window as an overlap, not a containment', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      await service.listEvents({ from: '2026-06-01', to: '2026-06-30' });
+
+      // An event ending on/after `from` and starting before the day AFTER `to`
+      // overlaps the window — so a 3-day event surfaces for any day inside it.
+      expect(chain.gte).toHaveBeenCalledWith('end_date', '2026-06-01');
+      expect(chain.lt).toHaveBeenCalledWith('start_date', '2026-07-01');
+    });
+
+    it('filters by country code', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      await service.listEvents({ country: 'fr' });
+
+      // ilike, not eq: the column is free text at the DB level even though the
+      // write DTOs enforce a 2-char code, so casing is not guaranteed.
+      expect(chain.ilike).toHaveBeenCalledWith('country', 'fr');
     });
 
     it('honours an explicit status filter when the caller passes one', async () => {

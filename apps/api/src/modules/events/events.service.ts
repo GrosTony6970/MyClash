@@ -17,6 +17,8 @@ import { ClubsService } from '../clubs/clubs.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { derivePoolSchedule, type PoolMatchTimeRow } from './pool-schedule';
 import { sideColorsFromScoringConfig } from './side-colors';
+import { nextIsoDay } from './date-window';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import type {
   CreateEventDto,
   CreateTournamentDto,
@@ -140,9 +142,26 @@ export class EventsService {
     // FE adds a "load more" affordance.
     const limit = Math.min(query.limit ?? 100, 100);
 
+    // Weapon lives on tournaments, so filtering by it needs an inner embed.
+    // Resolve the slug FIRST: an unknown one short-circuits to an empty list
+    // without touching events.
+    let weaponName: string | null = null;
+    if (query.weapon) {
+      weaponName = await this.resolveWeaponSlug(query.weapon);
+      if (!weaponName) return [];
+    }
+
+    // PostgREST resource embedding is a lateral join returning a nested array,
+    // NOT a row-multiplying join: an event with three matching tournaments is
+    // still one row, so `.limit()` keeps meaning "events". `!inner` drops
+    // events whose embed comes back empty.
+    const select = weaponName
+      ? '*, organizations(name, slug, logo_url, brand_color), tournaments!inner(weapon)'
+      : '*, organizations(name, slug, logo_url, brand_color)';
+
     let q = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug, logo_url, brand_color)')
+      .select(select)
       .order('start_date', { ascending: false })
       .limit(limit);
 
@@ -156,9 +175,27 @@ export class EventsService {
 
     if (query.cursor) q = q.lt('start_date', query.cursor) as typeof q;
 
+    if (weaponName) q = q.eq('tournaments.weapon', weaponName) as typeof q;
+
+    if (query.country) q = q.ilike('country', query.country) as typeof q;
+
+    // Overlap, not containment: a three-day event should surface when the user
+    // asks for any single day inside it. Dates are TEXT holding ISO dates, so
+    // the comparison is lexicographic and exact.
+    if (query.from) q = q.gte('end_date', query.from) as typeof q;
+    if (query.to) q = q.lt('start_date', nextIsoDay(query.to)) as typeof q;
+
+    if (query.q) {
+      const clauses = await this.buildFreeTextClauses(query.q);
+      if (clauses.length > 0) q = q.or(clauses.join(',')) as typeof q;
+    }
+
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // Double cast: the select string is now built at runtime (the weapon filter
+    // appends an embed), so supabase-js's literal-type select parser resolves
+    // it to a ParserError rather than a row shape. Runtime is unaffected.
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
     if (rows.length === 0) return rows;
 
     // Enrich with tournament_count so the public home page can show
@@ -216,12 +253,71 @@ export class EventsService {
     return rows.map((row) => {
       const id = row['id'] as string;
       const leagueMap = leaguesByEvent.get(id);
+      // Drop the `tournaments` key the weapon filter's !inner embed injects.
+      // tournament_count is already computed from its own query above, so the
+      // embed is a filter mechanism only — leaving it in would make the public
+      // payload shape depend on which filters happened to be applied.
+      const { tournaments: _weaponFilterEmbed, ...rest } = row;
       return {
-        ...row,
+        ...rest,
         tournament_count: countByEvent.get(id) ?? 0,
         leagues: leagueMap ? Array.from(leagueMap.values()) : [],
       };
     });
+  }
+
+  /**
+   * Resolve a weapon_catalog slug to its canonical NAME.
+   *
+   * tournaments.weapon stores the catalog name as free text, canonicalised on
+   * write by resolveCatalogWeapon — so an exact `.eq` on the name is both
+   * correct and indexable, where an ilike would not be.
+   *
+   * Returns null for an unknown slug; the caller turns that into an empty
+   * result rather than a 400.
+   */
+  private async resolveWeaponSlug(slug: string): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('weapon_catalog')
+      .select('name')
+      .eq('slug', slug)
+      .maybeSingle();
+    return (data as { name?: string } | null)?.name ?? null;
+  }
+
+  /**
+   * Build the `.or()` clause list for a free-text search.
+   *
+   * PostgREST cannot express `parent.col ILIKE x OR child.col ILIKE x` — `.or()`
+   * with a referencedTable applies WITHIN the embed, and there is no cross-table
+   * OR. So the organiser-name term is resolved to a bounded id list first and
+   * folded in as `organization_id.in.(...)`.
+   *
+   * The 50-id cap is what makes this safe where the same trick would not be for
+   * tournaments: supabase-js issues a GET, so the id list rides in the query
+   * string. organizations is a small table and the cap keeps the URI short;
+   * matching thousands of tournaments the same way would hit a 414.
+   *
+   * sanitizePostgrestFilterValue is NOT optional here — a `,` or `)` in the
+   * user's term would otherwise close the `in.()` list early and inject a
+   * sibling filter, which is exactly the injection that helper exists to stop.
+   */
+  private async buildFreeTextClauses(rawTerm: string): Promise<string[]> {
+    const term = sanitizePostgrestFilterValue(rawTerm);
+    if (!term) return [];
+
+    const clauses = [`name.ilike.%${term}%`, `city.ilike.%${term}%`, `country.ilike.%${term}%`];
+
+    const { data: orgRows } = await this.supabase.service
+      .from('organizations')
+      .select('id')
+      .ilike('name', `%${term}%`)
+      .limit(50);
+    const orgIds = ((orgRows ?? []) as Array<{ id: string }>).map((o) => o.id);
+    // UUIDs contain no PostgREST metacharacter, so they can't break the list.
+    if (orgIds.length > 0) clauses.push(`organization_id.in.(${orgIds.join(',')})`);
+
+    return clauses;
   }
 
   async listOrgEvents(orgId: string, userId: string) {
