@@ -246,9 +246,11 @@ export function ScoringCenterControls({
       )}
 
       {/* Black-card banner — a black card closed the match per the penalty
-          ruleset; the carded fighter forfeits, the opponent wins. */}
+          ruleset; the carded fighter forfeits, the opponent wins. Page-black
+          edged in ink, so it literally reads as a black card against the
+          lighter surface it sits on. */}
       {blackCardLoserName && (
-        <div className="w-full rounded-xl border-2 border-gray-100 bg-gray-900 px-4 py-3 text-center">
+        <div className="w-full rounded-xl border-2 border-foreground bg-background px-4 py-3 text-center">
           <p className="text-lg font-black uppercase tracking-widest text-foreground">
             {t('scoring.liveMatch.blackCard')}
           </p>
@@ -405,7 +407,10 @@ export function ScoringCenterControls({
               type="button"
               disabled={activeExchanges.length === 0 || clearBusy}
               onClick={() => void clearLastExchange()}
-              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-cyan-700 bg-cyan-950 px-4 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-900 active:bg-cyan-800 disabled:opacity-40 touch-manipulation"
+              // `info`, not `danger`: clearing the last exchange is a routine
+              // correction a referee makes constantly, and the cyan this
+              // replaces existed only to read as "not one of the red actions".
+              className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-info bg-info/20 px-4 py-2 text-sm font-bold text-info hover:bg-info/30 active:bg-info/40 disabled:opacity-40 touch-manipulation"
             >
               ↶ {t('scoring.corrections.clearLastExchange')}
             </button>

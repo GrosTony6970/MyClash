@@ -283,7 +283,9 @@ function WorkshopRatingControl({ workshopId, api }: { workshopId: string; api: s
               setRating(n);
               setSaved(false);
             }}
-            className={`text-xl leading-none ${n <= rating ? 'text-gold' : 'text-muted'}`}
+            // gold-text clears the WCAG 1.4.11 3:1 floor for non-text glyphs;
+            // plain --color-gold sits at 2.06:1 on light.
+            className={`text-xl leading-none ${n <= rating ? 'text-gold-text' : 'text-muted'}`}
           >
             ★
           </button>

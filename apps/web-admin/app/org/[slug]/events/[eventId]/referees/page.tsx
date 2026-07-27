@@ -191,7 +191,9 @@ function StarRating({
           onClick={() => onChange(value === star ? null : star)}
           className={[
             'text-lg leading-none transition-colors',
-            (value ?? 0) >= star ? 'text-gold' : 'text-muted',
+            // gold-text clears the WCAG 1.4.11 3:1 floor for non-text glyphs;
+            // plain --color-gold sits at 2.06:1 on light.
+            (value ?? 0) >= star ? 'text-gold-text' : 'text-muted',
           ].join(' ')}
           title={t('organizer.refereesPage.ratingTooltip', { star })}
         >

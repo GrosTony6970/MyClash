@@ -465,7 +465,10 @@ interface FeedbackSummary {
 
 function Stars({ value }: { value: number }) {
   return (
-    <span className="text-sm tabular-nums text-gold" aria-hidden="true">
+    // gold-text, not gold: a ★ is a non-text glyph and WCAG 1.4.11 wants 3:1,
+    // which --color-gold (2.06:1 on light) misses. gold-text aliases straight
+    // back to the bright gold under the dark scope.
+    <span className="text-sm tabular-nums text-gold-text" aria-hidden="true">
       {'★'.repeat(Math.round(value))}
       <span className="text-muted">{'★'.repeat(Math.max(0, 5 - Math.round(value)))}</span>
     </span>

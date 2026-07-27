@@ -41,10 +41,13 @@ export function BulkActionBar({
   if (count < minCount) return null;
 
   const noun = count === 1 ? itemLabel.singular : itemLabel.plural;
+  // z-sticky (20), not the bare z-30 this used to carry: 30 is the page
+  // header's layer, and a tie meant the pinned bar painted over the shell
+  // header instead of sliding under it.
   const layoutClass =
     placement === 'top-sticky'
-      ? 'sticky top-2 z-30 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-5 py-3 shadow-md mb-4'
-      : 'bulk-bar-enter fixed inset-x-4 bottom-4 z-40 mx-auto flex w-[min(960px,calc(100%-2rem))] items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-5 py-3 shadow-lg';
+      ? 'sticky top-2 z-sticky flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-5 py-3 shadow-md mb-4'
+      : 'bulk-bar-enter fixed inset-x-4 bottom-4 z-sidebar mx-auto flex w-[min(960px,calc(100%-2rem))] items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-5 py-3 shadow-lg';
 
   return (
     <div role="region" aria-label="Bulk actions" className={layoutClass}>

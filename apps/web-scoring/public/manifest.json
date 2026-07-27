@@ -4,7 +4,7 @@
   "description": "MyClash scorekeeper app — offline-first PWA for recording match exchanges at the Lice.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a2e",
+  "background_color": "#0f172a",
   "theme_color": "#b91c1c",
   "orientation": "landscape-primary",
   "icons": [

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
-import { useSyncState } from '../../../src/components/SyncStatus';
+import { useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
@@ -219,16 +219,18 @@ export default function MatchScoringPage({ params }: Props) {
         data-network={networkStatus}
         data-sync={syncPhase}
         data-pending={pending}
+        // Offline is neutral, not red: in a sports hall it is the expected
+        // state and the outbox is doing its job. That frees danger for the one
+        // state that actually needs the operator — a failed sync — and drops
+        // the 4th hue the palette never had a token for.
         className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${
           syncPhase === 'online'
             ? 'bg-success/25 text-success'
             : syncPhase === 'syncing'
               ? 'bg-warning/25 text-warning animate-pulse'
               : syncPhase === 'error'
-                ? // Raw orange ON PURPOSE: 4th hue of the sync categorical set
-                  // (success/warning/danger already taken by online/syncing/offline).
-                  'bg-orange-900 text-orange-200'
-                : 'bg-danger/25 text-danger animate-pulse'
+                ? 'bg-danger/25 text-danger'
+                : 'bg-muted/25 text-muted animate-pulse'
         }`}
       >
         <span>
@@ -245,7 +247,7 @@ export default function MatchScoringPage({ params }: Props) {
           <button
             type="button"
             onClick={() => void syncEngine.drain()}
-            className="rounded bg-orange-700 px-2 py-0.5 text-orange-50 transition-colors hover:bg-orange-600"
+            className="rounded bg-danger px-2 py-0.5 text-danger-foreground transition-colors hover:bg-danger-hover"
           >
             {t('scoring.lice.retry')}
           </button>

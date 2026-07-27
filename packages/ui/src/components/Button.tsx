@@ -66,7 +66,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const classes = [
       'inline-flex items-center justify-center font-semibold border transition-colors',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
+      // ring-offset must track the surface the button sits on. Hardcoded
+      // gray-900 painted a near-black halo around every focused button on the
+      // light admin pages; `background` resolves per scope. `gold` is the same
+      // amber-400 on dark and a deeper amber-500 on light, where it needs to be.
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-background',
       'disabled:opacity-40 disabled:cursor-not-allowed',
       variantClasses[variant],
       sizeClasses[size],
