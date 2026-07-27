@@ -1,4 +1,5 @@
 import { PublicEventsBrowser } from './_components/PublicEventsBrowser';
+import { parseEventFilters } from './_components/event-filters';
 import { getServerT } from '@/i18n/server-locale';
 
 // Next.js 16 defaults route segments to static rendering. The public
@@ -10,8 +11,16 @@ import { getServerT } from '@/i18n/server-locale';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  // Next 15/16 hands searchParams in as a Promise.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getServerT();
+  // Parsed here, not in the client bar: validation lives on the way IN, so a
+  // hand-edited or link-rotted URL can never forward junk to the API.
+  const filters = parseEventFilters(await searchParams);
   return (
     <main
       id="main-content"
@@ -27,7 +36,7 @@ export default async function HomePage() {
           </p>
         </section>
 
-        <PublicEventsBrowser />
+        <PublicEventsBrowser filters={filters} />
       </div>
     </main>
   );

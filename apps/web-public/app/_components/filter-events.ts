@@ -1,7 +1,15 @@
 /**
- * Slice 1 of the public microsite overhaul: partition the public events
- * list into Live / Published / Past sections, applying the same
- * search query to all three.
+ * Partition the public events list into Live / Published / Past sections.
+ *
+ * This used to filter by a search query too. That moved server-side (see
+ * event-filters.ts + GET /events), and keeping a client-side copy would have
+ * been a silent behaviour fork: the server matches with Postgres ILIKE plus an
+ * organisation-id prefilter, the client matched with JS `includes` over a
+ * joined string. They disagree on accents and on the org path, and the symptom
+ * is "the server returned 5 rows and the UI shows 0".
+ *
+ * The partition itself stays client-side on purpose: it is presentation
+ * derived from `status`, and splitting one response beats three round trips.
  *
  * Kept dependency-free (no React, no imports) so the helper can be
  * unit-tested in isolation and reused if the layout ever changes.
@@ -22,22 +30,10 @@ export interface PartitionedEvents<T extends PublicEventLike> {
   past: T[];
 }
 
-export function partitionAndFilterEvents<T extends PublicEventLike>(
-  events: T[],
-  rawQuery: string,
-): PartitionedEvents<T> {
-  const needle = rawQuery.trim().toLowerCase();
-  const matches = (e: T) => {
-    if (needle === '') return true;
-    const haystack = [e.name, e.city, e.country, e.organizations?.name]
-      .filter((v): v is string => typeof v === 'string')
-      .join(' ')
-      .toLowerCase();
-    return haystack.includes(needle);
-  };
+export function partitionEvents<T extends PublicEventLike>(events: T[]): PartitionedEvents<T> {
   return {
-    live: events.filter((e) => e.status === 'running').filter(matches),
-    published: events.filter((e) => e.status === 'published').filter(matches),
-    past: events.filter((e) => e.status === 'completed').filter(matches),
+    live: events.filter((e) => e.status === 'running'),
+    published: events.filter((e) => e.status === 'published'),
+    past: events.filter((e) => e.status === 'completed'),
   };
 }

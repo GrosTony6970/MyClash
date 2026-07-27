@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { defaultLocale, t } from '@myclash/i18n';
 import { formatCountryName } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
-import { partitionAndFilterEvents } from './filter-events';
+import { partitionEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
 import { formatDateRange } from './format-date-range';
+import { EventFilterBar, type WeaponOption } from './EventFilterBar';
+import { EMPTY_EVENT_FILTERS, type EventFilters } from './event-filters';
 
 interface PublicEvent {
   id?: string | null;
@@ -73,36 +75,23 @@ function gridColsClass(hasLogos: boolean): string {
 
 export function EventsListSections({
   events,
+  weapons = [],
+  filters = EMPTY_EVENT_FILTERS,
   personal = false,
 }: {
   events: PublicEvent[];
+  weapons?: WeaponOption[];
+  filters?: EventFilters;
   personal?: boolean;
 }) {
-  const [query, setQuery] = useState('');
-  const { live, published, past } = useMemo(
-    () => partitionAndFilterEvents(events, query),
-    [events, query],
-  );
+  const { live, published, past } = useMemo(() => partitionEvents(events), [events]);
+  // Display-only: the sections no longer filter on it, but the empty-state copy
+  // still says "no live events match {query}".
+  const query = filters.q ?? '';
 
   return (
     <div className="flex w-full flex-col gap-10">
-      <section aria-labelledby="public-events-search-label" className="flex flex-col gap-2">
-        <label
-          id="public-events-search-label"
-          htmlFor="public-events-search"
-          className="text-xs font-semibold uppercase tracking-wider text-muted"
-        >
-          {t('publicApp.home.searchLabel')}
-        </label>
-        <input
-          id="public-events-search"
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('publicApp.home.searchPlaceholder')}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 sm:max-w-md"
-        />
-      </section>
+      <EventFilterBar filters={filters} weapons={weapons} resultCount={events.length} />
 
       <LiveSection events={live} query={query} personal={personal} />
       <UpcomingSection events={published} query={query} personal={personal} />

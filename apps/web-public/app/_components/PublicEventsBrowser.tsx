@@ -2,6 +2,13 @@ import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
+import type { WeaponOption } from './EventFilterBar';
+import {
+  EMPTY_EVENT_FILTERS,
+  hasAnyFilter,
+  toEventQueryString,
+  type EventFilters,
+} from './event-filters';
 
 /**
  * Shared public-events browser: fetches the published events + leagues and
@@ -39,11 +46,10 @@ interface EventLoadResult {
   unavailable: boolean;
 }
 
-const visibleStatuses = new Set(['published', 'running', 'completed']);
-
-async function fetchPublicEvents(): Promise<EventLoadResult> {
+async function fetchPublicEvents(filters: EventFilters): Promise<EventLoadResult> {
   const apiUrl = getServerApiUrl();
-  const target = `${apiUrl}/api/v1/events`;
+  const qs = toEventQueryString(filters);
+  const target = `${apiUrl}/api/v1/events${qs ? `?${qs}` : ''}`;
 
   try {
     const res = await fetch(target, { cache: 'no-store' });
@@ -67,9 +73,10 @@ async function fetchPublicEvents(): Promise<EventLoadResult> {
       return { events: [], unavailable: true };
     }
 
-    const events = ((await res.json()) as PublicEvent[])
-      .filter((event) => visibleStatuses.has(event.status ?? ''))
-      .filter((event) => event.slug || event.id);
+    // No status filter here any more — GET /events already restricts to
+    // published/running/completed, and re-filtering client-side would silently
+    // fight any future status the API decides is public.
+    const events = ((await res.json()) as PublicEvent[]).filter((event) => event.slug || event.id);
 
     return { events, unavailable: false };
   } catch (err) {
@@ -107,15 +114,60 @@ async function fetchPublicLeagues(): Promise<PublicLeague[]> {
   }
 }
 
-export async function PublicEventsBrowser({ personal = false }: { personal?: boolean } = {}) {
+async function fetchWeapons(): Promise<WeaponOption[]> {
+  const apiUrl = getServerApiUrl();
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/weapons?active=true`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    return (await res.json()) as WeaponOption[];
+  } catch {
+    // Soft-fail like the leagues fetch: losing the weapon catalogue should
+    // cost the user one filter option, not the whole page.
+    return [];
+  }
+}
+
+export async function PublicEventsBrowser({
+  personal = false,
+  filters = EMPTY_EVENT_FILTERS,
+}: {
+  personal?: boolean;
+  filters?: EventFilters;
+} = {}) {
   const t = await getServerT();
-  const [{ events, unavailable }, leagues] = await Promise.all([
-    fetchPublicEvents(),
+  const [{ events, unavailable }, leagues, weapons] = await Promise.all([
+    fetchPublicEvents(filters),
     fetchPublicLeagues(),
+    fetchWeapons(),
   ]);
 
+  const filtered = hasAnyFilter(filters);
+
   if (events.length > 0 || leagues.length > 0) {
-    return <HomeTabs events={events} leagues={leagues} personal={personal} />;
+    return (
+      <HomeTabs
+        events={events}
+        leagues={leagues}
+        weapons={weapons}
+        filters={filters}
+        personal={personal}
+      />
+    );
+  }
+
+  // A filtered search that matched nothing is not the same as an empty
+  // platform. Keep the bar mounted so the user can widen or clear, instead of
+  // stranding them on "no events yet" with no way back.
+  if (filtered && !unavailable) {
+    return (
+      <HomeTabs
+        events={events}
+        leagues={leagues}
+        weapons={weapons}
+        filters={filters}
+        personal={personal}
+      />
+    );
   }
 
   return (

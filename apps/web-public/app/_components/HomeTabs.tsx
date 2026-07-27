@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { t } from '@myclash/i18n';
 import { EventsListSections } from './EventsListSections';
 import { PublicLeaguesSections, type PublicLeague } from './PublicLeaguesSections';
+import type { WeaponOption } from './EventFilterBar';
+import { EMPTY_EVENT_FILTERS, type EventFilters } from './event-filters';
 
 interface PublicEvent {
   id?: string | null;
@@ -30,10 +32,14 @@ type Tab = 'events' | 'leagues';
 export function HomeTabs({
   events,
   leagues,
+  weapons = [],
+  filters = EMPTY_EVENT_FILTERS,
   personal = false,
 }: {
   events: PublicEvent[];
   leagues: PublicLeague[];
+  weapons?: WeaponOption[];
+  filters?: EventFilters;
   personal?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('events');
@@ -61,7 +67,14 @@ export function HomeTabs({
           </button>
         ))}
       </div>
-      {tab === 'events' && <EventsListSections events={events} personal={personal} />}
+      {tab === 'events' && (
+        <EventsListSections
+          events={events}
+          weapons={weapons}
+          filters={filters}
+          personal={personal}
+        />
+      )}
       {tab === 'leagues' && <PublicLeaguesSections leagues={leagues} />}
     </div>
   );
