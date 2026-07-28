@@ -108,9 +108,15 @@ At your registrar's DNS panel, add **A records**:
 | -------------------- | ----- | ------------ | --- |
 | `myclash.fr`         | A     | `<VPS-IP>`   | 300 |
 | `api.myclash.fr`     | A     | `<VPS-IP>`   | 300 |
+| `app.myclash.fr`     | A     | `<VPS-IP>`   | 300 |
 | `admin.myclash.fr`   | A     | `<VPS-IP>`   | 300 |
 | `scoring.myclash.fr` | A     | `<VPS-IP>`   | 300 |
+| `traefik.myclash.fr` | A     | `<VPS-IP>`   | 300 |
 | `www.myclash.fr`     | CNAME | `myclash.fr` | 300 |
+
+`app` and `traefik` are easy to forget — both are probed by the admin TLS-status card
+(`apps/api/src/modules/admin/tls-status.service.ts`), and Let's Encrypt cannot issue for a
+hostname that does not resolve.
 
 If you anticipate per-event subdomains later (`fal2026.myclash.fr`), also add a wildcard A record: `*` → `<VPS-IP>`.
 
@@ -121,11 +127,13 @@ From your Windows machine:
 ```powershell
 nslookup myclash.fr
 nslookup api.myclash.fr
+nslookup app.myclash.fr
 nslookup admin.myclash.fr
 nslookup scoring.myclash.fr
+nslookup traefik.myclash.fr
 ```
 
-All four should return your VPS IP. Allow up to 1h for global propagation. **Do not proceed to Phase 5 (first deploy) until all four resolve correctly** — Let's Encrypt will fail otherwise.
+All six should return your VPS IP. Allow up to 1h for global propagation. **Do not proceed to Phase 5 (first deploy) until all six resolve correctly** — Let's Encrypt will fail otherwise.
 
 ---
 

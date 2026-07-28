@@ -5,6 +5,7 @@ const rootDir = path.resolve(import.meta.dirname, '..');
 const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
 const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
+const redeployPath = path.join(rootDir, 'infra', 'scripts', 'redeploy.sh');
 const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
 const vpsBootstrapPath = path.join(rootDir, 'infra', 'scripts', 'vps-bootstrap.sh');
 const publicRootPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'page.tsx');
@@ -399,6 +400,7 @@ const adminUsersServicePath = path.join(
 );
 const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
+const stagingCertsComposePath = path.join(rootDir, 'infra', 'docker-compose.staging-certs.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
 const realtimeMigrationPath = path.join(
   rootDir,
@@ -433,6 +435,7 @@ const dockerfilePaths = [
 const composeText = await readFile(composePath, 'utf8');
 const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
+const redeployText = await readFile(redeployPath, 'utf8');
 const statusText = await readFile(statusPath, 'utf8');
 const vpsBootstrapText = await readFile(vpsBootstrapPath, 'utf8');
 const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
@@ -492,6 +495,7 @@ const adminUsersControllerText = await readFile(adminUsersControllerPath, 'utf8'
 const adminUsersServiceText = await readFile(adminUsersServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
+const stagingCertsComposeText = await readFile(stagingCertsComposePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
 const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
 const clubArchivingMigrationText = await readFile(clubArchivingMigrationPath, 'utf8');
@@ -1735,13 +1739,62 @@ for (const header of headers) {
 for (const expected of [
   '--entrypoints.web.http.redirections.entrypoint.to=websecure',
   '--entrypoints.web.http.redirections.entrypoint.scheme=https',
-  '--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json',
+  '--certificatesresolvers.letsencrypt.acme.storage=/data/${ACME_STORAGE_FILE:-acme.json}',
+  '--certificatesresolvers.letsencrypt.acme.caserver=${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}',
   '--certificatesresolvers.letsencrypt.acme.tlschallenge=true',
+  // The dashboard 404'd for weeks because the staging overlay's copy of this
+  // command list omitted them. Pin both.
+  '--api=true',
+  '--api.dashboard=true',
 ]) {
   if (!composeText.includes(expected)) errors.push(`Missing Traefik edge setting: ${expected}`);
 }
 if (!deployText.includes('chmod 600 "$ACME_FILE"')) {
   errors.push('deploy.sh must enforce ACME storage permissions with chmod 600.');
+}
+
+// Compose REPLACES list-valued keys instead of merging them, so a second copy of
+// traefik's `command:` in the staging overlay silently drops any prod-only flag —
+// exactly how --api/--api.dashboard went missing. The overlay must select the
+// staging CA via ACME_CA_SERVER/ACME_STORAGE_FILE instead.
+if (/^\s+command:/mu.test(stagingCertsComposeText)) {
+  errors.push(
+    'infra/docker-compose.staging-certs.yml must not redefine a `command:` — Compose replaces ' +
+      'command lists rather than merging them, which silently drops prod-only Traefik flags. ' +
+      'Select the staging CA with ACME_CA_SERVER / ACME_STORAGE_FILE instead.',
+  );
+}
+for (const script of [
+  { name: 'deploy.sh', text: deployText },
+  { name: 'redeploy.sh', text: redeployText },
+]) {
+  for (const expected of [
+    'export ACME_STORAGE_FILE=acme-staging.json',
+    'export ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory',
+  ]) {
+    if (!script.text.includes(expected)) {
+      errors.push(`${script.name} must export ${expected} under --dev-certs.`);
+    }
+  }
+}
+
+// api@internal serves only /api/… and /dashboard/…, so the bare root 404s without
+// this redirect.
+if (!traefikMiddlewareText.includes('myclash-dashboard-root-redirect:')) {
+  errors.push(
+    'infra/config/traefik/middlewares.yml must define myclash-dashboard-root-redirect ' +
+      '(sends traefik.${DOMAIN}/ → /dashboard/).',
+  );
+}
+if (
+  !/traefik\.http\.routers\.myclash-traefik-dashboard\.middlewares=.*myclash-dashboard-root-redirect@file/u.test(
+    composeText,
+  )
+) {
+  errors.push(
+    'Router myclash-traefik-dashboard must chain myclash-dashboard-root-redirect@file, ' +
+      'otherwise https://traefik.${DOMAIN}/ returns "404 page not found".',
+  );
 }
 
 const publicRouters = [

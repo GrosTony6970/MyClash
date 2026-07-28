@@ -14,3 +14,22 @@ http:
       stripPrefix:
         prefixes:
           - /rest/v1
+    # Traefik's api@internal serves only /api/… and /dashboard/…, so a bare root
+    # request to traefik.${DOMAIN} returns "404 page not found". Send / → /dashboard/
+    # (trailing slash required by the dashboard's mux).
+    #
+    # Lives here, not in a docker label: Compose interpolates $ in labels and would
+    # force $$ escaping — the same trap that mangles hand-written bcrypt values in
+    # TRAEFIK_DASHBOARD_AUTH. The file provider is never interpolated, so ${1}
+    # reaches Go's regexp replacement intact.
+    #
+    # The host is captured rather than hard-coded because the file provider cannot
+    # read ${DOMAIN}, but it is anchored to the `traefik.` subdomain so the rule is
+    # self-scoping: misattaching it to another router is a no-op instead of sending
+    # every site root to /dashboard/. Only a bare root matches, so /dashboard/ and
+    # /api/rawdata pass through untouched.
+    myclash-dashboard-root-redirect:
+      redirectRegex:
+        regex: '^https?://(traefik\.[^/]+)/?$'
+        replacement: 'https://${1}/dashboard/'
+        permanent: false

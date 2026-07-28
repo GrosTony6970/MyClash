@@ -104,7 +104,7 @@ The production deployment is a 14-service Docker Compose stack on a single VPS, 
 
 **Reverse proxy & TLS**
 
-- `traefik` (`traefik:v3.7.1`) — terminates HTTPS via Let's Encrypt, routes by hostname to every public-facing service. Hosts: `myclash.fr` → web-marketing · `app.myclash.fr` → web-public · `admin.myclash.fr` → web-admin + API · `scoring.myclash.fr` → web-scoring · `api.myclash.fr` → API · `traefik.myclash.fr` → dashboard (basic-auth gated).
+- `traefik` (`traefik:v3.7.1`) — terminates HTTPS via Let's Encrypt, routes by hostname to every public-facing service. Hosts: `myclash.fr` → web-marketing · `app.myclash.fr` → web-public · `admin.myclash.fr` → web-admin + API · `scoring.myclash.fr` → web-scoring · `api.myclash.fr` → API · `traefik.myclash.fr` → dashboard at `/dashboard/` (basic-auth gated; the bare root 302s there, since Traefik's `api@internal` serves nothing at `/`).
 
 **Data**
 

@@ -8,30 +8,19 @@
 #     -f infra/docker-compose.staging-certs.yml \
 #     up -d
 #
-# Inherited verbatim from MyFAL's pattern.
+# This overlay deliberately does NOT redefine traefik's `command:`. Compose
+# REPLACES list-valued keys rather than merging them, so a second copy of the
+# command list silently drops any prod-only flag — that is exactly how
+# `--api=true` / `--api.dashboard=true` went missing and 404'd the dashboard.
+# The staging CA and its acme storage file are now selected by the
+# ACME_CA_SERVER / ACME_STORAGE_FILE variables that infra/scripts/deploy.sh and
+# redeploy.sh export under --dev-certs. Keep it that way: check-infra-review.mjs
+# fails the build if a `command:` key reappears here.
+#
+# What remains is the one thing with no production equivalent — server-side
+# fetches must tolerate the untrusted staging chain.
 
 services:
-  traefik:
-    image: traefik:v3.7.1
-    command:
-      - --global.sendanonymoususage=false
-      - --api.dashboard=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --entrypoints.web.http.redirections.entrypoint.to=websecure
-      - --entrypoints.web.http.redirections.entrypoint.scheme=https
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.file.directory=/config
-      - --ping=true
-      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme-staging.json
-      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
-      - --accesslog=true
-      - --log=true
-      - --log.level=INFO
-
   api:
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: '0'

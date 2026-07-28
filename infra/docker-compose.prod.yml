@@ -34,7 +34,11 @@ services:
       - --providers.docker.exposedbydefault=false
       - --ping=true
       - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      # ACME target is parameterised so the staging-certs overlay never has to
+      # re-type this command list. Defaults are production; deploy.sh --dev-certs
+      # exports the two vars to point at the Let's Encrypt staging CA.
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/${ACME_STORAGE_FILE:-acme.json}
+      - --certificatesresolvers.letsencrypt.acme.caserver=${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
       - --providers.file.directory=/config
       - --accesslog=true
@@ -72,7 +76,9 @@ services:
       - traefik.http.routers.myclash-traefik-dashboard.tls=true
       - traefik.http.routers.myclash-traefik-dashboard.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-traefik-dashboard.service=api@internal
-      - traefik.http.routers.myclash-traefik-dashboard.middlewares=myclash-dashboard-auth@docker
+      # api@internal only serves /api/… and /dashboard/…, so a bare root request
+      # 404s. myclash-dashboard-root-redirect (file provider) sends / → /dashboard/.
+      - traefik.http.routers.myclash-traefik-dashboard.middlewares=myclash-dashboard-auth@docker,myclash-dashboard-root-redirect@file
       - traefik.http.middlewares.myclash-dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
 
   # ── Postgres (primary data store) ────────────────────────────────

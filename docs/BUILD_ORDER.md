@@ -247,7 +247,7 @@
     - `https://admin.${DOMAIN}` → web-admin
     - `https://scoring.${DOMAIN}` → web-scoring
   - Shared `myclash-compress@docker` middleware applied to all routers.
-  - `staging-certs` overlay swaps in `acme-staging.json` and the LE staging endpoint, verbatim from MyFAL pattern.
+  - `staging-certs` overlay swaps in `acme-staging.json` and the LE staging endpoint via the `ACME_STORAGE_FILE` / `ACME_CA_SERVER` variables that `deploy.sh --dev-certs` exports. The overlay must never redefine Traefik's `command:` — Compose replaces list-valued keys instead of merging them, so a second copy silently drops prod-only flags (this is how `--api.dashboard` was lost and the dashboard 404'd). `check-infra-review.mjs` enforces it.
   - `depends_on: { db: { condition: service_healthy }, redis: { condition: service_healthy } }` on api and worker.
 
 ### T-055 · VPS bootstrap script
