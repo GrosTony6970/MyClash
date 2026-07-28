@@ -27,7 +27,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`07` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`09` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -104,6 +104,52 @@ through to a champion (the finished reference). `E2E_LIVE_DURATION_S` (default
 E2E_POPULATE=1 E2E_LIVE_SIDESWORD=1 pnpm test:e2e:prod tests/e2e/07-*.spec.ts
 ```
 
+## Play a double-elimination bracket for real (opt-in)
+
+`E2E_DOUBLE_ELIM=1 pnpm test:e2e:prod tests/e2e/09-*.spec.ts` runs
+`09-double-elim.spec.ts` — the only test in the repo that generates a
+`double_elim` phase **against a real database** and plays it to a champion.
+
+It exists because double-elim advancement is **string matching**, not FK
+traversal: the generator writes `source_a_ref: 'loser of WBR1P3'` and
+`buildSelfRef` stamps the completed slot `WBR1P3`. Disagree by one character and
+nothing fills the downstream slot, **nothing throws**, and the tournament stalls
+forever (Slice 1 shipped exactly that bug). The in-memory harness
+(`apps/api/src/modules/phases/double-elim-simulation.harness.ts`) catches ref
+mismatches but re-implements propagation itself, so it never exercises the
+persistence and advancement paths this spec does.
+
+Four scenarios, ~67 matches, ~5 min:
+
+| Scenario                              | Field | What only it proves                                                                                                    |
+| ------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------- |
+| A. play-in + grand-final reset played | 12    | Round-0 `WBR0P{n}` refs resolve; **the reset match row is created on demand** (it is the one slot with no placeholder) |
+| B. reset skipped                      | 8     | `grandFinalEndsBracket` leaves the reset unplayed, and the tournament still ranks (the empty-ranking trap)             |
+| C. bronze mode                        | 8     | No grand final at all; truncated ladder ends on a real bronze match                                                    |
+| D. repechage cutoff (last 8)          | 16    | Re-indexed losers bracket; winners-round-1 losers are out on a single loss and never enter it                          |
+
+Each scenario builds its own tournament in the throwaway event with **no pools** —
+`populateBracket` then seeds straight from registration seeds, so the draw is
+deterministic (the lower seed always wins, so seed 1 is always champion) and no
+pool matches have to be played. Matches are completed with a single
+`PATCH /matches/:id/status`; no clock, no exchanges, no scoring realism.
+
+The driver (`_bracket.ts`) is a **fixed-point loop**, not a round walk: in double
+elim a losers slot's readiness depends on a winners round it doesn't follow
+numerically, and the reset slot doesn't exist until the grand final is decided.
+Its termination condition **is** the stall detector — when a pass plays nothing
+and slots remain, it fails with each stalled slot's round/position and the exact
+`source_a_ref` / `source_b_ref` that never resolved.
+
+Each scenario finishes on the admin final-ranking page
+(`/org/<slug>/events/<id>/finalranking?tournamentId=<id>`), which runs the same
+`computeFinalRanking` every product surface uses — that is what proves an
+enabled-but-unplayed reset doesn't return an empty ranking for the whole
+tournament.
+
+> Like the populator, this spec **completes matches**, so the event can no longer
+> be hard-deleted afterwards. Run it on a sandbox org.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -116,6 +162,7 @@ E2E_POPULATE=1 E2E_LIVE_SIDESWORD=1 pnpm test:e2e:prod tests/e2e/07-*.spec.ts
 | 6   | Offline scoring sync (PWA)          | `06-offline-sync.spec.ts`           | active                                   |
 | 7   | Populate rich demo event            | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
 | 8   | Offline scoring on a custom ruleset | `08-offline-custom-ruleset.spec.ts` | active                                   |
+| 9   | Double-elimination playthrough      | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
