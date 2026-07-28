@@ -1,7 +1,11 @@
-import { statSync } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
+import {
+  readJsonIfExists,
+  readTextIfExists,
+  resolveSystemVersionsManifestPath,
+  resolveSystemVersionsRootDir,
+} from '../../common/system-version-paths';
 import type {
   SystemVersionComponentDto,
   SystemVersionsResponseDto,
@@ -101,10 +105,7 @@ export class AdminSystemVersionsService {
 
   constructor(options: AdminSystemVersionsServiceOptions = {}) {
     this.rootDir = options.rootDir ?? resolveSystemVersionsRootDir();
-    this.manifestPath =
-      options.manifestPath ??
-      process.env['SYSTEM_VERSIONS_PATH'] ??
-      path.join(process.cwd(), 'data', 'system-versions.json');
+    this.manifestPath = options.manifestPath ?? resolveSystemVersionsManifestPath();
     this.runtimeNodeVersion = options.runtimeNodeVersion ?? process.version;
   }
 
@@ -298,56 +299,6 @@ export class AdminSystemVersionsService {
       result[key] = { version: manifest?.version ?? UNKNOWN };
     }
     return result;
-  }
-}
-
-function resolveSystemVersionsRootDir(): string {
-  const candidates = [
-    process.env['SYSTEM_VERSIONS_ROOT_DIR'],
-    '/app',
-    process.cwd(),
-    path.resolve(process.cwd(), '..', '..'),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-
-  for (const candidate of candidates) {
-    if (hasRootPackage(candidate)) return candidate;
-  }
-
-  return path.resolve(process.cwd(), '..', '..');
-}
-
-function hasRootPackage(rootDir: string): boolean {
-  return statSyncSafe(path.join(rootDir, 'package.json'))?.isFile() ?? false;
-}
-
-function statSyncSafe(filePath: string) {
-  try {
-    return statSync(filePath);
-  } catch {
-    return null;
-  }
-}
-
-async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
-  const text = await readTextIfExists(filePath);
-  return text ? (JSON.parse(text) as T) : null;
-}
-
-async function readTextIfExists(filePath: string): Promise<string> {
-  try {
-    const fileStat = await stat(filePath);
-    if (!fileStat.isFile()) return '';
-    return await readFile(filePath, 'utf8');
-  } catch (error) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error.code === 'ENOENT' || error.code === 'EISDIR')
-    ) {
-      return '';
-    }
-    throw error;
   }
 }
 

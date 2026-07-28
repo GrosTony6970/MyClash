@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/api-exception.filter';
+import { API_GLOBAL_PREFIX, API_GLOBAL_PREFIX_EXCLUDE } from './common/global-prefix';
 import { captureApiException, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
 import { ZodOrClassValidationPipe } from './common/zod-or-class-validation.pipe';
@@ -65,10 +66,9 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new ApiExceptionFilter(captureApiException));
 
   // ── Global prefix ────────────────────────────────────────────────────────
-  app.setGlobalPrefix('api/v1', {
-    // Health and version endpoints live at /health and /version (no prefix)
-    exclude: ['health', 'version'],
-  });
+  // Shared with scripts/emit-openapi.cjs so the served routes and the generated
+  // client can't disagree — see common/global-prefix.ts.
+  app.setGlobalPrefix(API_GLOBAL_PREFIX, { exclude: API_GLOBAL_PREFIX_EXCLUDE });
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   const domain = process.env['DOMAIN'] ?? 'myclash.localhost';

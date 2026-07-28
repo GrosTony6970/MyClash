@@ -354,11 +354,16 @@
 
 - **Dep**: T-054
 - **Goal**: Lightweight ops endpoints so owner and `status.sh` can verify a deploy at a glance.
-- **Files**: `apps/api/src/modules/health/version.controller.ts`.
+- **Files**: `apps/api/src/modules/health/version.controller.ts`, `version.service.ts`, `apps/api/src/common/system-version-paths.ts`.
 - **AC**:
   - `GET /health` returns `{ status, uptime, db: ok|error, redis: ok|error }`.
-  - `GET /version` returns `{ commit, branch, builtAt, deployedAt }` (commit injected at build via `--build-arg GIT_COMMIT`).
+  - `GET /api/v1/version` returns `{ version, commit, deployedAt, environment, uptime }`, anonymous (commit injected at build via `--build-arg GIT_COMMIT`).
   - `infra/scripts/status.sh` displays both.
+- **As shipped** (differs from the AC above, deliberately):
+  - **Path is `/api/v1/version`, not `/version`.** Traefik routes `Host(api.${DOMAIN})` wholesale to the API but sends `app.`/`admin.`/`scoring.` only `PathPrefix(/api/v1)`, so an unprefixed route answers on one host and 404s on the three that matter — while still passing a local `curl`. The stale `'version'` entry in the `setGlobalPrefix` exclude list in `main.ts`, which predated any controller, was removed with this.
+  - **`branch` and `builtAt` dropped.** Neither exists as a build arg anywhere in the repo; adding them means new `ARG`s in `apps/api/Dockerfile` plus `infra/docker-compose.prod.yml`, which drags in the `check-infra-review.mjs` gate for little value. `deployedAt` already answers "is this the deploy I just ran?".
+  - **`version` and `environment` added.** `version` comes from the deploy manifest / `VERSION` file; `environment` reuses the exact `SENTRY_ENVIRONMENT || NODE_ENV` expression from `common/observability/sentry.ts` so the endpoint and Sentry cannot disagree.
+  - Public, but a hand-picked projection: the manifest's `deployedBy`, `backupFile` and infra image versions stay behind `SuperAdminGuard` on `/admin/system-versions`.
 
 ---
 

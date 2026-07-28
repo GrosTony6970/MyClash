@@ -67,6 +67,11 @@ const EXPECTED_PUBLIC = [
   'POST /staff-auth/logout', // idempotent; reads no identity
   // ── ops ──
   'GET /health', // docker healthcheck + deploy/rollback smoke tests
+  // Post-deploy "what is running?" check + uptime monitors, which have no
+  // session. Narrow projection (version/commit/deployedAt) — the full manifest
+  // stays on SuperAdminGuard. NB: served at /api/v1/version; this list reflects
+  // controller metadata, which the global prefix is not part of.
+  'GET /version',
   'GET /public/feature-flags', // polled by every app before login
   // ── public event site (web-public, logged out) ──
   'GET /clubs/:slug',

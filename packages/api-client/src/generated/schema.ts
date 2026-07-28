@@ -21,6 +21,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/version': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Deployed version, commit and deploy time */
+    get: operations['VersionController_getVersion'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/hema-ratings/search': {
     parameters: {
       query?: never;
@@ -8622,6 +8639,33 @@ export interface components {
        */
       uptime: number;
     };
+    VersionResponseDto: {
+      /**
+       * @description Release tag from the deploy manifest, falling back to the VERSION file
+       * @example v0.0.0
+       */
+      version: string;
+      /**
+       * @description Short (8-char) git commit the running image was built from, or "unknown"
+       * @example b3aa5011
+       */
+      commit: string;
+      /**
+       * @description When this build was deployed; null if the deploy manifest is unavailable
+       * @example 2026-07-28T18:04:11.000Z
+       */
+      deployedAt: string | null;
+      /**
+       * @description Deployment environment, resolved identically to the Sentry environment tag
+       * @example production
+       */
+      environment: string;
+      /**
+       * @description Process uptime in seconds
+       * @example 3612.4
+       */
+      uptime: number;
+    };
     RequestMagicLinkDto: {
       /** Format: email */
       email: string;
@@ -10299,6 +10343,26 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['HealthResponseDto'];
+        };
+      };
+    };
+  };
+  VersionController_getVersion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Version metadata for the running instance */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VersionResponseDto'];
         };
       };
     };

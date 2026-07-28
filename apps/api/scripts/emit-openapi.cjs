@@ -2,8 +2,12 @@
  * Emit the API's OpenAPI JSON WITHOUT a running server or infra.
  *
  * Boots the compiled Nest app (dist/ — run `pnpm --filter @myclash/api build`
- * first) with stub env and no listen, builds the Swagger document exactly like
- * main.ts, writes it to the path given as argv[2] (default openapi.json).
+ * first) with stub env and no listen, builds the Swagger document, writes it to
+ * the path given as argv[2] (default openapi.json).
+ *
+ * The global prefix is IMPORTED from dist rather than restated here. This file
+ * used to claim it built the document "exactly like main.ts" while carrying its
+ * own copy of the exclude list, which is precisely how the two drifted.
  *
  * Usage:
  *   pnpm --filter @myclash/api build
@@ -34,13 +38,16 @@ const { FastifyAdapter } = require('@nestjs/platform-fastify');
 const { DocumentBuilder, SwaggerModule } = require('@nestjs/swagger');
 const { cleanupOpenApiDoc } = require('nestjs-zod');
 const { AppModule } = require('../dist/app.module');
+// Same constants main.ts applies — NOT a copy. A literal here silently taught
+// the generated client a different route shape than the server serves.
+const { API_GLOBAL_PREFIX, API_GLOBAL_PREFIX_EXCLUDE } = require('../dist/common/global-prefix');
 
 async function main() {
   const app = await NestFactory.create(AppModule, new FastifyAdapter(), {
     logger: ['error'],
     abortOnError: false,
   });
-  app.setGlobalPrefix('api/v1', { exclude: ['health', 'version'] });
+  app.setGlobalPrefix(API_GLOBAL_PREFIX, { exclude: API_GLOBAL_PREFIX_EXCLUDE });
   const config = new DocumentBuilder()
     .setTitle('MyClash API')
     .setVersion('1.0')
