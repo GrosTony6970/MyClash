@@ -43,11 +43,8 @@ function match(overrides: Partial<SubmissionMatch> & { id: string }): Submission
 }
 
 function rowsOf(csv: string): string[][] {
-  // Header row is dropped; no fixture here contains a quoted newline.
-  return csv
-    .split('\n')
-    .slice(1)
-    .map((line) => line.split(','));
+  // No header row to skip — see HEADER_ROW. No fixture contains a quoted newline.
+  return csv.split('\n').map((line) => line.split(','));
 }
 
 // ── matchOutcome ──────────────────────────────────────────────────────────────
@@ -195,6 +192,20 @@ describe('buildSubmission', () => {
       },
     ],
   };
+
+  it('writes no header row, matching the exporter HEMA Ratings names', () => {
+    // HEMA Scorecard's hemaRatings_create*Csv both fopen and go straight into
+    // the row loop. Their importer reads that shape, so a stray header line
+    // would land as a fighter called "Name («Firstname Lastname» format)".
+    const result = buildSubmission(baseInput);
+    for (const [name, body] of Object.entries(result.files)) {
+      expect(body.split('\n')[0], `${name} starts with a header`).not.toContain('Firstname');
+      expect(body.split('\n')[0], `${name} starts with a header`).not.toContain('Fighter 1 (');
+      expect(body.split('\n')[0], `${name} starts with a header`).not.toContain('Club Name (');
+    }
+    // fighters.csv should open on a real fighter.
+    expect(result.files['fighters.csv']!.split('\n')[0]).toBe('Anna Berg,Lyon HEMA,FR,,123');
+  });
 
   it('names the tournament file after the tournament', () => {
     const result = buildSubmission(baseInput);
