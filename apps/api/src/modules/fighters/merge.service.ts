@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import type { MergeFightersDto } from './dto/fighters.dto';
 
 const REVERT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -218,18 +219,27 @@ export class FighterMergeService {
     if (result.error) throw new BadRequestException(result.error.message);
   }
 
+  /**
+   * THROWS on failure, unlike most audit writers, which are best-effort. A merge
+   * rewrites identity across a dozen tables and is only reversible through this
+   * record — completing one with no trail is worse than refusing it.
+   *
+   * Payloads here embed whole global_persons snapshots, so masking matters:
+   * insertAuditLog strips contact details and leaves names, which the revert
+   * flow reads.
+   */
   private async writeAudit(
     actorUserId: string,
     action: string,
     entityId: string,
     payload: unknown,
   ): Promise<void> {
-    const { error } = await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action,
-      entity_type: 'fighter',
-      entity_id: entityId,
-      payload_json: payload,
+      entityType: 'fighter',
+      entityId,
+      payload,
     });
     if (error) throw new BadRequestException(error.message);
   }

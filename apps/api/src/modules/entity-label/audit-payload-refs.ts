@@ -8,8 +8,10 @@
  * which strings are entity references and what they point at, and hands back
  * JSON Pointers the resolver can label and the frontend can look up.
  *
- * MAINTENANCE: when you add a `.from('audit_log').insert(...)` anywhere, add a
- * rule here for any id your payload carries — otherwise it renders as a raw UUID.
+ * MAINTENANCE: when you add an `insertAuditLog(...)` call anywhere, add a rule
+ * here for any id your payload carries — otherwise it renders as a raw UUID.
+ * (Personal VALUES are handled separately, at write time, by
+ * ../../common/audit-log#maskAuditPayload. This file is about id REFERENCES.)
  */
 import type { EntityKind } from './entity-label-specs';
 

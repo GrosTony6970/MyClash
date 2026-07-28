@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { insertAuditLog } from '../../../common/audit-log';
 import { slugify } from '../../fighters/weapon-import.util';
 import type { CreateWeaponDto, UpdateWeaponDto } from './dto/weapons-admin.dto';
 
@@ -185,15 +186,14 @@ export class WeaponsAdminService {
     entityId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actorUserId,
-        action,
-        entity_type: 'weapon_catalog',
-        entity_id: entityId,
-        payload_json: payload,
-      });
-    } catch {
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
+      action,
+      entityType: 'weapon_catalog',
+      entityId,
+      payload,
+    });
+    if (error) {
       this.logger.warn(`Could not write audit log for ${action} on weapon_catalog:${entityId}`);
     }
   }

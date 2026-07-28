@@ -4,6 +4,7 @@ import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import type {
   CreateOrganizerAIDraftDto,
   OrganizerAIDraftType,
@@ -614,12 +615,12 @@ export class OrganizerAIAssistantService {
     draftId: unknown,
     payload: Record<string, unknown>,
   ) {
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action,
-      entity_type: 'organizer_ai_assistant_draft',
-      entity_id: draftId,
-      payload_json: payload,
+      entityType: 'organizer_ai_assistant_draft',
+      entityId: String(draftId),
+      payload,
     });
   }
 

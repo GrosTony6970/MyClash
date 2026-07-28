@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { MailService } from '../mail/mail.service';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
 import type {
   CreateOrganizationDto,
@@ -703,15 +704,14 @@ export class AdminOrganizationsService {
     entityId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actorUserId,
-        action,
-        entity_type: entityType,
-        entity_id: entityId,
-        payload_json: payload,
-      });
-    } catch {
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
+      action,
+      entityType,
+      entityId,
+      payload,
+    });
+    if (error) {
       // audit_log table not yet created (pre-T-101) — non-fatal
       this.logger.warn(`Could not write audit log for ${action} on ${entityType}:${entityId}`);
     }

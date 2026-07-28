@@ -28,6 +28,7 @@ import {
   type Tiebreaker,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { insertAuditLog } from '../../../common/audit-log';
 import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
 import { resolveOrganizationNames } from '../../../common/organization-names';
 import { isSystemRuleset } from '../../events/ruleset-defaults';
@@ -1381,15 +1382,14 @@ export class CustomRulesetsService {
     entityId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actorUserId,
-        action,
-        entity_type: 'custom_ruleset',
-        entity_id: entityId,
-        payload_json: payload,
-      });
-    } catch {
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
+      action,
+      entityType: 'custom_ruleset',
+      entityId,
+      payload,
+    });
+    if (error) {
       this.logger.warn(`Could not write audit log for ${action} on custom_ruleset:${entityId}`);
     }
   }

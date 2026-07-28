@@ -14,6 +14,7 @@ import {
   type OrgRole,
 } from './dto/admin-users.dto';
 import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 
 export interface ListUsersQuery {
   page?: number;
@@ -571,6 +572,11 @@ export class AdminUsersService {
     if (globalPersonsError) throw new BadRequestException('Could not unlink global persons');
   }
 
+  /**
+   * Best-effort: an audit failure must never fail the mutation it describes.
+   * Personal values in `payload` are masked by insertAuditLog — this service
+   * passes user emails, which used to land raw.
+   */
   private async writeAuditLog(
     actorUserId: string,
     action: string,
@@ -578,15 +584,14 @@ export class AdminUsersService {
     entityId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actorUserId,
-        action,
-        entity_type: entityType,
-        entity_id: entityId,
-        payload_json: payload,
-      });
-    } catch {
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
+      action,
+      entityType,
+      entityId,
+      payload,
+    });
+    if (error) {
       this.logger.warn(`Could not write audit log for ${action} on ${entityType}:${entityId}`);
     }
   }

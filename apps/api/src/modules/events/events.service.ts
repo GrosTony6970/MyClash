@@ -8,6 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
@@ -3105,12 +3106,12 @@ export class EventsService {
     payload: Record<string, unknown>,
   ): Promise<void> {
     try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actorUserId === 'unknown' ? null : actorUserId,
+      await insertAuditLog(this.supabase.service, {
+        actorUserId: actorUserId === 'unknown' ? null : actorUserId,
         action: 'tournament.ruleset.fork',
-        entity_type: 'tournament',
-        entity_id: tournamentId,
-        payload_json: payload,
+        entityType: 'tournament',
+        entityId: tournamentId,
+        payload,
       });
     } catch {
       // swallow — the fork + re-point are the source of truth
@@ -3378,12 +3379,12 @@ export class EventsService {
     });
     if (error) throw new BadRequestException(`Re-pin audit failed: ${error.message}`);
     try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actor,
+      await insertAuditLog(this.supabase.service, {
+        actorUserId: actor,
         action: 'tournament.ruleset.repin',
-        entity_type: 'tournament',
-        entity_id: a.tournamentId,
-        payload_json: {
+        entityType: 'tournament',
+        entityId: a.tournamentId,
+        payload: {
           eventId: a.eventId,
           fromCode: a.fromCode,
           fromVersion: a.fromVersion,

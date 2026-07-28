@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import type { SendBroadcastNotificationDto } from './dto/notifications.dto';
 
 export type BroadcastSeverity = 'info' | 'warning' | 'alert';
@@ -517,12 +518,12 @@ export class BroadcastNotificationsService {
   }
 
   private async audit(actorUserId: string, eventId: string, payload: Record<string, unknown>) {
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action: 'event.broadcast_notification_sent',
-      entity_type: 'event',
-      entity_id: eventId,
-      payload_json: payload,
+      entityType: 'event',
+      entityId: eventId,
+      payload,
     });
   }
 

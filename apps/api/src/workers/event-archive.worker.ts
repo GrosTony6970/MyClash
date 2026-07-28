@@ -23,6 +23,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import { insertAuditLog } from '../common/audit-log';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 
 export const EVENT_ARCHIVE_QUEUE = 'event-archive';
@@ -119,13 +120,15 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
 
   private async writeAuditLog(eventId: string, now: string): Promise<void> {
     try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: null,
+      await insertAuditLog(this.supabase.service, {
+        actorUserId: null,
         action: 'event.auto_archive',
-        entity_type: 'event',
-        entity_id: eventId,
-        payload_json: { reason: 'all_tournaments_completed_and_grace_elapsed' },
-        created_at: now,
+        entityType: 'event',
+        entityId: eventId,
+        payload: { reason: 'all_tournaments_completed_and_grace_elapsed' },
+        // The batch's instant, not the insert's: every event archived in one run
+        // shares a timestamp so the run can be grouped by it.
+        createdAt: now,
       });
     } catch {
       this.logger.warn(`Could not write audit log for event.auto_archive on event:${eventId}`);

@@ -12,6 +12,7 @@ import type { Match as RulesetMatch } from '@myclash/rulesets';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
@@ -831,21 +832,23 @@ export class MatchesService {
     context: { userId?: string; staffAccountId?: string } | undefined,
     extra: Record<string, unknown>,
   ): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: context?.userId ?? null,
-        action,
-        entity_type: 'exchange',
-        entity_id: exchange.id,
-        payload_json: {
-          match_id: exchange.match_id,
-          sequence: exchange.sequence ?? null,
-          staffAccountId: context?.staffAccountId ?? null,
-          ...extra,
-        },
-      });
-    } catch (error) {
-      this.logger.warn(`Could not write ${action} audit row: ${String(error)}`);
+    // Best-effort: an audit failure must never fail a scoring mutation. A staff
+    // account is not an auth user, so actor stays NULL and the staff id rides in
+    // the payload rather than being coerced into a UUID column.
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId: context?.userId ?? null,
+      action,
+      entityType: 'exchange',
+      entityId: exchange.id,
+      payload: {
+        match_id: exchange.match_id,
+        sequence: exchange.sequence ?? null,
+        staffAccountId: context?.staffAccountId ?? null,
+        ...extra,
+      },
+    });
+    if (error) {
+      this.logger.warn(`Could not write ${action} audit row: ${error.message}`);
     }
   }
 

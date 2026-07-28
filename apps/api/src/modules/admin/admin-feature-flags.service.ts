@@ -9,6 +9,7 @@ import {
   type TimeSimulationPayload,
 } from '@myclash/feature-flags';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import type { UpsertFeatureFlagDto } from './dto/admin-feature-flags.dto';
 
 interface StoredFlag {
@@ -216,15 +217,14 @@ export class AdminFeatureFlagsService {
     entityId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: actorUserId,
-        action,
-        entity_type: entityType,
-        entity_id: entityId,
-        payload_json: payload,
-      });
-    } catch {
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
+      action,
+      entityType,
+      entityId,
+      payload,
+    });
+    if (error) {
       this.logger.warn(`Could not write audit log for ${action} on ${entityType}:${entityId}`);
     }
   }

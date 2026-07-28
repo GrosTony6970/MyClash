@@ -20,6 +20,7 @@ import {
   type Fighter,
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SettingsService } from '../referees/settings.service';
@@ -649,15 +650,15 @@ export class PhasesService {
 
     if (error) throw new BadRequestException(error.message);
 
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action:
         dto.visibility === 'published'
           ? 'phase.visibility_published'
           : 'phase.visibility_unpublished',
-      entity_type: 'phase',
-      entity_id: phaseId,
-      payload_json: {
+      entityType: 'phase',
+      entityId: phaseId,
+      payload: {
         visibility: dto.visibility,
         phaseType: phase['type'],
         tournamentId: phase['tournament_id'],
@@ -748,12 +749,12 @@ export class PhasesService {
       .single();
     if (updateErr) throw new BadRequestException(updateErr.message);
 
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action: 'phase.bracket_config_edited',
-      entity_type: 'phase',
-      entity_id: phaseId,
-      payload_json: { changes: dto, phaseType },
+      entityType: 'phase',
+      entityId: phaseId,
+      payload: { changes: dto, phaseType },
     });
 
     return updated;
@@ -971,12 +972,12 @@ export class PhasesService {
     }
     await this.supabase.service.from('phases').update({ config_json: config }).eq('id', phaseId);
 
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action: 'phase.bracket_reseeded',
-      entity_type: 'phase',
-      entity_id: phaseId,
-      payload_json: {
+      entityType: 'phase',
+      entityId: phaseId,
+      payload: {
         strategy: dto.strategy,
         r1SlotCount: slots.length,
         randomSeed: usedRandomSeed ?? null,
@@ -1290,12 +1291,12 @@ export class PhasesService {
     }
 
     // 10. Audit log.
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action: 'phase.bracket_populated',
-      entity_type: 'phase',
-      entity_id: phaseId,
-      payload_json: {
+      entityType: 'phase',
+      entityId: phaseId,
+      payload: {
         seedingMode,
         topNPerPool: dto.topNPerPool ?? null,
         slotsSeeded,
@@ -1535,12 +1536,12 @@ export class PhasesService {
     const { error: delErr } = await this.supabase.service.from('phases').delete().eq('id', phaseId);
     if (delErr) throw new BadRequestException(delErr.message);
 
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action: 'phase.bracket_deleted',
-      entity_type: 'phase',
-      entity_id: phaseId,
-      payload_json: { phaseType, matchCount: matchIds.length },
+      entityType: 'phase',
+      entityId: phaseId,
+      payload: { phaseType, matchCount: matchIds.length },
     });
   }
 

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 
 export type ExchangeEditRequestType = 'void_exchange' | 'revert_void_exchange';
 export type ExchangeEditRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -243,12 +244,15 @@ export class FrozenResultsGuard {
     entityId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    const { error } = await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    // THROWS, unlike most audit writers: an exchange edit on a frozen result is
+    // only defensible because it is recorded, so a silent audit failure would
+    // leave an unexplained score change behind.
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action,
-      entity_type: 'exchange_edit_request',
-      entity_id: entityId,
-      payload_json: payload,
+      entityType: 'exchange_edit_request',
+      entityId,
+      payload,
     });
     if (error) throw new BadRequestException(error.message);
   }

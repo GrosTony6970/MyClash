@@ -24,6 +24,7 @@ import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import { ErasureService } from './erasure.service';
 import { RetentionService } from './retention.service';
 
@@ -107,12 +108,12 @@ export class PrivacyAdminController {
 
     // Governance record. The reason is why this is not the default behaviour:
     // name retention is the norm and each departure from it is justified.
-    await this.supabase.service.from('audit_log').insert({
-      actor_user_id: actorUserId,
+    await insertAuditLog(this.supabase.service, {
+      actorUserId,
       action: 'global_person.anonymise',
-      entity_type: 'global_person',
-      entity_id: id,
-      payload_json: { reason: dto.reason, redacted: counts },
+      entityType: 'global_person',
+      entityId: id,
+      payload: { reason: dto.reason, redacted: counts },
     });
 
     return { ok: true, redacted: counts };

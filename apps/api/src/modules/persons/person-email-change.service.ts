@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import type { FastifyRequest } from 'fastify';
 import { MailService } from '../mail/mail.service';
+import { insertAuditLog } from '../../common/audit-log';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { RequestPersonEmailChangeDto } from './dto/person-email-change.dto';
 
@@ -245,27 +246,22 @@ export class PersonEmailChangeService {
     return domain.includes('localhost') ? `https://api.${domain}` : `https://api.${domain}`;
   }
 
+  /**
+   * The addresses are passed RAW: insertAuditLog masks them to `j***@e***`.
+   * This service used to mask by hand — that local helper is gone now the whole
+   * codebase masks at write time, so there is exactly one place to change the
+   * convention.
+   */
   private async writeAuditLog(request: EmailChangeRequestRow): Promise<void> {
-    try {
-      await this.supabase.service.from('audit_log').insert({
-        actor_user_id: request.user_id,
-        action: 'person.email_change_confirmed',
-        entity_type: 'user',
-        entity_id: request.user_id,
-        payload_json: {
-          old_email: this.maskEmail(request.old_email),
-          new_email: this.maskEmail(request.new_email),
-        },
-      });
-    } catch {
+    const { error } = await insertAuditLog(this.supabase.service, {
+      actorUserId: request.user_id,
+      action: 'person.email_change_confirmed',
+      entityType: 'user',
+      entityId: request.user_id,
+      payload: { old_email: request.old_email, new_email: request.new_email },
+    });
+    if (error) {
       this.logger.warn(`Could not write audit log for email change on user:${request.user_id}`);
     }
-  }
-
-  private maskEmail(email: string | null | undefined): string {
-    if (!email) return '';
-    const [local = '', domain = ''] = email.split('@');
-    const domainHead = domain.split('.')[0] ?? '';
-    return `${local.slice(0, 1)}***@${domainHead.slice(0, 1)}***`;
   }
 }

@@ -9,6 +9,7 @@ import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@mycla
 import { createStoredZip } from '../../common/stored-zip';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { insertAuditLog } from '../../common/audit-log';
 import type {
   ArchiveInclude,
   ArchiveOptions,
@@ -1174,16 +1175,15 @@ export class ArchiveService {
     sourceId: string,
     restoredId: string,
   ): Promise<void> {
-    await this.db()
-      .from('audit_log')
-      .insert({
-        actor_user_id: userId,
-        action: `archive_restore_${scope}`,
-        entity_type: scope,
-        entity_id: restoredId,
-        payload_json: { sourceId, restoredId, mode: 'copy' },
-      })
-      .select('*');
+    // `this.db()` rather than supabase.service: restore runs against a caller-
+    // supplied client so a dry run can be pointed at a scratch database.
+    await insertAuditLog(this.db(), {
+      actorUserId: userId,
+      action: `archive_restore_${scope}`,
+      entityType: scope,
+      entityId: restoredId,
+      payload: { sourceId, restoredId, mode: 'copy' },
+    });
   }
 
   private cleanRow(row: ArchiveRow): ArchiveRow {
