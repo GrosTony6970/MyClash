@@ -17,6 +17,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 const PORTAL_URL = 'https://hemaratings.com/submit/';
 const FIGHTER_FINDER_URL = 'https://hemaratings.com/organizertools/fighterfinder/';
@@ -90,7 +91,7 @@ function usePreview(apiUrl: string, eventId: string, t: Translate) {
 
 export default function HemaRatingsSubmissionPage() {
   const { slug, eventId } = useParams<{ slug: string; eventId: string }>();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { preview, loading, error, refresh } = usePreview(apiUrl, eventId, t);
 

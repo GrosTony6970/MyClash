@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type MetricStatus = 'healthy' | 'warning' | 'critical' | 'unavailable';
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -125,7 +126,7 @@ function formatCheckedAt(value: string, locale: AppLocale): string {
   }).format(new Date(ts));
 }
 
-const API = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const API = getPublicApiUrl();
 
 export function RuntimeHealthCard() {
   const { t, locale } = useI18n();

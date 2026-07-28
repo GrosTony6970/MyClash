@@ -25,12 +25,13 @@ import { use, useEffect, useState } from 'react';
 import { TVScoreboard } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 const MIRROR_STORAGE_KEY = 'myclash:display:mirror';
 
 export default function DisplayPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = use(params);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   // Default ON (mirrored) for a TV facing the audience; read the
   // persisted choice after mount so SSR + first paint are stable.

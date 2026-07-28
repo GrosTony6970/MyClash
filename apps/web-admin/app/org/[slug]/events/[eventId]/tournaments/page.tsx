@@ -22,6 +22,7 @@ import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
 import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Tournament {
   id: string;
@@ -96,7 +97,7 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
 export default function EventTournamentsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isArchived, isReadOnly } = useEventStatus(eventId);
 

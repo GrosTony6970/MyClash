@@ -37,6 +37,7 @@ import {
   type SwapSuggestion,
 } from '../../referees/_components/SwapSuggestionsPanel';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -112,7 +113,7 @@ interface Props {
 
 export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   const { locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

@@ -8,10 +8,11 @@ import { TournamentStatSection } from '../../../../../../src/components/statisti
 import { WeaponPointStatsSection } from '../../../../../../src/components/statistics/WeaponPointStats';
 import { RefereeWorkloadTable } from '../../../../../../src/components/statistics/RefereeWorkloadTable';
 import type { EventStatistics } from '../../../../../../src/components/statistics/types';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 export default function EventStatisticsPage() {
   const { eventId } = useParams<{ slug: string; eventId: string }>();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
   const [data, setData] = useState<EventStatistics | null>(null);

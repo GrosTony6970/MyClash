@@ -5,6 +5,7 @@ import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type FindingStatus = 'open' | 'dismissed' | 'resolved';
 
@@ -46,7 +47,7 @@ const typeOptions = [
 
 export default function AdminDataQualityPage() {
   const { locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [scans, setScans] = useState<DataQualityScan[]>([]);
   const [findings, setFindings] = useState<DataQualityFinding[]>([]);
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('open');

@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { Modal, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ export default function MatchDetailPage() {
     matchId: string;
   }>();
   const { slug, eventId, matchId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();

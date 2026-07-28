@@ -7,8 +7,9 @@ import { SegmentedTabs, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { LeagueAttachmentsSection } from './_components/LeagueAttachmentsSection';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
 
 interface OrgRow {

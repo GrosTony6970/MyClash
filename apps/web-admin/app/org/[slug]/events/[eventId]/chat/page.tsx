@@ -7,6 +7,7 @@ import { Button, useConfirm } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 function PencilIcon() {
   return (
@@ -79,7 +80,7 @@ type StreamEvent =
 export default function EventChatPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
 

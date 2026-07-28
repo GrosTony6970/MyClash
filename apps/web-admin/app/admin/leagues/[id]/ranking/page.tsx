@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface RankingRow {
   league_id: string;
@@ -62,7 +63,7 @@ interface ClubStandingsPayload {
   unaffiliated: { totalPoints: number; memberCount: number; medalCount: number } | null;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 function fighterDisplayName(row: RankingRow): string {
   const name = row.global_persons?.display_name?.trim();

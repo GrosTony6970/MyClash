@@ -6,8 +6,9 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface StandingsColumn {
   key: string;

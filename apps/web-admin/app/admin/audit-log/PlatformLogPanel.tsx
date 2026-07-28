@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { localeToBcp47 } from '@myclash/time';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type PlatformLogCategory =
   | 'ai_scan'
@@ -90,7 +91,7 @@ function buildParams(filters: PlatformFilters, page?: number, perPage?: number):
 
 export function PlatformLogPanel() {
   const { t, locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [draftFilters, setDraftFilters] = useState<PlatformFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<PlatformFilters>(emptyFilters);

@@ -18,6 +18,7 @@ import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface CustomRuleset {
   id: string;
@@ -35,7 +36,7 @@ interface CustomRuleset {
   updated_at: string;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export default function AdminRulesetsPage() {
   const { t } = useI18n();

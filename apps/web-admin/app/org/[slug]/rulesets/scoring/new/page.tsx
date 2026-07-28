@@ -23,8 +23,9 @@ import {
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
 import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../../src/components/rulesets/AfterblowGrammarEditor';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 const BLANK_INITIAL: RulesetFormValue = {
   name: '',

@@ -8,8 +8,9 @@ import {
   MATCH_FORMAT_DEFAULTS,
   type WizardMatchFormat,
 } from './buildMatchFormatFromRow';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 type MatchFormat = WizardMatchFormat;
 const DEFAULTS: MatchFormat = MATCH_FORMAT_DEFAULTS;

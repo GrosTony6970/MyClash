@@ -8,6 +8,7 @@ import {
   resolveLeagueWorkspaceDecision,
   type LeagueWorkspaceMePayload,
 } from './league-workspace-decision';
+import { getPublicApiUrl } from '../lib/api-url';
 
 /**
  * Chrome for the personal league workspace (/leagues).
@@ -25,7 +26,7 @@ import {
 export function LeagueWorkspaceShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const router = useRouter();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [allowed, setAllowed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 

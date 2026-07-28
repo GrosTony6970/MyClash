@@ -12,6 +12,7 @@ import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 import { blockTint } from './block-tint';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // Workshops are managed on the dedicated workshop board, not the event
 // programme — no 'workshop' entry here (any legacy rows are filtered out).
@@ -107,7 +108,7 @@ export function ProgrammePlanner({
   generateScheduleLabel?: string;
   generateGridLabel?: string;
 }) {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { confirm, confirmDialog } = useConfirm();
   const { t } = useI18n();
 

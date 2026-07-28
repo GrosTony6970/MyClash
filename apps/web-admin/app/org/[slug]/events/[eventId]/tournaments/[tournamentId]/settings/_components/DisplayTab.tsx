@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface CleanButton {
   label: string;

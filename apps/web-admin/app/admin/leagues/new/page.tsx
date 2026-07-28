@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface AdminUserOption {
   id: string;

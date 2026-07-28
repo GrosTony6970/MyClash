@@ -3,6 +3,7 @@
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useRef } from 'react';
 import { getRuntimeFlagsCached, useRuntimeFlags } from '@myclash/ui';
+import { getPublicApiUrl } from './api-url';
 
 let client: SupabaseClient | null = null;
 
@@ -48,7 +49,7 @@ export interface UseRealtimeOptions {
   fallbackPollMs?: number;
 }
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? '';
+const API_URL = getPublicApiUrl();
 
 /**
  * Subscribes to a Supabase realtime channel and falls back to a setInterval

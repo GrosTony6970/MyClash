@@ -17,6 +17,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface League {
   id: string;
@@ -45,7 +46,7 @@ interface League {
 
 type AdminLeaguesTab = 'list' | 'ranking';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/u).filter(Boolean);

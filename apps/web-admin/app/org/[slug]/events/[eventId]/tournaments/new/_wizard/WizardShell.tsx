@@ -8,6 +8,7 @@ import { Step1Basics } from './Step1Basics';
 import { Step2MatchFormat } from './Step2MatchFormat';
 import { Step3Display } from './Step3Display';
 import { Step4Advanced } from './Step4Advanced';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -39,7 +40,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
   }
   function finish(publish: boolean) {
     if (publish && tournamentId) {
-      void fetch(`${process.env['NEXT_PUBLIC_API_URL']}/api/v1/tournaments/${tournamentId}`, {
+      void fetch(`${getPublicApiUrl()}/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { AiUsageView, type UsageRollup } from '@/components/ai/AiUsageView';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface PlatformAIConfig {
   monthlyBudgetEur: number | null;
@@ -26,7 +27,7 @@ function eur(n: number): string {
 }
 
 export default function AdminAIDashboardPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const [config, setConfig] = useState<PlatformAIConfig | null>(null);
   const [rollup, setRollup] = useState<UsageRollup | null>(null);

@@ -5,6 +5,7 @@ import { Button } from '@myclash/ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type DraftType =
   | 'tournament_config'
@@ -43,7 +44,7 @@ export default function EventAIAssistantPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const search = useSearchParams();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
   const initialType = DRAFT_TYPES.includes(search.get('type') as DraftType)

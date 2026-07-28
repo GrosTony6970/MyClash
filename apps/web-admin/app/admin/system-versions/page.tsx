@@ -6,6 +6,7 @@ import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { TlsCertificatesCard } from './TlsCertificatesCard';
 import { RuntimeHealthCard } from './RuntimeHealthCard';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
  * Formats an ISO timestamp as a locale-aware "long date + short time" string
@@ -67,7 +68,7 @@ interface PendingAction {
 }
 
 export default function AdminSystemVersionsPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const toast = useToast();
 

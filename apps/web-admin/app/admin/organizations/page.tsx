@@ -20,6 +20,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import { useUrlState } from '../../../src/hooks/useUrlState';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgListItem {
   id: string;
@@ -68,7 +69,7 @@ function slugify(value: string) {
 
 export default function AdminOrganizationsPage() {
   const { t, locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [orgs, setOrgs] = useState<OrgListItem[]>([]);
   const [loading, setLoading] = useState(true);

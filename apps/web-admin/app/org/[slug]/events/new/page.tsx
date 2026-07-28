@@ -6,6 +6,7 @@ import { Button, CountryCombobox, formatCountryName } from '@myclash/ui';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface CatalogueVenue {
   id: string;
@@ -835,7 +836,7 @@ export default function NewEventPage() {
   // shell's event switcher and any localStorage-backed defaults reflect it
   // immediately, instead of waiting for the next page's URL-effect to run.
   const { selectEvent, refetchEvents } = useOrganizerSelectedEvent();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { locale, t } = useI18n();
 
   const [state, dispatch] = useReducer(reducer, INITIAL);

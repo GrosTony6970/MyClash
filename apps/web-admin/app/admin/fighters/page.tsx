@@ -16,6 +16,7 @@ import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -193,7 +194,7 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
 type Tab = 'profiles' | 'create' | 'merge';
 
 export default function AdminFightersPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { locale } = useI18n();
   const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
   const { confirm, confirmDialog } = useConfirm();

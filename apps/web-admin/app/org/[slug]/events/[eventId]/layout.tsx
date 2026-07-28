@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ArchivedBanner } from './_components/ArchivedBanner';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface EventInfo {
   id: string;
@@ -15,7 +16,7 @@ interface EventInfo {
 export default function EventLayout({ children }: { children: ReactNode }) {
   const params = useParams<{ slug: string; eventId: string }>();
   const { eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [event, setEvent] = useState<EventInfo | null>(null);
 

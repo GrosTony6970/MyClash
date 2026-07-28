@@ -8,6 +8,7 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
 import { LogoCropperModal } from './_components/LogoCropperModal';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface DashboardStats {
   eventsTotal: number;
@@ -36,7 +37,7 @@ const EMPTY_STATS: DashboardStats = {
 export default function OrgDashboardPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   // Invalidate the shell's cached org name + logo whenever the dashboard
   // writes a change; without this the sidebar shows the old logo / name

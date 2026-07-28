@@ -19,6 +19,7 @@ import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/Rules
 import { RulesetImportButton } from '../../../../../src/components/rulesets/RulesetImportButton';
 import { PenaltyManageActions } from './_components/PenaltyManageActions';
 import { toPenaltyDiscoverCards } from './_components/penalty-discover-cards';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type RulesetsTab = 'manage' | 'discover';
 
@@ -42,7 +43,7 @@ interface PenaltyRulesetRow {
   updated_at: string;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export default function OrgPenaltyRulesetsPage() {
   const params = useParams<{ slug: string }>();

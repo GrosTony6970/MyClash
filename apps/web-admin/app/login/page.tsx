@@ -7,6 +7,7 @@ import { Button, GoogleIcon } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type LoadingAction = 'password' | 'magic_link' | 'google' | null;
 type LoginResponse = { next?: string };
@@ -19,7 +20,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
 
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const loading = loadingAction !== null;
 
   async function handleGoogleLogin() {

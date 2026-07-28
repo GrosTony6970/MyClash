@@ -13,6 +13,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface WeaponRow {
   id: string;
@@ -22,7 +23,7 @@ interface WeaponRow {
   usageCount: number;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export default function AdminWeaponsPage() {
   const { t } = useI18n();

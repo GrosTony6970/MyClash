@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { mergeRealtimePatch } from './live-board-merge';
 import type { BoardRow, MatchChange } from './types';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const API = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const API = getPublicApiUrl();
 
 /**
  * Two coordinated sources behind one row-state:

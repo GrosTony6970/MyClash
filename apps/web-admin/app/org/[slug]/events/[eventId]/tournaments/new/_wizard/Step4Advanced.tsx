@@ -7,8 +7,9 @@ import { buildTfFromRow, type RulesetConfigTF, TF_DEFAULTS } from './buildTfFrom
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 import { TfRulesetControls } from '../../_shared/TfRulesetControls';
 import { useCustomiseFormat } from '../../_shared/useCustomiseFormat';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export function Step4Advanced({
   tournamentId,

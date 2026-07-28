@@ -7,6 +7,7 @@ import { AiKeysManager } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { AiUsageView, type UsageRollup } from '../../../../../src/components/ai/AiUsageView';
 import { AiBudgetView } from '../../../../../src/components/ai/AiBudgetView';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgAIConfig {
   hasKey: boolean;
@@ -19,7 +20,7 @@ interface OrgAIConfig {
 export default function OrgAISettingsPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
   const [orgId, setOrgId] = useState<string | null>(null);

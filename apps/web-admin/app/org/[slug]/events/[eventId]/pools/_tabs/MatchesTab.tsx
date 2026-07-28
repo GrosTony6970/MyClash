@@ -11,8 +11,9 @@ import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { countPoolFighters } from './count-pool-fighters';
 import { buildMatchScoringHref } from './build-scoring-href';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface RefereeAssignment {
   role: string;

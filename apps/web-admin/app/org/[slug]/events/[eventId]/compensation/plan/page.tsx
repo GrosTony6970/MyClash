@@ -8,6 +8,7 @@ import type { CompensationPlan, CompensationPhase } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../../src/components/CompensationTopNav';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '@/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 /** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */
 interface RefereeSkill {
@@ -62,7 +63,7 @@ export default function OrgCompensationPlansPage() {
   const { t: translate } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { confirm, confirmDialog } = useConfirm();
 
   const [orgId, setOrgId] = useState<string | null>(null);

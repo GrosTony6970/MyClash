@@ -21,6 +21,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 const MAX_HERO_BYTES = 10 * 1024 * 1024;
@@ -30,7 +31,7 @@ export default function BrandingEditorPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const searchParams = useSearchParams();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);

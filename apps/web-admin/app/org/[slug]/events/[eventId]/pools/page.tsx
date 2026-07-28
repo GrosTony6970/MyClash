@@ -28,6 +28,7 @@ import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -103,7 +104,7 @@ function readHashTab(): TabKey {
 export default function PoolsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
 

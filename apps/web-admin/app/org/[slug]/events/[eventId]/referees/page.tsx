@@ -31,6 +31,7 @@ import {
 import { AvailabilityChips } from './_components/AvailabilityChips';
 import { countQualifiedBySkill } from './count-qualified-by-skill';
 import { programmeBlockStartIso } from './_components/programme-block-instant';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1662,7 +1663,7 @@ export default function RefereesPage() {
   const { locale } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { isReadOnly } = useEventStatus(eventId);
   const [activeTab, setActiveTab] = useState<RefereeWorkspaceTab>('referees');
 

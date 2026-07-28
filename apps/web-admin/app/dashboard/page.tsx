@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type MeResponse = {
   type: 'claimed' | 'guest' | 'anonymous';
@@ -20,7 +21,7 @@ type Landing =
   | { kind: 'chooser'; organizerSlug: string }
   | { kind: 'noWorkspace' };
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 /**
  * Resolve where a freshly-authenticated admin session should go, from /me.

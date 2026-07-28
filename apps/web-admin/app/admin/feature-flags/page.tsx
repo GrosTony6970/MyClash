@@ -10,6 +10,7 @@ import {
 import { AdminPageHeader } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface FlagRow {
   key: string;
@@ -60,7 +61,7 @@ function buildTimeSimPayload(
 
 export default function AdminFeatureFlagsPage() {
   const { t, locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [rows, setRows] = useState<FlagRow[]>([]);
   const [loading, setLoading] = useState(true);

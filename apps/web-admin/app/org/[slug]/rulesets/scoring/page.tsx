@@ -20,6 +20,7 @@ import { RulesetImportButton } from '../../../../../src/components/rulesets/Rule
 import { ScoringManageActions } from './_components/ScoringManageActions';
 import { toScoringDiscoverCards } from './_components/scoring-discover-cards';
 import { rulesetSourceBadge, rulesetSubmissionBadge } from './_components/manage-row-badges';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type RulesetsTab = 'manage' | 'discover';
 
@@ -44,7 +45,7 @@ interface CustomRulesetRow {
   base_code: string | null;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 /**
  * Organizer-side scoring rulesets, split into two tabs:

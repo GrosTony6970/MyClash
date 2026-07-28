@@ -27,6 +27,7 @@ import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
 import { WaitingListPanel } from './_components/WaitingListPanel';
 import { addToWaitingList, tryRegisterInTournament } from './_components/registration-helpers';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Person {
   id: string;
@@ -139,7 +140,7 @@ function RegistrationStatusChip({
 export default function ParticipantsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
   const { isReadOnly } = useEventStatus(eventId);

@@ -14,8 +14,9 @@ import {
 } from '../../../../../../../src/components/rulesets/PenaltyRulesetForm';
 import { PenaltyVersionHistory } from '../../../../../../../src/components/rulesets/PenaltyVersionHistory';
 import { PenaltyLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface PenaltyRulesetDetail {
   id: string;

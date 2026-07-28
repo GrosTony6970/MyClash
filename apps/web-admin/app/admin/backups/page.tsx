@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
@@ -104,7 +105,7 @@ interface BackupListResponse {
 }
 
 export default function AdminBackupsPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<BackupStatus | null>(null);

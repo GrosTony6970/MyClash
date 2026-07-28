@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
  * Sync poll cadence after clicking "Sync now". The BullMQ worker writes a
@@ -54,7 +55,7 @@ interface HealthResult {
   error?: string;
 }
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const API_URL = getPublicApiUrl();
 
 function formatRelative(iso: string | null): string {
   if (!iso) return '—';

@@ -11,6 +11,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type RequestStatus = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -45,7 +46,7 @@ function payloadPreview(payload: unknown): string {
 
 export default function ExchangeEditRequestsPage() {
   const { t, locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [status, setStatus] = useState<RequestStatus>('pending');
   const [items, setItems] = useState<ExchangeEditRequest[]>([]);
   const [loading, setLoading] = useState(true);

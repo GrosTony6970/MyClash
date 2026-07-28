@@ -14,6 +14,7 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Member {
   user_id: string;
@@ -111,7 +112,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
   const toast = useToast();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [org, setOrg] = useState<OrgDetail | null>(null);
   const [loading, setLoading] = useState(true);

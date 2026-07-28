@@ -7,8 +7,9 @@ import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../i18n/I18nProvider';
 import { LeagueRequestsPanel } from './LeagueRequestsPanel';
 import { ScoringSystemPreview } from './ScoringSystemPreview';
+import { getPublicApiUrl } from '../../lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 type SectionTab = 'basics' | 'ruleset' | 'groups' | 'tournaments' | 'requests' | 'roles';
 

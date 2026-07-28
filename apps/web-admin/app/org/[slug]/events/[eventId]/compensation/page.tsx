@@ -9,6 +9,7 @@ import type { CompensationReport } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
   pool: 'organizer.eventCompensation.phases.pool',
@@ -50,7 +51,7 @@ export default function CompensationPage() {
   const { locale } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [settings, setSettings] = useState<EventSettings | null>(null);

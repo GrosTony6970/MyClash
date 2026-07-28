@@ -20,6 +20,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgMember {
   userId: string;
@@ -41,7 +42,7 @@ const MEMBER_ROLES = [
 export default function OrgMembersPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();

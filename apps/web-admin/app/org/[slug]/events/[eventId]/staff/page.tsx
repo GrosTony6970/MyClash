@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, usePrompt } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface StaffAccount {
   id: string;
@@ -30,7 +31,7 @@ export default function EventStaffPage() {
   const { slug, eventId } = useParams<{ slug: string; eventId: string }>();
   const { t } = useI18n();
   const { prompt, promptDialog } = usePrompt();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
 
   const [event, setEvent] = useState<EventInfo | null>(null);

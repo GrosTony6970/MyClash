@@ -39,6 +39,7 @@ import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoa
 import { WorkshopLogoField } from './WorkshopLogoField';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface NamedRef {
   id: string;
@@ -132,7 +133,7 @@ const EMPTY_FORM = {
 export default function WorkshopsAdminPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { confirm, confirmDialog } = useConfirm();
   const { t, locale } = useI18n();
 

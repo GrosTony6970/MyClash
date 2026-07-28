@@ -1,3 +1,4 @@
+import { getPublicApiUrl } from './api-url';
 /**
  * Compute where to send an organizer right after a successful auth.
  *
@@ -15,7 +16,7 @@
  * Safe to import from any client component.
  */
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 type OrgRole = 'owner' | 'admin' | 'scorekeeper' | 'viewer' | string;
 

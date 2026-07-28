@@ -10,8 +10,9 @@ import {
   type DisplayState,
 } from './buildDisplayConfigFromRow';
 import { DisplayPreview } from './DisplayPreview';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 const DEFAULTS: DisplayState = DISPLAY_DEFAULTS;
 
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];

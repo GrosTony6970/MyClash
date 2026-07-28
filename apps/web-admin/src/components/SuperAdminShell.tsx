@@ -11,6 +11,7 @@ import {
   useNotificationsSummary,
   type NotificationsSummary,
 } from '../hooks/useNotificationsSummary';
+import { getPublicApiUrl } from '../lib/api-url';
 
 interface NavItem {
   href: string;
@@ -151,7 +152,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   // event organiser" workspace link — the escape hatch for the sole operator
   // who is both platform super-admin and a tournament organiser.
   const [organizerSlug, setOrganizerSlug] = useState<string | null>(null);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(open, drawerRef);

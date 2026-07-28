@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type ArchiveScope = 'event' | 'tournament';
 type ArchiveInclude = 'structure' | 'scoring';
@@ -44,7 +45,7 @@ const RESTORE_CONFIRMATION = 'RESTORE MYCLASH ARCHIVE';
 export default function OrganizerArchivePage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement | null>(null);
 

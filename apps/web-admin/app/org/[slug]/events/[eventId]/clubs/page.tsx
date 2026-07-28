@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface EventClub {
   id: string;
@@ -39,7 +40,7 @@ const emptyClubRequest = {
 export default function EventClubsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
 

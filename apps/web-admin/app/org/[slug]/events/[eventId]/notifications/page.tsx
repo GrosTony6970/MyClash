@@ -5,6 +5,7 @@ import { Button } from '@myclash/ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 type Severity = 'info' | 'warning' | 'alert';
@@ -37,7 +38,7 @@ export default function EventNotificationsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const searchParams = useSearchParams();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
   const initialTarget = searchParams.get('targetType') as TargetType | null;

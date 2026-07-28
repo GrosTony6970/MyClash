@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { AdminPageHeader, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export const ALLOWED_TIE_BREAKERS = [
   'total_points',

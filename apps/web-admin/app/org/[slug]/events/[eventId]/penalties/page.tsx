@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useConfirm, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Person {
   id: string;
@@ -47,7 +48,7 @@ interface PenaltyReview {
 export default function PenaltyReviewsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();

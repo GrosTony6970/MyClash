@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type TlsCertHealth = 'ok' | 'expiringSoon' | 'staging' | 'error';
 type TlsCaType = 'prod' | 'staging' | 'unknown';
@@ -85,7 +86,7 @@ function caLabel(t: Translate, caType: TlsCaType): string {
 }
 
 export function TlsCertificatesCard() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const toast = useToast();
 

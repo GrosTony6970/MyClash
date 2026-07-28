@@ -8,6 +8,7 @@ import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Ruleset {
   code: string;
@@ -32,7 +33,7 @@ interface TournamentBasics {
   maxWaitlist: number | null;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export function BasicsTab({ tournamentId }: { tournamentId: string }) {
   const params = useParams<{ slug: string; eventId: string }>();

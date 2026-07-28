@@ -39,6 +39,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState 
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { validateLogoFile } from '../../../../src/lib/validate-logo-file';
 import { RequestDeletionModal } from './_components/RequestDeletionModal';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgEvent {
   id: string;
@@ -125,7 +126,7 @@ function toForm(event: OrgEvent): EventForm {
 export default function OrgEventsListPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
 
   const [events, setEvents] = useState<OrgEvent[]>([]);

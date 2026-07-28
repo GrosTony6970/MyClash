@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface LiveMatch {
   id: string;
@@ -36,7 +37,7 @@ function minutesRemaining(endTime: string): number {
 
 export function LiveNowBanner({ eventId }: { eventId: string }) {
   const { t, locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [state, setState] = useState<LiveState | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

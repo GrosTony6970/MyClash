@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Modal, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Props {
   targetType: 'event' | 'tournament';
@@ -29,7 +30,7 @@ export function RequestDeletionModal({
   onClose,
   archiveFirst = false,
 }: Props) {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   // Pre-fill with a common example so the operator can submit in one click;
   // it stays fully editable and the 10–500 char rule still applies.

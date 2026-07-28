@@ -8,8 +8,9 @@ import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
 import { matchWeapon } from './weapon-match';
 import { pickWizardDefaults } from './wizard-defaults';
 import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface Ruleset {
   code: string;

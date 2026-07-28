@@ -53,6 +53,7 @@ import {
   type ScheduleBlockMatch,
   computeGridEndSlot,
 } from '@myclash/schedule-core';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -209,7 +210,7 @@ export function ScheduleGrid({
   configurePanel?: ReactNode;
 }) {
   const { t, locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [lices, setLices] = useState<Lice[]>([]);
   const [matches, setMatches] = useState<ScheduleMatch[]>([]);

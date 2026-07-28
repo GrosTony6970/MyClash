@@ -5,6 +5,7 @@ import { t } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface RecapContent {
   content: string;
@@ -19,7 +20,7 @@ type Locale = (typeof LOCALES)[number];
 /** Organizer control for the AI tournament recap: generate → review → publish. */
 export function RecapTab({ tournamentId }: { tournamentId: string }) {
   const { locale: uiLocale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const base = `${apiUrl}/api/v1/generated-content/tournament_recap/${tournamentId}`;
 
   const [locale, setLocale] = useState<Locale>('en');

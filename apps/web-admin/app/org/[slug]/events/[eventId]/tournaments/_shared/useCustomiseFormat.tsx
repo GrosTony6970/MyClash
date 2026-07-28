@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useConfirm, useToast } from '@myclash/ui';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 /**
  * "Customise this format": forks the tournament's built-in ruleset into a

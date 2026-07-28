@@ -1,6 +1,7 @@
 'use client';
 
 import { MaintenanceBanner } from '@myclash/ui';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
  * Client wrapper around the shared MaintenanceBanner.
@@ -17,5 +18,5 @@ import { MaintenanceBanner } from '@myclash/ui';
  * for exactly this reason.
  */
 export function RuntimeBanner() {
-  return <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />;
+  return <MaintenanceBanner apiUrl={getPublicApiUrl()} />;
 }

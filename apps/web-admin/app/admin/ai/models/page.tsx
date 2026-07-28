@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AdminPageHeader, Button, type AiKeyModelOption, type AiKeyProvider } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type ModelsMap = Record<AiKeyProvider, AiKeyModelOption[]>;
 
@@ -24,7 +25,7 @@ const PROVIDER_LABELS: Record<AiKeyProvider, string> = {
 const EMPTY_MODELS: ModelsMap = { anthropic: [], openai: [], mistral: [], google: [] };
 
 export default function AdminAIModelsPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const [models, setModels] = useState<ModelsMap>(EMPTY_MODELS);
   const [error, setError] = useState<string | null>(null);

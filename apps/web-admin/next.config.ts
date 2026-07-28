@@ -2,10 +2,10 @@ import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
 // ── Build-time required env validation ─────────────────────────────────
-// Runtime `requireClientEnv()` falls back to a dev URL + console.error
-// when a NEXT_PUBLIC_* is empty in prod — that keeps the page rendering
-// but means an operator only discovers misconfigurations by clicking
-// through the deployed app and reading DevTools. This block makes the
+// This is the ONLY layer that catches a missing NEXT_PUBLIC_*. There used
+// to be a runtime `requireClientEnv()` fallback as well, but it had no
+// call sites left and only told an operator by console.error — i.e. after
+// clicking through the deployed app with DevTools open. This block makes the
 // misconfiguration loud at the *right* layer: `next build` exits
 // non-zero with the offending var name, the Docker layer fails fast,
 // and the deploy log surfaces the error before any bundling finishes.

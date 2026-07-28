@@ -5,6 +5,7 @@ import { AdminPageHeader } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { AiBudgetView } from '@/components/ai/AiBudgetView';
 import { type UsageRollup } from '@/components/ai/AiUsageView';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface PlatformAIConfig {
   monthlyBudgetEur: number | null;
@@ -18,7 +19,7 @@ function monthStartIso(): string {
 }
 
 export default function AdminAIBudgetPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const [config, setConfig] = useState<PlatformAIConfig | null>(null);
   const [rollup, setRollup] = useState<UsageRollup | null>(null);

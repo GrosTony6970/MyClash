@@ -27,6 +27,7 @@ import {
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -54,7 +55,7 @@ interface StandingsRow {
   stats: Record<string, number | string>;
 }
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export default function FinalRankingPage() {
   const params = useParams<{ slug: string; eventId: string }>();

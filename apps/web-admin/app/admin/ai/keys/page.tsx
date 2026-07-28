@@ -2,9 +2,10 @@
 
 import { AdminPageHeader, AiKeysManager } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 export default function AdminAIKeysPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
   return (

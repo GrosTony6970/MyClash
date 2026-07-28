@@ -15,6 +15,7 @@ import type {
   ImportPreviewResponse,
   PreviewRow,
 } from '@myclash/types';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type Step = 'upload' | 'preview' | 'done';
 
@@ -171,7 +172,7 @@ export default function CsvImportPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const router = useRouter();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
   const [step, setStep] = useState<Step>('upload');

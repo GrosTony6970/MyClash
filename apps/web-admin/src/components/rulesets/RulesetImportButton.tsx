@@ -3,8 +3,9 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { rowActionClasses, useToast } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
+import { getPublicApiUrl } from '../../lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface ImportOutcome {
   ok: boolean;

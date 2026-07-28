@@ -10,8 +10,9 @@ import {
   DEFAULT_MATCH_FORMAT_DEFAULTS,
 } from '../../../../../src/components/rulesets/RulesetForm';
 import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../src/components/rulesets/AfterblowGrammarEditor';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 export default function NewRulesetPage() {
   const { t } = useI18n();

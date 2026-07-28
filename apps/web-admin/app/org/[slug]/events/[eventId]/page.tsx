@@ -25,6 +25,7 @@ import { PublishReadinessDialog } from './_components/PublishReadinessDialog';
 import { formatCountOfMax } from './format-count-of-max';
 import { eventVisibility } from './event-visibility';
 import { isOutstanding, type ReadinessReport } from './readiness-copy';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Tournament {
   id: string;
@@ -130,7 +131,7 @@ const COMMON_TIMEZONES = [
 export default function EventDetailPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const { isArchived, isReadOnly } = useEventStatus(eventId);
   const [showDeletionModal, setShowDeletionModal] = useState(false);

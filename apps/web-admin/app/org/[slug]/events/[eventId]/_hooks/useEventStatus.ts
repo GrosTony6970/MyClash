@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type EventStatus = 'draft' | 'published' | 'running' | 'completed' | 'archived';
 
@@ -11,7 +12,7 @@ export function useEventStatus(eventId: string): {
   isLoading: boolean;
   refetch: () => void;
 } {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [status, setStatus] = useState<EventStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);

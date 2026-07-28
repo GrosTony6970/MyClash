@@ -11,6 +11,7 @@ import { useOrganizerSelectedEvent } from './organizer-event-context';
 import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
 import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
+import { getPublicApiUrl } from '../lib/api-url';
 
 const orgNavItems = [
   // `exact` so the org Overview (root) doesn't prefix-match and stay
@@ -71,7 +72,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const params = useParams<{ slug?: string; eventId?: string }>();
   const slug = asString(params.slug);
   const urlEventId = asString(params.eventId);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   // Event context — provides selectedEventId (URL > localStorage > auto-pick),
   // the full event list for the switcher, and orgName for the brand block.

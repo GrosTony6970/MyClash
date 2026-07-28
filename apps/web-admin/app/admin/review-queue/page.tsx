@@ -7,6 +7,7 @@ import type { ReviewQueueItem } from './_types';
 import { QueueRow } from './_components/QueueRow';
 import { ApproveModal } from './_components/ApproveModal';
 import { RejectModal } from './_components/RejectModal';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReviewQueuePage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const toast = useToast();
 
   // ── State ────────────────────────────────────────────────────────────────────

@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface VenueOption {
   id: string;

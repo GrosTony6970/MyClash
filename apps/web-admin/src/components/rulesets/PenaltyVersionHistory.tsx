@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, HelpTooltip, useToast } from '@myclash/ui';
 import { useI18n } from '../../i18n/I18nProvider';
 import { rulesetHelp } from './rulesetHelp';
+import { getPublicApiUrl } from '../../lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface PenaltyVersionRow {
   id: string;

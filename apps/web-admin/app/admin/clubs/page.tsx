@@ -21,6 +21,7 @@ import {
 } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface ClubRow {
   id: string;
@@ -104,7 +105,7 @@ function formatBlockers(blockers: unknown): string | null {
 
 export default function AdminClubsPage() {
   const { locale } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   const [query, setQuery] = useState('');
   const [clubs, setClubs] = useState<ClubRow[]>([]);

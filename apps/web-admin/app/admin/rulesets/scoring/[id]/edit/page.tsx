@@ -25,10 +25,11 @@ import {
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 type TfConfigOverride = NonNullable<RulesetRowLike['tf_config']>;
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface CustomRulesetDetail {
   id: string;

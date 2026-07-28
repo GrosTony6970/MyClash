@@ -34,6 +34,7 @@ import {
   podiumPayload,
   type PodiumOptionsValue,
 } from './DoubleElimPodiumOptions';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Tournament {
   id: string;
@@ -184,7 +185,7 @@ export default function BracketPage() {
   const { slug, eventId } = params;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
 

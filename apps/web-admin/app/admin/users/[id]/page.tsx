@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 const ORG_ROLES = [
   'owner',
@@ -42,7 +43,7 @@ interface OrgRow {
 export default function AdminUserEditPage() {
   const params = useParams<{ id: string }>();
   const userId = params.id;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
 

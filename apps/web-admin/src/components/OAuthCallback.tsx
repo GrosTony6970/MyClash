@@ -6,6 +6,7 @@ import { useI18n } from '../i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../lib/oauth-supabase';
 import { runOAuthCodeOnce } from '../lib/oauth-single-flight';
 import { resolvePostAuthDestination } from '../lib/post-auth-destination';
+import { getPublicApiUrl } from '../lib/api-url';
 
 type OAuthMode = 'admin_login' | 'organizer_signup';
 type OAuthResponse = { next?: string };
@@ -77,7 +78,7 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
             body['orgSlug'] = pending.orgSlug;
           }
 
-          const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+          const apiUrl = getPublicApiUrl();
           const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

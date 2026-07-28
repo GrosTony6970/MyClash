@@ -29,6 +29,7 @@ import {
 } from '../../referees/_components/SwapSuggestionsPanel';
 import { assignmentChipClasses } from '../../referees/_components/assignment-chip-classes';
 import { groupBracketPoolsBySection } from './group-bracket-by-section';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -101,7 +102,7 @@ interface Props {
 }
 
 export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

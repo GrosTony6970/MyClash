@@ -8,8 +8,9 @@ import {
   type ScoringSystemFormValues,
 } from '../../_components/LeagueScoringSystemForm';
 import { VersionHistory } from '../../_components/VersionHistory';
+import { getPublicApiUrl } from '@/lib/api-url';
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 interface ScoringSystemRow {
   id: string;

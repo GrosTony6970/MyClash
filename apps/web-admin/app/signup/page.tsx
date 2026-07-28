@@ -5,6 +5,7 @@ import { GoogleIcon } from '@myclash/ui';
 import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
+import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ function slugify(name: string): string {
 
 export default function SignupPage() {
   const { t } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getPublicApiUrl();
 
   // Step 1 state
   const [step, setStep] = useState<Step>(1);

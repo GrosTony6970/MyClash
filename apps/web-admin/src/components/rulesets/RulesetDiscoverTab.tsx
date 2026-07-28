@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { RulesetDiscoverCard, type RulesetDiscoverCardProps } from './RulesetDiscoverCard';
+import { getPublicApiUrl } from '../../lib/api-url';
 
 /** One catalog card's data — the card props plus a stable key. */
 export type DiscoverCardData = RulesetDiscoverCardProps & { id: string };
 
-const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const apiUrl = getPublicApiUrl();
 
 /**
  * Generic Discover catalog tab: fetches an org catalog endpoint and renders the
