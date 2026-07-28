@@ -84,29 +84,86 @@ export interface DerivedFighterStats {
 const VariableSchema = z.enum(FORMULA_VARIABLE_KEYS);
 const OperatorSchema = z.enum(['+', '-', '*', '/']);
 
-const MAX_FORMULA_DEPTH = 32;
+export const MAX_FORMULA_DEPTH = 32;
 
-function makeFormulaNodeSchema(depth = 0): z.ZodType<FormulaNode> {
-  if (depth >= MAX_FORMULA_DEPTH) {
-    return z.never() as unknown as z.ZodType<FormulaNode>;
+/**
+ * One SELF-referential node schema — the getters point back at this same
+ * object, so the shape is a cycle rather than a tree.
+ *
+ * This used to build a fresh child schema per level (`makeFormulaNodeSchema(
+ * depth + 1)`), which bounded depth structurally. It validated correctly, but
+ * every `binop` held TWO distinct child schemas, each holding two more, 32
+ * levels down: 2^32 subschemas. Nothing forced them while parsing — the getters
+ * are lazy and real formulas are shallow — but converting the schema to JSON
+ * Schema walks every branch, and `SwaggerModule.createDocument` did exactly
+ * that. Measured growth was 2x per level (7.7 MB at depth 14), extrapolating to
+ * ~2 TB at 32, so the OpenAPI emit could never finish at any heap size.
+ *
+ * A cycle emits a single `$ref` instead: the whole document is now 0.6 MB.
+ */
+const FormulaNodeShape: z.ZodType<FormulaNode> = z.union([
+  z.object({ type: z.literal('literal'), value: z.number().finite() }),
+  z.object({ type: z.literal('var'), name: VariableSchema }),
+  z.object({
+    type: z.literal('binop'),
+    op: OperatorSchema,
+    get left() {
+      return FormulaNodeShape;
+    },
+    get right() {
+      return FormulaNodeShape;
+    },
+  }),
+]) as z.ZodType<FormulaNode>;
+
+/**
+ * Depth bound, enforced explicitly now that the shape no longer encodes it.
+ *
+ * Iterative on purpose: this runs on UNVALIDATED input, so a hostile 100k-deep
+ * payload must not overflow the stack inside the guard meant to reject it.
+ */
+export function exceedsMaxFormulaDepth(value: unknown, max = MAX_FORMULA_DEPTH): boolean {
+  const stack: { node: unknown; depth: number }[] = [{ node: value, depth: 0 }];
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!;
+    if (node === null || typeof node !== 'object') continue;
+    if ((node as { type?: unknown }).type !== 'binop') continue;
+    if (depth + 1 >= max) return true;
+    const { left, right } = node as { left?: unknown; right?: unknown };
+    stack.push({ node: left, depth: depth + 1 }, { node: right, depth: depth + 1 });
   }
-  return z.union([
-    z.object({ type: z.literal('literal'), value: z.number().finite() }),
-    z.object({ type: z.literal('var'), name: VariableSchema }),
-    z.object({
-      type: z.literal('binop'),
-      op: OperatorSchema,
-      get left() {
-        return makeFormulaNodeSchema(depth + 1);
-      },
-      get right() {
-        return makeFormulaNodeSchema(depth + 1);
-      },
-    }),
-  ]) as z.ZodType<FormulaNode>;
+  return false;
 }
 
-export const FormulaNodeSchema: z.ZodType<FormulaNode> = makeFormulaNodeSchema();
+/**
+ * The depth check runs on the RAW input, BEFORE the cyclic schema recurses into
+ * it. That ordering is load-bearing: parsing a cyclic schema recurses once per
+ * node, and zod throws `RangeError: Maximum call stack size exceeded` at around
+ * 5 000 levels. A 5 000-deep formula is ~342 KiB of JSON, well inside Fastify's
+ * 1 MiB default body limit, so without this an admin could turn a 400 into a
+ * 500. Hence `z.unknown()` first, then `.pipe()` into the shape.
+ *
+ * `.pipe()` costs us the emitted JSON Schema — zod describes a pipe by its
+ * INPUT side, which here is `unknown`, i.e. `{}`. That would document
+ * `doublePenaltyFormula` as "anything" for every consumer of the typed client.
+ * So we hand the shape's own JSON Schema back via `.meta()`, derived from
+ * `FormulaNodeShape` rather than written out, so the two cannot drift.
+ *
+ * The one cost: `z.toJSONSchema` is now reachable at module load, and
+ * web-admin imports this package, so its converter lands in that bundle. If
+ * that ever matters, move the guarded schema into a server-only module and
+ * export the bare shape here instead.
+ */
+const formulaNodeJsonSchema = z.toJSONSchema(FormulaNodeShape, { io: 'input' });
+delete (formulaNodeJsonSchema as { $schema?: unknown }).$schema;
+
+export const FormulaNodeSchema: z.ZodType<FormulaNode> = z
+  .unknown()
+  .refine((value) => !exceedsMaxFormulaDepth(value), {
+    message: `formula nests deeper than ${MAX_FORMULA_DEPTH} levels`,
+  })
+  .pipe(FormulaNodeShape)
+  .meta(formulaNodeJsonSchema) as unknown as z.ZodType<FormulaNode>;
 
 export const TiebreakerSchema: z.ZodType<Tiebreaker> = z.object({
   variable: VariableSchema,
