@@ -22,6 +22,7 @@ import { z } from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StaffService } from '../staff/staff.service';
 import { ClockService } from './clock.service';
+import { MatchAuditService } from './match-audit.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesService } from './matches.service';
 import {
@@ -62,6 +63,7 @@ export class MatchesController {
     private readonly forfeits: MatchForfeitsService,
     private readonly clock: ClockService,
     private readonly staff: StaffService,
+    private readonly matchAudit: MatchAuditService,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -189,6 +191,26 @@ export class MatchesController {
     // Organiser may always reopen; event staff may reopen when auto-lock is disabled.
     const actor = await this.staff.authorizeMatchUnlock(req, id);
     return this.matches.unlockMatch(id, actor);
+  }
+
+  /**
+   * GET /api/v1/matches/:id/audit-log
+   *
+   * Who changed this match's record, when, and why: exchange voids/reverts and
+   * the correction requests filed against it. Organiser-scoped — ids inside the
+   * payloads are labelled only when they provably belong to this match.
+   */
+  @Get('matches/:id/audit-log')
+  @ApiOperation({ summary: 'Audit trail for a match (organizer)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async listMatchAuditLog(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.staff.authorizeMatchOrganizer(req, id);
+    const parsed = limit ? Number.parseInt(limit, 10) : undefined;
+    return this.matchAudit.listForMatch(id, Number.isFinite(parsed) ? parsed : undefined);
   }
 
   // ── Exchanges ─────────────────────────────────────────────────────────────────

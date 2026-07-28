@@ -4,6 +4,7 @@ import { StaffModule } from '../staff/staff.module';
 import { PhasesModule } from '../phases/phases.module';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
+import { MatchAuditService } from './match-audit.service';
 import { MatchAutoLockService } from './match-auto-lock.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesController } from './matches.controller';
@@ -19,6 +20,7 @@ import { ScoringService } from './scoring.service';
   controllers: [MatchesController],
   providers: [
     MatchesService,
+    MatchAuditService,
     ScoringService,
     ClockService,
     FrozenResultsGuard,

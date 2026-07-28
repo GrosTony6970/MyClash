@@ -2300,6 +2300,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/matches/{id}/audit-log': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Audit trail for a match (organizer) */
+    get: operations['MatchesController_listMatchAuditLog'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/matches/{id}/exchanges': {
     parameters: {
       query?: never;
@@ -13599,6 +13616,25 @@ export interface operations {
     };
   };
   MatchesController_unlockMatch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MatchesController_listMatchAuditLog: {
     parameters: {
       query?: never;
       header?: never;

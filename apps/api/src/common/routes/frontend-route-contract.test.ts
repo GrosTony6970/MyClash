@@ -45,7 +45,6 @@ const KNOWN_PHANTOM: string[] = [
   '/api/v1/events/{p}/following/matches',
   // web-admin candidates — not yet investigated.
   '/api/v1/admin/fighters/{p}',
-  '/api/v1/audit-log',
   '/api/v1/tournaments',
   // Prose in a comment, not a call.
   '/api/v1/events.',

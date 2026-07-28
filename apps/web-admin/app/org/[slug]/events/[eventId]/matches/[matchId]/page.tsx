@@ -8,6 +8,11 @@
  *   ✓ Void exchange requires reason
  *   ✓ Audit log shows who, when, what, why
  *   ✓ Reverting a void restores the exchange
+ *
+ * The audit section was inert for a long time: it called a top-level audit-log
+ * route that never existed, and swallowed the failure with `if (res.ok)`, so a
+ * permanent outage rendered as "no activity yet". It now reads the
+ * organiser-scoped `matches/:id/audit-log` and reports a real error.
  */
 
 import { useEffect, useState } from 'react';
@@ -16,6 +21,7 @@ import Link from 'next/link';
 import { Modal, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
+import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -87,17 +93,19 @@ interface MatchSummary {
 
 interface AuditEntry {
   id: string;
-  actorUserId: string;
+  actorUserId: string | null;
   /**
-   * Optional human-readable name resolved server-side (global_persons →
-   * given+family, or auth.users → display_name/email). When present
-   * the FE renders this in place of the raw UUID.
+   * Human-readable name resolved server-side. Name only on this surface —
+   * the organiser-scoped endpoint deliberately never returns a reviewer's email.
    */
   actorDisplayName?: string | null;
   action: string;
   entityType: string;
   entityId: string;
-  payloadJson: Record<string, unknown>;
+  entityLabel?: string | null;
+  payloadJson: unknown;
+  /** RFC 6901 JSON Pointer into payloadJson → label for the id at that spot. */
+  payloadLabels?: Record<string, PayloadLabel>;
   createdAt: string;
 }
 
@@ -166,6 +174,7 @@ export default function MatchDetailPage() {
   const [summary, setSummary] = useState<MatchSummary | null>(null);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pendingNotice, setPendingNotice] = useState<string | null>(null);
@@ -198,7 +207,7 @@ export default function MatchDetailPage() {
         credentials: 'include',
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/audit-log?entityType=exchange&matchId=${matchId}&limit=50`, {
+      fetch(`${apiUrl}/api/v1/matches/${matchId}/audit-log?limit=50`, {
         credentials: 'include',
         signal: controller.signal,
       }),
@@ -208,7 +217,14 @@ export default function MatchDetailPage() {
         if (matchRes.ok) setMatch((await matchRes.json()) as Match);
         if (summaryRes.ok) setSummary((await summaryRes.json()) as MatchSummary);
         if (exRes.ok) setExchanges((await exRes.json()) as Exchange[]);
-        if (auditRes.ok) setAuditLog((await auditRes.json()) as AuditEntry[]);
+        // Distinguish "no audit rows" from "the audit read failed" — a silent
+        // `if (ok)` here is how this section stayed permanently empty unnoticed.
+        if (auditRes.ok) {
+          setAuditLog((await auditRes.json()) as AuditEntry[]);
+          setAuditError(null);
+        } else {
+          setAuditError(t('organizer.matchDetail.auditLoadError'));
+        }
       })
       .catch((err: unknown) => {
         setLoading(false);
@@ -216,7 +232,9 @@ export default function MatchDetailPage() {
       });
 
     return () => controller.abort();
-  }, [matchId, apiUrl, refreshKey]);
+    // `t` is memoized per locale by I18nProvider, so it only re-runs on a
+    // locale switch — which is when the audit error string should change anyway.
+  }, [matchId, apiUrl, refreshKey, t]);
 
   // ── Void exchange ─────────────────────────────────────────────────────────────
 
@@ -632,7 +650,9 @@ export default function MatchDetailPage() {
             {t('organizer.matchDetail.auditHeading')}
           </h2>
 
-          {auditLog.length === 0 ? (
+          {auditError ? (
+            <p className="text-danger text-sm">{auditError}</p>
+          ) : auditLog.length === 0 ? (
             <p className="text-muted text-sm">{t('organizer.matchDetail.noAudit')}</p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -651,16 +671,13 @@ export default function MatchDetailPage() {
                     <span className="font-medium text-foreground-secondary">
                       {entry.actorDisplayName ?? '—'}
                     </span>
+                    {entry.entityLabel && (
+                      <span className="text-muted">{` · ${entry.entityLabel}`}</span>
+                    )}
                   </p>
-                  {entry.payloadJson && Object.keys(entry.payloadJson).length > 0 && (
-                    <div className="mt-1 text-muted">
-                      {Object.entries(entry.payloadJson).map(([k, v]) => (
-                        <span key={k} className="mr-2">
-                          {k}: <em>{String(v)}</em>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="mt-1">
+                    <PayloadCell payload={entry.payloadJson} labels={entry.payloadLabels ?? {}} />
+                  </div>
                 </div>
               ))}
             </div>

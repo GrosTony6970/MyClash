@@ -720,13 +720,13 @@ export class MatchesService {
   ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')
-      .select('id, match_id, voided')
+      .select('id, match_id, voided, sequence')
       .eq('id', exchangeId)
       .maybeSingle();
 
     if (fetchError || !exchange) throw new NotFoundException(`Exchange ${exchangeId} not found`);
 
-    const ex = exchange as { id: string; match_id: string; voided: boolean };
+    const ex = exchange as { id: string; match_id: string; voided: boolean; sequence?: number };
     if (ex.voided) {
       throw new BadRequestException('Exchange is already voided');
     }
@@ -755,6 +755,8 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
 
+    await this.writeExchangeAudit('exchange.voided', ex, context, { reason: dto.reason ?? null });
+
     // Recompute authoritative match score
     await this.scoring.recomputeMatchScore(ex.match_id);
 
@@ -772,13 +774,13 @@ export class MatchesService {
   ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')
-      .select('id, match_id, voided')
+      .select('id, match_id, voided, sequence')
       .eq('id', exchangeId)
       .maybeSingle();
 
     if (fetchError || !exchange) throw new NotFoundException(`Exchange ${exchangeId} not found`);
 
-    const ex = exchange as { id: string; match_id: string; voided: boolean };
+    const ex = exchange as { id: string; match_id: string; voided: boolean; sequence?: number };
     if (!ex.voided) {
       throw new BadRequestException('Exchange is not voided');
     }
@@ -804,10 +806,47 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
 
+    await this.writeExchangeAudit('exchange.void_reverted', ex, context, {});
+
     // Recompute authoritative match score
     await this.scoring.recomputeMatchScore(ex.match_id);
 
     return data;
+  }
+
+  /**
+   * Record an exchange edit in the audit log.
+   *
+   * Voiding an exchange changes a published score, so it belongs in the record —
+   * but until now only the FROZEN path (exchange_edit_request) wrote anything,
+   * leaving every edit on a live event untraceable.
+   *
+   * A staff account is not an auth user, so `actor_user_id` stays NULL and the
+   * staff id rides in the payload rather than being coerced into the UUID column.
+   * The write is best-effort: an audit failure must never fail a scoring mutation.
+   */
+  private async writeExchangeAudit(
+    action: 'exchange.voided' | 'exchange.void_reverted',
+    exchange: { id: string; match_id: string; sequence?: number },
+    context: { userId?: string; staffAccountId?: string } | undefined,
+    extra: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.supabase.service.from('audit_log').insert({
+        actor_user_id: context?.userId ?? null,
+        action,
+        entity_type: 'exchange',
+        entity_id: exchange.id,
+        payload_json: {
+          match_id: exchange.match_id,
+          sequence: exchange.sequence ?? null,
+          staffAccountId: context?.staffAccountId ?? null,
+          ...extra,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(`Could not write ${action} audit row: ${String(error)}`);
+    }
   }
 
   async approveFrozenExchangeEdit(
