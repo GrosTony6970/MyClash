@@ -10,6 +10,7 @@ import {
 } from '../../../new/_wizard/buildTfFromRow';
 import { TfRulesetControls } from '../../../_shared/TfRulesetControls';
 import { useCustomiseFormat } from '../../../_shared/useCustomiseFormat';
+import { isCodedRuleset } from '../../../../../../../../../src/components/rulesets/ruleset-kind';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -47,7 +48,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
 
   // Show the TF controls for the built-in TF_v1 AND for a fork of it (whose
   // code is no longer 'TF_v1' but whose base_code still is).
-  const tfLike = rulesetCode === 'TF_v1' || baseCode === 'TF_v1';
+  const tfLike = isCodedRuleset(rulesetCode, baseCode);
 
   async function save() {
     setSaving(true);

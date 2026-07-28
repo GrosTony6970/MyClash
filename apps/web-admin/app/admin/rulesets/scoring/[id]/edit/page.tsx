@@ -25,6 +25,7 @@ import {
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
+import { codedRulesetTfConfig } from '../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type TfConfigOverride = NonNullable<RulesetRowLike['tf_config']>;
@@ -280,20 +281,7 @@ export default function EditRulesetPage() {
                           description: data.description,
                           version: data.version,
                           ...(initial.baseCode ? { targets: data.targets } : {}),
-                          tfConfig: {
-                            winBonus: data.tfV1Internals?.winBonus,
-                            // Named targets are the source of truth in the
-                            // editor. Mirror the first two into the legacy
-                            // deep/shallow pair TF_v1 scoring reads today, and
-                            // persist the full list for the Phase-2 engine.
-                            targets: data.targets,
-                            targetValues: {
-                              deepTarget: data.targets[0]?.value,
-                              shallowTarget: data.targets[1]?.value,
-                            },
-                            matchFormat: data.matchFormatDefaults,
-                            doublePenaltyFormula: data.doublePenaltyFormula || undefined,
-                          },
+                          tfConfig: codedRulesetTfConfig(data),
                         }
                       : data;
                     const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}`, {

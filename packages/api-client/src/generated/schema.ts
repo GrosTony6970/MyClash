@@ -1215,6 +1215,23 @@ export interface paths {
     patch: operations['OrgCustomRulesetsController_update'];
     trace?: never;
   };
+  '/api/v1/organizations/{orgId}/custom-rulesets/fork': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fork a built-in coded scoring ruleset into an org-owned copy that reuses its engine (org-level "Customise this format"). */
+    post: operations['OrgCustomRulesetsController_fork'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/organizations/{orgId}/custom-rulesets/validate': {
     parameters: {
       query?: never;
@@ -8922,6 +8939,26 @@ export interface components {
     RejectSubmissionDto: {
       reason: string;
     };
+    ForkCustomRulesetDto: {
+      baseCode: string;
+      baseVersion?: string;
+      name: string;
+      description?: string;
+      version?: string;
+      tfConfig?: {
+        [key: string]: unknown;
+      };
+      targets?: {
+        name: string;
+        value: number;
+      }[];
+      hasAfterblow?: boolean;
+      /** @enum {string} */
+      afterblowMode?: 'full' | 'deductive';
+      /** @enum {string} */
+      afterblowValuation?: 'fixed' | 'weighted';
+      afterblowFixedValue?: number;
+    };
     RulesetImportDto: {
       /** @enum {string} */
       format: 'myclash.ruleset';
@@ -12231,6 +12268,29 @@ export interface operations {
     };
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrgCustomRulesetsController_fork: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ForkCustomRulesetDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

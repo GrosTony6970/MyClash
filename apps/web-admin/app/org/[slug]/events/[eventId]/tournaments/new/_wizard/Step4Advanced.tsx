@@ -7,6 +7,7 @@ import { buildTfFromRow, type RulesetConfigTF, TF_DEFAULTS } from './buildTfFrom
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 import { TfRulesetControls } from '../../_shared/TfRulesetControls';
 import { useCustomiseFormat } from '../../_shared/useCustomiseFormat';
+import { isCodedRuleset } from '../../../../../../../../src/components/rulesets/ruleset-kind';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -53,7 +54,9 @@ export function Step4Advanced({
   }, [load]);
 
   const { customise, customising, confirmDialog } = useCustomiseFormat(tournamentId, load);
-  const tfLike = rulesetCode === 'TF_v1' || baseCode === 'TF_v1';
+  // The built-in TF_v1 or a fork of it — one shared predicate so the literal
+  // does not drift across the wizard and the ruleset authoring surfaces.
+  const tfLike = isCodedRuleset(rulesetCode, baseCode);
 
   async function saveAndFinish() {
     setSaving(true);

@@ -59,4 +59,41 @@ describe('OrgCustomRulesetsController authorization', () => {
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'anonymous', 'admin');
     expect(service.listForOrg).not.toHaveBeenCalled();
   });
+
+  it('gates the fork route on org admin before creating anything', async () => {
+    // Forking writes an org-owned row, so it must not be reachable by a
+    // non-admin — the same bar as create/update on this controller.
+    const service = { forkForOrg: vi.fn() };
+    const orgs = {
+      assertOrgRole: vi.fn().mockRejectedValue(new ForbiddenException('Not a member')),
+    };
+    const controller = new OrgCustomRulesetsController(
+      service as never,
+      orgs as never,
+      makeSupabase(null) as never,
+    );
+
+    await expect(
+      controller.fork('org-1', { baseCode: 'TF_v1', name: 'X' } as never, makeRequest() as never),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(service.forkForOrg).not.toHaveBeenCalled();
+  });
+
+  it('passes the resolved caller through to forkForOrg', async () => {
+    const service = { forkForOrg: vi.fn().mockResolvedValue({ id: 'new-1' }) };
+    const orgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
+    const controller = new OrgCustomRulesetsController(
+      service as never,
+      orgs as never,
+      makeSupabase('user-1') as never,
+    );
+    const dto = { baseCode: 'TF_v1', name: 'Our house rules' };
+
+    const result = await controller.fork('org-1', dto as never, makeRequest('jwt') as never);
+
+    expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    expect(service.forkForOrg).toHaveBeenCalledWith('org-1', dto, 'user-1');
+    expect(result).toEqual({ id: 'new-1' });
+  });
 });

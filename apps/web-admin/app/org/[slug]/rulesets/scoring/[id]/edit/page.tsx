@@ -26,6 +26,7 @@ import {
   type RulesetRowLike,
 } from '../../../../../../../src/components/rulesets/ruleset-form-initial';
 import { ForkLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
+import { codedRulesetTfConfig } from '../../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -269,16 +270,7 @@ export default function OrgEditScoringRulesetPage() {
                         description: data.description,
                         version: data.version,
                         targets: data.targets,
-                        tfConfig: {
-                          winBonus: data.tfV1Internals?.winBonus,
-                          targets: data.targets,
-                          targetValues: {
-                            deepTarget: data.targets[0]?.value,
-                            shallowTarget: data.targets[1]?.value,
-                          },
-                          matchFormat: data.matchFormatDefaults,
-                          doublePenaltyFormula: data.doublePenaltyFormula || undefined,
-                        },
+                        tfConfig: codedRulesetTfConfig(data),
                       }
                     : data;
                   const res = await fetch(

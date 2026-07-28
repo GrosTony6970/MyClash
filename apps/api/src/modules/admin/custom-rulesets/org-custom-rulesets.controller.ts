@@ -16,6 +16,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import {
   CreateCustomRulesetDto,
+  ForkCustomRulesetDto,
   UpdateCustomRulesetDto,
   ValidateRulesetDto,
 } from './dto/custom-rulesets.dto';
@@ -97,6 +98,21 @@ export class OrgCustomRulesetsController {
     const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     return this.service.createForOrg(orgId, dto, userId);
+  }
+
+  @Post('fork')
+  @ApiOperation({
+    summary:
+      'Fork a built-in coded scoring ruleset into an org-owned copy that reuses its engine (org-level "Customise this format").',
+  })
+  async fork(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() dto: ForkCustomRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.assertOrgAdmin(orgId, userId);
+    return this.service.forkForOrg(orgId, dto, userId);
   }
 
   @Post('validate')

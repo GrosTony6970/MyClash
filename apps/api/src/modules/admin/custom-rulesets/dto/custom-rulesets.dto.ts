@@ -91,6 +91,34 @@ const updateCustomRulesetSchema = z
   .strict();
 export class UpdateCustomRulesetDto extends createZodDto(updateCustomRulesetSchema) {}
 
+/**
+ * Fork a BUILT-IN coded ruleset into a new org-owned row ("adopt"/"clone" of
+ * something whose maths lives in code). Deliberately its own schema rather than
+ * optional fields on `createCustomRulesetSchema`: that one is shared by the
+ * super-admin create and by `importForOrg`, and loosening its required
+ * `scoreFormula` would weaken both — while a `baseCode` posted to the
+ * super-admin create route would be silently dropped.
+ *
+ * There is no `scoreFormula`/`constants`/`tiebreakers` here by construction: a
+ * coded fork reuses `baseCode`'s engine, and the resolver short-circuits to it.
+ * `tfConfig` carries the engine's tunables (winBonus, targetValues, matchFormat)
+ * and is validated against TFv1ConfigSchema.partial() service-side.
+ */
+const forkCustomRulesetSchema = z
+  .object({
+    // The built-in this fork reuses. `isSystemRuleset` re-checks it server-side,
+    // which is what stops an org forking another org's row.
+    baseCode: z.string().min(1).max(100),
+    baseVersion: z.string().max(50).optional(),
+    name: z.string().min(2).max(100),
+    description: z.string().max(1000).optional(),
+    version: z.string().max(50).optional(),
+    tfConfig: z.record(z.string(), z.unknown()).optional(),
+    ...rulesetGrammarShape,
+  })
+  .strict();
+export class ForkCustomRulesetDto extends createZodDto(forkCustomRulesetSchema) {}
+
 const customRulesetStatusSchema = z
   .object({
     status: z.enum(['draft', 'published', 'archived']),

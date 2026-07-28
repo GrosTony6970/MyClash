@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
 import type {
+  BucketDiff,
   DoublePenaltySpec,
   FormulaConstants,
   FormulaNode,
@@ -23,6 +24,12 @@ import {
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
 import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../../src/components/rulesets/AfterblowGrammarEditor';
+import {
+  cloneCodedBase,
+  type CodedCloneBase,
+} from '../../../../../../src/components/rulesets/clone-source';
+import { codedRulesetTfConfig } from '../../../../../../src/components/rulesets/coded-ruleset-body';
+import { ForkLineagePanel } from '../../../../../../src/components/rulesets/LineageLamps';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -46,8 +53,10 @@ const BLANK_INITIAL: RulesetFormValue = {
 interface OrgRulesetCatalogRow {
   id: string;
   code: string;
+  version: string;
   name: string;
   description: string | null;
+  is_system: boolean;
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[] | null;
@@ -58,9 +67,17 @@ interface OrgRulesetCatalogRow {
   afterblow_mode: 'full' | 'deductive' | null;
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
+  /** Set on a coded fork. Load-bearing here: without it `rulesetFormInitial`
+   *  reads the FLAT columns, which are null on a fork, and the clone silently
+   *  seeds from the generic 5/180 defaults instead of the fork's tf_config. */
+  base_code: string | null;
+  base_version: string | null;
   /** TF v1's canonical match-format store — without it a TF v1 clone
    *  would silently seed from the generic 5/180 defaults. */
   tf_config: RulesetRowLike['tf_config'];
+  /** Server-computed lineage of the SOURCE vs its base, surfaced so the
+   *  operator can see what they are copying. Never derived client-side. */
+  lineage: { base: string; diff: BucketDiff } | null;
 }
 
 /** Build a fresh-create form value from a ruleset being cloned: copy the
@@ -109,6 +126,15 @@ export default function OrgNewScoringRulesetPage() {
   // Wait for the clone source before rendering the form so RulesetForm seeds
   // from the cloned values (it reads `initial` once, on mount).
   const [cloneLoading, setCloneLoading] = useState<boolean>(Boolean(cloneFrom));
+  // Set when the source's maths lives in code (the built-in, or a fork of it):
+  // the copy stays coded, so the form shows the dials instead of an empty
+  // formula editor and the submit goes to the fork endpoint. Set in the same
+  // batch as `initial`, which is safe because rendering is gated on
+  // `cloneLoading` and RulesetForm reads `initial` once, on mount.
+  const [codedBase, setCodedBase] = useState<CodedCloneBase | null>(null);
+  const [sourceLineage, setSourceLineage] = useState<{ base: string; diff: BucketDiff } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!params.slug) return;
@@ -136,7 +162,10 @@ export default function OrgNewScoringRulesetPage() {
       .then((rows: OrgRulesetCatalogRow[]) => {
         if (cancelled) return;
         const src = rows.find((r) => r.id === cloneFrom);
-        if (src) setInitial(cloneInitial(src));
+        if (!src) return;
+        setInitial(cloneInitial(src));
+        setCodedBase(cloneCodedBase(src));
+        setSourceLineage(src.lineage);
       })
       .finally(() => {
         if (!cancelled) setCloneLoading(false);
@@ -167,39 +196,66 @@ export default function OrgNewScoringRulesetPage() {
       {cloneLoading ? (
         <p className="text-sm text-muted">{t('admin.rulesets.loading')}</p>
       ) : (
-        <RulesetForm
-          initial={initial}
-          validateUrl={
-            orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
-          }
-          busy={busy || !orgId}
-          submitLabel={t('admin.rulesets.createButton')}
-          onSubmit={(data) =>
-            void (async () => {
-              if (!orgId) return;
-              setBusy(true);
-              setError(null);
-              try {
-                const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets`, {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
-                });
-                if (!res.ok) {
-                  const body = (await res.json().catch(() => ({}))) as { message?: string };
-                  throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
+        <>
+          {sourceLineage && (
+            <div className="mb-6">
+              <ForkLineagePanel base={sourceLineage.base} diff={sourceLineage.diff} />
+            </div>
+          )}
+          <RulesetForm
+            initial={initial}
+            validateUrl={
+              orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
+            }
+            // Cloning something whose maths is CODE keeps it coded: show the
+            // dials, not an empty formula editor. `code` stays unset — the new
+            // row's code is generated server-side.
+            baseCode={codedBase?.baseCode ?? null}
+            busy={busy || !orgId}
+            submitLabel={t('admin.rulesets.createButton')}
+            onSubmit={(data) =>
+              void (async () => {
+                if (!orgId) return;
+                setBusy(true);
+                setError(null);
+                try {
+                  // A coded copy goes to the fork endpoint (which reuses the
+                  // base's engine and stores the dials in tf_config); a formula
+                  // ruleset posts the flat shape to plain create, as before.
+                  const base = `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets`;
+                  const url = codedBase ? `${base}/fork` : base;
+                  const body = codedBase
+                    ? {
+                        baseCode: codedBase.baseCode,
+                        baseVersion: codedBase.baseVersion,
+                        name: data.name,
+                        description: data.description,
+                        version: data.version,
+                        targets: data.targets,
+                        tfConfig: codedRulesetTfConfig(data),
+                      }
+                    : data;
+                  const res = await fetch(url, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                  });
+                  if (!res.ok) {
+                    const failure = (await res.json().catch(() => ({}))) as { message?: string };
+                    throw new Error(failure.message ?? t('admin.rulesets.actionFailed'));
+                  }
+                  const created = (await res.json()) as { id: string };
+                  router.push(`/org/${slugForLink}/rulesets/scoring/${created.id}/edit`);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                  setBusy(false);
                 }
-                const created = (await res.json()) as { id: string };
-                router.push(`/org/${slugForLink}/rulesets/scoring/${created.id}/edit`);
-              } catch (err) {
-                setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
-                setBusy(false);
-              }
-            })()
-          }
-          onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
-        />
+              })()
+            }
+            onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
+          />
+        </>
       )}
     </main>
   );

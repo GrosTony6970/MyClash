@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isCodedRuleset, rulesetFormInitial } from './ruleset-form-initial';
+import { DEFAULT_TF_V1_INTERNALS } from './RulesetForm';
 
 const TF_MATCH_FORMAT = {
   pointCap: 10,
@@ -95,6 +96,34 @@ describe('rulesetFormInitial', () => {
     expect(out.tfV1Internals).toEqual({ winBonus: 5, deepTarget: 3, shallowTarget: 2 });
     expect(out.matchFormatDefaults.pointCap).toBe(10);
     expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
+  });
+
+  it('does NOT fall back to the generic defaults when a fork row keeps base_code', () => {
+    // Regression: the clone/adopt page used to strip base_code from its local
+    // row shape, so this same row hydrated as a formula ruleset — reading the
+    // (null) flat columns and silently replacing the fork's real configuration
+    // with the generic 5/180 defaults. The loss was invisible until a
+    // tournament scored by the copy.
+    const forkRow = {
+      code: 'custom_tf_v1_fork_abc',
+      base_code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: {
+        winBonus: 5,
+        targetValues: { deepTarget: 3, shallowTarget: 2 },
+        matchFormat: TF_MATCH_FORMAT,
+      },
+    };
+
+    const withBase = rulesetFormInitial(forkRow);
+    const withoutBase = rulesetFormInitial({ ...forkRow, base_code: null });
+
+    expect(withBase.matchFormatDefaults.pointCap).toBe(10);
+    expect(withBase.tfV1Internals.winBonus).toBe(5);
+    // The shape the bug produced, pinned so the regression is legible.
+    expect(withoutBase.matchFormatDefaults.pointCap).toBe(5);
+    expect(withoutBase.tfV1Internals).toEqual(DEFAULT_TF_V1_INTERNALS);
   });
 });
 
