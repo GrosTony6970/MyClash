@@ -1,4 +1,13 @@
 import type { APIRequestContext, APIResponse } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+
+/**
+ * Points needed to win a match. Set on every tournament this module creates, so
+ * the engine's `first_to_points` completion is what ends each bracket match.
+ * 5 is a realistic HEMA cap and keeps the exchange count (and so the request
+ * count) low — a 10-cap would roughly double both.
+ */
+export const POINT_CAP = 5;
 
 /**
  * Helpers for building and playing a bracket phase end-to-end over the real API.
@@ -12,11 +21,16 @@ import type { APIRequestContext, APIResponse } from '@playwright/test';
  * stalls permanently (see `apps/api/src/modules/phases/bracket-refs.ts`). Only a
  * real playthrough against real rows catches that.
  *
- * Two API facts make this cheap enough to do for real:
- *   - `PATCH /matches/:id/status` has no guards — no clock, no exchanges, no score
- *     validation. One request completes a match and fires advancement.
- *   - `populateBracket` seeds straight from registrations when the tournament has
- *     no pool phase, so a bracket test needs no pools and no pool matches.
+ * Matches are played the way a scorekeeper actually plays them: clean exchanges
+ * are posted until one side reaches the point cap, and the ruleset engine
+ * completes the match and decides the winner. An earlier version declared the
+ * winner with `PATCH /matches/:id/status` — which is faster, but tests a door no
+ * real user opens: no frontend calls that endpoint, and completing a match
+ * through it was the ONLY non-forfeit path that advanced a bracket. Driving the
+ * real path is what proves the pad's own completion advances anything.
+ *
+ * `populateBracket` seeds straight from registrations when the tournament has no
+ * pool phase, so a bracket test needs no pools and no pool matches.
  *
  * Deliberately NOT built on `07-populate-event.spec.ts`'s helpers: those are
  * entangled with clock / exchange / penalty / live-demo concerns this spec does
@@ -135,7 +149,16 @@ export async function createBracketTournament(
 ): Promise<BracketTournament> {
   const tournament = await api.json<{ id: string }>(
     await api.post(`events/${eventId}/tournaments`, {
-      data: { name: opts.name, slug: opts.slug, weapon: 'longsword', color: 'red' },
+      data: {
+        name: opts.name,
+        slug: opts.slug,
+        weapon: 'longsword',
+        color: 'red',
+        // Pin the point cap so `scoreMatch` knows exactly how many points end a
+        // match. Without it the default (10) applies and the arithmetic below
+        // would overshoot or never trip completion.
+        rulesetConfig: { matchFormat: { pointCap: POINT_CAP } },
+      },
     }),
   );
 
@@ -164,6 +187,8 @@ export interface BracketSlot {
   winnerRegistrationId: string | null;
   redRegistrationId: string | null;
   blueRegistrationId: string | null;
+  redScore: number | null;
+  blueScore: number | null;
   source_a_ref: string | null;
   source_b_ref: string | null;
 }
@@ -285,6 +310,65 @@ async function settle(api: Api, tournamentId: string, tries = 12, delayMs = 500)
   return bracket;
 }
 
+/** Point values summing to `total`, as 2s then a 1 — the fewest requests. */
+function hitValues(total: number): number[] {
+  const values: number[] = [];
+  let left = total;
+  while (left >= 2) {
+    values.push(2);
+    left -= 2;
+  }
+  if (left === 1) values.push(1);
+  return values;
+}
+
+/**
+ * Play one match to completion the way the pad does: post clean exchanges until
+ * `winnerColor` reaches the point cap, and let the ruleset engine complete the
+ * match and set the winner.
+ *
+ * The loser scores FIRST and deliberately stops two points short. Two reasons:
+ * the winner's final hit must be what trips `first_to_points`, and both sides
+ * must never sit at the cap together — `pointCapWinnerColor` returns null in
+ * that case, which would complete the match with NO winner, and a bracket slot
+ * with no winner can never advance.
+ *
+ * Clean hits only, no doubles and no afterblows: the score arithmetic has to be
+ * exact to land on the cap, and a double cap breach would end the match 0-0 with
+ * a null winner. Afterblow netting is thoroughly unit-tested elsewhere; what is
+ * being proved here is completion + advancement.
+ */
+export async function scoreMatch(
+  api: Api,
+  matchId: string,
+  winnerColor: 'red' | 'blue',
+  pointCap: number = POINT_CAP,
+): Promise<void> {
+  const loserColor = winnerColor === 'red' ? 'blue' : 'red';
+  let sequence = 1;
+  let clockMs = 4_000;
+
+  const hit = async (color: 'red' | 'blue', value: number) => {
+    await api.ok(
+      await api.post(`matches/${matchId}/exchanges`, {
+        data: {
+          clientUuid: randomUUID(),
+          sequence: sequence++,
+          type: 'clean',
+          occurredAt: new Date().toISOString(),
+          clockTimeMs: clockMs,
+          firstStrikerColor: color,
+          firstStrikeValue: value,
+        },
+      }),
+    );
+    clockMs += 15_000;
+  };
+
+  for (const value of hitValues(Math.max(0, pointCap - 2))) await hit(loserColor, value);
+  for (const value of hitValues(pointCap)) await hit(winnerColor, value);
+}
+
 export interface PlayResult {
   /** Matches actually completed by this driver. */
   played: number;
@@ -343,11 +427,11 @@ export async function playDoubleElim(
     const ready = playableSlots(bracket);
     if (ready.length === 0) break;
     for (const slot of ready) {
-      await api.ok(
-        await api.patch(`matches/${slot.matchId}/status`, {
-          data: { status: 'completed', winnerRegistrationId: winnerOf(slot) },
-        }),
-      );
+      // Red is side A of the slot, so the intended winner's colour follows from
+      // which registration it is. The ENGINE then derives the winner from the
+      // score — this driver never declares one.
+      const winnerColor = winnerOf(slot) === slot.redRegistrationId ? 'red' : 'blue';
+      await scoreMatch(api, slot.matchId as string, winnerColor);
       played++;
     }
     bracket = await settle(api, tournamentId);

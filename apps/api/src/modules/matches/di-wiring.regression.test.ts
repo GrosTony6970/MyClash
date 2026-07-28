@@ -45,4 +45,49 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
     const src = read('./match-forfeits.service.ts');
     notTypeOnly(src, 'BracketAdvanceService');
   });
+
+  it('scoring.service value-imports BracketAdvanceService', () => {
+    const src = read('./scoring.service.ts');
+    notTypeOnly(src, 'BracketAdvanceService');
+  });
+
+  it('clock.service value-imports BracketAdvanceService', () => {
+    const src = read('./clock.service.ts');
+    notTypeOnly(src, 'BracketAdvanceService');
+  });
+});
+
+/**
+ * Every path that completes a match must advance the bracket.
+ *
+ * This was violated for both paths a real scorekeeper uses. The pad never calls
+ * `PATCH /matches/:id/status` — it posts exchanges and drives the clock — so a
+ * bracket match that hit the point cap, or whose clock was ended, completed
+ * without ever advancing its winner. The only wired paths were that endpoint
+ * (used exclusively by the e2e specs) and forfeits, which is why nothing caught
+ * it: no bracket had yet been played through the pad.
+ *
+ * Asserted against source text because these are `void`/`await` calls on an
+ * @Optional() dependency — there is no type-level signal, and a missing call is
+ * silent by construction.
+ */
+describe('every match-completion path advances the bracket', () => {
+  const completesAndAdvances = (rel: string, label: string) => {
+    const src = read(rel);
+    // Non-vacuity: this file really is a completion path. Assignment styles
+    // differ (`status: 'completed'` vs `updates['status'] = dto.status`), so
+    // match the literal rather than one spelling of the write.
+    expect(src, `${label} should reference match completion`).toMatch(/'completed'/);
+    expect(src, `${label} must call onMatchCompleted after completing a match`).toMatch(
+      /bracketAdvance\??\.\s*onMatchCompleted/,
+    );
+  };
+
+  it('matches.service (PATCH /status)', () =>
+    completesAndAdvances('./matches.service.ts', 'updateStatus'));
+  it('match-forfeits.service (forfeit)', () =>
+    completesAndAdvances('./match-forfeits.service.ts', 'forfeit'));
+  it('scoring.service (point cap / double cap)', () =>
+    completesAndAdvances('./scoring.service.ts', 'scoring auto-complete'));
+  it('clock.service (clock end)', () => completesAndAdvances('./clock.service.ts', 'clock end'));
 });

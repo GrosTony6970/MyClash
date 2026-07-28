@@ -119,7 +119,7 @@ forever (Slice 1 shipped exactly that bug). The in-memory harness
 mismatches but re-implements propagation itself, so it never exercises the
 persistence and advancement paths this spec does.
 
-Four scenarios, ~67 matches, ~5 min:
+Five scenarios, ~78 matches:
 
 | Scenario                              | Field | What only it proves                                                                                                    |
 | ------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -127,12 +127,25 @@ Four scenarios, ~67 matches, ~5 min:
 | B. reset skipped                      | 8     | `grandFinalEndsBracket` leaves the reset unplayed, and the tournament still ranks (the empty-ranking trap)             |
 | C. bronze mode                        | 8     | No grand final at all; truncated ladder ends on a real bronze match                                                    |
 | D. repechage cutoff (last 8)          | 16    | Re-indexed losers bracket; winners-round-1 losers are out on a single loss and never enter it                          |
+| E. bronze mode, no bronze match       | 8     | Ladder truncated one round further; two survivors take distinct 3rd/4th without ever meeting                           |
 
 Each scenario builds its own tournament in the throwaway event with **no pools** —
 `populateBracket` then seeds straight from registration seeds, so the draw is
 deterministic (the lower seed always wins, so seed 1 is always champion) and no
-pool matches have to be played. Matches are completed with a single
-`PATCH /matches/:id/status`; no clock, no exchanges, no scoring realism.
+pool matches have to be played.
+
+Matches are played the way the **pad** plays them: clean exchanges until one side
+reaches the point cap (pinned to 5 per tournament), with the ruleset engine
+completing the match and choosing the winner. The spec asserts that every
+completed slot has a winner whose score sits exactly on the cap — proof the
+engine ended it, not the test.
+
+> This matters more than realism. An earlier version declared winners with
+> `PATCH /matches/:id/status`, which **no frontend calls**: web-scoring posts
+> exchanges and drives the clock. For a while that endpoint and forfeits were the
+> only paths wired to `BracketAdvanceService`, so a bracket scored on the pad
+> never advanced at all. Testing through the endpoint hid it; scoring for real is
+> what covers the path an organizer actually uses.
 
 The driver (`_bracket.ts`) is a **fixed-point loop**, not a round walk: in double
 elim a losers slot's readiness depends on a winners round it doesn't follow

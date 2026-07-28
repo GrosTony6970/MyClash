@@ -7,6 +7,7 @@ import {
   grandFinalRound,
   personName,
   playDoubleElim,
+  POINT_CAP,
   readBracket,
   resetRound,
   type Api,
@@ -39,7 +40,14 @@ import {
  *     whole tournament (checked on the final-ranking page in every scenario);
  *   - advancement being fire-and-forget, so the races are real.
  *
- * Four scenarios, chosen for structural distinctness rather than coverage of the
+ * Matches are played the way the pad plays them: clean exchanges until one side
+ * reaches the point cap, with the RULESET ENGINE completing the match and
+ * choosing the winner. This spec used to declare winners via
+ * `PATCH /matches/:id/status` — quick, but a door no frontend opens, and for a
+ * while the only non-forfeit path that advanced a bracket at all. Scoring for
+ * real is what makes the pad's own completion path covered here.
+ *
+ * Five scenarios, chosen for structural distinctness rather than coverage of the
  * option matrix (the generator unit tests own that). Expected slot/match counts
  * are HARDCODED from `totalDoubleElimMatches` so a drift shows up as a diff
  * rather than being silently recomputed from the value under test.
@@ -48,7 +56,7 @@ const DOUBLE_ELIM = ['1', 'true', 'yes'].includes(
   (process.env.E2E_DOUBLE_ELIM ?? '').toLowerCase(),
 );
 
-/** Enough fighters for the largest scenario; all four share this roster. */
+/** Enough fighters for the largest scenario; all five share this roster. */
 const ROSTER_SIZE = 16;
 
 interface Scenario {
@@ -138,6 +146,32 @@ test.describe('double elim', () => {
     },
   };
 
+  /**
+   * E. Bronze mode with NO bronze match: the ladder is truncated one round
+   * further, leaving TWO losers-bracket survivors who are ranked 3rd and 4th
+   * without ever meeting. They are separated by pool score, then by name —
+   * with no pool phase here, the name tiebreak is what decides, and the
+   * fighters' `Seed NN` names make that deterministic. Only reachable at K>=8.
+   */
+  const BRONZE_NO_MATCH: Scenario = {
+    key: 'bronze-no-match',
+    fighters: 8,
+    options: {
+      phaseType: 'double_elim',
+      qualifyCount: 8,
+      secondChanceTarget: 'bronze',
+      bronzeMatch: false,
+    },
+    expect: {
+      totalSlots: 11,
+      playedMatches: 11,
+      bracketSize: 8,
+      wbRounds: 3,
+      lbRounds: 2,
+      playInMatchCount: 0,
+    },
+  };
+
   /** D. Repechage cutoff: only the last 8 get a second chance. */
   const REPECHAGE: Scenario = {
     key: 'repechage-last-8',
@@ -176,6 +210,7 @@ test.describe('double elim', () => {
 
     const result = await playDoubleElim(api, tournament.id, { forceLbWinsGrandFinal: true });
     expectNoStall(result.stalled.length, result.stallReport);
+    expectEngineDecided(result.bracket);
     expect(result.played).toBe(PLAY_IN_RESET.expect.playedMatches);
 
     // The reset was created mid-tournament and played to a finish.
@@ -200,6 +235,7 @@ test.describe('double elim', () => {
 
     const result = await playDoubleElim(api, built.tournament.id);
     expectNoStall(result.stalled.length, result.stallReport);
+    expectEngineDecided(result.bracket);
     expect(result.played).toBe(RESET_SKIPPED.expect.playedMatches);
 
     // Everything is played EXCEPT the reset, which stays unplayed and matchless.
@@ -234,10 +270,47 @@ test.describe('double elim', () => {
 
     const result = await playDoubleElim(api, built.tournament.id);
     expectNoStall(result.stalled.length, result.stallReport);
+    expectEngineDecided(result.bracket);
     expect(result.played).toBe(BRONZE.expect.playedMatches);
     expect(result.bracket.slots.filter((s) => s.status !== 'completed')).toEqual([]);
 
     await expectChampionIsTopSeed(page, built, result.championRegistrationId);
+  });
+
+  test('E. bronze mode without a bronze match ranks two survivors 3rd and 4th', async ({
+    request,
+    page,
+  }) => {
+    test.setTimeout(600_000);
+    const api = apiFor(request);
+    const built = await build(api, BRONZE_NO_MATCH);
+    const { generated } = built;
+
+    expect(generated.secondChanceTarget).toBe('bronze');
+    expect(generated.bronzeMatch).toBe(false);
+    expect(grandFinalRound(generated)).toBeNull();
+    // One round shorter than scenario C: the final losers round has TWO slots,
+    // and their winners never meet — that is what makes this shape distinct.
+    const lastRound = generated.wbRounds! + generated.lbRounds!;
+    expect(generated.slots.filter((s) => s.round === lastRound)).toHaveLength(2);
+
+    const result = await playDoubleElim(api, built.tournament.id);
+    expectNoStall(result.stalled.length, result.stallReport);
+    expectEngineDecided(result.bracket);
+    expect(result.played).toBe(BRONZE_NO_MATCH.expect.playedMatches);
+
+    // Two unbeaten repechage survivors, ranked 3rd and 4th without a playoff.
+    const survivors = result.bracket.slots
+      .filter((s) => s.round === lastRound)
+      .map((s) => s.winnerRegistrationId);
+    expect(survivors.filter(Boolean)).toHaveLength(2);
+    expect(new Set(survivors).size).toBe(2);
+
+    // The ranking must give them DISTINCT places (never a shared bronze) —
+    // the whole reason this mode ranks by pool score then name.
+    await expectChampionIsTopSeed(page, built, result.championRegistrationId);
+    const places = await rankedPlaces(page);
+    expect(places.slice(0, 4)).toEqual(['1', '2', '3', '4']);
   });
 
   test('D. repechage cutoff eliminates pre-cutoff losers on a single loss', async ({
@@ -255,6 +328,7 @@ test.describe('double elim', () => {
 
     const result = await playDoubleElim(api, built.tournament.id);
     expectNoStall(result.stalled.length, result.stallReport);
+    expectEngineDecided(result.bracket);
     expect(result.played).toBe(REPECHAGE.expect.playedMatches);
 
     // The cutoff's entire purpose: losing winners-round 1 is elimination, so
@@ -349,6 +423,36 @@ async function build(api: Api, scenario: Scenario): Promise<Built> {
 /** Fail with the ref strings that never resolved, not just a count. */
 function expectNoStall(stalledCount: number, report: string): void {
   expect(stalledCount, report).toBe(0);
+}
+
+/**
+ * Every completed match was ended and decided by the RULESET ENGINE, not by the
+ * test.
+ *
+ * The driver only posts exchanges; it never declares a winner. So a winner on
+ * the slot, with the winning side sitting exactly on the point cap, is proof
+ * that `scoring.service` hit `first_to_points`, wrote the score back, completed
+ * the match and picked the winner. Before the engine-driven rewrite the spec
+ * asserted none of this — it declared winners through `PATCH /status`, an
+ * endpoint no frontend calls.
+ */
+function expectEngineDecided(bracket: Bracket): void {
+  for (const slot of bracket.slots.filter((s) => s.status === 'completed')) {
+    const where = `R${slot.round}P${slot.position}`;
+    expect(slot.winnerRegistrationId, `${where} completed without a winner`).not.toBeNull();
+    const winningScore =
+      slot.winnerRegistrationId === slot.redRegistrationId ? slot.redScore : slot.blueScore;
+    const losingScore =
+      slot.winnerRegistrationId === slot.redRegistrationId ? slot.blueScore : slot.redScore;
+    expect(winningScore, `${where} winner should sit on the point cap`).toBe(POINT_CAP);
+    expect(losingScore, `${where} loser should be below the cap`).toBeLessThan(POINT_CAP);
+  }
+}
+
+/** Place numbers from the final-ranking table, in row order (medals stripped). */
+async function rankedPlaces(page: Page): Promise<string[]> {
+  const texts = await page.locator('table tbody tr td:first-child').allTextContents();
+  return texts.map((t) => t.replace(/\D/g, ''));
 }
 
 /**

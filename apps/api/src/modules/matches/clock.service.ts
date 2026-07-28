@@ -10,8 +10,16 @@
  * Active time = sum of (resume_at - start_at) intervals.
  * Current active time = sum of closed intervals + (now - last_start) if running.
  */
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type`: Nest needs the runtime class for DI metadata.
+import { BracketAdvanceService } from '../phases/bracket-advance.service';
 
 export type ClockAction =
   | 'start'
@@ -55,7 +63,11 @@ const VALID_TRANSITIONS: Record<string, ClockAction[]> = {
 export class ClockService {
   private readonly logger = new Logger(ClockService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    /** Optional so tests and non-Phases consumers still construct. */
+    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+  ) {}
 
   // ── Get clock state ───────────────────────────────────────────────────────
 
@@ -166,6 +178,12 @@ export class ClockService {
           ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
         })
         .eq('id', matchId);
+      // Ending the clock completes the match, so the bracket must advance here
+      // too — this and the point-cap path in ScoringService are the only ways a
+      // pad-scored match ever finishes. Note this update sets no winner: a
+      // match that ran out of time without one simply cannot advance, and
+      // onMatchCompleted correctly no-ops on a null winner_registration_id.
+      await this.bracketAdvance?.onMatchCompleted(matchId);
     } else if (action === 'reopen') {
       // Reverses a prior 'end': clock goes back to halted with the
       // accumulated active time preserved (computeClockState reads the
