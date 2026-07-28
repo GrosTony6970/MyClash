@@ -33,6 +33,12 @@ import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset
 import { resolveOrganizationNames } from '../../../common/organization-names';
 import { isSystemRuleset } from '../../events/ruleset-defaults';
 import {
+  describeForkLineage,
+  RULESET_LINEAGE_COLUMNS,
+  type LineageRow,
+  type RulesetLineage,
+} from '../../events/ruleset-lineage';
+import {
   buildRulesetExport,
   scoringRulesetExportDefinitionSchema,
   type RulesetExportEnvelope,
@@ -141,7 +147,27 @@ export interface CatalogScoringRulesetSummary {
   /** Grammar summary for the card. Null for built-ins (grammar lives in tf_config). */
   targets: Array<{ name: string; value: number }> | null;
   has_afterblow: boolean;
+  /**
+   * Computed lineage for a coded fork: the base's name + the per-bucket diff
+   * that drives the card's lamps. Null when the ruleset reuses nothing. Always
+   * SERVER-computed from effective behaviour — a client cannot derive this
+   * faithfully from the row, and a lamp that disagrees with the content hash
+   * is worse than no lamp (see ruleset-lineage.ts).
+   */
+  lineage: RulesetLineage | null;
 }
+
+/** The raw catalog row as selected: the summary's own fields plus the columns
+ *  the lineage projection reads (which the summary does not re-export). */
+type CatalogScoringRow = LineageRow & {
+  version: string;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  owner_organization_id: string | null;
+  public_visibility: boolean;
+  has_afterblow: boolean;
+};
 
 /**
  * The grammar columns a snapshot must copy from the parent and a rollback must
@@ -291,6 +317,10 @@ export interface CustomRulesetRowHydrated extends CustomRulesetRow {
   systemRankingChain?: RankingRule[];
   systemStandingsColumns?: StandingsColumn[];
   systemMetadata?: RulesetMetadata;
+  /** Computed fork lineage (base name + bucket diff), null when nothing is
+   *  reused. Same field, same shape and same computation as the catalog's — the
+   *  Manage table, the edit page and a Discover card must never disagree. */
+  lineage?: RulesetLineage | null;
 }
 
 // Zod's `z.array(TiebreakerSchema).max(16)` — but we don't pull zod here. Use
@@ -884,7 +914,12 @@ export class CustomRulesetsService {
     // score formula) so the org-facing ruleset view can render the read-only
     // "System ruleset details" panel — the org list is the only org-visible
     // source for built-ins (the owner-gated detail endpoint can't return them).
-    return ((data ?? []) as CustomRulesetRow[]).map((r) => this.hydrateSystemRow(r));
+    const rows = ((data ?? []) as CustomRulesetRow[]).map((r) => this.hydrateSystemRow(r));
+    // Lineage is computed here rather than on the client because only the server
+    // can project a base's EFFECTIVE behaviour; this list is what the Manage
+    // table and the edit page both read, so both get the identical lamps.
+    const lineage = await describeForkLineage(this.supabase, rows as unknown as LineageRow[]);
+    return rows.map((r) => ({ ...r, lineage: lineage.get(r.id) ?? null }));
   }
 
   /**
@@ -897,8 +932,13 @@ export class CustomRulesetsService {
   async listCatalogForOrg(orgId: string): Promise<CatalogScoringRulesetSummary[]> {
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
+      // RULESET_LINEAGE_COLUMNS feeds the computed lamps and also supplies the
+      // grammar columns (`targets`, `has_afterblow`) the summary itself exposes
+      // — hence no separate mention of them here. Everything else it adds stays
+      // internal to the computation and is NOT re-exported on the summary.
       .select(
-        'id, code, version, name, description, is_system, base_code, owner_organization_id, public_visibility, targets, has_afterblow',
+        'id, code, version, name, description, is_system, base_code, owner_organization_id, public_visibility, ' +
+          RULESET_LINEAGE_COLUMNS,
       )
       // Built-ins (any org can adopt) OR another org's approved-public row. The
       // and(...) branch excludes this org's own public rows — those are shown in
@@ -911,23 +951,16 @@ export class CustomRulesetsService {
       .order('is_system', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    const rows = (data ?? []) as Array<{
-      id: string;
-      code: string;
-      version: string;
-      name: string;
-      description: string | null;
-      is_system: boolean;
-      base_code: string | null;
-      owner_organization_id: string | null;
-      public_visibility: boolean;
-      targets: Array<{ name: string; value: number }> | null;
-      has_afterblow: boolean;
-    }>;
-    const names = await resolveOrganizationNames(
-      this.supabase,
-      rows.map((r) => r.owner_organization_id),
-    );
+    // `unknown` hop: the select is assembled from RULESET_LINEAGE_COLUMNS, and
+    // the typed client can only infer columns from a string literal.
+    const rows = (data ?? []) as unknown as CatalogScoringRow[];
+    const [names, lineage] = await Promise.all([
+      resolveOrganizationNames(
+        this.supabase,
+        rows.map((r) => r.owner_organization_id),
+      ),
+      describeForkLineage(this.supabase, rows),
+    ]);
     return rows.map((r) => ({
       id: r.id,
       code: r.code,
@@ -941,6 +974,7 @@ export class CustomRulesetsService {
         : null,
       targets: r.targets,
       has_afterblow: r.has_afterblow,
+      lineage: lineage.get(r.id) ?? null,
     }));
   }
 

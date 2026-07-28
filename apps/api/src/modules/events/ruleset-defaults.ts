@@ -16,53 +16,35 @@
  *   rulesets, but callers (DTO, wizard, tests) may pass the shorthand "1".
  *   We normalise both to the same defaults entry.
  */
-import {
-  TFv1DefaultConfig,
-  GenericPointsCapDefaultConfig,
-  DEFAULT_TARGETS,
-  registry,
-  type RulesetMetadata,
-} from '@myclash/rulesets';
+import { DEFAULT_TARGETS, registry, type RulesetMetadata } from '@myclash/rulesets';
 import { buildScoringButtons } from '@myclash/types';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
+import {
+  codedConfigFromRow,
+  CUSTOM_RULESET_CONFIG_COLUMNS,
+  CUSTOM_RULESET_GRAMMAR_COLUMNS,
+  defaultRulesetConfigFor,
+  FALLBACK_GRAMMAR,
+  grammarFromRow,
+  normalizeRulesetVersion,
+  type CustomRulesetConfigRow,
+  type CustomRulesetGrammarRow,
+  type ResolvedRulesetGrammar,
+} from './ruleset-row-projection';
 
-type DefaultsMap = Record<string, Record<string, unknown>>;
-
-/**
- * Canonical defaults keyed by `${code}:${normalisedVersion}`.
- * "1" and "1.0.0" are treated as the same version for all built-in rulesets.
- */
-const RULESET_DEFAULTS: DefaultsMap = {
-  'TF_v1:1': TFv1DefaultConfig as Record<string, unknown>,
-  'TF_v1:1.0.0': TFv1DefaultConfig as Record<string, unknown>,
-  'Generic_PointsCap:1': GenericPointsCapDefaultConfig as Record<string, unknown>,
-  'Generic_PointsCap:1.0.0': GenericPointsCapDefaultConfig as Record<string, unknown>,
+// The pure projections live in a leaf module (see its docblock: a list read
+// needs them without a per-row query). Re-exported here so the many existing
+// importers of this file keep one import site.
+export {
+  codedConfigFromRow,
+  CUSTOM_RULESET_CONFIG_COLUMNS,
+  CUSTOM_RULESET_GRAMMAR_COLUMNS,
+  defaultRulesetConfigFor,
+  grammarFromRow,
+  normalizeRulesetVersion,
 };
-
-/**
- * Map the various shorthand version strings the API accepts ('1', '1.0', etc.)
- * to the canonical version used by the @myclash/rulesets registry ('1.0.0').
- *
- * Keeps change-detection in `updateTournament` from spuriously firing when a
- * caller passes a shorthand that's semantically identical to the stored value.
- */
-export function normalizeRulesetVersion(version: string): string {
-  if (version === '1' || version === '1.0') return '1.0.0';
-  return version;
-}
-
-/**
- * Returns a deep copy of the default `ruleset_config` for the given
- * ruleset code + version.  Falls back to an empty object if the ruleset is
- * unknown (e.g. a DB-authored FormulaRuleset whose defaults aren't statically
- * known here).
- */
-export function defaultRulesetConfigFor(code: string, version: string): Record<string, unknown> {
-  const key = `${code}:${version}`;
-  const defaults = RULESET_DEFAULTS[key];
-  return defaults ? structuredClone(defaults) : {};
-}
+export type { CustomRulesetConfigRow, CustomRulesetGrammarRow, ResolvedRulesetGrammar };
 
 /**
  * Like `defaultRulesetConfigFor` but also consults the `custom_rulesets`
@@ -95,43 +77,11 @@ export async function resolveRulesetConfigDefaults(
   // Unknown to the static map — look it up in custom_rulesets.
   const { data } = await supabase.service
     .from('custom_rulesets')
-    .select('match_format_defaults, double_penalty_formula, base_code, base_version, tf_config')
+    .select(CUSTOM_RULESET_CONFIG_COLUMNS)
     .eq('code', code)
     .maybeSingle();
   if (!data) return {};
-
-  const row = data as {
-    match_format_defaults: Record<string, unknown> | null;
-    // JSONB since migration 0146: a whitelist key string OR an authored AST
-    // object (DoublePenaltySpec). Passed through as-is — the tournament stores
-    // and the engine reads whichever shape it is.
-    double_penalty_formula: unknown;
-    base_code: string | null;
-    base_version: string | null;
-    tf_config: Record<string, unknown> | null;
-  };
-
-  // A CODED FORK (base_code set) reuses its base ruleset's coded algorithm, so
-  // it must seed from the base's static defaults with the fork's tf_config
-  // overrides merged on top — the same shape the system path produces, but for
-  // a non-system row. Without this a fork of TF_v1 would seed an empty config
-  // and lose winBonus / matchFormat / doublePenaltyFormula.
-  if (row.base_code) {
-    const baseDefaults = defaultRulesetConfigFor(
-      row.base_code,
-      normalizeRulesetVersion(row.base_version ?? '1.0.0'),
-    );
-    if (Object.keys(baseDefaults).length > 0) {
-      return row.tf_config
-        ? (deepMergeJson(baseDefaults, row.tf_config) as Record<string, unknown>)
-        : baseDefaults;
-    }
-  }
-
-  const out: Record<string, unknown> = {};
-  if (row.match_format_defaults) out['matchFormat'] = row.match_format_defaults;
-  if (row.double_penalty_formula) out['doublePenaltyFormula'] = row.double_penalty_formula;
-  return out;
+  return codedConfigFromRow(data as CustomRulesetConfigRow);
 }
 
 /**
@@ -191,26 +141,6 @@ export async function freezeRulesetVersion(
 // ── Ruleset grammar ──────────────────────────────────────────────────────────
 
 /**
- * What a ruleset declares about what an exchange can be and what it is worth.
- * The shape `buildScoringButtons` consumes.
- */
-export interface ResolvedRulesetGrammar {
-  targets: Array<{ name: string; value: number }>;
-  hasAfterblow: boolean;
-  afterblowValuation: 'fixed' | 'weighted';
-  afterblowFixedValue: number;
-  defaultAfterblowMode: 'full' | 'deductive';
-}
-
-const FALLBACK_GRAMMAR: ResolvedRulesetGrammar = {
-  targets: [...DEFAULT_TARGETS],
-  hasAfterblow: false,
-  afterblowValuation: 'fixed',
-  afterblowFixedValue: 1,
-  defaultAfterblowMode: 'full',
-};
-
-/**
  * Resolve a ruleset's grammar for SEEDING purposes.
  *
  * Deliberately NOT `RulesetResolver.resolve()`, which is the scoring-time
@@ -237,26 +167,11 @@ export async function resolveRulesetGrammar(
 
   const { data } = await supabase.service
     .from('custom_rulesets')
-    .select('targets, has_afterblow, afterblow_mode, afterblow_valuation, afterblow_fixed_value')
+    .select(CUSTOM_RULESET_GRAMMAR_COLUMNS)
     .eq('code', code)
     .maybeSingle();
   if (!data) return { ...FALLBACK_GRAMMAR, targets: [...DEFAULT_TARGETS] };
-
-  const row = data as {
-    targets: Array<{ name: string; value: number }> | null;
-    has_afterblow: boolean | null;
-    afterblow_mode: 'full' | 'deductive' | null;
-    afterblow_valuation: 'fixed' | 'weighted' | null;
-    afterblow_fixed_value: number | null;
-  };
-  const hasAfterblow = row.has_afterblow ?? false;
-  return {
-    targets: row.targets?.length ? row.targets : [...DEFAULT_TARGETS],
-    hasAfterblow,
-    afterblowValuation: hasAfterblow ? (row.afterblow_valuation ?? 'fixed') : 'fixed',
-    afterblowFixedValue: hasAfterblow ? (row.afterblow_fixed_value ?? 1) : 1,
-    defaultAfterblowMode: hasAfterblow ? (row.afterblow_mode ?? 'full') : 'full',
-  };
+  return grammarFromRow(data as CustomRulesetGrammarRow);
 }
 
 /**

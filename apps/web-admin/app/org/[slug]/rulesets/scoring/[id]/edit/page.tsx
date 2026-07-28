@@ -3,11 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {
-  DEFAULT_FORMULA_CONSTANTS,
-  diffRulesetBuckets,
-  projectRulesetBuckets,
-} from '@myclash/rulesets';
+import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
 import type {
   BucketDiff,
   DoublePenaltySpec,
@@ -55,6 +51,15 @@ interface OrgCustomRulesetDetail {
   afterblow_fixed_value: number | null;
   /** Set on a coded fork ("Customise this format"): the built-in it reuses. */
   base_code: string | null;
+  /**
+   * Server-computed lineage vs that base. Deliberately NOT derived here: the
+   * client only ever sees raw columns, and a built-in's `tf_config` holds just
+   * the super-admin overrides while a fork's holds a full parsed config — so
+   * diffing them client-side reported a ranking change (and fired the
+   * "placings no longer match" guardrail) on forks that scored identically.
+   * The server projects both sides' EFFECTIVE behaviour instead.
+   */
+  lineage: { base: string; diff: BucketDiff } | null;
   /** Super-admin TF v1 overrides — the CANONICAL store for TF v1's
    *  match-format defaults + double-penalty formula. Omitting this field
    *  was the bug where the org view of TF v1 showed the generic 5/180
@@ -140,15 +145,11 @@ export default function OrgEditScoringRulesetPage() {
         const data = rows.find((r) => r.id === params.id);
         if (!data) throw new Error(t('admin.rulesets.loadOneError'));
         if (data.base_code) {
-          // Compute the lineage lamps (a header above the editable coded form),
-          // and remember the base engine so the form renders the coded editor
-          // and the submit maps into tf_config.
-          const baseRow = rows.find((r) => r.code === data.base_code);
-          setForkOf(baseRow?.name ?? data.base_code);
-          if (baseRow)
-            setForkDiff(
-              diffRulesetBuckets(projectRulesetBuckets(baseRow), projectRulesetBuckets(data)),
-            );
+          // Read the server-computed lineage lamps (a header above the editable
+          // coded form), and remember the base engine so the form renders the
+          // coded editor and the submit maps into tf_config.
+          setForkOf(data.lineage?.base ?? data.base_code);
+          setForkDiff(data.lineage?.diff ?? null);
           setForkBaseCode(data.base_code);
         }
         const formula =

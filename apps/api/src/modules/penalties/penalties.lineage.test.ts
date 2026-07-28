@@ -81,3 +81,70 @@ describe('PenaltiesService.describeRulesetLineage', () => {
     expect(await service.describeRulesetLineage('pr-1')).toBeNull();
   });
 });
+
+/**
+ * The list form of the same computation, powering the lamps on the Discover
+ * cards and the Manage rows. It must read the baseline ONCE for the whole list
+ * and hand every row the same signal the single-ruleset endpoint would.
+ */
+function listSupabase(rows: Array<Record<string, unknown>>, builtin: Record<string, unknown>) {
+  function chain() {
+    let builtInQuery = false;
+    const api: Record<string, unknown> = {
+      select: vi.fn(() => api),
+      or: vi.fn(() => api),
+      in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      eq: vi.fn((col: string, val: unknown) => {
+        if (col === 'built_in' && val === true) builtInQuery = true;
+        return api;
+      }),
+      is: vi.fn(() => api),
+      limit: vi.fn(() => api),
+      maybeSingle: vi.fn(() =>
+        Promise.resolve({ data: builtInQuery ? builtin : null, error: null }),
+      ),
+      order: vi.fn(() => api),
+    };
+    api['then'] = (resolve: (value: unknown) => unknown) =>
+      resolve({ data: builtInQuery ? [builtin] : rows, error: null });
+    return api;
+  }
+  return { service: { from: vi.fn(() => chain()) } };
+}
+
+describe('PenaltiesService.listRulesetCatalogForOrg lineage', () => {
+  it('lamps every custom row against the built-in, and none on the built-in itself', async () => {
+    const builtin = builtinRow();
+    const supabase = listSupabase(
+      [
+        { ...builtin, owner_organization_id: null, public_visibility: false, code: 'ffamhe' },
+        {
+          ...builtinRow({
+            id: 'pr-2',
+            built_in: false,
+            name: 'Club rules',
+            red_card_points: -3,
+          }),
+          code: 'club',
+          version: '1.0.0',
+          description: null,
+          owner_organization_id: 'org-x',
+          public_visibility: true,
+        },
+      ],
+      builtin,
+    );
+    const service = new PenaltiesService(supabase as never);
+    // assertUserCanManageOrg is exercised elsewhere; bypass it here so the test
+    // is about the lineage, not the gate.
+    vi.spyOn(
+      service as unknown as { assertUserCanManageOrg: () => Promise<void> },
+      'assertUserCanManageOrg',
+    ).mockResolvedValue(undefined);
+
+    const result = await service.listRulesetCatalogForOrg('org-me', 'user-1');
+
+    expect(result[0]?.lineage).toBeNull();
+    expect(result[1]?.lineage).toEqual({ base: 'FFAMHE penalties', status: 'changed' });
+  });
+});

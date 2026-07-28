@@ -40,7 +40,7 @@ import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { diffRulesetBuckets, projectRulesetBuckets } from '@myclash/rulesets';
-import type { BucketDiff } from '@myclash/rulesets';
+import type { BucketDiff, RulesetBucketInputs } from '@myclash/rulesets';
 import {
   normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
@@ -3272,32 +3272,40 @@ export class EventsService {
   /**
    * Per-bucket diff (grammar / end-conditions / ranking) of the NEW ruleset vs
    * the OLD — COMPUTED from each side's grammar + config, never self-declared.
-   * Reuses the same projection the web-admin lineage lamps use.
+   *
+   * The config comes from the CALLER here (the tournament's own stored config on
+   * the from-side, the target's freshly resolved defaults on the to-side), which
+   * is why this projects the pair itself instead of calling `bucketInputsForCode`
+   * — a re-pin compares what the tournament actually runs, not what its ruleset
+   * would default to. The projection is otherwise the shared one, so a re-pin's
+   * lamps and a ruleset list's lamps stay the same computation.
    */
   private async computeRulesetBucketDiff(
     from: { code: string; version: string; config: Record<string, unknown> },
     to: { code: string; version: string; config: Record<string, unknown> },
   ): Promise<BucketDiff> {
-    const [fg, tg] = await Promise.all([
-      resolveRulesetGrammar(this.supabase, from.code, from.version),
-      resolveRulesetGrammar(this.supabase, to.code, to.version),
+    const [fromInputs, toInputs] = await Promise.all([
+      this.projectPinnedBuckets(from),
+      this.projectPinnedBuckets(to),
     ]);
-    return diffRulesetBuckets(
-      projectRulesetBuckets({
-        targets: fg.targets,
-        has_afterblow: fg.hasAfterblow,
-        afterblow_valuation: fg.afterblowValuation,
-        afterblow_fixed_value: fg.afterblowFixedValue,
-        tf_config: from.config,
-      }),
-      projectRulesetBuckets({
-        targets: tg.targets,
-        has_afterblow: tg.hasAfterblow,
-        afterblow_valuation: tg.afterblowValuation,
-        afterblow_fixed_value: tg.afterblowFixedValue,
-        tf_config: to.config,
-      }),
-    );
+    return diffRulesetBuckets(fromInputs, toInputs);
+  }
+
+  /** One side of a re-pin diff: the ruleset's resolved grammar carrying the
+   *  config the tournament actually runs with. */
+  private async projectPinnedBuckets(pin: {
+    code: string;
+    version: string;
+    config: Record<string, unknown>;
+  }): Promise<RulesetBucketInputs> {
+    const grammar = await resolveRulesetGrammar(this.supabase, pin.code, pin.version);
+    return projectRulesetBuckets({
+      targets: grammar.targets,
+      has_afterblow: grammar.hasAfterblow,
+      afterblow_valuation: grammar.afterblowValuation,
+      afterblow_fixed_value: grammar.afterblowFixedValue,
+      tf_config: pin.config,
+    });
   }
 
   /**

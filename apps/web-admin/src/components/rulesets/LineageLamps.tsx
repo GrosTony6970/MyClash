@@ -30,8 +30,12 @@ function LineageLamp({
 /**
  * The per-bucket lineage lamps (grammar · end conditions · ranking) + the
  * ranking-compatibility guardrail, computed by diffing a ruleset against the
- * base it reuses — never self-declared. Shared by the fork authoring panel and
- * the mid-event re-pin ceremony so both read the identical signal.
+ * base it reuses — never self-declared.
+ *
+ * Chrome-free on purpose: this is the body every lineage surface renders —
+ * the fork authoring panel, the re-pin ceremony, a Discover card and a Manage
+ * table row — so a lamp means exactly the same thing wherever it appears.
+ * Wrappers supply their own border/heading.
  */
 export function LineageLamps({ base, diff }: { base: string; diff: BucketDiff }) {
   const { t } = useI18n();
@@ -69,17 +73,17 @@ export function LineageLamps({ base, diff }: { base: string; diff: BucketDiff })
 }
 
 /**
- * The single computed penalty lineage lamp for the penalty authoring surface:
- * how a custom penalty ruleset diverges from the built-in default it is compared
- * against (never self-declared). A `changed` status always breaks scoring
- * compatibility — every field the penalty canonical keeps re-ranks results — so
- * it always shows the guardrail.
+ * The single computed penalty lineage lamp: how a custom penalty ruleset
+ * diverges from the built-in default it is compared against (never
+ * self-declared). A `changed` status always breaks scoring compatibility —
+ * every field the penalty canonical keeps re-ranks results — so it always shows
+ * the guardrail. Chrome-free, for the same reason as {@link LineageLamps}.
  */
-export function PenaltyLineagePanel({ base, status }: { base: string; status: BucketStatus }) {
+export function PenaltyLineageLamp({ base, status }: { base: string; status: BucketStatus }) {
   const { t } = useI18n();
   const changed = status === 'changed';
   return (
-    <div className="mb-4 rounded-md border border-border bg-surface p-4">
+    <div>
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
         {t('admin.rulesets.lineageHeading', { base })}
       </p>
@@ -98,6 +102,38 @@ export function PenaltyLineagePanel({ base, status }: { base: string; status: Bu
         </p>
       )}
     </div>
+  );
+}
+
+/** The penalty lamp in its own card, for the penalty authoring surface. */
+export function PenaltyLineagePanel({ base, status }: { base: string; status: BucketStatus }) {
+  return (
+    <div className="mb-4 rounded-md border border-border bg-surface p-4">
+      <PenaltyLineageLamp base={base} status={status} />
+    </div>
+  );
+}
+
+/**
+ * A ruleset's computed lineage as the API returns it. Scoring rulesets carry a
+ * three-bucket `diff`; penalty rulesets are a separate ruleset type with their
+ * own single-lamp `status` — discriminated rather than merged so neither can be
+ * rendered with the other's semantics.
+ */
+export type RulesetLineagePayload =
+  | { base: string; diff: BucketDiff }
+  | { base: string; status: BucketStatus };
+
+/**
+ * Render whichever lineage the payload carries. Lets a browse surface (a
+ * Discover card, a Manage row) accept "the lineage the server computed" without
+ * knowing which ruleset type it is holding.
+ */
+export function RulesetLineageLamps({ lineage }: { lineage: RulesetLineagePayload }) {
+  return 'diff' in lineage ? (
+    <LineageLamps base={lineage.base} diff={lineage.diff} />
+  ) : (
+    <PenaltyLineageLamp base={lineage.base} status={lineage.status} />
   );
 }
 

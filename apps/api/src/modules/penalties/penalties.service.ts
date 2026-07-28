@@ -59,6 +59,24 @@ const BUILTIN_VERSION = '2026';
 export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
 
 /**
+ * A computed penalty lineage lamp: the baseline's display name plus whether
+ * this ruleset materially diverges from it. Never self-declared — always the
+ * result of diffing canonical forms.
+ */
+export interface PenaltyLineage {
+  base: string;
+  status: BucketStatus;
+}
+
+/** The columns `projectPenaltyBucketFromLive` needs off a penalty ruleset row.
+ *  One constant so every lineage-bearing read selects the same set — a missing
+ *  column here reads as a DEFAULT, i.e. a silently wrong lamp. */
+const PENALTY_LINEAGE_COLUMNS =
+  'name, accumulation_scope, yellow_card_points, red_card_points, black_card_points, ' +
+  'first_black_card_forfeit, second_black_card_forfeit, ' +
+  'penalty_ruleset_entries(group_number, ref_number, sanctions)';
+
+/**
  * A lean, org-facing projection of an *adoptable* penalty ruleset for the
  * Discover catalog: the platform built-in plus other orgs' approved-public
  * rows. The org's own rows are excluded (they live in the Manage tab). Carries
@@ -73,7 +91,15 @@ export interface CatalogPenaltyRulesetSummary {
   built_in: boolean;
   owner_organization_name: string | null;
   accumulation_scope: 'match' | 'phase' | 'tournament';
+  /** Computed divergence from the built-in default; null for the built-in
+   *  itself. Drives the card's single lineage lamp. */
+  lineage: PenaltyLineage | null;
 }
+
+/** The raw catalog row as selected: the summary's own fields plus the card /
+ *  forfeit / entries columns the lineage projection reads. */
+type CatalogPenaltyRow = Omit<CatalogPenaltyRulesetSummary, 'owner_organization_name' | 'lineage'> &
+  Row & { owner_organization_id: string | null };
 
 @Injectable()
 export class PenaltiesService {
@@ -119,27 +145,65 @@ export class PenaltiesService {
    * authoring-surface penalty lineage lamp. Resolved by the built_in flag, not
    * the stale BUILTIN_VERSION constant.
    */
-  async describeRulesetLineage(
-    rulesetId: string,
-  ): Promise<{ base: string; status: BucketStatus } | null> {
+  async describeRulesetLineage(rulesetId: string): Promise<PenaltyLineage | null> {
     const ruleset = (await this.getRuleset(rulesetId)) as Row;
     if (ruleset['built_in']) return null;
+    const builtin = await this.loadBuiltInPenaltyBaseline();
+    if (!builtin) return null;
+    return this.lineageAgainst(builtin, ruleset);
+  }
+
+  /**
+   * The built-in penalty definition every custom ruleset's lamp is measured
+   * against. Resolved by the `built_in` flag rather than the stale
+   * BUILTIN_VERSION constant, and read LIVE (the built-in is never frozen), so
+   * a super-admin edit to it moves the baseline — an accepted advisory limit.
+   *
+   * One loader so the single-ruleset endpoint and the list reads share it: a
+   * list must fetch this ONCE, not once per row.
+   */
+  private async loadBuiltInPenaltyBaseline(): Promise<Row | null> {
     const { data } = await this.supabase.service
       .from('penalty_rulesets')
-      .select(
-        'name, accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, penalty_ruleset_entries(group_number, ref_number, sanctions)',
-      )
+      .select(PENALTY_LINEAGE_COLUMNS)
       .eq('built_in', true)
       .is('owner_organization_id', null)
       .limit(1)
       .maybeSingle();
-    const builtin = data as Row | null;
-    if (!builtin) return null;
-    const status = diffPenaltyBucket(
-      projectPenaltyBucketFromLive(builtin),
-      projectPenaltyBucketFromLive(ruleset),
-    );
-    return { base: (builtin['name'] as string) ?? '', status };
+    return (data as Row | null) ?? null;
+  }
+
+  /** Diff one live penalty row against the built-in baseline. Both sides go
+   *  through the same projector the content hash uses, so the lamp and the
+   *  fingerprint cannot disagree about what a change is. */
+  private lineageAgainst(builtin: Row, ruleset: Row): PenaltyLineage {
+    return {
+      base: (builtin['name'] as string) ?? '',
+      status: diffPenaltyBucket(
+        projectPenaltyBucketFromLive(builtin),
+        projectPenaltyBucketFromLive(ruleset),
+      ),
+    };
+  }
+
+  /**
+   * Lineage for a whole list of penalty rulesets, keyed by row id — the batched
+   * form of {@link describeRulesetLineage}. Built-in rows map to null: they are
+   * the baseline, so they reuse nothing.
+   */
+  private async describeRulesetLineages(
+    rows: readonly Row[],
+  ): Promise<Map<string, PenaltyLineage | null>> {
+    const out = new Map<string, PenaltyLineage | null>();
+    for (const row of rows) out.set(row['id'] as string, null);
+    if (rows.every((row) => row['built_in'])) return out;
+    const builtin = await this.loadBuiltInPenaltyBaseline();
+    if (!builtin) return out;
+    for (const row of rows) {
+      if (row['built_in']) continue;
+      out.set(row['id'] as string, this.lineageAgainst(builtin, row));
+    }
+    return out;
   }
 
   async getEffectiveRulesetForMatch(matchId: string) {
@@ -608,7 +672,9 @@ export class PenaltiesService {
     await this.assertUserCanManageOrg(orgId, userId);
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
-      .select('*')
+      // The entries embed rides along for the computed lineage lamp; `*` alone
+      // carries the parent card/forfeit columns it also needs.
+      .select(`*, penalty_ruleset_entries(group_number, ref_number, sanctions)`)
       .or(`built_in.eq.true,owner_organization_id.eq.${orgId}`)
       // Archived rulesets stay resolvable for tournaments that pin them but must
       // not reappear in the Manage list or the tournament pin dropdown this feeds
@@ -616,7 +682,9 @@ export class PenaltiesService {
       .is('archived_at', null)
       .order('built_in', { ascending: false });
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const rows = (data ?? []) as Row[];
+    const lineage = await this.describeRulesetLineages(rows);
+    return rows.map((row) => ({ ...row, lineage: lineage.get(row['id'] as string) ?? null }));
   }
 
   /**
@@ -633,8 +701,12 @@ export class PenaltiesService {
     await this.assertUserCanManageOrg(orgId, userId);
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
+      // PENALTY_LINEAGE_COLUMNS feeds the computed lamp and also supplies the
+      // `name` + `accumulation_scope` the summary itself exposes — hence no
+      // separate mention of them here. The rest stays internal to the computation.
       .select(
-        'id, code, version, name, description, built_in, owner_organization_id, public_visibility, accumulation_scope',
+        'id, code, version, description, built_in, owner_organization_id, public_visibility, ' +
+          PENALTY_LINEAGE_COLUMNS,
       )
       // Built-in (any org can adopt) OR another org's approved-public row. The
       // and(...) branch excludes this org's own public rows — Manage shows those.
@@ -645,21 +717,16 @@ export class PenaltiesService {
       .order('built_in', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    const rows = (data ?? []) as Array<{
-      id: string;
-      code: string;
-      version: string;
-      name: string;
-      description: string | null;
-      built_in: boolean;
-      owner_organization_id: string | null;
-      public_visibility: boolean;
-      accumulation_scope: 'match' | 'phase' | 'tournament';
-    }>;
-    const names = await resolveOrganizationNames(
-      this.supabase,
-      rows.map((r) => r.owner_organization_id),
-    );
+    // `unknown` hop: the select is assembled from PENALTY_LINEAGE_COLUMNS, and
+    // the typed client can only infer columns from a string literal.
+    const rows = (data ?? []) as unknown as CatalogPenaltyRow[];
+    const [names, lineage] = await Promise.all([
+      resolveOrganizationNames(
+        this.supabase,
+        rows.map((r) => r.owner_organization_id),
+      ),
+      this.describeRulesetLineages(rows as unknown as Row[]),
+    ]);
     return rows.map((r) => ({
       id: r.id,
       code: r.code,
@@ -671,6 +738,7 @@ export class PenaltiesService {
         ? (names.get(r.owner_organization_id) ?? null)
         : null,
       accumulation_scope: r.accumulation_scope,
+      lineage: lineage.get(r.id) ?? null,
     }));
   }
 

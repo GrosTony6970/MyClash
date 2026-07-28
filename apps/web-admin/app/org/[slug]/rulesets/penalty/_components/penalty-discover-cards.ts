@@ -1,4 +1,5 @@
 import type { TranslationValues } from '@myclash/i18n';
+import type { BucketStatus } from '@myclash/rulesets';
 import type { DiscoverCardData } from '../../../../../../src/components/rulesets/RulesetDiscoverTab';
 
 type Translate = (key: string, values?: TranslationValues) => string;
@@ -12,6 +13,8 @@ interface CatalogPenaltyRow {
   built_in: boolean;
   owner_organization_name: string | null;
   accumulation_scope: 'match' | 'phase' | 'tournament';
+  /** Server-computed divergence from the built-in; null for the built-in. */
+  lineage: { base: string; status: BucketStatus } | null;
 }
 
 /** Map penalty catalog rows to Discover cards (accumulation-scope chip). */
@@ -29,6 +32,7 @@ export function toPenaltyDiscoverCards(
     isBuiltIn: row.built_in,
     ownerOrganizationName: row.owner_organization_name,
     chips: [t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)],
+    lineage: row.lineage,
     adoptHref: `/org/${slug}/rulesets/penalty/new?cloneFrom=${row.id}`,
     viewHref: `/org/${slug}/rulesets/penalty/${row.id}/edit`,
   }));

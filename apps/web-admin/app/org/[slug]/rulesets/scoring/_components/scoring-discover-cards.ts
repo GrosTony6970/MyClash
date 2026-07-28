@@ -1,4 +1,5 @@
 import type { TranslationValues } from '@myclash/i18n';
+import type { BucketDiff } from '@myclash/rulesets';
 import type { DiscoverCardData } from '../../../../../../src/components/rulesets/RulesetDiscoverTab';
 
 type Translate = (key: string, values?: TranslationValues) => string;
@@ -14,6 +15,8 @@ interface CatalogScoringRow {
   owner_organization_name: string | null;
   targets: Array<{ name: string; value: number }> | null;
   has_afterblow: boolean;
+  /** Server-computed; a client cannot derive this faithfully from the row. */
+  lineage: { base: string; diff: BucketDiff } | null;
 }
 
 /** Map scoring catalog rows to Discover cards (grammar chips + fork lineage). */
@@ -39,6 +42,7 @@ export function toScoringDiscoverCards(
         ? (list.find((r) => r.code === row.base_code)?.name ?? row.base_code)
         : null,
       chips,
+      lineage: row.lineage,
       adoptHref: `/org/${slug}/rulesets/scoring/new?cloneFrom=${row.id}`,
       viewHref: `/org/${slug}/rulesets/scoring/${row.id}/edit`,
     };

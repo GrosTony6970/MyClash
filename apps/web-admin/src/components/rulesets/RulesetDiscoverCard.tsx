@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useI18n } from '../../i18n/I18nProvider';
+import { RulesetLineageLamps, type RulesetLineagePayload } from './LineageLamps';
 
 export interface RulesetDiscoverCardProps {
   name: string;
@@ -19,6 +20,12 @@ export interface RulesetDiscoverCardProps {
   forkedFromName?: string | null;
   /** Small metadata pills (grammar summary / scope), pre-labelled by the page. */
   chips?: string[];
+  /**
+   * Computed lineage vs the ruleset this one reuses — SERVER-computed, so these
+   * lamps are the same signal (and the same guardrail) the View page shows.
+   * Absent when the ruleset reuses nothing.
+   */
+  lineage?: RulesetLineagePayload | null;
   /** Adopt = clone into the caller's org (the shared clone flow). */
   adoptHref: string;
   /** Read-only detail. */
@@ -40,6 +47,7 @@ export function RulesetDiscoverCard({
   ownerOrganizationName,
   forkedFromName,
   chips = [],
+  lineage,
   adoptHref,
   viewHref,
 }: RulesetDiscoverCardProps) {
@@ -89,7 +97,15 @@ export function RulesetDiscoverCard({
         </div>
       )}
 
-      <div className="mt-4 flex items-center gap-2 pt-1">
+      {lineage && (
+        <div className="mt-3">
+          <RulesetLineageLamps lineage={lineage} />
+        </div>
+      )}
+
+      {/* mt-auto: lamps make card bodies uneven, so the actions stay aligned
+          along the bottom of the grid row instead of floating mid-card. */}
+      <div className="mt-auto flex items-center gap-2 pt-4">
         <Link
           href={adoptHref}
           className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"

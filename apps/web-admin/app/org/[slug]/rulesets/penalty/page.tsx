@@ -12,10 +12,12 @@ import {
   SegmentedTabs,
   useToast,
 } from '@myclash/ui';
+import type { BucketStatus } from '@myclash/rulesets';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
 import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/RulesetDiscoverTab';
+import { PenaltyLineageLamp } from '../../../../../src/components/rulesets/LineageLamps';
 import { RulesetImportButton } from '../../../../../src/components/rulesets/RulesetImportButton';
 import { PenaltyManageActions } from './_components/PenaltyManageActions';
 import { toPenaltyDiscoverCards } from './_components/penalty-discover-cards';
@@ -41,6 +43,12 @@ interface PenaltyRulesetRow {
   public_visibility_request_status: 'pending' | 'approved' | 'rejected' | null;
   public_visibility_request_reason: string | null;
   updated_at: string;
+  /**
+   * Server-computed divergence from the built-in default; null for the built-in
+   * itself. Same field and same computation as the Discover cards and the edit
+   * page read, so the three surfaces cannot disagree.
+   */
+  lineage: { base: string; status: BucketStatus } | null;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -293,6 +301,14 @@ export default function OrgPenaltyRulesetsPage() {
                         {row.description && (
                           <div className="mt-0.5 line-clamp-2 text-xs text-muted">
                             {row.description}
+                          </div>
+                        )}
+                        {row.lineage && (
+                          <div className="mt-2 max-w-xs">
+                            <PenaltyLineageLamp
+                              base={row.lineage.base}
+                              status={row.lineage.status}
+                            />
                           </div>
                         )}
                       </DataTableCell>

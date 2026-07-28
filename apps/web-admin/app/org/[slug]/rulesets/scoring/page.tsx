@@ -12,10 +12,12 @@ import {
   SegmentedTabs,
   useToast,
 } from '@myclash/ui';
+import type { BucketDiff } from '@myclash/rulesets';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
 import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/RulesetDiscoverTab';
+import { LineageLamps } from '../../../../../src/components/rulesets/LineageLamps';
 import { RulesetImportButton } from '../../../../../src/components/rulesets/RulesetImportButton';
 import { ScoringManageActions } from './_components/ScoringManageActions';
 import { toScoringDiscoverCards } from './_components/scoring-discover-cards';
@@ -43,6 +45,12 @@ interface CustomRulesetRow {
   rejected_reason: string | null;
   /** Set on a coded fork ("Customise this format"): the built-in it reuses. */
   base_code: string | null;
+  /**
+   * Server-computed lineage vs that base — the same field, and the same
+   * computation, the Discover cards and the edit page read. Never derived
+   * client-side: only the server can project a base's effective behaviour.
+   */
+  lineage: { base: string; diff: BucketDiff } | null;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -281,14 +289,21 @@ export default function OrgScoringRulesetsPage() {
                         {row.base_code && (
                           <div className="mt-0.5 text-xs text-info">
                             {t('admin.rulesets.forkedFrom', {
-                              base:
-                                rows.find((r) => r.code === row.base_code)?.name ?? row.base_code,
+                              base: row.lineage?.base ?? row.base_code,
                             })}
                           </div>
                         )}
                         {row.description && (
                           <div className="mt-0.5 line-clamp-2 text-xs text-muted">
                             {row.description}
+                          </div>
+                        )}
+                        {/* The org's own forks live here, not in Discover — so
+                            this is the table where lineage lamps actually earn
+                            their keep. */}
+                        {row.lineage && (
+                          <div className="mt-2 max-w-xs">
+                            <LineageLamps base={row.lineage.base} diff={row.lineage.diff} />
                           </div>
                         )}
                         {row.rejected_reason && (

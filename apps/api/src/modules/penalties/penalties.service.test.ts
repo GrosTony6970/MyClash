@@ -500,16 +500,17 @@ type TableState = Record<
 >;
 
 describe('PenaltiesService.listRulesetCatalogForOrg', () => {
-  // A thenable chain supporting `.or().order().order()` (catalog list) and
-  // `.select().eq().eq().maybeSingle()` (the isSuperAdmin lookup) + `.in()`
-  // (org-name resolution), keyed by table.
+  // A thenable chain supporting `.or().order().order()` (catalog list),
+  // `.select().eq().eq().maybeSingle()` (the isSuperAdmin lookup), `.in()`
+  // (org-name resolution) and `.eq().is().limit().maybeSingle()` (the built-in
+  // baseline the lineage lamps diff against), keyed by table.
   function catalogSupabase(byTable: Record<string, unknown[]>) {
     return {
       service: {
         from: vi.fn((table: string) => {
           const rows = byTable[table] ?? [];
           const chain: Record<string, unknown> = {};
-          for (const m of ['select', 'or', 'order', 'in', 'eq', 'is']) {
+          for (const m of ['select', 'or', 'order', 'in', 'eq', 'is', 'limit']) {
             chain[m] = vi.fn(() => chain);
           }
           // platform_roles (isSuperAdmin) reads null → not a super-admin; with
