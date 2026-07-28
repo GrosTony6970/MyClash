@@ -55,9 +55,7 @@ for (const app of APPS) {
   }
   const results = JSON.parse(raw.slice(jsonStart));
   for (const file of results) {
-    const rel = file.filePath
-      .replace(/\\/g, '/')
-      .replace(/^.*\/(apps\/[^/]+\/)/, '$1');
+    const rel = file.filePath.replace(/\\/g, '/').replace(/^.*\/(apps\/[^/]+\/)/, '$1');
     for (const message of file.messages) {
       if (message.ruleId !== RULE_ID) continue;
       const entry = `${message.line}:${message.column}:${messageIdFor(message.message)}`;
@@ -66,9 +64,7 @@ for (const app of APPS) {
   }
 }
 
-const sorted = Object.fromEntries(
-  Object.entries(baseline).sort(([a], [b]) => a.localeCompare(b)),
-);
+const sorted = Object.fromEntries(Object.entries(baseline).sort(([a], [b]) => a.localeCompare(b)));
 writeFileSync(BASELINE_URL, `${JSON.stringify(sorted, null, 2)}\n`);
 const total = Object.values(sorted).reduce((n, list) => n + list.length, 0);
 console.log(`Baseline written: ${Object.keys(sorted).length} files, ${total} entries.`);

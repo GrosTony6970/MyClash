@@ -14,11 +14,7 @@
  * with a leading `// locale-exempt` (or `// i18n-exempt`) comment.
  */
 
-const localeMethods = new Set([
-  'toLocaleDateString',
-  'toLocaleTimeString',
-  'toLocaleString',
-]);
+const localeMethods = new Set(['toLocaleDateString', 'toLocaleTimeString', 'toLocaleString']);
 
 // A BCP-47-ish tag: primary subtag + optional region (e.g. fr, en, fr-FR, en-GB).
 const LOCALE_LITERAL = /^[a-z]{2}(?:-[A-Za-z]{2,4})?$/u;
@@ -31,10 +27,7 @@ function hasEscapeComment(sourceCode, node) {
 
 function isLocaleLiteral(arg) {
   return (
-    arg &&
-    arg.type === 'Literal' &&
-    typeof arg.value === 'string' &&
-    LOCALE_LITERAL.test(arg.value)
+    arg && arg.type === 'Literal' && typeof arg.value === 'string' && LOCALE_LITERAL.test(arg.value)
   );
 }
 

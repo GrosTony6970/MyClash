@@ -79,7 +79,10 @@ test('syncs password for an existing super admin user', async () => {
       password: 'super-secret-password',
     },
   });
-  assert.equal(gotrueCalls.some((call) => call.path === '/admin/user/user-existing'), false);
+  assert.equal(
+    gotrueCalls.some((call) => call.path === '/admin/user/user-existing'),
+    false,
+  );
   assert.equal(runSql.calls.length, 3);
   assert.match(runSql.calls[0].sql, /ON CONFLICT \(user_id\) DO UPDATE SET role = EXCLUDED\.role/);
   // A super-admin must never be an org member: the bootstrap un-seeds the legacy

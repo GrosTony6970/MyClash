@@ -572,13 +572,26 @@ requireContains(prodRealtime, 'prod supabase-realtime', '/api/tenants/realtime/h
 
 const prodStorage = services.get('supabase-storage') ?? '';
 requireContains(prodStorage, 'prod supabase-storage', 'http://supabase-storage:5000/status');
-requireContains(prodStorage, 'prod supabase-storage', 'supabase-rest: { condition: service_started }');
+requireContains(
+  prodStorage,
+  'prod supabase-storage',
+  'supabase-rest: { condition: service_started }',
+);
 
 const prodRest = services.get('supabase-rest') ?? '';
 if (prodRest.includes('healthcheck:')) {
   errors.push('prod supabase-rest must not define a Docker healthcheck.');
 }
-for (const forbidden of ['CMD-SHELL', '/bin/sh', '/proc/1/comm', '/bin/bash', '/dev/tcp', 'kill -0', 'curl', 'wget']) {
+for (const forbidden of [
+  'CMD-SHELL',
+  '/bin/sh',
+  '/proc/1/comm',
+  '/bin/bash',
+  '/dev/tcp',
+  'kill -0',
+  'curl',
+  'wget',
+]) {
   if (prodRest.includes(forbidden)) {
     errors.push(`prod supabase-rest healthcheck must not use ${forbidden}.`);
   }
@@ -678,7 +691,11 @@ for (const expected of ['SIGNUP_ACTION_THROTTLE', '@Throttle(SIGNUP_ACTION_THROT
 requireContains(authServiceText, 'AuthService', 'public_login');
 requireContains(authServiceText, 'AuthService', 'getPersonalSpace');
 requireContains(authServiceText, 'AuthService', 'api.${domain}');
-requireContains(composeText, 'prod GOTRUE_URI_ALLOW_LIST', 'https://api.${DOMAIN}/api/v1/auth/callback');
+requireContains(
+  composeText,
+  'prod GOTRUE_URI_ALLOW_LIST',
+  'https://api.${DOMAIN}/api/v1/auth/callback',
+);
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
@@ -703,7 +720,9 @@ if (!deployText.includes('SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIM
 const deployCompleteIndex = deployText.indexOf('hdr "Deploy complete"');
 const deploymentSecretsHeaderIndex = deployText.indexOf('hdr "Deployment secrets"');
 const deploymentSecretsCallIndex =
-  deployCompleteIndex === -1 ? -1 : deployText.indexOf('print_deployment_secrets', deployCompleteIndex);
+  deployCompleteIndex === -1
+    ? -1
+    : deployText.indexOf('print_deployment_secrets', deployCompleteIndex);
 if (deploymentSecretsHeaderIndex === -1) {
   errors.push('deploy.sh must print a final Deployment secrets section.');
 }
@@ -726,7 +745,9 @@ for (const expected of [
   }
 }
 if (!deployText.includes('Existing Traefik dashboard plaintext password cannot be recovered')) {
-  errors.push('deploy.sh must explain that existing Traefik plaintext passwords cannot be recovered.');
+  errors.push(
+    'deploy.sh must explain that existing Traefik plaintext passwords cannot be recovered.',
+  );
 }
 for (const expected of [
   'PGPASSWORD="$POSTGRES_PASSWORD"',
@@ -806,18 +827,46 @@ if (publicRootPageText.includes('publicApp.home.placeholder')) {
 }
 requireContains(publicLoginPageText, 'apps/web-public/app/login/page.tsx', "type: 'public_login'");
 requireContains(publicLoginPageText, 'apps/web-public/app/login/page.tsx', 'signInWithOAuth');
-requireContains(publicOAuthCallbackText, 'apps/web-public/app/auth/oauth/callback/page.tsx', 'public_login');
-requireContains(publicPersonalLayoutText, 'apps/web-public/app/me/layout.tsx', 'PublicPersonalShell');
-requireContains(publicPersonalPageText, 'apps/web-public/app/me/page.tsx', 'PersonalSpaceDashboard');
+requireContains(
+  publicOAuthCallbackText,
+  'apps/web-public/app/auth/oauth/callback/page.tsx',
+  'public_login',
+);
+requireContains(
+  publicPersonalLayoutText,
+  'apps/web-public/app/me/layout.tsx',
+  'PublicPersonalShell',
+);
+requireContains(
+  publicPersonalPageText,
+  'apps/web-public/app/me/page.tsx',
+  'PersonalSpaceDashboard',
+);
 requireContains(
   publicPersonalDashboardText,
   'apps/web-public/app/me/PersonalSpaceDashboard.tsx',
   '/api/v1/me/personal-space',
 );
-requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', '/api/v1/me');
-requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', '/api/v1/auth/logout');
-requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', "window.location.replace('/login')");
-requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', 'fixed inset-y-0 left-0');
+requireContains(
+  publicPersonalShellText,
+  'apps/web-public/src/components/PublicPersonalShell.tsx',
+  '/api/v1/me',
+);
+requireContains(
+  publicPersonalShellText,
+  'apps/web-public/src/components/PublicPersonalShell.tsx',
+  '/api/v1/auth/logout',
+);
+requireContains(
+  publicPersonalShellText,
+  'apps/web-public/src/components/PublicPersonalShell.tsx',
+  "window.location.replace('/login')",
+);
+requireContains(
+  publicPersonalShellText,
+  'apps/web-public/src/components/PublicPersonalShell.tsx',
+  'fixed inset-y-0 left-0',
+);
 for (const [label, text] of [
   ['apps/web-public/app/login/page.tsx', publicLoginPageText],
   ['apps/web-public/app/me/PersonalSpaceDashboard.tsx', publicPersonalDashboardText],
@@ -830,18 +879,40 @@ for (const [label, text] of [
 if (adminRootPageText.includes('admin.home.placeholder')) {
   errors.push('apps/web-admin/app/page.tsx must not render admin.home.placeholder.');
 }
-requireContains(publicEventRootPageText, 'apps/web-public/app/e/[eventSlug]/page.tsx', "redirect(`/e/${eventSlug}/home`)");
+requireContains(
+  publicEventRootPageText,
+  'apps/web-public/app/e/[eventSlug]/page.tsx',
+  'redirect(`/e/${eventSlug}/home`)',
+);
 // The routing lives in resolveLanding() (a discriminated-union resolver) rather
 // than inline window.location writes: super-admins with no org → /admin,
 // org members → their org, dual-role (super-admin + org) → the workspace
 // chooser, and the terminal no-workspace state. Assert the resolver's shape.
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'data.admin?.isSuperAdmin');
+requireContains(
+  adminDashboardPageText,
+  'apps/web-admin/app/dashboard/page.tsx',
+  'data.admin?.isSuperAdmin',
+);
 requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "href: '/admin'");
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'href: `/org/${firstOrg.slug}`');
+requireContains(
+  adminDashboardPageText,
+  'apps/web-admin/app/dashboard/page.tsx',
+  'href: `/org/${firstOrg.slug}`',
+);
 requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "kind: 'chooser'");
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "setMode('noWorkspace')");
-if (/T-105 follow-up|Org slug lookup will be wired|Redirecting to your dashboard[â€¦…]/u.test(adminDashboardPageText)) {
-  errors.push('apps/web-admin/app/dashboard/page.tsx must not leave authenticated users on the old endless redirect placeholder.');
+requireContains(
+  adminDashboardPageText,
+  'apps/web-admin/app/dashboard/page.tsx',
+  "setMode('noWorkspace')",
+);
+if (
+  /T-105 follow-up|Org slug lookup will be wired|Redirecting to your dashboard[â€¦…]/u.test(
+    adminDashboardPageText,
+  )
+) {
+  errors.push(
+    'apps/web-admin/app/dashboard/page.tsx must not leave authenticated users on the old endless redirect placeholder.',
+  );
 }
 // The seed scripts must NOT make the bootstrap super admin an org member. That
 // row contradicts the API invariant (OrganizationsService.assertNotSuperAdmin /
@@ -858,52 +929,190 @@ for (const [label, text] of [
     );
   }
 }
-requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'getAdminLandingContext');
+requireContains(
+  authServiceText,
+  'apps/api/src/modules/auth/auth.service.ts',
+  'getAdminLandingContext',
+);
 requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'platform_roles');
-requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'organization_members');
-requireContains(superAdminGuardText, 'apps/api/src/modules/admin/guards/super-admin.guard.ts', 'SUPABASE_AUTH_INTERNAL_URL');
-requireContains(superAdminGuardText, 'apps/api/src/modules/admin/guards/super-admin.guard.ts', '/user');
+requireContains(
+  authServiceText,
+  'apps/api/src/modules/auth/auth.service.ts',
+  'organization_members',
+);
+requireContains(
+  superAdminGuardText,
+  'apps/api/src/modules/admin/guards/super-admin.guard.ts',
+  'SUPABASE_AUTH_INTERNAL_URL',
+);
+requireContains(
+  superAdminGuardText,
+  'apps/api/src/modules/admin/guards/super-admin.guard.ts',
+  '/user',
+);
 if (superAdminGuardText.includes('supabase.anon.auth.getUser')) {
   errors.push(
     'SuperAdminGuard must validate server-side admin tokens with internal GoTrue, not supabase.anon.auth.getUser.',
   );
 }
 requireContains(superAdminLayoutText, 'apps/web-admin/app/admin/layout.tsx', 'SuperAdminShell');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'usePathname');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'fixed inset-y-0 left-0');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '/api/v1/auth/logout');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', "credentials: 'include'");
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.logout');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.loggingOut');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '/api/v1/me');
-requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', "window.location.replace('/login')");
-requireContains(organizerLayoutText, 'apps/web-admin/app/org/[slug]/layout.tsx', 'OrganizerAdminShell');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'usePathname');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'useParams');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '/api/v1/auth/logout');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "credentials: 'include'");
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'organizer.shell.logout');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '/api/v1/me');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "window.location.replace('/login')");
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventNavItems');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventId');
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "href: 'events'");
-requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'organizer.shell.nav.events');
-requireContains(organizerDashboardPageText, 'apps/web-admin/app/org/[slug]/page.tsx', '/dashboard-stats');
-requireContains(organizerDashboardPageText, 'apps/web-admin/app/org/[slug]/page.tsx', 'organizer.dashboard.metrics.eventsCreated');
-requireContains(organizerDashboardPageText, 'apps/web-admin/app/org/[slug]/page.tsx', 'organizer.dashboard.metrics.fighters');
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  'usePathname',
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  'fixed inset-y-0 left-0',
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  '/api/v1/auth/logout',
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  "credentials: 'include'",
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  'admin.shell.logout',
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  'admin.shell.loggingOut',
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  '/api/v1/me',
+);
+requireContains(
+  superAdminShellText,
+  'apps/web-admin/src/components/SuperAdminShell.tsx',
+  "window.location.replace('/login')",
+);
+requireContains(
+  organizerLayoutText,
+  'apps/web-admin/app/org/[slug]/layout.tsx',
+  'OrganizerAdminShell',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'usePathname',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'useParams',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  '/api/v1/auth/logout',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  "credentials: 'include'",
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'organizer.shell.logout',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  '/api/v1/me',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  "window.location.replace('/login')",
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'eventNavItems',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'eventId',
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  "href: 'events'",
+);
+requireContains(
+  organizerShellText,
+  'apps/web-admin/src/components/OrganizerAdminShell.tsx',
+  'organizer.shell.nav.events',
+);
+requireContains(
+  organizerDashboardPageText,
+  'apps/web-admin/app/org/[slug]/page.tsx',
+  '/dashboard-stats',
+);
+requireContains(
+  organizerDashboardPageText,
+  'apps/web-admin/app/org/[slug]/page.tsx',
+  'organizer.dashboard.metrics.eventsCreated',
+);
+requireContains(
+  organizerDashboardPageText,
+  'apps/web-admin/app/org/[slug]/page.tsx',
+  'organizer.dashboard.metrics.fighters',
+);
 if (organizerDashboardPageText.includes('tournamentCount')) {
-  errors.push('apps/web-admin/app/org/[slug]/page.tsx must be a metrics dashboard, not the event table.');
+  errors.push(
+    'apps/web-admin/app/org/[slug]/page.tsx must be a metrics dashboard, not the event table.',
+  );
 }
-requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', '/events/${event.id}');
-requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', "method: 'PATCH'");
-requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', "method: 'DELETE'");
-requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', 'mode=hard');
+requireContains(
+  organizerEventsPageText,
+  'apps/web-admin/app/org/[slug]/events/page.tsx',
+  '/events/${event.id}',
+);
+requireContains(
+  organizerEventsPageText,
+  'apps/web-admin/app/org/[slug]/events/page.tsx',
+  "method: 'PATCH'",
+);
+requireContains(
+  organizerEventsPageText,
+  'apps/web-admin/app/org/[slug]/events/page.tsx',
+  "method: 'DELETE'",
+);
+requireContains(
+  organizerEventsPageText,
+  'apps/web-admin/app/org/[slug]/events/page.tsx',
+  'mode=hard',
+);
 // Tournament-create flow moved from the new/page.tsx shim into the wizard's
 // Step 1 (the shim is now a thin WizardShell wrapper) — assert it there.
-requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/_wizard/Step1Basics.tsx', '/api/v1/events/${eventId}/tournaments');
-requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/_wizard/Step1Basics.tsx', "useState('TF_v1')");
-requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/_wizard/Step1Basics.tsx', 'slugify');
+requireContains(
+  organizerNewTournamentPageText,
+  'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/_wizard/Step1Basics.tsx',
+  '/api/v1/events/${eventId}/tournaments',
+);
+requireContains(
+  organizerNewTournamentPageText,
+  'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/_wizard/Step1Basics.tsx',
+  "useState('TF_v1')",
+);
+requireContains(
+  organizerNewTournamentPageText,
+  'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/_wizard/Step1Basics.tsx',
+  'slugify',
+);
 for (const expected of [
   '/dashboard-stats',
   'organizer.eventHub.dashboard.title',
@@ -940,9 +1149,17 @@ if (organizerAiSettingsPageText.includes('settings/compensation')) {
     'apps/web-admin/app/org/[slug]/settings/ai/page.tsx must not show compensation settings links inside AI settings.',
   );
 }
-requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', '/api/v1/admin/dashboard-stats');
+requireContains(
+  superAdminPageText,
+  'apps/web-admin/app/admin/page.tsx',
+  '/api/v1/admin/dashboard-stats',
+);
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', "credentials: 'include'");
-requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', 'admin.dashboard.section.platform');
+requireContains(
+  superAdminPageText,
+  'apps/web-admin/app/admin/page.tsx',
+  'admin.dashboard.section.platform',
+);
 requireContains(
   superAdminOrganizationsPageText,
   'apps/web-admin/app/admin/organizations/page.tsx',
@@ -1054,7 +1271,11 @@ if (superAdminOrganizationDetailPageText.includes('prompt(')) {
     'apps/web-admin/app/admin/organizations/[id]/page.tsx must use searchable member/account pickers instead of prompt().',
   );
 }
-for (const forbidden of ['auth.admin.listUsers', 'auth.admin.createUser', 'auth.admin.deleteUser']) {
+for (const forbidden of [
+  'auth.admin.listUsers',
+  'auth.admin.createUser',
+  'auth.admin.deleteUser',
+]) {
   if (adminOrganizationsServiceText.includes(forbidden)) {
     errors.push(
       `apps/api/src/modules/admin/admin-organizations.service.ts must use internal GoTrue helpers instead of ${forbidden}.`,
@@ -1067,7 +1288,11 @@ for (const expected of ['listAuthAdminUsers', 'createAuthAdminUser', 'deleteAuth
     'apps/api/src/modules/admin/admin-organizations.service.ts',
     expected,
   );
-  requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
+  requireContains(
+    supabaseServiceText,
+    'apps/api/src/modules/supabase/supabase.service.ts',
+    expected,
+  );
 }
 requireContains(
   adminUsersControllerText,
@@ -1075,10 +1300,18 @@ requireContains(
   '@UseGuards(SuperAdminGuard)',
 );
 for (const expected of ['@Post()', "@Delete(':id')", 'CreatePlatformUserDto', 'mode']) {
-  requireContains(adminUsersControllerText, 'apps/api/src/modules/admin/users.controller.ts', expected);
+  requireContains(
+    adminUsersControllerText,
+    'apps/api/src/modules/admin/users.controller.ts',
+    expected,
+  );
 }
 for (const expected of ['ADMIN_READ_THROTTLE', '@Throttle(ADMIN_READ_THROTTLE)']) {
-  requireContains(adminUsersControllerText, 'apps/api/src/modules/admin/users.controller.ts', expected);
+  requireContains(
+    adminUsersControllerText,
+    'apps/api/src/modules/admin/users.controller.ts',
+    expected,
+  );
 }
 for (const forbidden of [
   'auth.admin.listUsers',
@@ -1105,7 +1338,11 @@ for (const expected of [
   'last remaining super admin',
   'cleanupUserReferences',
 ]) {
-  requireContains(adminUsersServiceText, 'apps/api/src/modules/admin/admin-users.service.ts', expected);
+  requireContains(
+    adminUsersServiceText,
+    'apps/api/src/modules/admin/admin-users.service.ts',
+    expected,
+  );
 }
 for (const expected of [
   '/api/v1/admin/users',
@@ -1129,7 +1366,7 @@ for (const expected of [
 }
 for (const expected of [
   'Platform accounts',
-  'displayName: \'Display name\'',
+  "displayName: 'Display name'",
   'enableHelp',
   'disableHelp',
   'safeDeleteHelp',
@@ -1151,7 +1388,11 @@ for (const expected of [
   '@Throttle(ADMIN_READ_THROTTLE)',
   '@Throttle(CATALOG_READ_THROTTLE)',
 ]) {
-  requireContains(fightersControllerText, 'apps/api/src/modules/fighters/fighters.controller.ts', expected);
+  requireContains(
+    fightersControllerText,
+    'apps/api/src/modules/fighters/fighters.controller.ts',
+    expected,
+  );
 }
 for (const expected of [
   'startEditProfile',
@@ -1162,7 +1403,11 @@ for (const expected of [
   'common.tooManyRequests',
   'actions.retry',
 ]) {
-  requireContains(superAdminFightersPageText, 'apps/web-admin/app/admin/fighters/page.tsx', expected);
+  requireContains(
+    superAdminFightersPageText,
+    'apps/web-admin/app/admin/fighters/page.tsx',
+    expected,
+  );
 }
 for (const expected of [
   'createClub',
@@ -1180,7 +1425,11 @@ for (const expected of [
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
 }
 for (const expected of ['/admin/clubs', 'admin.shell.nav.clubs']) {
-  requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', expected);
+  requireContains(
+    superAdminShellText,
+    'apps/web-admin/src/components/SuperAdminShell.tsx',
+    expected,
+  );
 }
 if (
   superAdminShellText.indexOf("href: '/admin/clubs'") >
@@ -1218,13 +1467,13 @@ for (const expected of [
   'events/:eventId/clubs',
   'events/:eventId/club-requests',
 ]) {
-  requireContains(eventsControllerText, 'apps/api/src/modules/events/events.controller.ts', expected);
+  requireContains(
+    eventsControllerText,
+    'apps/api/src/modules/events/events.controller.ts',
+    expected,
+  );
 }
-for (const expected of [
-  'getEventDashboardStats',
-  'listEventClubs',
-  'submitClubReviewRequest',
-]) {
+for (const expected of ['getEventDashboardStats', 'listEventClubs', 'submitClubReviewRequest']) {
   requireContains(eventsServiceText, 'apps/api/src/modules/events/events.service.ts', expected);
 }
 for (const expected of [
@@ -1291,8 +1540,8 @@ for (const expected of [
   'admin.backups.deleteDialogTitle',
   'admin.backups.deleteFrom',
   'confirmed: true',
-  "type=\"file\"",
-  "className=\"sr-only\"",
+  'type="file"',
+  'className="sr-only"',
 ]) {
   requireContains(superAdminBackupsPageText, 'apps/web-admin/app/admin/backups/page.tsx', expected);
 }
@@ -1300,10 +1549,14 @@ for (const expected of ['Delete from {location}', 'local server', 'Scaleway S3']
   requireContains(i18nText, 'packages/i18n/src/index.ts', expected);
 }
 if (superAdminBackupsPageText.includes('confirmationByBackup')) {
-  errors.push('apps/web-admin/app/admin/backups/page.tsx must not use typed restore confirmation state.');
+  errors.push(
+    'apps/web-admin/app/admin/backups/page.tsx must not use typed restore confirmation state.',
+  );
 }
 if (superAdminBackupsPageText.includes('admin.backups.restoreConfirmation')) {
-  errors.push('apps/web-admin/app/admin/backups/page.tsx must not render restore confirmation phrase input.');
+  errors.push(
+    'apps/web-admin/app/admin/backups/page.tsx must not render restore confirmation phrase input.',
+  );
 }
 for (const expected of [
   "@Delete(':backupId')",
@@ -1314,7 +1567,11 @@ for (const expected of [
   'getSchedule',
   'updateSchedule',
 ]) {
-  requireContains(adminBackupsControllerText, 'apps/api/src/modules/admin/backups.controller.ts', expected);
+  requireContains(
+    adminBackupsControllerText,
+    'apps/api/src/modules/admin/backups.controller.ts',
+    expected,
+  );
 }
 for (const expected of [
   'deleteBackup',
@@ -1323,10 +1580,18 @@ for (const expected of [
   'updateSchedule',
   "opsPut<BackupScheduleDto>('/schedule'",
 ]) {
-  requireContains(adminBackupsServiceText, 'apps/api/src/modules/admin/backups.service.ts', expected);
+  requireContains(
+    adminBackupsServiceText,
+    'apps/api/src/modules/admin/backups.service.ts',
+    expected,
+  );
 }
 for (const expected of ['dto.confirmed', 'RESTORE MYCLASH ${dto.backupId}', 'opsDelete']) {
-  requireContains(adminBackupsServiceText, 'apps/api/src/modules/admin/backups.service.ts', expected);
+  requireContains(
+    adminBackupsServiceText,
+    'apps/api/src/modules/admin/backups.service.ts',
+    expected,
+  );
 }
 for (const expected of [
   "req.method === 'DELETE'",
@@ -1345,7 +1610,9 @@ for (const expected of [
 }
 for (const forbidden of ['CRON_LINE=', '0 3 * * *']) {
   if (vpsBootstrapText.includes(forbidden)) {
-    errors.push(`infra/scripts/vps-bootstrap.sh must not install legacy fixed backup cron (${forbidden}).`);
+    errors.push(
+      `infra/scripts/vps-bootstrap.sh must not install legacy fixed backup cron (${forbidden}).`,
+    );
   }
 }
 requireContains(
@@ -1359,7 +1626,11 @@ requireContains(
   'expectedBackupArtifactFilenames',
 );
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
-  requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
+  requireContains(
+    supabaseServiceText,
+    'apps/api/src/modules/supabase/supabase.service.ts',
+    expected,
+  );
 }
 requireContains(
   adminDashboardStatsControllerText,

@@ -44,8 +44,8 @@
     "perf:review": "node scripts/check-performance-review.mjs",
     "perf:bundle": "node scripts/check-bundle-budgets.mjs",
     "perf:load": "node scripts/perf-load-smoke.mjs",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml}\"",
     "deploy:prod": "tsx scripts/deploy.ts",
     "rollback:prod": "tsx scripts/rollback.ts",
     "seed": "tsx scripts/seed.ts",
@@ -58,7 +58,7 @@
     "commit-msg": "pnpm exec commitlint --edit \"$1\""
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx,json,md,yml,yaml}": "prettier --write"
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml}": "prettier --write"
   },
   "pnpm": {
     "overrides": {

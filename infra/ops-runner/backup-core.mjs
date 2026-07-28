@@ -179,7 +179,11 @@ export function normalizeBackupSchedule(input = {}) {
   const retentionCountLocal = Number(
     input.retentionCountLocal ?? DEFAULT_BACKUP_SCHEDULE.retentionCountLocal,
   );
-  if (!Number.isInteger(retentionCountLocal) || retentionCountLocal < 1 || retentionCountLocal > 365) {
+  if (
+    !Number.isInteger(retentionCountLocal) ||
+    retentionCountLocal < 1 ||
+    retentionCountLocal > 365
+  ) {
     throw new Error('Invalid backup retentionCountLocal.');
   }
 

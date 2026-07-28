@@ -70,7 +70,10 @@ test('reads missing backup schedule as default 03:00 UTC', async () => {
   // it because nothing ran these tests. This asserts the CONTRACT — "no file
   // on disk yields the documented default" — which cannot drift.
   assert.deepEqual(schedule, DEFAULT_BACKUP_SCHEDULE);
-  assert.equal(nextBackupRun(schedule, new Date('2026-05-18T02:30:00Z')), '2026-05-18T03:00:00.000Z');
+  assert.equal(
+    nextBackupRun(schedule, new Date('2026-05-18T02:30:00Z')),
+    '2026-05-18T03:00:00.000Z',
+  );
 });
 
 test('persists editable backup schedule', async () => {

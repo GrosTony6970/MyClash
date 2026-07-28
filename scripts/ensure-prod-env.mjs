@@ -170,7 +170,7 @@ async function askValue(key, currentValue, rl, options) {
     throw new Error(
       currentValue
         ? `${key} is set to a sample value ("${currentValue}"). Update .env with the real value.`
-        : `${key} is required but missing from .env.`
+        : `${key} is required but missing from .env.`,
     );
   }
 

@@ -192,7 +192,11 @@ test('defaults the org name to "test ai org" when DEMO_ORG_NAME is unset', async
 
 test('fails when the required env vars are missing', async () => {
   await assert.rejects(
-    createDemoOrg({ env: { SUPABASE_URL: 'http://x' }, gotrue: async () => ({}), runSql: async () => [] }),
+    createDemoOrg({
+      env: { SUPABASE_URL: 'http://x' },
+      gotrue: async () => ({}),
+      runSql: async () => [],
+    }),
     /Missing required env vars/,
   );
 });

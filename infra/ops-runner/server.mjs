@@ -344,10 +344,7 @@ async function runLocked(operation, createCommand) {
 
 async function runRetentionAfterBackup(operation) {
   try {
-    const localSummary = await enforceLocalRetention(
-      ROOT_DIR,
-      backupSchedule.retentionCountLocal,
-    );
+    const localSummary = await enforceLocalRetention(ROOT_DIR, backupSchedule.retentionCountLocal);
     if (localSummary.deletedSets > 0) {
       addLog(
         operation,
