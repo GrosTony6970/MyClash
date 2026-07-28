@@ -287,6 +287,90 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
       await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
       expect(calls.filter((c) => c === 'from(bracket_slots)').length).toBe(2);
     });
+
+    /**
+     * The reset is the ONLY slot in any bracket that takes BOTH of its sides
+     * from the same upstream match (`loser of GF` and `winner of GF`), so it is
+     * the only one that exposes a single-write-per-slot bug. Sides A and B used
+     * to share one if/else-if chain: side A was filled, the chain exited, and
+     * side B stayed null forever — the reset could never be played, and since it
+     * sits at the bracket's highest round the tournament stayed undecided.
+     * Caught end-to-end by tests/e2e/09-double-elim.spec.ts scenario A.
+     */
+    it('fills BOTH sides of the reset from the single grand-final result', async () => {
+      const slotUpdates: Array<Record<string, unknown>> = [];
+      const resetSlot = {
+        id: 'reset',
+        round: 9,
+        position: 1,
+        phase_id: 'ph1',
+        source_a_type: 'loser_of',
+        source_a_ref: 'loser of GF',
+        source_b_type: 'winner_of',
+        source_b_ref: 'winner of GF',
+        registration_a_id: null,
+        registration_b_id: null,
+      };
+
+      const mockSupabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            const chain: Record<string, unknown> = {};
+            Object.assign(chain, {
+              select: vi.fn(() => chain),
+              eq: vi.fn(() => chain),
+              not: vi.fn(() => chain),
+              insert: vi.fn(() => chain),
+              update: vi.fn((payload: Record<string, unknown>) => {
+                if (table === 'bracket_slots') slotUpdates.push(payload);
+                return chain;
+              }),
+              // The downstream lookup: only the reset references GF.
+              or: vi.fn().mockResolvedValue({ data: [resetSlot], error: null }),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data:
+                  table === 'matches'
+                    ? {
+                        id: 'm-gf',
+                        bracket_slot_id: 'gf',
+                        winner_registration_id: 'lb-entrant',
+                        red_registration_id: 'wb-entrant',
+                        blue_registration_id: 'lb-entrant',
+                      }
+                    : table === 'bracket_slots'
+                      ? {
+                          id: 'gf',
+                          round: 8,
+                          position: 1,
+                          phase_id: 'ph1',
+                          source_b_type: 'winner_of',
+                          registration_a_id: 'wb-entrant',
+                          registration_b_id: 'lb-entrant',
+                        }
+                      : {
+                          id: 'ph1',
+                          type: 'double_elim',
+                          config_json: {
+                            autoAdvance: true,
+                            grandFinalReset: true,
+                            wbRounds: 3,
+                            lbRounds: 4,
+                          },
+                        },
+                error: null,
+              }),
+            });
+            return chain;
+          }),
+        },
+      };
+
+      await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
+
+      // Side A takes the GF loser, side B the GF winner — both from one call.
+      expect(slotUpdates).toContainEqual({ registration_a_id: 'wb-entrant' });
+      expect(slotUpdates).toContainEqual({ registration_b_id: 'lb-entrant' });
+    });
   });
 
   it('does not throw when match has no bracket_slot_id', async () => {

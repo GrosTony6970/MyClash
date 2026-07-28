@@ -154,11 +154,22 @@ export async function createBracketTournament(
         slug: opts.slug,
         weapon: 'longsword',
         color: 'red',
-        // Pin the point cap so `scoreMatch` knows exactly how many points end a
-        // match. Without it the default (10) applies and the arithmetic below
-        // would overshoot or never trip completion.
-        rulesetConfig: { matchFormat: { pointCap: POINT_CAP } },
       },
+    }),
+  );
+
+  // Pin the point cap so `scoreMatch` knows exactly how many points end a
+  // match; the default is 10 and nothing would ever trip completion.
+  //
+  // Done as a PATCH, not on the create body: `createTournament` accepts
+  // `rulesetConfig` in its DTO but overwrites it with the ruleset's defaults
+  // and never merges the caller's value (events.service.ts — the sibling
+  // `scoringConfig` has a comment about being "the silently-dropped field it is
+  // today", and rulesetConfig still is one). Sending it on create looks like it
+  // works and silently does nothing.
+  await api.ok(
+    await api.patch(`tournaments/${tournament.id}`, {
+      data: { rulesetConfig: { matchFormat: { pointCap: POINT_CAP } } },
     }),
   );
 
@@ -404,6 +415,8 @@ export async function playDoubleElim(
   const seeds = seedMap(bracket);
   const gf = grandFinalRound(bracket);
   let played = 0;
+  /** Slots this driver has already scored, so a re-score is caught, not repeated. */
+  const scoredSlotIds = new Set<string>();
 
   const winnerOf = (slot: BracketSlot): string => {
     const red = slot.redRegistrationId as string;
@@ -433,8 +446,27 @@ export async function playDoubleElim(
       const winnerColor = winnerOf(slot) === slot.redRegistrationId ? 'red' : 'blue';
       await scoreMatch(api, slot.matchId as string, winnerColor);
       played++;
+      scoredSlotIds.add(slot.id);
     }
     bracket = await settle(api, tournamentId);
+
+    // Fail loud if scoring a slot to the cap did not complete it. Without this
+    // the loop just finds the slot playable again next pass and scores it a
+    // SECOND time, doubling the score and masking the real fault — which is
+    // exactly how a silently-ignored pointCap first showed up, as a confusing
+    // "winner has 10 points" rather than "the cap never applied".
+    const notCompleted = bracket.slots.filter(
+      (s) => scoredSlotIds.has(s.id) && s.status !== 'completed',
+    );
+    if (notCompleted.length > 0) {
+      const detail = notCompleted
+        .map((s) => `R${s.round}P${s.position} (status=${s.status}, ${s.redScore}-${s.blueScore})`)
+        .join(', ');
+      throw new Error(
+        `[double-elim] scored ${notCompleted.length} slot(s) to the point cap but the engine did ` +
+          `not complete them: ${detail}. The tournament's pointCap is probably not ${POINT_CAP}.`,
+      );
+    }
   }
 
   const skipped = new Set(skippableSlots(bracket).map((s) => s.id));

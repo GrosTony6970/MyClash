@@ -165,17 +165,28 @@ export class BracketAdvanceService {
       let updatedA = ds.registration_a_id;
       let updatedB = ds.registration_b_id;
 
-      // Determine which side this slot is filling. Each branch goes
-      // through writeSlotSide so a failed write throws instead of
-      // silently corrupting the in-memory `updatedSlot` we hand to
-      // createMatchIfReady below.
+      // Sides A and B are resolved INDEPENDENTLY. They used to share one
+      // if/else-if chain, which wrote at most one side per call — fine for
+      // every slot whose two sides come from two different upstream matches,
+      // which is all of them but one. The grand-final reset takes BOTH sides
+      // from the grand final (`loser of GF` and `winner of GF`), so the chain
+      // filled side A, exited, and left side B unresolved forever: the reset
+      // could never be played, and with it sitting at the bracket's highest
+      // round the tournament stayed permanently undecided.
+      //
+      // Within a side the two branches stay mutually exclusive — a ref cannot
+      // be both the winner and the loser of the same match. Each write goes
+      // through writeSlotSide so a failed write throws rather than silently
+      // corrupting the in-memory `updatedSlot` handed to createMatchIfReady.
       if (ds.source_a_ref === winnerRef && ds.registration_a_id === null) {
         updatedA = winnerRegId;
         await this.writeSlotSide(ds.id, 'a', winnerRegId);
       } else if (ds.source_a_ref === loserRef && loserRegId && ds.registration_a_id === null) {
         updatedA = loserRegId;
         await this.writeSlotSide(ds.id, 'a', loserRegId);
-      } else if (ds.source_b_ref === winnerRef && ds.registration_b_id === null) {
+      }
+
+      if (ds.source_b_ref === winnerRef && ds.registration_b_id === null) {
         updatedB = winnerRegId;
         await this.writeSlotSide(ds.id, 'b', winnerRegId);
       } else if (ds.source_b_ref === loserRef && loserRegId && ds.registration_b_id === null) {
