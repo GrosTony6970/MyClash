@@ -2429,6 +2429,115 @@ describe('PhasesService', () => {
     });
   });
 
+  // ── populateBracket — one-sided slots still reach the matches row ──────────
+
+  /**
+   * The play-in regression, at unit level.
+   *
+   * populateBracket used to write the matches row only when BOTH sides of a
+   * slot were seeded, on the assumption that a one-sided slot is a bye. Double
+   * elim never emits byes: a play-in bracket's WB-R1 slot has a null side
+   * because it waits on `winner of WBR0Px`. The seeded side therefore stayed
+   * NULL on the matches row forever, resolveLoser could not tell who lost, and
+   * every `loser of WBR1Px` went unfilled — freezing the entire losers bracket,
+   * grand final and reset. Caught end-to-end by tests/e2e/09-double-elim.spec.ts.
+   *
+   * Mocks dispatch on TABLE NAME rather than call order: this path's query
+   * sequence is long and order-based mockReturnValueOnce chains desync the
+   * moment a `from()` is added anywhere upstream.
+   */
+  describe('populateBracket — one-sided slot match rows', () => {
+    it('writes the seeded side into the matches row when the other side is unresolved', async () => {
+      const matchUpdates: Array<Record<string, unknown>> = [];
+      const matchInserts: unknown[] = [];
+
+      fromMock.mockImplementation((table: string) => {
+        switch (table) {
+          case 'phases': {
+            // Both the bracket-phase lookup and the pool-phase lookup land
+            // here; the pool lookup filters on type='pool' and must come back
+            // empty so populate takes the registration-seed path.
+            const chain = makeChain({ data: null, error: null });
+            let sawPoolFilter = false;
+            chain.eq.mockImplementation((col: string, val: string) => {
+              if (col === 'type' && val === 'pool') sawPoolFilter = true;
+              return chain;
+            });
+            chain.maybeSingle.mockImplementation(() =>
+              Promise.resolve({
+                data: sawPoolFilter
+                  ? null
+                  : {
+                      id: 'bracket-phase-1',
+                      type: 'double_elim',
+                      config_json: { wbRounds: 3, lbRounds: 4 },
+                      tournament_id: 'tournament-1',
+                      tournaments: { events: { organization_id: 'org-1' } },
+                    },
+                error: null,
+              }),
+            );
+            return chain;
+          }
+          case 'bracket_slots':
+            // One play-in-fed WB-R1 slot: side A is `seed 1`, side B waits on
+            // the play-in winner, so only A can be seeded now.
+            return makeAwaitableChain({
+              data: [
+                {
+                  id: 'slot-r1p1',
+                  round: 1,
+                  position: 1,
+                  source_a_ref: 'seed 1',
+                  source_b_ref: 'winner of WBR0P1',
+                },
+              ],
+              error: null,
+            });
+          case 'matches': {
+            const chain = makeChain({
+              data: { id: 'match-r1p1', status: 'scheduled' },
+              error: null,
+            });
+            chain.update.mockImplementation((payload: Record<string, unknown>) => {
+              matchUpdates.push(payload);
+              return chain;
+            });
+            chain.insert.mockImplementation((payload: unknown) => {
+              matchInserts.push(payload);
+              return chain;
+            });
+            // The blocking-matches guard awaits the chain directly.
+            (chain as unknown as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+              resolve({ data: [], error: null });
+            return chain;
+          }
+          case 'registrations':
+            return makeAwaitableChain({
+              data: [{ id: 'reg-1', seed: 1, bib_number: null }],
+              error: null,
+            });
+          case 'tournaments':
+            return makeChain({
+              data: { ruleset_code: 'TF', ruleset_version: '1.0.0' },
+              error: null,
+            });
+          default:
+            return makeAwaitableChain({ data: null, error: null });
+        }
+      });
+
+      const svc = new PhasesService(mockSupabase as never, undefined, mockOrgs as never);
+      await svc.populateBracket('tournament-1', {}, 'system');
+
+      // The whole point: the known side reaches the matches row even though the
+      // other side is still null. Previously this list was empty.
+      expect(matchUpdates).toContainEqual({ red_registration_id: 'reg-1' });
+      // And no phantom row is inserted for a slot that cannot be played yet.
+      expect(matchInserts).toEqual([]);
+    });
+  });
+
   // ── populateBracket — perPool guard + source field ─────────────────────────
 
   describe('populateBracket — pool-gate honesty', () => {

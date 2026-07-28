@@ -40,14 +40,27 @@ export function buildSelfRef(
   return 'GFRESET';
 }
 
+/**
+ * The registration that LOST, given the winner and the two sides.
+ *
+ * Returns null when the winner matches neither side, which means the caller
+ * handed over an incomplete pairing — advancing a guess there would put the
+ * WRONG fighter into the losers bracket. The previous form returned `red`
+ * whenever the winner wasn't red, so a null `red_registration_id` silently
+ * produced a null loser and every downstream `loser of {ref}` stalled forever.
+ *
+ * Callers must therefore source the pairing from the bracket SLOT, which is
+ * authoritative, rather than the matches row, which can legitimately lag it.
+ */
 export function resolveLoser(match: {
   winner_registration_id: string;
-  red_registration_id: string;
-  blue_registration_id: string;
-}): string {
-  return match.winner_registration_id === match.red_registration_id
-    ? match.blue_registration_id
-    : match.red_registration_id;
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+}): string | null {
+  const winner = match.winner_registration_id;
+  if (winner === match.red_registration_id) return match.blue_registration_id;
+  if (winner === match.blue_registration_id) return match.red_registration_id;
+  return null;
 }
 
 /**

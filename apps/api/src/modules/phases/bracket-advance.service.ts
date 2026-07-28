@@ -33,10 +33,15 @@ export class BracketAdvanceService {
       if (grandFinalEndsBracket(phase.type as string, config, slot, match)) return;
 
       const selfRef = buildSelfRef(slot.round, slot.position, phase.type as string, config);
+      // The SLOT is authoritative for who is in a bracket match — populate and
+      // advancement both write it before the matches row, so the row can lag.
+      // Reading the pairing from the match alone is what froze play-in double
+      // elims: the seeded side was null there, so the loser resolved to null
+      // and nothing was ever fed into the losers bracket.
       const loserRegId = resolveLoser({
         winner_registration_id: match.winner_registration_id,
-        red_registration_id: match.red_registration_id,
-        blue_registration_id: match.blue_registration_id,
+        red_registration_id: slot.registration_a_id ?? match.red_registration_id,
+        blue_registration_id: slot.registration_b_id ?? match.blue_registration_id,
       });
 
       await this.advanceFromSlot(slot.phase_id, selfRef, match.winner_registration_id, loserRegId);

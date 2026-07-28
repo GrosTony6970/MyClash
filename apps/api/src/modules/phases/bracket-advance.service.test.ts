@@ -116,9 +116,9 @@ describe('grandFinalEndsBracket', () => {
 describe('resolveLoser', () => {
   const rl = (match: {
     winner_registration_id: string;
-    red_registration_id: string;
-    blue_registration_id: string;
-  }): string => resolveLoser(match);
+    red_registration_id: string | null;
+    blue_registration_id: string | null;
+  }): string | null => resolveLoser(match);
 
   it('returns blue when red wins', () => {
     expect(
@@ -138,6 +138,33 @@ describe('resolveLoser', () => {
         blue_registration_id: 'blue-id',
       }),
     ).toBe('red-id');
+  });
+
+  /**
+   * The play-in regression. A matches row whose seeded side never got written
+   * used to resolve the loser to `red` (null) whenever the winner wasn't red —
+   * silently, so every `loser of WBR1Px` ref went unfilled and the whole losers
+   * bracket froze. Returning null when the winner is neither side makes the bad
+   * input unusable instead of quietly wrong; callers must pass the SLOT pairing.
+   */
+  it('returns null when the winner matches neither side, rather than guessing red', () => {
+    expect(
+      rl({
+        winner_registration_id: 'seed-id',
+        red_registration_id: null,
+        blue_registration_id: 'play-in-winner-id',
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null when the losing side itself is unknown', () => {
+    expect(
+      rl({
+        winner_registration_id: 'red-id',
+        red_registration_id: 'red-id',
+        blue_registration_id: null,
+      }),
+    ).toBeNull();
   });
 });
 

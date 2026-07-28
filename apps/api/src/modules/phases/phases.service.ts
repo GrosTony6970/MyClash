@@ -1238,10 +1238,26 @@ export class PhasesService {
         .eq('id', update.slotId);
       if (slotErr) throw new BadRequestException(slotErr.message);
 
-      // Match row: update existing scheduled match, or insert when both
-      // sides are known. Slots with a null side are byes and get handled
-      // by advanceByeSlots below — no match row needed yet.
-      if (update.registrationAId && update.registrationBId) {
+      // Match row: push whatever sides we know into the placeholder row
+      // pre-created at generation (createInitialBracketMatches), inserting
+      // only as a fallback when that row is missing.
+      //
+      // Writing ONLY when both sides are known was wrong, because a slot
+      // with one null side is not necessarily a bye. Double elim never
+      // emits byes at all — a play-in bracket's WB-R1 slot has a null side
+      // because it waits on `winner of WBR0Px`. Skipping the write there
+      // left the seeded side NULL on the matches row forever: writeSlotSide
+      // later fills only the side IT advances, so resolveLoser could not
+      // tell who lost, every `loser of WBR1Px` ref went unfilled, and the
+      // entire losers bracket (plus the grand final and reset) stalled
+      // permanently. Byes need no special case here: they never get a
+      // matches row, so the UPDATE below simply matches nothing.
+      const knownSides: Record<string, string> = {};
+      if (update.registrationAId) knownSides['red_registration_id'] = update.registrationAId;
+      if (update.registrationBId) knownSides['blue_registration_id'] = update.registrationBId;
+      const bothSidesKnown = !!update.registrationAId && !!update.registrationBId;
+
+      if (Object.keys(knownSides).length > 0) {
         const { data: existingMatch } = await this.supabase.service
           .from('matches')
           .select('id, status')
@@ -1250,12 +1266,9 @@ export class PhasesService {
         if (existingMatch) {
           await this.supabase.service
             .from('matches')
-            .update({
-              red_registration_id: update.registrationAId,
-              blue_registration_id: update.registrationBId,
-            })
+            .update(knownSides)
             .eq('id', (existingMatch as { id: string }).id);
-        } else {
+        } else if (bothSidesKnown) {
           await this.supabase.service.from('matches').insert({
             phase_id: phaseId,
             bracket_slot_id: update.slotId,
@@ -1268,8 +1281,9 @@ export class PhasesService {
             match_number_label: String(slotPosById.get(update.slotId) ?? ''),
           });
         }
-        slotsSeeded++;
       }
+      // Counts slots seeded on BOTH sides, i.e. playable now — unchanged.
+      if (bothSidesKnown) slotsSeeded++;
     }
 
     // 8. Persist seeding mode + topN on the phase config so the

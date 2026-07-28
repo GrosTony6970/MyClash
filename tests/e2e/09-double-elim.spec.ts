@@ -69,9 +69,13 @@ interface Scenario {
   };
 }
 
-test.describe.serial('double elim', () => {
-  // Every spec shares the one throwaway event from global-setup, and
-  // playwright.e2e.config.ts pins workers:1 — so these run in order.
+test.describe('double elim', () => {
+  // Deliberately NOT .serial. Each scenario builds its own tournament and
+  // shares nothing but the event, so they are genuinely independent, and
+  // playwright.e2e.config.ts already pins workers:1 to keep writes from
+  // racing. Serial mode only ever bought masking: when scenario A caught the
+  // play-in advancement bug, it also skipped B/C/D, hiding the fact that
+  // power-of-two brackets were fine and costing a re-run to find out.
   test.skip(!DOUBLE_ELIM, 'set E2E_DOUBLE_ELIM=1 to play double-elimination brackets for real');
 
   /**
