@@ -498,6 +498,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/organizations/public': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List public organisers (anonymous, searchable) */
+    get: operations['OrganizationsController_listPublic'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/public/{slug}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public organiser profile by slug (anonymous) */
+    get: operations['OrganizationsController_getPublicBySlug'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/organizations/slug/{slug}': {
     parameters: {
       query?: never;
@@ -868,91 +902,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/admin/rulesets': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List ruleset submissions (super admin) */
-    get: operations['RulesetsAdminController_list'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/admin/rulesets/{id}/approve': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Approve ruleset submission (super admin) */
-    patch: operations['RulesetsAdminController_approve'];
-    trace?: never;
-  };
-  '/api/v1/admin/rulesets/{id}/reject': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Reject ruleset submission (super admin) */
-    patch: operations['RulesetsAdminController_reject'];
-    trace?: never;
-  };
-  '/api/v1/admin/rulesets/bulk-approve': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Bulk-approve ruleset submissions (super admin) */
-    post: operations['RulesetsAdminController_bulkApprove'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/admin/rulesets/bulk-reject': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Bulk-reject ruleset submissions (super admin) */
-    post: operations['RulesetsAdminController_bulkReject'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/admin/custom-rulesets': {
     parameters: {
       query?: never;
@@ -982,12 +931,29 @@ export interface paths {
     get: operations['CustomRulesetsAdminController_getOne'];
     put?: never;
     post?: never;
-    /** Delete custom ruleset (super admin) */
+    /** Delete custom ruleset (super admin). Soft-archives instead of deleting when a tournament still pins it. */
     delete: operations['CustomRulesetsAdminController_remove'];
     options?: never;
     head?: never;
     /** Update custom ruleset (super admin) */
     patch: operations['CustomRulesetsAdminController_update'];
+    trace?: never;
+  };
+  '/api/v1/admin/custom-rulesets/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate + preview a scoring ruleset config (super admin) */
+    post: operations['CustomRulesetsAdminController_validate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   '/api/v1/admin/custom-rulesets/{id}/clone': {
@@ -1144,6 +1110,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/organizations/{orgId}/custom-rulesets/catalog': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Discover catalog: adoptable scoring rulesets (built-ins + other orgs’ approved-public), attributed by owning-org name. */
+    get: operations['OrgCustomRulesetsController_catalog'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/organizations/{orgId}/custom-rulesets/{id}': {
     parameters: {
       query?: never;
@@ -1155,12 +1138,29 @@ export interface paths {
     get: operations['OrgCustomRulesetsController_getOne'];
     put?: never;
     post?: never;
-    /** Delete an org-owned scoring ruleset. */
+    /** Delete an org-owned scoring ruleset. If a tournament still pins it, it is soft-archived (hidden but still resolvable) instead of deleted. */
     delete: operations['OrgCustomRulesetsController_remove'];
     options?: never;
     head?: never;
     /** Update an org-owned scoring ruleset's metadata or config. */
     patch: operations['OrgCustomRulesetsController_update'];
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/custom-rulesets/validate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate + preview a scoring ruleset config without saving. */
+    post: operations['OrgCustomRulesetsController_validate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   '/api/v1/organizations/{orgId}/custom-rulesets/{id}/submit': {
@@ -1174,6 +1174,40 @@ export interface paths {
     put?: never;
     /** Submit this org-owned ruleset for super-admin review so it can be approved for platform-wide sharing. */
     post: operations['OrgCustomRulesetsController_submit'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/custom-rulesets/{id}/export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Export an org-owned scoring ruleset as a portable, self-contained JSON envelope. */
+    get: operations['OrgCustomRulesetsController_export'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/custom-rulesets/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Import a scoring ruleset from an export envelope as a new org-owned row (re-validated, hash recomputed). */
+    post: operations['OrgCustomRulesetsController_import'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1361,6 +1395,40 @@ export interface paths {
     put?: never;
     /** Start / stop / restart a platform container */
     post: operations['SystemVersionsAdminController_runComponentAction'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/system/tls-status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Probe served TLS certificates for the deployed domains */
+    get: operations['TlsStatusAdminController_getTlsStatus'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/system/tls-status/renew': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force a Let's Encrypt renewal attempt (restarts Traefik) */
+    post: operations['TlsStatusAdminController_renewCertificates'];
     delete?: never;
     options?: never;
     head?: never;
@@ -2008,6 +2076,41 @@ export interface paths {
     patch: operations['WeaponsAdminController_update'];
     trace?: never;
   };
+  '/api/v1/admin/system/runtime-health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Aggregated runtime health (DB, Redis, queues, disk) */
+    get: operations['RuntimeHealthAdminController_getRuntimeHealth'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/system/runtime-health/alert-settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get runtime-health alert settings */
+    get: operations['RuntimeHealthAdminController_getAlertSettings'];
+    /** Update runtime-health alert settings */
+    put: operations['RuntimeHealthAdminController_updateAlertSettings'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/phases/{phaseId}/matches': {
     parameters: {
       query?: never;
@@ -2610,6 +2713,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/leagues/{leagueId}/club-standings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get public league club / team standings */
+    get: operations['LeaguesController_clubStandings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/leagues/{leagueId}/club-standings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get league club standings for the admin Ranking page (auth-gated on league-manage permissions) */
+    get: operations['LeaguesController_adminClubStandings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/leagues/{leagueId}/clone': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clone a league into a new season — copies config, groups and roles, but no tournament links or results */
+    post: operations['LeaguesController_cloneLeague'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/leagues/{leagueId}/finalize': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Finalize (freeze) a league season so its standings stop drifting */
+    post: operations['LeaguesController_finalizeLeague'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/leagues/{leagueId}/reopen': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reopen a finalized league season so recompute resumes */
+    post: operations['LeaguesController_reopenLeague'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/leagues/{leagueId}/events/{eventId}/tournament-links': {
     parameters: {
       query?: never;
@@ -3022,366 +3210,6 @@ export interface paths {
     head?: never;
     /** Approve or reject an org-join request */
     patch: operations['LeagueMembershipRequestsController_review'];
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/ai-usage': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get AI spend summary for event */
-    get: operations['AIUsageController_getUsage'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-usage/summary': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** AI consumption rollup for an organization */
-    get: operations['AIDashboardController_orgUsage'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-settings/budget': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Set the org monthly AI budget */
-    patch: operations['AIDashboardController_setBudget'];
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-settings/flags': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Set per-org AI availability overrides */
-    patch: operations['AIDashboardController_setFlags'];
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-settings': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get AI config for org (ceiling + flags) */
-    get: operations['AIProvidersController_getSettings'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-keys': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List org AI keys (masked, with month-to-date spend) */
-    get: operations['AIProvidersController_listKeys'];
-    put?: never;
-    /** Add an org AI key */
-    post: operations['AIProvidersController_createKey'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-keys/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete an org AI key */
-    delete: operations['AIProvidersController_deleteKey'];
-    options?: never;
-    head?: never;
-    /** Update an org AI key (key optional — blank keeps current) */
-    patch: operations['AIProvidersController_updateKey'];
-    trace?: never;
-  };
-  '/api/v1/organizations/{orgId}/ai-keys/{id}/activate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Make this key the active org AI key */
-    post: operations['AIProvidersController_activateKey'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/ai/models': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List selectable AI models per provider */
-    get: operations['AIModelsController_getModels'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/staff-accounts': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List local event staff accounts */
-    get: operations['StaffController_listAccounts'];
-    put?: never;
-    /** Create a local event staff account */
-    post: operations['StaffController_createAccount'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/staff-accounts/{staffAccountId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update or disable a local event staff account */
-    patch: operations['StaffController_updateAccount'];
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/staff-accounts/{staffAccountId}/reset-pin': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Reset a local event staff PIN */
-    post: operations['StaffController_resetPin'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/staff-accounts/{staffAccountId}/lices': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Replace local event staff Lice assignments */
-    put: operations['StaffController_setLices'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff-auth/login': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create a local event staff session */
-    post: operations['StaffController_login'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff-auth/logout': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Clear the local event staff session */
-    post: operations['StaffController_logout'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff-auth/me': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Return the current local event staff session */
-    get: operations['StaffController_me'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff/assigned-lices': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Lices assigned to the current local event staff session */
-    get: operations['StaffController_assignedLices'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff/lices/{liceId}/current-match': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the current match for an assigned Lice */
-    get: operations['StaffController_assignedCurrentMatch'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventSlug}/lices/{liceName}/current': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Public current match and queue for a Lice */
-    get: operations['StaffController_publicLiceCurrent'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/matches/{id}/display': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Public read-only match display payload */
-    get: operations['StaffController_publicMatchDisplay'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/matches/{id}/neighbors': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Public previous + next match on the same lice */
-    get: operations['StaffController_matchNeighbors'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
     trace?: never;
   };
   '/api/v1/tournaments/{tournamentId}/generate-pools': {
@@ -4202,6 +4030,417 @@ export interface paths {
     };
     /** Compute pool standings for a tournament */
     get: operations['PoolStandingsController_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/ai-usage': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get AI spend summary for event */
+    get: operations['AIUsageController_getUsage'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-usage/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** AI consumption rollup for an organization */
+    get: operations['AIDashboardController_orgUsage'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-settings/budget': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Set the org monthly AI budget */
+    patch: operations['AIDashboardController_setBudget'];
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-settings/flags': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Set per-org AI availability overrides */
+    patch: operations['AIDashboardController_setFlags'];
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get AI config for org (ceiling + flags) */
+    get: operations['AIProvidersController_getSettings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-keys': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List org AI keys (masked, with month-to-date spend) */
+    get: operations['AIProvidersController_listKeys'];
+    put?: never;
+    /** Add an org AI key */
+    post: operations['AIProvidersController_createKey'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-keys/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete an org AI key */
+    delete: operations['AIProvidersController_deleteKey'];
+    options?: never;
+    head?: never;
+    /** Update an org AI key (key optional — blank keeps current) */
+    patch: operations['AIProvidersController_updateKey'];
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/ai-keys/{id}/activate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Make this key the active org AI key */
+    post: operations['AIProvidersController_activateKey'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/ai/models': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List selectable AI models per provider */
+    get: operations['AIModelsController_getModels'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/staff-accounts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List local event staff accounts */
+    get: operations['StaffController_listAccounts'];
+    put?: never;
+    /** Create a local event staff account */
+    post: operations['StaffController_createAccount'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/staff-accounts/{staffAccountId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or disable a local event staff account */
+    patch: operations['StaffController_updateAccount'];
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/staff-accounts/{staffAccountId}/reset-pin': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reset a local event staff PIN */
+    post: operations['StaffController_resetPin'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/staff-accounts/{staffAccountId}/lices': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Replace local event staff Lice assignments */
+    put: operations['StaffController_setLices'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/live-board': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Live control-room board: per-lice score + scorer + tablet health */
+    get: operations['StaffController_liveBoard'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/live/attention/{staffAccountId}/ack': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Acknowledge (clear) a scorer needs-attention flag from the Live board */
+    post: operations['StaffController_ackAttention'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff-auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a local event staff session */
+    post: operations['StaffController_login'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff-auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clear the local event staff session */
+    post: operations['StaffController_logout'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff-auth/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Return the current local event staff session */
+    get: operations['StaffController_me'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/assigned-lices': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Lices assigned to the current local event staff session */
+    get: operations['StaffController_assignedLices'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/heartbeat': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Report scoring-tablet sync health for the Live board */
+    post: operations['StaffController_heartbeat'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/lices/{liceId}/current-match': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the current match for an assigned Lice */
+    get: operations['StaffController_assignedCurrentMatch'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventSlug}/lices/{liceName}/current': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public current match and queue for a Lice */
+    get: operations['StaffController_publicLiceCurrent'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/matches/{id}/display': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public read-only match display payload */
+    get: operations['StaffController_publicMatchDisplay'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/matches/{id}/neighbors': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public previous + next match on the same lice */
+    get: operations['StaffController_matchNeighbors'];
     put?: never;
     post?: never;
     delete?: never;
@@ -5433,6 +5672,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/readiness': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Pre-flight checklist for an event's readiness to run */
+    get: operations['EventsController_getEventReadiness'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/clubs': {
     parameters: {
       query?: never;
@@ -5705,6 +5961,91 @@ export interface paths {
     put?: never;
     /** Upload tournament logo (org admin+) */
     post: operations['EventsController_uploadTournamentLogo'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{id}/customise-format': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fork the built-in ruleset into a private org copy (org admin+) */
+    post: operations['EventsController_customiseTournamentFormat'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{id}/repin-ruleset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Audited mid-event ruleset re-pin (org owner/super-admin) */
+    post: operations['EventsController_repinTournamentRuleset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{id}/repin-preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Preview the per-bucket lineage diff a re-pin would produce (read-only) */
+    get: operations['EventsController_previewRepinRuleset'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{id}/ruleset-drift': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether the tournament ruleset behaviour has drifted (org admin+) */
+    get: operations['EventsController_getTournamentRulesetDrift'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{id}/acknowledge-ruleset-drift': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Acknowledge ruleset drift by re-stamping the content hash (org admin+) */
+    post: operations['EventsController_acknowledgeTournamentRulesetDrift'];
     delete?: never;
     options?: never;
     head?: never;
@@ -6003,12 +6344,29 @@ export interface paths {
     get: operations['PenaltiesController_getRuleset'];
     put?: never;
     post?: never;
-    /** Delete a custom penalty ruleset (built-in cannot be deleted). */
+    /** Delete a custom penalty ruleset (built-in cannot be deleted). Soft-archives instead of deleting when a tournament or event still pins it. */
     delete: operations['PenaltiesController_deleteRuleset'];
     options?: never;
     head?: never;
     /** Update a penalty ruleset. Built-in is super-admin-only; custom rulesets are org-admin gated. */
     patch: operations['PenaltiesController_updateRuleset'];
+    trace?: never;
+  };
+  '/api/v1/penalty-rulesets/{id}/lineage': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How a custom penalty ruleset diverges from the built-in default (computed, never self-declared); null for the built-in. */
+    get: operations['PenaltiesController_getRulesetLineage'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   '/api/v1/penalty-rulesets/import-csv': {
@@ -6022,6 +6380,57 @@ export interface paths {
     put?: never;
     /** Import a custom penalty ruleset from CSV */
     post: operations['PenaltiesController_importRuleset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/penalty-rulesets/{id}/publish': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Publish the current definition as an immutable version (validate + snapshot + patch-bump). */
+    post: operations['PenaltiesController_publishRuleset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/penalty-rulesets/{id}/versions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the published version history of a penalty ruleset. */
+    get: operations['PenaltiesController_listVersions'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/penalty-rulesets/{id}/rollback': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restore a prior version snapshot onto the penalty ruleset. */
+    post: operations['PenaltiesController_rollbackRuleset'];
     delete?: never;
     options?: never;
     head?: never;
@@ -6079,6 +6488,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/penalty-rulesets/{id}/export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Export an org-owned penalty ruleset as a portable, self-contained JSON envelope. */
+    get: operations['PenaltiesController_exportRuleset'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/penalty-rulesets/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Import a penalty ruleset from an export envelope as a new org-owned row (re-validated, hash recomputed). */
+    post: operations['PenaltiesController_importRulesetJson'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/organizations/{orgId}/penalty-rulesets': {
     parameters: {
       query?: never;
@@ -6088,6 +6531,23 @@ export interface paths {
     };
     /** List penalty rulesets relevant to an organization: built-in + rulesets owned by orgId. */
     get: operations['PenaltiesController_listRulesetsForOrg'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{orgId}/penalty-rulesets/catalog': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Discover catalog: adoptable penalty rulesets (built-in + other orgs’ approved-public), attributed by owning-org name. */
+    get: operations['PenaltiesController_listRulesetCatalogForOrg'];
     put?: never;
     post?: never;
     delete?: never;
@@ -6994,6 +7454,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/follows/organizations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the organisations the current user follows */
+    get: operations['FollowsController_listFollowedOrganizations'];
+    put?: never;
+    /** Follow an organisation (idempotent) */
+    post: operations['FollowsController_followOrganization'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/follows/organizations/{organizationId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Unfollow an organisation */
+    delete: operations['FollowsController_unfollowOrganization'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/follows/{personId}': {
     parameters: {
       query?: never;
@@ -7408,6 +7903,23 @@ export interface paths {
     post: operations['WorkshopsController_enroll'];
     /** Cancel enrollment (authenticated) */
     delete: operations['WorkshopsController_cancel'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workshop-sessions/{id}/enrollments/{personId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enroll a specified person into a session — organizer adds an attendee (workshop_lead+). Waitlisted if full. */
+    post: operations['WorkshopsController_enrollPerson'];
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -7930,8 +8442,25 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List available rulesets for the tournament config wizard */
+    /** List the coded (built-in) rulesets */
     get: operations['RulesetsController_list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/rulesets/for-event/{eventId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List rulesets selectable for tournaments in this event */
+    get: operations['RulesetsController_listForEvent'];
     put?: never;
     post?: never;
     delete?: never;
@@ -8144,16 +8673,6 @@ export interface components {
         | 'workshop_lead'
         | 'read_only';
     };
-    RejectRulesetDto: {
-      reason: string;
-    };
-    BulkApproveRulesetsDto: {
-      ids: string[];
-    };
-    BulkRejectRulesetsDto: {
-      ids: string[];
-      reason: string;
-    };
     CreateCustomRulesetDto: {
       name: string;
       description?: string;
@@ -8172,7 +8691,64 @@ export interface components {
       matchFormatDefaults?: {
         [key: string]: unknown;
       };
-      doublePenaltyFormula?: string;
+      doublePenaltyFormula?:
+        | (
+            | ('0' | 'n*(n-1)/3' | 'n*(n-1)/2' | 'n')
+            | (
+                | {
+                    /** @enum {string} */
+                    type: 'literal';
+                    value: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    type: 'var';
+                    /** @enum {string} */
+                    name:
+                      | 'victories'
+                      | 'ties'
+                      | 'losses'
+                      | 'doubleHits'
+                      | 'hitsGiven'
+                      | 'hitsReceived'
+                      | 'pointsPerVictory'
+                      | 'pointsPerTie'
+                      | 'pointsPerLoss'
+                      | 'doublePenalty';
+                  }
+                | {
+                    /** @enum {string} */
+                    type: 'binop';
+                    /** @enum {string} */
+                    op: '+' | '-' | '*' | '/';
+                    left: components['schemas']['CreateCustomRulesetDto'];
+                    right: components['schemas']['CreateCustomRulesetDto'];
+                  }
+              )
+          )
+        | null;
+      targets?: {
+        name: string;
+        value: number;
+      }[];
+      hasAfterblow?: boolean;
+      /** @enum {string} */
+      afterblowMode?: 'full' | 'deductive';
+      /** @enum {string} */
+      afterblowValuation?: 'fixed' | 'weighted';
+      afterblowFixedValue?: number;
+    };
+    ValidateRulesetDto: {
+      scoreFormula?: unknown;
+      constants?: unknown;
+      tiebreakers?: unknown;
+      doublePenaltyFormula?: unknown;
+      targets?:
+        | {
+            name: string;
+            value: number;
+          }[]
+        | null;
     };
     UpdateCustomRulesetDto: {
       name?: string;
@@ -8192,16 +8768,72 @@ export interface components {
       matchFormatDefaults?: {
         [key: string]: unknown;
       };
-      doublePenaltyFormula?: string;
+      doublePenaltyFormula?:
+        | (
+            | ('0' | 'n*(n-1)/3' | 'n*(n-1)/2' | 'n')
+            | (
+                | {
+                    /** @enum {string} */
+                    type: 'literal';
+                    value: number;
+                  }
+                | {
+                    /** @enum {string} */
+                    type: 'var';
+                    /** @enum {string} */
+                    name:
+                      | 'victories'
+                      | 'ties'
+                      | 'losses'
+                      | 'doubleHits'
+                      | 'hitsGiven'
+                      | 'hitsReceived'
+                      | 'pointsPerVictory'
+                      | 'pointsPerTie'
+                      | 'pointsPerLoss'
+                      | 'doublePenalty';
+                  }
+                | {
+                    /** @enum {string} */
+                    type: 'binop';
+                    /** @enum {string} */
+                    op: '+' | '-' | '*' | '/';
+                    left: components['schemas']['UpdateCustomRulesetDto'];
+                    right: components['schemas']['UpdateCustomRulesetDto'];
+                  }
+              )
+          )
+        | null;
       tfConfig?: {
         [key: string]: unknown;
       };
+      targets?: {
+        name: string;
+        value: number;
+      }[];
+      hasAfterblow?: boolean;
+      /** @enum {string} */
+      afterblowMode?: 'full' | 'deductive';
+      /** @enum {string} */
+      afterblowValuation?: 'fixed' | 'weighted';
+      afterblowFixedValue?: number;
     };
     PublishRulesetDto: {
       nextVersion?: string;
     };
     RejectSubmissionDto: {
       reason: string;
+    };
+    RulesetImportDto: {
+      /** @enum {string} */
+      format: 'myclash.ruleset';
+      /** @enum {number} */
+      formatVersion: 1;
+      /** @enum {string} */
+      type: 'scoring' | 'penalty';
+      exportedAt: string;
+      definitionHash: string;
+      definition: unknown;
     };
     UpsertFeatureFlagDto: {
       description?: string;
@@ -8293,6 +8925,22 @@ export interface components {
     UpdateWeaponDto: {
       name?: string;
       active?: boolean;
+    };
+    UpdateAlertSettingsDto: {
+      enabled?: boolean;
+      recipientEmails?: string[];
+      /** @enum {string} */
+      emailLevel?: 'warning' | 'critical';
+      checkIntervalMinutes?: number;
+      cooldownMinutes?: number;
+      connWarnPct?: number;
+      connCritPct?: number;
+      redisWarnPct?: number;
+      redisCritPct?: number;
+      diskWarnPct?: number;
+      diskCritPct?: number;
+      queueBacklogWarn?: number;
+      queueBacklogCrit?: number;
     };
     CreateMatchDto: {
       /** Format: uuid */
@@ -8421,6 +9069,10 @@ export interface components {
         )[];
       };
     };
+    CloneLeagueDto: {
+      seasonYear: number;
+      name?: string;
+    };
     LinkTournamentDto: {
       /** Format: uuid */
       groupId?: string | null;
@@ -8463,36 +9115,6 @@ export interface components {
       status: 'approved' | 'rejected';
       reviewNote?: string;
     };
-    UpdateAIFlagsDto: {
-      aiFeaturesDisabled?: boolean;
-      organizerChatDisabled?: boolean;
-    };
-    CreateStaffAccountDto: {
-      displayName: string;
-      username: string;
-      pin: string;
-      /** @enum {string} */
-      role?: 'arbitre_table' | 'event_staff';
-    };
-    UpdateStaffAccountDto: {
-      displayName?: string;
-      username?: string;
-      /** @enum {string} */
-      role?: 'arbitre_table' | 'event_staff';
-      /** @enum {string} */
-      status?: 'active' | 'disabled';
-    };
-    ResetStaffPinDto: {
-      pin: string;
-    };
-    SetStaffLicesDto: {
-      liceIds: string[];
-    };
-    StaffLoginDto: {
-      eventSlugOrCode: string;
-      username: string;
-      pin: string;
-    };
     GeneratePoolsDto: {
       poolCount?: number;
       targetSize?: number;
@@ -8517,6 +9139,10 @@ export interface components {
       poolPhaseId?: string;
       /** @enum {string} */
       seedingStrategy?: 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
+      /** @enum {string} */
+      secondChanceTarget?: 'gold' | 'bronze';
+      bronzeMatch?: boolean;
+      repechageEntrySize?: (8 | 16 | 32) | null;
     };
     PopulateBracketDto: {
       /** @enum {string} */
@@ -8530,6 +9156,10 @@ export interface components {
     };
     EditBracketConfigDto: {
       grandFinalReset?: boolean;
+      /** @enum {string} */
+      secondChanceTarget?: 'gold' | 'bronze';
+      bronzeMatch?: boolean;
+      repechageEntrySize?: (8 | 16 | 32) | null;
     };
     ReseedBracketDto: {
       /** @enum {string} */
@@ -8623,6 +9253,41 @@ export interface components {
         allowedSkillIds: string[];
       }[];
       confirmDestructive?: boolean;
+    };
+    UpdateAIFlagsDto: {
+      aiFeaturesDisabled?: boolean;
+      organizerChatDisabled?: boolean;
+    };
+    CreateStaffAccountDto: {
+      displayName: string;
+      username: string;
+      pin: string;
+      /** @enum {string} */
+      role?: 'arbitre_table' | 'event_staff';
+    };
+    UpdateStaffAccountDto: {
+      displayName?: string;
+      username?: string;
+      /** @enum {string} */
+      role?: 'arbitre_table' | 'event_staff';
+      /** @enum {string} */
+      status?: 'active' | 'disabled';
+    };
+    ResetStaffPinDto: {
+      pin: string;
+    };
+    SetStaffLicesDto: {
+      liceIds: string[];
+    };
+    StaffLoginDto: {
+      eventSlugOrCode: string;
+      username: string;
+      pin: string;
+    };
+    StaffHeartbeatDto: {
+      outboxDepth: number;
+      oldestPendingAgeSec: number;
+      rejectedCount: number;
     };
     CreatePersonDto: {
       givenName: string;
@@ -8948,6 +9613,10 @@ export interface components {
       rulesetVersion?: string;
       rulesetConfig?: {
         winBonus?: number;
+        targets?: {
+          name: string;
+          value: number;
+        }[];
         targetValues?: {
           deepTarget?: number;
           shallowTarget?: number;
@@ -9002,6 +9671,10 @@ export interface components {
       };
       rulesetConfig?: {
         winBonus?: number;
+        targets?: {
+          name: string;
+          value: number;
+        }[];
         targetValues?: {
           deepTarget?: number;
           shallowTarget?: number;
@@ -9041,10 +9714,16 @@ export interface components {
       penaltyRulesetId?: string | null;
       logoUrl?: string | null;
       rulesetCode?: string;
+      wizardStep?: number;
       rulesetVersion?: string;
       color?: string | null;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
+    };
+    RepinTournamentRulesetDto: {
+      rulesetCode: string;
+      rulesetVersion?: string;
+      justification: string;
     };
     CreateLiceDto: {
       name: string;
@@ -9155,6 +9834,13 @@ export interface components {
       /** @enum {string} */
       secondBlackCardForfeit?: 'match' | 'tournament' | 'none';
     };
+    PublishPenaltyRulesetDto: {
+      version?: string;
+    };
+    RollbackPenaltyRulesetDto: {
+      /** Format: uuid */
+      versionId: string;
+    };
     RejectPenaltyRulesetSharingDto: {
       reason: string;
     };
@@ -9198,6 +9884,7 @@ export interface components {
       refereeStartingMinutesBefore?: number;
       scheduleChanges?: boolean;
       resultsPublished?: boolean;
+      organizerUpdates?: boolean;
       enabled?: boolean;
     };
     SendBroadcastNotificationDto: {
@@ -9339,6 +10026,10 @@ export interface components {
     FollowByGlobalPersonDto: {
       /** Format: uuid */
       globalPersonId: string;
+    };
+    FollowOrganizationDto: {
+      /** Format: uuid */
+      organizationId: string;
     };
     FollowDto: {
       /** Format: uuid */
@@ -10266,6 +10957,46 @@ export interface operations {
       };
     };
   };
+  OrganizationsController_listPublic: {
+    parameters: {
+      query?: {
+        q?: string;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_getPublicBySlug: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   OrganizationsController_getBySlug: {
     parameters: {
       query?: never;
@@ -10908,109 +11639,6 @@ export interface operations {
       };
     };
   };
-  RulesetsAdminController_list: {
-    parameters: {
-      query?: {
-        status?: 'pending' | 'approved' | 'rejected';
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  RulesetsAdminController_approve: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  RulesetsAdminController_reject: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RejectRulesetDto'];
-      };
-    };
-    responses: {
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  RulesetsAdminController_bulkApprove: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkApproveRulesetsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  RulesetsAdminController_bulkReject: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BulkRejectRulesetsDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   CustomRulesetsAdminController_list: {
     parameters: {
       query?: never;
@@ -11079,7 +11707,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      204: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -11103,6 +11731,27 @@ export interface operations {
     };
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  CustomRulesetsAdminController_validate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ValidateRulesetDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };
@@ -11313,6 +11962,25 @@ export interface operations {
       };
     };
   };
+  OrgCustomRulesetsController_catalog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   OrgCustomRulesetsController_getOne: {
     parameters: {
       query?: never;
@@ -11345,7 +12013,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      204: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -11377,6 +12045,29 @@ export interface operations {
       };
     };
   };
+  OrgCustomRulesetsController_validate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ValidateRulesetDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   OrgCustomRulesetsController_submit: {
     parameters: {
       query?: never;
@@ -11388,6 +12079,49 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrgCustomRulesetsController_export: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrgCustomRulesetsController_import: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RulesetImportDto'];
+      };
+    };
     responses: {
       201: {
         headers: {
@@ -11615,6 +12349,40 @@ export interface operations {
         key: string;
         action: string;
       };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TlsStatusAdminController_getTlsStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  TlsStatusAdminController_renewCertificates: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
       cookie?: never;
     };
     requestBody?: never;
@@ -12525,6 +13293,61 @@ export interface operations {
       };
     };
   };
+  RuntimeHealthAdminController_getRuntimeHealth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  RuntimeHealthAdminController_getAlertSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  RuntimeHealthAdminController_updateAlertSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateAlertSettingsDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   MatchesController_listByPhase: {
     parameters: {
       query?: never;
@@ -13377,6 +14200,109 @@ export interface operations {
       };
     };
   };
+  LeaguesController_clubStandings: {
+    parameters: {
+      query?: {
+        group?: string;
+      };
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_adminClubStandings: {
+    parameters: {
+      query?: {
+        group?: string;
+      };
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_cloneLeague: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CloneLeagueDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_finalizeLeague: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_reopenLeague: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   LeaguesController_removeEventTournamentLinks: {
     parameters: {
       query?: never;
@@ -13982,498 +14908,6 @@ export interface operations {
         'application/json': components['schemas']['ReviewLeagueMembershipRequestBodyDto'];
       };
     };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIUsageController_getUsage: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIDashboardController_orgUsage: {
-    parameters: {
-      query: {
-        from: string;
-        to: string;
-      };
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIDashboardController_setBudget: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateBudgetDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIDashboardController_setFlags: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateAIFlagsDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIProvidersController_getSettings: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIProvidersController_listKeys: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIProvidersController_createKey: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateAiKeyDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIProvidersController_deleteKey: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIProvidersController_updateKey: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateAiKeyDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIProvidersController_activateKey: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        orgId: string;
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  AIModelsController_getModels: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_listAccounts: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_createAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateStaffAccountDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_updateAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        staffAccountId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateStaffAccountDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_resetPin: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        staffAccountId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ResetStaffPinDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_setLices: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        staffAccountId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SetStaffLicesDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_login: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['StaffLoginDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_logout: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_me: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_assignedLices: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_assignedCurrentMatch: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        liceId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_publicLiceCurrent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventSlug: string;
-        liceName: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_publicMatchDisplay: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  StaffController_matchNeighbors: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       200: {
         headers: {
@@ -15723,6 +16157,558 @@ export interface operations {
       header?: never;
       path: {
         tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIUsageController_getUsage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIDashboardController_orgUsage: {
+    parameters: {
+      query: {
+        from: string;
+        to: string;
+      };
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIDashboardController_setBudget: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateBudgetDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIDashboardController_setFlags: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateAIFlagsDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIProvidersController_getSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIProvidersController_listKeys: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIProvidersController_createKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateAiKeyDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIProvidersController_deleteKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIProvidersController_updateKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateAiKeyDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIProvidersController_activateKey: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AIModelsController_getModels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_listAccounts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_createAccount: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateStaffAccountDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_updateAccount: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        staffAccountId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateStaffAccountDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_resetPin: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        staffAccountId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ResetStaffPinDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_setLices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        staffAccountId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetStaffLicesDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_liveBoard: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_ackAttention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        staffAccountId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_login: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaffLoginDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_logout: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_me: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_assignedLices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_heartbeat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaffHeartbeatDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_assignedCurrentMatch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        liceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_publicLiceCurrent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventSlug: string;
+        liceName: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_publicMatchDisplay: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_matchNeighbors: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
       };
       cookie?: never;
     };
@@ -17572,6 +18558,11 @@ export interface operations {
         organizationId?: string;
         limit?: number;
         cursor?: string;
+        q?: string;
+        country?: string;
+        weapon?: string;
+        from?: string;
+        to?: string;
       };
       header?: never;
       path?: never;
@@ -17588,6 +18579,25 @@ export interface operations {
     };
   };
   EventsController_getEventDashboardStats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getEventReadiness: {
     parameters: {
       query?: never;
       header?: never;
@@ -18069,6 +19079,107 @@ export interface operations {
     };
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_customiseTournamentFormat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_repinTournamentRuleset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RepinTournamentRulesetDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_previewRepinRuleset: {
+    parameters: {
+      query: {
+        rulesetCode: string;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getTournamentRulesetDrift: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_acknowledgeTournamentRulesetDrift: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -18618,7 +19729,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      204: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -18649,6 +19760,25 @@ export interface operations {
       };
     };
   };
+  PenaltiesController_getRulesetLineage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PenaltiesController_importRuleset: {
     parameters: {
       query?: never;
@@ -18659,6 +19789,71 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['ImportPenaltyRulesetCsvDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PenaltiesController_publishRuleset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PublishPenaltyRulesetDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PenaltiesController_listVersions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PenaltiesController_rollbackRuleset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RollbackPenaltyRulesetDto'];
       };
     };
     responses: {
@@ -18731,7 +19926,68 @@ export interface operations {
       };
     };
   };
+  PenaltiesController_exportRuleset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PenaltiesController_importRulesetJson: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RulesetImportDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PenaltiesController_listRulesetsForOrg: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PenaltiesController_listRulesetCatalogForOrg: {
     parameters: {
       query?: never;
       header?: never;
@@ -20129,6 +21385,63 @@ export interface operations {
       };
     };
   };
+  FollowsController_listFollowedOrganizations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FollowsController_followOrganization: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FollowOrganizationDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FollowsController_unfollowOrganization: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        organizationId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   FollowsController_unfollow: {
     parameters: {
       query?: never;
@@ -20857,6 +22170,26 @@ export interface operations {
       };
     };
   };
+  WorkshopsController_enrollPerson: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        personId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   WorkshopsController_promote: {
     parameters: {
       query?: never;
@@ -21059,7 +22392,7 @@ export interface operations {
   ReviewQueueController_list: {
     parameters: {
       query?: {
-        /** @description deletion | exchange_edit | club_review | ruleset_submission */
+        /** @description deletion | exchange_edit | club_review | league_tournament_request | league_membership_request */
         type?: string;
         /** @description pending (default) | all | approved | rejected | ... */
         status?: string;
@@ -21459,6 +22792,25 @@ export interface operations {
       query?: never;
       header?: never;
       path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  RulesetsController_listForEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
       cookie?: never;
     };
     requestBody?: never;

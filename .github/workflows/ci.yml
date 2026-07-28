@@ -193,6 +193,21 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:complexity
 
+      # Needs the COMPILED api: the OpenAPI document is built by booting
+      # dist/app.module, not by reading source. No other job produces it, so
+      # this step builds it itself.
+      #
+      # Worth the ~40s: the generated client silently drifted 36 routes behind
+      # the API (and kept 5 deleted ones) because nothing ever regenerated it —
+      # the emit had been OOMing since 2026-05-19 and no gate noticed.
+      - name: Build API for OpenAPI emit
+        if: '!cancelled()'
+        run: pnpm --filter @myclash/api build
+
+      - name: Check OpenAPI client drift
+        if: '!cancelled()'
+        run: pnpm quality:openapi-drift
+
       - name: Check shared-type leaks
         if: '!cancelled()'
         run: pnpm quality:shared-types
