@@ -11,6 +11,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type RequestStatus = 'pending' | 'approved' | 'rejected' | 'all';
@@ -27,6 +28,12 @@ interface ExchangeEditRequest {
   reason: string;
   status: Exclude<RequestStatus, 'all'>;
   requested_payload: unknown;
+  /** RFC 6901 JSON Pointer into requested_payload → label for the id there. */
+  payloadLabels?: Record<string, PayloadLabel>;
+  /** Backend-resolved labels for the event/match/exchange triple. */
+  eventLabel: string | null;
+  matchLabel: string | null;
+  exchangeLabel: string | null;
   reviewed_by_user_id: string | null;
   reviewedByName: string | null;
   reviewedByEmail: string | null;
@@ -39,9 +46,16 @@ function typeLabel(type: ExchangeEditRequest['request_type']) {
   return type === 'void_exchange' ? 'Void exchange' : 'Restore exchange';
 }
 
-function payloadPreview(payload: unknown): string {
-  if (!payload) return '-';
-  return JSON.stringify(payload);
+/** Human label when the record resolved, raw id (in mono) only as a fallback. */
+function IdentifiedRow({ label, id }: { label: string | null; id: string }) {
+  if (label) {
+    return (
+      <p className="truncate text-foreground-secondary" title={id}>
+        {label}
+      </p>
+    );
+  }
+  return <p className="truncate font-mono text-muted">{id}</p>;
 }
 
 export default function ExchangeEditRequestsPage() {
@@ -221,10 +235,12 @@ export default function ExchangeEditRequestsPage() {
                     <p className="font-mono text-muted">{request.requesterEmail}</p>
                   )}
                 </DataTableCell>
-                <DataTableCell mono>
-                  <p>{request.event_id}</p>
-                  <p>{request.match_id}</p>
-                  <p>{request.exchange_id}</p>
+                <DataTableCell className="text-xs">
+                  {/* Label first, raw id only in the tooltip — this cell used to
+                      stack three bare UUIDs, which reads as broken UI. */}
+                  <IdentifiedRow label={request.eventLabel} id={request.event_id} />
+                  <IdentifiedRow label={request.matchLabel} id={request.match_id} />
+                  <IdentifiedRow label={request.exchangeLabel} id={request.exchange_id} />
                 </DataTableCell>
                 <DataTableCell className="max-w-xs text-foreground-secondary">
                   {request.reason}
@@ -269,9 +285,10 @@ export default function ExchangeEditRequestsPage() {
                   )}
                 </DataTableCell>
                 <DataTableCell>
-                  <pre className="max-w-sm whitespace-pre-wrap break-words text-xs text-muted">
-                    {payloadPreview(request.requested_payload)}
-                  </pre>
+                  <PayloadCell
+                    payload={request.requested_payload}
+                    labels={request.payloadLabels ?? {}}
+                  />
                 </DataTableCell>
               </DataTableRow>
             ))}

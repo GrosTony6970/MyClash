@@ -1,7 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { UserDirectoryService } from '../user-directory/user-directory.service';
+import {
+  type PayloadRef,
+  type RefBudget,
+  collectPayloadRefs,
+} from '../entity-label/audit-payload-refs';
 import type { ListAuditLogQueryDto } from './dto/admin-audit-log.dto';
+import { ENTITY_TYPE_TO_KIND, type EntityKind, labelKey } from '../entity-label/entity-label-specs';
+import {
+  EntityLabelService,
+  MAX_PAYLOAD_REFS,
+  addRefs,
+} from '../entity-label/entity-label.service';
 
 const AUDIT_LOG_COLUMNS =
   'id, actor_user_id, action, entity_type, entity_id, payload_json, created_at';
@@ -10,6 +20,12 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 100;
 const EXPORT_LIMIT = 5000;
+
+export interface PayloadLabel {
+  label: string;
+  /** The entity kind the id points at, so the FE can style without re-deriving. */
+  kind: string;
+}
 
 export interface AuditLogRow {
   id: string;
@@ -29,7 +45,32 @@ export interface AuditLogRow {
    * resolver switch; the FE keeps the UUID visible as a fallback.
    */
   entityLabel: string | null;
+  /**
+   * RFC 6901 JSON Pointer into `payload_json` → the label for the id at that
+   * position, e.g. `{ "/moved/personIds/0": { label: "Alice Smith", kind: "person" } }`.
+   *
+   * `payload_json` itself is returned byte-identical: the audit log is a
+   * forensic record, and swapping a name in for a UUID would destroy the join
+   * key an operator needs to correlate rows. An absent pointer simply means the
+   * FE renders the raw string it already has.
+   */
+  payloadLabels: Record<string, PayloadLabel>;
 }
+
+/** What `exportCsv` actually selects — narrower than a listed row. */
+interface AuditLogExportRow {
+  created_at: string;
+  actor_user_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  payload_json: unknown;
+}
+
+type RawAuditLogRow = Omit<
+  AuditLogRow,
+  'entityLabel' | 'actorName' | 'actorEmail' | 'payloadLabels'
+>;
 
 export interface AuditLogListResponse {
   items: AuditLogRow[];
@@ -106,7 +147,7 @@ function csvEscape(value: unknown): string {
   return /[",\r\n]/.test(escaped) ? `"${escaped}"` : escaped;
 }
 
-function toCsv(rows: Array<Omit<AuditLogRow, 'id'>>): string {
+function toCsv(rows: AuditLogExportRow[]): string {
   const header = 'created_at,actor_user_id,action,entity_type,entity_id,payload_json';
   const body = rows.map((row) =>
     [
@@ -123,11 +164,41 @@ function toCsv(rows: Array<Omit<AuditLogRow, 'id'>>): string {
   return [header, ...body].join('\n');
 }
 
+/**
+ * Decorate a raw row with everything the operator actually reads: the actor's
+ * name, the entity's label, and a pointer→label map for the ids inside the
+ * payload. `payload_json` is passed through untouched.
+ */
+function toAuditLogRow(
+  row: RawAuditLogRow,
+  refs: readonly PayloadRef[],
+  labels: ReadonlyMap<string, string>,
+  users: ReadonlyMap<string, { name: string | null; email: string | null }>,
+): AuditLogRow {
+  const actor = row.actor_user_id ? users.get(row.actor_user_id) : null;
+  const entityKind = ENTITY_TYPE_TO_KIND[row.entity_type];
+  const payloadLabels: Record<string, PayloadLabel> = {};
+  for (const ref of refs) {
+    const label = labels.get(labelKey(ref.kind, ref.id));
+    if (label) payloadLabels[ref.pointer] = { label, kind: ref.kind };
+  }
+  return {
+    ...row,
+    actorName: actor?.name ?? null,
+    actorEmail: actor?.email ?? null,
+    entityLabel:
+      entityKind && row.entity_id
+        ? (labels.get(labelKey(entityKind, row.entity_id)) ?? null)
+        : null,
+    payloadLabels,
+  };
+}
+
 @Injectable()
 export class AdminAuditLogService {
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly userDirectory: UserDirectoryService,
+    private readonly entityLabels: EntityLabelService,
   ) {}
 
   async list(query: ListAuditLogQueryDto): Promise<AuditLogListResponse> {
@@ -148,23 +219,17 @@ export class AdminAuditLogService {
       .range(from, to);
 
     if (error) throw new BadRequestException(error.message);
-    const rawRows =
-      (data as Array<Omit<AuditLogRow, 'entityLabel' | 'actorName' | 'actorEmail'>> | null) ?? [];
-    const [labels, actorMap] = await Promise.all([
-      this.resolveEntityLabels(rawRows),
-      this.userDirectory.resolveUsers(
-        rawRows.map((row) => row.actor_user_id).filter((id): id is string => Boolean(id)),
-      ),
-    ]);
-    const items: AuditLogRow[] = rawRows.map((row) => {
-      const actor = row.actor_user_id ? actorMap.get(row.actor_user_id) : null;
-      return {
-        ...row,
-        actorName: actor?.name ?? null,
-        actorEmail: actor?.email ?? null,
-        entityLabel: row.entity_id ? (labels.get(row.entity_id) ?? null) : null,
-      };
-    });
+    const rawRows = (data as RawAuditLogRow[] | null) ?? [];
+
+    // One budget for the whole page: a single pathological payload can't starve
+    // the rest of the rows out of their labels.
+    const budget: RefBudget = { remaining: MAX_PAYLOAD_REFS };
+    const rowRefs = rawRows.map((row) => collectPayloadRefs(row.action, row.payload_json, budget));
+    const { labels, users } = await this.entityLabels.resolve(this.collectRefs(rawRows, rowRefs));
+
+    const items = rawRows.map((row, index) =>
+      toAuditLogRow(row, rowRefs[index] ?? [], labels, users),
+    );
     const total = count ?? 0;
     return {
       items,
@@ -176,158 +241,28 @@ export class AdminAuditLogService {
   }
 
   /**
-   * Group the page's rows by entity_type, batch-fetch labels per
-   * type, and return a single id → label Map covering every entity
-   * encountered. Hard-deleted rows and types not in the switch
-   * silently fall through (the FE renders the raw UUID).
+   * Every (kind, id) the page needs, in one map: actors, top-level entities and
+   * payload references alike. Actors and payload user refs share the `user`
+   * bucket, so a `user.update` row whose entity_id IS its actor costs one lookup.
    */
-  private async resolveEntityLabels(
-    rows: Array<{ entity_type: string | null; entity_id: string | null }>,
-  ): Promise<Map<string, string>> {
-    const byType = new Map<string, Set<string>>();
-    for (const r of rows) {
-      if (!r.entity_type || !r.entity_id) continue;
-      const set = byType.get(r.entity_type) ?? new Set<string>();
-      set.add(r.entity_id);
-      byType.set(r.entity_type, set);
+  private collectRefs(
+    rows: readonly RawAuditLogRow[],
+    rowRefs: readonly PayloadRef[][],
+  ): Map<EntityKind, Set<string>> {
+    const refs = new Map<EntityKind, Set<string>>();
+    addRefs(
+      refs,
+      'user',
+      rows.map((row) => row.actor_user_id),
+    );
+    for (const row of rows) {
+      const kind = ENTITY_TYPE_TO_KIND[row.entity_type];
+      if (kind) addRefs(refs, kind, [row.entity_id]);
     }
-    const out = new Map<string, string>();
-    for (const [type, ids] of byType) {
-      const labels = await this.fetchLabelsForType(type, Array.from(ids));
-      for (const [id, label] of labels) out.set(id, label);
+    for (const list of rowRefs) {
+      for (const ref of list) addRefs(refs, ref.kind, [ref.id]);
     }
-    return out;
-  }
-
-  private async fetchLabelsForType(type: string, ids: string[]): Promise<Map<string, string>> {
-    switch (type) {
-      case 'event': {
-        const { data, error } = await this.supabase.service
-          .from('events')
-          .select('id, name')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          ((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]),
-        );
-      }
-      case 'phase': {
-        const { data, error } = await this.supabase.service
-          .from('phases')
-          .select('id, type, tournaments(name)')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          (
-            (data ?? []) as Array<{
-              id: string;
-              type: string;
-              tournaments: { name: string } | { name: string }[] | null;
-            }>
-          ).map((r) => {
-            const t = Array.isArray(r.tournaments) ? r.tournaments[0] : r.tournaments;
-            return [r.id, `${t?.name ?? ''} · ${r.type}`];
-          }),
-        );
-      }
-      case 'tournament': {
-        // tournament.ruleset.repin + tournament.ruleset.fork write entity_type
-        // 'tournament'; resolve the id to the tournament name (never a raw UUID).
-        const { data, error } = await this.supabase.service
-          .from('tournaments')
-          .select('id, name')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          ((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]),
-        );
-      }
-      case 'fighter': {
-        const { data, error } = await this.supabase.service
-          .from('global_persons')
-          .select('id, display_name, given_name, family_name')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          (
-            (data ?? []) as Array<{
-              id: string;
-              display_name: string | null;
-              given_name: string | null;
-              family_name: string | null;
-            }>
-          ).map((r) => [
-            r.id,
-            r.display_name || `${r.given_name ?? ''} ${r.family_name ?? ''}`.trim(),
-          ]),
-        );
-      }
-      case 'user': {
-        const { data, error } = await this.supabase.service
-          .from('users')
-          .select('id, email')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          ((data ?? []) as Array<{ id: string; email: string }>).map((r) => [r.id, r.email]),
-        );
-      }
-      case 'custom_ruleset': {
-        const { data, error } = await this.supabase.service
-          .from('custom_rulesets')
-          .select('id, display_name')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          ((data ?? []) as Array<{ id: string; display_name: string }>).map((r) => [
-            r.id,
-            r.display_name,
-          ]),
-        );
-      }
-      case 'league_membership_request': {
-        const { data, error } = await this.supabase.service
-          .from('league_membership_requests')
-          .select('id, leagues(name), clubs(name)')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          (
-            (data ?? []) as Array<{
-              id: string;
-              leagues: { name: string } | { name: string }[] | null;
-              clubs: { name: string } | { name: string }[] | null;
-            }>
-          ).map((r) => {
-            const league = Array.isArray(r.leagues) ? r.leagues[0] : r.leagues;
-            const club = Array.isArray(r.clubs) ? r.clubs[0] : r.clubs;
-            return [r.id, `${club?.name ?? ''} → ${league?.name ?? ''}`];
-          }),
-        );
-      }
-      case 'league_scoring_system': {
-        const { data, error } = await this.supabase.service
-          .from('league_scoring_systems')
-          .select('id, name')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          ((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]),
-        );
-      }
-      case 'organizer_ai_assistant_draft': {
-        const { data, error } = await this.supabase.service
-          .from('organizer_ai_assistant_drafts')
-          .select('id, title')
-          .in('id', ids);
-        if (error) throw new BadRequestException(error.message);
-        return new Map(
-          ((data ?? []) as Array<{ id: string; title: string }>).map((r) => [r.id, r.title]),
-        );
-      }
-      default:
-        return new Map();
-    }
+    return refs;
   }
 
   async exportCsv(query: ListAuditLogQueryDto): Promise<string> {
@@ -343,6 +278,6 @@ export class AdminAuditLogService {
       .limit(EXPORT_LIMIT);
 
     if (error) throw new BadRequestException(error.message);
-    return toCsv((data as Array<Omit<AuditLogRow, 'id'>> | null) ?? []);
+    return toCsv((data as AuditLogExportRow[] | null) ?? []);
   }
 }

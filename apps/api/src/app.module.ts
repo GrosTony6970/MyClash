@@ -39,6 +39,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
+import { EntityLabelModule } from './modules/entity-label/entity-label.module';
 import { UserDirectoryModule } from './modules/user-directory/user-directory.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 import { OrganizerChatModule } from './modules/organizer-chat/organizer-chat.module';
@@ -69,6 +70,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     // ── Infrastructure ───────────────────────────────────────────────────
     SupabaseModule,
     UserDirectoryModule,
+    EntityLabelModule,
     MailModule,
 
     // ── Feature modules ──────────────────────────────────────────────────

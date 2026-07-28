@@ -3678,6 +3678,12 @@ export const en = {
         entity: 'Entity',
         payload: 'Payload',
       },
+      payload: {
+        details: 'Details',
+        title: 'Payload details',
+        close: 'Close',
+        more: '+{count} more field(s)',
+      },
     },
     log: {
       title: 'Log',
@@ -10531,6 +10537,12 @@ export const fr = {
         action: 'Action',
         entity: 'Entite',
         payload: 'Payload',
+      },
+      payload: {
+        details: 'Detail',
+        title: 'Detail du payload',
+        close: 'Fermer',
+        more: '+{count} champ(s) de plus',
       },
     },
     log: {

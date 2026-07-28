@@ -4,6 +4,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface AuditLogEntry {
@@ -21,6 +22,9 @@ interface AuditLogEntry {
    *  underlying record was hard-deleted or the type isn't in the
    *  resolver switch — the FE still shows the raw UUID below. */
   entityLabel?: string | null;
+  /** RFC 6901 JSON Pointer into payload_json → label for the id at that spot.
+   *  Absent pointers just mean "render the raw value". */
+  payloadLabels?: Record<string, PayloadLabel>;
 }
 
 interface AuditLogResponse {
@@ -63,11 +67,6 @@ function buildParams(filters: AuditFilters, page?: number, perPage?: number): st
   if (perPage) params.set('perPage', String(perPage));
   const query = params.toString();
   return query ? `?${query}` : '';
-}
-
-function payloadPreview(payload: unknown): string {
-  if (payload === null || payload === undefined) return '-';
-  return JSON.stringify(payload);
 }
 
 export function AuditLogPanel() {
@@ -314,9 +313,7 @@ export function AuditLogPanel() {
                   </p>
                 </DataTableCell>
                 <DataTableCell>
-                  <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
-                    {payloadPreview(entry.payload_json)}
-                  </pre>
+                  <PayloadCell payload={entry.payload_json} labels={entry.payloadLabels ?? {}} />
                 </DataTableCell>
               </DataTableRow>
             ))}
