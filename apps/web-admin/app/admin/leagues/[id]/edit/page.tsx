@@ -10,6 +10,11 @@ import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
+import {
+  ACCOUNT_SEARCH_MIN_LENGTH,
+  useAccountSearch,
+  type AccountSearchResult,
+} from '@/hooks/useAccountSearch';
 
 const apiUrl = getPublicApiUrl();
 
@@ -65,13 +70,6 @@ interface LeagueGroup {
   league_id: string;
   name: string;
   sort_order: number;
-}
-
-interface AdminUserOption {
-  id: string;
-  email?: string;
-  display_name?: string | null;
-  organizations?: Array<{ id: string; name: string; slug: string; role: string }>;
 }
 
 interface OrgOption {
@@ -169,7 +167,6 @@ export default function EditLeaguePage() {
   const [tournamentLinks, setTournamentLinks] = useState<TournamentLink[]>([]);
   const [groups, setGroups] = useState<LeagueGroup[]>([]);
   const [newGroupName, setNewGroupName] = useState('');
-  const [allUsers, setAllUsers] = useState<AdminUserOption[]>([]);
   const [allOrgs, setAllOrgs] = useState<OrgOption[]>([]);
   const [allEvents, setAllEvents] = useState<EventOption[]>([]);
 
@@ -354,10 +351,6 @@ export default function EditLeaguePage() {
     });
     void loadAssignments().catch(() => undefined);
     void loadScoringSystems().catch(() => undefined);
-    void fetch(`${apiUrl}/api/v1/admin/users?perPage=200`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : { users: [] }))
-      .then((data: { users: AdminUserOption[] }) => setAllUsers(data.users ?? []))
-      .catch(() => undefined);
     void fetch(`${apiUrl}/api/v1/admin/organizations?excludePlatform=true`, {
       credentials: 'include',
     })
@@ -375,17 +368,38 @@ export default function EditLeaguePage() {
       .catch(() => undefined);
   }, [loadLeague, loadAssignments, loadScoringSystems, t]);
 
-  const filteredUsers = useMemo(() => {
+  // Organizations that already manage this league. An account that is admin or
+  // owner of one of them holds league access through it, so granting it a
+  // personal role would change nothing — those candidates are hidden and
+  // counted instead. Mirrors LeaguesService.hasOrgManagePath.
+  const managingOrgIds = useMemo(
+    () =>
+      new Set(
+        orgRoles
+          .filter((r) => r.role === 'admin' || r.role === 'owner')
+          .map((r) => r.organizationId),
+      ),
+    [orgRoles],
+  );
+
+  const { accounts: accountMatches, loading: accountsLoading } = useAccountSearch(userSearch);
+
+  const { filteredUsers, redundantCount } = useMemo(() => {
     const taken = new Set(userRoles.map((r) => r.userId));
-    return allUsers
-      .filter((u) => !taken.has(u.id))
-      .filter((u) =>
-        userSearch.trim()
-          ? fuzzyMatch(userSearch, `${u.display_name ?? ''} ${u.email ?? ''}`)
-          : true,
-      )
-      .slice(0, 30);
-  }, [allUsers, userRoles, userSearch]);
+    const candidates = accountMatches.filter((u) => !taken.has(u.id));
+    const managesViaOrg = (u: AccountSearchResult) =>
+      (u.organizations ?? []).some(
+        (o) => managingOrgIds.has(o.id) && (o.role === 'admin' || o.role === 'owner'),
+      );
+    return {
+      filteredUsers: candidates.filter((u) => !managesViaOrg(u)),
+      redundantCount: candidates.filter(managesViaOrg).length,
+    };
+  }, [accountMatches, userRoles, managingOrgIds]);
+
+  // One nudge under the list rather than one per row: several results can carry
+  // an org, and the advice ("add the organisation instead") is the same for all.
+  const anyResultIsOrgLinked = filteredUsers.some((u) => (u.organizations ?? []).length > 0);
 
   const availableOrgs = useMemo(() => {
     const taken = new Set(orgRoles.map((r) => r.organizationId));
@@ -1028,18 +1042,57 @@ export default function EditLeaguePage() {
                     {u.display_name || t('admin.leagues.editPage.owners.nameFallback')}
                   </span>
                   <span className="ml-2 text-xs text-muted">{u.email}</span>
+                  {(u.organizations ?? []).length > 0 && (
+                    <span className="mt-1 flex flex-wrap items-center gap-1">
+                      {(u.organizations ?? []).slice(0, 3).map((o) => (
+                        <span
+                          key={o.id}
+                          className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
+                        >
+                          {o.name} · {o.role}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
+          )}
+          {userSearch.trim().length < ACCOUNT_SEARCH_MIN_LENGTH ? (
+            <p className="mt-2 text-xs text-muted">
+              {t('admin.leagues.editPage.owners.searchHint')}
+            </p>
+          ) : accountsLoading ? (
+            <p className="mt-2 text-xs text-muted">
+              {t('admin.leagues.editPage.owners.searchLoading')}
+            </p>
+          ) : (
+            filteredUsers.length === 0 &&
+            redundantCount === 0 && (
+              <p className="mt-2 text-xs text-muted">
+                {t('admin.leagues.editPage.owners.searchEmpty')}
+              </p>
+            )
+          )}
+          {redundantCount > 0 && (
+            <p className="mt-2 text-xs text-muted">
+              {t('admin.leagues.editPage.owners.redundantHidden', { count: redundantCount })}
+            </p>
+          )}
+          {anyResultIsOrgLinked && (
+            <p className="mt-2 text-xs text-muted">
+              {t('admin.leagues.editPage.owners.orgLinkedNudge')}
+            </p>
           )}
         </div>
       </section>
 
       {/* Orgs */}
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.leagues.editPage.orgs.heading')}
         </h2>
+        <p className="mb-4 text-xs text-muted">{t('admin.leagues.editPage.orgs.description')}</p>
         {orgRoles.length === 0 ? (
           <p className="text-sm text-muted italic">{t('admin.leagues.editPage.orgs.empty')}</p>
         ) : (

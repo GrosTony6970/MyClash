@@ -6,15 +6,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import {
+  ACCOUNT_SEARCH_MIN_LENGTH,
+  useAccountSearch,
+  type AccountSearchResult,
+} from '@/hooks/useAccountSearch';
 
 const apiUrl = getPublicApiUrl();
-
-interface AdminUserOption {
-  id: string;
-  email?: string;
-  display_name?: string | null;
-  organizations?: Array<{ id: string; name: string; slug: string; role: string }>;
-}
 
 interface OrgOption {
   id: string;
@@ -59,10 +57,11 @@ export default function NewLeaguePage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
 
-  // Owners
-  const [users, setUsers] = useState<AdminUserOption[]>([]);
+  // Owners. Selected accounts are kept whole, not as ids: the picker searches
+  // server-side, so a result row disappears as soon as the query changes and
+  // the chips above the search box are the only thing left rendering a choice.
   const [userSearch, setUserSearch] = useState('');
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<AccountSearchResult[]>([]);
 
   // Orgs
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
@@ -128,10 +127,6 @@ export default function NewLeaguePage() {
 
   // Load lookup data
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/admin/users?perPage=200`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : { users: [] }))
-      .then((data: { users: AdminUserOption[] }) => setUsers(data.users ?? []))
-      .catch(() => undefined);
     void fetch(`${apiUrl}/api/v1/admin/organizations?perPage=200&excludePlatform=true`, {
       credentials: 'include',
     })
@@ -166,12 +161,14 @@ export default function NewLeaguePage() {
     setLogoPreviewUrl(URL.createObjectURL(file));
   }
 
+  const { accounts: accountMatches, loading: accountsLoading } = useAccountSearch(userSearch);
+
   const filteredUsers = useMemo(() => {
-    if (!userSearch.trim()) return users.slice(0, 50);
-    return users
-      .filter((u) => fuzzyMatch(userSearch, `${u.display_name ?? ''} ${u.email ?? ''}`))
-      .slice(0, 50);
-  }, [users, userSearch]);
+    const taken = new Set(selectedAccounts.map((a) => a.id));
+    return accountMatches.filter((u) => !taken.has(u.id));
+  }, [accountMatches, selectedAccounts]);
+
+  const anyResultIsOrgLinked = filteredUsers.some((u) => (u.organizations ?? []).length > 0);
 
   const filteredEvents = useMemo(() => {
     if (!eventQuery.trim()) return events.slice(0, 30);
@@ -251,7 +248,7 @@ export default function NewLeaguePage() {
       }
 
       // Owners
-      for (const userIdSel of selectedUserIds) {
+      for (const userIdSel of selectedAccounts.map((a) => a.id)) {
         await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles`, {
           method: 'POST',
           credentials: 'include',
@@ -459,9 +456,30 @@ export default function NewLeaguePage() {
       </section>
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.adminLeagues.ownersHeading')}
         </h2>
+        <p className="mb-4 text-xs text-muted">{t('admin.adminLeagues.ownersDescription')}</p>
+        {selectedAccounts.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {selectedAccounts.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() =>
+                  setSelectedAccounts((prev) => prev.filter((prevAcc) => prevAcc.id !== a.id))
+                }
+                className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs hover:border-danger/40 hover:text-danger"
+                title={t('admin.adminLeagues.ownerRemoveHint')}
+              >
+                <span className="font-medium">
+                  {a.display_name?.trim() || a.email || t('admin.adminLeagues.userNameFallback')}
+                </span>
+                <span aria-hidden="true">×</span>
+              </button>
+            ))}
+          </div>
+        )}
         <input
           type="search"
           value={userSearch}
@@ -471,55 +489,52 @@ export default function NewLeaguePage() {
         />
         {filteredUsers.length > 0 && (
           <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-border">
-            {filteredUsers.map((u) => {
-              const checked = selectedUserIds.includes(u.id);
-              return (
-                <label
-                  key={u.id}
-                  className={[
-                    'flex cursor-pointer items-start gap-3 border-b border-border px-3 py-2 text-sm last:border-0',
-                    checked ? 'bg-info/10' : 'hover:bg-background',
-                  ].join(' ')}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() =>
-                      setSelectedUserIds((prev) =>
-                        prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id],
-                      )
-                    }
-                    className="mt-1"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground">
-                      {u.display_name?.trim() || '(no name)'}
-                    </p>
-                    <p className="text-xs text-muted">{u.email}</p>
-                    {(u.organizations ?? []).length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(u.organizations ?? []).slice(0, 3).map((o) => (
-                          <span
-                            key={o.id}
-                            className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
-                          >
-                            {o.name} · {o.role}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </label>
-              );
-            })}
+            {filteredUsers.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => setSelectedAccounts((prev) => [...prev, u])}
+                className="block w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-info/10 last:border-0"
+              >
+                <span className="font-medium text-foreground">
+                  {u.display_name?.trim() || t('admin.adminLeagues.userNameFallback')}
+                </span>
+                <span className="ml-2 text-xs text-muted">{u.email}</span>
+                {(u.organizations ?? []).length > 0 && (
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {(u.organizations ?? []).slice(0, 3).map((o) => (
+                      <span
+                        key={o.id}
+                        className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
+                      >
+                        {o.name} · {o.role}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
+        )}
+        {userSearch.trim().length < ACCOUNT_SEARCH_MIN_LENGTH ? (
+          <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.userSearchHint')}</p>
+        ) : accountsLoading ? (
+          <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.userSearchLoading')}</p>
+        ) : (
+          filteredUsers.length === 0 && (
+            <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.userSearchEmpty')}</p>
+          )
+        )}
+        {anyResultIsOrgLinked && (
+          <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.ownersOrgLinkedNudge')}</p>
         )}
       </section>
 
       <section className="mb-6 rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('admin.adminLeagues.memberOrgsHeading')}
         </h2>
+        <p className="mb-4 text-xs text-muted">{t('admin.adminLeagues.memberOrgsDescription')}</p>
         <div className="grid gap-1 sm:grid-cols-2 max-h-60 overflow-y-auto">
           {orgs.map((o) => {
             const checked = selectedOrgIds.includes(o.id);

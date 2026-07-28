@@ -1871,8 +1871,19 @@ export const en = {
       logoPreviewAlt: 'Preview',
       clearButton: 'Clear',
       ownersHeading: 'Owner platform accounts',
+      ownersDescription:
+        'Gives an individual account admin access to this league, independent of any organisation. Search covers every account on the platform.',
+      ownersOrgLinkedNudge:
+        'Some of these accounts belong to an organisation. Adding that organisation under Member organisations covers its whole admin team and keeps access in sync when the team changes.',
+      ownerRemoveHint: 'Remove from the list',
+      userNameFallback: '(no name)',
       userSearchPlaceholder: 'Search by name or email…',
+      userSearchHint: 'Type at least 2 characters to search accounts.',
+      userSearchLoading: 'Searching…',
+      userSearchEmpty: 'No account matches.',
       memberOrgsHeading: 'Member organisations',
+      memberOrgsDescription:
+        'Links whole organisations to this league. Organisations added here join with role Member — participation only, no management. To let one manage the league, open the league after creating it and set its role to Admin or Owner.',
       groupsHeading: 'Groups',
       groupsHelp:
         'Operator-defined buckets (e.g. "Sabre Mixed", "Longsword Open"). Tournaments attached to this league are assigned to one of these groups.',
@@ -3608,10 +3619,17 @@ export const en = {
         owners: {
           heading: 'League administrators (individual accounts)',
           description:
-            'Grants an individual account admin access to this league, independent of any organisation. To let a whole organisation manage this league, use Member organisations below.',
+            'Grants an individual account admin access to this league, independent of any organisation. Search covers every account on the platform. To give a whole organisation — and everyone on its admin team — access instead, use Member organisations below.',
           empty: 'No accounts linked yet.',
           nameFallback: '(no name)',
           searchPlaceholder: 'Search accounts to add…',
+          searchHint: 'Type at least 2 characters to search accounts.',
+          searchLoading: 'Searching…',
+          searchEmpty: 'No account matches.',
+          redundantHidden:
+            '{count} matching account(s) already manage this league through a member organisation and are not listed.',
+          orgLinkedNudge:
+            'Some of these accounts belong to an organisation. Adding that organisation under Member organisations covers its whole admin team and keeps access in sync when the team changes.',
           detachButton: 'Detach',
           detachConfirm: 'Detach this account from the league?',
           orgMembershipsLabel: 'Member of',
@@ -3622,6 +3640,8 @@ export const en = {
         },
         orgs: {
           heading: 'Member organisations',
+          description:
+            'Links a whole organisation to this league. With role Admin or Owner, every admin and owner of that organisation can manage the league from their own workspace — access follows their staff list, so you never have to update it when their team changes. Role Member is affiliation only: the organisation takes part in the league but cannot manage it.',
           empty: 'No orgs linked yet.',
           addHeading: 'Add organisation',
           roleLabel: 'Role',
@@ -8750,8 +8770,19 @@ export const fr = {
       logoPreviewAlt: 'Aperçu',
       clearButton: 'Effacer',
       ownersHeading: 'Comptes propriétaires de la plateforme',
+      ownersDescription:
+        'Donne à un compte individuel un accès admin à cette ligue, indépendamment de toute organisation. La recherche couvre tous les comptes de la plateforme.',
+      ownersOrgLinkedNudge:
+        "Certains de ces comptes appartiennent à une organisation. Ajouter cette organisation sous Organisations membres couvre toute son équipe d'admins et garde l'accès à jour quand l'équipe change.",
+      ownerRemoveHint: 'Retirer de la liste',
+      userNameFallback: '(sans nom)',
       userSearchPlaceholder: 'Rechercher par nom ou e-mail…',
+      userSearchHint: 'Saisissez au moins 2 caractères pour rechercher des comptes.',
+      userSearchLoading: 'Recherche…',
+      userSearchEmpty: 'Aucun compte correspondant.',
       memberOrgsHeading: 'Organisations membres',
+      memberOrgsDescription:
+        "Lie des organisations entières à cette ligue. Les organisations ajoutées ici rejoignent la ligue avec le rôle Membre — participation uniquement, sans gestion. Pour qu'une organisation gère la ligue, ouvrez la ligue après sa création et passez son rôle à Admin ou Propriétaire.",
       groupsHeading: 'Groupes',
       groupsHelp:
         "Catégories définies par l'organisateur (par ex. « Sabre mixte », « Épée longue open »). Les tournois rattachés à cette ligue sont affectés à l'un de ces groupes.",
@@ -10512,10 +10543,17 @@ export const fr = {
         owners: {
           heading: 'Administrateurs de la ligue (comptes individuels)',
           description:
-            "Donne a un compte individuel un acces admin a cette ligue, independamment de toute organisation. Pour qu'une organisation entiere gere cette ligue, utilisez Organisations membres ci-dessous.",
+            "Donne a un compte individuel un acces admin a cette ligue, independamment de toute organisation. La recherche couvre tous les comptes de la plateforme. Pour donner l'acces a une organisation entiere — et a toute son equipe d'admins — utilisez plutot Organisations membres ci-dessous.",
           empty: 'Aucun compte lie.',
           nameFallback: '(sans nom)',
           searchPlaceholder: 'Chercher des comptes a ajouter…',
+          searchHint: 'Saisissez au moins 2 caracteres pour rechercher des comptes.',
+          searchLoading: 'Recherche…',
+          searchEmpty: 'Aucun compte correspondant.',
+          redundantHidden:
+            '{count} compte(s) correspondant(s) gerent deja cette ligue via une organisation membre et ne sont pas listes.',
+          orgLinkedNudge:
+            "Certains de ces comptes appartiennent a une organisation. Ajouter cette organisation sous Organisations membres couvre toute son equipe d'admins et garde l'acces a jour quand l'equipe change.",
           detachButton: 'Detacher',
           detachConfirm: 'Detacher ce compte de la ligue ?',
           orgMembershipsLabel: 'Membre de',
@@ -10526,6 +10564,8 @@ export const fr = {
         },
         orgs: {
           heading: 'Organisations membres',
+          description:
+            "Lie une organisation entiere a cette ligue. Avec le role Admin ou Proprietaire, chaque administrateur et proprietaire de cette organisation peut gerer la ligue depuis son propre espace — l'acces suit leur equipe, vous n'avez donc rien a mettre a jour quand elle change. Le role Membre est une simple affiliation : l'organisation participe a la ligue mais ne peut pas la gerer.",
           empty: 'Aucune organisation liee.',
           addHeading: 'Ajouter une organisation',
           roleLabel: 'Role',
