@@ -161,12 +161,11 @@ export async function createBracketTournament(
   // Pin the point cap so `scoreMatch` knows exactly how many points end a
   // match; the default is 10 and nothing would ever trip completion.
   //
-  // Done as a PATCH, not on the create body: `createTournament` accepts
-  // `rulesetConfig` in its DTO but overwrites it with the ruleset's defaults
-  // and never merges the caller's value (events.service.ts — the sibling
-  // `scoringConfig` has a comment about being "the silently-dropped field it is
-  // today", and rulesetConfig still is one). Sending it on create looks like it
-  // works and silently does nothing.
+  // Sent as a PATCH rather than on the create body on purpose. Create only
+  // started honouring `rulesetConfig` recently — it used to accept the field
+  // and silently overwrite it with the ruleset defaults, which is how this spec
+  // first met the bug (every match ran to the default cap of 10). PATCH has
+  // always worked, so the spec stays runnable against an older deploy.
   await api.ok(
     await api.patch(`tournaments/${tournament.id}`, {
       data: { rulesetConfig: { matchFormat: { pointCap: POINT_CAP } } },

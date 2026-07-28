@@ -221,6 +221,47 @@ describe('createTournament — seeds scoring_config_json', () => {
     expect(config.afterblowMode).toBe('deductive');
   });
 
+  /**
+   * `rulesetConfig` was accepted by the create DTO and then thrown away —
+   * createTournament overwrote it with the ruleset's defaults and never merged
+   * the caller's value. A create pinning matchFormat.pointCap stored the
+   * default instead, silently, exactly the bug its sibling `scoringConfig` was
+   * fixed for. Surfaced by tests/e2e/09-double-elim.spec.ts, which set a point
+   * cap on create and then watched every match run to the default cap.
+   */
+  it('lets an explicit rulesetConfig override win, merged onto the defaults', async () => {
+    const { svc, rulesetConfig } = seedHarness();
+    await svc.createTournament(
+      'e1',
+      {
+        slug: 's',
+        name: 'T',
+        rulesetCode: 'TF_v1',
+        rulesetConfig: { matchFormat: { pointCap: 7 } },
+      } as never,
+      'u1',
+    );
+
+    const cfg = rulesetConfig();
+    const matchFormat = cfg?.['matchFormat'] as Record<string, unknown> | undefined;
+    expect(matchFormat?.['pointCap']).toBe(7);
+    // A MERGE, not a replace: sibling match-format defaults must survive, and
+    // so must the rest of the ruleset config around it.
+    expect(Object.keys(matchFormat ?? {}).length).toBeGreaterThan(1);
+    expect(cfg?.['winBonus']).toBeDefined();
+  });
+
+  it('stores the ruleset defaults untouched when no rulesetConfig is sent', async () => {
+    // The overwhelmingly common path, including the create wizard (which sends
+    // rulesetConfig by PATCH in step 2, never on create). Guards against the
+    // override merge changing anything for callers that send nothing.
+    const { svc, rulesetConfig } = seedHarness();
+    await svc.createTournament('e1', { slug: 's', name: 'T', rulesetCode: 'TF_v1' } as never, 'u1');
+
+    const matchFormat = rulesetConfig()?.['matchFormat'] as Record<string, unknown> | undefined;
+    expect(matchFormat?.['pointCap']).toBe(10);
+  });
+
   it('lets an explicit scoringConfig override win, merged like a PATCH', async () => {
     const { svc, seeded } = seedHarness();
     await svc.createTournament(

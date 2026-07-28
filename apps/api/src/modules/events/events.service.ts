@@ -2683,7 +2683,20 @@ export class EventsService {
     // doublePenaltyFormula on custom rulesets) out of the box.
     const code = dto.rulesetCode ?? 'TF_v1';
     const version = normalizeRulesetVersion(dto.rulesetVersion ?? '1');
-    const rulesetConfig = await resolveRulesetConfigDefaults(this.supabase, code, version);
+    const rulesetDefaults = await resolveRulesetConfigDefaults(this.supabase, code, version);
+    // An explicit caller override wins, merged onto the defaults exactly the
+    // way updateTournament's ruleset-switch branch merges one. `rulesetConfig`
+    // was accepted by the create DTO and then silently discarded, so a caller
+    // pinning e.g. matchFormat.pointCap at creation watched it vanish — the
+    // same bug its sibling `scoringConfig` was fixed for on the line below.
+    //
+    // Validated ONLY when an override is present. The defaults alone are stored
+    // unvalidated today, and a custom ruleset can seed a partial config that the
+    // strict schema rejects (see the backfill note in updateTournament), so
+    // parsing them here would newly 400 creates that work today.
+    const rulesetConfig = dto.rulesetConfig
+      ? validateTournamentRulesetConfig(code, deepMergeJson(rulesetDefaults, dto.rulesetConfig))
+      : rulesetDefaults;
 
     // Seed scoring_config_json from the ruleset's grammar, so the referee's pad
     // reflects the ruleset a federation actually chose instead of FFAMHE's
