@@ -24,6 +24,8 @@ interface PenaltyRulesetDetail {
   description: string | null;
   built_in: boolean;
   public_visibility: boolean;
+  /** Soft-archive timestamp (mig 0153): set when delisted while still referenced. */
+  archived_at: string | null;
   accumulation_scope: AccumulationScope;
   yellow_card_points?: number | null;
   red_card_points?: number | null;
@@ -50,9 +52,9 @@ export default function EditPenaltyRulesetPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initial, setInitial] = useState<(PenaltyRulesetFormValue & { builtIn: boolean }) | null>(
-    null,
-  );
+  const [initial, setInitial] = useState<
+    (PenaltyRulesetFormValue & { builtIn: boolean; archived: boolean }) | null
+  >(null);
 
   useEffect(() => {
     if (!id) return;
@@ -93,6 +95,7 @@ export default function EditPenaltyRulesetPage() {
             data.second_black_card_forfeit ??
             DEFAULT_PENALTY_RULESET_FORM_VALUES.secondBlackCardForfeit,
           builtIn: data.built_in,
+          archived: Boolean(data.archived_at),
         });
       })
       .catch((err: unknown) => {
@@ -133,8 +136,15 @@ export default function EditPenaltyRulesetPage() {
               {t('admin.penaltyRulesets.builtInSuperAdminBanner')}
             </div>
           )}
+          {/* Reachable by direct URL even though the list now offers View here. */}
+          {initial.archived && (
+            <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+              {t('admin.penaltyRulesets.archivedReadOnlyBanner')}
+            </div>
+          )}
           <PenaltyRulesetForm
             initial={initial}
+            disabled={initial.archived}
             codeLocked
             busy={busy}
             submitLabel={t('admin.rulesets.saveAction')}

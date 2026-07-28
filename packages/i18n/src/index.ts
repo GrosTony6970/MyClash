@@ -2992,6 +2992,8 @@ export const en = {
       editDescription: 'Update the metadata and the entries list. Saving rewrites the entries.',
       builtInSuperAdminBanner:
         'This is the platform built-in penalty ruleset. Only super-admin can edit it.',
+      archivedReadOnlyBanner:
+        'This penalty ruleset is archived and read-only. It was withdrawn from the pickers rather than deleted, because tournaments still score by it — editing it would change sanctions under results already recorded.',
       lineagePenalties: 'Penalties (cards, forfeits)',
       lineagePenaltyWarning:
         'This changes scoring versus the {base} default — placings will differ.',
@@ -9886,6 +9888,8 @@ export const fr = {
         'Mettre a jour les metadonnees et la liste des entrees. L enregistrement remplace les entrees.',
       builtInSuperAdminBanner:
         'Ceci est le ruleset de penalites integre a la plateforme. Seul le super-admin peut le modifier.',
+      archivedReadOnlyBanner:
+        'Ce ruleset de penalites est archive et en lecture seule. Il a ete retire des selecteurs au lieu d etre supprime, car des tournois l utilisent encore pour le calcul — le modifier changerait les sanctions sous des resultats deja enregistres.',
       lineagePenalties: 'Penalites (cartons, forfaits)',
       lineagePenaltyWarning:
         'Ceci change le calcul par rapport au defaut {base} — les classements differeront.',

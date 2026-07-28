@@ -18,6 +18,7 @@ import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';
+import { adminRulesetRowActions } from '../../../../src/components/rulesets/ruleset-row-actions';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface PenaltyRulesetRow {
@@ -341,86 +342,98 @@ export default function AdminPenaltyRulesetsPage() {
             <DataTableCell as="th">{t('admin.rulesets.shared.columns.actions')}</DataTableCell>
           </DataTableHead>
           <tbody>
-            {rows.map((row) => (
-              <DataTableRow key={row.id}>
-                <DataTableCell>
-                  <div className="font-semibold text-foreground">{row.name}</div>
-                  {row.description && (
-                    <div className="mt-0.5 line-clamp-2 text-xs text-muted">{row.description}</div>
-                  )}
-                </DataTableCell>
-                <DataTableCell mono>{row.code}</DataTableCell>
-                <DataTableCell>
-                  <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
-                    {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
-                  </span>
-                </DataTableCell>
-                <DataTableCell>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <RulesetBadge
-                      variant={row.built_in ? 'builtin' : 'custom'}
-                      label={
-                        row.built_in
-                          ? t('admin.rulesets.shared.badges.builtin')
-                          : t('admin.rulesets.shared.badges.custom')
-                      }
-                    />
-                    {row.archived_at && (
+            {rows.map((row) => {
+              const actions = adminRulesetRowActions({
+                builtIn: row.built_in,
+                archived: Boolean(row.archived_at),
+              });
+              return (
+                <DataTableRow key={row.id}>
+                  <DataTableCell>
+                    <div className="font-semibold text-foreground">{row.name}</div>
+                    {row.description && (
+                      <div className="mt-0.5 line-clamp-2 text-xs text-muted">
+                        {row.description}
+                      </div>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell mono>{row.code}</DataTableCell>
+                  <DataTableCell>
+                    <span className="inline-block rounded-md bg-background px-2 py-0.5 font-mono text-xs font-semibold text-foreground-secondary">
+                      {t('admin.adminRulesetsReview.versionLabel', { version: row.version })}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap items-center gap-2">
                       <RulesetBadge
-                        variant="archived"
-                        label={t('admin.rulesets.shared.badges.archived')}
+                        variant={row.built_in ? 'builtin' : 'custom'}
+                        label={
+                          row.built_in
+                            ? t('admin.rulesets.shared.badges.builtin')
+                            : t('admin.rulesets.shared.badges.custom')
+                        }
                       />
-                    )}
-                  </div>
-                </DataTableCell>
-                <DataTableCell className="text-xs text-foreground-secondary">
-                  {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
-                </DataTableCell>
-                <DataTableCell>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {row.public_visibility_request_status === 'pending' && (
-                      <span
-                        title={row.public_visibility_request_reason ?? undefined}
-                        className="inline-flex"
-                      >
+                      {row.archived_at && (
                         <RulesetBadge
-                          variant="pendingReview"
-                          label={t('admin.rulesets.submissionPending')}
+                          variant="archived"
+                          label={t('admin.rulesets.shared.badges.archived')}
                         />
-                      </span>
-                    )}
-                    <Link
-                      href={`/admin/rulesets/penalty/${row.id}/edit`}
-                      className={rowActionClasses('edit')}
-                    >
-                      {t('admin.rulesets.shared.actions.edit')}
-                    </Link>
-                    {/* R3: org-submitted sharing requests show Approve / Reject actions. */}
-                    {row.public_visibility_request_status === 'pending' && (
-                      <>
-                        <RowActionButton
-                          variant="success"
-                          onClick={() => void approveSharing(row.id)}
+                      )}
+                    </div>
+                  </DataTableCell>
+                  <DataTableCell className="text-xs text-foreground-secondary">
+                    {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {row.public_visibility_request_status === 'pending' && (
+                        <span
+                          title={row.public_visibility_request_reason ?? undefined}
+                          className="inline-flex"
                         >
-                          {t('admin.rulesets.approveForSharingAction')}
+                          <RulesetBadge
+                            variant="pendingReview"
+                            label={t('admin.rulesets.submissionPending')}
+                          />
+                        </span>
+                      )}
+                      {/* Archived rows drop to View: the server refuses to PATCH a
+                          referenced ruleset, and archived means referenced. */}
+                      <Link
+                        href={`/admin/rulesets/penalty/${row.id}/edit`}
+                        className={rowActionClasses(actions.edit ? 'edit' : 'neutral')}
+                      >
+                        {actions.edit
+                          ? t('admin.rulesets.shared.actions.edit')
+                          : t('admin.rulesets.viewAction')}
+                      </Link>
+                      {/* R3: org-submitted sharing requests show Approve / Reject actions. */}
+                      {row.public_visibility_request_status === 'pending' && (
+                        <>
+                          <RowActionButton
+                            variant="success"
+                            onClick={() => void approveSharing(row.id)}
+                          >
+                            {t('admin.rulesets.approveForSharingAction')}
+                          </RowActionButton>
+                          <RowActionButton
+                            variant="danger"
+                            onClick={() => setRejectShareTarget(row.id)}
+                          >
+                            {t('admin.rulesets.rejectAction')}
+                          </RowActionButton>
+                        </>
+                      )}
+                      {actions.delete && (
+                        <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
+                          {t('admin.rulesets.shared.actions.delete')}
                         </RowActionButton>
-                        <RowActionButton
-                          variant="danger"
-                          onClick={() => setRejectShareTarget(row.id)}
-                        >
-                          {t('admin.rulesets.rejectAction')}
-                        </RowActionButton>
-                      </>
-                    )}
-                    {!row.built_in && (
-                      <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                        {t('admin.rulesets.shared.actions.delete')}
-                      </RowActionButton>
-                    )}
-                  </div>
-                </DataTableCell>
-              </DataTableRow>
-            ))}
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
           </tbody>
         </DataTable>
       )}

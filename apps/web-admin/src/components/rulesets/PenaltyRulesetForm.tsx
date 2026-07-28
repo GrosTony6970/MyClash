@@ -36,8 +36,10 @@ export const DEFAULT_PENALTY_RULESET_FORM_VALUES = {
 
 interface Props {
   initial: PenaltyRulesetFormValue;
-  /** True on the edit page when the row is built-in and the viewer isn't a
-   *  super-admin. Disables everything; identity fields stay visible read-only. */
+  /** Renders the whole form read-only — every input, the submit button and the
+   *  submit handler itself. Set on the edit page when the ruleset is archived:
+   *  it stays inspectable (tournaments still score by it) but the API refuses
+   *  to PATCH it, so an editable form would only lead to a 403. */
   disabled?: boolean;
   /** True when editing — code + version become read-only since they're part
    *  of the UNIQUE(code,version,owner) constraint and shouldn't migrate. */
