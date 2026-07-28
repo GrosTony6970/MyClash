@@ -636,6 +636,75 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/data-export.zip': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Download everything MyClash holds about the current user */
+    get: operations['SubjectExportController_download'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/data-retention': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Data retention policy and last sweep result (super admin) */
+    get: operations['PrivacyAdminController_getRetention'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update data retention horizons (super admin) */
+    patch: operations['PrivacyAdminController_updateRetention'];
+    trace?: never;
+  };
+  '/api/v1/admin/data-retention/run': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run the retention sweep immediately (super admin) */
+    post: operations['PrivacyAdminController_runRetention'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/global-persons/{id}/anonymise': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fully anonymise a profile — replaces the name and rotates the slug (super admin, irreversible) */
+    post: operations['PrivacyAdminController_anonymise'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/organizations': {
     parameters: {
       query?: never;
@@ -8646,6 +8715,18 @@ export interface components {
       globalPersonId?: string;
       slug?: string;
     };
+    UpdateRetentionDto: {
+      enabled?: boolean;
+      guestSessionDays?: number;
+      aiUsageLogDays?: number;
+      broadcastRecipientDays?: number;
+      auditLogDays?: number;
+    };
+    AnonymiseDto: {
+      reason: string;
+      /** @enum {string} */
+      confirmation: 'ANONYMISE';
+    };
     ReassignOwnerDto: {
       /** Format: uuid */
       ownerUserId?: string;
@@ -11175,6 +11256,101 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SubjectExportController_download: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_getRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_updateRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateRetentionDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_runRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_anonymise: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AnonymiseDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };
