@@ -3,6 +3,7 @@
  * Export CSV. Pure: times resolve to 24h `HH:MM` in the event timezone.
  */
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
+import { escapeCsvCell } from '@myclash/types';
 
 export interface CsvVenue {
   id: string;
@@ -33,9 +34,12 @@ function hhmm(iso: string, tz: string): string {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
-function esc(v: string): string {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
+/**
+ * Formula-safe: the workshop schedule is downloaded and opened in a spreadsheet,
+ * and workshop titles and instructor names come from organiser input.
+ * See @myclash/types/csv.
+ */
+const esc = escapeCsvCell;
 
 export function workshopScheduleToCsv(
   workshops: ReadonlyArray<CsvWorkshop>,

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
+import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
 import { createStoredZip } from '../../common/stored-zip';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -1190,11 +1190,12 @@ export class ArchiveService {
     return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined));
   }
 
+  /**
+   * Formula-safe: archive CSVs are downloaded and opened in a spreadsheet, and
+   * carry organiser-written names and labels. See @myclash/types/csv.
+   */
   private csvEscape(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`;
-    }
-    return value;
+    return escapeCsvCell(value);
   }
 
   private safeFilename(value: string): string {

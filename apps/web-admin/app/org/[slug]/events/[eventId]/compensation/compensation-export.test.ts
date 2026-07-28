@@ -64,6 +64,18 @@ describe('compensationToCsv', () => {
     expect(alice).toBe('"Alice, ""Ace""",6.0,6.0,0.0,12.0,10.00,Yes');
   });
 
+  it('neutralises a spreadsheet formula planted in a referee name', () => {
+    // Referee names come from the roster, which organisers type and import.
+    const report = makeReport();
+    report.referees[0]!.displayName = '=cmd|calc';
+    expect(compensationToCsv(report)).toContain('"\'=cmd|calc"');
+  });
+
+  it('keeps amounts numeric so the EUR column still sums', () => {
+    // The first thing anyone does with this file is total the amount column.
+    expect(compensationToCsv(makeReport())).toContain(',10.00,');
+  });
+
   it('emits header + a zeroed total row for an empty report', () => {
     const empty = { ...makeReport(), referees: [], grandTotal: 0 };
     const lines = compensationToCsv(empty).split('\r\n');

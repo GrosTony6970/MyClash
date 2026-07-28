@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { toCsvCell } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   type PayloadRef,
@@ -136,16 +137,11 @@ function applyFilters<T extends QueryLike>(query: T, filters: ListAuditLogQueryD
   return next as T;
 }
 
-function csvEscape(value: unknown): string {
-  const text =
-    value === null || value === undefined
-      ? ''
-      : typeof value === 'string'
-        ? value
-        : JSON.stringify(value);
-  const escaped = text.replace(/"/g, '""');
-  return /[",\r\n]/.test(escaped) ? `"${escaped}"` : escaped;
-}
+/**
+ * Formula-safe: this file is downloaded and opened in a spreadsheet, and audit
+ * payloads carry free text written by other people. See @myclash/types/csv.
+ */
+const csvEscape = toCsvCell;
 
 function toCsv(rows: AuditLogExportRow[]): string {
   const header = 'created_at,actor_user_id,action,entity_type,entity_id,payload_json';

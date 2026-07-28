@@ -12,6 +12,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
+import { toCsvCell } from '@myclash/types';
 import { createStoredZip } from '../../common/stored-zip';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -303,7 +304,7 @@ export function rowsToCsv(rows: Record<string, unknown>[]): string {
   }
   const lines = [header.map(csvCell).join(',')];
   for (const row of rows) {
-    lines.push(header.map((key) => csvCell(serialize(row[key]))).join(','));
+    lines.push(header.map((key) => csvCell(row[key])).join(','));
   }
   return `${lines.join('\n')}\n`;
 }
@@ -325,25 +326,12 @@ export function scrubRows(rows: Record<string, unknown>[]): Record<string, unkno
   );
 }
 
-function serialize(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-
 /**
- * Leading =, +, - and @ make Excel and LibreOffice treat a cell as a formula.
- * This bundle carries free text written by OTHER people — an organiser's `notes`
- * on a roster row, an audit payload — so a planted `=cmd|...` would execute when
- * the data subject opens their own export. Prefixing with a single quote makes
- * the cell literal text; spreadsheet apps strip the quote on display.
+ * Formula-safe, because this bundle carries free text written by OTHER people —
+ * an organiser's `notes` on a roster row, an audit payload — and the data
+ * subject opens it in a spreadsheet. See @myclash/types/csv.
  */
-const CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
-
-function csvCell(value: string): string {
-  const safe = CSV_FORMULA_LEAD.test(value) ? `'${value}` : value;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
+const csvCell = toCsvCell;
 
 const README = `MyClash — your personal data export
 ===================================

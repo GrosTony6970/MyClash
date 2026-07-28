@@ -4,6 +4,8 @@
  * the print-window open. Columns mirror the on-screen table.
  */
 
+import { escapeCsvCell } from '@myclash/types';
+
 export interface ExportRow {
   rank: number;
   fighter: string;
@@ -17,9 +19,12 @@ export interface ExportRow {
 
 const HEADERS = ['Rank', 'Fighter', 'Club', 'Result', 'Pool score'] as const;
 
-function csvEscape(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
+/**
+ * Formula-safe: this file is downloaded and opened in a spreadsheet, and fighter
+ * and club names come from the roster, which organisers type. See
+ * @myclash/types/csv — plain numbers stay numeric so pool score still sums.
+ */
+const csvEscape = escapeCsvCell;
 
 export function rankingToCsv(rows: ExportRow[]): string {
   const lines = [HEADERS.join(',')];

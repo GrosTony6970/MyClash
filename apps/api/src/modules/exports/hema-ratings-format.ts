@@ -11,6 +11,7 @@
  * upstream, so each one carries the reason it exists.
  */
 
+import { escapeCsvField } from '@myclash/types';
 import type { SubmissionMatch } from './hema-ratings-submission';
 
 export type HemaResult = 'Win' | 'Loss' | 'Draw' | 'NoData';
@@ -229,9 +230,18 @@ export function toCsv(header: readonly string[], rows: string[][]): string {
   return lines.join('\n');
 }
 
-function csvEscape(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
+/**
+ * DELIBERATELY `escapeCsvField`, NOT `escapeCsvCell`.
+ *
+ * Every other CSV MyClash produces is opened by a person in a spreadsheet, so it
+ * gets formula neutralisation (a leading `'` on `=`/`+`/`-`/`@`). This bundle is
+ * not read by a person: the organiser uploads it and HEMA Ratings' own importer
+ * parses it. Injecting apostrophes would corrupt the values their side stores —
+ * and this format was matched to their own exporter byte for byte in e003348d.
+ *
+ * The threat model differs too: nothing here is free text. Every column is a
+ * name, club, date or score drawn from a controlled vocabulary.
+ *
+ * A test in hema-ratings-submission.test.ts pins this. Do not "fix" it.
+ */
+const csvEscape = escapeCsvField;

@@ -9,7 +9,7 @@
  */
 
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
+import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
 import { createStoredZip } from '../../common/stored-zip';
 import {
   buildSubmission,
@@ -323,11 +323,13 @@ export class ExportsService {
     return this.supabase.service.from(table) as unknown as QueryChain;
   }
 
+  /**
+   * Formula-safe: full.csv is downloaded and opened in a spreadsheet, and it
+   * carries organiser-written free text (voided_reason, names). See
+   * @myclash/types/csv.
+   */
   private csvEscape(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`;
-    }
-    return value;
+    return escapeCsvCell(value);
   }
 }
 

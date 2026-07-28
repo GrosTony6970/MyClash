@@ -3,6 +3,7 @@ import {
   hemaGender,
   hemaRatingsRound,
   matchOutcome,
+  toCsv,
   tournamentFileName,
 } from './hema-ratings-format';
 import {
@@ -359,5 +360,24 @@ describe('buildSubmission', () => {
       ],
     });
     expect(Object.keys(result.files)).not.toContain('clubs.csv');
+  });
+
+  describe('CSV escaping is deliberately NOT formula-neutralised', () => {
+    it('does not inject apostrophes into values HEMA Ratings will parse', () => {
+      // Every other MyClash export prefixes =/+/-/@ with ' so a spreadsheet
+      // cannot execute it. This bundle is machine-ingested: their importer reads
+      // it, nobody opens it, and an injected apostrophe would corrupt the value
+      // stored on their side. The format was matched to their own exporter in
+      // e003348d. If this test fails because someone applied escapeCsvCell here,
+      // the fix is to revert that, not to update this expectation.
+      expect(toCsv(['a'], [['=SUM(A1)']])).toBe('=SUM(A1)');
+      expect(toCsv(['a'], [['-5']])).toBe('-5');
+      expect(toCsv(['a'], [['+Meyer']])).toBe('+Meyer');
+    });
+
+    it('still applies RFC 4180 quoting, which their parser expects', () => {
+      expect(toCsv(['a'], [['Dupont, Jean']])).toBe('"Dupont, Jean"');
+      expect(toCsv(['a'], [['say "hi"']])).toBe('"say ""hi"""');
+    });
   });
 });

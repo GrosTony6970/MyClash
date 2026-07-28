@@ -21,6 +21,23 @@ describe('rankingToCsv', () => {
   it('emits header only for an empty ranking', () => {
     expect(rankingToCsv([])).toBe('Rank,Fighter,Club,Result,Pool score');
   });
+
+  it('neutralises a spreadsheet formula planted in a fighter or club name', () => {
+    // Names come from the roster, which organisers type and import from CSV, so
+    // this file can carry a payload straight into whoever opens it.
+    const csv = rankingToCsv([
+      { rank: 1, fighter: '=cmd|calc', club: '@SUM(A1)', result: 'Champion', poolScore: '4.00' },
+    ]);
+    expect(csv).toContain('"\'=cmd|calc"');
+    expect(csv).toContain('"\'@SUM(A1)"');
+  });
+
+  it('keeps a plain pool score numeric so the column still sums', () => {
+    const csv = rankingToCsv([
+      { rank: 3, fighter: 'A', club: 'C', result: 'Pools', poolScore: '-1.50' },
+    ]);
+    expect(csv).toContain(',-1.50');
+  });
 });
 
 describe('rankingToPrintHtml', () => {

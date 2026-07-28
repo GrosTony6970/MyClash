@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { toCsvCell } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -1963,10 +1964,12 @@ function slugifyLeagueName(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-function csv(value: unknown): string {
-  const raw = value === null || value === undefined ? '' : String(value);
-  return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
-}
+/**
+ * Formula-safe: league standings are downloaded and opened in a spreadsheet, and
+ * fighter and club names come from the roster. See @myclash/types/csv — plain
+ * numbers stay numeric so points columns still sum.
+ */
+const csv = toCsvCell;
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')

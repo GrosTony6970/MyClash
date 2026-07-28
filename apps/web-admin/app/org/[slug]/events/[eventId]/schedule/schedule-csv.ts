@@ -8,6 +8,7 @@
  * Pure: no React, no I/O.
  */
 import { parseBracketRound } from '@myclash/schedule-core';
+import { escapeCsvCell } from '@myclash/types';
 
 export interface CsvMatch {
   scheduledAt: string | null;
@@ -23,9 +24,12 @@ export interface CsvMatch {
 
 const HEADER = 'Day,Lice,Start,Round,Tournament,Pool/Round,Red,Blue,Status';
 
-function esc(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
+/**
+ * Formula-safe: the schedule is downloaded and opened in a spreadsheet, and
+ * fighter, tournament and lice names come from organiser input.
+ * See @myclash/types/csv.
+ */
+const esc = escapeCsvCell;
 
 function hhmm(iso: string): string {
   return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(

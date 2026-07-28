@@ -6,7 +6,7 @@
  * title is passed in already localized.
  */
 
-import type { CompensationReport } from '@myclash/types';
+import { escapeCsvCell, type CompensationReport } from '@myclash/types';
 
 type Referee = CompensationReport['referees'][number];
 
@@ -20,9 +20,12 @@ const HEADERS = [
   'Paid',
 ] as const;
 
-function csvEscape(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
+/**
+ * Formula-safe: this file is downloaded and opened in a spreadsheet, and referee
+ * names come from the roster, which organisers type. See @myclash/types/csv —
+ * plain numbers stay numeric so the amount column still sums.
+ */
+const csvEscape = escapeCsvCell;
 
 /** Sum of a referee's breakdown subtotals for one phase (matches the UI cell). */
 function phaseTokens(referee: Referee, phase: string): number {

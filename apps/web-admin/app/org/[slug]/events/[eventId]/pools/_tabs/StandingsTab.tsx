@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
+import { escapeCsvCell } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
@@ -486,9 +487,9 @@ function EmptyState() {
   );
 }
 
-function csvEscape(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
+/**
+ * Formula-safe: standings are downloaded and opened in a spreadsheet, and
+ * fighter and club names come from the roster, which organisers type. See
+ * @myclash/types/csv — plain numbers stay numeric so the stat columns still sum.
+ */
+const csvEscape = escapeCsvCell;
