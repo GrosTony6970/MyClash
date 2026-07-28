@@ -15,6 +15,16 @@ import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
 
+// Pinned header cells. `border-collapse` (Tailwind preflight) makes the TABLE
+// paint every border, so a `border-b` on a sticky row stays behind at its
+// original position and scrolls away with the body. The inset shadow is drawn
+// by the cell itself and travels with it — same trick as the sticky Actions
+// column in the organiser Persons table. The fill has to live on the cells
+// too: a pinned row group backed only at the <thead>/<tr> level lets match
+// rows show through.
+const APPLY_ROW_TH = 'bg-surface shadow-[inset_0_-1px_0_var(--color-border)]';
+const HEAD_ROW_TH = 'bg-background shadow-[inset_0_-1px_0_var(--color-border)]';
+
 interface RefereeAssignment {
   role: string;
   refereeId: string;
@@ -392,7 +402,13 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                   {t('organizer.pools.matches.empty')}
                 </p>
               ) : (
-                <div className="overflow-x-auto">
+                // Height cap turns this wrapper into a real vertical scroll
+                // container, which is what the sticky <thead> below resolves
+                // against. It already scrolled horizontally, and `overflow-x`
+                // alone promotes the other axis to `auto` — but with no cap it
+                // never actually scrolls, so the header had nothing to pin to.
+                // `max-h`, not `h`: short pools never grow a scrollbar.
+                <div className="max-h-[70vh] overflow-auto">
                   <table className="w-full text-sm">
                     {/*
                       Pool-wide assignment row (top of <thead>) — one picker
@@ -401,15 +417,15 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                       `(mixed)` is shown when the pool's matches already
                       have different values; picking resets them all.
                     */}
-                    <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-wide text-muted">
-                      <tr className="border-b border-border bg-surface text-xs normal-case tracking-normal text-muted">
+                    <thead className="sticky top-0 z-sticky bg-background text-left text-xs uppercase tracking-wide text-muted">
+                      <tr className="bg-surface text-xs normal-case tracking-normal text-muted">
                         <th
                           colSpan={6}
-                          className="px-4 py-2 text-right font-semibold uppercase tracking-wide text-muted"
+                          className={`px-4 py-2 text-right font-semibold uppercase tracking-wide text-muted ${APPLY_ROW_TH}`}
                         >
                           {t('organizer.pools.matches.applyToAll')}
                         </th>
-                        <th className="w-32 px-4 py-2">
+                        <th className={`w-32 px-4 py-2 ${APPLY_ROW_TH}`}>
                           <select
                             value={(() => {
                               const v = poolLiceCommonValue(pool);
@@ -443,7 +459,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               ? referees.filter((r) => qualifiedSet.has(r.personId))
                               : referees;
                           return (
-                            <th key={role.id} className="w-32 px-4 py-2">
+                            <th key={role.id} className={`w-32 px-4 py-2 ${APPLY_ROW_TH}`}>
                               <select
                                 value={common === 'mixed' ? '__mixed__' : common}
                                 onChange={(e) => {
@@ -468,30 +484,40 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             </th>
                           );
                         })}
-                        <th className="w-10 px-4 py-2" />
+                        <th className={`w-10 px-4 py-2 ${APPLY_ROW_TH}`} />
                       </tr>
                       <tr>
-                        <th className="w-16 px-4 py-2">{t('organizer.pools.matches.round')}</th>
-                        <th className="px-4 py-2">{t('organizer.pools.matches.red')}</th>
-                        <th className="w-12 px-2 py-2 text-center">
+                        <th className={`w-16 px-4 py-2 ${HEAD_ROW_TH}`}>
+                          {t('organizer.pools.matches.round')}
+                        </th>
+                        <th className={`px-4 py-2 ${HEAD_ROW_TH}`}>
+                          {t('organizer.pools.matches.red')}
+                        </th>
+                        <th className={`w-12 px-2 py-2 text-center ${HEAD_ROW_TH}`}>
                           {t('organizer.pools.matches.scoreRed')}
                         </th>
-                        <th className="w-12 px-2 py-2 text-center">
+                        <th className={`w-12 px-2 py-2 text-center ${HEAD_ROW_TH}`}>
                           {t('organizer.pools.matches.scoreBlue')}
                         </th>
-                        <th className="px-4 py-2">{t('organizer.pools.matches.blue')}</th>
-                        <th className="w-32 px-4 py-2">{t('organizer.pools.matches.status')}</th>
-                        <th className="w-32 px-4 py-2">{t('organizer.pools.matches.lice')}</th>
+                        <th className={`px-4 py-2 ${HEAD_ROW_TH}`}>
+                          {t('organizer.pools.matches.blue')}
+                        </th>
+                        <th className={`w-32 px-4 py-2 ${HEAD_ROW_TH}`}>
+                          {t('organizer.pools.matches.status')}
+                        </th>
+                        <th className={`w-32 px-4 py-2 ${HEAD_ROW_TH}`}>
+                          {t('organizer.pools.matches.lice')}
+                        </th>
                         {/* One column per resolved referee role — system or
                             custom — coming from the tournament's staffing
                             config. Each cell renders a dropdown of
                             referees QUALIFIED for that role. */}
                         {roleConfig.map((role) => (
-                          <th key={role.id} className="w-32 px-4 py-2">
+                          <th key={role.id} className={`w-32 px-4 py-2 ${HEAD_ROW_TH}`}>
                             {role.displayName}
                           </th>
                         ))}
-                        <th className="w-10 px-4 py-2" />
+                        <th className={`w-10 px-4 py-2 ${HEAD_ROW_TH}`} />
                       </tr>
                     </thead>
                     <tbody>
