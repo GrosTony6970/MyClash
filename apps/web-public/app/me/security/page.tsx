@@ -6,6 +6,7 @@ import { validatePassword } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { DataAndPrivacySection } from './DataAndPrivacySection';
 
 interface SecurityStatus {
   hasPassword: boolean;
@@ -70,6 +71,9 @@ export default function SecurityPage() {
               hasPassword={status.hasPassword}
             />
             <ChangePasswordSection apiUrl={apiUrl} status={status} t={t} />
+            {/* Before the delete section on purpose: exporting your data is the
+                thing you want to do BEFORE deleting the account, not after. */}
+            <DataAndPrivacySection apiUrl={apiUrl} t={t} />
             <DeleteAccountSection apiUrl={apiUrl} status={status} t={t} />
           </>
         )}

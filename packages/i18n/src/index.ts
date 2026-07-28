@@ -503,6 +503,8 @@ export const en = {
       notFoundTitle: 'Fighter not found',
       insightTitle: 'AI performance insight',
       notFoundDescription: 'No fighter with slug "{slug}".',
+      accountDeletedNote:
+        'This fighter has deleted their MyClash account. Their competition results remain as a public record of the events they took part in.',
       hemaRatings: 'HEMA Ratings',
       rank: 'Rank {rank}',
       liveNow: 'Live now',
@@ -873,13 +875,22 @@ export const en = {
       signInMethodPassword: 'Email + password',
       googleOnlyTitle: 'You sign in with Google',
       googleOnlyBody: 'No password is needed — keep signing in with Google.',
+      dataTitle: 'Your data',
+      dataSubtitle:
+        'Download everything MyClash holds about you — your profile, events, matches, refereeing, workshops and preferences — as a zip of readable files.',
+      dataDownload: 'Download my data',
+      dataDownloading: 'Preparing your download…',
+      dataError: 'Could not build your export. Try again.',
+      dataRetentionTitle: 'What deleting your account removes',
+      dataRetentionBody:
+        'Your sign-in and personal details — photo, biography, date of birth, contact email and social links — are deleted, along with your follows and notification settings. Your name stays on published competition results: those are a public record of events that took place. If you need your name removed too, contact us.',
       deleteTitle: 'Delete my account',
       deleteSubtitle:
-        'This is permanent. Your sign-in will be removed and your linked profiles unlinked. Match results, event history, and referee records stay as historical facts — they are no longer associated with your account.',
+        'This is permanent. Your sign-in and personal details are removed, and your profiles are unlinked. Your name stays on published competition results, which are a public record.',
       deleteAction: 'Delete my account',
       deleteModalTitle: 'Type DELETE to confirm',
       deleteModalBody:
-        'Enter your current password and type DELETE (uppercase) to permanently remove this account.',
+        'Enter your current password and type DELETE (uppercase) to permanently remove this account. Your competition results keep your name.',
       deleteConfirmationLabel: 'Type DELETE to confirm',
       deleteConfirmAction: 'Delete account',
       errors: {
@@ -2174,6 +2185,7 @@ export const en = {
         rulesets: 'Rulesets',
         weapons: 'Weapons',
         featureFlags: 'Feature Flags',
+        dataRetention: 'Data retention',
         auditLog: 'Audit log',
         frozenResults: 'Frozen Results',
         pendingClaims: 'Profile claims',
@@ -3181,6 +3193,34 @@ export const en = {
       created: 'Weapon added.',
       updated: 'Weapon updated.',
       deleted: 'Weapon deleted.',
+    },
+    dataRetention: {
+      title: 'Data retention',
+      subtitle:
+        'How long personal telemetry is kept before the nightly sweep removes it. Competition results are a public record and are never swept.',
+      loadError: 'Could not load the retention policy.',
+      saveError: 'Could not save the retention policy.',
+      runError: 'Could not run the retention sweep.',
+      enabled: 'Retention sweep enabled',
+      enabledHint: 'When off, nothing is ever deleted automatically.',
+      horizonsTitle: 'Horizons',
+      horizonsHint: 'In days. 0 means keep forever.',
+      keepForever: 'Keep forever',
+      guestSessions: 'Guest sessions',
+      guestSessionsHint:
+        'Device telemetry for guests without an account — IP address and browser user-agent. Counted from expiry.',
+      aiUsage: 'AI usage logs',
+      aiUsageHint: 'Per-call records of AI features used by organisers and fighters.',
+      broadcasts: 'Broadcast recipients',
+      broadcastsHint: 'Who each event announcement was delivered to.',
+      auditLog: 'Audit log',
+      auditLogHint:
+        'Left at 0 on purpose: the audit log is a governance record, and personal data inside it is removed when a person is erased rather than by deleting rows about everyone else.',
+      lastRunTitle: 'Last sweep',
+      lastRunAt: 'Last run at {at}.',
+      lastRunNever: 'The sweep has not run yet.',
+      runNow: 'Run sweep now',
+      running: 'Sweeping…',
     },
     dataQuality: {
       title: 'Data Quality',
@@ -7314,6 +7354,8 @@ export const fr = {
       notFoundTitle: 'Combattant introuvable',
       insightTitle: 'Bilan de performance IA',
       notFoundDescription: 'Aucun combattant avec le slug "{slug}".',
+      accountDeletedNote:
+        'Ce combattant a supprimé son compte MyClash. Ses résultats de compétition subsistent comme registre public des événements auxquels il a participé.',
       hemaRatings: 'HEMA Ratings',
       rank: 'Rang {rank}',
       liveNow: 'En cours',
@@ -7692,13 +7734,22 @@ export const fr = {
       signInMethodPassword: 'Email + mot de passe',
       googleOnlyTitle: 'Vous vous connectez avec Google',
       googleOnlyBody: 'Aucun mot de passe nécessaire — continuez avec Google.',
+      dataTitle: 'Vos données',
+      dataSubtitle:
+        'Téléchargez tout ce que MyClash conserve à votre sujet — profil, événements, matchs, arbitrage, stages et préférences — sous forme d’une archive de fichiers lisibles.',
+      dataDownload: 'Télécharger mes données',
+      dataDownloading: 'Préparation du téléchargement…',
+      dataError: 'Impossible de générer votre export. Réessayez.',
+      dataRetentionTitle: 'Ce que la suppression de votre compte efface',
+      dataRetentionBody:
+        'Votre connexion et vos informations personnelles — photo, biographie, date de naissance, email de contact et liens sociaux — sont supprimées, ainsi que vos abonnements et vos préférences de notification. Votre nom reste sur les résultats de compétition publiés : ils constituent un registre public d’événements qui ont eu lieu. Si vous avez besoin que votre nom soit également retiré, contactez-nous.',
       deleteTitle: 'Supprimer mon compte',
       deleteSubtitle:
-        "Cette action est définitive. Votre connexion sera supprimée et vos profils déliés. L'historique de matchs, d'événements et d'arbitrage reste comme faits historiques — il ne sera plus associé à votre compte.",
+        'Cette action est définitive. Votre connexion et vos informations personnelles sont supprimées, et vos profils déliés. Votre nom reste sur les résultats de compétition publiés, qui constituent un registre public.',
       deleteAction: 'Supprimer mon compte',
       deleteModalTitle: 'Tapez DELETE pour confirmer',
       deleteModalBody:
-        'Entrez votre mot de passe actuel et tapez DELETE (majuscules) pour supprimer définitivement ce compte.',
+        'Entrez votre mot de passe actuel et tapez DELETE (majuscules) pour supprimer définitivement ce compte. Vos résultats de compétition conservent votre nom.',
       deleteConfirmationLabel: 'Tapez DELETE pour confirmer',
       deleteConfirmAction: 'Supprimer le compte',
       errors: {
@@ -9018,6 +9069,7 @@ export const fr = {
         rulesets: 'Reglements',
         weapons: 'Armes',
         featureFlags: 'Feature flags',
+        dataRetention: 'Conservation des donnees',
         auditLog: "Journal d'audit",
         frozenResults: 'Resultats geles',
         pendingClaims: 'Revendications de profil',
@@ -10036,6 +10088,35 @@ export const fr = {
       created: 'Arme ajoutee.',
       updated: 'Arme mise a jour.',
       deleted: 'Arme supprimee.',
+    },
+    dataRetention: {
+      title: 'Conservation des donnees',
+      subtitle:
+        'Duree de conservation des donnees techniques personnelles avant leur suppression par le balayage nocturne. Les resultats de competition constituent un registre public et ne sont jamais supprimes.',
+      loadError: 'Impossible de charger la politique de conservation.',
+      saveError: 'Impossible d’enregistrer la politique de conservation.',
+      runError: 'Impossible de lancer le balayage.',
+      enabled: 'Balayage active',
+      enabledHint: 'Desactive, rien n’est jamais supprime automatiquement.',
+      horizonsTitle: 'Durees',
+      horizonsHint: 'En jours. 0 signifie conservation illimitee.',
+      keepForever: 'Conservation illimitee',
+      guestSessions: 'Sessions invite',
+      guestSessionsHint:
+        'Donnees techniques des invites sans compte — adresse IP et user-agent du navigateur. Comptees depuis l’expiration.',
+      aiUsage: 'Journaux d’usage IA',
+      aiUsageHint:
+        'Enregistrements par appel des fonctions IA utilisees par les organisateurs et les tireurs.',
+      broadcasts: 'Destinataires des annonces',
+      broadcastsHint: 'A qui chaque annonce d’evenement a ete delivree.',
+      auditLog: 'Journal d’audit',
+      auditLogHint:
+        'Laisse a 0 volontairement : le journal d’audit est un registre de gouvernance, et les donnees personnelles qu’il contient sont retirees lors de l’effacement d’une personne plutot qu’en supprimant les lignes concernant tout le monde.',
+      lastRunTitle: 'Dernier balayage',
+      lastRunAt: 'Dernier passage le {at}.',
+      lastRunNever: 'Le balayage n’a pas encore ete execute.',
+      runNow: 'Lancer le balayage',
+      running: 'Balayage en cours…',
     },
     dataQuality: {
       title: 'Qualite des donnees',

@@ -129,6 +129,11 @@ const navSections: readonly NavSection[] = [
         labelKey: 'admin.shell.nav.featureFlags',
         icon: 'featureFlags',
       },
+      {
+        href: '/admin/data-retention',
+        labelKey: 'admin.shell.nav.dataRetention',
+        icon: 'dataRetention',
+      },
     ],
   },
 ];

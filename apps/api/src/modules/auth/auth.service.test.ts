@@ -90,6 +90,16 @@ const mockOnboarding = {
   completeSignupAfterMagicLink: vi.fn().mockResolvedValue(undefined),
 };
 
+/**
+ * ErasureService owns what account deletion actually removes; AuthService only
+ * sequences it around the auth-user delete. These tests pin that sequencing —
+ * the redaction itself is covered in privacy/erasure.service.test.ts.
+ */
+const mockErasure = {
+  redactSubject: vi.fn().mockResolvedValue({ persons: 1 }),
+  recordErasure: vi.fn().mockResolvedValue(undefined),
+};
+
 function makeReply() {
   return {
     setCookie: vi.fn(),
@@ -153,6 +163,7 @@ describe('AuthService', () => {
       mockSupabase as never,
       mockMailService as never,
       mockConfigService as never,
+      mockErasure as never,
       guestJwtService,
       mockOnboarding as never,
     );
@@ -1033,6 +1044,7 @@ describe('AuthService', () => {
         mockSupabase as never,
         mockMailService as never,
         prodConfig as never,
+        mockErasure as never,
         guestJwtService,
         mockOnboarding as never,
       );

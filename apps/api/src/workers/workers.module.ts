@@ -16,7 +16,9 @@ import { createRuntimeHealthRedis } from '../modules/admin/runtime-health/redis-
 import { LeaguesModule } from '../modules/leagues/leagues.module';
 import { MailService } from '../modules/mail/mail.service';
 import { NotificationSchedulingModule } from '../modules/notifications/notification-scheduling.module';
+import { PrivacyModule } from '../modules/privacy/privacy.module';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
+import { DATA_RETENTION_QUEUE, DataRetentionWorker } from './data-retention.worker';
 import {
   DATA_QUALITY_DETERMINISTIC_QUEUE,
   DataQualityDeterministicWorker,
@@ -81,7 +83,12 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     BullModule.registerQueue({
       name: RUNTIME_HEALTH_MONITOR_QUEUE,
     }),
+    BullModule.registerQueue({
+      name: DATA_RETENTION_QUEUE,
+    }),
     SupabaseModule,
+    // Leaf module (imports nothing), so this edge cannot form a cycle.
+    PrivacyModule,
     // The notification-scheduling subsystem (enqueue services + NOTIFICATION_QUEUE
     // + delivery worker) lives in this leaf module. Re-exported below so the
     // feature modules that import WorkersModule for notifications keep resolving
@@ -109,6 +116,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
     EventArchiveWorker,
     DataQualityDeterministicWorker,
     TlsCertMonitorWorker,
+    DataRetentionWorker,
     {
       provide: RuntimeHealthMonitorWorker,
       // useFactory because the worker's 5th constructor param is a raw ioredis

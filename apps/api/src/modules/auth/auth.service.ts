@@ -16,6 +16,9 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
+// Value import, not `import type`: Nest reads the constructor's design:paramtypes
+// metadata to inject it, and a type-only import erases that at compile time.
+import { ErasureService } from '../privacy/erasure.service';
 import {
   buildClearCookieOptions,
   buildSessionCookieOptions,
@@ -120,6 +123,9 @@ export class AuthService {
     private readonly supabase: SupabaseService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    // Required, not optional: deleteAccount cannot satisfy Art. 17 without it,
+    // so a missing wiring must fail at boot rather than at erasure time.
+    private readonly erasure: ErasureService,
     private readonly guestJwt?: GuestJwtService,
     private readonly onboarding?: OnboardingService,
   ) {}
@@ -1113,29 +1119,22 @@ export class AuthService {
       }
     }
 
-    // Strip claim linkages — historical match/referee/event facts
-    // survive; the rows just become unclaimed.
-    await this.supabase.service
-      .from('global_persons')
-      .update({ claimed_by_user_id: null, updated_at: new Date().toISOString() })
-      .eq('claimed_by_user_id', user.id);
-    await this.supabase.service
-      .from('persons')
-      .update({ claimed_by_user_id: null, claim_status: 'unclaimed' })
-      .eq('claimed_by_user_id', user.id);
-
-    // Clean up the user's own pending tokens and queue requests.
-    await this.supabase.service.from('global_person_claim_tokens').delete().eq('user_id', user.id);
-    await this.supabase.service
-      .from('global_person_claim_requests')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('status', 'pending');
+    // Redact the person, keep the competitor: contact details, date of birth,
+    // photo, biography, socials, device telemetry and the social graph all go;
+    // names stay attached to published results as a public record. ErasureService
+    // owns that definition — do not reimplement any of it here.
+    //
+    // Runs BEFORE the auth delete so a failure leaves the account intact and the
+    // whole operation retryable.
+    const redacted = await this.erasure.redactSubject(user.id);
 
     const { error: deleteError } = await this.supabase.service.auth.admin.deleteUser(user.id);
     if (deleteError) {
       throw new ServiceUnavailableException(`Auth delete failed: ${deleteError.message}`);
     }
+
+    // Art. 5(2) receipt, written only once the erasure actually completed.
+    await this.erasure.recordErasure(user.id, 'account_deletion', redacted);
 
     // Clear our own cookies; the Supabase session is gone anyway.
     const cookieReply = reply as FastifyReply & {

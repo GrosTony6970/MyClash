@@ -56,7 +56,15 @@ export const fighters = pgTable('global_persons', {
   }),
   mergedAt: timestamp('merged_at', { withTimezone: true }),
   mergeRevertedAt: timestamp('merge_reverted_at', { withTimezone: true }),
+  /** Set by the MERGE feature when this row is merged away. Not erasure — see accountDeletedAt. */
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  /**
+   * Set when the linked user account was erased. Names and results are retained
+   * (published competition results are a public record, GDPR Art. 17(3)); the
+   * profile extras are nulled. Deliberately distinct from `deletedAt`, which
+   * gates merge eligibility and the import dedup pool.
+   */
+  accountDeletedAt: timestamp('account_deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

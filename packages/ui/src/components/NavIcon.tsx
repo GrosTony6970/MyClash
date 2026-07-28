@@ -38,6 +38,7 @@ import {
   Server,
   Settings,
   Shield,
+  ShieldCheck,
   Snowflake,
   Sparkles,
   Swords,
@@ -111,6 +112,7 @@ export const NAV_ICON_NAMES = [
   'aiModels',
   'aiBudget',
   'dataQuality',
+  'dataRetention',
   'featureFlags',
   // Organiser workspace
   'events',
@@ -168,6 +170,7 @@ export const NAV_ICON_GLYPHS: Record<NavIconName, LucideIcon> = {
   aiModels: Cpu,
   aiBudget: Wallet,
   dataQuality: ScanSearch,
+  dataRetention: ShieldCheck,
   featureFlags: Flag,
   events: CalendarDays,
   members: Users,

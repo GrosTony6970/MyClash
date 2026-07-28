@@ -18,3 +18,4 @@ export * from './referees';
 export * from './leagues';
 export * from './venues';
 export * from './directory-groups';
+export * from './privacy';

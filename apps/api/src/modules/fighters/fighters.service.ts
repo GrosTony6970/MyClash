@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,6 +14,8 @@ import { replaceFighterWeaponsFromCell } from './weapon-import.util';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
+// Value import for the same DI reason as TournamentPlacementService above.
+import { ErasureService } from '../privacy/erasure.service';
 import type {
   CreateFighterDto,
   CreateGlobalPersonDto,
@@ -132,6 +135,9 @@ export class FightersService {
     // construct the service without it — placement computation degrades to an
     // empty map rather than throwing.
     private readonly placement?: TournamentPlacementService,
+    // Optional like the two above: only getBySlug needs it, and it degrades to
+    // the existing 404 rather than throwing when absent.
+    private readonly erasure?: ErasureService,
   ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
@@ -208,7 +214,16 @@ export class FightersService {
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
+    if (!data) {
+      // A slug retired by a super-admin anonymisation is GONE, not merely
+      // absent. 410 is the correct semantic and search engines drop it faster
+      // than a 404 — which is the point when the reason for anonymising was a
+      // cached result carrying the person's name.
+      if (this.erasure && (await this.erasure.isRetiredSlug(slug))) {
+        throw new GoneException('This profile has been removed');
+      }
+      throw new NotFoundException(`Fighter "${slug}" not found`);
+    }
 
     const row = data as Record<string, unknown>;
     const publicProfile = await this.withPublicProfileRelations(this.sanitizePublicFighter(row));
