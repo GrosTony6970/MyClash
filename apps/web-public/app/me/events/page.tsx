@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Button } from '@myclash/ui';
+import { Button, EventKindBadge } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents } from '@/components/me/hooks';
 import { HubLoading } from '@/components/me/EventHubChrome';
@@ -81,6 +81,11 @@ function EventCard({ myEvent }: { myEvent: MyEvent }) {
               {t('publicApp.me.events.roleInstructor')}
             </span>
           )}
+          <EventKindBadge
+            kind={event.kind}
+            label={t('publicApp.eventKind.clubBadge')}
+            title={t('publicApp.eventKind.clubBadgeHelp')}
+          />
         </span>
         {countParts && <span className="mt-1 block text-xs text-muted">{countParts}</span>}
       </span>

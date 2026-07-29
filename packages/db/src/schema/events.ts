@@ -22,6 +22,11 @@ export const events = pgTable('events', {
   timezone: text('timezone').notNull().default('Europe/Paris'),
   status: text('status').notNull().default('draft'),
   // draft | published | running | completed | archived
+  // What the event IS (migration 0162, replaced the is_test_event boolean of
+  // 0113). standard | test | club, CHECK-constrained in SQL. Governs public
+  // visibility, whether results are rated, and whether it can be hard-deleted.
+  // See packages/types/src/event-kind.ts for the predicates and the full matrix.
+  eventKind: text('event_kind').notNull().default('standard'),
   publicLandingMd: text('public_landing_md'),
   penaltyRulesetId: uuid('penalty_ruleset_id').references(() => penaltyRulesets.id, {
     onDelete: 'set null',

@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { toCsvCell } from '@myclash/types';
+import { asEventKind, countsTowardStats, toCsvCell } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -1628,17 +1628,19 @@ export class LeaguesService {
     config: LeagueScoringConfig,
   ): Promise<LeagueTournamentContribution[]> {
     const tournament = await this.getTournamentWithEvent(tournamentId);
-    // Test events never contribute to a league. Returning no contributions
-    // makes replaceTournamentResults delete any existing rows for this
-    // tournament — so a recompute (incl. the one triggered when an event is
-    // flagged test) is self-healing and league_tournament_results stays clean.
-    if (tournament['is_test_event'] === true) return [];
+    // Only STANDARD events contribute to a league — test events are dry runs
+    // and club events are internal activity. Returning no contributions makes
+    // replaceTournamentResults delete any existing rows for this tournament, so
+    // a recompute (incl. the one updateEvent triggers when an event's kind
+    // changes) self-heals in BOTH directions: rows drop when an event becomes
+    // unrated and come back when it becomes standard again.
+    if (!countsTowardStats(asEventKind(tournament['event_kind']))) return [];
     // No placement service wired (only in some unit constructions) → nothing to
     // score. Production always injects it.
     if (!this.placement) return [];
     // Resolve the authoritative placement FIRST. Not decided yet (bracket final
     // unsettled, or a pool-only tournament still in play) → contribute nothing,
-    // and skip the identity/match/exchange reads entirely. Like a test event,
+    // and skip the identity/match/exchange reads entirely. Like an unrated kind,
     // this self-heals: rows are deleted until the tournament decides, so league
     // points never reflect a mid-play snapshot.
     const placements = await this.placement.getTournamentPlacements(tournamentId);
@@ -1791,7 +1793,7 @@ export class LeaguesService {
   private async getTournamentWithEvent(tournamentId: string): Promise<Row> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('*, events(organization_id, is_test_event)')
+      .select('*, events(organization_id, event_kind)')
       .eq('id', tournamentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -1800,7 +1802,7 @@ export class LeaguesService {
     return {
       ...row,
       organization_id: row.events?.['organization_id'],
-      is_test_event: row.events?.['is_test_event'] === true,
+      event_kind: asEventKind(row.events?.['event_kind']),
     };
   }
 

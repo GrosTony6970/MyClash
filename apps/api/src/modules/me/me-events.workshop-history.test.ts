@@ -30,7 +30,7 @@ const EVENT = (over: Record<string, unknown> = {}) => ({
   end_date: '2026-06-02',
   status: 'published',
   timezone: 'Europe/Paris',
-  is_test_event: false,
+  event_kind: 'standard',
   ...over,
 });
 
@@ -146,7 +146,7 @@ describe('MeEventsService.getMyWorkshopHistory', () => {
   });
 
   it('drops workshops belonging to test events', async () => {
-    const testEvent = EVENT({ id: 'e-test', is_test_event: true });
+    const testEvent = EVENT({ id: 'e-test', event_kind: 'test' });
     const { service } = buildService(
       [{ id: 'p-1' }],
       [

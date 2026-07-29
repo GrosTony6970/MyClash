@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 
@@ -743,6 +748,183 @@ describe('EventsService', () => {
       ForbiddenException,
     );
     // assertOrgRole should NOT have been called — we block before auth check
+    expect(assertOrgRole).not.toHaveBeenCalled();
+  });
+
+  // ── event kind: delete, resolver and league recompute ────────────────────
+
+  /**
+   * Test and club events are both disposable — a dry run and internal club
+   * activity respectively. Neither ever fed rankings, so both skip the
+   * recorded-results guard AND the archived → deletion-request detour that
+   * protect a standard event.
+   */
+  describe.each(['test', 'club'] as const)('%s events hard-delete directly', (kind) => {
+    it('deletes even with recorded match results', async () => {
+      const eventsChain = makeFullChain({
+        data: { id: 'event-1', organization_id: 'org-1', status: 'draft', event_kind: kind },
+        error: null,
+      });
+      const byTable: Record<string, unknown> = {
+        events: eventsChain,
+        tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
+        phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
+        pools: makeFullChain({ data: [], error: null }),
+        // count: 1 = a match past 'scheduled'. This is exactly what blocks a
+        // standard event ('hard delete refuses when the event has recorded
+        // match results' above); an unrated kind sails through.
+        matches: makeFullChain({ count: 1, data: [], error: null }),
+        referee_assignments: makeFullChain({ data: null, error: null }),
+        match_forfeits: makeFullChain({ data: null, error: null }),
+        registrations: makeFullChain({ data: null, error: null }),
+      };
+      // Fallback for unknown tables: vi.clearAllMocks() does NOT reset
+      // implementations, so a map with holes would leak `undefined` into a
+      // later test that out-runs its mockReturnValueOnce queue.
+      fromMock.mockImplementation(
+        (table: string) => byTable[table] ?? makeFullChain({ count: 0, data: [], error: null }),
+      );
+      assertOrgRole.mockResolvedValue(undefined);
+
+      await expect(service.deleteEvent('event-1', 'hard', 'user-1')).resolves.toEqual({
+        deleted: true,
+        id: 'event-1',
+      });
+      expect(eventsChain['delete']).toHaveBeenCalled();
+    });
+
+    it('deletes even when archived, with no deletion request', async () => {
+      const eventsChain = makeFullChain({
+        data: { id: 'event-1', organization_id: 'org-1', status: 'archived', event_kind: kind },
+        error: null,
+      });
+      const byTable: Record<string, unknown> = {
+        events: eventsChain,
+        tournaments: makeFullChain({ data: [], error: null }),
+        referee_assignments: makeFullChain({ data: null, error: null }),
+      };
+      fromMock.mockImplementation(
+        (table: string) => byTable[table] ?? makeFullChain({ count: 0, data: [], error: null }),
+      );
+      assertOrgRole.mockResolvedValue(undefined);
+
+      await expect(service.deleteEvent('event-1', 'hard', 'user-1')).resolves.toEqual({
+        deleted: true,
+        id: 'event-1',
+      });
+    });
+  });
+
+  /**
+   * The public resolver. Test events 404 (they do not exist as far as the
+   * public is concerned); club events resolve normally — they are fully public,
+   * they are simply never rated.
+   */
+  describe('getEventBySlug — public visibility by kind', () => {
+    const resolve = (kind: string) => {
+      fromMock.mockReturnValueOnce(
+        makeChain({ data: { id: 'e1', slug: 'club-night', event_kind: kind }, error: null }),
+      );
+      return service.getEventBySlug('club-night');
+    };
+
+    it('404s a test event', async () => {
+      await expect(resolve('test')).rejects.toThrow(NotFoundException);
+    });
+
+    it('resolves a club event', async () => {
+      await expect(resolve('club')).resolves.toMatchObject({ id: 'e1', event_kind: 'club' });
+    });
+
+    it('resolves a standard event', async () => {
+      await expect(resolve('standard')).resolves.toMatchObject({ id: 'e1' });
+    });
+
+    it('resolves a row with no kind at all (legacy rows stay visible)', async () => {
+      fromMock.mockReturnValueOnce(makeChain({ data: { id: 'e1', slug: 'x' }, error: null }));
+      await expect(service.getEventBySlug('x')).resolves.toMatchObject({ id: 'e1' });
+    });
+  });
+
+  /**
+   * League contributions gate on countsTowardStats, so a recompute is only
+   * needed when an event crosses the rated/unrated line. computeTournament-
+   * Contributions returns [] for an unrated kind, which makes
+   * replaceTournamentResults delete the stored rows — self-healing both ways.
+   */
+  describe('updateEvent — league recompute on kind transitions', () => {
+    // Ordered mocks, matching the two from() calls updateEvent makes when the
+    // slug is untouched: getEventById, then the update itself. Deliberately NOT
+    // mockImplementation — it survives vi.clearAllMocks() and leaks into
+    // whichever later test out-runs its own queue.
+    function build(previousKind: string) {
+      const recomputeForEvent = vi.fn().mockResolvedValue(undefined);
+      const svc = new EventsService(
+        { service: { from: fromMock } } as never,
+        { assertOrgRole } as never,
+        {} as never,
+        { recomputeForEvent } as never,
+      );
+      const eventChain = makeChain({
+        data: {
+          id: 'event-1',
+          organization_id: 'org-1',
+          status: 'draft',
+          event_kind: previousKind,
+        },
+        error: null,
+      });
+      const updateChain = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { id: 'event-1' }, error: null }),
+      };
+      fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(updateChain);
+      assertOrgRole.mockResolvedValue(undefined);
+      return { svc, recomputeForEvent, updateChain };
+    }
+
+    it.each([
+      ['standard', 'club'],
+      ['standard', 'test'],
+      ['club', 'standard'],
+      ['test', 'standard'],
+    ])('recomputes on %s → %s (stats eligibility changes)', async (from, to) => {
+      const { svc, recomputeForEvent, updateChain } = build(from);
+      await svc.updateEvent('event-1', { eventKind: to as never }, 'user-1');
+      expect(updateChain.update).toHaveBeenCalledWith(expect.objectContaining({ event_kind: to }));
+      expect(recomputeForEvent).toHaveBeenCalledWith('event-1');
+    });
+
+    it.each([
+      ['test', 'club'],
+      ['club', 'test'],
+    ])('does NOT recompute on %s → %s (both unrated)', async (from, to) => {
+      const { svc, recomputeForEvent } = build(from);
+      await svc.updateEvent('event-1', { eventKind: to as never }, 'user-1');
+      expect(recomputeForEvent).not.toHaveBeenCalled();
+    });
+
+    it('does not recompute when the kind is untouched', async () => {
+      const { svc, recomputeForEvent } = build('standard');
+      await svc.updateEvent('event-1', { name: 'Renamed' }, 'user-1');
+      expect(recomputeForEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  it('a standard event is still protected when archived', async () => {
+    // The counterpart to the two cases above: the guard is kind-driven, not
+    // removed.
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1', status: 'archived', event_kind: 'standard' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(eventChain);
+
+    await expect(service.deleteEvent('event-1', 'hard', 'user-1')).rejects.toThrow(
+      ForbiddenException,
+    );
     expect(assertOrgRole).not.toHaveBeenCalled();
   });
 

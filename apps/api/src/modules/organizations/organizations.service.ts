@@ -214,8 +214,9 @@ export class OrganizationsService {
 
   /**
    * "Events you could still attend" per organisation: published + running,
-   * test events excluded. Mirrors what the public event list treats as
-   * upcoming, so the number on a directory card matches what /o/[slug] shows.
+   * test events excluded (club events counted — they are public and real).
+   * Mirrors what the public event list treats as upcoming, so the number on a
+   * directory card matches what /o/[slug] shows.
    */
   private async countUpcomingEventsByOrg(orgIds: string[]): Promise<Map<string, number>> {
     const { data, error } = await this.supabase.service
@@ -223,7 +224,7 @@ export class OrganizationsService {
       .select('organization_id')
       .in('organization_id', orgIds)
       .in('status', ['published', 'running'])
-      .eq('is_test_event', false);
+      .neq('event_kind', 'test');
     if (error) throw new BadRequestException(error.message);
 
     const counts = new Map<string, number>();

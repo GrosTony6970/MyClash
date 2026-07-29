@@ -7,6 +7,13 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import {
+  allowsDirectHardDelete,
+  asEventKind,
+  countsTowardStats,
+  DEFAULT_EVENT_KIND,
+  isPubliclyVisible,
+} from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
@@ -177,8 +184,11 @@ export class EventsService {
     if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
     else q = q.in('status', ['published', 'running', 'completed']) as typeof q;
 
-    // Test events never appear on public surfaces.
-    q = q.eq('is_test_event', false) as typeof q;
+    // Test events never appear on public surfaces. Club events DO — they are
+    // public, they just never count toward rankings or career stats.
+    // Predicate text matches idx_events_status_start_date (0162) exactly, so
+    // the planner can use the partial index.
+    q = q.neq('event_kind', 'test') as typeof q;
 
     if (query.organizationId) q = q.eq('organization_id', query.organizationId) as typeof q;
 
@@ -505,7 +515,8 @@ export class EventsService {
     // Test events are invisible to the public — this resolver backs the
     // public GET /events/:slug. Admin reads go through getEventById /
     // listOrgEvents, which keep test events visible to the owning org.
-    if ((data as { is_test_event?: boolean }).is_test_event === true) {
+    // Club events resolve normally: they are fully public.
+    if (!isPubliclyVisible(asEventKind((data as { event_kind?: string }).event_kind))) {
       throw new NotFoundException(`Event "${slug}" not found`);
     }
     return data;
@@ -538,7 +549,7 @@ export class EventsService {
         country: dto.country ?? null,
         public_landing_md: dto.publicLandingMd ?? null,
         status: 'draft',
-        is_test_event: dto.isTestEvent ?? false,
+        event_kind: dto.eventKind ?? DEFAULT_EVENT_KIND,
         created_by_user_id: userId,
       })
       .select('*')
@@ -583,7 +594,7 @@ export class EventsService {
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
-    if (dto.isTestEvent !== undefined) updates['is_test_event'] = dto.isTestEvent;
+    if (dto.eventKind !== undefined) updates['event_kind'] = dto.eventKind;
 
     // publishEvent() is the path the admin UI uses, but UpdateEventDto also
     // accepts status:'published' — so the first-publish stamp has to happen
@@ -594,8 +605,12 @@ export class EventsService {
       (event as { first_published_at?: string | null }).first_published_at == null;
     if (firstPublishHere) updates['first_published_at'] = new Date().toISOString();
 
-    const wasTest = (event as { is_test_event?: boolean }).is_test_event === true;
-    const testFlagChanged = dto.isTestEvent !== undefined && dto.isTestEvent !== wasTest;
+    const previousKind = asEventKind((event as { event_kind?: string }).event_kind);
+    const nextKind = dto.eventKind ?? previousKind;
+    // League contributions track *stats eligibility*, not the raw kind: a
+    // test↔club flip changes nothing (neither is rated), so it must not trigger
+    // a pointless full-event recompute.
+    const statsEligibilityChanged = countsTowardStats(previousKind) !== countsTowardStats(nextKind);
 
     const { data, error } = await this.supabase.service
       .from('events')
@@ -605,13 +620,15 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    // Recompute league standings on completion, and whenever the test flag
-    // flips — the league gate (computeTournamentContributions) writes empty
-    // contributions for a now-test event, so recompute drops/re-adds its rows
-    // from league_tournament_results + rankings. Fighter exchange stats need no
-    // action: they are computed on-read (fighter_exchange_stats, 0128) and filter
-    // is_test_event live, so a flag flip is reflected on the next request.
-    if (dto.status === 'completed' || testFlagChanged) {
+    // Recompute league standings on completion, and whenever stats eligibility
+    // changes (standard ↔ test|club) — the league gate
+    // (computeTournamentContributions) writes empty contributions for a now-
+    // unrated event, so recompute drops its rows from league_tournament_results
+    // + rankings, and re-adds them on the way back. Self-healing in both
+    // directions. Fighter stats need no action: compact_fighter_stats (0162) and
+    // the fighters.service career filters read event_kind live, so a kind change
+    // is reflected on the next request.
+    if (dto.status === 'completed' || statsEligibilityChanged) {
       await this.leagues?.recomputeForEvent(eventId);
     }
     if (firstPublishHere) await this.announceFirstPublish(eventId);
@@ -1120,10 +1137,15 @@ export class EventsService {
     }
 
     const event = await this.getEventById(eventId);
-    // Test events are throwaway dry-runs: the org admin can hard-delete them
-    // directly, results and all, with no archive/deletion-request detour.
-    const isTest = (event as { is_test_event?: boolean }).is_test_event === true;
-    if (!isTest && (event as { status: string }).status === 'archived') {
+    // Test and club events are both disposable: a test event is a throwaway dry
+    // run, and a club event's results never fed rankings or career stats. Either
+    // way tearing it down destroys nothing anyone else depends on, so the org
+    // admin can hard-delete it directly — results and all, with no
+    // archive/deletion-request detour.
+    const directDelete = allowsDirectHardDelete(
+      asEventKind((event as { event_kind?: string }).event_kind),
+    );
+    if (!directDelete && (event as { status: string }).status === 'archived') {
       throw new ForbiddenException(
         'Archived events require super-admin approval. Submit a deletion request.',
       );
@@ -1146,7 +1168,7 @@ export class EventsService {
       .eq('event_id', eventId);
     const tournamentIds = ((tournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
 
-    if (!isTest) {
+    if (!directDelete) {
       await this.assertNoRecordedResults(
         tournamentIds,
         'This event has recorded match results. Submit a deletion request instead of a hard delete.',
@@ -3821,7 +3843,7 @@ export class EventsService {
     const { data, error } = await this.supabase.service
       .from('events')
       .select(
-        'id, organization_id, status, name, slug, start_date, end_date, city, country, logo_url, created_by_user_id, is_test_event',
+        'id, organization_id, status, name, slug, start_date, end_date, city, country, logo_url, created_by_user_id, event_kind',
       )
       .eq('id', eventId)
       .maybeSingle();

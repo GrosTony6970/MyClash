@@ -8,8 +8,14 @@
  * about what HEMA Ratings will accept lives in that pure module.
  */
 
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  allowsRatingsExport,
+  asEventKind,
+  escapeCsvCell,
+  formatRoundCode,
+  roundCodeShapeFromConfig,
+} from '@myclash/types';
 import { createStoredZip } from '../../common/stored-zip';
 import {
   buildSubmission,
@@ -61,11 +67,24 @@ export class ExportsService {
     eventId: string,
   ): Promise<{ slug: string; result: SubmissionResult }> {
     const [event, tournaments] = await Promise.all([
-      this.fetchOne('events', (q) => q.select('slug').eq('id', eventId).maybeSingle()),
+      this.fetchOne('events', (q) => q.select('slug, event_kind').eq('id', eventId).maybeSingle()),
       this.fetchMany('tournaments', (q) =>
         q.select('id, name, sort_order').eq('event_id', eventId).order('sort_order'),
       ),
     ]);
+
+    // HEMA Ratings is an external, public rating database: only standard events
+    // belong in it. Test events are dry runs and club events are internal
+    // activity — neither should reach a global rating pool. This is the single
+    // choke point for both the zip download and the pre-flight preview.
+    const kind = asEventKind(event?.['event_kind']);
+    if (!allowsRatingsExport(kind)) {
+      throw new BadRequestException(
+        kind === 'club'
+          ? 'Club events cannot be submitted to HEMA Ratings: their results do not count toward ratings.'
+          : 'Test events cannot be submitted to HEMA Ratings: their results do not count toward ratings.',
+      );
+    }
 
     const slug = (event?.['slug'] as string | undefined) ?? eventId;
     const tournamentIds = tournaments.map((t) => t['id'] as string);

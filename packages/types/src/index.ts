@@ -5,6 +5,7 @@
 export * from './compensation';
 export * from './csv';
 export * from './date';
+export * from './event-kind';
 export * from './final-ranking';
 export * from './password';
 export * from './programme';

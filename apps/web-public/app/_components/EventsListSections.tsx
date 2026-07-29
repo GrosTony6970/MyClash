@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { defaultLocale, t } from '@myclash/i18n';
-import { formatCountryName } from '@myclash/ui';
+import { EventKindBadge, formatCountryName } from '@myclash/ui';
+import { asEventKind } from '@myclash/types';
 import { useI18n } from '@/i18n/I18nProvider';
 import { partitionEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
@@ -20,6 +21,8 @@ interface PublicEvent {
   start_date?: string | null;
   end_date?: string | null;
   status?: string | null;
+  // 'standard' | 'club' here — the API never returns test events publicly.
+  event_kind?: string | null;
   logo_url?: string | null;
   tournament_count?: number | null;
   // Distinct leagues this event participates in via its tournaments'
@@ -214,6 +217,19 @@ function PublishedTag() {
   );
 }
 
+/** Club events are public but unrated — say so, or their standings look like
+ *  results that count. See the API's countsTowardStats gate. */
+function ClubTag({ event, className }: { event: PublicEvent; className?: string }) {
+  return (
+    <EventKindBadge
+      kind={asEventKind(event.event_kind)}
+      label={t('publicApp.eventKind.clubBadge')}
+      title={t('publicApp.eventKind.clubBadgeHelp')}
+      className={className}
+    />
+  );
+}
+
 function PastTag() {
   return (
     <span className="inline-flex items-center rounded-full border border-border bg-border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
@@ -264,7 +280,10 @@ function LiveSection({
                       return place ? <p className="mt-1 text-sm text-muted">{place}</p> : null;
                     })()}
                   </div>
-                  <LiveTag />
+                  <div className="flex flex-col items-end gap-1.5">
+                    <LiveTag />
+                    <ClubTag event={event} />
+                  </div>
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -330,6 +349,7 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
           >
             {event.name ?? t('publicApp.home.unknownEvent')}
           </Link>
+          <ClubTag event={event} className="mt-1.5" />
         </div>
         <p className="text-sm text-muted">
           <span className="font-medium text-foreground-secondary md:hidden">

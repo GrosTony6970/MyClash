@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { EventKind } from '@myclash/types';
 import { FightersService, parseBoolCell } from './fighters.service';
 import {
   buildRefereeStats,
@@ -616,12 +617,12 @@ describe('FightersService', () => {
     });
   });
 
-  describe('mapRefereeAssignments — test-event exclusion', () => {
+  describe('mapRefereeAssignments — unrated-event exclusion', () => {
     type Mapper = { mapRefereeAssignments: (rows: unknown[]) => RefereeAssignmentInput[] };
 
     // A completed match-scoped referee_assignments row, shaped like the embed in
     // fetchRefereeAssignmentsByPerson (matches → phases → tournaments → events).
-    const assignmentRow = (over: { matchId: string; eventId: string; isTest: boolean }) => ({
+    const assignmentRow = (over: { matchId: string; eventId: string; kind: EventKind }) => ({
       match_id: over.matchId,
       person_id: 'gp-1',
       role: 'arbitre_declarant',
@@ -640,21 +641,23 @@ describe('FightersService', () => {
             id: 't1',
             name: 'Longsword',
             weapon: 'longsword',
-            events: { id: over.eventId, name: 'Event', is_test_event: over.isTest },
+            events: { id: over.eventId, name: 'Event', event_kind: over.kind },
           },
         },
       },
     });
 
-    it('drops assignments in test events, so referee career stats never count them', () => {
+    it('drops test AND club assignments, so referee career stats never count them', () => {
       const rows = [
-        assignmentRow({ matchId: 'm-real', eventId: 'e-real', isTest: false }),
-        assignmentRow({ matchId: 'm-test', eventId: 'e-test', isTest: true }),
+        assignmentRow({ matchId: 'm-real', eventId: 'e-real', kind: 'standard' }),
+        assignmentRow({ matchId: 'm-test', eventId: 'e-test', kind: 'test' }),
+        assignmentRow({ matchId: 'm-club', eventId: 'e-club', kind: 'club' }),
       ];
 
       const mapped = (service as unknown as Mapper).mapRefereeAssignments(rows);
-      // The test-event assignment is dropped by the mapper (mirrors the fighter
-      // career exclusion); only the real-event match survives.
+      // Both unrated kinds are dropped by the mapper (mirrors the fighter career
+      // exclusion); only the standard-event match survives. Club events are
+      // publicly visible but never rated — that split is the whole point.
       expect(mapped.map((a) => a.matchId)).toEqual(['m-real']);
 
       // …and it cascades to the derived stats: totalMatches/eventsWorked exclude it.

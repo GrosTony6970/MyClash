@@ -12,7 +12,8 @@
 import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
-import { formatCountryName } from '@myclash/ui';
+import { EventKindBadge, formatCountryName } from '@myclash/ui';
+import { asEventKind, type EventKind } from '@myclash/types';
 import { FollowOrganizerButton } from '../../../_components/FollowOrganizerButton';
 
 export interface EventInfo {
@@ -24,6 +25,8 @@ export interface EventInfo {
   endDate: string;
   publicLandingMd: string | null;
   status: string;
+  /** 'standard' | 'club' — the public resolver 404s test events. */
+  eventKind: EventKind;
   timezone: string;
   logoUrl: string | null;
   heroImageUrl: string | null;
@@ -85,6 +88,7 @@ export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise
           ? String(raw['public_landing_md'] ?? raw['publicLandingMd'])
           : null,
       status: String(raw['status'] ?? ''),
+      eventKind: asEventKind(raw['event_kind'] ?? raw['eventKind']),
       timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'Europe/Paris',
       logoUrl:
         typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
@@ -173,6 +177,22 @@ export function EventHeader({
             <p className="mt-0.5 text-sm text-muted">
               {formatDateRange(event.startDate, event.endDate, locale)}
             </p>
+
+            {event.eventKind === 'club' && (
+              <div className="mt-3">
+                <EventKindBadge
+                  kind={event.eventKind}
+                  label={t('publicApp.eventKind.clubBadge')}
+                  size="md"
+                />
+                {/* Visible, not a title attribute: a tooltip never appears on
+                    touch, and this is the only place a fighter learns why the
+                    standings on this page never reach their profile. */}
+                <p className="mt-1.5 text-xs text-muted">
+                  {t('publicApp.eventKind.clubBadgeHelp')}
+                </p>
+              </div>
+            )}
 
             {event.status === 'running' &&
               (eventSlug ? (

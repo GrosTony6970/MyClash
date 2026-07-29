@@ -25,7 +25,7 @@ const EVENT = (over: Record<string, unknown> = {}) => ({
   end_date: '2026-06-02',
   status: 'published',
   timezone: 'Europe/Paris',
-  is_test_event: false,
+  event_kind: 'standard',
   ...over,
 });
 
@@ -152,9 +152,32 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
   it('drops instructor rows belonging to test events', async () => {
     const service = buildService({
       persons: [],
-      eventInstructors: [{ events: EVENT({ id: 'e-test', is_test_event: true }) }],
+      eventInstructors: [{ events: EVENT({ id: 'e-test', event_kind: 'test' }) }],
     });
     const events = await service.listMyEvents('user-1');
     expect(events).toHaveLength(0);
+  });
+
+  // The inverse of the test above, and the assertion that proves the
+  // visibility/statistics split actually split: a club event is unrated
+  // everywhere (career, league, group cards) yet must still appear in the
+  // personal space of someone who took part in it.
+  it('KEEPS club events — they are unrated, not hidden', async () => {
+    const service = buildService({
+      persons: [
+        { id: 'p-club', event_id: 'e-club', events: EVENT({ id: 'e-club', event_kind: 'club' }) },
+      ],
+    });
+    const events = await service.listMyEvents('user-1');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.event.id).toBe('e-club');
+    // …and the kind rides along so the UI can tag it.
+    expect(events[0]!.event.kind).toBe('club');
+  });
+
+  it('tags standard events with their kind too', async () => {
+    const service = buildService({ persons: [CLAIMED_PERSON] });
+    const events = await service.listMyEvents('user-1');
+    expect(events[0]!.event.kind).toBe('standard');
   });
 });

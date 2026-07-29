@@ -3,6 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 
 type CountQuery = PromiseLike<{ count: number | null; error: { message?: string } | null }> & {
   eq(column: string, value: unknown): CountQuery;
+  neq(column: string, value: unknown): CountQuery;
   gte(column: string, value: string): CountQuery;
   in(column: string, values: unknown[]): CountQuery;
   is(column: string, value: unknown): CountQuery;
@@ -66,12 +67,16 @@ export class AdminDashboardStatsService {
     const recentDays = 30;
     const since = new Date(Date.now() - recentDays * 24 * 60 * 60 * 1000).toISOString();
 
-    // Test events are excluded from platform stats. matches/exchanges/tournaments
-    // reach the events flag via inner-join embeds (filter restricts the count).
-    const notTestTournament = 'id, events!inner(is_test_event)';
-    const notTestMatch = 'id, phases!inner(tournaments!inner(events!inner(is_test_event)))';
-    const notTestExchange =
-      'id, matches!inner(phases!inner(tournaments!inner(events!inner(is_test_event))))';
+    // Test events are excluded from platform stats. CLUB EVENTS ARE NOT — a club
+    // night is real activity on the platform, unlike a dry run. This is
+    // deliberately different from the career/league gate (countsTowardStats in
+    // @myclash/types, which counts only 'standard'); do NOT unify the two.
+    // matches/exchanges/tournaments reach events.event_kind via inner-join embeds
+    // (a filter on the embedded column restricts the count).
+    const platformTournament = 'id, events!inner(event_kind)';
+    const platformMatch = 'id, phases!inner(tournaments!inner(events!inner(event_kind)))';
+    const platformExchange =
+      'id, matches!inner(phases!inner(tournaments!inner(events!inner(event_kind))))';
 
     const [
       organizationsTotal,
@@ -104,28 +109,28 @@ export class AdminDashboardStatsService {
       this.countRows('organizations'),
       this.countRows('organizations', (query) => query.eq('status', 'active')),
       this.countRows('organizations', (query) => query.eq('status', 'suspended')),
-      this.countRows('events', (query) => query.eq('is_test_event', false)),
-      this.countRows('events', (query) => query.eq('status', 'draft').eq('is_test_event', false)),
+      this.countRows('events', (query) => query.neq('event_kind', 'test')),
+      this.countRows('events', (query) => query.eq('status', 'draft').neq('event_kind', 'test')),
       this.countRows('events', (query) =>
-        query.in('status', ['published', 'running']).eq('is_test_event', false),
+        query.in('status', ['published', 'running']).neq('event_kind', 'test'),
       ),
       this.countRows('events', (query) =>
-        query.eq('status', 'completed').eq('is_test_event', false),
+        query.eq('status', 'completed').neq('event_kind', 'test'),
       ),
       this.countRows(
         'tournaments',
-        (query) => query.eq('events.is_test_event', false),
-        notTestTournament,
+        (query) => query.neq('events.event_kind', 'test'),
+        platformTournament,
       ),
       this.countRows(
         'tournaments',
-        (query) => query.eq('status', 'draft').eq('events.is_test_event', false),
-        notTestTournament,
+        (query) => query.eq('status', 'draft').neq('events.event_kind', 'test'),
+        platformTournament,
       ),
       this.countRows(
         'tournaments',
-        (query) => query.eq('status', 'completed').eq('events.is_test_event', false),
-        notTestTournament,
+        (query) => query.eq('status', 'completed').neq('events.event_kind', 'test'),
+        platformTournament,
       ),
       this.countRows('global_persons'),
       this.countRows('global_persons', (query) => query.eq('is_fighter', true)),
@@ -134,28 +139,26 @@ export class AdminDashboardStatsService {
       this.countRows('registrations'),
       this.countRows(
         'matches',
-        (query) => query.eq('phases.tournaments.events.is_test_event', false),
-        notTestMatch,
+        (query) => query.neq('phases.tournaments.events.event_kind', 'test'),
+        platformMatch,
       ),
       this.countRows(
         'matches',
         (query) =>
-          query.eq('status', 'completed').eq('phases.tournaments.events.is_test_event', false),
-        notTestMatch,
+          query.eq('status', 'completed').neq('phases.tournaments.events.event_kind', 'test'),
+        platformMatch,
       ),
       this.countRows(
         'exchanges',
-        (query) => query.eq('matches.phases.tournaments.events.is_test_event', false),
-        notTestExchange,
+        (query) => query.neq('matches.phases.tournaments.events.event_kind', 'test'),
+        platformExchange,
       ),
       this.countRows('organizations', (query) => query.gte('created_at', since)),
-      this.countRows('events', (query) =>
-        query.gte('created_at', since).eq('is_test_event', false),
-      ),
+      this.countRows('events', (query) => query.gte('created_at', since).neq('event_kind', 'test')),
       this.countRows(
         'tournaments',
-        (query) => query.gte('created_at', since).eq('events.is_test_event', false),
-        notTestTournament,
+        (query) => query.gte('created_at', since).neq('events.event_kind', 'test'),
+        platformTournament,
       ),
       this.countRows('global_persons', (query) => query.gte('created_at', since)),
       this.countRows(
@@ -164,8 +167,8 @@ export class AdminDashboardStatsService {
           query
             .eq('status', 'completed')
             .gte('ended_at', since)
-            .eq('phases.tournaments.events.is_test_event', false),
-        notTestMatch,
+            .neq('phases.tournaments.events.event_kind', 'test'),
+        platformMatch,
       ),
       this.countRows('clubs', (query) => query.is('archived_at', null)),
       this.countRows('leagues'),

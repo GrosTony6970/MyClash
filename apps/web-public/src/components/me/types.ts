@@ -1,6 +1,8 @@
 // Shared client types for the redesigned /me personal space. Mirror the API
 // shapes returned by the `me` module + the per-event my-schedule endpoint.
 
+import type { EventKind } from '@myclash/types';
+
 export interface ScheduleMatch {
   id: string;
   matchNumberLabel: string;
@@ -89,6 +91,8 @@ export interface MyEventInfo {
   endDate: string | null;
   status: string;
   timezone: string | null;
+  /** 'standard' | 'club' — the API drops test events from /me entirely. */
+  kind: EventKind;
 }
 
 export interface MyEventTournament {

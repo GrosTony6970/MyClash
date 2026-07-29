@@ -59,6 +59,9 @@ export type { TournamentColorDotProps } from './components/TournamentColorDot';
 export { SkillBadge } from './components/SkillBadge';
 export type { SkillBadgeProps } from './components/SkillBadge';
 
+export { EventKindBadge } from './components/EventKindBadge';
+export type { EventKindBadgeProps } from './components/EventKindBadge';
+
 export { MatchScoreboard } from './components/MatchScoreboard';
 export type { MatchScoreboardProps } from './components/MatchScoreboard';
 

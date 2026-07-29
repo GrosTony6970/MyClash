@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { announcesOnPublish, asEventKind } from '@myclash/types';
 import { NotificationSchedulerService } from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
 
@@ -161,7 +162,7 @@ export class NotificationEventsService {
   async organizerPublishedEvent(eventId: string): Promise<void> {
     const { data: event } = await this.supabase.service
       .from('events')
-      .select('id, name, slug, city, start_date, is_test_event, organization_id')
+      .select('id, name, slug, city, start_date, event_kind, organization_id')
       .eq('id', eventId)
       .maybeSingle();
     const row = event as {
@@ -170,13 +171,15 @@ export class NotificationEventsService {
       slug: string | null;
       city: string | null;
       start_date: string | null;
-      is_test_event: boolean | null;
+      event_kind: string | null;
       organization_id: string | null;
     } | null;
     if (!row || !row.organization_id) return;
-    // Test events are invisible on every public surface; they must not
-    // generate notifications either.
-    if (row.is_test_event) return;
+    // Only standard events announce. Test events are invisible on every public
+    // surface so they must not notify either; club events ARE public, but a
+    // recurring club night announcing itself to every follower of the
+    // organisation reads as spam.
+    if (!announcesOnPublish(asEventKind(row.event_kind))) return;
 
     const { data: org } = await this.supabase.service
       .from('organizations')

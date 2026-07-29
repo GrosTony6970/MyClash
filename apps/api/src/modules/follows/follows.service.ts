@@ -7,6 +7,7 @@
  */
 
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { asEventKind, isPubliclyVisible } from '@myclash/types';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from '../persons/privacy.service';
@@ -443,7 +444,7 @@ export class FollowsService {
       .from('follows')
       .select(
         `event_id, followed_person_id, notify_match_start, notify_workshop_start, notify_referee_start,
-         persons ( global_person_id, events ( status, is_test_event ) )`,
+         persons ( global_person_id, events ( status, event_kind ) )`,
       )
       .eq('follower_user_id', userId);
 
@@ -454,7 +455,7 @@ export class FollowsService {
       const ev = one(person['events']);
       const active =
         !!ev &&
-        ev['is_test_event'] !== true &&
+        isPubliclyVisible(asEventKind(ev['event_kind'])) &&
         !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
       const state: EventFollowState = {
         eventId: r['event_id'] as string,
@@ -486,7 +487,7 @@ export class FollowsService {
 
     const { data: personRows } = await this.supabase.service
       .from('persons')
-      .select('id, global_person_id, event_id, events!inner(status, is_test_event)')
+      .select('id, global_person_id, event_id, events!inner(status, event_kind)')
       .in('global_person_id', ids);
 
     // global_person_id → { upcoming distinct events, all person ids }
@@ -497,9 +498,13 @@ export class FollowsService {
       if (!gp) continue;
       const personId = raw['id'] as string;
       const eventId = raw['event_id'] as string;
-      const ev = raw['events'] as { status: string; is_test_event: boolean | null } | null;
+      const ev = raw['events'] as { status: string; event_kind: string | null } | null;
       personIdToGlobal.set(personId, gp);
-      if (ev && ev.is_test_event !== true && !TERMINAL_EVENT_STATUSES.includes(ev.status)) {
+      if (
+        ev &&
+        isPubliclyVisible(asEventKind(ev.event_kind)) &&
+        !TERMINAL_EVENT_STATUSES.includes(ev.status)
+      ) {
         const set = upcomingEvents.get(gp) ?? new Set<string>();
         set.add(eventId);
         upcomingEvents.set(gp, set);
@@ -543,15 +548,18 @@ export class FollowsService {
   ): Promise<Array<{ eventId: string; personId: string }>> {
     const { data } = await this.supabase.service
       .from('persons')
-      .select('id, event_id, events!inner(status, is_test_event)')
+      .select('id, event_id, events!inner(status, event_kind)')
       .eq('global_person_id', globalPersonId);
 
     return ((data ?? []) as Array<Record<string, unknown>>)
       .filter((r) => {
-        const ev = r['events'] as { status: string; is_test_event: boolean | null } | null;
+        const ev = r['events'] as { status: string; event_kind: string | null } | null;
         if (!ev) return false;
         if (!opts.upcomingOnly) return true;
-        return ev.is_test_event !== true && !TERMINAL_EVENT_STATUSES.includes(ev.status);
+        return (
+          isPubliclyVisible(asEventKind(ev.event_kind)) &&
+          !TERMINAL_EVENT_STATUSES.includes(ev.status)
+        );
       })
       .map((r) => ({ eventId: r['event_id'] as string, personId: r['id'] as string }));
   }

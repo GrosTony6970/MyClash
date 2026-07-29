@@ -23,15 +23,16 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
+  EventKindBadge,
   Modal,
   SortableHeader,
-  Switch,
   formatCountryName,
   nextSortState,
   sortRows,
   statusPillTone,
   tournamentStatusSemantic,
 } from '@myclash/ui';
+import { allowsDirectHardDelete, asEventKind, EVENT_KINDS, type EventKind } from '@myclash/types';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -60,9 +61,10 @@ interface OrgEvent {
   // True when any match has progressed past `scheduled` — hard delete is then
   // forbidden and the event must go through the deletion-request flow.
   hasRecordedResults: boolean;
-  // Test/dry-run event: hidden from public/personal/stats and hard-deletable
+  // standard | test | club. Test events are hidden from public/personal/stats;
+  // club events stay public but are never rated. Both hard-delete directly,
   // even with recorded results.
-  isTestEvent: boolean;
+  eventKind: EventKind;
 }
 
 interface EventForm {
@@ -73,7 +75,7 @@ interface EventForm {
   country: string | null;
   status: string;
   publicLandingMd: string;
-  isTestEvent: boolean;
+  eventKind: EventKind;
 }
 
 function normalizeEvent(row: Record<string, unknown>): OrgEvent {
@@ -106,7 +108,7 @@ function normalizeEvent(row: Record<string, unknown>): OrgEvent {
     tournamentCount: Number(row['tournamentCount'] ?? row['tournament_count'] ?? 0),
     participantCount: Number(row['participantCount'] ?? row['participant_count'] ?? 0),
     hasRecordedResults: (row['hasRecordedResults'] ?? row['has_recorded_results']) === true,
-    isTestEvent: (row['isTestEvent'] ?? row['is_test_event']) === true,
+    eventKind: asEventKind(row['eventKind'] ?? row['event_kind']),
   };
 }
 
@@ -119,7 +121,7 @@ function toForm(event: OrgEvent): EventForm {
     country: event.country,
     status: event.status,
     publicLandingMd: event.publicLandingMd,
-    isTestEvent: event.isTestEvent,
+    eventKind: event.eventKind,
   };
 }
 
@@ -386,7 +388,7 @@ export default function OrgEventsListPage() {
         country: form.country || null,
         status: form.status,
         publicLandingMd: form.publicLandingMd || null,
-        isTestEvent: form.isTestEvent,
+        eventKind: form.eventKind,
       };
       if (logoRemove && !logoPendingFile) patchBody['logoUrl'] = null;
       const res = await fetch(`${apiUrl}/api/v1/events/${editing.id}`, {
@@ -697,11 +699,15 @@ export default function OrgEventsListPage() {
                     >
                       {event.name}
                     </Link>
-                    {event.isTestEvent && (
-                      <span className="ml-2 inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning align-middle">
-                        {t('organizer.events.testBadge')}
-                      </span>
-                    )}
+                    <EventKindBadge
+                      kind={event.eventKind}
+                      label={t(
+                        event.eventKind === 'club'
+                          ? 'organizer.events.clubBadge'
+                          : 'organizer.events.testBadge',
+                      )}
+                      className="ml-2 align-middle"
+                    />
                     <p className="mt-1 text-xs text-muted">
                       {[event.city, formatCountryName(event.country, locale)]
                         .filter(Boolean)
@@ -824,7 +830,7 @@ export default function OrgEventsListPage() {
                             {t('organizer.deletionRequest.cancelRequest')}
                           </Button>
                         </div>
-                      ) : !event.isTestEvent &&
+                      ) : !allowsDirectHardDelete(event.eventKind) &&
                         (event.status === 'archived' || event.hasRecordedResults) ? (
                         <Button
                           type="button"
@@ -836,8 +842,8 @@ export default function OrgEventsListPage() {
                           {t('organizer.deletionRequest.requestDeletion')}
                         </Button>
                       ) : (
-                        // Test events delete directly even with results — no
-                        // archive / deletion-request detour.
+                        // Test and club events delete directly even with
+                        // results — no archive / deletion-request detour.
                         <Button
                           type="button"
                           size="sm"
@@ -974,19 +980,25 @@ export default function OrgEventsListPage() {
                   {t('organizer.events.statusHelp')}
                 </span>
               </label>
-              <div className="grid gap-1.5 text-sm font-semibold text-foreground-secondary sm:col-span-2">
-                <span>{t('organizer.events.testEvent')}</span>
-                <div className="flex items-start gap-3">
-                  <Switch
-                    checked={form.isTestEvent}
-                    onChange={(value) => setForm({ ...form, isTestEvent: value })}
-                    ariaLabel={t('organizer.events.testEvent')}
-                  />
-                  <span className="text-xs font-normal text-muted">
-                    {t('organizer.events.testEventHelp')}
-                  </span>
-                </div>
-              </div>
+              <label className="grid gap-1 text-sm font-semibold text-foreground-secondary sm:col-span-2">
+                {t('organizer.events.eventKind')}
+                <select
+                  value={form.eventKind}
+                  onChange={(event) =>
+                    setForm({ ...form, eventKind: asEventKind(event.target.value) })
+                  }
+                  className="rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  {EVENT_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(`organizer.events.kinds.${kind}`)}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs font-normal text-muted">
+                  {t('organizer.events.eventKindHelp')}
+                </span>
+              </label>
               <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.startDate')}
                 <input

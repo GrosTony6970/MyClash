@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, CountryCombobox, formatCountryName } from '@myclash/ui';
+import { EVENT_KINDS, DEFAULT_EVENT_KIND, type EventKind } from '@myclash/types';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
@@ -39,7 +40,7 @@ interface WizardState {
   liceNames: string[];
   areaNames: string[];
   logoUrl: string;
-  isTestEvent: boolean;
+  eventKind: EventKind;
   submitting: boolean;
   error: string | null;
 }
@@ -94,7 +95,7 @@ const INITIAL: WizardState = {
   liceNames: ['Lice 1', 'Lice 2'],
   areaNames: [],
   logoUrl: '',
-  isTestEvent: false,
+  eventKind: DEFAULT_EVENT_KIND,
   submitting: false,
   error: null,
 };
@@ -340,24 +341,36 @@ function Step1({
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-background p-3">
-        <label className="flex items-start gap-2.5 text-sm text-foreground-secondary">
-          <input
-            type="checkbox"
-            checked={state.isTestEvent}
-            onChange={(event) =>
-              dispatch({ type: 'SET_FIELD', field: 'isTestEvent', value: event.target.checked })
-            }
-            className="mt-0.5 h-4 w-4 rounded border-border text-accent focus:ring-accent"
-          />
-          <span>
-            <span className="font-medium text-foreground">{t('organizer.newEvent.testEvent')}</span>
-            <span className="mt-0.5 block text-xs text-muted">
-              {t('organizer.newEvent.testEventHelp')}
-            </span>
-          </span>
-        </label>
-      </div>
+      <fieldset className="rounded-lg border border-border bg-background p-3">
+        <legend className="px-1 text-sm font-medium text-foreground">
+          {t('organizer.newEvent.eventKind')}
+        </legend>
+        <div className="space-y-2.5">
+          {EVENT_KINDS.map((kind) => (
+            <label
+              key={kind}
+              className="flex items-start gap-2.5 text-sm text-foreground-secondary"
+            >
+              <input
+                type="radio"
+                name="event-kind"
+                value={kind}
+                checked={state.eventKind === kind}
+                onChange={() => dispatch({ type: 'SET_FIELD', field: 'eventKind', value: kind })}
+                className="mt-0.5 h-4 w-4 border-border text-accent focus:ring-accent"
+              />
+              <span>
+                <span className="font-medium text-foreground">
+                  {t(`organizer.newEvent.kinds.${kind}`)}
+                </span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  {t(`organizer.newEvent.kindHelp.${kind}`)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
     </div>
   );
 }
@@ -971,7 +984,7 @@ export default function NewEventPage() {
           endDate: state.endDate,
           city: state.city.trim() || null,
           country: state.country || null,
-          isTestEvent: state.isTestEvent,
+          eventKind: state.eventKind,
         }),
       });
       if (!eventRes.ok) {

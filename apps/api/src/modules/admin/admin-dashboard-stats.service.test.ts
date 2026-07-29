@@ -17,12 +17,14 @@ function makeCountChain(result: CountResult) {
   const chain = Object.assign(Promise.resolve(result), {
     select: vi.fn(),
     eq: vi.fn(),
+    neq: vi.fn(),
     gte: vi.fn(),
     in: vi.fn(),
     is: vi.fn(),
   });
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.neq.mockReturnValue(chain);
   chain.gte.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
   chain.is.mockReturnValue(chain);
@@ -138,5 +140,53 @@ describe('AdminDashboardStatsService', () => {
       'is_fighter',
       true,
     ]);
+  });
+
+  /**
+   * The platform dashboard is the ONE surface where a club event counts. Every
+   * other aggregate (fighter career, referee career, league standings, group
+   * member cards) gates on countsTowardStats and admits only 'standard'; this
+   * one gates on countsAsPlatformActivity and admits 'standard' + 'club',
+   * because a club night is real activity on the platform while a dry run is
+   * not. These assertions exist to break a "unify the two predicates" refactor.
+   */
+  describe('event-kind gate — excludes test, INCLUDES club', () => {
+    const kindCalls = () =>
+      fromMock.mock.results
+        .map((result) => result.value as { neq?: ReturnType<typeof vi.fn> })
+        .filter((chain) => chain.neq)
+        .flatMap((chain) => chain.neq!.mock.calls)
+        .filter((call) => String(call[0]).endsWith('event_kind'));
+
+    it('filters every counter on event_kind <> test', async () => {
+      await service.getStats();
+
+      const calls = kindCalls();
+      // Direct on events, plus the three embed depths.
+      expect(calls).toEqual(
+        expect.arrayContaining([
+          ['event_kind', 'test'],
+          ['events.event_kind', 'test'],
+          ['phases.tournaments.events.event_kind', 'test'],
+          ['matches.phases.tournaments.events.event_kind', 'test'],
+        ]),
+      );
+      // Every kind filter is the same exclusion — no counter drifted to a
+      // different value.
+      expect(calls.every((call) => call[1] === 'test')).toBe(true);
+    });
+
+    it('never excludes club events, and never narrows to standard only', async () => {
+      await service.getStats();
+
+      expect(kindCalls().some((call) => call[1] === 'club')).toBe(false);
+
+      const eqKindCalls = fromMock.mock.results
+        .map((result) => result.value as { eq?: ReturnType<typeof vi.fn> })
+        .filter((chain) => chain.eq)
+        .flatMap((chain) => chain.eq!.mock.calls)
+        .filter((call) => String(call[0]).endsWith('event_kind'));
+      expect(eqKindCalls).toEqual([]);
+    });
   });
 });

@@ -18,6 +18,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { asEventKind, isPubliclyVisible, type EventKind } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 import { computeMatchKind, fetchBracketRounds } from '../persons/match-kind.util';
@@ -32,6 +33,8 @@ export interface MyEventInfo {
   endDate: string | null;
   status: string;
   timezone: string | null;
+  /** Drives the "Club event" tag in the personal space. Never 'test' here — see mapEvent. */
+  kind: EventKind;
 }
 
 export interface MyEventTournament {
@@ -483,7 +486,7 @@ export class MeEventsService {
     const { data } = await this.supabase.service
       .from('persons')
       .select(
-        'id, event_id, events(id, slug, name, start_date, end_date, status, timezone, is_test_event)',
+        'id, event_id, events(id, slug, name, start_date, end_date, status, timezone, event_kind)',
       )
       .eq('claimed_by_user_id', userId);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
@@ -527,7 +530,7 @@ export class MeEventsService {
       .select(
         `
         id, role, starts_at, ends_at, pool_id,
-        events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+        events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
         pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
         matches (
           bracket_slot_id,
@@ -678,7 +681,7 @@ export class MeEventsService {
     const { data } = await this.supabase.service
       .from('workshop_enrollments')
       .select(
-        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ) ) )',
+        'workshop_sessions ( workshops ( event_id, events ( id, slug, name, start_date, end_date, status, timezone, event_kind ) ) )',
       )
       .in('user_id', personIds)
       .in('status', ['confirmed', 'intent', 'waitlisted']);
@@ -716,14 +719,14 @@ export class MeEventsService {
     const [rosterRes, workshopRes] = await Promise.all([
       this.supabase.service
         .from('event_instructors')
-        .select('events ( id, slug, name, start_date, end_date, status, timezone, is_test_event )')
+        .select('events ( id, slug, name, start_date, end_date, status, timezone, event_kind )')
         .eq('person_id', globalPersonId),
       this.supabase.service
         .from('workshop_instructors')
         .select(
           `workshops (
             id, slug, title, event_id,
-            events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+            events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
             workshop_sessions ( id, starts_at, ends_at, location_label )
           )`,
         )
@@ -854,7 +857,11 @@ export class MeEventsService {
     // Test events are hidden from the personal space. mapEvent is the single
     // choke point for every /me source (competitor, referee, workshop), so
     // dropping them here keeps listMyEvents + getUpcoming test-free.
-    if (row['is_test_event'] === true) return null;
+    // Club events are NOT dropped: they are public and the user took part in
+    // them, they simply never count toward statistics. The kind rides along so
+    // the UI can tag them.
+    const kind = asEventKind(row['event_kind']);
+    if (!isPubliclyVisible(kind)) return null;
     return {
       id: String(row['id']),
       slug: String(row['slug']),
@@ -863,6 +870,7 @@ export class MeEventsService {
       endDate: (row['end_date'] as string | null) ?? null,
       status: String(row['status'] ?? ''),
       timezone: (row['timezone'] as string | null) ?? null,
+      kind,
     };
   }
 
@@ -893,7 +901,7 @@ export class MeEventsService {
             id, slug, title, short_description, description_md,
             category, level, weapon, language, color, cover_image_url,
             capacity, duration_minutes,
-            events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+            events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
             workshop_instructors ( global_person_id, display_name )
           )
         )`,
@@ -1021,7 +1029,7 @@ export class MeEventsService {
           id, slug, title, short_description, description_md,
           category, level, weapon, language, color, cover_image_url,
           capacity, duration_minutes,
-          events ( id, slug, name, start_date, end_date, status, timezone, is_test_event ),
+          events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
           workshop_sessions (
             id, starts_at, ends_at, status, location_label,
             venues ( name ), venue_areas ( name )

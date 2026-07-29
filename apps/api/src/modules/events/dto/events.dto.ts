@@ -1,6 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
+import { EVENT_KINDS } from '@myclash/types';
 
 const createEventSchema = z
   .object({
@@ -18,9 +19,13 @@ const createEventSchema = z
     // Nullish: the FE edit form sends `publicLandingMd: value || null`, so a
     // bare `.optional()` 400'd the whole payload for empty descriptions.
     publicLandingMd: z.string().nullish(),
-    // Mark as a test/dry-run event: hidden from public/personal/stats and
-    // hard-deletable even with recorded results.
-    isTestEvent: z.boolean().optional(),
+    // What the event is (migration 0162). Defaults to 'standard'.
+    //   standard — public, results are rated, protected from hard delete
+    //   test     — dry run: hidden everywhere, unrated, disposable
+    //   club     — internal club activity: public and visible in /me, but
+    //              unrated (no rankings, career stats or HEMA Ratings) and
+    //              still disposable
+    eventKind: z.enum(EVENT_KINDS).optional(),
   })
   .strict();
 export class CreateEventDto extends createZodDto(createEventSchema) {}
@@ -48,8 +53,9 @@ const updateEventSchema = z
     logoUrl: z.string().max(500).nullish(),
     // AI spend cap in EUR for this event (null = no cap)
     aiSpendCapEur: z.number().min(0).nullish(),
-    // Mark/unmark as a test event (see CreateEventDto).
-    isTestEvent: z.boolean().optional(),
+    // Change the event kind (see CreateEventDto). Flipping between a rated and
+    // an unrated kind recomputes any league this event feeds.
+    eventKind: z.enum(EVENT_KINDS).optional(),
   })
   .strict();
 export class UpdateEventDto extends createZodDto(updateEventSchema) {}

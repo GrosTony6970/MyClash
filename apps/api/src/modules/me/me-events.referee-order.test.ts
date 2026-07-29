@@ -25,7 +25,7 @@ const EVENT = {
   end_date: '2027-05-23',
   status: 'published',
   timezone: 'Europe/Paris',
-  is_test_event: false,
+  event_kind: 'standard',
 };
 
 /** A referee_assignments row as PostgREST returns it (embeds flattened away). */

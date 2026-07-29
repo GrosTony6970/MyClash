@@ -187,4 +187,42 @@ describe('ExportsService — HEMA Ratings submission', () => {
     expect(preview.counts.fighters).toBe(0);
     expect(preview.files).toEqual(['fighters.csv']);
   });
+
+  /**
+   * HEMA Ratings is an external, public rating database. Before migration 0162
+   * this module had NO event-kind filter at all, so a dry run could be
+   * submitted to it. Only standard events are rated.
+   */
+  describe('event-kind gate', () => {
+    const withKind = (kind: string) =>
+      makeService({ ...BASE, events: { slug: 'lyon-open', event_kind: kind } });
+
+    for (const kind of ['test', 'club'] as const) {
+      it(`refuses a ${kind} event from the preview endpoint`, async () => {
+        const { service } = withKind(kind);
+        await expect(service.previewHemaRatingsSubmission('event-1')).rejects.toThrow(
+          /HEMA Ratings/i,
+        );
+      });
+
+      it(`refuses a ${kind} event from the zip endpoint`, async () => {
+        // One guard, two entry points — buildHemaRatingsSubmission is the
+        // shared choke point, so neither route can be reached around it.
+        const { service } = withKind(kind);
+        await expect(service.generateHemaRatingsZip('event-1')).rejects.toThrow(/HEMA Ratings/i);
+      });
+    }
+
+    it('allows a standard event', async () => {
+      const { service } = withKind('standard');
+      const preview = await service.previewHemaRatingsSubmission('event-1');
+      expect(preview.counts.fighters).toBe(2);
+    });
+
+    it('treats a missing kind as standard, so legacy rows keep exporting', async () => {
+      const { service } = makeService(BASE); // BASE.events has no event_kind
+      const preview = await service.previewHemaRatingsSubmission('event-1');
+      expect(preview.counts.fighters).toBe(2);
+    });
+  });
 });

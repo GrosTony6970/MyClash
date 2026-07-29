@@ -9763,7 +9763,8 @@ export interface components {
       city?: string | null;
       country?: string | null;
       publicLandingMd?: string | null;
-      isTestEvent?: boolean;
+      /** @enum {string} */
+      eventKind?: 'standard' | 'test' | 'club';
     };
     UpdateEventDto: {
       name?: string;
@@ -9778,7 +9779,8 @@ export interface components {
       status?: 'draft' | 'published' | 'running' | 'completed' | 'archived';
       logoUrl?: string | null;
       aiSpendCapEur?: number | null;
-      isTestEvent?: boolean;
+      /** @enum {string} */
+      eventKind?: 'standard' | 'test' | 'club';
     };
     UpsertEventThemeDto: {
       logoUrl?: string | null;

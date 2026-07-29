@@ -25,6 +25,7 @@ function makeQuery(result: unknown) {
   const methods = {
     select: vi.fn(),
     eq: vi.fn(),
+    neq: vi.fn(),
     in: vi.fn(),
     order: vi.fn(),
     range: vi.fn(),
@@ -112,11 +113,15 @@ describe('OrganizationsService.listPublic', () => {
     expect(chains.organizations.order).toHaveBeenCalledWith('name', { ascending: true });
   });
 
-  it('counts only upcoming, non-test events', async () => {
+  it('counts upcoming events, excluding test events but INCLUDING club events', async () => {
     const chains = mockTables();
     await service.listPublic({});
     expect(chains.events.in).toHaveBeenCalledWith('status', ['published', 'running']);
-    expect(chains.events.eq).toHaveBeenCalledWith('is_test_event', false);
+    expect(chains.events.neq).toHaveBeenCalledWith('event_kind', 'test');
+    // Club events are public and real — a directory card that hid them would
+    // disagree with the /o/[slug] page, which lists them.
+    expect(chains.events.neq).not.toHaveBeenCalledWith('event_kind', 'club');
+    expect(chains.events.eq).not.toHaveBeenCalledWith('event_kind', 'standard');
   });
 
   it('applies the name filter, with PostgREST meta-characters stripped', async () => {

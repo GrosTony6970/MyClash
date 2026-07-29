@@ -13,6 +13,14 @@ export const en = {
   },
   publicApp: {
     name: 'MyClash',
+    // Shared by every public/personal surface that tags a club event (event
+    // list card + row, event header, /me events), so the same sentence cannot
+    // drift three ways.
+    eventKind: {
+      clubBadge: 'Club event',
+      clubBadgeHelp:
+        'Internal club activity — results do not count toward rankings or fighter statistics.',
+    },
     eventHome: {
       backToEvents: 'Back to events',
       backToHome: 'Back to event home',
@@ -4799,10 +4807,16 @@ export const en = {
       loadError: 'Failed to load events.',
       edit: 'Edit',
       hardDelete: 'Hard delete',
-      testEvent: 'Test event',
-      testEventHelp:
-        'Hidden from public pages, personal spaces, and statistics. Can be hard-deleted even with recorded results.',
+      eventKind: 'Event kind',
+      eventKindHelp:
+        'Test events are hidden from public pages, personal spaces and statistics. Club events are public but never count toward rankings, career stats or HEMA Ratings. Both can be hard-deleted even with recorded results.',
+      kinds: {
+        standard: 'Standard event',
+        test: 'Test event',
+        club: 'Club event',
+      },
       testBadge: 'Test',
+      clubBadge: 'Club event',
       visibility: 'Visibility',
       publishCta: 'Publish',
       statusHelp:
@@ -5144,9 +5158,18 @@ export const en = {
       cityPlaceholder: 'Lyon',
       country: 'Country',
       countryPlaceholder: 'Select a country',
-      testEvent: 'Mark as a test event',
-      testEventHelp:
-        'Test events are hidden from public pages, personal spaces, and statistics, and can be hard-deleted even after matches are recorded.',
+      eventKind: 'Event kind',
+      kinds: {
+        standard: 'Standard',
+        test: 'Test event',
+        club: 'Club event',
+      },
+      kindHelp: {
+        standard:
+          'A normal competition. Public, and results count toward rankings and fighter statistics.',
+        test: 'A dry run. Hidden from public pages, personal spaces and statistics, and hard-deletable even after matches are recorded.',
+        club: 'Internal club activity. Public, but results never count toward rankings, career statistics or HEMA Ratings, and it stays hard-deletable.',
+      },
       licesNames: 'Lice names',
       liceName: 'Lice {number} name',
       liceAdd: 'Add lice',
@@ -6447,6 +6470,8 @@ export const en = {
       reload: 'Refresh',
       loading: 'Checking your results…',
       error: 'Could not build the submission bundle.',
+      blockedKind:
+        'Only standard events can be submitted to HEMA Ratings. Test and club event results do not count toward ratings.',
       empty: 'No completed matches to submit yet.',
       countsTitle: 'What will be submitted',
       counts: {
@@ -6879,6 +6904,11 @@ export const fr = {
   },
   publicApp: {
     name: 'MyClash',
+    eventKind: {
+      clubBadge: 'Événement de club',
+      clubBadgeHelp:
+        'Activité interne au club — les résultats ne comptent pas pour les classements ni les statistiques des combattants.',
+    },
     eventHome: {
       backToEvents: 'Retour aux evenements',
       backToHome: "Retour a l'accueil de l'evenement",
@@ -11727,10 +11757,16 @@ export const fr = {
       loadError: 'Impossible de charger les evenements.',
       edit: 'Modifier',
       hardDelete: 'Suppression definitive',
-      testEvent: 'Evenement de test',
-      testEventHelp:
-        'Masque des pages publiques, des espaces personnels et des statistiques. Peut etre supprime definitivement meme avec des resultats enregistres.',
+      eventKind: "Type d'evenement",
+      eventKindHelp:
+        'Les evenements de test sont masques des pages publiques, des espaces personnels et des statistiques. Les evenements de club sont publics mais ne comptent jamais pour les classements, les statistiques de carriere ni HEMA Ratings. Les deux peuvent etre supprimes definitivement meme avec des resultats enregistres.',
+      kinds: {
+        standard: 'Evenement standard',
+        test: 'Evenement de test',
+        club: 'Evenement de club',
+      },
       testBadge: 'Test',
+      clubBadge: 'Evenement de club',
       visibility: 'Visibilite',
       publishCta: 'Publier',
       statusHelp:
@@ -12077,9 +12113,18 @@ export const fr = {
       cityPlaceholder: 'Lyon',
       country: 'Pays',
       countryPlaceholder: 'Choisir un pays',
-      testEvent: 'Marquer comme evenement de test',
-      testEventHelp:
-        'Les evenements de test sont masques des pages publiques, des espaces personnels et des statistiques, et peuvent etre supprimes definitivement meme avec des matchs enregistres.',
+      eventKind: "Type d'evenement",
+      kinds: {
+        standard: 'Standard',
+        test: 'Evenement de test',
+        club: 'Evenement de club',
+      },
+      kindHelp: {
+        standard:
+          'Une competition normale. Publique, et les resultats comptent pour les classements et les statistiques des combattants.',
+        test: 'Un essai. Masque des pages publiques, des espaces personnels et des statistiques, et supprimable definitivement meme apres l enregistrement de matchs.',
+        club: 'Activite interne au club. Publique, mais les resultats ne comptent jamais pour les classements, les statistiques de carriere ni HEMA Ratings, et elle reste supprimable definitivement.',
+      },
       licesNames: 'Noms des lices',
       liceName: 'Nom de la lice {number}',
       liceAdd: 'Ajouter une lice',
@@ -13403,6 +13448,8 @@ export const fr = {
       reload: 'Actualiser',
       loading: 'Vérification de vos résultats…',
       error: 'Impossible de générer le dossier de soumission.',
+      blockedKind:
+        'Seuls les évènements standard peuvent être soumis à HEMA Ratings. Les résultats des évènements de test et de club ne comptent pas pour les classements.',
       empty: 'Aucun match terminé à soumettre pour le moment.',
       countsTitle: 'Contenu de la soumission',
       counts: {

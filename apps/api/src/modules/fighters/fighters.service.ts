@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { asEventKind, countsTowardStats } from '@myclash/types';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
@@ -966,7 +967,7 @@ export class FightersService {
     const { data: regData, error: regError } = await this.supabase.service
       .from('registrations')
       .select(
-        'id, persons!inner(global_person_id), tournaments(events(id, name, slug, is_test_event))',
+        'id, persons!inner(global_person_id), tournaments(events(id, name, slug, event_kind))',
       )
       .eq('persons.global_person_id', fighterId);
     if (regError || !regData) return [];
@@ -974,7 +975,7 @@ export class FightersService {
     const registrations = (regData as Row[]).filter((reg) => {
       const tournament = reg['tournaments'] as Row | null;
       const event = tournament?.['events'] as Row | null;
-      return event?.['is_test_event'] !== true;
+      return countsTowardStats(asEventKind(event?.['event_kind']));
     });
     if (registrations.length === 0) return [];
 
@@ -1242,7 +1243,7 @@ export class FightersService {
         persons!inner ( global_person_id ),
         tournaments (
           id, name, slug, status, weapon,
-          events ( id, name, slug, status, start_date, end_date, is_test_event )
+          events ( id, name, slug, status, start_date, end_date, event_kind )
         )
       `,
       )
@@ -1256,13 +1257,14 @@ export class FightersService {
 
     return (
       ((data ?? []) as Row[])
-        // Test-event results never count toward a fighter's public career stats.
-        // Filtering registrations cascades — career matches/placements derive
-        // from this set, and league rankings are already test-free (league gate).
+        // Only STANDARD results count toward a fighter's public career stats —
+        // test events are dry runs and club events are internal activity.
+        // Filtering registrations cascades: career matches/placements derive
+        // from this set, and league rankings are already gated (league gate).
         .filter((row) => {
           const tournament = row['tournaments'] as Row | null;
           const event = tournament?.['events'] as Row | null;
-          return event?.['is_test_event'] !== true;
+          return countsTowardStats(asEventKind(event?.['event_kind']));
         })
         .map((row) => {
           const tournament = row['tournaments'] as Row | null;
@@ -1518,7 +1520,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, is_test_event))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, event_kind))))',
       )
       .eq('person_id', personId)
       .eq('scope_type', 'match')
@@ -1531,7 +1533,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, is_test_event))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, event_kind))))',
       )
       .in('match_id', matchIds)
       .eq('scope_type', 'match');
@@ -1553,11 +1555,12 @@ export class FightersService {
         const phase = match?.['phases'] as Row | null;
         const tournament = phase?.['tournaments'] as Row | null;
         const event = tournament?.['events'] as Row | null;
-        // Test-event work never counts toward a referee's cross-event career
-        // stats — mirrors the fighter career exclusion (fetchCareerRegistrations).
-        // Scoped to the profile/career path; per-event stats (event-stats.service)
-        // intentionally still include test data, per the 0129 precedent.
-        if (event?.['is_test_event'] === true) return null;
+        // Only STANDARD work counts toward a referee's cross-event career stats
+        // — mirrors the fighter career exclusion (fetchCareerRegistrations), so
+        // test AND club events are both dropped. Scoped to the profile/career
+        // path; per-event stats (event-stats.service) intentionally still
+        // include every kind, per the 0129 precedent.
+        if (!countsTowardStats(asEventKind(event?.['event_kind']))) return null;
         const pool = match?.['pools'] as Row | null;
         const bracketSlot = match?.['bracket_slots'] as Row | null;
         // bracketSize lives on the phase config (same source matches.service

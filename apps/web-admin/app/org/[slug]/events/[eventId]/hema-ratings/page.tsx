@@ -67,6 +67,10 @@ function usePreview(apiUrl: string, eventId: string, t: Translate) {
       signal: controller.signal,
     })
       .then(async (res) => {
+        // A 400 here is the deliberate kind gate (test/club events are not
+        // rated), not a build failure — say which, or the operator only sees a
+        // generic "could not build" and has no idea why.
+        if (res.status === 400) throw new Error(t('organizer.hemaRatings.blockedKind'));
         if (!res.ok) throw new Error(t('organizer.hemaRatings.error'));
         setPreview((await res.json()) as SubmissionPreview);
         setError(null);

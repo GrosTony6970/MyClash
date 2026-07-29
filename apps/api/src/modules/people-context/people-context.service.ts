@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  asEventKind,
   computeFinalRanking,
+  isPubliclyVisible,
   rankingBracketShape,
   type PoolEntry,
   type RankingSlot,
@@ -164,14 +166,14 @@ export class PeopleContextService {
     // 3. Active event-scoped persons for these globals (non-terminal, non-test).
     const { data: personData } = await this.supabase.service
       .from('persons')
-      .select('id, global_person_id, events!inner ( status, is_test_event )')
+      .select('id, global_person_id, events!inner ( status, event_kind )')
       .in('global_person_id', ids);
     const personToGlobal = new Map<string, string>();
     for (const r of (personData ?? []) as Array<Record<string, unknown>>) {
       const ev = one(r['events']);
       const active =
         !!ev &&
-        ev['is_test_event'] !== true &&
+        isPubliclyVisible(asEventKind(ev['event_kind'])) &&
         !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
       if (active) personToGlobal.set(r['id'] as string, r['global_person_id'] as string);
     }
@@ -641,7 +643,7 @@ export class PeopleContextService {
          persons!inner ( global_person_id ),
          tournaments!inner (
            id, name, slug, weapon, status,
-           events!inner ( name, slug, start_date, is_test_event )
+           events!inner ( name, slug, start_date, event_kind )
          )`,
       )
       .in('persons.global_person_id', globalIds)
@@ -667,7 +669,10 @@ export class PeopleContextService {
       const t = one(r['tournaments']);
       if (!t) continue;
       const ev = one(t['events']);
-      if (!ev || ev['is_test_event'] === true) continue;
+      // Visibility, not stats: this is the navigational "last result" card, and
+      // its target page is public. A club tournament can therefore surface here
+      // while being absent from the same fighter's career stats. Deliberate.
+      if (!ev || !isPubliclyVisible(asEventKind(ev['event_kind']))) continue;
       const startDate = (ev['start_date'] as string | null) ?? '';
       const cand: Candidate = {
         registrationId: r['id'] as string,

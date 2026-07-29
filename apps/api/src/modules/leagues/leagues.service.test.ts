@@ -1445,7 +1445,7 @@ describe('LeaguesService placement-driven contributions', () => {
         id: 't1',
         event_id: 'e1',
         weapon: 'Longsword',
-        events: { organization_id: 'org-1', is_test_event: false },
+        events: { organization_id: 'org-1', event_kind: 'standard' },
       },
       error: null,
     });
@@ -1472,6 +1472,45 @@ describe('LeaguesService placement-driven contributions', () => {
     expect(result).toEqual([]);
     expect(placement.getTournamentPlacements).toHaveBeenCalledWith('t1');
     expect(scoring.toTournamentContributions).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Only standard events feed a league. Returning [] makes
+   * replaceTournamentResults DELETE any rows already stored for the tournament,
+   * which is what makes an event-kind flip self-healing in both directions.
+   */
+  describe.each(['test', 'club'] as const)('%s events never contribute', (kind) => {
+    it('returns no contributions and never reaches the placement service', async () => {
+      const tournamentsChain = chain({
+        data: {
+          id: 't1',
+          event_id: 'e1',
+          weapon: 'Longsword',
+          events: { organization_id: 'org-1', event_kind: kind },
+        },
+        error: null,
+      });
+      const supabase = { service: { from: vi.fn(() => tournamentsChain) } };
+      const placement = { getTournamentPlacements: vi.fn() };
+      const scoring = { toTournamentContributions: vi.fn() };
+      const service = new LeaguesService(
+        supabase as never,
+        {} as never,
+        scoring as never,
+        placement as never,
+      );
+
+      const result = await (
+        service as unknown as {
+          computeTournamentContributions: (l: string, t: string, c: unknown) => Promise<unknown[]>;
+        }
+      ).computeTournamentContributions('L1', 't1', config);
+
+      expect(result).toEqual([]);
+      // The gate short-circuits before any placement/scoring work.
+      expect(placement.getTournamentPlacements).not.toHaveBeenCalled();
+      expect(scoring.toTournamentContributions).not.toHaveBeenCalled();
+    });
   });
 });
 

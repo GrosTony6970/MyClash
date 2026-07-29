@@ -64,7 +64,7 @@ describe('PeopleContextService.enrich', () => {
         {
           id: 'p-1',
           global_person_id: 'gp-1',
-          events: { status: 'in_progress', is_test_event: false },
+          events: { status: 'in_progress', event_kind: 'standard' },
         },
       ],
       error: null,
@@ -200,7 +200,7 @@ describe('PeopleContextService.enrich', () => {
         {
           id: 'p-3',
           global_person_id: 'gp-3',
-          events: { status: 'in_progress', is_test_event: false },
+          events: { status: 'in_progress', event_kind: 'standard' },
         },
       ],
       error: null,
@@ -456,7 +456,7 @@ describe('PeopleContextService.enrich', () => {
         {
           id: 'p-2',
           global_person_id: 'gp-2',
-          events: { status: 'completed', is_test_event: false },
+          events: { status: 'completed', event_kind: 'standard' },
         },
       ],
       error: null,
@@ -511,7 +511,7 @@ describe('PeopleContextService.enrich', () => {
         {
           id: 'p-5',
           global_person_id: 'gp-5',
-          events: { status: 'completed', is_test_event: false },
+          events: { status: 'completed', event_kind: 'standard' },
         },
       ],
       error: null,
@@ -533,7 +533,7 @@ describe('PeopleContextService.enrich', () => {
               name: 'Winter 2025',
               slug: 'winter-2025',
               start_date: '2025-12-01',
-              is_test_event: false,
+              event_kind: 'standard',
             },
           },
         },
