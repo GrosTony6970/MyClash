@@ -95,6 +95,15 @@ scripts print a warning (`mc_warn_if_plugins_failed`) and recovery is one flag:
 TRAEFIK_PLUGINS=off ./infra/scripts/start.sh   # detaches both plugins; site serves unprotected
 ```
 
+**Two plugins, on purpose.** Every Yaegi plugin is interpreted on the request path of each
+router that references it, inside a container capped at `mem_limit: 256m` / `cpus: 0.5`, and
+a plugin that fails to load 404s its routers rather than degrading. A third one therefore
+needs to earn its place. An edge HTTP cache (the Souin plugin) was evaluated on that basis
+and rejected — see [ADR-011](./decisions/ADR-011-no-edge-http-cache.md) before proposing one
+again. The short version: the public site is deliberately `no-store` because it serves live
+match data, and the SSR surfaces emit no `Vary` headers while varying by cookie, so a shared
+cache would leak across locales and sessions.
+
 Live evidence to capture after deploy:
 
 ```bash

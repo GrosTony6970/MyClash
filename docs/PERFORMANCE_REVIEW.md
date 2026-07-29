@@ -128,12 +128,19 @@ Current v1 posture is correctness-first:
 - The scoring app service worker preserves offline-first behavior and must not be weakened.
 - Marketing static assets are safe to cache aggressively at the edge.
 
+There is no shared/edge HTTP cache, and adding one is a decided question — see [ADR-011](./decisions/ADR-011-no-edge-http-cache.md), which evaluated and rejected the Souin Traefik plugin. Caching lives in the browser, in Next.js, and in the scoring service worker.
+
 Future cache candidates:
 
 - Completed tournament results.
 - Static public fighter/club pages.
 - League standings after publication.
 - Non-live archive pages.
+
+Two preconditions gate every candidate on that list, and neither is met today:
+
+- **The response must declare how it varies.** The repo emits essentially no `Vary` headers, but SSR output varies by the `mc_locale` cookie, `Accept-Language`, and the session cookie. A candidate is not cacheable until it emits correct `Vary` and marks per-user responses `Cache-Control: private`.
+- **Most candidates are per-user until proven otherwise.** They sit behind the global AuthGuard, so "public results page" has to be verified against the actual route, not assumed from the name.
 
 Do not cache live scoring or organizer mutation results unless invalidation is explicit and tested.
 
