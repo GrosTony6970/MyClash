@@ -171,6 +171,7 @@
     "scripts/check-infra-review.mjs",
     "tests/e2e/07-populate-event.spec.ts",
     "tests/e2e/09-double-elim.spec.ts",
+    "tests/e2e/10-scoring-pad.spec.ts",
     "tests/e2e/_bracket.ts"
   ],
   "functions": [
@@ -835,7 +836,8 @@
     "tests/e2e/07-populate-event.spec.ts:1378",
     "tests/e2e/07-populate-event.spec.ts:374",
     "tests/e2e/07-populate-event.spec.ts:830",
-    "tests/e2e/_bracket.ts:408",
+    "tests/e2e/10-scoring-pad.spec.ts:265",
+    "tests/e2e/_bracket.ts:368",
     "tests/e2e/global-setup.ts:25",
     "tests/e2e/global-teardown.ts:20",
     "tests/perf/web-public.spec.ts:16"
