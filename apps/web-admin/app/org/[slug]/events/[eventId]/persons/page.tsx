@@ -7,14 +7,12 @@ import {
   ConfirmDialog,
   Modal,
   SkillBadge,
-  StatusHelp,
   TournamentColorDot,
   fuzzyMatch,
   useConfirm,
   useToast,
 } from '@myclash/ui';
 import { t } from '@myclash/i18n';
-import { useI18n } from '@/i18n/I18nProvider';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 import { formatRosterName } from './roster-name';
@@ -102,11 +100,12 @@ const REG_STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * One registration chip with its "what does this mean" affordance.
+ * One registration chip: the tournament's colour dot plus a status-toned pill.
  *
- * Extracted from the roster cell so it can take the LOCALE-AWARE `t` from the
- * provider: the module-level `t` this page imports is bound to EN, so help
- * routed through it would never reach a French organiser.
+ * A fighter can hold half a dozen registrations, so this cell packs many chips
+ * into one row — it stays purely presentational and carries no per-chip
+ * affordance. The `StatusHelp` ⓘ that used to sit here was dropped for exactly
+ * that reason: six overlapping popovers on one row explained nothing.
  */
 function RegistrationStatusChip({
   status,
@@ -119,20 +118,16 @@ function RegistrationStatusChip({
   tournamentName: string;
   color?: string | null;
 }) {
-  const { t: translate } = useI18n();
   return (
-    <span className="inline-flex items-center">
-      <span
-        className={[
-          'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
-          REG_STATUS_COLORS[status] ?? '',
-        ].join(' ')}
-        title={tournamentName}
-      >
-        <TournamentColorDot color={color} />
-        {label}
-      </span>
-      <StatusHelp domain="registration" status={status} t={translate} />
+    <span
+      className={[
+        'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+        REG_STATUS_COLORS[status] ?? '',
+      ].join(' ')}
+      title={tournamentName}
+    >
+      <TournamentColorDot color={color} />
+      {label}
     </span>
   );
 }
@@ -1070,7 +1065,7 @@ export default function ParticipantsPage() {
             {(['all', ...tournaments.map((tour) => tour.id)] as string[]).map((tabId) => {
               const label =
                 tabId === 'all'
-                  ? t('admin.orgPersons.tabAllEvent')
+                  ? t('admin.orgPersons.tabAllParticipants')
                   : (tournaments.find((tour) => tour.id === tabId)?.name ?? tabId);
               const active = activeTab === tabId;
               const count =

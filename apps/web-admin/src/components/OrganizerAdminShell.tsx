@@ -34,7 +34,8 @@ const orgNavItems = [
   // members) — before this entry only super-admins could edit an org.
   // pickActiveHref longest-match keeps it distinct from settings/ai.
   // `members`, not a settings cog: the route is /settings but the entry the
-  // operator reads is "Members" — the org profile + member list.
+  // operator reads is "Org Members" — the org profile + member list. The
+  // "Org" prefix keeps it distinct from the event-scoped people under PEOPLE.
   { href: 'settings', labelKey: 'organizer.shell.nav.orgSettings', icon: 'members' },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', icon: 'ai' },
   // Compensation is unified under each event (Compensation plan + Referee
