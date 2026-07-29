@@ -17,12 +17,11 @@ import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
-// Value imports (not `import type`): these are NestJS DI dependencies. A
-// type-only import is erased at runtime, so `design:paramtypes` emits `Object`,
-// the @Optional() params silently resolve to `undefined`, and the bracket
-// auto-populate hook below never fires. Keep them as value imports.
-import { BracketAdvanceService } from '../phases/bracket-advance.service';
-import { PhasesService } from '../phases/phases.service';
+// Value import (not `import type`): this is a NestJS DI dependency. A type-only
+// import is erased at runtime, so `design:paramtypes` emits `Object`, the
+// @Optional() param silently resolves to `undefined`, and every completion side
+// effect stops firing without a word. Keep it a value import.
+import { MatchCompletionService } from '../phases/match-completion.service';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
@@ -43,38 +42,10 @@ export class MatchesService {
     private readonly notifications: NotificationSchedulerService,
     private readonly followNotifications: FollowNotificationSchedulerService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
-    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
-    @Optional() private readonly phases?: PhasesService,
+    @Optional() private readonly matchCompletion?: MatchCompletionService,
   ) {}
 
   private readonly logger = new Logger(MatchesService.name);
-
-  /**
-   * After a pool match completes, fire-and-forget try to auto-populate
-   * the bracket. Gated by populateBracket itself: silent no-op if pools
-   * aren't all complete or any R1 match has already started. Best-effort
-   * — failures must not break the score write.
-   */
-  private async maybePopulateBracketAfterMatch(matchId: string) {
-    if (!this.phases) return;
-    try {
-      const { data } = await this.supabase.service
-        .from('matches')
-        .select('phases!inner(type, tournament_id)')
-        .eq('id', matchId)
-        .maybeSingle();
-      const phaseEmbed = (data as { phases?: unknown } | null)?.phases;
-      const phase = Array.isArray(phaseEmbed) ? phaseEmbed[0] : phaseEmbed;
-      const type = (phase as { type?: string } | null)?.type;
-      const tournamentId = (phase as { tournament_id?: string } | null)?.tournament_id;
-      if (type !== 'pool' || !tournamentId) return;
-      await this.phases.populateBracket(tournamentId, {}, 'system', { silentIfGateNotMet: true });
-    } catch (err) {
-      this.logger.warn(
-        `Auto-populate after pool match ${matchId} failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-  }
 
   // ── Matches ──────────────────────────────────────────────────────────────────
 
@@ -396,11 +367,11 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
 
-    if (dto.status === 'completed' && this.bracketAdvance) {
-      void this.bracketAdvance.onMatchCompleted(matchId);
-    }
+    // One owner for every completion side effect (advance + pool auto-populate).
+    // Fire-and-forget here, unlike the pad's paths: this endpoint is only used by
+    // the e2e specs, which poll for the result anyway.
     if (dto.status === 'completed') {
-      void this.maybePopulateBracketAfterMatch(matchId);
+      void this.matchCompletion?.onMatchCompleted(matchId);
     }
 
     return data;

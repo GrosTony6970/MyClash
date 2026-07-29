@@ -12,7 +12,7 @@ import {
   Optional,
 } from '@nestjs/common';
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
-import { BracketAdvanceService } from '../phases/bracket-advance.service';
+import { MatchCompletionService } from '../phases/match-completion.service';
 import {
   registry,
   TF_v1,
@@ -75,7 +75,7 @@ export class ScoringService {
      * PhasesModule keep working — same pattern MatchesService uses. In the real
      * app MatchesModule imports PhasesModule, so this always resolves.
      */
-    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+    @Optional() private readonly matchCompletion?: MatchCompletionService,
   ) {}
 
   /**
@@ -205,15 +205,15 @@ export class ScoringService {
     // clock so it freezes and the scoreboard's clock-driven endcard fires.
     if (justCompleted) {
       await this.endClockBestEffort(matchId);
-      // Advance the bracket. THIS is how a real bracket match ends — the pad
-      // never calls PATCH /matches/:id/status, so before this call the only
-      // completion paths that advanced were that endpoint (used solely by the
-      // e2e specs) and forfeits. A bracket scored on the pad simply never
-      // progressed. Awaited rather than fire-and-forget: it runs once per
-      // match, on the closing exchange only, and the pad's next read should
-      // already see the next slot filled. onMatchCompleted swallows and logs
-      // its own errors, so this cannot fail the exchange that triggered it.
-      await this.bracketAdvance?.onMatchCompleted(matchId);
+      // THIS is how a real bracket match ends — the pad never calls
+      // PATCH /matches/:id/status, so before this call the only completion paths
+      // that ran the side effects were that endpoint (used solely by the e2e
+      // specs) and forfeits. A bracket scored on the pad simply never
+      // progressed. Awaited rather than fire-and-forget: it runs once per match,
+      // on the closing exchange only, and the pad's next read should already see
+      // the next slot filled. MatchCompletionService swallows and logs its own
+      // errors, so this cannot fail the exchange that triggered it.
+      await this.matchCompletion?.onMatchCompleted(matchId);
     }
 
     return { redScore: score.redScore, blueScore: score.blueScore };

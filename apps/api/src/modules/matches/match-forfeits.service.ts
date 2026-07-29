@@ -3,7 +3,7 @@ import { resolveForfeitPolicy, type ForfeitReason } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see di-wiring.regression.test.ts).
-import { BracketAdvanceService } from '../phases/bracket-advance.service';
+import { MatchCompletionService } from '../phases/match-completion.service';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { forfeitEndReason } from './forfeit-end-reason';
@@ -15,7 +15,7 @@ type Row = Record<string, unknown>;
 export class MatchForfeitsService {
   constructor(
     private readonly supabase: SupabaseService,
-    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+    @Optional() private readonly matchCompletion?: MatchCompletionService,
     // Optional so direct `new MatchForfeitsService(supabase)` in tests still
     // works; in the app it's provided by MatchesModule (Supabase-only dep).
     @Optional() private readonly clock?: ClockService,
@@ -292,7 +292,7 @@ export class MatchForfeitsService {
     }
 
     if (phase.type === 'single_elim' || phase.type === 'double_elim') {
-      await this.bracketAdvance?.onMatchCompleted(match['id'] as string);
+      await this.matchCompletion?.onMatchCompleted(match['id'] as string);
     }
     if (match['bracket_slot_id']) downstreamIds.push(match['id'] as string);
     return { downstreamIds };

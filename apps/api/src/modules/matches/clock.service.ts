@@ -19,7 +19,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
-import { BracketAdvanceService } from '../phases/bracket-advance.service';
+import { MatchCompletionService } from '../phases/match-completion.service';
 
 export type ClockAction =
   | 'start'
@@ -66,7 +66,7 @@ export class ClockService {
   constructor(
     private readonly supabase: SupabaseService,
     /** Optional so tests and non-Phases consumers still construct. */
-    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+    @Optional() private readonly matchCompletion?: MatchCompletionService,
   ) {}
 
   // ── Get clock state ───────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export class ClockService {
       // pad-scored match ever finishes. Note this update sets no winner: a
       // match that ran out of time without one simply cannot advance, and
       // onMatchCompleted correctly no-ops on a null winner_registration_id.
-      await this.bracketAdvance?.onMatchCompleted(matchId);
+      await this.matchCompletion?.onMatchCompleted(matchId);
     } else if (action === 'reopen') {
       // Reverses a prior 'end': clock goes back to halted with the
       // accumulated active time preserved (computeClockState reads the
