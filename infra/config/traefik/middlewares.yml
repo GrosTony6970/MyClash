@@ -52,6 +52,11 @@ http:
     myclash-geoblock-admin:
       plugin:
         geoblock:
+          # MANDATORY and must contain {ip}: the plugin's validateConfig rejects
+          # a missing api with "no api uri given", which fails the middleware
+          # build and leaves every router referencing it serving 404. There is
+          # no code default despite what the README's example implies.
+          api: 'https://get.geojs.io/v1/ip/country/{ip}'
           silentStartUp: false
           allowLocalRequests: true
           allowUnknownCountries: false
@@ -67,6 +72,7 @@ http:
     myclash-geoblock-public:
       plugin:
         geoblock:
+          api: 'https://get.geojs.io/v1/ip/country/{ip}' # mandatory — see above
           silentStartUp: false
           allowLocalRequests: true
           allowUnknownCountries: true

@@ -17,6 +17,9 @@ http:
     myclash-geoblock-admin:
       plugin:
         geoblock:
+          # MANDATORY and must contain {ip} — omitting it fails the middleware
+          # build ("no api uri given") and 404s every router that uses it.
+          api: 'https://get.geojs.io/v1/ip/country/{ip}'
           silentStartUp: false
           allowLocalRequests: true
           allowUnknownCountries: false
@@ -30,6 +33,7 @@ http:
     myclash-geoblock-public:
       plugin:
         geoblock:
+          api: 'https://get.geojs.io/v1/ip/country/{ip}' # mandatory — see above
           silentStartUp: false
           allowLocalRequests: true
           allowUnknownCountries: true

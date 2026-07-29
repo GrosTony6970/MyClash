@@ -1861,6 +1861,24 @@ for (const middleware of ['myclash-geoblock-admin:', 'myclash-geoblock-public:']
   }
 }
 
+// GeoBlock's validateConfig requires `api` to be present AND to contain {ip};
+// there is no code default. Omitting it fails the middleware build with
+// "no api uri given", which disables every router referencing it — the whole
+// site 404s while Traefik itself looks healthy. Caught exactly this in dev.
+for (const { file, text } of [
+  { file: 'infra/config/traefik/middlewares.yml', text: traefikMiddlewareText },
+  { file: 'infra/traefik/dynamic.dev.yml', text: devTraefikDynamicText },
+]) {
+  const geoblockCount = (text.match(/^\s+geoblock:$/gmu) ?? []).length;
+  const apiCount = (text.match(/^\s+api:\s*'[^']*\{ip\}[^']*'/gmu) ?? []).length;
+  if (apiCount < geoblockCount) {
+    errors.push(
+      `${file}: every geoblock instance needs an \`api:\` containing {ip} (${apiCount}/${geoblockCount} ` +
+        'have one). Without it the middleware fails to build and its routers serve 404.',
+    );
+  }
+}
+
 // The public instance MUST fail open. GeoBlock resolves each uncached IP against
 // get.geojs.io; failing closed there turns a third-party API outage into a full
 // public-site outage. The admin instance deliberately fails closed.

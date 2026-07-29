@@ -138,7 +138,7 @@ services:
       GOTRUE_API_PORT: 9999
       API_EXTERNAL_URL: https://myclash.localhost/auth/v1
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://myclash.localhost
       # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
       # query string instead of falling back to GOTRUE_SITE_URL. Host-locked.
@@ -175,7 +175,7 @@ services:
     container_name: myclash-dev-supabase-rest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
       PGRST_DB_SCHEMAS: public,storage,graphql_public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
@@ -204,7 +204,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-myclash}
-      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_USER: ${POSTGRES_USER:-supabase_admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       DB_SSL: 'false'
       DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
@@ -261,7 +261,7 @@ services:
       SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       POSTGREST_URL: http://supabase-rest:3000
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
       FILE_SIZE_LIMIT: 52428800
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
@@ -296,7 +296,7 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: development
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
       # SupabaseService calls getOrThrow on all three of these, so the dev api
@@ -448,7 +448,7 @@ services:
     command: ['node', 'dist/main.js', '--worker']
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://api.myclash.localhost
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999
