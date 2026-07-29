@@ -677,6 +677,74 @@ From `match_events` and `exchanges`:
 
 The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace.
 
+### 5.5 Lifecycle state machines
+
+> **What is actually enforced.** The `CHECK` constraints below restrict the _set of legal values_; they
+> do not constrain transitions. Nor does the service layer — `MatchesService.updateStatus` writes
+> whichever legal value it is handed and only attaches side effects (`started_at` on `running`,
+> `ended_at` + winner on `completed`). The diagrams therefore describe the **intended** lifecycle, which
+> is a convention the API and UI follow, not an invariant the system guarantees.
+>
+> `tournaments.status` is looser still: it has **no `CHECK` constraint at all**, as noted in migration
+> `0138`. Its values (`draft`, `published`, `running`, `completed`) exist only in application code.
+
+**Event** — the organiser-facing publish flow. `archived` is reachable from any state (an event can be
+shelved before it ever runs).
+
+```mermaid
+stateDiagram-v2
+  [*] --> draft: organiser creates
+  draft --> published: publish (becomes publicly visible)
+  published --> running: event day begins
+  running --> completed: all tournaments finished
+  completed --> archived: archive
+  draft --> archived: abandon
+  published --> archived: cancel
+```
+
+**Match** — the scoring flow. `paused` is a halt (deliberation, cards, border calls) and returns to
+`running`; `voided` annuls a bout without deleting it, preserving its exchanges.
+
+```mermaid
+stateDiagram-v2
+  [*] --> scheduled: bracket / pool generated
+  scheduled --> running: pad starts the bout (stamps started_at)
+  running --> paused: halt
+  paused --> running: resume
+  running --> completed: result recorded (stamps ended_at + winner)
+  scheduled --> voided: annulled
+  running --> voided: annulled
+  completed --> voided: annulled after the fact
+```
+
+**Registration** — a fighter's entry in one tournament.
+
+```mermaid
+stateDiagram-v2
+  [*] --> registered: entry accepted
+  registered --> checked_in: present on the day
+  registered --> withdrawn: pulls out
+  checked_in --> withdrawn: pulls out on the day
+  checked_in --> disqualified: DQ
+  registered --> disqualified: DQ
+```
+
+The remaining status columns follow the same shape and are not drawn separately:
+
+| Table                  | States                                                     |
+| ---------------------- | ---------------------------------------------------------- |
+| `workshops`            | `draft → published → running → completed`                  |
+| `workshop_sessions`    | `scheduled → running → completed`, `cancelled`             |
+| `workshop_enrollments` | `intent → confirmed`, `waitlisted`, `cancelled`, `refused` |
+| `leagues`              | `draft → published → archived`                             |
+| `organizations`        | `active`, `suspended`                                      |
+| `event_staff_accounts` | `active`, `disabled`                                       |
+
+Every request/approval table — `exchange_edit_requests`, `deletion_requests`,
+`global_person_claim_requests`, `league_membership_requests`, `league_tournament_links`,
+`tournament_penalty_reviews` — shares a trivial `pending → approved | rejected` shape (with
+`withdrawn`/`removed`/`dismissed` variants), so none is drawn.
+
 ---
 
 ## 6. TF_v1 Ruleset Specification
