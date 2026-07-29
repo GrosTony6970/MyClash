@@ -882,6 +882,111 @@ This dual-runtime design is critical for the offline scoring tablet.
 
 ---
 
+## 7bis. Ruleset authoring, sharing and pinning
+
+§6 specifies the TF_v1 format and §7 the engine that executes a ruleset. This section covers the
+**self-service lifecycle** around them: how an organisation authors its own ruleset, how one becomes
+visible to other organisations, and what it means for a tournament to "use" one.
+
+### 7bis.1 Two orthogonal axes
+
+The most common misreading is that submitting a ruleset for review is a _status_. It is not.
+`custom_rulesets.status` (`draft | published | archived`) and its sharing state are carried by
+**separate columns**, added in migration `0055`:
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "status — is this definition usable?" as S {
+    [*] --> draft
+    draft --> published: publish
+    published --> archived: delist
+    draft --> archived: abandon
+    archived --> published: restore
+  }
+```
+
+```mermaid
+flowchart LR
+  A["org-scoped<br/>owner_organization_id = org<br/>usable on that org's tournaments immediately"]
+  A -->|"POST :id/submit<br/>sets submitted_for_review_at"| B["awaiting review"]
+  B -->|"POST :id/approve-public"| C["public_visibility = TRUE<br/>appears in every org's catalog"]
+  B -->|"POST :id/reject-submission"| D["rejected_reason set<br/>stays org-scoped, can be fixed + resubmitted"]
+  D -->|"resubmit"| B
+```
+
+The practical consequence: **an organisation never waits for approval to use its own ruleset.** Review
+governs only whether the ruleset appears in the platform-wide catalog for _other_ organisations.
+`owner_organization_id IS NULL` denotes a platform-level ruleset.
+
+> `ruleset_submissions` is a **dead table**. It survives in the schema and in the GDPR export table list,
+> but no ruleset code path reads or writes it — `submitted_for_review_at` is the only submission route.
+
+### 7bis.2 Two authoring paths
+
+| Path           | Storage                      | Resolves as                                               |
+| -------------- | ---------------------------- | --------------------------------------------------------- |
+| **Formula**    | `score_formula` (AST)        | a `FormulaRuleset` built from the stored grammar          |
+| **Coded fork** | `base_code` + `base_version` | short-circuits to `registry.get(base_code, base_version)` |
+
+The coded fork exists because TF*v1's ranking (score, then wins, doubles, timesHit, seed) is an
+algorithm, not an expression — re-authoring it as a formula AST is explicitly ruled out, since the DSL
+cannot carry its tiebreak chain. A fork that wants TF_v1's **maths** with different **parameters**
+therefore keeps pointing at the coded engine while supplying its own config. `base_version` pins \_which*
+coded version the fork tracks, so a later TF_v1@2.0.0 cannot silently change a fork of 1.0.0.
+
+### 7bis.3 A pin is a pointer, resolved at read time
+
+`tournaments.ruleset_code` + `ruleset_version` is a **pointer**, not a foreign key. Standings resolve it
+on every read, which is the single most important consequence in this section: **changing the pointer
+re-ranks results that are already recorded.**
+
+```mermaid
+flowchart TD
+  T["tournament<br/>ruleset_code + ruleset_version"] --> R{"resolver"}
+  R -->|"base_code set"| REG["coded registry<br/>registry.get(base_code, base_version)"]
+  R -->|"otherwise"| FR["FormulaRuleset<br/>built from score_formula"]
+  REG --> EFF["effective behaviour<br/>= definition + config + afterblowMode"]
+  FR --> EFF
+  P["penalty_ruleset_version<br/>(immutable snapshot)"] --> EFF
+  EFF --> H["sha256 → ruleset_content_hash"]
+  H --> TH["tournaments.ruleset_content_hash<br/>current — recomputed on any pin change"]
+  H --> MH["matches.ruleset_content_hash<br/>FROZEN at match generation"]
+```
+
+`(code, version)` identifies the _definition_; the content hash identifies the _effective behaviour_.
+Two TF_v1 tournaments with different `winBonus` resolve to the same engine but hash differently. The
+match-level copy is frozen when the match is generated, so a scored match permanently records which
+behaviour produced it.
+
+Because a live pointer change rewrites recorded standings, mid-event re-pinning is not a plain update —
+it is an audited ceremony (typed confirmation, mandatory justification, org-owner or super-admin,
+blocked on completed/archived tournaments). `tournament_ruleset_repins` is its append-only record:
+actor, from → to, the per-bucket diff, whether ranking stayed compatible, and the materialised
+before/after placings.
+
+### 7bis.4 Immutability and delisting
+
+Two rules keep a pinned definition from shifting under a tournament:
+
+- **Versions are snapshotted.** Publishing captures the payload immutably (`custom_ruleset_versions` for
+  scoring, `penalty_ruleset_versions` for penalties). Rollback copies a snapshot back onto the parent
+  rather than overwriting destructively. `is_frozen` flips `TRUE` the moment a tournament pins the
+  ruleset, after which the edit-guard refuses further edits.
+- **Delist ≠ delete.** Deleting a ruleset that any tournament pins would 400 that tournament's
+  standings, so the service **soft-archives** it instead: the row leaves every picker and list but stays
+  resolvable forever. Only an unreferenced ruleset is truly deleted. System and default rulesets cannot
+  be deleted at all.
+
+### 7bis.5 Endpoint surface
+
+| Actor            | Endpoints                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Organisation** | `GET catalog` · `POST fork` · `POST validate` · `PATCH :id` · `DELETE :id` (soft-archives if referenced) · `POST :id/submit` · `GET :id/export` · `POST import`                         |
+| **Super admin**  | `POST :id/publish` / `:id/unpublish` · `GET :id/versions` · `POST :id/versions/:versionId/rollback` · `POST :id/set-default` · `POST :id/approve-public` · `POST :id/reject-submission` |
+
+---
+
 ## 8. Statistics Module
 
 ### 8.1 What we display (mirroring lyonamhe.fr layout)
