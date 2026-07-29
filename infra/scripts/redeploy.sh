@@ -31,6 +31,9 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# See deploy.sh — Compose reads these from the invoking shell, not --env-file.
+source "$SCRIPT_DIR/lib/traefik-env.sh"
+
 usage() {
   cat <<'EOF'
 Usage: infra/scripts/redeploy.sh [service...] [options]
@@ -198,6 +201,10 @@ if [[ "$rc" -ne 0 ]]; then
   fi
 fi
 ok "Recreate command issued"
+
+# Only meaningful when traefik was among the recreated services; harmless
+# otherwise (it just re-reads the existing container's log tail). See deploy.sh.
+mc_warn_if_plugins_failed || true
 
 # ── Wait for health ──────────────────────────────────────────────
 hdr "Waiting for services to become healthy"

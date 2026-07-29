@@ -7,6 +7,10 @@ const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
 const redeployPath = path.join(rootDir, 'infra', 'scripts', 'redeploy.sh');
 const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
+const startPath = path.join(rootDir, 'infra', 'scripts', 'start.sh');
+const traefikEnvLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'traefik-env.sh');
+const devTraefikStaticPath = path.join(rootDir, 'infra', 'traefik', 'traefik.dev.yml');
+const devTraefikDynamicPath = path.join(rootDir, 'infra', 'traefik', 'dynamic.dev.yml');
 const vpsBootstrapPath = path.join(rootDir, 'infra', 'scripts', 'vps-bootstrap.sh');
 const publicRootPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'page.tsx');
 const publicLoginPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'login', 'page.tsx');
@@ -495,6 +499,10 @@ const adminUsersControllerText = await readFile(adminUsersControllerPath, 'utf8'
 const adminUsersServiceText = await readFile(adminUsersServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
+const startText = await readFile(startPath, 'utf8');
+const traefikEnvLibText = await readFile(traefikEnvLibPath, 'utf8');
+const devTraefikStaticText = await readFile(devTraefikStaticPath, 'utf8');
+const devTraefikDynamicText = await readFile(devTraefikDynamicPath, 'utf8');
 const stagingCertsComposeText = await readFile(stagingCertsComposePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
 const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
@@ -1814,6 +1822,226 @@ for (const router of publicRouters) {
   );
   if (!pattern.test(composeText)) {
     errors.push(`Router ${router} must use myclash-security-headers@file.`);
+  }
+}
+
+// ── Traefik edge plugins (GeoBlock + Fail2Ban) ──────────────────────────────
+// Plugins load ONLY at container start, so these declarations are what make a
+// fresh deploy come up with them already installed.
+for (const expected of [
+  '--experimental.plugins.geoblock.modulename=github.com/PascalMinder/geoblock',
+  '--experimental.plugins.geoblock.version=v0.3.8',
+  '--experimental.plugins.fail2ban.modulename=github.com/tomMoulard/fail2ban',
+  '--experimental.plugins.fail2ban.version=v0.9.0',
+  // Downloads land here; without the volume every restart re-fetches from GitHub.
+  './data/traefik/plugins:/plugins-storage',
+]) {
+  if (!composeText.includes(expected)) {
+    errors.push(`Missing Traefik plugin setting: ${expected}`);
+  }
+}
+
+// AbortOnPluginFailure must stay at its default (false) so a failed plugin fetch
+// never stops Traefik from serving. Availability is restored instead by the
+// TRAEFIK_PLUGINS kill-switch, because a router referencing a middleware whose
+// plugin didn't load fails to build and serves 404.
+if (/--experimental\.abortonpluginfailure=true/iu.test(composeText)) {
+  errors.push(
+    'Do not set --experimental.abortonpluginfailure=true: a failed plugin fetch must not stop ' +
+      'Traefik. Recovery is TRAEFIK_PLUGINS=off (see infra/scripts/lib/traefik-env.sh).',
+  );
+}
+
+for (const middleware of ['myclash-geoblock-admin:', 'myclash-geoblock-public:']) {
+  if (!traefikMiddlewareText.includes(middleware)) {
+    errors.push(`infra/config/traefik/middlewares.yml must define ${middleware}`);
+  }
+  if (!devTraefikDynamicText.includes(middleware)) {
+    errors.push(`infra/traefik/dynamic.dev.yml must define ${middleware} (dev/prod parity)`);
+  }
+}
+
+// The public instance MUST fail open. GeoBlock resolves each uncached IP against
+// get.geojs.io; failing closed there turns a third-party API outage into a full
+// public-site outage. The admin instance deliberately fails closed.
+const publicGeoblockBlock = traefikMiddlewareText.slice(
+  traefikMiddlewareText.indexOf('myclash-geoblock-public:'),
+);
+if (!/allowUnknownCountries:\s*true/u.test(publicGeoblockBlock)) {
+  errors.push(
+    'myclash-geoblock-public must set allowUnknownCountries: true — failing closed on the public ' +
+      'site converts a get.geojs.io outage into a site outage.',
+  );
+}
+
+// Fail2Ban lives in labels, not the file provider: its allowlist carries the
+// operator IP, and only labels are interpolated by Compose. Keeping it out of
+// middlewares.yml is what keeps that address out of this public repo.
+for (const middleware of ['myclash-fail2ban-auth', 'myclash-fail2ban-staff']) {
+  const labelPattern = new RegExp(
+    `traefik\\.http\\.middlewares\\.${escapeRegExp(middleware)}\\.plugin\\.fail2ban\\.allowlist\\.ip=`,
+    'u',
+  );
+  if (!labelPattern.test(composeText)) {
+    errors.push(`Missing Fail2Ban middleware label for ${middleware}.`);
+  }
+  if (!labelPattern.test(devComposeText)) {
+    errors.push(`infra/docker-compose.dev.yml must define ${middleware} (dev/prod parity).`);
+  }
+}
+if (traefikMiddlewareText.includes('fail2ban')) {
+  errors.push(
+    'Fail2Ban must not be defined in infra/config/traefik/middlewares.yml — the file provider is ' +
+      'never interpolated, so the allowlist IP would have to be committed to this public repo.',
+  );
+}
+// EVERY allowlist label must interpolate — checking that one of them does would
+// let a hardcoded IP slip in beside a correct one.
+const prodAllowlistValues = [...composeText.matchAll(/allowlist\.ip=([^\n]*)/gu)].map((match) =>
+  match[1].trim(),
+);
+if (prodAllowlistValues.length === 0) {
+  errors.push('No Fail2Ban allowlist label found in infra/docker-compose.prod.yml.');
+}
+for (const value of prodAllowlistValues) {
+  if (value !== '${TRAEFIK_BAN_ALLOWLIST}') {
+    errors.push(
+      `Fail2Ban allowlist must interpolate \${TRAEFIK_BAN_ALLOWLIST} (derived from ` +
+        `THROTTLE_IP_WHITELIST), got "${value}". A literal IP here would be committed to this ` +
+        "public repo and would drift from the app throttler's whitelist.",
+    );
+  }
+}
+
+// Compose reads MW_*/TRAEFIK_BAN_ALLOWLIST from the invoking shell, not
+// --env-file. Miss one entrypoint and the stack comes up with an empty allowlist
+// or detached middlewares depending on which script was used.
+for (const script of [
+  { name: 'deploy.sh', text: deployText },
+  { name: 'redeploy.sh', text: redeployText },
+  { name: 'start.sh', text: startText },
+]) {
+  if (!script.text.includes('lib/traefik-env.sh')) {
+    errors.push(
+      `${script.name} must source infra/scripts/lib/traefik-env.sh — it exports TRAEFIK_BAN_ALLOWLIST ` +
+        'and the MW_* middleware prefixes that docker-compose.prod.yml interpolates.',
+    );
+  }
+}
+if (!traefikEnvLibText.includes('THROTTLE_IP_WHITELIST')) {
+  errors.push(
+    'infra/scripts/lib/traefik-env.sh must derive TRAEFIK_BAN_ALLOWLIST from THROTTLE_IP_WHITELIST.',
+  );
+}
+if (!traefikEnvLibText.includes('mc_warn_if_plugins_failed')) {
+  errors.push(
+    'infra/scripts/lib/traefik-env.sh must define mc_warn_if_plugins_failed — Traefik boots on ' +
+      'plugin failure, so nothing else tells the operator the edge lost its security middlewares.',
+  );
+}
+
+// Dev must declare the same plugins at the same versions, or the config is first
+// exercised in front of the live site.
+for (const expected of [
+  'moduleName: github.com/PascalMinder/geoblock',
+  'version: v0.3.8',
+  'moduleName: github.com/tomMoulard/fail2ban',
+  'version: v0.9.0',
+]) {
+  if (!devTraefikStaticText.includes(expected)) {
+    errors.push(`infra/traefik/traefik.dev.yml must declare plugin setting: ${expected}`);
+  }
+}
+
+// Every router must carry the geoblock variant its host implies. The @file /
+// @docker suffix is asserted explicitly: a wrong provider suffix resolves to no
+// middleware at all, which fails open and silently.
+const geoblockRouters = {
+  'myclash-admin': 'admin',
+  'myclash-admin-api': 'admin',
+  'myclash-admin-storage': 'admin',
+  'myclash-admin-scoring': 'admin',
+  'myclash-traefik-dashboard': 'admin',
+  'myclash-public': 'public',
+  'myclash-marketing': 'public',
+  'myclash-scoring': 'public',
+  'myclash-scoring-prefixed': 'public',
+  'myclash-scoring-api': 'public',
+  'myclash-api': 'public',
+  'myclash-public-api': 'public',
+  'myclash-rest': 'public',
+  'myclash-auth': 'public',
+  'myclash-realtime': 'public',
+  'myclash-realtime-api': 'public',
+  'myclash-storage': 'public',
+};
+for (const [router, variant] of Object.entries(geoblockRouters)) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=\\$\\{MW_GEO_${variant.toUpperCase()}\\}`,
+    'u',
+  );
+  if (!pattern.test(composeText)) {
+    errors.push(
+      `Router ${router} must chain \${MW_GEO_${variant.toUpperCase()}} (geoblock ${variant}).`,
+    );
+  }
+}
+
+// Fail2Ban guards only the surfaces the app itself does not rate-limit.
+// myclash-admin-api is excluded ON PURPOSE: sliding sessions make expired
+// cookies emit 401 bursts that are indistinguishable from an attack.
+const fail2banRouters = {
+  'myclash-auth': 'MW_F2B_AUTH',
+  'myclash-traefik-dashboard': 'MW_F2B_AUTH',
+  'myclash-scoring-api': 'MW_F2B_STAFF',
+};
+for (const [router, prefix] of Object.entries(fail2banRouters)) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*\\$\\{${prefix}\\}`,
+    'u',
+  );
+  if (!pattern.test(composeText)) {
+    errors.push(`Router ${router} must chain \${${prefix}} (fail2ban).`);
+  }
+}
+if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText)) {
+  errors.push(
+    'myclash-admin-api must NOT chain fail2ban: expired sliding sessions emit parallel 401 bursts ' +
+      'that would ban legitimate admins. The admin country allow-list is the control there.',
+  );
+}
+
+// Dev routers carry the middlewares literally (no MW_* kill-switch): dev is
+// exactly where a broken plugin config should surface, so it is never detached.
+const devGeoblockRouters = {
+  'dev-admin': 'admin',
+  'dev-admin-api': 'admin',
+  'dev-public': 'public',
+  'dev-scoring': 'public',
+  'dev-api': 'public',
+  'dev-kong-auth': 'public',
+};
+for (const [router, variant] of Object.entries(devGeoblockRouters)) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=myclash-geoblock-${variant}@file`,
+    'u',
+  );
+  if (!pattern.test(devComposeText)) {
+    errors.push(
+      `Dev router ${router} must chain myclash-geoblock-${variant}@file (dev/prod parity).`,
+    );
+  }
+}
+for (const [router, middleware] of Object.entries({
+  'dev-kong-auth': 'myclash-fail2ban-auth@docker',
+  'dev-api': 'myclash-fail2ban-staff@docker',
+})) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*${escapeRegExp(middleware)}`,
+    'u',
+  );
+  if (!pattern.test(devComposeText)) {
+    errors.push(`Dev router ${router} must chain ${middleware} (dev/prod parity).`);
   }
 }
 

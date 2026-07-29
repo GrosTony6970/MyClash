@@ -7,6 +7,11 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# See deploy.sh — Compose reads these from the invoking shell, not --env-file.
+# This is also the script used to recover from a failed plugin fetch:
+#   TRAEFIK_PLUGINS=off ./infra/scripts/start.sh
+source "$SCRIPT_DIR/lib/traefik-env.sh"
+
 usage() {
   cat <<'EOF'
 Usage: infra/scripts/start.sh
@@ -29,6 +34,10 @@ ok ".env found"
 hdr "Starting containers"
 "${COMPOSE[@]}" up -d
 ok "Stack started"
+
+# Traefik boots even when its plugins fail to fetch, so nothing else would tell
+# the operator the edge lost GeoBlock/Fail2Ban. Non-fatal: report, don't block.
+mc_warn_if_plugins_failed || true
 
 echo
 "${COMPOSE[@]}" ps

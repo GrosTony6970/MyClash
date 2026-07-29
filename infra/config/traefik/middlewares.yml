@@ -33,3 +33,49 @@ http:
         regex: '^https?://(traefik\.[^/]+)/?$'
         replacement: 'https://${1}/dashboard/'
         permanent: false
+
+    # ── GeoBlock (github.com/PascalMinder/geoblock) ──────────────────────────
+    # Declared in the static config (see the traefik service's --experimental
+    # flags); these are the per-surface middleware instances.
+    #
+    # Two instances on purpose — the two surfaces want opposite failure modes.
+    # GeoBlock resolves each uncached IP against get.geojs.io, so its behaviour
+    # when that lookup fails IS the design decision:
+    #
+    #   admin  → allow-list, fail CLOSED. An IP we cannot place is denied.
+    #   public → block-list, fail OPEN. The public site serves an international
+    #            HEMA audience, and failing closed would turn a third-party API
+    #            outage into a full site outage.
+    #
+    # cacheSize is raised far above the plugin default of 15: at the default,
+    # nearly every request pays an external HTTP round-trip on the hot path.
+    myclash-geoblock-admin:
+      plugin:
+        geoblock:
+          silentStartUp: false
+          allowLocalRequests: true
+          allowUnknownCountries: false
+          blackListMode: false
+          httpStatusCodeDeniedRequest: 403
+          apiTimeoutMs: 750
+          cacheSize: 4096
+          cacheTtlSeconds: 604800
+          countries: [FR, BE, LU, CH, DE, IT, ES, GB, NL, AT]
+
+    # allowUnknownCountries MUST stay true here — see the fail-open note above.
+    # check-infra-review.mjs pins it for exactly that reason.
+    myclash-geoblock-public:
+      plugin:
+        geoblock:
+          silentStartUp: false
+          allowLocalRequests: true
+          allowUnknownCountries: true
+          blackListMode: true
+          httpStatusCodeDeniedRequest: 403
+          apiTimeoutMs: 300
+          cacheSize: 16384
+          cacheTtlSeconds: 604800
+          excludedPathPatterns:
+            - '^/_next/static/.*'
+            - '^/favicon\.ico$'
+          countries: [CN, RU, KP, IR, BY]

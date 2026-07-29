@@ -41,6 +41,25 @@ services:
       - --certificatesresolvers.letsencrypt.acme.caserver=${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
       - --providers.file.directory=/config
+      # Plugins are parsed and loaded ONLY at startup, so declaring them here is
+      # what makes a fresh deploy come up with them already installed — there is
+      # no post-deploy install step. Traefik fetches the module source from GitHub
+      # on boot into /plugins-storage (persisted below so restarts are offline).
+      - --experimental.plugins.geoblock.modulename=github.com/PascalMinder/geoblock
+      - --experimental.plugins.geoblock.version=v0.3.8
+      - --experimental.plugins.fail2ban.modulename=github.com/tomMoulard/fail2ban
+      - --experimental.plugins.fail2ban.version=v0.9.0
+      # AbortOnPluginFailure is deliberately left at its default (false): a failed
+      # plugin download must NOT stop Traefik from serving. It logs
+      # "Plugins are disabled because an error has occurred." and boots on.
+      #
+      # But note what that alone would mean: with plugins disabled, a router that
+      # references a plugin middleware fails to build ("middleware does not
+      # exist") and serves 404 — the site would be down anyway, just silently.
+      # So the plugin middlewares are attached through the ${MW_*} prefixes below,
+      # which infra/scripts/lib/traefik-env.sh empties when TRAEFIK_PLUGINS=off.
+      # Recovery from a failed plugin fetch is then one flag and a restart:
+      #   TRAEFIK_PLUGINS=off ./infra/scripts/start.sh
       - --accesslog=true
       - --log=true
       - --log.level=INFO
@@ -50,6 +69,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data/traefik:/data
+      - ./data/traefik/plugins:/plugins-storage
       - ./logs/traefik:/logs
       - ./config/traefik:/config:ro
     healthcheck:
@@ -78,8 +98,41 @@ services:
       - traefik.http.routers.myclash-traefik-dashboard.service=api@internal
       # api@internal only serves /api/… and /dashboard/…, so a bare root request
       # 404s. myclash-dashboard-root-redirect (file provider) sends / → /dashboard/.
-      - traefik.http.routers.myclash-traefik-dashboard.middlewares=myclash-dashboard-auth@docker,myclash-dashboard-root-redirect@file
+      - traefik.http.routers.myclash-traefik-dashboard.middlewares=${MW_GEO_ADMIN}${MW_F2B_AUTH}myclash-dashboard-auth@docker,myclash-dashboard-root-redirect@file
       - traefik.http.middlewares.myclash-dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
+
+      # ── Fail2Ban middlewares ──────────────────────────────────────
+      # Defined as labels, not in config/traefik/middlewares.yml, because the
+      # allowlist carries the operator's real IP: labels are interpolated by
+      # Compose (like TRAEFIK_DASHBOARD_AUTH above), the file provider never is.
+      # That keeps the address in .env and out of this public repo.
+      # TRAEFIK_BAN_ALLOWLIST is derived from THROTTLE_IP_WHITELIST by
+      # infra/scripts/lib/traefik-env.sh — one trusted-IP list, not two.
+      #
+      # Thresholds are set by how many humans sit behind one public IP, not by
+      # how strict we can be. Both are deliberately looser than the app's own
+      # limiter (10/h per IP on auth routes, 120/min global): this is a
+      # volumetric backstop, not the primary auth control.
+      #
+      # -auth — login surfaces + this dashboard. Few humans per IP, and the
+      # myclash-auth router reaches GoTrue directly with NO ThrottlerGuard in
+      # front of it, so this is the only rate control on that path.
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.allowlist.ip=${TRAEFIK_BAN_ALLOWLIST}
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.enabled=true
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.maxretry=20
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.findtime=10m
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.bantime=30m
+      # -staff — scoring PIN login. An entire venue shares one NAT'd IP on
+      # tournament day and a referee fumbling a PIN is normal, so the threshold
+      # is high: 60/10m still cuts the unthrottled PIN surface from ~7,200
+      # guesses/hour to ~360 without ever banning a hall full of staff.
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.allowlist.ip=${TRAEFIK_BAN_ALLOWLIST}
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.enabled=true
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.maxretry=60
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.findtime=10m
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.bantime=15m
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
@@ -304,7 +357,7 @@ services:
       - traefik.http.routers.myclash-rest.entrypoints=websecure
       - traefik.http.routers.myclash-rest.tls=true
       - traefik.http.routers.myclash-rest.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-rest.middlewares=myclash-security-headers@file,myclash-rest-strip@file
+      - traefik.http.routers.myclash-rest.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-rest-strip@file
       - traefik.http.routers.myclash-rest.priority=20
       - traefik.http.services.myclash-rest.loadbalancer.server.port=3000
 
@@ -392,14 +445,18 @@ services:
       - traefik.http.routers.myclash-api.entrypoints=websecure
       - traefik.http.routers.myclash-api.tls=true
       - traefik.http.routers.myclash-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-api.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-api.service=myclash-api
       - traefik.http.services.myclash-api.loadbalancer.server.port=4000
       - traefik.http.routers.myclash-admin-api.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/api/v1`)
       - traefik.http.routers.myclash-admin-api.entrypoints=websecure
       - traefik.http.routers.myclash-admin-api.tls=true
       - traefik.http.routers.myclash-admin-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-admin-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      # NOT behind fail2ban on purpose: with sliding 30-day sessions an expired
+      # cookie makes one dashboard load emit a burst of parallel 401s that the
+      # client then resolves by refreshing — indistinguishable from an attack by
+      # status code alone. The admin country allow-list is the control here.
+      - traefik.http.routers.myclash-admin-api.middlewares=${MW_GEO_ADMIN}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-admin-api.priority=30
       - traefik.http.routers.myclash-admin-api.service=myclash-api
       # Public app same-origin API: app.${DOMAIN}/api/v1/* → API container.
@@ -410,7 +467,7 @@ services:
       - traefik.http.routers.myclash-public-api.entrypoints=websecure
       - traefik.http.routers.myclash-public-api.tls=true
       - traefik.http.routers.myclash-public-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-public-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-public-api.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-public-api.priority=30
       - traefik.http.routers.myclash-public-api.service=myclash-api
       # Scoring same-origin API: scoring.${DOMAIN}/api/v1/* → API container.
@@ -423,7 +480,9 @@ services:
       - traefik.http.routers.myclash-scoring-api.entrypoints=websecure
       - traefik.http.routers.myclash-scoring-api.tls=true
       - traefik.http.routers.myclash-scoring-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-scoring-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      # Staff PIN login lands here and has NO @Throttle override in the API
+      # (default 120/min ≈ 7,200 guesses/hour), so this is the brute-force control.
+      - traefik.http.routers.myclash-scoring-api.middlewares=${MW_GEO_PUBLIC}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-scoring-api.priority=30
       - traefik.http.routers.myclash-scoring-api.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
@@ -446,7 +505,9 @@ services:
       - traefik.http.routers.myclash-auth.entrypoints=websecure
       - traefik.http.routers.myclash-auth.tls=true
       - traefik.http.routers.myclash-auth.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-auth.middlewares=myclash-security-headers@file,supabase-auth-strip
+      # Proxies straight to GoTrue — Nest's ThrottlerGuard is NOT in this path,
+      # so fail2ban is the only rate control on /auth/v1/*.
+      - traefik.http.routers.myclash-auth.middlewares=${MW_GEO_PUBLIC}${MW_F2B_AUTH}myclash-security-headers@file,supabase-auth-strip
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
       - traefik.http.services.myclash-supabase-auth.loadbalancer.server.url=http://supabase-auth:9999
@@ -456,7 +517,7 @@ services:
       - traefik.http.routers.myclash-realtime-api.entrypoints=websecure
       - traefik.http.routers.myclash-realtime-api.tls=true
       - traefik.http.routers.myclash-realtime-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-realtime-api.middlewares=myclash-security-headers@file,supabase-realtime-api
+      - traefik.http.routers.myclash-realtime-api.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,supabase-realtime-api
       - traefik.http.routers.myclash-realtime-api.priority=25
       - traefik.http.routers.myclash-realtime-api.service=myclash-supabase-realtime
       # Realtime WebSocket: /realtime/v1/* -> /socket/* (the actual Phoenix mount).
@@ -464,7 +525,7 @@ services:
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
       - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file,supabase-realtime-ws
+      - traefik.http.routers.myclash-realtime.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,supabase-realtime-ws
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
       - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.url=http://supabase-realtime:4000
@@ -472,7 +533,7 @@ services:
       - traefik.http.routers.myclash-storage.entrypoints=websecure
       - traefik.http.routers.myclash-storage.tls=true
       - traefik.http.routers.myclash-storage.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-storage.middlewares=myclash-security-headers@file,supabase-storage-strip
+      - traefik.http.routers.myclash-storage.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,supabase-storage-strip
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.url=http://supabase-storage:5000
@@ -487,7 +548,7 @@ services:
       - traefik.http.routers.myclash-admin-storage.entrypoints=websecure
       - traefik.http.routers.myclash-admin-storage.tls=true
       - traefik.http.routers.myclash-admin-storage.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-admin-storage.middlewares=myclash-security-headers@file,supabase-storage-strip
+      - traefik.http.routers.myclash-admin-storage.middlewares=${MW_GEO_ADMIN}myclash-security-headers@file,supabase-storage-strip
       - traefik.http.routers.myclash-admin-storage.priority=20
       - traefik.http.routers.myclash-admin-storage.service=myclash-supabase-storage
 
@@ -663,7 +724,7 @@ services:
       - traefik.http.routers.myclash-public.tls=true
       - traefik.http.routers.myclash-public.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-public.priority=1
-      - traefik.http.routers.myclash-public.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-public.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
       - traefik.http.services.myclash-public.loadbalancer.server.port=3000
 
   # ── web-marketing (static landing site at apex) ───────────────────
@@ -696,7 +757,7 @@ services:
       - traefik.http.routers.myclash-marketing.entrypoints=websecure
       - traefik.http.routers.myclash-marketing.tls=true
       - traefik.http.routers.myclash-marketing.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-marketing.middlewares=myclash-security-headers@file,myclash-compress@file,myclash-www-redirect@docker
+      - traefik.http.routers.myclash-marketing.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file,myclash-www-redirect@docker
       - traefik.http.services.myclash-marketing.loadbalancer.server.port=80
       # Redirect www → apex
       - traefik.http.middlewares.myclash-www-redirect.redirectregex.regex=^https?://www\.${DOMAIN}/(.*)
@@ -765,7 +826,7 @@ services:
       - traefik.http.routers.myclash-scoring.entrypoints=websecure
       - traefik.http.routers.myclash-scoring.tls=true
       - traefik.http.routers.myclash-scoring.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-scoring.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-scoring.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
       - traefik.http.services.myclash-scoring.loadbalancer.server.port=3000
       # Admin same-origin proxy: admin.${DOMAIN}/scoring/* → scoring
       # container with /scoring stripped. Lets the organizer click a
@@ -779,7 +840,7 @@ services:
       - traefik.http.routers.myclash-admin-scoring.entrypoints=websecure
       - traefik.http.routers.myclash-admin-scoring.tls=true
       - traefik.http.routers.myclash-admin-scoring.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-admin-scoring.middlewares=myclash-security-headers@file,myclash-compress@file,myclash-admin-scoring-strip
+      - traefik.http.routers.myclash-admin-scoring.middlewares=${MW_GEO_ADMIN}myclash-security-headers@file,myclash-compress@file,myclash-admin-scoring-strip
       - traefik.http.routers.myclash-admin-scoring.priority=30
       - traefik.http.routers.myclash-admin-scoring.service=myclash-scoring
       # Subdomain-prefixed assets: scoring.${DOMAIN}/scoring/_next/* →
@@ -795,7 +856,7 @@ services:
       - traefik.http.routers.myclash-scoring-prefixed.entrypoints=websecure
       - traefik.http.routers.myclash-scoring-prefixed.tls=true
       - traefik.http.routers.myclash-scoring-prefixed.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-scoring-prefixed.middlewares=myclash-security-headers@file,myclash-compress@file,myclash-scoring-subdomain-strip
+      - traefik.http.routers.myclash-scoring-prefixed.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file,myclash-scoring-subdomain-strip
       - traefik.http.routers.myclash-scoring-prefixed.priority=30
       - traefik.http.routers.myclash-scoring-prefixed.service=myclash-scoring
 
@@ -856,7 +917,7 @@ services:
       - traefik.http.routers.myclash-admin.entrypoints=websecure
       - traefik.http.routers.myclash-admin.tls=true
       - traefik.http.routers.myclash-admin.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-admin.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-admin.middlewares=${MW_GEO_ADMIN}myclash-security-headers@file,myclash-compress@file
       # Low priority so every prefixed admin sub-router out-ranks this
       # catch-all. Without it, Traefik's computed priority (rule length
       # ~24) beats myclash-admin-storage (explicit priority=20), so

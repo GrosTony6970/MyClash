@@ -4,6 +4,45 @@
 # Provides self-signed TLS for *.myclash.localhost using Traefik's
 # built-in certificate generation (no external CA needed).
 
+# GeoBlock middlewares — mirrors infra/config/traefik/middlewares.yml so a bad
+# plugin config surfaces locally instead of in production. Local requests are
+# allowed unconditionally (allowLocalRequests), so dev makes no calls to
+# get.geojs.io; what this exercises is that the plugin loads and the middleware
+# chain resolves.
+#
+# The admin/public split and its opposite failure modes are the real design
+# decision — see the comments in infra/config/traefik/middlewares.yml.
+http:
+  middlewares:
+    myclash-geoblock-admin:
+      plugin:
+        geoblock:
+          silentStartUp: false
+          allowLocalRequests: true
+          allowUnknownCountries: false
+          blackListMode: false
+          httpStatusCodeDeniedRequest: 403
+          apiTimeoutMs: 750
+          cacheSize: 4096
+          cacheTtlSeconds: 604800
+          countries: [FR, BE, LU, CH, DE, IT, ES, GB, NL, AT]
+
+    myclash-geoblock-public:
+      plugin:
+        geoblock:
+          silentStartUp: false
+          allowLocalRequests: true
+          allowUnknownCountries: true
+          blackListMode: true
+          httpStatusCodeDeniedRequest: 403
+          apiTimeoutMs: 300
+          cacheSize: 16384
+          cacheTtlSeconds: 604800
+          excludedPathPatterns:
+            - '^/_next/static/.*'
+            - '^/favicon\.ico$'
+          countries: [CN, RU, KP, IR, BY]
+
 tls:
   stores:
     default:

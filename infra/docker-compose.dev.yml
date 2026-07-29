@@ -38,7 +38,7 @@
 services:
   # ── Reverse proxy ────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.6.6
+    image: traefik:v3.7.1
     container_name: myclash-dev-traefik
     restart: unless-stopped
     ports:
@@ -54,6 +54,22 @@ services:
       - traefik.enable=true
       # Shared compress middleware (referenced by all routers)
       - traefik.http.middlewares.myclash-compress.compress=true
+      # Fail2Ban — defined as labels here for the same reason as prod, so the
+      # @docker vs @file provider split is exercised locally too. Thresholds
+      # match prod; the allowlist is just the local ranges (no operator IP in
+      # dev, and none may ever be committed to this public repo).
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.allowlist.ip=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.enabled=true
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.maxretry=20
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.findtime=10m
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.bantime=30m
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.allowlist.ip=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.enabled=true
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.maxretry=60
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.findtime=10m
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.bantime=15m
 
   # ── Postgres ─────────────────────────────────────────────────────
   db:
@@ -125,6 +141,9 @@ services:
       - traefik.http.routers.dev-kong-auth.tls=true
       - traefik.http.routers.dev-kong-auth.priority=20
       - traefik.http.routers.dev-kong-auth.service=dev-kong
+      # Dev equivalent of prod's myclash-auth: reaches GoTrue without passing
+      # through Nest, so fail2ban is the only rate control on this path.
+      - traefik.http.routers.dev-kong-auth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-auth@docker
       - traefik.http.routers.dev-kong-rest.rule=Host(`api.myclash.localhost`) && PathPrefix(`/rest/v1`)
       - traefik.http.routers.dev-kong-rest.entrypoints=websecure
       - traefik.http.routers.dev-kong-rest.tls=true
@@ -282,12 +301,16 @@ services:
       - traefik.http.routers.dev-api.rule=Host(`api.myclash.localhost`)
       - traefik.http.routers.dev-api.entrypoints=websecure
       - traefik.http.routers.dev-api.tls=true
-      - traefik.http.routers.dev-api.middlewares=myclash-compress@docker
+      # Staff PIN login lands here in dev (the scoring pad calls the API host
+      # directly), so this router carries the -staff ban rule — prod's
+      # myclash-scoring-api equivalent.
+      - traefik.http.routers.dev-api.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
       - traefik.http.services.dev-api.loadbalancer.server.port=4000
       - traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)
       - traefik.http.routers.dev-admin-api.entrypoints=websecure
       - traefik.http.routers.dev-admin-api.tls=true
-      - traefik.http.routers.dev-admin-api.middlewares=myclash-compress@docker
+      # No fail2ban, matching prod: expired-session 401 bursts are normal here.
+      - traefik.http.routers.dev-admin-api.middlewares=myclash-geoblock-admin@file,myclash-compress@docker
       - traefik.http.routers.dev-admin-api.priority=30
       - traefik.http.routers.dev-admin-api.service=dev-api
 
@@ -319,7 +342,7 @@ services:
       - traefik.http.routers.dev-public.rule=Host(`myclash.localhost`)
       - traefik.http.routers.dev-public.entrypoints=websecure
       - traefik.http.routers.dev-public.tls=true
-      - traefik.http.routers.dev-public.middlewares=myclash-compress@docker
+      - traefik.http.routers.dev-public.middlewares=myclash-geoblock-public@file,myclash-compress@docker
       - traefik.http.services.dev-public.loadbalancer.server.port=3000
 
   # ── web-scoring PWA ───────────────────────────────────────────────
@@ -344,7 +367,7 @@ services:
       - traefik.http.routers.dev-scoring.rule=Host(`scoring.myclash.localhost`)
       - traefik.http.routers.dev-scoring.entrypoints=websecure
       - traefik.http.routers.dev-scoring.tls=true
-      - traefik.http.routers.dev-scoring.middlewares=myclash-compress@docker
+      - traefik.http.routers.dev-scoring.middlewares=myclash-geoblock-public@file,myclash-compress@docker
       - traefik.http.services.dev-scoring.loadbalancer.server.port=3000
 
   # ── web-admin SPA ─────────────────────────────────────────────────
@@ -370,7 +393,7 @@ services:
       - traefik.http.routers.dev-admin.rule=Host(`admin.myclash.localhost`)
       - traefik.http.routers.dev-admin.entrypoints=websecure
       - traefik.http.routers.dev-admin.tls=true
-      - traefik.http.routers.dev-admin.middlewares=myclash-compress@docker
+      - traefik.http.routers.dev-admin.middlewares=myclash-geoblock-admin@file,myclash-compress@docker
       - traefik.http.services.dev-admin.loadbalancer.server.port=3000
 
 networks:

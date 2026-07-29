@@ -29,6 +29,11 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# Exports TRAEFIK_BAN_ALLOWLIST + the MW_* middleware prefixes that
+# docker-compose.prod.yml interpolates. Compose reads these from this shell,
+# not from --env-file, so every entrypoint that runs `up` must source it.
+source "$SCRIPT_DIR/lib/traefik-env.sh"
+
 # ── Arguments ────────────────────────────────────────────────────
 USE_DEV_CERTS=0
 SKIP_BACKUP=0
@@ -502,6 +507,11 @@ if [[ "$rc" -ne 0 ]]; then
   fi
 fi
 ok "Stack started"
+
+# Traefik boots even when its plugins fail to fetch (AbortOnPluginFailure stays
+# false on purpose), so nothing else would tell the operator the edge lost
+# GeoBlock/Fail2Ban. Report loudly; don't abort a deploy over it.
+mc_warn_if_plugins_failed || true
 
 # ── Wait for healthchecks ────────────────────────────────────────
 hdr "Waiting for services to become healthy"

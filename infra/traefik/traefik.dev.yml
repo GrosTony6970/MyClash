@@ -30,5 +30,19 @@ providers:
     filename: /etc/traefik/dynamic.dev.yml
     watch: true
 
+# Same plugins, same versions as prod (declared there as --experimental.* CLI
+# flags, because prod has no static config file). Plugins load only at startup.
+#
+# Dev keeps them ALWAYS attached — no TRAEFIK_PLUGINS kill-switch — precisely so
+# a broken plugin config fails here rather than in front of the live site.
+experimental:
+  plugins:
+    geoblock:
+      moduleName: github.com/PascalMinder/geoblock
+      version: v0.3.8
+    fail2ban:
+      moduleName: github.com/tomMoulard/fail2ban
+      version: v0.9.0
+
 log:
   level: INFO
