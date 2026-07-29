@@ -49,10 +49,11 @@ jobs:
           E2E_CLEANUP: '1' # CI deletes its test data; local runs preserve it for inspection
           # Opt-in specs the nightly DOES run. They are gated so a casual local
           # run stays quick, but a nightly that skips its own coverage is
-          # theatre: between them these two found five production bugs, and
-          # they cost about two minutes.
+          # theatre: between them these found five production bugs, and they
+          # cost about two and a half minutes.
           E2E_DOUBLE_ELIM: '1' # 09 — ~1.4 min
           E2E_SCORING_PAD: '1' # 10 — ~20 s
+          E2E_LEAGUE: '1' # 11 — ~30 s
           # E2E_POPULATE stays OFF on purpose: 07 is a ~30 min demo-data
           # populator, not a regression test (its step() swallows every error),
           # so running it nightly would cost half an hour and assert nothing.

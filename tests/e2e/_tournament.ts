@@ -39,16 +39,34 @@ export interface FinishedTournament {
 
 const FIGHTERS = 8;
 
+export interface PlayTournamentOptions {
+  name: string;
+  slug: string;
+  /**
+   * Fighters to register, in seed order (index 0 is seed 1). Defaults to the
+   * shared `Seed NN` roster. Pass your own when the fighters themselves are
+   * part of the subject — the league spec needs club affiliations, which the
+   * shared roster deliberately does not have.
+   */
+  fighters?: Person[];
+}
+
+const defaultOptions = (): PlayTournamentOptions => ({
+  name: 'DE finished',
+  slug: `de-finished-${Date.now().toString(36)}`,
+});
+
 export async function playTournamentToChampion(
   api: Api,
   eventId: string,
-  opts: { name: string; slug: string } = {
-    name: 'DE finished',
-    slug: `de-finished-${Date.now().toString(36)}`,
-  },
+  opts: PlayTournamentOptions = defaultOptions(),
 ): Promise<FinishedTournament> {
-  const roster = await ensurePersons(api, eventId, FIGHTERS);
-  const fighters = roster.slice(0, FIGHTERS);
+  const fighters = opts.fighters ?? (await ensurePersons(api, eventId, FIGHTERS));
+  // The bracket is generated for exactly this many fighters, so a short roster
+  // would produce byes (impossible in double elim) rather than a clear error.
+  expect(fighters, `playTournamentToChampion needs exactly ${FIGHTERS} fighters`).toHaveLength(
+    FIGHTERS,
+  );
 
   const tournament = await createBracketTournament(api, eventId, {
     name: opts.name,

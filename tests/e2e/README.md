@@ -27,7 +27,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`09` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`11` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -163,6 +163,47 @@ tournament.
 > Like the populator, this spec **completes matches**, so the event can no longer
 > be hard-deleted afterwards. Run it on a sandbox org.
 
+## Score a league season for real (opt-in)
+
+`E2E_LEAGUE=1 pnpm test:e2e:prod tests/e2e/11-*.spec.ts` runs `11-league.spec.ts`
+— the only test in the repo that drives `TournamentPlacementService` and the
+shared `computeFinalRanking` **against a played tournament**. Both are heavily
+unit-tested over hand-built slot arrays, but nothing had ever asked them "given
+a tournament that was actually played, who finished where" — and league points,
+medals, club standings and the season report all hang off that one answer.
+
+What makes the assertions exact: `playDoubleElim` lets the **lower seed win every
+match**, and the fighters are named in seed order (`League 01 … League 08`), which
+is also how `computeFinalRanking` breaks ties between fighters knocked out in the
+same round. So the finishing order of the 8-fighter bronze-mode bracket is known
+in advance — seeds 1..8, no ties — and the league table has to reproduce it.
+
+The league is created with its own `customPointsByRank` (100/50/30/20/12/9/6/3)
+rather than the FFAMHE table, so a placement read one row off is a visible
+100-vs-50 diff and the spec never has to track what the shared registry says
+today.
+
+Two tournaments, ~24 matches, ~30 s. The second exists for the freeze contract:
+
+| Stage                  | What only it proves                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| link, before recompute | An approved-but-uncounted tournament reads as **pending**, not as missing              |
+| recompute              | Standings are the bracket's placements, scored through the league's points table       |
+| club standings         | Points aggregate by `global_persons.club_id`, with a separate unaffiliated bucket      |
+| publish → CSV → draft  | Public standings + `final-report.csv` ride the `status`/`public_visibility` pair       |
+| finalize               | Manual recompute 400s, and a **late event ticking over leaves the frozen table alone** |
+| clone                  | A new season copies config + groups as new rows, and **no links, results or rankings** |
+| reopen                 | Recompute resumes and the second event finally counts — every total exactly doubles    |
+
+Fighters are a dedicated `League NN` roster (not the shared `Seed NN` one) because
+club standings needs club affiliations: seeds 1–3 in one club, 4–5 in another,
+6–8 unaffiliated. Both clubs are created once by name and reused on every rerun.
+
+> A league is not owned by an event, so it survives the throwaway event's
+> teardown. The spec returns it to `draft` before finishing — nothing it creates
+> is ever left publicly visible — and deletes both leagues when `E2E_CLEANUP` is
+> set, printing their admin URLs otherwise.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -176,6 +217,8 @@ tournament.
 | 7   | Populate rich demo event            | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
 | 8   | Offline scoring on a custom ruleset | `08-offline-custom-ruleset.spec.ts` | active                                   |
 | 9   | Double-elimination playthrough      | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
+| 10  | Scoring-pad server contract         | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
+| 11  | League season                       | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
