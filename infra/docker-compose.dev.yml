@@ -72,19 +72,31 @@ services:
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.bantime=15m
 
   # ── Postgres ─────────────────────────────────────────────────────
+  # Matches prod exactly. Bumping this from 15.x is NOT a drop-in: a Postgres
+  # major version cannot reuse an older data directory, so an existing dev stack
+  # must be wiped first:
+  #   docker compose -f infra/docker-compose.dev.yml down -v
+  # then re-run migrations + seed.
   db:
-    image: supabase/postgres:15.6.1.115
+    image: supabase/postgres:17.6.1.121-mg-1
     container_name: myclash-dev-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-supabase_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       POSTGRES_DB: ${POSTGRES_DB:-myclash}
+      # Same collation as prod: ICU fr-FR with C as the base locale. Without it
+      # dev sorts accented names differently from production.
+      POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=fr-FR --locale=C'
     ports:
       - '5432:5432' # exposed for local DB tools (TablePlus, DBeaver, etc.)
     volumes:
       - dev_postgres_data:/var/lib/postgresql/data
+      # All three init scripts, as prod mounts them. Dev previously ran only the
+      # realtime one, so supabase_admin/authenticator role setup differed.
+      - ./db/init/01-supabase-roles.sh:/docker-entrypoint-initdb.d/01-supabase-roles.sh:ro
       - ./db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro
+      - ./db/init/supabase-postgrest.sh:/docker-entrypoint-initdb.d/supabase-postgrest.sh:ro
     healthcheck:
       test:
         ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-supabase_admin} -d ${POSTGRES_DB:-myclash}']
@@ -96,7 +108,7 @@ services:
 
   # ── Redis ─────────────────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine3.23
     container_name: myclash-dev-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
