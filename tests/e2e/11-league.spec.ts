@@ -1,7 +1,7 @@
 import { test, expect, request as apiRequest } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
-import { personName, type Person } from './_bracket';
+import { ensureClub, ensureRoster, personName, type Person } from './_bracket';
 import { playTournamentToChampion, type FinishedTournament } from './_tournament';
 
 /**
@@ -167,26 +167,11 @@ const createdLeagueIds: string[] = [];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** The club row named exactly `name`, created once and reused on every rerun. */
-async function ensureClub(api: Api, name: string): Promise<string> {
-  const matches = await api.json<Array<{ id: string; name: string }>>(
-    await api.get(`clubs?q=${encodeURIComponent(name)}`),
-  );
-  // `q` is a substring search, so filter for the exact name — "E2E Alpha…" and
-  // "E2E Bravo…" must never resolve to each other.
-  const exact = matches.find((club) => club.name === name);
-  if (exact) return exact.id;
-  const created = await api.json<{ id: string }>(
-    await api.post('clubs', { data: { name, city: 'Testville', countryCode: 'FR' } }),
-  );
-  return created.id;
-}
-
 /**
  * `League 01 … League 08`, seeded 1..N, with the club affiliations club
- * standings needs. Idempotent within the event, like `ensurePersons` — and
- * deliberately a separate roster from the shared `Seed NN` one, which is
- * club-less and shared with specs that would otherwise dictate our clubs.
+ * standings needs — deliberately a separate roster from the shared `Seed NN`
+ * one, which is club-less and shared with specs that would otherwise dictate
+ * our clubs.
  *
  * The names sort in seed order on purpose: `computeFinalRanking` separates
  * fighters eliminated in the same round by pool score then NAME, and with no
@@ -197,33 +182,15 @@ async function leagueRoster(api: Api, eventId: string): Promise<Person[]> {
   const clubIds = new Map<string, string>();
   for (const name of [CLUB_ALPHA, CLUB_BRAVO]) clubIds.set(name, await ensureClub(api, name));
 
-  const existing = await api.json<Person[]>(await api.get(`events/${eventId}/persons`));
-  const byFamily = new Map(
-    existing.filter((p) => p.givenName === GIVEN_NAME).map((p) => [p.familyName, p]),
+  return ensureRoster(
+    api,
+    eventId,
+    CLUB_BY_SEED.map((clubName, index) => ({
+      givenName: GIVEN_NAME,
+      familyName: String(index + 1).padStart(2, '0'),
+      clubId: clubName ? clubIds.get(clubName) : null,
+    })),
   );
-
-  const people: Person[] = [];
-  for (let seed = 1; seed <= ROSTER_SIZE; seed++) {
-    const familyName = String(seed).padStart(2, '0');
-    const found = byFamily.get(familyName);
-    if (found) {
-      people.push(found);
-      continue;
-    }
-    const clubName = CLUB_BY_SEED[seed - 1];
-    people.push(
-      await api.json<Person>(
-        await api.post(`events/${eventId}/persons`, {
-          data: {
-            givenName: GIVEN_NAME,
-            familyName,
-            ...(clubName ? { clubId: clubIds.get(clubName) } : {}),
-          },
-        }),
-      ),
-    );
-  }
-  return people;
 }
 
 const adminStandings = async (api: Api, leagueId: string, group?: string) =>

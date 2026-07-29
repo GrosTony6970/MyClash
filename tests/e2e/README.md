@@ -27,7 +27,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`11` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`12` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -204,6 +204,48 @@ club standings needs club affiliations: seeds 1–3 in one club, 4–5 in anothe
 > is ever left publicly visible — and deletes both leagues when `E2E_CLEANUP` is
 > set, printing their admin URLs otherwise.
 
+## Generate and parse every export (opt-in)
+
+`E2E_EXPORTS=1 pnpm test:e2e:prod tests/e2e/12-*.spec.ts` runs
+`12-exports.spec.ts`. Exports fail **silently**: a CSV with the wrong winner, a
+dropped match or the wrong escaper still parses, still opens, still looks right,
+and the mistake surfaces months later in someone else's database. A unit test
+over hand-built rows cannot catch that, because the rows it checks are the rows
+it wrote.
+
+So every assertion reconciles the export against something the spec knows
+independently — the bracket the API returned, the exchanges the pad posted, and
+arithmetic that has to balance:
+
+| Export                          | What it is reconciled against                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `exports/matches.csv`           | Every winner must equal the **bracket's** `winnerRegistrationId`; every score is 5–3       |
+| `exports/exchanges.csv`         | The exported hits must **add up to** the exported scores, match by match                   |
+| `exports/rankings.csv`          | One win per match; points scored == points conceded, in total                              |
+| `hema-ratings/preview` + `.zip` | The pre-flight's file list must equal the zip's entries — it is a promise about a download |
+
+The **two escapers** are the sharpest edge, and one fighter is named
+`=Export 08` for that reason alone:
+
+- `escapeCsvCell` (RFC 4180 **+ formula neutralisation**) for files a person
+  opens in a spreadsheet — `rankings.csv` must carry `"'=Export 08"`;
+- `escapeCsvField` (RFC 4180 only) for the HEMA Ratings bundle, which no person
+  reads — `fighters.csv` must carry `=Export 08` **raw**, because an injected
+  apostrophe would corrupt the name their importer stores.
+
+One roster, one run, both proved. The bundle is also checked against HEMA
+Ratings' own contract: **no header row** (their reference exporter, HEMA
+Scorecard, drops straight into the row loop), fighter names byte-identical
+between `fighters.csv` and the tournament file, club names likewise between
+`clubs.csv` and the fighters' club column, round labels in their vocabulary
+(`Final`, `Bronze Final`, `Winners Semi Final`, …), and the tournament name
+preserved verbatim in the filename — spaces, case and all — because that is
+where they read it from.
+
+Finally it flips the event to `event_kind: 'test'` and asserts both HEMA
+endpoints 400, then restores it in a `finally`: only standard events may reach a
+global rating pool.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -219,6 +261,7 @@ club standings needs club affiliations: seeds 1–3 in one club, 4–5 in anothe
 | 9   | Double-elimination playthrough      | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
 | 10  | Scoring-pad server contract         | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
 | 11  | League season                       | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
+| 12  | Exports + HEMA Ratings bundle       | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
