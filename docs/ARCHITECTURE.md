@@ -2123,6 +2123,179 @@ Each Next.js app wraps its root layout with `<I18nProvider>` (no explicit `local
 
 ## 17. Deployment (Docker Compose + Traefik)
 
+### Topology at a glance
+
+Three views of the production stack. They are generated from
+[`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml), which stays authoritative — the
+tables in §17.1 below carry the image tags and roles, so these diagrams deliberately do not repeat them.
+
+#### Edge and request routing
+
+Six public hostnames fan out into 17 routers. What a flat table cannot show is **priority**: on
+`app.${DOMAIN}` a request is tested against `/api/v1` (30) before `/realtime/v1/api` (25) before the
+`/realtime/v1`, `/auth/v1`, `/rest/v1` and `/storage/v1` prefixes (20), and only falls through to
+web-public (1) if nothing else matched.
+
+```mermaid
+flowchart LR
+  NET([Internet])
+
+  NET -->|":80 → 301 https"| TR
+  NET -->|":443"| TR
+
+  TR["<b>traefik</b><br/>TLS · Let's Encrypt<br/>GeoBlock → Fail2Ban →<br/>security-headers → compress"]
+
+  TR --> H_MK{{"${DOMAIN}<br/>www.${DOMAIN}"}}
+  TR --> H_APP{{"app.${DOMAIN}"}}
+  TR --> H_ADM{{"admin.${DOMAIN}"}}
+  TR --> H_SCO{{"scoring.${DOMAIN}"}}
+  TR --> H_API{{"api.${DOMAIN}"}}
+  TR --> H_DASH{{"traefik.${DOMAIN}"}}
+
+  H_MK -->|"all · www → apex"| MKT
+  H_APP -->|"/api/v1 · 30"| API
+  H_APP -->|"/realtime/v1/api · 25"| RT
+  H_APP -->|"/realtime/v1 · 20"| RT
+  H_APP -->|"/auth/v1 · 20 🔒"| AUTH
+  H_APP -->|"/rest/v1 · 20"| REST
+  H_APP -->|"/storage/v1 · 20"| STOR
+  H_APP -->|"catch-all · 1"| PUB
+  H_ADM -->|"/api/v1 · 30"| API
+  H_ADM -->|"/scoring · 30"| SCO
+  H_ADM -->|"/storage/v1 · 20"| STOR
+  H_ADM -->|"catch-all · 1"| ADM
+  H_SCO -->|"/api/v1 · 30 🔒"| API
+  H_SCO -->|"/scoring · 30"| SCO
+  H_SCO -->|"catch-all"| SCO
+  H_API -->|"all"| API
+  H_DASH -->|"basic-auth"| DASH["api@internal<br/>dashboard"]
+
+  MKT["web-marketing :80"]
+  PUB["web-public :3000"]
+  ADM["web-admin :3000"]
+  SCO["web-scoring :3000"]
+  API["api :4000"]
+  AUTH["supabase-auth :9999"]
+  REST["supabase-rest :3000"]
+  RT["supabase-realtime :4000"]
+  STOR["supabase-storage :5000"]
+```
+
+🔒 marks the two paths guarded by Fail2Ban. They are guarded precisely because the application-level
+throttler cannot reach them: `/auth/v1` proxies straight to GoTrue without passing through NestJS, and
+staff PIN login carries no `@Throttle` override (see §14.3). Port 80 exists only to redirect to 443, and
+**Traefik is the only container that publishes ports**.
+
+#### Internal service dependencies
+
+Everything below sits on the single `myclash` bridge network and is unreachable from outside except
+through Traefik.
+
+```mermaid
+flowchart TD
+  subgraph EDGE["edge"]
+    TR["traefik"]
+  end
+
+  subgraph APP["application"]
+    PUB["web-public"]
+    ADM["web-admin"]
+    SCO["web-scoring"]
+    MKT["web-marketing"]
+    API["api :4000"]
+    WRK["worker<br/>(api image, --worker)"]
+    OPS["ops-runner :4075"]
+  end
+
+  subgraph DATA["data + Supabase"]
+    DB[("db :5432<br/>Postgres 17")]
+    RDS[("redis :6379")]
+    AUTH["supabase-auth :9999"]
+    REST["supabase-rest :3000"]
+    RT["supabase-realtime :4000"]
+    STOR["supabase-storage :5000"]
+  end
+
+  TR --> PUB & ADM & SCO & MKT & API & AUTH & REST & RT & STOR
+
+  PUB -.->|"SSR only"| API
+  ADM -.->|"SSR only"| API
+  SCO -.->|"SSR only"| API
+
+  API --> DB
+  API --> RDS
+  API -->|"internal auth"| AUTH
+  API -->|"bearer"| OPS
+  WRK --> DB
+  WRK --> RDS
+  WRK --> AUTH
+
+  AUTH --> DB
+  REST --> DB
+  RT --> DB
+  STOR --> DB
+  STOR -->|":3000"| REST
+
+  OPS -->|"/var/run/docker.sock"| HOST(["Docker daemon"])
+```
+
+The dotted edges are **server-side rendering only** — via `API_URL_INTERNAL=http://api:4000`. Browser
+traffic from those same apps goes back out and in through Traefik instead. That distinction matters
+operationally: SSR calls arrive without an `X-Forwarded-For`, so they all share one rate-limit bucket
+keyed on the calling container's address (§14.3).
+
+`ops-runner` mounts the Docker socket and deliberately carries **no Traefik router** — it is reachable
+only from inside the network, which is why the socket lives there rather than in the API container
+(§17.4). `check-infra-review.mjs` fails the build if a router label ever appears on it.
+
+#### External dependencies and persistence
+
+```mermaid
+flowchart LR
+  subgraph BOOT["needed at container start"]
+    LE(["Let's Encrypt<br/>ACME TLS-ALPN"])
+    GH(["GitHub<br/>plugin source"])
+  end
+
+  subgraph RUNTIME["needed at runtime"]
+    GEO(["get.geojs.io<br/>country lookup"])
+    RSD(["Resend<br/>email"])
+    SEN(["Sentry"])
+    PUSH(["Web Push / VAPID"])
+    HEMA(["HEMA Ratings"])
+    S3(["Scaleway S3<br/>off-site backups"])
+  end
+
+  TR["traefik"] --> LE
+  TR --> GH
+  TR --> GEO
+  API["api"] --> RSD & SEN & PUSH & HEMA
+  WRK["worker"] --> RSD & SEN & PUSH & HEMA
+  OPS["ops-runner"] --> S3
+
+  DB[("db")] --- V1[["myclash-postgres-data"]]
+  RDS[("redis")] --- V2[["myclash-redis-data"]]
+  STOR["supabase-storage"] --- V3[["myclash-storage-data"]]
+  TR --- V4[["./data/traefik<br/>acme.json + plugin cache"]]
+```
+
+The split matters for deploys. A failure in the **boot** group stops a deploy: Traefik fetches both plugin
+modules from GitHub at startup (cached afterwards in `./data/traefik/plugins`) and needs Let's Encrypt for
+certificates. A failure in the **runtime** group degrades a feature but leaves the site serving — with one
+exception worth knowing: GeoBlock calls `get.geojs.io` for every uncached client IP, which is why the
+public instance is configured to fail _open_ (see INFRASTRUCTURE_REVIEW.md § "Edge plugins").
+
+#### How local dev differs
+
+The dev stack (`infra/docker-compose.dev.yml`) mirrors the topology above — same services, same Traefik
+routing, same plugins. The deltas:
+
+- Self-signed certificates for `*.myclash.localhost` instead of Let's Encrypt.
+- web-marketing is served at `marketing.myclash.localhost`, since the apex is taken by web-public.
+- `db` and `redis` publish their ports for local tooling; the dashboard is exposed on `:8080`.
+- Plugin middlewares are attached literally, with no `TRAEFIK_PLUGINS` kill-switch — dev is where a
+  broken plugin config should surface.
+
 ### 17.1 Service inventory
 
 The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share a single internal `myclash` network; only Traefik publishes ports 80/443.
@@ -2158,7 +2331,7 @@ Traefik routes by Host header. Key mappings:
 ### 17.2 Environments
 
 - `.env.example` committed; `.env` gitignored.
-- Local dev: `docker compose --env-file .env -f infra/docker-compose.dev.yml up -d --build` (Traefik with self-signed certs at `*.myclash.localhost`, includes Kong as the Supabase gateway). Or run a partial stack (data services only) and `pnpm dev` for the apps — see the project [README](../README.md#quick-start-developers).
+- Local dev: `docker compose --env-file .env -f infra/docker-compose.dev.yml up -d --build` (Traefik with self-signed certs at `*.myclash.localhost`; Supabase is routed through Traefik exactly as in production — the Kong gateway was removed). Or run a partial stack (data services only) and `pnpm dev` for the apps — see the project [README](../README.md#quick-start-developers).
 - Production: `docker compose --env-file .env -f infra/docker-compose.prod.yml`, wrapped by `infra/scripts/deploy.sh`, `start.sh`, `stop.sh`, `rollback.sh`.
 
 ### 17.3 Backups

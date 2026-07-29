@@ -44,11 +44,11 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 pnpm install
 cp .env.example .env       # edit values — at minimum set POSTGRES_PASSWORD and SUPABASE_JWT_SECRET
 
-# Start the data services (Postgres, Redis, Supabase Auth/REST/Realtime/Storage + Kong gateway).
-# Kong is the API gateway for the Supabase surface in local dev only; production fronts those
-# services with Traefik directly (see "Production stack" below).
+# Start the data services (Postgres, Redis, Supabase Auth/REST/Realtime/Storage) behind Traefik.
+# Traefik fronts the Supabase surface in dev exactly as it does in production — it owns the
+# /auth/v1, /rest/v1, /storage/v1 and /realtime/v1 rewrites (see "Production stack" below).
 docker compose --env-file .env -f infra/docker-compose.dev.yml up -d \
-  db redis supabase-auth supabase-rest supabase-realtime supabase-storage kong
+  traefik db redis supabase-auth supabase-rest supabase-realtime supabase-storage
 
 pnpm dev
 ```
