@@ -51,7 +51,8 @@
     "seed": "tsx scripts/seed.ts",
     "seed:min": "tsx scripts/seed-min.ts",
     "gen:api-client": "tsx scripts/gen-api-client.ts",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "docs:mermaid": "node scripts/check-mermaid.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged",
@@ -87,7 +88,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "fast-uri": "^3.1.2",
     "glob": "^10.5.0",
+    "jsdom": "^25.0.1",
     "lint-staged": "^16.4.0",
+    "mermaid": "^11.16.0",
     "picomatch": "^4.0.4",
     "postgres": "^3.4.5",
     "prettier": "^3.3.0",

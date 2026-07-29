@@ -243,6 +243,13 @@ jobs:
         if: '!cancelled()'
         run: pnpm test:scripts
 
+      # A Mermaid block with a syntax error renders as a plain grey code block
+      # on GitHub instead of failing — nothing else in the pipeline parses fence
+      # contents, so a broken diagram would survive review indefinitely.
+      - name: Check docs diagrams parse
+        if: '!cancelled()'
+        run: pnpm docs:mermaid
+
       - name: Check formatting
         if: '!cancelled()'
         run: pnpm format:check
