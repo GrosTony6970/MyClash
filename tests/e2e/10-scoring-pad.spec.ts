@@ -45,9 +45,17 @@ interface MatchRow {
   end_reason: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
+  /** Best-of state. `red_score`/`blue_score` track the OPEN round, not the series. */
   current_round?: number | null;
   rounds_json?: unknown;
+  red_round_wins?: number | null;
+  blue_round_wins?: number | null;
+  awaiting_round_advance?: boolean | null;
 }
+
+/** Closed rounds from the `rounds_json` cache, tolerating null/non-array. */
+const closedRounds = (match: MatchRow): unknown[] =>
+  Array.isArray(match.rounds_json) ? match.rounds_json : [];
 
 test.describe('scoring pad', () => {
   test.skip(!SCORING_PAD, 'set E2E_SCORING_PAD=1 to drive the scoring pad for real');
@@ -225,6 +233,116 @@ test.describe('scoring pad', () => {
     expect(match.blue_score).toBe(2);
   });
 
+  /**
+   * Best-of-3: the shape used for finals, and the one with real state to get
+   * wrong. A round that hits the cap does NOT end the match — it is appended to
+   * the `rounds_json` closed-round cache, the win tally moves, and the match
+   * parks on `awaiting_round_advance` until an operator opens the next round.
+   *
+   * `red_score`/`blue_score` track the OPEN round, not the series; the series is
+   * carried by `red_round_wins`/`blue_round_wins`. Conflating the two would show
+   * a scoreboard that reads 5-0 for a fighter who is actually 1-1 down.
+   */
+  test('best-of-3 closes rounds, parks for advance, and ends on the win target', async ({
+    request,
+  }) => {
+    test.setTimeout(300_000);
+    const api = apiFor(request);
+    // All three phase values, because getEffectiveBestOf picks `finals` for a
+    // medal match and a 2-fighter bracket's round 1 IS the final.
+    const { matchId, redRegistrationId } = await aMatch(api, 'bo3', {
+      bestOf: { pool: 3, bracket: 3, finals: 3 },
+    });
+
+    // ── Round 1: red takes the cap ────────────────────────────────────────
+    for (let i = 0; i < POINT_CAP; i++) {
+      await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+    }
+
+    let match = await readMatch(api, matchId);
+    expect(match.status, 'one round won must NOT complete a best-of-3').not.toBe('completed');
+    expect(match.red_round_wins).toBe(1);
+    expect(match.blue_round_wins).toBe(0);
+    expect(match.awaiting_round_advance).toBe(true);
+    expect(closedRounds(match), 'round 1 must be cached in rounds_json').toHaveLength(1);
+
+    // Scoring is refused until the next round is opened — otherwise a stray hit
+    // from the pad would land in a round that has already been decided.
+    const stray = await api.post(`matches/${matchId}/exchanges`, {
+      data: {
+        clientUuid: randomUUID(),
+        sequence: ++sequence,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 1,
+        occurredAt: new Date().toISOString(),
+      },
+    });
+    expect(stray.status(), 'scoring while awaiting advance must be refused').toBe(400);
+
+    // ── Round 2 ───────────────────────────────────────────────────────────
+    const advanced = await api.json<{ currentRound: number }>(
+      await api.post(`matches/${matchId}/rounds/advance`, { data: {} }),
+    );
+    expect(advanced.currentRound).toBe(2);
+
+    match = await readMatch(api, matchId);
+    expect(match.awaiting_round_advance).toBe(false);
+    // The open round starts fresh: the previous round's 5-0 must not carry.
+    expect({ red: match.red_score, blue: match.blue_score }).toEqual({ red: 0, blue: 0 });
+
+    for (let i = 0; i < POINT_CAP; i++) {
+      await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+    }
+
+    // Two round wins is the target for best-of-3 (ceil(3/2)), so the series ends.
+    match = await readMatch(api, matchId);
+    expect(match.red_round_wins).toBe(2);
+    expect(match.status).toBe('completed');
+    expect(match.winner_registration_id).toBe(redRegistrationId);
+    expect(closedRounds(match)).toHaveLength(2);
+  });
+
+  /**
+   * The other way a round ends: time runs out and the leader takes it. Guarded
+   * so it cannot be used to fake a result — refused on a single-round match,
+   * and refused twice on the same round.
+   */
+  test('ending a round on time awards it to the leader', async ({ request }) => {
+    test.setTimeout(300_000);
+    const api = apiFor(request);
+    const { matchId, blueRegistrationId } = await aMatch(api, 'bo3-time', {
+      bestOf: { pool: 3, bracket: 3, finals: 3 },
+    });
+
+    // Blue leads 2-1 with nobody near the cap.
+    await hit(api, matchId, { type: 'clean', firstStrikerColor: 'blue', firstStrikeValue: 2 });
+    await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+
+    await api.ok(await api.post(`matches/${matchId}/rounds/end`, { data: {} }));
+
+    const match = await readMatch(api, matchId);
+    expect(match.blue_round_wins, 'the leader takes the round').toBe(1);
+    expect(match.red_round_wins).toBe(0);
+    expect(match.awaiting_round_advance).toBe(true);
+    expect(closedRounds(match)).toHaveLength(1);
+    expect(match.status).not.toBe('completed');
+    expect(blueRegistrationId).toBeTruthy();
+
+    // Closing the same round twice would invent a round win out of nothing.
+    const again = await api.post(`matches/${matchId}/rounds/end`, { data: {} });
+    expect(again.status(), 'ending an already-ended round must be refused').toBe(400);
+  });
+
+  test('ending a round is refused on a single-round match', async ({ request }) => {
+    test.setTimeout(300_000);
+    const api = apiFor(request);
+    const { matchId } = await aMatch(api, 'bo1');
+
+    const res = await api.post(`matches/${matchId}/rounds/end`, { data: {} });
+    expect(res.status(), 'rounds/end has no meaning without best-of').toBe(400);
+  });
+
   test('a manual referee card is recorded against the right fighter', async ({ request }) => {
     test.setTimeout(300_000);
     const api = apiFor(request);
@@ -265,7 +383,10 @@ test.describe('scoring pad', () => {
 async function aMatch(
   api: Api,
   key: string,
-  opts: { afterblowMode?: 'full' | 'deductive' } = {},
+  opts: {
+    afterblowMode?: 'full' | 'deductive';
+    bestOf?: { pool: number; bracket: number; finals: number };
+  } = {},
 ): Promise<{
   tournamentId: string;
   matchId: string;
@@ -287,7 +408,9 @@ async function aMatch(
   await api.ok(
     await api.patch(`tournaments/${tournament.id}`, {
       data: {
-        rulesetConfig: { matchFormat: { pointCap: POINT_CAP } },
+        rulesetConfig: {
+          matchFormat: { pointCap: POINT_CAP, ...(opts.bestOf ? { bestOf: opts.bestOf } : {}) },
+        },
         ...(opts.afterblowMode ? { scoringConfig: { afterblowMode: opts.afterblowMode } } : {}),
       },
     }),
