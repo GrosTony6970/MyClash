@@ -434,6 +434,80 @@ services:
       - traefik.http.routers.dev-admin.middlewares=myclash-geoblock-admin@file,myclash-compress@docker
       - traefik.http.services.dev-admin.loadbalancer.server.port=3000
 
+  # ── Worker (BullMQ jobs) ──────────────────────────────────────────
+  # Same image as the api, started with --worker, exactly as prod does.
+  # Without it, dev never runs the scheduled/queued work (stats rollups,
+  # exports, notifications, ratings sync, runtime-health monitor).
+  worker:
+    build:
+      context: ../
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    container_name: myclash-dev-worker
+    restart: unless-stopped
+    command: ['node', 'dist/main.js', '--worker']
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      REDIS_URL: redis://redis:6379
+      SUPABASE_URL: https://api.myclash.localhost
+      SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
+      MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET:-dev-guest-secret-change-me}
+      MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
+      COOKIE_SECRET: ${COOKIE_SECRET:-dev-cookie-secret-change-me}
+      AI_KEY_SECRET: ${AI_KEY_SECRET:-dev-ai-key-secret-change-me}
+      DOMAIN: myclash.localhost
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [myclash-dev]
+
+  # ── Internal ops runner (backup/restore allowlist) ────────────────
+  # Mounts the Docker socket, same as prod. Internal-only: no Traefik
+  # router labels, and check-infra-review fails the build if any appear.
+  ops-runner:
+    build:
+      context: ../
+      dockerfile: infra/ops-runner/Dockerfile
+    container_name: myclash-dev-ops-runner
+    restart: unless-stopped
+    working_dir: /srv/myclash
+    environment:
+      NODE_ENV: development
+      OPS_RUNNER_PORT: 4075
+      OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET:-dev-ops-runner-secret}
+      MYCLASH_ROOT_DIR: /srv/myclash
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - ../:/srv/myclash
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [myclash-dev]
+
+  # ── web-marketing (static landing site) ───────────────────────────
+  web-marketing:
+    build:
+      context: ../apps/web-marketing
+      dockerfile: Dockerfile
+    container_name: myclash-dev-web-marketing
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      # Prod serves this at the apex; dev uses a dedicated subdomain because
+      # myclash.localhost is already taken by web-public.
+      - traefik.http.routers.dev-marketing.rule=Host(`marketing.myclash.localhost`)
+      - traefik.http.routers.dev-marketing.entrypoints=websecure
+      - traefik.http.routers.dev-marketing.tls=true
+      - traefik.http.routers.dev-marketing.middlewares=myclash-geoblock-public@file,myclash-compress@docker
+      - traefik.http.services.dev-marketing.loadbalancer.server.port=80
+
 networks:
   myclash-dev:
     name: myclash-dev
