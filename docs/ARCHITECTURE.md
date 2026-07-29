@@ -256,48 +256,47 @@ Three distinct mechanisms, each addressing a different concern:
 
 ### 5.1 Core entities (ER overview)
 
+The competition chain runs **organization → event → tournament → phase → match → exchange**. An `event`
+is the real-world gathering ("Dijon Open 2026"); a `tournament` is one weapon × category bracket inside
+it ("Longsword Open"). Relationships below are the actual foreign keys — see
+`packages/db/migrations/0001_init.sql`.
+
+```mermaid
+erDiagram
+  organizations ||--o{ events : hosts
+  organizations ||--o{ organization_members : "admins"
+  events ||--o{ tournaments : contains
+  events ||--o{ persons : "event-scoped roster"
+  events ||--o{ lices : "pistes"
+  tournaments ||--o{ phases : "pool / elimination"
+  tournaments ||--o{ registrations : "entry list"
+  phases ||--o{ pools : "pool phase"
+  phases ||--o{ bracket_slots : "elimination phase"
+  phases ||--o{ matches : schedules
+  pools ||--o{ pool_members : seats
+  pools |o--o{ matches : "pool bouts"
+  matches ||--o{ exchanges : "atomic scoring unit"
+  matches ||--o{ match_events : "timeline"
+  matches }o--|| lices : "assigned piste"
+  registrations }o--|| persons : "who is entered"
+  registrations }o--o| global_persons : "cross-event identity"
+  pool_members }o--|| registrations : "seats"
+  persons }o--o| global_persons : "deduped at import"
+  persons }o--o| clubs : "affiliation"
+  tournaments }o--o| custom_rulesets : "pinned by (code, version)"
 ```
-Organization (organizer team)
-   │
-   └── Tournament
-         │
-         ├── Theme (colors, logo, custom pages)
-         ├── Lice (piste; multiple per event)
-         ├── Workshop ──┬── WorkshopInstructor
-         │              ├── WorkshopSession (concrete time/place instance)
-         │              │     └── WorkshopEnrollment (User → Session)
-         │              └── (recurs across Sessions)
-         ├── RefereeAssignment (User → Lice/Match window)
-         ├── Event (weapon × category; e.g. "Longsword Open")
-         │     │
-         │     ├── Registration (Fighter → Event)
-         │     ├── Phase (Pool phase, Elimination phase, …)
-         │     │     │
-         │     │     ├── Pool / BracketSlot
-         │     │     └── Match
-         │     │           │
-         │     │           ├── MatchEvent (timeline: start, halt, resume, end)
-         │     │           └── Exchange (the atomic scoring unit)
-         │     └── Ruleset (FK)
-         └── OrganizationMember (admins of this org)
 
-Fighter (global)
-   ├── Club
-   ├── HemaRatingsLink
-   └── Photo
+Three relationships are easy to get wrong, so they are worth stating explicitly:
 
-User (auth)
-   ├── PlatformRole (super_admin | organizer | scorekeeper | referee | competitor | public)
-   ├── OrganizationMembership (per-organization role)
-   ├── PushSubscription (1..N)
-   └── NotificationPreferences
-
-Ruleset
-   ├── code (e.g. "TF_v1")
-   ├── version
-   ├── config (JSON: thresholds, point values, formula refs)
-   └── computeFn (server code reference, see §7)
-```
+- **`persons` vs `global_persons`.** `persons` is the organizer-created roster row, scoped to **one
+  event**. `global_persons` is the cross-event identity a person is deduplicated onto at import. The FK
+  is `persons.global_fighter_id` — the column kept its old name when the table was renamed from
+  `fighters` in migration `0023`, so the name is a false friend.
+- **A match hangs off a phase, not off a pool.** `matches.phase_id` is `NOT NULL` while `pool_id` and
+  `bracket_slot_id` are both nullable — a pool bout carries `pool_id`, an elimination bout carries
+  `bracket_slot_id`. Note `phase_id` has no FK constraint, only the `NOT NULL`.
+- **The ruleset is a pin, not a join.** `tournaments` stores `ruleset_code` + `ruleset_version` as a
+  _pointer_ resolved at read time, not a foreign key. That choice has real consequences — see §7bis.
 
 ### 5.2 Key tables (sketch — full DDL in `packages/db/src/schema/`)
 
