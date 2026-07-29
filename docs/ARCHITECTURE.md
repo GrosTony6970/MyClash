@@ -945,6 +945,29 @@ This dual-runtime design is critical for the offline scoring tablet.
 - **Read-side**: clients subscribe via Supabase Realtime. Postgres `LISTEN/NOTIFY` on row changes (`exchanges`, `matches`, `match_events`) is bridged to clients with sub-second latency. RLS policies filter what each user sees.
 - **Write-side**: clients write through NestJS, which writes to Postgres in a transaction. The realtime broadcast is a side-effect of the row change, not a separate publish step. This makes "what's broadcast" and "what's persisted" trivially consistent.
 
+```mermaid
+sequenceDiagram
+  autonumber
+  participant W as Scoring pad (writer)
+  participant A as NestJS API
+  participant DB as Postgres
+  participant RT as supabase-realtime
+  participant S as Spectator / admin (reader)
+
+  S->>RT: subscribe match:{id}:exchanges
+  Note over S,RT: wss://app.${DOMAIN}/realtime/v1/websocket<br/>Traefik rewrites → /socket/websocket
+  W->>A: POST exchange
+  A->>DB: INSERT inside a transaction
+  DB-->>A: committed
+  A-->>W: 201
+  DB->>RT: row change (replication / NOTIFY)
+  RT->>S: broadcast, filtered by RLS
+```
+
+There is **no publish call anywhere in the API** — step 6 happens because the row changed. That is the
+property worth protecting: a code path cannot broadcast something it failed to persist, or persist
+something it forgot to broadcast. It also means a write that rolls back is never seen by subscribers.
+
 ### 9.3 Backpressure
 
 Per-channel rate limit on the Realtime side (Supabase config). Clients debounce UI updates to ≤30 fps.
@@ -959,22 +982,64 @@ HEMA events happen in sports halls, basements, and convention centers with hosti
 
 ### 10.2 Architecture
 
+Implemented in [`apps/web-scoring/src/offline/`](../apps/web-scoring/src/offline/) — `db.ts` (Dexie
+schema: `outbox` + `synced`), `outbox.ts`, `sync.ts` (`SyncEngine`), `reconcile.ts`.
+
+The write is **durable-first**: the exchange lands in the IndexedDB outbox before any network call, so
+closing the tab or losing wifi mid-bout cannot lose it.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant P as Scoring pad
+  participant O as IndexedDB outbox
+  participant E as SyncEngine
+  participant A as NestJS API
+
+  P->>O: enqueue(exchange) — durable write first
+  P->>P: optimistic local apply (UI updates immediately)
+  E->>O: getAllPending() — insertion order
+  loop each pending entry
+    E->>A: POST /matches/{id}/exchanges { clientUuid, sequence, … }
+    alt 2xx
+      A-->>E: created
+      E->>O: markSynced() → moves to `synced` table
+    else 409 conflict
+      A-->>E: already exists (idempotent on clientUuid)
+      E->>O: markSynced() — treated as success
+    else 400 terminal
+      A-->>E: rejected (stale sequence, round awaiting advance, …)
+      E->>O: dropTerminal() — retrying can never succeed
+    else 5xx / network
+      A-->>E: failure
+      E->>O: markFailed() — stays queued, retried later
+    end
+  end
 ```
-Scorekeeper enters exchange
-       │
-       ▼
-[Optimistic local apply] ──────► IndexedDB (Dexie)
-       │                              │
-       │                              ▼
-       │                    [Outbox: pending_exchanges]
-       │                              │
-       │                              ▼
-       │                    [Sync worker]──HTTP──► NestJS
-       │                              │
-       ▼                              ▼
-  Local state ◄─── reconcile ◄── server-confirmed exchange
-                                   (idempotent, by client_uuid)
+
+The `clientUuid` is what makes the retry safe: the server keys idempotency on it, so a duplicate POST
+after a flaky response is a no-op rather than a double-scored exchange.
+
+**Sync status**, surfaced prominently on the pad (`SyncStatus` in `sync.ts`):
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> syncing: outbox has entries
+  syncing --> idle: queue fully drained
+  syncing --> offline: consecutive NETWORK failures hit the cap
+  syncing --> error: consecutive SERVER failures hit the cap
+  syncing --> error: drain finished with entries still pending
+  offline --> syncing: connectivity returns
+  error --> syncing: retry
 ```
+
+The split between `offline` and `error` is deliberate: a network failure means "keep waiting, this will
+resolve", whereas a server failure means "something needs a human". Both leave the exchanges queued.
+
+> One behaviour worth knowing at the pad: a **400 is terminal** — the entry is dropped from the outbox
+> with a console warning rather than retried, because retrying a stale sequence or a round awaiting
+> advance can never succeed and would block the whole queue behind it.
 
 ### 10.3 Conflict resolution
 
@@ -987,7 +1052,7 @@ Scorekeeper enters exchange
 
 - Service Worker pre-caches the scoring app shell + the ruleset bundle.
 - Manifest installs as standalone tablet app.
-- The app must explicitly indicate **online / syncing / offline / sync-error** status, prominently. The scorekeeper must always know.
+- The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The implemented states are `idle | syncing | offline | error` (see the state machine in §10.2).
 
 ---
 
