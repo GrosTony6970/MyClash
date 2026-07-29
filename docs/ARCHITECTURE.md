@@ -1465,6 +1465,87 @@ MyClash uses a **two-tier identity model**: organizer-created Persons (the canon
 
 **Claimed account** — created when the participant clicks a magic link sent to the email the organizer registered. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Persists across events and devices.
 
+The progression is opt-in at every step, and most participants stop at Guest:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Anonymous: opens a public event page
+  Anonymous --> Guest: finds own name in the roster<br/>(signed httpOnly cookie + guest_sessions row)
+  Guest --> Claimed: clicks the magic link sent<br/>to the organiser-registered email
+  Anonymous --> Claimed: logs in directly on a new device
+  Claimed --> Claimed: any device, any event
+
+  note right of Anonymous
+    Read-only: schedule,
+    brackets, results
+  end note
+  note right of Guest
+    "My next match", workshop
+    enrolment, referee confirm.
+    One device — no sync.
+  end note
+  note right of Claimed
+    Crosses devices, edits own
+    profile, can hold org roles
+  end note
+```
+
+The line between Guest and Claimed is drawn at **anything that crosses devices or grants editing
+rights** — see the capability matrix in §12.2.
+
+**Runtime identity resolution.** Those three product-level tiers map onto four identity kinds the global
+`AuthGuard` resolves on every request ([`auth.guard.ts`](../apps/api/src/common/auth/auth.guard.ts)). A
+fourth kind, `staff`, has no place in the progression above: it is an event-scoped scorekeeper/referee
+login issued from a PIN, not a participant identity.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant G as AuthGuard (global)
+  participant S as SupabaseService
+  participant H as Route handler
+
+  C->>G: request
+  Note over G: identity is resolved ALWAYS,<br/>before the @Public() check
+  G->>S: Bearer token? verify JWT locally
+  alt valid access token
+    S-->>G: claimed { userId, email }
+  else guest cookie verifies
+    G-->>G: guest { guestSessionId, personId, eventId }
+  else staff cookie verifies
+    G-->>G: staff { staffId, eventId }
+  else nothing verifies
+    G-->>G: anonymous
+  end
+  G->>G: attach identity to request
+
+  alt identity is not anonymous
+    G->>H: allow
+  else route is @Public()
+    G->>H: allow
+  else AUTH_GUARD_MODE=enforce
+    G-->>C: 401 Authentication required
+  else shadow (default)
+    G->>G: log "would-401"
+    G->>H: allow
+  end
+```
+
+Three details that matter:
+
+- **Precedence is claimed → guest → staff.** The first mechanism that verifies wins; an expired or
+  forged cookie falls through to the next rather than failing the request.
+- **Identity is resolved before `@Public()`, never after.** `@Public()` gates only the _throw_, which
+  keeps `identity` a total function on every request. Short-circuiting earlier would leave it undefined
+  on the highest-traffic routes and let a later `identity ?? anonymous` quietly reinstate fail-open.
+- **The guard verifies the access token locally**, without a GoTrue round-trip. The round-trip (with
+  local-JWT fallback on GoTrue outage) lives in `SupabaseService.getAuthUser`, used where freshness
+  matters — see §12.5.
+
+`AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
+rejecting, so the enforcement flip can be made once the would-401 log is clean.
+
 ### 12.2 Capability matrix
 
 | Capability                                  | Anonymous | Guest             | Claimed              |
