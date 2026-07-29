@@ -1,5 +1,9 @@
-import type { APIRequestContext, APIResponse } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { sleep, type Api } from './_api';
+
+// The API client moved to `_api.ts` once specs beyond this one needed it.
+// Re-exported so existing call sites keep importing it from here.
+export { apiFor, type Api } from './_api';
 
 /**
  * Points needed to win a match. Set on every tournament this module creates, so
@@ -37,50 +41,6 @@ export const POINT_CAP = 5;
  * not want. Also deliberately free of workspace-package imports, matching the
  * convention that file documents — the e2e runner resolves them poorly.
  */
-
-type RequestOptions = Parameters<APIRequestContext['post']>[1];
-
-/** Pace writes under the API's per-IP throttle from a non-whitelisted network. */
-const PACE_MS = Number(process.env.E2E_PACE_MS ?? '0') || 0;
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export interface Api {
-  get: (path: string) => Promise<APIResponse>;
-  post: (path: string, options?: RequestOptions) => Promise<APIResponse>;
-  patch: (path: string, options?: RequestOptions) => Promise<APIResponse>;
-  /** Throws with status + body when the response isn't 2xx. */
-  ok: (res: APIResponse) => Promise<APIResponse>;
-  /** `ok()` then parse the body. */
-  json: <T>(res: APIResponse) => Promise<T>;
-}
-
-/** Wrap a Playwright request context with the `/api/v1` prefix + pacing. */
-export function apiFor(request: APIRequestContext): Api {
-  let lastAt = 0;
-  const paced = async <T>(fn: () => Promise<T>): Promise<T> => {
-    const wait = lastAt + PACE_MS - Date.now();
-    if (wait > 0) await sleep(wait);
-    lastAt = Date.now();
-    return fn();
-  };
-  const url = (path: string) => `/api/v1/${path}`;
-
-  const ok = async (res: APIResponse): Promise<APIResponse> => {
-    if (!res.ok()) {
-      throw new Error(`${res.url()} → ${res.status()}: ${(await res.text()).slice(0, 300)}`);
-    }
-    return res;
-  };
-
-  return {
-    get: (path) => paced(() => request.get(url(path))),
-    post: (path, options) => paced(() => request.post(url(path), options)),
-    patch: (path, options) => paced(() => request.patch(url(path), options)),
-    ok,
-    json: async <T>(res: APIResponse): Promise<T> => (await (await ok(res)).json()) as T,
-  };
-}
 
 // ── People ───────────────────────────────────────────────────────────────────
 
