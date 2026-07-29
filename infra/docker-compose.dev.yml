@@ -123,59 +123,14 @@ services:
       retries: 5
     networks: [myclash-dev]
 
-  # ── Supabase Kong (API gateway) ──────────────────────────────────
-  # Routes /auth/v1/*, /rest/v1/*, /realtime/v1/*, /storage/v1/* to the
-  # appropriate Supabase services. Exposed on port 8000 for direct local
-  # access and via Traefik at https://api.myclash.localhost/auth/v1/ etc.
-  kong:
-    image: kong:2.8.1
-    container_name: myclash-dev-kong
-    restart: unless-stopped
-    environment:
-      KONG_DATABASE: 'off'
-      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
-      KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl
-      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
-      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-    ports:
-      - '8000:8000' # Kong HTTP (dev direct access)
-    volumes:
-      - ./supabase/kong.yml:/var/lib/kong/kong.yml:ro
-    depends_on:
-      db: { condition: service_healthy }
-    networks: [myclash-dev]
-    labels:
-      - traefik.enable=true
-      # Route Supabase sub-paths through Kong via Traefik
-      - traefik.http.routers.dev-kong-auth.rule=Host(`api.myclash.localhost`) && PathPrefix(`/auth/v1`)
-      - traefik.http.routers.dev-kong-auth.entrypoints=websecure
-      - traefik.http.routers.dev-kong-auth.tls=true
-      - traefik.http.routers.dev-kong-auth.priority=20
-      - traefik.http.routers.dev-kong-auth.service=dev-kong
-      # Dev equivalent of prod's myclash-auth: reaches GoTrue without passing
-      # through Nest, so fail2ban is the only rate control on this path.
-      - traefik.http.routers.dev-kong-auth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-auth@docker
-      - traefik.http.routers.dev-kong-rest.rule=Host(`api.myclash.localhost`) && PathPrefix(`/rest/v1`)
-      - traefik.http.routers.dev-kong-rest.entrypoints=websecure
-      - traefik.http.routers.dev-kong-rest.tls=true
-      - traefik.http.routers.dev-kong-rest.priority=20
-      - traefik.http.routers.dev-kong-rest.service=dev-kong
-      - traefik.http.routers.dev-kong-realtime.rule=Host(`api.myclash.localhost`) && PathPrefix(`/realtime/v1`)
-      - traefik.http.routers.dev-kong-realtime.entrypoints=websecure
-      - traefik.http.routers.dev-kong-realtime.tls=true
-      - traefik.http.routers.dev-kong-realtime.priority=20
-      - traefik.http.routers.dev-kong-realtime.service=dev-kong
-      - traefik.http.routers.dev-kong-storage.rule=Host(`api.myclash.localhost`) && PathPrefix(`/storage/v1`)
-      - traefik.http.routers.dev-kong-storage.entrypoints=websecure
-      - traefik.http.routers.dev-kong-storage.tls=true
-      - traefik.http.routers.dev-kong-storage.priority=20
-      - traefik.http.routers.dev-kong-storage.service=dev-kong
-      - traefik.http.services.dev-kong.loadbalancer.server.port=8000
+  # Kong was removed here: prod routes the Supabase sub-paths straight through
+  # Traefik with stripprefix/replacepathregex middlewares, so dev now does the
+  # same and exercises the real edge path. The routers below replace it
+  # one-for-one on the same host (api.myclash.localhost).
 
   # ── Supabase Auth (GoTrue) ────────────────────────────────────────
   supabase-auth:
-    image: supabase/gotrue:v2.158.1
+    image: supabase/gotrue:v2.189.0
     container_name: myclash-dev-supabase-auth
     restart: unless-stopped
     environment:
@@ -201,10 +156,22 @@ services:
     depends_on:
       db: { condition: service_healthy }
     networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      # Replaces Kong's auth-v1 route (strip_path: true → stripprefix).
+      - traefik.http.middlewares.dev-supabase-auth-strip.stripprefix.prefixes=/auth/v1
+      - traefik.http.routers.dev-auth.rule=Host(`api.myclash.localhost`) && PathPrefix(`/auth/v1`)
+      - traefik.http.routers.dev-auth.entrypoints=websecure
+      - traefik.http.routers.dev-auth.tls=true
+      - traefik.http.routers.dev-auth.priority=20
+      # Dev equivalent of prod's myclash-auth: reaches GoTrue without passing
+      # through Nest, so fail2ban is the only rate control on this path.
+      - traefik.http.routers.dev-auth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-auth@docker,dev-supabase-auth-strip
+      - traefik.http.services.dev-auth.loadbalancer.server.port=9999
 
   # ── Supabase REST (PostgREST) ─────────────────────────────────────
   supabase-rest:
-    image: postgrest/postgrest:v12.2.0
+    image: postgrest/postgrest:v12.2.3
     container_name: myclash-dev-supabase-rest
     restart: unless-stopped
     environment:
@@ -218,10 +185,19 @@ services:
     depends_on:
       db: { condition: service_healthy }
     networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      - traefik.http.middlewares.dev-supabase-rest-strip.stripprefix.prefixes=/rest/v1
+      - traefik.http.routers.dev-rest.rule=Host(`api.myclash.localhost`) && PathPrefix(`/rest/v1`)
+      - traefik.http.routers.dev-rest.entrypoints=websecure
+      - traefik.http.routers.dev-rest.tls=true
+      - traefik.http.routers.dev-rest.priority=20
+      - traefik.http.routers.dev-rest.middlewares=myclash-geoblock-public@file,dev-supabase-rest-strip
+      - traefik.http.services.dev-rest.loadbalancer.server.port=3000
 
   # ── Supabase Realtime ─────────────────────────────────────────────
   supabase-realtime:
-    image: supabase/realtime:v2.30.34
+    image: supabase/realtime:v2.94.1
     container_name: myclash-dev-supabase-realtime
     restart: unless-stopped
     environment:
@@ -236,9 +212,13 @@ services:
       PORT: 4000
       API_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      METRICS_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET:-a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here}
+      APP_NAME: realtime
       SEED_SELF_HOST: 'true'
       SELF_HOST_TENANT_NAME: realtime
+      FLY_ALLOC_ID: fly123
+      FLY_APP_NAME: realtime
       ERL_AFLAGS: '-proto_dist inet_tcp'
       ENABLE_TAILSCALE: 'false'
       DNS_NODES: "''"
@@ -246,10 +226,34 @@ services:
     depends_on:
       db: { condition: service_healthy }
     networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      # v2.94 serves its websocket at /socket/websocket, NOT at the bare path
+      # Kong used to forward. This rewrite is why the image bump and the Kong
+      # removal have to land together — the old strip_path route would 404.
+      # ($$ escapes Compose interpolation so Traefik receives $1.)
+      - traefik.http.middlewares.dev-supabase-realtime-ws.replacepathregex.regex=^/realtime/v1/(.*)
+      - traefik.http.middlewares.dev-supabase-realtime-ws.replacepathregex.replacement=/socket/$$1
+      - traefik.http.middlewares.dev-supabase-realtime-api.replacepathregex.regex=^/realtime/v1/api/(.*)
+      - traefik.http.middlewares.dev-supabase-realtime-api.replacepathregex.replacement=/api/$$1
+      # /realtime/v1/api must win over the broader /realtime/v1 rule.
+      - traefik.http.routers.dev-realtime-api.rule=Host(`api.myclash.localhost`) && PathPrefix(`/realtime/v1/api`)
+      - traefik.http.routers.dev-realtime-api.entrypoints=websecure
+      - traefik.http.routers.dev-realtime-api.tls=true
+      - traefik.http.routers.dev-realtime-api.priority=25
+      - traefik.http.routers.dev-realtime-api.middlewares=myclash-geoblock-public@file,dev-supabase-realtime-api
+      - traefik.http.routers.dev-realtime-api.service=dev-realtime
+      - traefik.http.routers.dev-realtime.rule=Host(`api.myclash.localhost`) && PathPrefix(`/realtime/v1`)
+      - traefik.http.routers.dev-realtime.entrypoints=websecure
+      - traefik.http.routers.dev-realtime.tls=true
+      - traefik.http.routers.dev-realtime.priority=20
+      - traefik.http.routers.dev-realtime.middlewares=myclash-geoblock-public@file,dev-supabase-realtime-ws
+      - traefik.http.routers.dev-realtime.service=dev-realtime
+      - traefik.http.services.dev-realtime.loadbalancer.server.port=4000
 
   # ── Supabase Storage ──────────────────────────────────────────────
   supabase-storage:
-    image: supabase/storage-api:v1.10.0
+    image: supabase/storage-api:v1.58.19
     container_name: myclash-dev-supabase-storage
     restart: unless-stopped
     environment:
@@ -271,6 +275,15 @@ services:
     volumes:
       - dev_storage_data:/var/lib/storage
     networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      - traefik.http.middlewares.dev-supabase-storage-strip.stripprefix.prefixes=/storage/v1
+      - traefik.http.routers.dev-storage.rule=Host(`api.myclash.localhost`) && PathPrefix(`/storage/v1`)
+      - traefik.http.routers.dev-storage.entrypoints=websecure
+      - traefik.http.routers.dev-storage.tls=true
+      - traefik.http.routers.dev-storage.priority=20
+      - traefik.http.routers.dev-storage.middlewares=myclash-geoblock-public@file,dev-supabase-storage-strip
+      - traefik.http.services.dev-storage.loadbalancer.server.port=5000
 
   # ── NestJS API ────────────────────────────────────────────────────
   api:
@@ -286,6 +299,19 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
+      # SupabaseService calls getOrThrow on all three of these, so the dev api
+      # container could not boot without them — they were never passed here.
+      # Mirrors prod: the client goes through Traefik (which owns the /auth/v1,
+      # /rest/v1, /storage/v1 rewrites now that Kong is gone), while GoTrue is
+      # also reachable directly for the internal auth calls.
+      SUPABASE_URL: https://api.myclash.localhost
+      SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      # Traefik serves dev over its self-signed cert, so server-side fetches to
+      # https://api.myclash.localhost would otherwise fail the chain check. Same
+      # reason docker-compose.staging-certs.yml sets this in the staging overlay.
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET:-dev-guest-secret-change-me}
       MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
       DOMAIN: myclash.localhost

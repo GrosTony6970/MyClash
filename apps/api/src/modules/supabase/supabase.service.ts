@@ -117,8 +117,9 @@ function parseAdminUser(value: unknown): SupabaseAdminUser | null {
  *  - `service` — uses the service-role key; bypasses RLS. Use for server-side
  *                mutations (e.g. setting claim_status after magic-link click).
  *
- * The Supabase URL in dev is the Kong gateway at http://kong:8000.
- * In production it is https://app.${DOMAIN} (routed through Traefik → Kong).
+ * SUPABASE_URL points at Traefik in both environments — https://app.${DOMAIN}
+ * in production, https://api.myclash.localhost in dev. Traefik owns the
+ * /auth/v1, /rest/v1 and /storage/v1 rewrites; there is no Kong gateway.
  */
 @Injectable()
 export class SupabaseService {

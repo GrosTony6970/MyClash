@@ -2011,6 +2011,16 @@ if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText))
   );
 }
 
+// Kong is gone from dev: prod routes the Supabase sub-paths through Traefik, so
+// dev does too. Reintroducing it would restore the divergence that hid the
+// realtime /socket path change until it reached production.
+if (/^\s{2}kong:/mu.test(devComposeText)) {
+  errors.push(
+    'infra/docker-compose.dev.yml must not reintroduce the kong service — prod routes Supabase ' +
+      'sub-paths through Traefik, and dev must exercise the same edge path.',
+  );
+}
+
 // Dev routers carry the middlewares literally (no MW_* kill-switch): dev is
 // exactly where a broken plugin config should surface, so it is never detached.
 const devGeoblockRouters = {
@@ -2019,7 +2029,11 @@ const devGeoblockRouters = {
   'dev-public': 'public',
   'dev-scoring': 'public',
   'dev-api': 'public',
-  'dev-kong-auth': 'public',
+  'dev-auth': 'public',
+  'dev-rest': 'public',
+  'dev-realtime': 'public',
+  'dev-realtime-api': 'public',
+  'dev-storage': 'public',
 };
 for (const [router, variant] of Object.entries(devGeoblockRouters)) {
   const pattern = new RegExp(
@@ -2033,7 +2047,7 @@ for (const [router, variant] of Object.entries(devGeoblockRouters)) {
   }
 }
 for (const [router, middleware] of Object.entries({
-  'dev-kong-auth': 'myclash-fail2ban-auth@docker',
+  'dev-auth': 'myclash-fail2ban-auth@docker',
   'dev-api': 'myclash-fail2ban-staff@docker',
 })) {
   const pattern = new RegExp(

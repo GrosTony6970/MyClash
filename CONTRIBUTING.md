@@ -48,7 +48,7 @@ cp .env.example .env
 # Edit .env — at minimum set POSTGRES_PASSWORD and SUPABASE_JWT_SECRET
 
 # 4. Start data services (Postgres, Redis, Supabase)
-docker compose --env-file .env -f infra/docker-compose.dev.yml up -d db redis supabase-auth supabase-rest supabase-realtime supabase-storage kong
+docker compose --env-file .env -f infra/docker-compose.dev.yml up -d db redis supabase-auth supabase-rest supabase-realtime supabase-storage traefik
 
 # 5. Start apps in dev mode (hot reload)
 pnpm dev
