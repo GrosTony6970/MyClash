@@ -248,7 +248,7 @@ Three distinct mechanisms, each addressing a different concern:
 
 > The three frontends could be a single Next.js app with route-based feature flags. **Decision: keep them as three apps in the monorepo**, sharing UI components via a `packages/ui` workspace. This isolates the scoring app (offline-first, very different UX) and the admin app (heavier, desktop-first) from the lean public PWA.
 >
-> The production stack does **not** include Kong. Earlier Supabase self-hosting setups used Kong as an API gateway, but MyClash's prod stack fronts every Supabase service directly through Traefik labels. Kong remains in `infra/docker-compose.dev.yml` for the local dev gateway only.
+> Neither stack includes Kong. Earlier Supabase self-hosting setups used Kong as an API gateway; MyClash fronts every Supabase service directly through Traefik labels in **both** production and local dev. Kong was removed from the dev compose along with `infra/supabase/kong.yml`, so dev now exercises the same edge path that serves production.
 
 ---
 
@@ -2735,10 +2735,10 @@ myclash/
 │   └── time/                   # @myclash/time — shared time/date helpers
 ├── infra/
 │   ├── docker-compose.prod.yml     # prod compose (used by infra/scripts/*)
-│   ├── docker-compose.dev.yml      # local dev stack (Traefik + Kong + Supabase + apps)
+│   ├── docker-compose.dev.yml      # local dev stack (Traefik + Supabase + apps)
 │   ├── docker-compose.staging-certs.yml
 │   ├── traefik/                    # static config + dashboard auth
-│   ├── supabase/                   # self-hosted Supabase config (init scripts, Kong config for dev)
+│   ├── db/init/                    # Postgres init scripts (Supabase roles, realtime, postgrest)
 │   ├── ops-runner/                 # bearer-authed sidecar (docker.sock + backups + lifecycle); see §17.4
 │   └── scripts/                    # bash scripts that run ON THE VPS
 │       ├── lib/log.sh              # shared color/log helpers (sourced by all)

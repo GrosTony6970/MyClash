@@ -126,7 +126,7 @@ Everything else can wait until the relevant dev phase approaches.
   4. Create OAuth 2.0 Client ID (type: Web application).
   5. Authorized redirect URIs in Google Cloud:
      - `https://app.myclash.fr/auth/v1/callback`
-     - Optional local dev only when using local Kong/Auth directly: `http://localhost:8000/auth/v1/callback`
+     - Optional, local dev only: `https://api.myclash.localhost/auth/v1/callback` (Traefik fronts GoTrue in dev too)
   6. Self-hosted GoTrue redirect allow-list is configured in compose, not in a hosted Supabase dashboard:
      - `https://admin.myclash.fr/auth/oauth/callback`
      - `https://app.myclash.fr/auth/oauth/callback`
