@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`19` (see the Status table), so you can run one by number.
+Specs are numbered `01`…`21` (see the Status table), so you can run one by number.
 Note that **PowerShell does not expand globs and Playwright reads its argument as
 a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
 literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
@@ -501,29 +501,78 @@ from how many are already waiting, so a batch would prove nothing about order):
 > `ensureRoster` unclaimed. That is a precondition, not a coincidence — **never
 > enrol a claimed person in this spec.**
 
+## The schedule and the referee board, held to their own rules (opt-in)
+
+`E2E_SCHEDULE=1` runs **`20-schedule.spec.ts`** and **`21-referee-assign.spec.ts`**.
+`04` asserts `matchesScheduled > 0` and nothing else — which a generator that
+dumped every match onto one piste at the same instant would satisfy — and `05`
+has six assertions for 33 referee endpoints.
+
+**`20`** holds the generator to the contract written in
+`match-scheduler.ts`'s own header, as four independent invariants over real
+generated rows:
+
+| invariant                                                      | the day it saves                                          |
+| -------------------------------------------------------------- | --------------------------------------------------------- |
+| one piste runs one match at a time                             | two bouts called to the same strip                        |
+| no fighter is in two matches at once                           | a fighter called to two pistes and able to answer neither |
+| consecutive bouts are ≥ `minRestMinutes` apart                 | the rest promise the block itself makes                   |
+| a pool stays on one piste (and the two pools do not share one) | "pool 2 is over there" stops being true                   |
+
+It also pins the one validation `resize` actually performs (end after start) and
+does **not** pretend overlap is validated, because it isn't.
+
+**`21`** covers what `05` never asks: whether the board respects the two facts an
+organiser curates. A referee cast of three qualified, one qualified-but-marked-
+unavailable, and one with no qualification at all — then manual assign refuses
+the unqualified one **by message**, auto-assign's applied board contains neither
+the unqualified nor the unavailable referee, and everyone it _did_ place is from
+the eligible set (so the two exclusions cannot pass by assigning nobody).
+Finally the lock: `DELETE` 409s while confirmed, and succeeds after unlock —
+which is what proves the 409 came from the lock and not from the row.
+
+> **Both build their own `event_kind: 'test'` event.** `programme/generate` and
+> referee auto-assign are **event-wide**, so run inside the shared throwaway
+> event they would be grading whatever `04`, `05` and `18` happened to leave
+> behind rather than what the spec set up.
+>
+> `lock-referee-assignments` fires three notification paths. All three return
+> early without a `claimed_by_user_id` (and the follow path needs a follower),
+> and every referee here is a fresh unclaimed `ensureRoster` person — so nothing
+> is sent. **Never put a claimed person on this board.**
+>
+> `20` found a production bug on its first run: **moving a programme block never
+> moved its matches** on any non-UTC container. The scheduler writes
+> `scheduled_at` with `setHours` (container-local `TZ`) and `moveBlock` read it
+> back with `getUTCHours()`, so a 09:00 block stored as 08:00Z failed the
+> "at or after the block start" filter and every match was skipped — silently.
+> Fixed in `ef5b4e74`; `deleteBlock`'s comment had predicted it.
+
 ## Status
 
-| #   | Flow                                | Spec                                | State                                    |
-| --- | ----------------------------------- | ----------------------------------- | ---------------------------------------- |
-| 1   | CSV participant import              | `01-participants-import.spec.ts`    | active                                   |
-| 2   | Create tournament (wizard step 1)   | `02-create-tournament.spec.ts`      | active                                   |
-| 3   | Create event (wizard)               | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
-| 4   | Schedule / programme                | `04-schedule.spec.ts`               | active (page load + generate)            |
-| 5   | Referee auto-assign board           | `05-referee-board.spec.ts`          | active                                   |
-| 6   | Offline scoring sync (PWA)          | `06-offline-sync.spec.ts`           | active                                   |
-| 7   | Populate rich demo event            | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
-| 8   | Offline scoring on a custom ruleset | `08-offline-custom-ruleset.spec.ts` | active                                   |
-| 9   | Double-elimination playthrough      | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
-| 10  | Scoring-pad server contract         | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
-| 11  | League season                       | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
-| 12  | Exports + HEMA Ratings bundle       | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
-| 13  | Subject export + deletion requests  | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
-| 14  | Referee compensation                | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
-| 15  | Public site on real data            | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
-| 16  | The pad's other buttons + the clock | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
-| 17  | Archive export → restore round-trip | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
-| 18  | Staff PIN login + the staff rules   | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
-| 19  | Workshops: seats, waitlist, staff   | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
+| #   | Flow                                 | Spec                                | State                                    |
+| --- | ------------------------------------ | ----------------------------------- | ---------------------------------------- |
+| 1   | CSV participant import               | `01-participants-import.spec.ts`    | active                                   |
+| 2   | Create tournament (wizard step 1)    | `02-create-tournament.spec.ts`      | active                                   |
+| 3   | Create event (wizard)                | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
+| 4   | Schedule / programme                 | `04-schedule.spec.ts`               | active (page load + generate)            |
+| 5   | Referee auto-assign board            | `05-referee-board.spec.ts`          | active                                   |
+| 6   | Offline scoring sync (PWA)           | `06-offline-sync.spec.ts`           | active                                   |
+| 7   | Populate rich demo event             | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
+| 8   | Offline scoring on a custom ruleset  | `08-offline-custom-ruleset.spec.ts` | active                                   |
+| 9   | Double-elimination playthrough       | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
+| 10  | Scoring-pad server contract          | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
+| 11  | League season                        | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
+| 12  | Exports + HEMA Ratings bundle        | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
+| 13  | Subject export + deletion requests   | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
+| 14  | Referee compensation                 | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
+| 15  | Public site on real data             | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
+| 16  | The pad's other buttons + the clock  | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
+| 17  | Archive export → restore round-trip  | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
+| 18  | Staff PIN login + the staff rules    | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
+| 19  | Workshops: seats, waitlist, staff    | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
+| 20  | Schedule generator invariants        | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above     |
+| 21  | Referee qualification + availability | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above     |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them
