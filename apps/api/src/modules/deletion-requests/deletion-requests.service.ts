@@ -95,11 +95,18 @@ export class DeletionRequestsService {
       const inEligibleStatus = ['running', 'completed', 'archived'].includes(tourn.status);
 
       if (!inEligibleStatus) {
-        // Check for scored matches (status != 'scheduled')
+        // Check for scored matches (status != 'scheduled').
+        //
+        // `matches` has NO tournament_id column — the only route from a match to
+        // its tournament is phase_id → phases.tournament_id, so the filter has
+        // to go through an `!inner` embed. A direct .eq('tournament_id') 400s on
+        // the unknown column, which this method then surfaced as a generic
+        // "Bad Request": the fallback never once ran, and a draft tournament
+        // holding real results could not be deletion-requested at all.
         const { count, error: matchErr } = await this.supabase.service
           .from('matches')
-          .select('id', { count: 'exact', head: true })
-          .eq('tournament_id', targetId)
+          .select('id, phases!inner(tournament_id)', { count: 'exact', head: true })
+          .eq('phases.tournament_id', targetId)
           .neq('status', 'scheduled');
 
         if (matchErr) throw new BadRequestException(matchErr.message);

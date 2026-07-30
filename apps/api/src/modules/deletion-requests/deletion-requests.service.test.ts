@@ -208,6 +208,20 @@ describe('DeletionRequestsService — create', () => {
 
     expect(result.status).toBe('pending');
     expect(result.targetType).toBe('tournament');
+
+    // The QUERY, not just the outcome. A mocked Supabase returns whatever the
+    // mock was told to, so this test passed for months while the real filter —
+    // `.eq('tournament_id', …)` — 400d against PostgREST: `matches` has no such
+    // column, and a match reaches its tournament only through
+    // phase_id → phases.tournament_id. Asserting the arguments is the only way
+    // a mock-backed test can tell the difference.
+    expect(matchCountChain.select).toHaveBeenCalledWith(
+      expect.stringContaining('phases!inner(tournament_id)'),
+      expect.objectContaining({ count: 'exact', head: true }),
+    );
+    expect(matchCountChain.eq).toHaveBeenCalledWith('phases.tournament_id', 'tourn-uuid-1');
+    expect(matchCountChain.eq).not.toHaveBeenCalledWith('tournament_id', expect.anything());
+    expect(matchCountChain.neq).toHaveBeenCalledWith('status', 'scheduled');
   });
 
   it('rejects with ConflictException on unique-violation (code 23505)', async () => {
