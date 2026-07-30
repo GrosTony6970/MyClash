@@ -158,15 +158,28 @@ export class EventReadOnlyGuard implements CanActivate {
       }
     }
 
-    // (f) registrationId → registrations.event_id
+    // (f) registrationId → registrations.tournament_id → tournaments.event_id
+    //
+    // `registrations` has NO event_id — it is scoped by tournament (0001). The
+    // old one-hop read 400'd, the error is swallowed here by design, and the
+    // guard then fell through to "no event" — so every registration-addressed
+    // route stayed WRITEABLE on an archived event. Same two-hop shape as (d).
     if (params['registrationId']) {
-      const { data } = await this.supabase.service
+      const { data: registration } = await this.supabase.service
         .from('registrations')
-        .select('event_id')
+        .select('tournament_id')
         .eq('id', params['registrationId'])
         .maybeSingle();
-      const eventId = (data as { event_id?: string } | null)?.event_id;
-      if (eventId) return eventId;
+      const tournamentId = (registration as { tournament_id?: string } | null)?.tournament_id;
+      if (tournamentId) {
+        const { data: tournament } = await this.supabase.service
+          .from('tournaments')
+          .select('event_id')
+          .eq('id', tournamentId)
+          .maybeSingle();
+        const eventId = (tournament as { event_id?: string } | null)?.event_id;
+        if (eventId) return eventId;
+      }
     }
 
     // (g) body.eventId fallback

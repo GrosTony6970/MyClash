@@ -2191,22 +2191,29 @@ describe('PhasesService', () => {
     // shape so we don't accidentally leak privileged data through
     // a cheap polling endpoint.
     it("returns only (id, status, red_score, blue_score) for a tournament's matches", async () => {
-      const matchesChain = makeChain({
-        data: [
-          { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
-          { id: 'm-2', status: 'pending', red_score: null, blue_score: null },
-        ],
-        error: null,
-      });
+      // Rows carry the `phases` embed the query has to ask for, because there
+      // is no matches.tournament_id — the embed is the ONLY way to filter by
+      // tournament, and it must not reach the caller.
+      const rows = [
+        {
+          id: 'm-1',
+          status: 'completed',
+          red_score: 5,
+          blue_score: 3,
+          phases: { tournament_id: 'tournament-1' },
+        },
+        {
+          id: 'm-2',
+          status: 'pending',
+          red_score: null,
+          blue_score: null,
+          phases: { tournament_id: 'tournament-1' },
+        },
+      ];
+      const matchesChain = makeChain({ data: rows, error: null });
       // The chain resolves when awaited after `.eq(...)`; mirror the
       // pattern used by listPoolsWithMatches's data selects.
-      matchesChain.eq.mockResolvedValue({
-        data: [
-          { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
-          { id: 'm-2', status: 'pending', red_score: null, blue_score: null },
-        ],
-        error: null,
-      });
+      matchesChain.eq.mockResolvedValue({ data: rows, error: null });
       fromMock.mockReturnValueOnce(matchesChain);
 
       const result = await service.listMatchScores('tournament-1');
@@ -2218,8 +2225,13 @@ describe('PhasesService', () => {
       // The SELECT must NOT include privileged fields like referee_id
       // or lice_id — those should only come through the heavier
       // `pools-with-matches` endpoint that handles permissions properly.
-      expect(matchesChain.select).toHaveBeenCalledWith('id, status, red_score, blue_score');
-      expect(matchesChain.eq).toHaveBeenCalledWith('tournament_id', 'tournament-1');
+      expect(matchesChain.select).toHaveBeenCalledWith(
+        'id, status, red_score, blue_score, phases!inner(tournament_id)',
+      );
+      // Filtered THROUGH the embed. `matches.tournament_id` does not exist, and
+      // asking for it 400'd — which `if (error) return []` turned into an empty
+      // score list on every poll.
+      expect(matchesChain.eq).toHaveBeenCalledWith('phases.tournament_id', 'tournament-1');
     });
   });
 

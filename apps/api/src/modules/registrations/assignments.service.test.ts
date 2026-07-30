@@ -132,15 +132,18 @@ describe('AssignmentsService.getEventAssignments', () => {
       if (tableName === 'vw_tournament_query_matches')
         return awaitableChain({ data: [], error: null });
       if (tableName === 'matches') {
-        // Legacy matches.referee_id read returns one running match
+        // Legacy matches.referee_id read returns one running match. The
+        // tournament arrives through the `phases` EMBED — there is no
+        // matches.tournament_id, and asking for one 400'd the whole query, so
+        // a referee's live match never blocked anything.
         return awaitableChain({
           data: [
             {
               id: 'm-ref-live',
               match_number_label: 'SBR-P1-M2',
               status: 'running',
-              tournament_id: 't-1',
               referee_id: 'person-1',
+              phases: { tournament_id: 't-1' },
             },
           ],
           error: null,
@@ -454,12 +457,13 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
               match_id: 'm-ref-future',
               role: 'arbitre_declarant',
               pools: null,
+              // The tournament hangs off `phases`, mirroring the pool branch —
+              // `matches` has neither a tournament_id nor a tournaments FK.
               matches: {
                 id: 'm-ref-future',
                 match_number_label: 'SBR-P1-M9',
                 status: 'scheduled',
-                tournament_id: 't-A',
-                tournaments: { id: 't-A', name: 'Longsword' },
+                phases: { tournament_id: 't-A', tournaments: { id: 't-A', name: 'Longsword' } },
               },
             },
           ],

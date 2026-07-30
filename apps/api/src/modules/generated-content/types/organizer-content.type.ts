@@ -6,7 +6,8 @@ import type { ContentTypeDef, GenScope } from '../content-type.interface';
 interface EventRow {
   id: string;
   name: string;
-  location: string | null;
+  /** `events.location` was RENAMED to `city`; the old name 400'd every load. */
+  city: string | null;
   start_date: string;
   end_date: string;
   organization_id: string;
@@ -28,7 +29,7 @@ export class OrganizerContentType implements ContentTypeDef {
   private async loadEvent(eventId: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, name, location, start_date, end_date, organization_id')
+      .select('id, name, city, start_date, end_date, organization_id')
       .eq('id', eventId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -59,7 +60,8 @@ export class OrganizerContentType implements ContentTypeDef {
       .limit(20);
     return {
       event: e.name,
-      location: e.location,
+      // The prompt's own vocabulary stays `location`; only the column moved.
+      location: e.city,
       startDate: e.start_date,
       endDate: e.end_date,
       tournaments: ((tData ?? []) as Array<{ name: string; weapon: string | null }>).map((t) => ({

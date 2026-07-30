@@ -588,13 +588,17 @@ export class AuthService {
    */
   private async fetchClaimablePersons(
     email: string | null | undefined,
-  ): Promise<Array<{ id: string; name: string; eventName: string; roles: unknown }>> {
+  ): Promise<Array<{ id: string; name: string; eventName: string }>> {
     const normalized = (email ?? '').trim();
     if (!normalized) return [];
     try {
       const { data, error } = await this.supabase.service
         .from('persons')
-        .select('id, given_name, family_name, email, roles, claimed_by_user_id, events(name)')
+        // NO `roles` COLUMN EXISTS — on `persons` or on any other table. It
+        // 400'd the query, the `if (error) return []` below swallowed it, and
+        // the claim-your-profile suggestions were empty for every user who ever
+        // had one. Same phantom column killed fetchClaimedPersons.
+        .select('id, given_name, family_name, email, claimed_by_user_id, events(name)')
         .ilike('email', normalized)
         .is('claimed_by_user_id', null);
       if (error) return [];
@@ -605,7 +609,6 @@ export class AuthService {
           id: r['id'] as string,
           name: `${((r['given_name'] as string) ?? '').trim()} ${((r['family_name'] as string) ?? '').trim()}`.trim(),
           eventName: ((r['events'] as { name?: string } | null)?.name ?? '').trim(),
-          roles: r['roles'] ?? null,
         }));
     } catch {
       return [];
@@ -619,7 +622,7 @@ export class AuthService {
       const { data, error } = await this.supabase.service
         .from('persons')
         .select(
-          'id, given_name, family_name, email, roles, event_id, global_person_id, claim_status, events(id, slug, name, start_date, end_date, status)',
+          'id, given_name, family_name, email, event_id, global_person_id, claim_status, events(id, slug, name, start_date, end_date, status)',
         )
         .eq('claimed_by_user_id', userId);
 

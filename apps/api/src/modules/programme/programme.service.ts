@@ -272,26 +272,30 @@ export class ProgrammeService {
       if (poolPhaseIds.length > 0) {
         const { data: poolsData } = await this.supabase.service
           .from('pools')
-          .select('id')
+          // sort_order lives HERE. `matches.pool_sort_order` does not exist, so
+          // the per-pool query below 400'd and every pool count read as zero —
+          // the estimate silently modelled an event with no pool matches.
+          .select('id, sort_order')
           .in('phase_id', poolPhaseIds);
-        const poolIds = (poolsData ?? []).map((p) => (p as Record<string, string>)['id']);
+        const pools = (poolsData ?? []) as Array<{ id: string; sort_order: number | null }>;
+        const sortOrderByPool = new Map(pools.map((p) => [p.id, p.sort_order ?? 0]));
+        const poolIds = pools.map((p) => p.id);
         if (poolIds.length > 0) {
           // Per-pool match counts (ordered by pool sort order) so the
           // estimate models strict one-pool-per-lice placement — the busiest
           // lice, not total/lices. One row per match; tally in JS.
           const { data: poolMatchRows } = await this.supabase.service
             .from('matches')
-            .select('pool_id, pool_sort_order')
+            .select('pool_id')
             .in('pool_id', poolIds);
           const byPool = new Map<string, { count: number; sortOrder: number }>();
-          for (const r of (poolMatchRows ?? []) as Array<{
-            pool_id: string | null;
-            pool_sort_order: number | null;
-          }>) {
+          for (const r of (poolMatchRows ?? []) as Array<{ pool_id: string | null }>) {
             if (!r.pool_id) continue;
-            const cur = byPool.get(r.pool_id) ?? { count: 0, sortOrder: r.pool_sort_order ?? 0 };
+            const cur = byPool.get(r.pool_id) ?? {
+              count: 0,
+              sortOrder: sortOrderByPool.get(r.pool_id) ?? 0,
+            };
             cur.count += 1;
-            if (r.pool_sort_order != null) cur.sortOrder = r.pool_sort_order;
             byPool.set(r.pool_id, cur);
           }
           poolPerPoolCounts = [...byPool.values()]

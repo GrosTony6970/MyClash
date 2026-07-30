@@ -224,24 +224,30 @@ export class AssignmentsService {
     //    referee_assignments table (scope_type='match'). Merge by match_id.
     const matchesAsRefereeMap = new Map<string, AssignmentSummary>();
 
+    // `matches` has NO tournament_id — it reaches its tournament through
+    // `phases` (0001), exactly as the pool branch below already does. Naming it
+    // directly 400'd the query, so `legacyRefMatches` was always undefined and
+    // a referee's match assignments never appeared on this surface at all.
     const { data: legacyRefMatches } = await this.supabase.service
       .from('matches')
-      .select('id, match_number_label, status, tournament_id, referee_id')
+      .select('id, match_number_label, status, referee_id, phases(tournament_id)')
       .eq('referee_id', personId);
-    for (const row of (legacyRefMatches ?? []) as Array<{
+    for (const row of (legacyRefMatches ?? []) as unknown as Array<{
       id: string;
       match_number_label: string | null;
       status: string;
-      tournament_id: string;
+      phases: Embed<{ tournament_id: string }>;
     }>) {
-      if (tournamentId && row.tournament_id !== tournamentId) continue;
-      const t = regs.find((r) => r.tournament_id === row.tournament_id);
+      const rowTournamentId = firstEmbed(row.phases)?.tournament_id ?? null;
+      if (!rowTournamentId) continue;
+      if (tournamentId && rowTournamentId !== tournamentId) continue;
+      const t = regs.find((r) => r.tournament_id === rowTournamentId);
       matchesAsRefereeMap.set(row.id, {
         matchId: row.id,
         label: row.match_number_label ?? '',
         status: row.status,
         role: 'referee',
-        tournamentId: row.tournament_id,
+        tournamentId: rowTournamentId,
         tournamentName: firstEmbed(t?.tournaments ?? null)?.name ?? '',
       });
     }
@@ -250,7 +256,11 @@ export class AssignmentsService {
     const { data: refAssignments } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'id, scope_type, pool_id, match_id, role, pools(phases(tournament_id, tournaments(id, name))), matches(id, match_number_label, status, tournament_id, tournaments(id, name))',
+        // The match branch traverses phases for the same reason the pool branch
+        // does: there is no matches.tournament_id and no matches→tournaments FK,
+        // so the old `matches(…, tournament_id, tournaments(…))` 400'd the whole
+        // query and every referee assignment read back empty.
+        'id, scope_type, pool_id, match_id, role, pools(phases(tournament_id, tournaments(id, name))), matches(id, match_number_label, status, phases(tournament_id, tournaments(id, name)))',
       )
       .eq('person_id', personId);
     const refereeAssignments: AssignmentSummary[] = [];
@@ -270,18 +280,21 @@ export class AssignmentsService {
         id: string;
         match_number_label: string | null;
         status: string;
-        tournament_id: string;
-        tournaments: Embed<{ id: string; name: string }>;
+        phases: Embed<{
+          tournament_id: string;
+          tournaments: Embed<{ id: string; name: string }>;
+        }>;
       }>;
     }>) {
       const poolPhase = firstEmbed(firstEmbed(row.pools)?.phases ?? null);
       const matchRow = firstEmbed(row.matches);
-      const tId = poolPhase?.tournament_id ?? matchRow?.tournament_id ?? null;
+      const matchPhase = firstEmbed(matchRow?.phases ?? null);
+      const tId = poolPhase?.tournament_id ?? matchPhase?.tournament_id ?? null;
       if (!tId) continue;
       if (tournamentId && tId !== tournamentId) continue;
       const tName =
         firstEmbed(poolPhase?.tournaments ?? null)?.name ??
-        firstEmbed(matchRow?.tournaments ?? null)?.name ??
+        firstEmbed(matchPhase?.tournaments ?? null)?.name ??
         '';
       refereeAssignments.push({
         assignmentId: row.id,

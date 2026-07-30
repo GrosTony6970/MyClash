@@ -299,7 +299,11 @@ export class ClubsService {
 
     const { data: updated, error: updateError } = await this.supabase.service
       .from('clubs')
-      .update({ logo_url: null, updated_at: new Date().toISOString() })
+      // `clubs` has no `updated_at` (0001 gives it `created_at` only), so
+      // stamping one 400'd the whole statement and no logo could ever be
+      // removed. Every other write in this file leaves it alone for the same
+      // reason — this was the outlier.
+      .update({ logo_url: null })
       .eq('id', id)
       .select('id, logo_url')
       .single();

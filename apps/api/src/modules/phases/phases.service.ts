@@ -2732,16 +2732,23 @@ export class PhasesService {
   ): Promise<
     Array<{ id: string; status: string; red_score: number | null; blue_score: number | null }>
   > {
+    // `matches` has NO tournament_id — it hangs off phases (0001). Filtering on
+    // it 400'd, and `if (error) return []` turned that into "this tournament has
+    // no matches", so the Matches tab's fallback poll silently merged NOTHING
+    // for its entire life. The !inner embed is the established traversal here
+    // (deletion-requests.service.ts:108, leagues.service.ts:1902).
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('id, status, red_score, blue_score')
-      .eq('tournament_id', tournamentId);
+      .select('id, status, red_score, blue_score, phases!inner(tournament_id)')
+      .eq('phases.tournament_id', tournamentId);
     if (error) return [];
-    return (data ?? []) as Array<{
-      id: string;
-      status: string;
-      red_score: number | null;
-      blue_score: number | null;
-    }>;
+    // Map explicitly so the embed stays out of the payload — this endpoint is
+    // deliberately narrow, per the note above.
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      id: row['id'] as string,
+      status: row['status'] as string,
+      red_score: row['red_score'] as number | null,
+      blue_score: row['blue_score'] as number | null,
+    }));
   }
 }

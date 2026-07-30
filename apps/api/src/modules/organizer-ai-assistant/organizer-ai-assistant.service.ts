@@ -377,17 +377,33 @@ export class OrganizerAIAssistantService {
       // Post-0063: referee_assignments keys on person_id (= global_persons.id).
       // The AI draft DSL still labels the field "userId" for historical reasons
       // but the value is now the canonical person_id.
+      // `referee_assignments` is POLYMORPHIC: `scope_type` is NOT NULL with no
+      // default, and 0091's referee_assignments_scope_check demands that
+      // exactly one of lice_id/pool_id/match_id be set, matching it. This
+      // insert used to omit scope_type entirely, set pool_id and match_id
+      // together, and carry a `notes` column that does not exist — so applying
+      // an AI referee draft failed every single time. Mirrors the shape
+      // matches.service.ts:494 writes.
+      const poolId = typeof action['poolId'] === 'string' ? action['poolId'] : null;
+      const matchId = typeof action['matchId'] === 'string' ? action['matchId'] : null;
+      if ((poolId === null) === (matchId === null)) {
+        throw new BadRequestException(
+          'A referee assignment must name exactly one of poolId or matchId',
+        );
+      }
+
       const { data, error } = await this.supabase.service
         .from('referee_assignments')
         .insert({
           event_id: eventId,
           person_id: String(action['userId']),
-          pool_id: typeof action['poolId'] === 'string' ? action['poolId'] : null,
-          match_id: typeof action['matchId'] === 'string' ? action['matchId'] : null,
+          scope_type: matchId ? 'match' : 'pool',
+          lice_id: null,
+          pool_id: poolId,
+          match_id: matchId,
           role: String(action['role']),
           status: 'assigned',
           auto_assigned: false,
-          notes: 'AI assistant draft applied by organizer',
         })
         .select('id')
         .single();

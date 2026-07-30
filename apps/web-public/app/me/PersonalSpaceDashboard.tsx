@@ -35,7 +35,6 @@ interface ClaimablePerson {
   id: string;
   name: string;
   eventName: string;
-  roles: unknown;
 }
 
 interface GlobalPersonSearchResult {
