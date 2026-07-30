@@ -10,6 +10,9 @@
 # --full     Complete reset: volumes + data/ + logs/ + runtime files.
 #            backups/ and .env are NEVER touched.
 #
+# --force    Skip every confirmation, including the --full one. Combine as
+#            `./destroy.sh --full --force` for an unattended wipe.
+#
 # destroy.sh <service...>   Selective: stop & remove only the named containers
 #            (docker compose rm -sf). Volumes, images, data/, logs/, and every other
 #            container are preserved. Pair with `redeploy.sh <service>` to recreate.
@@ -41,7 +44,9 @@ Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--force]
   <service...> Selective: stop & remove only the named containers.
                Volumes, images, data/, logs/, and other containers preserved.
                Cannot be combined with --wipe-db / --full.
-  --force      Skip confirmation prompt.
+  --force      Skip ALL confirmation prompts, including the second
+               "this cannot be undone" gate on --full. Intended for
+               scripted wipe-and-redeploy: ./destroy.sh --full --force
   -h, --help   Show this help.
 EOF
 }
@@ -107,10 +112,17 @@ if [[ "$FORCE" -ne 1 ]]; then
   confirm "Are you sure?" || { warn "Aborted."; exit 0; }
 fi
 
-# Extra confirmation for --full even with --force
+# Second gate for --full. --force skips it: a full wipe + redeploy is the
+# operator's normal cadence, and a prompt that cannot be answered is worse than
+# no prompt in a non-interactive run (`confirm` reads stdin, so under CI or a
+# pipe it consumes EOF, returns non-zero and "aborts" a destroy that was
+# explicitly requested). The warning is still printed either way so the run log
+# always records what was about to be deleted.
 if [[ "$FULL" -eq 1 ]]; then
   warn "⚠  This will permanently delete data/ and logs/. This cannot be undone."
-  confirm "Confirm full reset?" || { warn "Aborted."; exit 0; }
+  if [[ "$FORCE" -ne 1 ]]; then
+    confirm "Confirm full reset?" || { warn "Aborted."; exit 0; }
+  fi
 fi
 
 if [[ "$WIPE_DB" -eq 1 ]]; then
