@@ -131,16 +131,19 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   },
 
   // ── Refereeing & staffing ───────────────────────────────────────────────────
+  // No `user_id` reach on the three referee tables: migration 0063 collapsed
+  // their dual identity down to person_id and DROPPED the column. Reading it
+  // 400s in PostgREST, which `fetchDirect` turns into a 500 for the whole
+  // bundle — the subject loses everything, not just their referee rows. The
+  // subject is still fully reached: `person` resolves through
+  // global_persons.claimed_by_user_id, which is what 0063 made the canonical
+  // route. Pinned by subject-export.schema.test.ts.
   referee_assignments: {
-    reaches: [
-      { column: 'user_id', reach: 'uid' },
-      { column: 'person_id', reach: 'person' },
-    ],
+    reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'referee-assignments.csv',
   },
   referee_qualifications: {
     reaches: [
-      { column: 'user_id', reach: 'uid' },
       { column: 'global_person_id', reach: 'global_person' },
       { column: 'person_id', reach: 'person' },
     ],
@@ -151,10 +154,7 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'referee-assignments.csv',
   },
   event_referees: {
-    reaches: [
-      { column: 'user_id', reach: 'uid' },
-      { column: 'person_id', reach: 'person' },
-    ],
+    reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'referee-assignments.csv',
   },
   event_referee_days: {
