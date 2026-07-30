@@ -13,7 +13,12 @@ test('event wizard: step 1 basics renders and accepts input', async ({ page }) =
 
   await page.goto(`/org/${orgSlug}/events/new`);
 
+  // Count first, then assert visibility: the wizard streams a server copy and
+  // hydrates a client one, so for ~100 ms both are in the DOM and every strict
+  // locator call — `toBeVisible()` included — fails with "resolved to 2
+  // elements". See the same note in `02`.
   const name = page.locator('#wizard-event-name');
+  await expect(name).toHaveCount(1);
   await expect(name).toBeVisible();
   await name.fill('E2E Wizard Event');
   await expect(page.locator('#wizard-event-slug')).toHaveValue(/e2e-wizard-event/);
@@ -36,8 +41,10 @@ test('event wizard: full happy path creates and cleans up an event', async ({ pa
   const tok = Date.now().toString(36);
 
   // Step 1 — basics. Dates come from the calendar popover (day cells are
-  // locale-independent numbers).
-  await page.locator('#wizard-event-name').fill('E2E Full Wizard');
+  // locale-independent numbers). Count to 1 first — the hydration race above.
+  const eventName = page.locator('#wizard-event-name');
+  await expect(eventName).toHaveCount(1);
+  await eventName.fill('E2E Full Wizard');
   await page.locator('#wizard-event-slug').fill(`e2e-full-wizard-${tok}`);
   await page.locator('#wizard-start-date').click();
   await page.getByRole('button', { name: '15', exact: true }).click();
