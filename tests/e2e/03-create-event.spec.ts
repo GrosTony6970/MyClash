@@ -11,12 +11,11 @@ import { runContext } from './_context';
 test('event wizard: step 1 basics renders and accepts input', async ({ page }) => {
   const { orgSlug } = runContext();
 
-  await page.goto(`/org/${orgSlug}/events/new`);
+  // `networkidle` waits out the hydration window in which the streamed server
+  // copy and the client copy are both in the DOM — see the note in `02`, which
+  // also explains why polling for a count of 1 is not sufficient by itself.
+  await page.goto(`/org/${orgSlug}/events/new`, { waitUntil: 'networkidle' });
 
-  // Count first, then assert visibility: the wizard streams a server copy and
-  // hydrates a client one, so for ~100 ms both are in the DOM and every strict
-  // locator call — `toBeVisible()` included — fails with "resolved to 2
-  // elements". See the same note in `02`.
   const name = page.locator('#wizard-event-name');
   await expect(name).toHaveCount(1);
   await expect(name).toBeVisible();
@@ -34,7 +33,7 @@ test('event wizard: full happy path creates and cleans up an event', async ({ pa
     .getByTestId('wizard-next')
     .or(page.getByRole('button', { name: 'Next', exact: true }));
 
-  await page.goto(`/org/${orgSlug}/events/new`);
+  await page.goto(`/org/${orgSlug}/events/new`, { waitUntil: 'networkidle' });
 
   // Unique token keeps the slug AND the org-scoped venue name (venues persist
   // org-wide, not per event) from colliding across runs.

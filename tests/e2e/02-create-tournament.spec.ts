@@ -11,14 +11,19 @@ import { runContext } from './_context';
 test('create a tournament (wizard step 1 persists a draft)', async ({ page }) => {
   const { orgSlug, eventId } = runContext();
 
-  await page.goto(`/org/${orgSlug}/events/${eventId}/tournaments/new`);
+  // `networkidle`, not the default `load`: the wizard is a client component
+  // behind `useSearchParams`, so Next streams a server copy and the client
+  // renders its own, and for ~120 ms BOTH are in the DOM. Any strict locator
+  // call in that window fails with "resolved to 2 elements".
+  //
+  // Polling for a count of 1 is NOT enough on its own — the count goes 1 (server
+  // only) → 2 (both) → 1 (settled), so a poll happily returns on the first 1 and
+  // the very next call sees 2. Waiting for the network to go quiet is what puts
+  // the page at rest; the count assertion then means something.
+  await page.goto(`/org/${orgSlug}/events/${eventId}/tournaments/new`, {
+    waitUntil: 'networkidle',
+  });
 
-  // Wait for hydration to settle before touching the form. The wizard is a
-  // client component behind `useSearchParams`, so Next streams a server copy and
-  // the client renders its own; for roughly the first 100 ms BOTH are in the
-  // DOM, and `fill()` landing in that window fails with a strict-mode violation
-  // ("resolved to 2 elements"). Counting to 1 polls the race out — the settled
-  // page has exactly one field, which is also worth asserting on its own.
   const name = page.getByTestId('tournament-name');
   await expect(name).toHaveCount(1);
   await name.fill('E2E Longsword');
