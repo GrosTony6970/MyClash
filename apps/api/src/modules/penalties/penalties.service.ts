@@ -49,13 +49,6 @@ import {
 
 type Row = Record<string, unknown>;
 
-// Built-in penalty ruleset identifiers. The row itself is seeded by
-// migration 0054 (no longer at runtime), but these constants are still
-// used by getEffectiveRulesetForMatch() to look up the platform default
-// when a tournament/event has no explicit penalty_ruleset_id.
-const BUILTIN_CODE = 'ffamhe_tf_2026';
-const BUILTIN_VERSION = '2026';
-
 export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
 
 /**
@@ -209,16 +202,34 @@ export class PenaltiesService {
   async getEffectiveRulesetForMatch(matchId: string) {
     const match = await this.getMatchContext(matchId);
     if (match.penaltyRulesetId) return this.getRuleset(match.penaltyRulesetId);
+    return this.loadBuiltInPenaltyRuleset();
+  }
 
+  /**
+   * The platform default every match and tournament falls back to, entries
+   * included — the set of sanctions a referee can actually reach on the pad.
+   *
+   * Resolved by the `built_in` flag, NOT by a hard-coded (code, version) pair.
+   * The old lookup asked for version '2026' while migration 0054 seeds the row
+   * as '1.0.0', so it matched nothing and returned null: every match without an
+   * explicitly pinned ruleset — the default state — served the pad an empty
+   * penalty picker, and no referee could card anyone. A version is data, and the
+   * built-in is edited in place (it is never frozen), so the flag is the only
+   * stable handle. `loadBuiltInPenaltyBaseline` had already reached that
+   * conclusion for the lineage lamp; this is the same rule for the same row.
+   */
+  private async loadBuiltInPenaltyRuleset(): Promise<Row | null> {
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('*, penalty_ruleset_entries(*)')
-      .eq('code', BUILTIN_CODE)
-      .eq('version', BUILTIN_VERSION)
+      .eq('built_in', true)
       .is('owner_organization_id', null)
+      // `.limit(1)` before `.maybeSingle()`: a second built-in row would
+      // otherwise null the whole result and silently empty the picker again.
+      .limit(1)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    return data;
+    return (data as Row | null) ?? null;
   }
 
   /**
@@ -247,15 +258,7 @@ export class PenaltiesService {
       if (evRulesetId) return this.getRuleset(evRulesetId);
     }
 
-    const { data, error: builtinErr } = await this.supabase.service
-      .from('penalty_rulesets')
-      .select('*, penalty_ruleset_entries(*)')
-      .eq('code', BUILTIN_CODE)
-      .eq('version', BUILTIN_VERSION)
-      .is('owner_organization_id', null)
-      .maybeSingle();
-    if (builtinErr) throw new BadRequestException(builtinErr.message);
-    return data;
+    return this.loadBuiltInPenaltyRuleset();
   }
 
   async createRuleset(dto: CreatePenaltyRulesetDto, userId?: string) {
