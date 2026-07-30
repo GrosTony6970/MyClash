@@ -3,6 +3,7 @@ import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
 import { ensureClub, ensureRoster, personName, POINT_CAP, type Person } from './_bracket';
 import { playTournamentToChampion, type FinishedTournament } from './_tournament';
+import { linesOf, neutralisedForSpreadsheet, readStoredZip, splitCsvRow } from './_bundle';
 
 /**
  * The export surfaces, end to end (run with E2E_EXPORTS=1).
@@ -98,70 +99,7 @@ interface Fixture {
 }
 let fixture: Fixture;
 
-// ── CSV + zip helpers ────────────────────────────────────────────────────────
-
-/**
- * One CSV row's fields, honouring RFC 4180 quoting. Needed because the
- * human-facing reports quote any cell they neutralise, so a naive `split(',')`
- * would miscount fields on exactly the rows this spec cares most about.
- */
-function splitCsvRow(line: string): string[] {
-  const fields: string[] = [];
-  let field = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (quoted) {
-      if (char === '"' && line[i + 1] === '"') {
-        field += '"';
-        i++;
-      } else if (char === '"') quoted = false;
-      else field += char;
-    } else if (char === '"') quoted = true;
-    else if (char === ',') {
-      fields.push(field);
-      field = '';
-    } else field += char;
-  }
-  fields.push(field);
-  return fields;
-}
-
-/** Non-empty lines of a CSV body. */
-const linesOf = (csv: string) => csv.split('\n').filter((line) => line.length > 0);
-
-/**
- * A value as `escapeCsvCell` leaves it once the RFC quoting is parsed back off:
- * a formula-leading cell keeps the apostrophe that makes it literal text.
- */
-const neutralisedForSpreadsheet = (value: string) =>
-  /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-
-/**
- * Entry name → text, for the STORED (method 0) zips `createStoredZip` writes.
- *
- * Walks the local file headers rather than the central directory: every entry
- * is uncompressed with no extra field, so the sizes in the local header are
- * exact. A dependency-free reader keeps this spec free of workspace imports,
- * which the e2e runner resolves poorly.
- */
-function readStoredZip(buffer: Buffer): Map<string, string> {
-  const entries = new Map<string, string>();
-  let offset = 0;
-  while (offset + 30 <= buffer.length && buffer.readUInt32LE(offset) === 0x04034b50) {
-    const size = buffer.readUInt32LE(offset + 18);
-    const nameLength = buffer.readUInt16LE(offset + 26);
-    const extraLength = buffer.readUInt16LE(offset + 28);
-    const nameStart = offset + 30;
-    const dataStart = nameStart + nameLength + extraLength;
-    entries.set(
-      buffer.subarray(nameStart, nameStart + nameLength).toString('utf8'),
-      buffer.subarray(dataStart, dataStart + size).toString('utf8'),
-    );
-    offset = dataStart + size;
-  }
-  return entries;
-}
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 const csvText = async (api: Api, path: string): Promise<string> =>
   (await (await api.ok(await api.get(path))).text()).trimEnd();

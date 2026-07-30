@@ -27,7 +27,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`12` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`13` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -246,6 +246,33 @@ Finally it flips the event to `event_kind: 'test'` and asserts both HEMA
 endpoints 400, then restores it in a `finally`: only standard events may reach a
 global rating pool.
 
+## Subject export + deletion requests (opt-in)
+
+`E2E_PRIVACY=1 pnpm test:e2e:prod tests/e2e/13-*.spec.ts` runs
+`13-privacy.spec.ts`. It holds the GDPR subject bundle
+(`GET /me/data-export.zip`) to its **own** promises — every file the manifest
+names exists, carries the row count it claims, and stamps each row with the
+`_table` its README advertises — and drives the deletion-request lifecycle that
+is the one thing allowed through the archived-event read-only guard.
+
+> **It found three production bugs on its first run**, all fixed and awaiting a
+> redeploy: the subject export 500d for every user (a column dropped by
+> migration 0063 was still declared), archived events were never actually
+> read-only (the guard never read the `:id` param its own routes bind), and the
+> deletion-request "has scored matches" fallback queried a column that does not
+> exist. Until the API is redeployed those three assertions are red — check
+> `/api/v1/version` against `main` before blaming the spec.
+
+The event-target lifecycle creates its **own** `event_kind: 'test'` event rather
+than using the shared one: archiving is one-way, and only that kind stays
+hard-deletable while archived, so the spec can clean up after itself.
+
+Deliberately out of scope: retention runs and person anonymisation. Both are
+destructive well beyond a throwaway event and both sit behind `SuperAdminGuard`,
+which the E2E account (an org owner) cannot pass — so the spec pins the
+**boundary** instead, asserting all three admin privacy routes refuse it, and
+skips itself if the credentials ever gain platform rights.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -262,6 +289,7 @@ global rating pool.
 | 10  | Scoring-pad server contract         | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
 | 11  | League season                       | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
 | 12  | Exports + HEMA Ratings bundle       | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
+| 13  | Subject export + deletion requests  | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
