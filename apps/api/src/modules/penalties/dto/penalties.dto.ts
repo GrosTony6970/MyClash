@@ -36,8 +36,19 @@ export const createPenaltySchema = z
      * Match-clock position (accumulated active ms) when the penalty was
      * recorded. Persisted to match_penalties.clock_time_ms so the timeline
      * shows match-clock time.
+     *
+     * `.nullable()` as well as `.optional()`, because the pad sends an explicit
+     * NULL whenever it has no clock to report: both penalty paths pass
+     * `clockState?.activeMs ?? null` (MatchView.tsx), so a card recorded before
+     * the clock GET resolves — or after it failed — carries a null. Zod's
+     * `.optional()` accepts undefined ONLY, so that card was rejected with a
+     * 400 and the referee saw a bare "Bad Request". Exactly the fault that made
+     * every exchange type unrecordable (see the same note on
+     * CreateExchangeDto); the exchange schema was fixed and this one, next to
+     * it, was not. The service already writes `dto.clockTimeMs ?? null`. Do not
+     * narrow this back.
      */
-    clockTimeMs: z.number().int().min(0).optional(),
+    clockTimeMs: z.number().int().min(0).nullable().optional(),
     reason: z.string().max(500).optional(),
   })
   .strict()
