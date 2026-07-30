@@ -19,6 +19,13 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# Exports TRAEFIK_BAN_ALLOWLIST + the MW_* middleware prefixes that
+# docker-compose.prod.yml interpolates. Compose reads these from this shell,
+# not from --env-file, so EVERY script that runs a compose command must source
+# it — otherwise compose warns about unset variables and, for the scripts that
+# bring the stack up, silently detaches the GeoBlock/Fail2Ban middlewares.
+source "$SCRIPT_DIR/lib/traefik-env.sh"
+
 for arg in "$@"; do
   case "$arg" in
     -h|--help)

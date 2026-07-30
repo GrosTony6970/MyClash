@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
@@ -1934,15 +1934,21 @@ for (const value of prodAllowlistValues) {
 // Compose reads MW_*/TRAEFIK_BAN_ALLOWLIST from the invoking shell, not
 // --env-file. Miss one entrypoint and the stack comes up with an empty allowlist
 // or detached middlewares depending on which script was used.
-for (const script of [
-  { name: 'deploy.sh', text: deployText },
-  { name: 'redeploy.sh', text: redeployText },
-  { name: 'start.sh', text: startText },
-]) {
-  if (!script.text.includes('lib/traefik-env.sh')) {
+// Enumerated dynamically rather than hard-coded: the first version of this check
+// listed deploy/redeploy/start only, and restore.sh + rollback.sh silently
+// started the stack with the plugin middlewares DETACHED (and every other
+// compose call printed "variable is not set" warnings). Any script that drives
+// the prod compose file needs the exports.
+const scriptsDir = path.join(rootDir, 'infra', 'scripts');
+const shellScripts = (await readdir(scriptsDir)).filter((f) => f.endsWith('.sh'));
+for (const name of shellScripts) {
+  const text = await readFile(path.join(scriptsDir, name), 'utf8');
+  if (!text.includes('docker-compose.prod.yml')) continue; // not a stack driver
+  if (!text.includes('lib/traefik-env.sh')) {
     errors.push(
-      `${script.name} must source infra/scripts/lib/traefik-env.sh — it exports TRAEFIK_BAN_ALLOWLIST ` +
-        'and the MW_* middleware prefixes that docker-compose.prod.yml interpolates.',
+      `infra/scripts/${name} runs the prod compose file but does not source lib/traefik-env.sh — ` +
+        'it exports TRAEFIK_BAN_ALLOWLIST and the MW_* middleware prefixes that Compose interpolates ' +
+        'from the invoking shell. Without it the stack comes up with GeoBlock/Fail2Ban detached.',
     );
   }
 }
