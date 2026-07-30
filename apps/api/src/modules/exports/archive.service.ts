@@ -542,6 +542,13 @@ export class ArchiveService {
     this.mapFk(next, 'event_id', maps.events, targets.targetEventId);
     this.mapFk(next, 'lice_id', maps.lices);
     this.mapFk(next, 'person_id', maps.persons);
+    // `matches.referee_id` is an EVENT-SCOPED persons.id (migration 0039), not a
+    // global person — so it has to be remapped like any other person reference.
+    // Left unmapped, a restored match pointed at the SOURCE event's person row:
+    // delete the source and `ON DELETE SET NULL` silently dropped the referee,
+    // keep it and the referee dashboard listed the copy's match under the wrong
+    // event's person (assignments.service.ts reads this column directly).
+    this.mapFk(next, 'referee_id', maps.persons);
     this.mapFk(next, 'fighter_id', maps.fighters);
     this.mapFk(next, 'global_person_id', maps.fighters);
     this.mapFk(next, 'tournament_id', maps.tournaments, targets.targetTournamentId);

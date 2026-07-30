@@ -368,6 +368,8 @@ describe('ArchiveService', () => {
         tournament_id: 't-1',
         status: 'completed',
         red_registration_id: 'r-1',
+        // An event-scoped persons.id (migration 0039), so it must be remapped.
+        referee_id: 'p-1',
       },
     ],
     referee_skills: [{ id: 'skill-custom', event_id: 'event-1', name: 'Custom', is_system: false }],
@@ -476,6 +478,27 @@ describe('ArchiveService', () => {
     expect(newSkillId).not.toBe('skill-custom');
     expect(inserted.referee_assignments?.[0]?.role).toBe(newSkillId);
     expect(inserted.event_hidden_skills?.[0]?.skill_id).toBe(newSkillId);
+  });
+
+  /**
+   * `matches.referee_id` was the one person reference `remapRow` did not remap,
+   * so a restored match kept pointing at the SOURCE event's person. A restore is
+   * supposed to produce a self-contained copy: nothing in it may reference a row
+   * belonging to the archive's source.
+   */
+  it("re-points a match referee at the restored person, not the source event's", async () => {
+    const { service, inserted } = makeService(scopedRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+    expect(archive.data.matches?.[0]?.['referee_id'], 'the archive must carry it').toBe('p-1');
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const restoredPersonId = inserted.persons?.[0]?.id as string;
+    expect(restoredPersonId, 'the person is copied under a new id').not.toBe('p-1');
+    expect(inserted.matches?.[0]?.referee_id).toBe(restoredPersonId);
   });
 
   it('drops org-level references when restoring into a different org', async () => {
