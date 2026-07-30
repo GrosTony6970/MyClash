@@ -71,6 +71,9 @@ export type { TVScoreboardProps } from './components/TVScoreboard';
 export { MatchTimeline } from './components/MatchTimeline';
 export type { MatchTimelineProps, MatchTimelineScale } from './components/MatchTimeline';
 
+export { BoutFlowChart } from './components/BoutFlowChart';
+export type { BoutFlowChartProps, BoutFlowScale } from './components/BoutFlowChart';
+
 export { LiceWaitingDisplay } from './components/LiceWaitingDisplay';
 export type {
   LiceWaitingDisplayProps,
@@ -180,7 +183,7 @@ export {
 } from './utils/color-token';
 export type { ColorToken } from './utils/color-token';
 
-export { sideStyle, styleForToken } from './utils/side-color';
+export { sideStyle, styleForToken, legibleOn, sideColorsFor } from './utils/side-color';
 export type { SideColorToken, SideColorStyle } from './utils/side-color';
 
 export { formatMatchClock } from './utils/format-match-clock';
@@ -191,10 +194,22 @@ export { formatMatchClock } from './utils/format-match-clock';
 
 export {
   buildUnifiedTimeline,
+  ascendingWithNumbers,
   orderedWithNumbers,
   exchangeOptionLabel,
 } from './utils/exchange-timeline';
 export type { UnifiedEvent, BuildTimelineArgs } from './utils/exchange-timeline';
+
+export type { ClockEvent } from './types/match-events';
+
+export { buildBoutFlow } from './utils/bout-flow';
+export type {
+  BoutFlowSeries,
+  BoutFlowPoint,
+  BoutFlowPause,
+  BoutFlowClockEvent,
+  BuildBoutFlowArgs,
+} from './utils/bout-flow';
 
 export { exchangeDeltaLabel, afterblowDefenderLabel } from './utils/exchange-delta-label';
 

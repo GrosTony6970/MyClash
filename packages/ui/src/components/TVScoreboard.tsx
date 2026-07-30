@@ -24,11 +24,13 @@ import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTranslator, getMessages } from '@myclash/i18n';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
-import type { ExchangeRow } from '../types/match-events';
+import type { ClockEvent, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
+import { buildBoutFlow } from '../utils/bout-flow';
+import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
 import { nextDisplayHref } from './next-display-href';
 
@@ -250,6 +252,7 @@ export function TVScoreboard({
           penalties={penalties}
           exchanges={exchanges}
           countdownRemaining={countdownRemaining}
+          clockEvents={clock?.events}
           redName={redName}
           blueName={blueName}
           t={t}
@@ -469,6 +472,7 @@ function CenterColumn({
   penalties,
   exchanges,
   countdownRemaining,
+  clockEvents,
   redName,
   blueName,
   t,
@@ -479,6 +483,7 @@ function CenterColumn({
   penalties: Penalty[];
   exchanges: ExchangeRow[];
   countdownRemaining: number | null;
+  clockEvents: ClockEvent[] | undefined;
   redName: string;
   blueName: string;
   t: (k: string, p?: Record<string, string>) => string;
@@ -522,6 +527,34 @@ function CenterColumn({
       match.blueRegistrationId,
       match.scoringConfig,
       t,
+    ],
+  );
+
+  // Same rows, read as momentum instead of history. Best-of shows the open
+  // round only, so the chart and the big numerals never disagree.
+  const flow = useMemo(
+    () =>
+      buildBoutFlow({
+        exchanges,
+        penalties,
+        redRegId: match.redRegistrationId ?? '',
+        blueRegId: match.blueRegistrationId ?? '',
+        matchFormat: match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
+        endReason: match.endReason,
+        bestOf: match.bestOf,
+        currentRound: match.currentRound,
+        clockEvents,
+      }),
+    [
+      exchanges,
+      penalties,
+      match.redRegistrationId,
+      match.blueRegistrationId,
+      match.matchFormat,
+      match.endReason,
+      match.bestOf,
+      match.currentRound,
+      clockEvents,
     ],
   );
 
@@ -599,6 +632,20 @@ function CenterColumn({
           )}
         </>
       )}
+
+      {/* Bout flow — how the lead moved. No pointer on a projector, so it
+          renders inert: no scrub handlers, no highlight. */}
+      <div className="mt-4 w-full min-w-0">
+        <BoutFlowChart
+          series={flow}
+          config={match.scoringConfig}
+          redName={redName}
+          blueName={blueName}
+          surface="dark"
+          scale="tv"
+          t={t}
+        />
+      </div>
 
       {/* Exchange history — the full timeline, scrollable and pinned to the
           newest row (the projector has no operator to scroll it). */}

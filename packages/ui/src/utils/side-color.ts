@@ -206,3 +206,22 @@ export function legibleOn(hex: string, bg: 'dark' | 'light'): string {
   if (bg === 'light' && lum > 0.6) return '#1f2937'; // too light on light → dark slate
   return hex;
 }
+
+/**
+ * Both sides' colours at once, already clamped for the surface they paint on.
+ *
+ * The pairing every scoreboard-shaped surface wants: two fighters, the
+ * organiser's configured colours, legible against this background. Having it
+ * here rather than inline at each call site is what stops a surface quietly
+ * reaching for a red/blue constant — `packages/ui` has no lint rule against a
+ * hardcoded hex, so this function (and its tests) is the guard.
+ */
+export function sideColorsFor(
+  config: TournamentScoringConfig | null | undefined,
+  surface: 'dark' | 'light',
+): { red: string; blue: string } {
+  return {
+    red: legibleOn(sideStyle(config, 'red').border, surface),
+    blue: legibleOn(sideStyle(config, 'blue').border, surface),
+  };
+}

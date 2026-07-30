@@ -7,6 +7,7 @@
  * Pure: no React, no I/O.
  */
 
+import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import type { ExchangeRow, ExchangeType, Penalty } from '@myclash/ui';
 
 // The exchange + penalty wire shapes are declared once in @myclash/ui
@@ -46,6 +47,8 @@ export interface MatchRow {
   blueRoundWins: number;
   awaitingRoundAdvance: boolean;
   roundsJson: RoundSnapshot[] | null;
+  /** Why the match ended — 'max_doubles' is the 0–0 double loss. */
+  endReason: string | null;
 }
 
 /** Header labels from `/matches/:id/summary` (fighter names, schools, referee, tz). */
@@ -59,6 +62,15 @@ export interface MatchSummary {
   referees: string[];
   /** Effective best-of for this match's phase (1 = single round). */
   bestOf: number;
+  /**
+   * The tournament's scoring rules. `matchFormat` carries the point cap, the
+   * scoring direction and the double cap, so a score can be read correctly
+   * rather than assumed; `scoringConfig` carries the OPERATOR'S side colours,
+   * so this page paints the tournament's real colours rather than a generic
+   * red/blue. Null on an older payload — callers fall back to the defaults.
+   */
+  matchFormat: MatchFormatConfig | null;
+  scoringConfig: TournamentScoringConfig | null;
 }
 
 /** Map a raw `matches` row (snake_case, from REST or realtime) to MatchRow. */
@@ -79,5 +91,6 @@ export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
     blueRoundWins: (raw['blue_round_wins'] as number | null) ?? 0,
     awaitingRoundAdvance: (raw['awaiting_round_advance'] as boolean | null) ?? false,
     roundsJson: Array.isArray(raw['rounds_json']) ? (raw['rounds_json'] as RoundSnapshot[]) : null,
+    endReason: (raw['end_reason'] as string | null) ?? null,
   };
 }

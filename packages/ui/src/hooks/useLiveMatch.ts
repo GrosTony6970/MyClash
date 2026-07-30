@@ -3,12 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import type { ExchangeRow, MatchStatus, Penalty } from '../types/match-events';
+import type { ClockEvent, ExchangeRow, MatchStatus, Penalty } from '../types/match-events';
 
 // The wire shapes live in ../types/match-events (a leaf module the pure
 // timeline utils can import without depending on this hook). Re-exported here
 // so `@myclash/ui`'s long-standing public surface is unchanged.
-export type { ExchangeRow, MatchStatus, Penalty, PenaltyCard } from '../types/match-events';
+export type {
+  ClockEvent,
+  ExchangeRow,
+  MatchStatus,
+  Penalty,
+  PenaltyCard,
+} from '../types/match-events';
 
 export interface DisplayMatch {
   id: string;
@@ -76,6 +82,13 @@ export interface ClockSnapshot {
   status: 'idle' | 'running' | 'halted' | 'ended';
   activeMs: number;
   runningFrom: string | null;
+  /**
+   * The transitions `activeMs` was folded from. The endpoint has always
+   * returned these; this type simply dropped them. The bout-flow chart replays
+   * them to position its stoppage markers — `activeMs` alone cannot say WHERE
+   * the clock stopped, only how much ran in total.
+   */
+  events?: ClockEvent[];
 }
 
 export interface UseLiveMatchResult {

@@ -35,6 +35,10 @@ async function fetchSummary(matchId: string): Promise<MatchSummary> {
       eventTimezone: 'Europe/Paris',
       referees: [],
       bestOf: 1,
+      // Null, not a default: the consumers already fall back, and inventing a
+      // point cap here would have the flow chart draw a ceiling nobody set.
+      matchFormat: null,
+      scoringConfig: null,
     };
   }
   return (await res.json()) as MatchSummary;

@@ -52,6 +52,15 @@ export interface MatchTimelineProps {
   sideColors?: 'config' | 'tokens';
   /** Shown when there are no events. Defaults to an em dash. */
   emptyLabel?: string;
+  /**
+   * Shared timeline number to spotlight, or null. Paired with the bout-flow
+   * chart on the surfaces that show both: scrubbing the chart lights the row,
+   * and pointing at a row lights the chart. Both key off `ev.number`, which is
+   * the same figure on every surface by construction.
+   */
+  highlightNumber?: number | null;
+  /** Provide to let rows drive the highlight. Omit for a static list. */
+  onHighlightChange?: (n: number | null) => void;
   /** Accessible name for the list. */
   ariaLabel?: string;
   /** App-local translator — packages/ui has no i18n context of its own. */
@@ -87,6 +96,8 @@ interface ScaleStyles {
   card: string;
   /** Spell the card colour out as text rather than relying on the swatch. */
   cardText: boolean;
+  /** Applied to the row the chart (or the pointer) is currently on. */
+  rowActive: string;
 }
 
 const COMPACT: ScaleStyles = {
@@ -103,6 +114,7 @@ const COMPACT: ScaleStyles = {
   empty: 'text-center text-xs text-muted py-2',
   card: 'inline-block h-3.5 w-3.5 rounded-sm flex-shrink-0',
   cardText: false,
+  rowActive: 'bg-surface rounded-md -mx-1 px-1',
 };
 
 const STYLES: Record<MatchTimelineScale, ScaleStyles> = {
@@ -113,6 +125,7 @@ const STYLES: Record<MatchTimelineScale, ScaleStyles> = {
     box: 'rounded-lg border border-border bg-surface p-3 space-y-1 shadow-xs',
     empty: 'text-center text-sm text-muted py-6',
     cardText: true,
+    rowActive: 'bg-background rounded-md -mx-1 px-1',
   },
   // Explicit dark-stage classes, NOT semantic tokens: the display stage is a
   // hardcoded bg-gray-950 inside light-themed apps, so text-foreground and
@@ -131,6 +144,7 @@ const STYLES: Record<MatchTimelineScale, ScaleStyles> = {
     empty: 'text-center text-base text-gray-600 py-2',
     card: 'inline-block h-4 w-4 rounded-sm flex-shrink-0',
     cardText: false,
+    rowActive: 'bg-gray-800 rounded-md -mx-1 px-1',
   },
 };
 
@@ -139,6 +153,8 @@ export function MatchTimeline({
   scale = 'compact',
   sideColors = 'config',
   emptyLabel,
+  highlightNumber = null,
+  onHighlightChange,
   ariaLabel,
   t,
   className,
@@ -153,6 +169,17 @@ export function MatchTimeline({
   useEffect(() => {
     if (scrolls && listRef.current) listRef.current.scrollTop = 0;
   }, [events.length, scrolls]);
+
+  // Follow the highlight into view — a spotlight below the fold of a 260px
+  // scroll box highlights nothing. Deliberately NOT keyed on events.length, so
+  // it never fights the pin-to-top above; 'nearest' keeps the page still on the
+  // scale that has no scroll box of its own.
+  useEffect(() => {
+    if (!scrolls || highlightNumber === null) return;
+    listRef.current
+      ?.querySelector(`[data-event-number="${highlightNumber}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [highlightNumber, scrolls]);
 
   /** Dot styling: a token class in 'tokens' mode, an inline hex otherwise. */
   function dotProps(side: 'red' | 'blue' | null | undefined, hex: string | null | undefined) {
@@ -185,8 +212,19 @@ export function MatchTimeline({
         // Card severity is otherwise carried by colour alone — unreadable to a
         // colour-blind viewer, and `title` never fires on touch.
         const cardLabel = ev.card ? t(`scoring.penalties.cards.${ev.card}`) : null;
+        const active = ev.number === highlightNumber;
         return (
-          <li key={ev.id} className={s.row}>
+          <li
+            key={ev.id}
+            data-event-number={ev.number}
+            className={`${s.row}${active ? ` ${s.rowActive}` : ''}`}
+            {...(onHighlightChange
+              ? {
+                  onPointerEnter: () => onHighlightChange(ev.number),
+                  onPointerLeave: () => onHighlightChange(null),
+                }
+              : {})}
+          >
             <span className={s.num}>#{ev.number}</span>
             <span className={s.time}>{ev.timeLabel}</span>
             {dot && <span {...dot} />}

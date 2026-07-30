@@ -10041,7 +10041,7 @@ export interface components {
       directCard?: 'yellow' | 'red' | 'black';
       /** Format: date-time */
       occurredAt: string;
-      clockTimeMs?: number;
+      clockTimeMs?: number | null;
       reason?: string;
     };
     VoidPenaltyDto: {

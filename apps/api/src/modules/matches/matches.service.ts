@@ -110,11 +110,16 @@ export class MatchesService {
     // drives the effective best-of for this match's phase.
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
-      .select('weapon, name, ruleset_config')
+      .select('weapon, name, ruleset_config, scoring_config_json')
       .eq('id', row.tournament_id)
       .maybeSingle();
     const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
     const tournamentName = (tournament as { name?: string | null } | null)?.name ?? null;
+    // The operator's configured side colours live here. Returned so the PUBLIC
+    // match page paints the tournament's real colours instead of falling back
+    // to generic red/blue — the pad and the projector already do.
+    const scoringConfig =
+      (tournament as { scoring_config_json?: unknown } | null)?.scoring_config_json ?? null;
     const rulesetConfig = (tournament as { ruleset_config?: unknown } | null)?.ruleset_config ?? {};
     const matchFormat = normalizeMatchFormatConfig(
       (rulesetConfig as { matchFormat?: unknown }).matchFormat ?? {},
@@ -246,6 +251,12 @@ export class MatchesService {
       // (per-match route, no lice context).
       tournamentId: row.tournament_id,
       phaseType: row.phase_type ?? null,
+      // The scoring rules the page needs to render a score correctly:
+      // matchFormat carries the point cap, the scoring direction and the double
+      // cap (already resolved above for bestOf), scoringConfig the operator's
+      // side colours. Both were computed/fetched here and thrown away.
+      matchFormat,
+      scoringConfig,
       // Best-of-N round state. bestOf = 1 (single round) for unconfigured
       // tournaments, so the scoreboard hides the round counter by default.
       bestOf,

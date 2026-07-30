@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { legibleOn, sideStyle } from './side-color';
+import { legibleOn, sideColorsFor, sideStyle } from './side-color';
 
 describe('legibleOn', () => {
   it('replaces a near-black colour with a light fallback on a dark surface', () => {
@@ -26,5 +26,30 @@ describe('legibleOn', () => {
     const red = sideStyle(null, 'red').border; // #dc2626
     expect(legibleOn(red, 'dark')).toBe(red);
     expect(legibleOn(red, 'light')).toBe(red);
+  });
+});
+
+describe('sideColorsFor', () => {
+  const withSides = (red: string, blue: string) =>
+    ({ display: { sideColors: { red, blue } } }) as never;
+
+  it('paints the colours the organiser configured, not red and blue', () => {
+    const { red, blue } = sideColorsFor(withSides('green', 'yellow'), 'light');
+    expect(red).toBe('#16a34a');
+    expect(blue).toBe('#ca8a04');
+  });
+
+  it('keeps a black side visible on the dark projector stage', () => {
+    expect(sideColorsFor(withSides('black', 'white'), 'dark').red).toBe('#e2e8f0');
+  });
+
+  it('keeps a white side visible on the light public page', () => {
+    expect(sideColorsFor(withSides('black', 'white'), 'light').blue).toBe('#1f2937');
+  });
+
+  it("falls back to each side's own token before the config loads", () => {
+    const { red, blue } = sideColorsFor(null, 'light');
+    expect(red).toBe('#dc2626');
+    expect(blue).toBe('#2563eb');
   });
 });

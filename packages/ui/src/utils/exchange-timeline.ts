@@ -108,16 +108,30 @@ function instant(occurredAt: string): number {
 
 /**
  * Assign a contiguous 1..N number across the rows in chronological order
- * (tie-break by stored `seq`), then return them newest-first for display.
+ * (tie-break by stored `seq`), returned OLDEST-first.
+ *
+ * This is where the `#N` on every surface is decided. `orderedWithNumbers`
+ * below is just this reversed for display, and the bout-flow chart accumulates
+ * over this order directly — so the chart's x-axis and the timeline's `#`
+ * cannot drift apart, which is the invariant this module exists to hold.
  */
-export function orderedWithNumbers<T extends { occurredAt: string; seq: number }>(
+export function ascendingWithNumbers<T extends { occurredAt: string; seq: number }>(
   rows: T[],
 ): (T & { number: number })[] {
   const ascending = [...rows].sort(
     (a, b) => instant(a.occurredAt) - instant(b.occurredAt) || a.seq - b.seq,
   );
-  const numbered = ascending.map((r, i) => ({ ...r, number: i + 1 }));
-  return numbered.sort((a, b) => instant(b.occurredAt) - instant(a.occurredAt) || b.seq - a.seq);
+  return ascending.map((r, i) => ({ ...r, number: i + 1 }));
+}
+
+/**
+ * Assign a contiguous 1..N number across the rows in chronological order
+ * (tie-break by stored `seq`), then return them newest-first for display.
+ */
+export function orderedWithNumbers<T extends { occurredAt: string; seq: number }>(
+  rows: T[],
+): (T & { number: number })[] {
+  return ascendingWithNumbers(rows).reverse();
 }
 
 export interface BuildTimelineArgs {

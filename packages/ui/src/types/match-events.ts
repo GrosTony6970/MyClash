@@ -49,9 +49,35 @@ export interface ExchangeRow {
   scoreDelta?: number | null;
   /** Defender delta (only for afterblow_full mode). */
   defenderDelta?: number | null;
+  /**
+   * Which best-of round this exchange belongs to (1 for a single-round match).
+   * Raw column — the API passes it through unaliased with the rest of the row.
+   *
+   * Load-bearing for anything that must agree with `matches.red_score`, which
+   * in a best-of match holds the OPEN round's score only: the server filters on
+   * `(round_number ?? 1) === current_round` before scoring, so a client that
+   * sums every round disagrees with the numeral on screen.
+   */
+  round_number?: number | null;
   /** Raw column — the operator's note on a `no_exchange` row. Snake_case
    *  because the API passes the row through without aliasing this one. */
   no_exchange_reason?: string | null;
+}
+
+/**
+ * One clock transition from `GET /matches/:id/clock` — the `match_events` rows
+ * the clock state is folded from, which the endpoint returns alongside the
+ * computed state. Start/halt/resume/end/reopen/reset_clock/adjust_time.
+ *
+ * Replaying them is the only way to know WHERE in match time the clock was
+ * stopped: the computed `activeMs` is a total and keeps no history.
+ */
+export interface ClockEvent {
+  type: string;
+  occurredAt: string;
+  reason?: string | null;
+  /** Signed correction applied by an `adjust_time` event. */
+  adjustmentMs?: number | null;
 }
 
 /** One row of `GET /matches/:id/penalties` (a raw `match_penalties` record). */

@@ -1,8 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildUnifiedTimeline, MatchTimeline } from '@myclash/ui';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import {
+  BoutFlowChart,
+  MatchTimeline,
+  buildBoutFlow,
+  sideColorsFor,
+  buildUnifiedTimeline,
+} from '@myclash/ui';
+import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -35,6 +41,7 @@ interface ExchangeChangeRaw {
   red_score_delta: number;
   blue_score_delta: number;
   clock_time_ms: number | null;
+  round_number: number | null;
   occurred_at: string;
   voided: boolean;
 }
@@ -78,6 +85,9 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
     scoreDelta,
     defenderDelta,
     clockTimeMs: raw.clock_time_ms,
+    // Carried so a live-inserted row can be filtered to the open round like a
+    // fetched one; without it a best-of bout's flow would fold every round in.
+    round_number: raw.round_number,
   };
 }
 
@@ -85,6 +95,11 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
 
 function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary }) {
   const { t, locale } = useI18n();
+  // The organiser's configured side colours, not a generic red/blue: a
+  // tournament run white-vs-black must read white-vs-black here too, exactly as
+  // it already does on the pad and the projector. `legibleOn` keeps the white
+  // and black tokens from vanishing into this light page.
+  const colors = sideColorsFor(summary.scoringConfig, 'light');
   const statusLabel: Record<MatchStatus, string> = {
     scheduled: t('scoring.liveMatch.status.scheduled'),
     running: t('scoring.liveMatch.status.running'),
@@ -106,10 +121,12 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
 
   // Score emphasis: when there's a winner, dim the loser; otherwise both full.
   const scoreClass = (side: 'red' | 'blue') => {
-    const base = side === 'red' ? 'text-corner-red' : 'text-corner-blue';
-    if (!winner) return base;
-    return winner === side ? `${base} font-black` : `${base} opacity-40`;
+    if (!winner) return '';
+    return winner === side ? 'font-black' : 'opacity-40';
   };
+  const scoreStyle = (side: 'red' | 'blue') => ({
+    color: side === 'red' ? colors.red : colors.blue,
+  });
 
   const fmtTime = (iso: string | null) =>
     formatInZone(
@@ -135,16 +152,19 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
           })}
           {' · '}
           {t('scoring.rounds.seriesTally')}{' '}
-          <span className="text-corner-red">{match.redRoundWins}</span>
+          <span style={scoreStyle('red')}>{match.redRoundWins}</span>
           <span className="text-muted">–</span>
-          <span className="text-corner-blue">{match.blueRoundWins}</span>
+          <span style={scoreStyle('blue')}>{match.blueRoundWins}</span>
         </p>
       )}
 
       <div className="flex items-start justify-between gap-4">
         {/* Red side */}
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
-          <span className={`text-6xl font-bold tabular-nums ${scoreClass('red')}`}>
+          <span
+            className={`text-6xl font-bold tabular-nums ${scoreClass('red')}`}
+            style={scoreStyle('red')}
+          >
             {match.redScore}
           </span>
           <span className="text-sm font-semibold text-foreground">
@@ -158,7 +178,10 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
 
         {/* Blue side */}
         <div className="flex flex-1 flex-col items-center gap-1 text-center">
-          <span className={`text-6xl font-bold tabular-nums ${scoreClass('blue')}`}>
+          <span
+            className={`text-6xl font-bold tabular-nums ${scoreClass('blue')}`}
+            style={scoreStyle('blue')}
+          >
             {match.blueScore}
           </span>
           <span className="text-sm font-semibold text-foreground">
@@ -200,16 +223,23 @@ function MatchEventFeed({
   exchanges,
   penalties,
   match,
+  summary,
   redName,
   blueName,
 }: {
   exchanges: ExchangeRow[];
   penalties: MatchPenaltyRow[];
   match: MatchRow;
+  summary: MatchSummary;
   redName: string;
   blueName: string;
 }) {
   const { t } = useI18n();
+  const [highlight, setHighlight] = useState<number | null>(null);
+  // The tournament's own config now reaches this page (via /summary), so the
+  // timeline paints the operator's side colours like every other surface.
+  const config = summary.scoringConfig ?? DEFAULT_SCORING_CONFIG;
+
   // The same builder the referee pad and the TV display use, so a spectator's
   // "#6" is the operator's "#6": exchanges and cards in ONE contiguous 1..N
   // sequence, newest first. Voided rows are dropped by the builder; they are
@@ -224,13 +254,35 @@ function MatchEventFeed({
         redRegId: match.redRegistrationId,
         blueRegId: match.blueRegistrationId,
         t,
-        // This page never loads a tournament scoring config, so the builder's
-        // per-side hex would be meaningless here. `sideColors="tokens"` below
-        // ignores it and paints from the corner-red/corner-blue design tokens
-        // this page already uses, keeping the surface fully tokenized.
-        config: DEFAULT_SCORING_CONFIG,
+        config,
       }),
-    [exchanges, penalties, redName, blueName, match.redRegistrationId, match.blueRegistrationId, t],
+    [
+      exchanges,
+      penalties,
+      redName,
+      blueName,
+      match.redRegistrationId,
+      match.blueRegistrationId,
+      config,
+      t,
+    ],
+  );
+
+  // The same rows read as momentum. No pause markers: they need the clock
+  // endpoint, which this page does not fetch (and which is not yet @Public).
+  const flow = useMemo(
+    () =>
+      buildBoutFlow({
+        exchanges,
+        penalties,
+        redRegId: match.redRegistrationId,
+        blueRegId: match.blueRegistrationId,
+        matchFormat: summary.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
+        endReason: match.endReason,
+        bestOf: summary.bestOf,
+        currentRound: match.currentRound,
+      }),
+    [exchanges, penalties, match, summary],
   );
 
   // Exchange-scoped ON PURPOSE: the string says "voided exchanges", so folding
@@ -240,14 +292,28 @@ function MatchEventFeed({
 
   return (
     <div className="mt-4">
+      <BoutFlowChart
+        series={flow}
+        config={config}
+        redName={redName}
+        blueName={blueName}
+        surface="light"
+        scale="page"
+        highlightNumber={highlight}
+        onHighlightChange={setHighlight}
+        t={t}
+        className="mb-4"
+      />
+
       <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">{header}</h2>
 
       <MatchTimeline
         events={events}
         scale="page"
-        sideColors="tokens"
         emptyLabel={t('scoring.liveMatch.noExchanges')}
         ariaLabel={header}
+        highlightNumber={highlight}
+        onHighlightChange={setHighlight}
         t={t}
       />
 
@@ -436,6 +502,7 @@ export function MatchLiveView({
         exchanges={exchanges}
         penalties={penalties}
         match={match}
+        summary={summary}
         redName={summary.redName || t('scoring.liveMatch.red')}
         blueName={summary.blueName || t('scoring.liveMatch.blue')}
       />

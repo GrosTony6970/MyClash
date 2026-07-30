@@ -5,6 +5,7 @@ import { MatchHeader } from './MatchHeader';
 import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
+import { MatchResultOverlay } from './MatchResultOverlay';
 import { useI18n } from '../i18n/I18nProvider';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
@@ -651,56 +652,29 @@ export function MatchView({
         </div>
       )}
 
-      {/* End-of-match result: winner (highest score) or draw. */}
+      {/* End-of-match review: winner, score, and how the bout got there. */}
       {clockState?.status === 'ended' && !resultDismissed && (
-        <div
-          data-testid="match-result-overlay"
-          className="fixed inset-0 z-overlay flex items-center justify-center bg-black/70 p-4"
-        >
-          <div className="w-full max-w-lg rounded-xl border border-gold/60 bg-surface p-8 text-center shadow-2xl">
-            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-gold">
-              {t('scoring.result.finalResult')}
-            </p>
-            {(() => {
-              const winner = matchWinnerSide(match.redScore, match.blueScore);
-              const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
-              // Winner shown in their own side colour (not gold) + a pulse to stand out.
-              const winnerColor = winner ? sideStyle(scoringConfig, winner).border : undefined;
-              return winnerName ? (
-                <p
-                  className="mb-2 flex items-center justify-center gap-2 text-3xl font-black animate-pulse"
-                  style={{ color: winnerColor }}
-                >
-                  <span aria-hidden>🏆</span> {winnerName}
-                </p>
-              ) : (
-                <p className="mb-2 text-3xl font-black text-foreground">
-                  {t('scoring.result.draw')}
-                </p>
-              );
-            })()}
-            <p className="mb-6 font-mono text-2xl font-bold text-foreground-secondary">
-              {match.redScore} – {match.blueScore}
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setResultDismissed(true)}
-                className="rounded-lg border-2 border-border bg-surface px-6 py-2 text-sm font-bold text-foreground-secondary hover:bg-border"
-              >
-                {t('scoring.result.close')}
-              </button>
-              {nextMatch && (
-                <a
-                  href={(buildMatchHref ?? ((id) => `/matches/${id}`))(nextMatch.id)}
-                  className="rounded-lg border-2 border-success bg-success px-6 py-2 text-sm font-bold text-success-foreground hover:bg-success-hover"
-                >
-                  {t('scoring.lice.nextMatchLabel')} →
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
+        <MatchResultOverlay
+          apiUrl={apiUrl}
+          matchId={match.id}
+          redName={redName}
+          blueName={blueName}
+          redRegistrationId={match.redRegistrationId}
+          blueRegistrationId={match.blueRegistrationId}
+          redScore={match.redScore}
+          blueScore={match.blueScore}
+          endReason={match.endReason}
+          bestOf={bestOf}
+          currentRound={currentRound}
+          scoringConfig={scoringConfig}
+          matchFormat={matchFormat}
+          clockState={clockState}
+          refreshKey={refreshKey}
+          nextMatchHref={
+            nextMatch ? (buildMatchHref ?? ((id: string) => `/matches/${id}`))(nextMatch.id) : null
+          }
+          onClose={() => setResultDismissed(true)}
+        />
       )}
     </div>
   );

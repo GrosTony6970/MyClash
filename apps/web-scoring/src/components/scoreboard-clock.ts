@@ -7,6 +7,7 @@
  * countdown mode and UP (elapsed) otherwise.
  */
 import type { MatchFormatConfig } from '@myclash/types';
+import type { ClockEvent } from '@myclash/ui';
 
 export type ClockStatus = 'idle' | 'running' | 'halted' | 'ended';
 
@@ -17,6 +18,13 @@ export interface ClockState {
   runningFrom: string | null;
   totalActiveMs: number;
   startedAt: string | null;
+  /**
+   * The transitions the totals were folded from — always returned by
+   * `GET /matches/:id/clock`, this type just dropped them. The end-of-bout flow
+   * chart replays them to place its stoppage markers: the totals say how much
+   * time ran, never where it stopped.
+   */
+  events?: ClockEvent[];
 }
 
 export type PhaseType = 'pool' | 'single_elim' | 'double_elim' | 'swiss';
