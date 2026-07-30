@@ -27,7 +27,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`13` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`14` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -273,6 +273,33 @@ which the E2E account (an org owner) cannot pass — so the spec pins the
 **boundary** instead, asserting all three admin privacy routes refuse it, and
 skips itself if the credentials ever gain platform rights.
 
+## Referee compensation (opt-in)
+
+`E2E_COMPENSATION=1 pnpm test:e2e:prod tests/e2e/14-*.spec.ts` runs
+`14-compensation.spec.ts` — the only surface in MyClash that produces a number
+somebody is **paid**, derived through four hops no test had ever run together:
+assignment → completed matches in that scope → tokens at the plan's rate → a
+tier band → clamped to the event's floor and cap.
+
+The payout is knowable in advance rather than read back: a 4-fighter round robin
+is exactly **six** matches, the spec plays exactly **four**, and one referee is
+assigned to that pool at three tokens a match. Twelve tokens lands in a band
+worth 40. The two unplayed matches are the control — a report that counted
+scheduled matches would read eighteen tokens and land in a different band. The
+plan also carries extravagant bracket and finals rates that must never appear,
+since this referee only worked a pool.
+
+Then the clamps, including the case an organiser reaches by mistake: a floor
+**above** the cap, where the floor wins (`clampCompensationAmount` applies it
+last).
+
+> **It found the fourth production bug of this spec family.** The report emitted
+> `userId: claimed_by_user_id ?? person_id` while payments keyed on the auth uid
+> only, so marking an **unclaimed** referee paid — nearly every referee at a real
+> event — wrote a row nothing could read back, and the UI's optimistic checkbox
+> hid it until the next reload. Fixed by migration 0163 (payments now key on
+> `person_id`); that assertion is red until the API is redeployed.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -290,6 +317,7 @@ skips itself if the credentials ever gain platform rights.
 | 11  | League season                       | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
 | 12  | Exports + HEMA Ratings bundle       | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
 | 13  | Subject export + deletion requests  | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
+| 14  | Referee compensation                | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
