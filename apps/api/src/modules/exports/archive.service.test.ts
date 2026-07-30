@@ -501,6 +501,43 @@ describe('ArchiveService', () => {
     expect(inserted.matches?.[0]?.referee_id).toBe(restoredPersonId);
   });
 
+  /**
+   * A tournament restore inserted its tournament under a THIRD id.
+   *
+   * `restoreTournamentCopy` mints `restoredTournamentId`, points the id map at
+   * it and rewrites the row to carry it — but `insertMappedTables` pre-seeds
+   * every table's id map with a fresh UUID for any row id it has not seen, and
+   * it had only seen the SOURCE id as a key. So the row was remapped again while
+   * the children still pointed at `restoredTournamentId`, and every child insert
+   * violated its foreign key. `restoreEventCopy` self-maps its new id for
+   * exactly this reason; this path did not.
+   *
+   * Asserted as id consistency rather than as an error, because the mock does
+   * not enforce foreign keys — which is precisely why this survived.
+   */
+  it('inserts the restored tournament under the id its children were given', async () => {
+    const { service, inserted } = makeService(scopedRows());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    const result = await service.restoreArchiveCopy(
+      Buffer.from(JSON.stringify(archive)),
+      'user-1',
+      { targetEventId: 'event-1', confirmation: 'RESTORE MYCLASH ARCHIVE' },
+    );
+
+    const insertedTournamentId = inserted.tournaments?.[0]?.id;
+    expect(insertedTournamentId, 'the row must carry the id the caller was handed').toBe(
+      result.restoredTournamentId,
+    );
+    expect(
+      inserted.registrations?.[0]?.tournament_id,
+      'every child must point at the tournament that was actually inserted',
+    ).toBe(insertedTournamentId);
+    expect(inserted.phases?.[0]?.tournament_id).toBe(insertedTournamentId);
+  });
+
   it('drops org-level references when restoring into a different org', async () => {
     const { service, inserted } = makeService(scopedRows());
     const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });

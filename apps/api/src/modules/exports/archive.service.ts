@@ -393,6 +393,11 @@ export class ArchiveService {
 
     const restoredEventId = randomUUID();
     maps.events.set(sourceEvent['id'] as string, restoredEventId);
+    // Self-map, and NOT redundant: the row below is rewritten to carry
+    // `restoredEventId`, and `insertMappedTables` pre-seeds each table's id map
+    // with a fresh UUID for any row id it has not seen as a KEY. Without this
+    // the event would be inserted under a third id while its children still
+    // pointed at `restoredEventId`. See `restoreTournamentCopy` for the same.
     maps.events.set(restoredEventId, restoredEventId);
     const restoredSlug = await this.uniqueEventSlug(
       targetOrganizationId,
@@ -448,6 +453,13 @@ export class ArchiveService {
     const maps = createIdMaps();
     const restoredTournamentId = randomUUID();
     maps.tournaments.set(sourceTournament['id'] as string, restoredTournamentId);
+    // The self-map `restoreEventCopy` has, and this path was missing: the row is
+    // rewritten to carry `restoredTournamentId`, so without a KEY for that id
+    // `insertMappedTables` pre-seeds it to a fresh UUID and inserts the
+    // tournament under a THIRD id — while every registration, phase and match
+    // still points at `restoredTournamentId`. Each child insert then violated
+    // its foreign key, so a tournament restore 400d every time.
+    maps.tournaments.set(restoredTournamentId, restoredTournamentId);
     maps.events.set(archive.source.eventId, options.targetEventId);
     const restoredSlug = await this.uniqueTournamentSlug(
       options.targetEventId,
