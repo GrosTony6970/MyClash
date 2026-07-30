@@ -64,7 +64,15 @@ export interface SubjectTableSpec {
  */
 export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> = {
   // ── Identity & profile ──────────────────────────────────────────────────────
-  fighters: { reaches: [{ column: 'claimed_by_user_id', reach: 'uid' }], file: 'profile.json' },
+  // `global_persons`, NOT `fighters`: migration 0023 renamed the table. The old
+  // name sat here querying a relation that has not existed since — PostgREST
+  // errors, `fetchDirect` throws, and the whole bundle 500s. So the subject's own
+  // identity row was both unexportable AND taking every other file down with it.
+  // Pinned by subject-export.schema.test.ts, which now replays table renames.
+  global_persons: {
+    reaches: [{ column: 'claimed_by_user_id', reach: 'uid' }],
+    file: 'profile.json',
+  },
   referee_profiles: {
     reaches: [{ column: 'global_person_id', reach: 'global_person' }],
     file: 'profile.json',
@@ -341,6 +349,9 @@ export const SUBJECT_EXPORT_EXCLUDED_TABLES = new Set<string>([
   'tournament_penalty_reviews', // an organiser's review of a penalty; the penalty itself is exported
   'ai_data_quality_scans', // super-admin data-quality operations
   'ai_data_quality_findings',
+
+  // renamed away — the name survives only in pre-rename migration text
+  'fighters', // renamed to global_persons in 0023, which IS exported
 
   // retired
   'ruleset_submissions', // dead intake path, retired in the R3 review-queue consolidation

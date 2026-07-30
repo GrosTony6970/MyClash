@@ -71,6 +71,7 @@ interface SchemaBuilder {
   views: Set<string>;
   add: (table: string, column: string) => void;
   drop: (table: string, column: string) => void;
+  renameTable: (from: string, to: string) => void;
 }
 
 /** Column names declared in every `CREATE TABLE` in one migration. */
@@ -91,11 +92,21 @@ function applyCreateTables(sql: string, schema: SchemaBuilder): void {
   }
 }
 
-/** `ALTER TABLE … ADD/RENAME/DROP COLUMN` in one migration, in order. */
+/** `ALTER TABLE … ADD/RENAME/DROP COLUMN`, and whole-table renames, in order. */
 function applyAlterTables(sql: string, schema: SchemaBuilder): void {
   const alterRe = /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?((?:public\.)?[a-z_][a-z0-9_]*)([\s\S]*?);/gi;
   for (let match = alterRe.exec(sql); match; match = alterRe.exec(sql)) {
     const [table, tail] = [match[1]!, match[2]!];
+
+    // `ALTER TABLE x RENAME TO y` — the whole table moves. Missing this is not
+    // academic: 0023 renamed `fighters` to `global_persons`, and the subject
+    // export went on querying `fighters` for years. Every column still "exists"
+    // to a grep, because the old CREATE TABLE is still sitting in 0001.
+    const renamedTo = /RENAME\s+TO\s+"?([a-z_][a-z0-9_]*)"?/i.exec(tail);
+    if (renamedTo && !/RENAME\s+COLUMN/i.test(tail)) {
+      schema.renameTable(table, renamedTo[1]!);
+      continue;
+    }
     for (const added of tail.matchAll(
       /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi,
     )) {
@@ -147,6 +158,13 @@ function buildSchema(): { columns: Map<string, Set<string>>; views: Set<string> 
     drop: (table, column) => {
       columns.get(normalise(table))?.delete(column.toLowerCase());
     },
+    renameTable: (from, to) => {
+      const [oldKey, newKey] = [normalise(from), normalise(to)];
+      const moved = columns.get(oldKey);
+      if (!moved) return;
+      columns.set(newKey, new Set([...(columns.get(newKey) ?? []), ...moved]));
+      columns.delete(oldKey);
+    },
   };
 
   const dir = findMigrationsDir();
@@ -176,6 +194,11 @@ describe('subject export column schema', () => {
     // Dropped by 0063. If this comes back, the DROP replay broke and every
     // other assertion here is worthless.
     expect(schema.columns.get('referee_assignments')).not.toContain('user_id');
+    // Renamed to global_persons by 0023 — the rename replay must retire the old
+    // name, or a map entry pointing at a table that no longer exists reads as
+    // fine (which is exactly how the export stayed broken).
+    expect(schema.columns.has('fighters')).toBe(false);
+    expect(schema.columns.get('global_persons')).toContain('claimed_by_user_id');
   });
 
   it('declares no column that the schema does not have', () => {
