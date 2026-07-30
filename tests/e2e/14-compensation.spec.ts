@@ -73,7 +73,8 @@ interface BreakdownLine {
 }
 
 interface RefereeLine {
-  userId: string;
+  /** `global_persons.id` — the id payments key on since migration 0163. */
+  personId: string;
   displayName: string;
   totalTokens: number;
   amountOwed: number;
@@ -102,11 +103,11 @@ const report = async (api: Api, eventId: string) =>
   api.json<Report>(await api.get(`events/${eventId}/compensation/report`));
 
 /** This spec's referee line, found by the user id the report attributes to it. */
-function lineFor(payload: Report, userId: string): RefereeLine {
-  const line = payload.referees.find((r) => r.userId === userId);
+function lineFor(payload: Report, personId: string): RefereeLine {
+  const line = payload.referees.find((r) => r.personId === personId);
   expect(
     line,
-    `no compensation line for ${userId}; report had ${payload.referees.map((r) => r.userId).join(', ') || '(nobody)'}`,
+    `no compensation line for ${personId}; report had ${payload.referees.map((r) => r.personId).join(', ') || '(nobody)'}`,
   ).toBeDefined();
   return line!;
 }
@@ -234,7 +235,7 @@ test.describe('compensation', () => {
     // produced completed matches — so the referee has not earned a floor either.
     const beforePlay = await report(api, eventId);
     expect(beforePlay.planId).toBe(plan.id);
-    expect(beforePlay.referees.map((r) => r.userId)).not.toContain(globalPersonId);
+    expect(beforePlay.referees.map((r) => r.personId)).not.toContain(globalPersonId);
 
     // ── Play four of the six ───────────────────────────────────────────────
     for (const match of pool.matches.slice(0, PLAYED_MATCHES)) {
