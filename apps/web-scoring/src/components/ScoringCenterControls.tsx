@@ -265,6 +265,8 @@ export function ScoringCenterControls({
         const tone = statusPillTone(clockStatusSemantic(status), 'dark');
         return (
           <span
+            data-testid="clock-status"
+            data-status={status}
             className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-widest ${tone.className} ${
               tone.pulse ? 'animate-pulse' : ''
             }`}
@@ -309,6 +311,11 @@ export function ScoringCenterControls({
           {primary && (
             <button
               type="button"
+              data-testid="clock-primary-button"
+              // The single button that is Start / Pause / Resume / Re-open by
+              // turn, so `data-action` is the only reliable way to say WHICH
+              // transition was just taken.
+              data-action={primary.action}
               disabled={clockLoading}
               onClick={() => onClockAction(primary.action)}
               className={`min-h-[64px] w-full max-w-[280px] rounded-2xl border-2 px-6 text-lg font-bold transition-colors disabled:opacity-40 ${primary.classes}`}
@@ -324,6 +331,7 @@ export function ScoringCenterControls({
             {status !== 'idle' && status !== 'ended' && (
               <button
                 type="button"
+                data-testid="clock-end-button"
                 disabled={clockLoading || roundBusy}
                 onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
                 className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
@@ -375,6 +383,8 @@ export function ScoringCenterControls({
           {/* Double-count X/Y chip + Double button */}
           <div className="flex flex-col items-center gap-1 mt-2 w-full">
             <span
+              data-testid="double-count"
+              data-count={doubleCount}
               title={t('scoring.lice.doubleLimitTooltip')}
               className={`rounded-full px-3 py-0.5 text-xs font-bold tabular-nums ${doubleChipTone}`}
             >
@@ -382,6 +392,7 @@ export function ScoringCenterControls({
             </span>
             <button
               type="button"
+              data-testid="double-button"
               disabled={!canScore || submit.submitting}
               onClick={() => submit.submitDouble()}
               className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-warning bg-warning/15 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/25 active:bg-warning/35 disabled:opacity-40"
@@ -390,6 +401,7 @@ export function ScoringCenterControls({
             </button>
             <button
               type="button"
+              data-testid="no-exchange-button"
               disabled={!canScore || submit.submitting}
               onClick={() => submit.submitNoExchange('other')}
               className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-border bg-surface px-4 py-2 text-sm font-bold text-foreground-secondary hover:bg-border active:bg-muted/40 disabled:opacity-40"

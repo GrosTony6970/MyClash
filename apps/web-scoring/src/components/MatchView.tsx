@@ -653,7 +653,10 @@ export function MatchView({
 
       {/* End-of-match result: winner (highest score) or draw. */}
       {clockState?.status === 'ended' && !resultDismissed && (
-        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-black/70 p-4">
+        <div
+          data-testid="match-result-overlay"
+          className="fixed inset-0 z-overlay flex items-center justify-center bg-black/70 p-4"
+        >
           <div className="w-full max-w-lg rounded-xl border border-gold/60 bg-surface p-8 text-center shadow-2xl">
             <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-gold">
               {t('scoring.result.finalResult')}

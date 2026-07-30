@@ -171,7 +171,10 @@ export function ScoringColumn({
   }
 
   return (
-    <div className="flex flex-col gap-3 px-2">
+    // `data-side` on the root is what lets a test (or a debugging operator)
+    // address ONE side: this component renders twice and every control inside
+    // it — clean, afterblow, penalty rows, card chips — exists in both copies.
+    <div className="flex flex-col gap-3 px-2" data-testid="scoring-column" data-side={side}>
       {/* Score numeral — gold when capped (winner), subtle side-colour glow when leading. */}
       <p
         className="text-center text-8xl font-black tabular-nums leading-none mt-2"
@@ -220,6 +223,9 @@ export function ScoringColumn({
           return (
             <span
               key={card}
+              data-testid="card-chip"
+              data-card={card}
+              data-count={count}
               title={t('scoring.lice.cardCounterTooltip', {
                 card: CARD_LABEL[card],
                 fighter: fighterName,
@@ -283,6 +289,8 @@ export function ScoringColumn({
               return (
                 <button
                   key={btn.label}
+                  data-testid="afterblow-button"
+                  data-side={side}
                   onClick={() => submit.submitAfterblow(side, btn)}
                   disabled={submit.submitting || !canScore}
                   className="min-h-[56px] rounded-xl border-2 bg-transparent font-bold text-lg flex flex-col items-center justify-center gap-1 disabled:opacity-40 transition-colors touch-manipulation"
@@ -355,6 +363,8 @@ export function ScoringColumn({
                   <button
                     key={entry.id}
                     type="button"
+                    data-testid="quick-penalty-button"
+                    data-entry-id={entry.id}
                     disabled={penaltyDisabled}
                     onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
                     className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs font-semibold text-foreground hover:border-warning disabled:opacity-40"
@@ -418,6 +428,8 @@ function PenaltyEntryRow({
   return (
     <button
       type="button"
+      data-testid="penalty-entry-button"
+      data-entry-id={entry.id}
       disabled={disabled}
       onClick={onClick}
       className="w-full min-h-[44px] rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm hover:border-warning disabled:opacity-40 flex items-center gap-2"

@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`15` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`16` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -347,6 +347,45 @@ unpublishing would leave it reachable by slug.
 
 Set `E2E_PUBLIC_URL` if web-public is not at `https://app.myclash.fr`.
 
+## The pad's other buttons (opt-in)
+
+`E2E_PAD_UI=1 pnpm test:e2e:prod tests/e2e/16-*.spec.ts` runs
+`16-pad-ui.spec.ts`. It exists because of `4075243e`: the pad could not record a
+single exchange, and the fault broke **all four** exchange types — the pad fills
+the fields a type does not use with `?? null`, Zod's `.optional()` accepts
+undefined only, so every POST 400d and `SyncEngine` DROPPED the entry with a
+console warning. It survived to production because the only exchange any browser
+test ever clicked was `clean-hit-button` (`06`/`08`).
+
+`10-scoring-pad.spec.ts` covers the same endpoints and cannot close that gap: it
+composes its own request bodies. What was missing is proof the **pad** composes
+them correctly. So this spec clicks — double, no exchange, afterblow, a penalty
+card, and the clock through `start → halt → resume → end` — and asserts what the
+server ended up holding after each one.
+
+Things worth knowing before touching it:
+
+- **The clock goes last.** Ending it completes the match and raises the result
+  overlay, which is `fixed inset-0 z-overlay` and intercepts every later click.
+- **A running clock LOCKS scoring** (`canScore = scoringEnabled &&
+!clockRunning`) — a real product rule that had no coverage. Steps 6–7 assert
+  the buttons go disabled and come back.
+- **Every control exists twice**, once per side. Assertions go through
+  `[data-testid="scoring-column"][data-side="…"]`, never a bare `.first()` —
+  clicking blue's penalty picker must card BLUE, and that is only provable if the
+  locator is side-scoped.
+- **The score expectation is derived, not restated**: the persisted
+  `red_score`/`blue_score` is compared against the sum of the engine's own
+  per-row deltas plus each penalty's `score_delta`. A click that lands the wrong
+  type, side or value fails there rather than quietly matching a literal.
+- **The penalty entry is read from the deployed ruleset**
+  (`GET matches/:id/penalty-ruleset`, which falls back to the built-in FFAMHE
+  set) and the first entry that actually issues a card is used. Naming one by ref
+  number would break the day the rulebook is revised.
+
+It needs the `data-testid`s in `apps/web-scoring` — added with it — so a
+**web-scoring redeploy** is a precondition for it going green.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -366,6 +405,8 @@ Set `E2E_PUBLIC_URL` if web-public is not at `https://app.myclash.fr`.
 | 13  | Subject export + deletion requests  | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
 | 14  | Referee compensation                | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
 | 15  | Public site on real data            | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
+| 16  | The pad's other buttons + the clock | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
-opt-in ones are gated purely on their env flag, and the nightly sets all six.
+opt-in ones are gated purely on their env flag, and the nightly sets all of them
+except `07`.
