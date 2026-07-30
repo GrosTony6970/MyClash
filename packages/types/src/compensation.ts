@@ -50,7 +50,12 @@ export interface CompensationBreakdownLine {
 }
 
 export interface RefereeCompensation {
-  userId: string;
+  /**
+   * The referee's `global_persons.id`. Was the auth uid for claimed referees
+   * and the person id for everyone else — one field, two id spaces — which is
+   * how "mark as paid" silently failed for unclaimed referees until 0163.
+   */
+  personId: string;
   displayName: string;
   totalTokens: number;
   amountOwed: number;

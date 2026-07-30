@@ -157,19 +157,19 @@ export class CompensationController {
     return this.compensation.computeReport(eventId);
   }
 
-  /** PATCH /api/v1/events/:eventId/compensation/payments/:userId */
-  @Patch('events/:eventId/compensation/payments/:refereeUserId')
+  /** PATCH /api/v1/events/:eventId/compensation/payments/:personId */
+  @Patch('events/:eventId/compensation/payments/:personId')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Toggle paid status for a referee' })
+  @ApiOperation({ summary: 'Toggle paid status for a referee (personId = global_persons.id)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  @ApiParam({ name: 'refereeUserId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
   async togglePaid(
     @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Param('refereeUserId', ParseUUIDPipe) refereeUserId: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
     @Body() dto: TogglePaidDto,
     @Req() req: FastifyRequest,
   ) {
     const actorId = await getUserId(req, this.supabase);
-    await this.compensation.togglePaid(eventId, refereeUserId, dto.paid, actorId);
+    await this.compensation.togglePaid(eventId, personId, dto.paid, actorId);
   }
 }

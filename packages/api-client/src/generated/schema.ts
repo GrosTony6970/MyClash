@@ -5363,7 +5363,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/events/{eventId}/compensation/payments/{refereeUserId}': {
+  '/api/v1/events/{eventId}/compensation/payments/{personId}': {
     parameters: {
       query?: never;
       header?: never;
@@ -5376,7 +5376,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Toggle paid status for a referee */
+    /** Toggle paid status for a referee (personId = global_persons.id) */
     patch: operations['CompensationController_togglePaid'];
     trace?: never;
   };
@@ -18341,7 +18341,7 @@ export interface operations {
       header?: never;
       path: {
         eventId: string;
-        refereeUserId: string;
+        personId: string;
       };
       cookie?: never;
     };

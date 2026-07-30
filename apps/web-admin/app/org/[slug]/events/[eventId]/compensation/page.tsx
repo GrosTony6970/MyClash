@@ -173,9 +173,9 @@ export default function CompensationPage() {
     }
   }
 
-  async function togglePaid(userId: string, paid: boolean) {
+  async function togglePaid(personId: string, paid: boolean) {
     try {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}/compensation/payments/${userId}`, {
+      await fetch(`${apiUrl}/api/v1/events/${eventId}/compensation/payments/${personId}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -187,7 +187,7 @@ export default function CompensationPage() {
         return {
           ...prev,
           referees: prev.referees.map((r) =>
-            r.userId === userId
+            r.personId === personId
               ? { ...r, paid, paidAt: paid ? new Date().toISOString() : null }
               : r,
           ),
@@ -198,11 +198,11 @@ export default function CompensationPage() {
     }
   }
 
-  function toggleExpand(userId: string) {
+  function toggleExpand(personId: string) {
     setExpandedRows((prev) => {
       const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
+      if (next.has(personId)) next.delete(personId);
+      else next.add(personId);
       return next;
     });
   }
@@ -429,14 +429,14 @@ export default function CompensationPage() {
                 </tr>
               )}
               {report.referees.map((referee) => (
-                <Fragment key={referee.userId}>
+                <Fragment key={referee.personId}>
                   <tr
                     className="border-b border-border hover:bg-background cursor-pointer"
-                    onClick={() => toggleExpand(referee.userId)}
+                    onClick={() => toggleExpand(referee.personId)}
                   >
                     <td className="py-2.5 px-4 font-medium text-foreground">
                       <span aria-hidden="true" className="mr-1 text-muted text-xs">
-                        {expandedRows.has(referee.userId) ? 'v' : '>'}
+                        {expandedRows.has(referee.personId) ? 'v' : '>'}
                       </span>
                       {referee.displayName}
                     </td>
@@ -466,14 +466,14 @@ export default function CompensationPage() {
                         })}
                         type="checkbox"
                         checked={referee.paid}
-                        onChange={(e) => void togglePaid(referee.userId, e.target.checked)}
+                        onChange={(e) => void togglePaid(referee.personId, e.target.checked)}
                         className="accent-accent w-4 h-4"
                       />
                     </td>
                   </tr>
-                  {expandedRows.has(referee.userId) && (
+                  {expandedRows.has(referee.personId) && (
                     <tr
-                      key={`${referee.userId}-detail`}
+                      key={`${referee.personId}-detail`}
                       className="border-b border-border bg-background"
                     >
                       <td colSpan={7} className="px-8 py-3">

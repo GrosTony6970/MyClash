@@ -389,41 +389,36 @@ export class CompensationService {
       }
     }
 
-    // Resolve display name + (for payment lookup) user_id from global_persons
-    // for each person we accumulated. Unclaimed refs have user_id = null and
-    // therefore no payment row.
+    // Display name for each person we accumulated.
     const personIds = [...acc.keys()];
     const displayNames = new Map<string, string>();
-    const personToUser = new Map<string, string>();
     if (personIds.length > 0) {
       const { data: gpRows } = await this.supabase.service
         .from('global_persons')
-        .select('id, claimed_by_user_id, given_name, family_name')
+        .select('id, given_name, family_name')
         .in('id', personIds);
       for (const gp of (gpRows ?? []) as Array<{
         id: string;
-        claimed_by_user_id: string | null;
         given_name: string | null;
         family_name: string | null;
       }>) {
         displayNames.set(gp.id, `${gp.given_name ?? ''} ${gp.family_name ?? ''}`.trim());
-        if (gp.claimed_by_user_id) personToUser.set(gp.id, gp.claimed_by_user_id);
       }
     }
 
-    // referee_compensation_payments still keys on user_id (claimed referees
-    // only — unclaimed refs have nothing to pay against). Map payment rows
-    // back via personToUser so the report attaches them to the right person.
+    // Payments key on person_id (migration 0163). They used to key on the auth
+    // uid, which meant an unclaimed referee — nearly every referee at a real
+    // event — could never be marked paid: the write landed under an id this
+    // lookup did not read.
     const paymentMap = new Map<string, { paid: boolean; paidAt: string | null }>();
-    const claimedUserIds = [...personToUser.values()];
-    if (claimedUserIds.length > 0) {
+    if (personIds.length > 0) {
       const { data: payments } = await this.supabase.service
         .from('referee_compensation_payments')
-        .select('user_id, paid, paid_at')
+        .select('person_id, paid, paid_at')
         .eq('event_id', eventId)
-        .in('user_id', claimedUserIds);
+        .in('person_id', personIds);
       for (const p of (payments ?? []) as Array<Record<string, unknown>>) {
-        paymentMap.set(p['user_id'] as string, {
+        paymentMap.set(p['person_id'] as string, {
           paid: Boolean(p['paid']),
           paidAt: (p['paid_at'] as string | null) ?? null,
         });
@@ -460,10 +455,9 @@ export class CompensationService {
       // counted match); if floor > cap, the floor wins.
       const amountOwed = clampCompensationAmount(this.resolveTier(totalTokens, tiers), cap, floor);
 
-      const claimedUserId = personToUser.get(personId) ?? null;
-      const payment = claimedUserId ? paymentMap.get(claimedUserId) : undefined;
+      const payment = paymentMap.get(personId);
       referees.push({
-        userId: claimedUserId ?? personId,
+        personId,
         displayName: displayNames.get(personId) ?? personId,
         totalTokens,
         amountOwed,
@@ -485,13 +479,14 @@ export class CompensationService {
     };
   }
 
-  async togglePaid(eventId: string, userId: string, paid: boolean, actorId: string) {
+  /** `personId` is a global_persons.id — the id `computeReport` emits. */
+  async togglePaid(eventId: string, personId: string, paid: boolean, actorId: string) {
     await this.requireEventOrgAdmin(eventId, actorId);
 
     const now = paid ? new Date().toISOString() : null;
     const { error } = await this.supabase.service.from('referee_compensation_payments').upsert({
       event_id: eventId,
-      user_id: userId,
+      person_id: personId,
       tokens_earned: 0,
       amount_owed: 0,
       paid,
@@ -587,7 +582,7 @@ export class CompensationService {
 
   // Used in buildRefereeReport type inference
   private buildRefereeReport(
-    userId: string,
+    personId: string,
     displayName: string,
     totalTokens: number,
     amountOwed: number,
@@ -595,6 +590,6 @@ export class CompensationService {
     paidAt: string | null,
     breakdown: CompensationBreakdownLine[],
   ) {
-    return { userId, displayName, totalTokens, amountOwed, paid, paidAt, breakdown };
+    return { personId, displayName, totalTokens, amountOwed, paid, paidAt, breakdown };
   }
 }

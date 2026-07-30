@@ -150,7 +150,9 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'referee-assignments.csv',
   },
   referee_compensation_payments: {
-    reaches: [{ column: 'user_id', reach: 'uid' }],
+    // person_id since migration 0163 (it was the auth uid before), so this
+    // reaches the subject as a global person like the rest of referee-land.
+    reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'referee-assignments.csv',
   },
   event_referees: {

@@ -11,7 +11,7 @@ function makeReport(): CompensationReport {
     grandTotal: 30,
     referees: [
       {
-        userId: 'u1',
+        personId: 'u1',
         displayName: 'Alice, "Ace"',
         totalTokens: 12,
         amountOwed: 10,
@@ -35,7 +35,7 @@ function makeReport(): CompensationReport {
         ],
       },
       {
-        userId: 'u2',
+        personId: 'u2',
         displayName: 'Bob',
         totalTokens: 20,
         amountOwed: 20,
