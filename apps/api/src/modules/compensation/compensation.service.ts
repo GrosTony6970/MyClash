@@ -484,14 +484,22 @@ export class CompensationService {
     await this.requireEventOrgAdmin(eventId, actorId);
 
     const now = paid ? new Date().toISOString() : null;
-    const { error } = await this.supabase.service.from('referee_compensation_payments').upsert({
-      event_id: eventId,
-      person_id: personId,
-      tokens_earned: 0,
-      amount_owed: 0,
-      paid,
-      paid_at: now,
-    });
+    // onConflict on the natural key, NOT the default primary key. The PK is a
+    // surrogate `id` this call never supplies, so a bare upsert always INSERTS
+    // — the first toggle worked and every one after it 400d on
+    // UNIQUE (event_id, person_id). Un-marking a referee as paid could
+    // therefore never succeed.
+    const { error } = await this.supabase.service.from('referee_compensation_payments').upsert(
+      {
+        event_id: eventId,
+        person_id: personId,
+        tokens_earned: 0,
+        amount_owed: 0,
+        paid,
+        paid_at: now,
+      },
+      { onConflict: 'event_id,person_id' },
+    );
 
     if (error) throw new BadRequestException(error.message);
   }
