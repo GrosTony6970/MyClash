@@ -219,17 +219,27 @@ export class PenaltiesService {
    * conclusion for the lineage lamp; this is the same rule for the same row.
    */
   private async loadBuiltInPenaltyRuleset(): Promise<Row | null> {
-    const { data, error } = await this.supabase.service
-      .from('penalty_rulesets')
-      .select('*, penalty_ruleset_entries(*)')
-      .eq('built_in', true)
-      .is('owner_organization_id', null)
-      // `.limit(1)` before `.maybeSingle()`: a second built-in row would
-      // otherwise null the whole result and silently empty the picker again.
-      .limit(1)
-      .maybeSingle();
+    const { data, error } = await this.builtInPenaltyRulesetQuery('*, penalty_ruleset_entries(*)');
     if (error) throw new BadRequestException(error.message);
     return (data as Row | null) ?? null;
+  }
+
+  /**
+   * The one predicate that identifies the built-in row, shared by every caller
+   * so they cannot drift apart — which is the fault this replaced: the picker
+   * and the recorder each decided for themselves what the default was.
+   *
+   * `.limit(1)` before `.maybeSingle()`: a second built-in row would otherwise
+   * null the whole result and silently empty the picker again.
+   */
+  private builtInPenaltyRulesetQuery(columns: string) {
+    return this.supabase.service
+      .from('penalty_rulesets')
+      .select(columns)
+      .eq('built_in', true)
+      .is('owner_organization_id', null)
+      .limit(1)
+      .maybeSingle();
   }
 
   /**
@@ -1217,11 +1227,28 @@ export class PenaltiesService {
       tournamentId: tournament['id'] as string,
       eventId: tournament['event_id'] as string,
       organizationId: event['organization_id'] as string,
+      // The EFFECTIVE ruleset: tournament → event → the platform built-in. The
+      // last step is not optional decoration — it is what almost every match
+      // resolves through, because almost nobody pins a ruleset explicitly.
+      //
+      // Without it this field was null on those matches, and every consumer
+      // read that as "there is no ruleset": `computeRulesetPenalty` refused the
+      // card outright ("No penalty ruleset is attached…"), the per-card cost
+      // columns were skipped in favour of a hardcoded delta, and the stored
+      // `ruleset_id` lost the provenance of a card that plainly came from one.
+      // Meanwhile the pad's picker DID fall back, so it offered 28 entries that
+      // could not be recorded. Read and write now resolve the same way.
       penaltyRulesetId:
         (tournament['penalty_ruleset_id'] as string | null) ??
         (event['penalty_ruleset_id'] as string | null) ??
-        null,
+        (await this.loadBuiltInPenaltyRulesetId()),
     };
+  }
+
+  /** Id of the built-in default, without dragging its entries along. */
+  private async loadBuiltInPenaltyRulesetId(): Promise<string | null> {
+    const { data } = await this.builtInPenaltyRulesetQuery('id');
+    return ((data as Row | null)?.['id'] as string | undefined) ?? null;
   }
 
   private assertMatchNotLocked(

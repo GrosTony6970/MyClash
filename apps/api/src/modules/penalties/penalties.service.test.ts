@@ -591,6 +591,10 @@ function fakeSupabase(state: TableState) {
       eq: vi.fn(() => api),
       in: vi.fn(() => api),
       is: vi.fn(() => api),
+      // `.limit()` is chained by the built-in penalty-ruleset lookup, which
+      // `getMatchContext` now falls back to. Returning `api` keeps this a
+      // pass-through: these cases assert on writes, not on row selection.
+      limit: vi.fn(() => api),
       order: vi.fn(() => Promise.resolve({ data: tableState.select ?? [], error: null })),
       maybeSingle: vi.fn(() =>
         Promise.resolve({ data: tableState.maybeSingle ?? null, error: null }),
