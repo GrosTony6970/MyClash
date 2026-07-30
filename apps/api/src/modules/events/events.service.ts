@@ -1194,7 +1194,9 @@ export class EventsService {
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color')
+      .select(
+        'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json',
+      )
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
@@ -1225,6 +1227,9 @@ export class EventsService {
       rulesetRepin,
       name: tournament['name'],
       weapon: tournament['weapon'],
+      // The organiser's configured fighter-side colours, so the public bracket
+      // paints the same corners the pad and the projector do.
+      sideColors: sideColorsFromScoringConfig(tournament['scoring_config_json']),
       rulesetCode: tournament['ruleset_code'],
       rulesetLabel,
       status: tournament['status'],

@@ -15,6 +15,7 @@ export type ColorToken =
   | 'bronze'
   | 'slate';
 
+// raw-color-exempt — a token→class map IS the palette definition; see side-color.ts.
 const ACCENT_MAP: Record<ColorToken, string> = {
   red: 'bg-red-700',
   blue: 'bg-blue-700',
@@ -33,6 +34,7 @@ const ACCENT_MAP: Record<ColorToken, string> = {
   slate: 'bg-slate-400',
 };
 
+// raw-color-exempt — a token→class map IS the palette definition; see side-color.ts.
 const TINT_BG_MAP: Record<ColorToken, string> = {
   red: 'bg-red-50',
   blue: 'bg-blue-50',
@@ -51,6 +53,7 @@ const TINT_BG_MAP: Record<ColorToken, string> = {
   slate: 'bg-slate-50',
 };
 
+// raw-color-exempt — a token→class map IS the palette definition; see side-color.ts.
 const TINT_TEXT_MAP: Record<ColorToken, string> = {
   red: 'text-red-700',
   blue: 'text-blue-700',
@@ -73,6 +76,7 @@ const TINT_TEXT_MAP: Record<ColorToken, string> = {
 // underline + section-title text-colour pair visually. Listed as
 // literal strings (rather than runtime `text.replace`) so Tailwind's
 // content scanner picks each class up.
+// raw-color-exempt — palette definition, as above.
 const TINT_BORDER_MAP: Record<ColorToken, string> = {
   red: 'border-red-700',
   blue: 'border-blue-700',
@@ -91,9 +95,18 @@ const TINT_BORDER_MAP: Record<ColorToken, string> = {
   slate: 'border-slate-600',
 };
 
+/**
+ * Unknown/missing tokens resolve to `slate`, not to a colour with meaning.
+ *
+ * These helpers paint fighter sides in the bracket as well as tournament and
+ * workshop identity. Defaulting to `red` meant a bracket slot whose side colour
+ * failed to load painted BOTH fighters red — the exact assumption the
+ * per-tournament `sideColors` config exists to remove. A neutral grey reads as
+ * "no colour set" instead of asserting one.
+ */
 function resolve(token: ColorToken | string | null | undefined): ColorToken {
-  if (!token) return 'red';
-  return (token in ACCENT_MAP ? token : 'red') as ColorToken;
+  if (!token) return 'slate';
+  return (token in ACCENT_MAP ? token : 'slate') as ColorToken;
 }
 
 /** Solid background class (used for color stripes and accent blocks). */

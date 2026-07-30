@@ -44,8 +44,12 @@ export const Avatar = ({ name, src, size = 'md', className = '' }: AvatarProps) 
   return (
     <div
       className={[
-        'rounded-full bg-red-900 border border-red-700 flex items-center justify-center',
-        'font-bold text-red-200 select-none',
+        // Neutral, not red: this fallback renders wherever a photo is missing,
+        // including beside a fighter whose side colour is configured. A fixed
+        // red disc there reads as a side marker it is not — TVScoreboard
+        // already had to route around exactly that.
+        'rounded-full bg-accent border border-border flex items-center justify-center',
+        'font-bold text-foreground select-none',
         sz,
         className,
       ].join(' ')}

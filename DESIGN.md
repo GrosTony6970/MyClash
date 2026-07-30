@@ -47,6 +47,8 @@ colors:
   instructor-foreground: '#ffffff'
 
   # Domain: the fighter's corner. Rule semantics, not decoration.
+  # DEFAULTS ONLY — the live colour is per-tournament, from
+  # scoring_config_json.display.sideColors, resolved via sideStyle().
   corner-red: '#dc2626'
   corner-red-foreground: '#ffffff'
   corner-blue: '#2563eb'
@@ -271,7 +273,7 @@ Every screen in MyClash is a page of that booklet. The reference decides things 
 - **A booklet read standing up, in a sports hall, with a mask under one arm** means generous margins and one column of attention. Not dense — _sparse and confident_. You are being read at arm's length by someone who has ninety seconds before their bout.
 - **A rule book means the labels are quiet and the values are loud.** A field label is the smallest text on the page; the fighter's name, the score, the piste number are the largest. The page announces the answer, not the question. Form fields read like entries in a tournament programme, not rows in an admin panel.
 - **The gold is medal ink.** It marks a placing or a flourish. It has never, in the history of printed tournament programmes, meant "careful".
-- **Red and blue are not the palette. They are the rules.** A fighter's corner is red or blue because the ruleset says so. Where those colours appear on a scoreboard they are the record of a bout, not a design choice, and they are not yours to restyle.
+- **The corner colours are not the palette. They are the rules — and the organiser sets them.** A fighter's corner colour is whatever that tournament configured (one of eleven tokens; red and blue are merely the defaults). Where those colours appear on a scoreboard they are the record of a bout, not a design choice. So: don't restyle them, and don't hardcode them either. Resolve every fighter side through `sideStyle()` / `sideColorsFor()` from `@myclash/ui`. A surface that paints `corner-red` directly is lying to any organiser who chose green and purple.
 
 The single recurring mark is the **FoilMark** (`packages/ui/src/components/FoilMark.tsx`): a 24×6 hairline glyph of a fencing foil's cross-guard, point left, handle right. It sits beneath section kickers and on empty states. It is the entire ornament budget of the system. Spend it there and nowhere else.
 
@@ -301,7 +303,7 @@ Colours fall into five families, and the families have jurisdictions:
 | **Accent**      | `accent`, `accent-hover`, `accent-foreground`                                    | The one live action on the page. Once.                   |
 | **Status**      | `danger`, `success`, `warning`, `info`, `instructor`                             | Badges and alerts **only**. Never the page accent.       |
 | **Strong**      | `strong`, `strong-foreground`, `strong-hover`                                    | A dark-neutral action — a slate button, a selected chip. |
-| **Domain**      | `corner-red`, `corner-blue`                                                      | The fighter's corner. Rule semantics.                    |
+| **Domain**      | `corner-red`, `corner-blue`                                                      | Corner **defaults**. Live colour: `sideStyle()`.         |
 | **Stage**       | `stage`, `stage-foreground`                                                      | The chromeless projector surface only.                   |
 | **Gold**        | `gold`, `gold-text`                                                              | Placings and flourish.                                   |
 
@@ -426,7 +428,7 @@ Build from `@myclash/ui`. What each component is _for_ — the class lists live 
 - **`AdminPageHeader`** — the signature: eyebrow in small-caps accent, FoilMark hairline beneath, H1 in Fraunces, subtitle in Geist.
 - **`Modal` / `ConfirmDialog` / `PromptDialog`** — portal, focus trap, Escape. Never `window.confirm`.
 - **`EmptyState`** — every zero-state. Carries the FoilMark.
-- **`MatchScoreboard` / `TVScoreboard`** — the corners are `corner-red` / `corner-blue`. Not yours to restyle.
+- **`MatchScoreboard` / `TVScoreboard`** — the corners come from the tournament's configured `sideColors` via `sideColorsFor()`. Not yours to restyle, and not yours to hardcode.
 
 ## Do's and Don'ts
 
@@ -441,7 +443,7 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 - **Don't** use `text-gold` for small text on a light surface — it is 2.06:1. That is what `gold-text` is for. On dark, either is fine.
 - **Do** reach for `strong` when you need a dark-neutral action.
 - **Don't** collapse `strong`, `accent` and `foreground` into "the dark one". Three tokens, three jobs — and on dark, `strong` **inverts** while `accent` does not move at all. Code that treats them as interchangeable breaks on exactly one surface, which is how it ships.
-- **Don't** restyle `corner-red` / `corner-blue`. The corner is rule semantics. Theme the chrome around a scoreboard; leave the corners alone.
+- **Don't** restyle the corners, and **don't** paint `corner-red` / `corner-blue` at a call site. The corner is rule semantics AND per-tournament data — resolve it with `sideStyle()` / `sideColorsFor()`. The raw tokens are the defaults those helpers fall back to, nothing more. Theme the chrome around a scoreboard; leave the corners to the organiser.
 - **Don't** assume dark implies blue. The scopes are orthogonal (see Colors). `/me` is light content + blue accent + dark sidebar.
 - **Do** let event colour tint the accent on `/e/*`.
 - **Don't** treat event colour as a third surface.

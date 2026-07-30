@@ -1,8 +1,9 @@
 'use client';
 
-import { SkillBadge } from '@myclash/ui';
+import { SkillBadge, sideColorsForTokens } from '@myclash/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type * as React from 'react';
 
 type StatusTone = 'done' | 'live' | 'pending' | 'lost' | 'draw';
 
@@ -22,6 +23,12 @@ export interface CommitmentCardProps {
   liveLabel?: string;
   /** Fighter side for the accent stripe (fights only). */
   side?: 'red' | 'blue';
+  /**
+   * The tournament's configured side colour tokens. The stripe tells a fighter
+   * which corner they are in, so it has to be the corner the ORGANISER set —
+   * this card used to paint a fixed red/blue regardless.
+   */
+  sideColors?: { red: string; blue: string } | null;
   /** Referee badge label (the skill name, e.g. "Déclarant"); defaults to "REF". */
   refLabel?: string;
   /** Referee skill color token (referee_skills.color), e.g. "orange"/"purple". */
@@ -30,15 +37,20 @@ export interface CommitmentCardProps {
 }
 
 // Accent stripe by kind: referee = orange (warning), workshop = green (success),
-// fighter = red/blue by corner (encodes which corner the fighter is in).
-const stripeFor = (kind: 'fight' | 'referee' | 'workshop', side?: 'red' | 'blue') =>
-  kind === 'referee'
-    ? 'bg-warning'
-    : kind === 'workshop'
-      ? 'bg-success'
-      : side === 'blue'
-        ? 'bg-corner-blue'
-        : 'bg-corner-red';
+// fighter = the corner the ORGANISER configured for this tournament (encodes
+// which corner the fighter is in, so it must match what they see on the piste).
+// Semantic classes for the first two; a resolved hex for the third, since the
+// colour is per-tournament data and cannot be a static class.
+function stripeFor(
+  kind: 'fight' | 'referee' | 'workshop',
+  side?: 'red' | 'blue',
+  sideColors?: { red: string; blue: string } | null,
+): { className: string; style?: React.CSSProperties } {
+  if (kind === 'referee') return { className: 'bg-warning' };
+  if (kind === 'workshop') return { className: 'bg-success' };
+  const colors = sideColorsForTokens(sideColors, 'light');
+  return { className: '', style: { backgroundColor: colors[side ?? 'red'] } };
+}
 
 const toneClasses: Record<StatusTone, string> = {
   done: 'bg-success/15 text-success',
@@ -76,10 +88,12 @@ export function CommitmentCard({
   isLive,
   liveLabel = 'Live',
   side,
+  sideColors,
   refLabel = 'REF',
   refColor,
   href,
 }: CommitmentCardProps): ReactNode {
+  const stripe = stripeFor(kind, side, sideColors);
   const inner = (
     <div
       className={[
@@ -104,7 +118,8 @@ export function CommitmentCard({
         )
       )}
       <span
-        className={['w-1 shrink-0 self-stretch rounded', stripeFor(kind, side)].join(' ')}
+        className={['w-1 shrink-0 self-stretch rounded', stripe.className].join(' ')}
+        style={stripe.style}
         aria-hidden
       />
       <div className="flex min-w-[60px] flex-col items-start">

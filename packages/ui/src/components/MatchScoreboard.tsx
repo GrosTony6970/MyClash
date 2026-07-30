@@ -3,10 +3,11 @@
 import * as React from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MatchFormatConfig } from '@myclash/types';
-import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { formatFightOfTotal } from './format-fight-of-total';
 import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
+import { sideColorsFor } from '../utils/side-color';
 
 export interface MatchScoreboardProps {
   matchId: string;
@@ -22,22 +23,6 @@ export interface MatchScoreboardProps {
 // DisplayMatch / Penalty / ClockSnapshot moved to the shared
 // useLiveMatch hook so both this component and TVScoreboard read
 // from one source-of-truth.
-
-// ── Color map ─────────────────────────────────────────────────────────────────
-
-const DISPLAY_COLOR_STYLE = {
-  white: '#f8fafc',
-  black: '#f8fafc',
-  grey: '#cbd5e1',
-  yellow: '#facc15',
-  red: '#ef4444',
-  blue: '#60a5fa',
-  green: '#4ade80',
-  brown: '#a16207',
-  pink: '#f472b6',
-  orange: '#fb923c',
-  purple: '#c084fc',
-} as const;
 
 // ── Helper functions ──────────────────────────────────────────────────────────
 
@@ -75,7 +60,8 @@ function FighterPanel({
   club,
   penalties,
 }: {
-  color: keyof typeof DISPLAY_COLOR_STYLE;
+  /** Already-resolved hex for this side, clamped for the dark stage. */
+  color: string;
   name: string;
   score: number;
   club: { name: string; logoUrl: string | null } | null;
@@ -86,10 +72,7 @@ function FighterPanel({
       {/* Big score — was below the name; now sits at the top of the
           column so the name + club + cards form a labelled block
           below it (matches the operator-approved Layout A). */}
-      <p
-        className="text-[16rem] font-black leading-none tabular-nums"
-        style={{ color: DISPLAY_COLOR_STYLE[color] }}
-      >
+      <p className="text-[16rem] font-black leading-none tabular-nums" style={{ color }}>
         {score}
       </p>
       <p className="mt-6 text-6xl font-black uppercase tracking-wide leading-tight">{name}</p>
@@ -144,7 +127,7 @@ export function MatchScoreboard({
 }: MatchScoreboardProps): React.ReactElement | null {
   const t = createTranslator(getMessages());
 
-  const { match, penalties, clock, elapsedMs, loadError, refresh } = useLiveMatch(
+  const { match, penalties, elapsedMs, loadError, refresh } = useLiveMatch(
     apiBaseUrl,
     matchId,
     supabaseClient,
@@ -182,8 +165,11 @@ export function MatchScoreboard({
   }
 
   const activePenalties = penalties.filter((penalty) => !penalty.voided);
-  const sideColors =
-    match.scoringConfig?.display?.sideColors ?? DEFAULT_SCORING_CONFIG.display.sideColors;
+  // Resolved once here rather than mapped inside FighterPanel: this is the
+  // projector's near-black stage, so a side configured 'black' has to be
+  // clamped or its score numeral vanishes. `sideColorsFor` is the same
+  // resolution the pad and the public match page use.
+  const sideColors = sideColorsFor(match.scoringConfig, 'dark');
   const matchFormat = match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
   const shownMs = formatClockMs(displayClockMs(elapsedMs, matchFormat));
   const warnClock = shouldWarnClock(elapsedMs, matchFormat);

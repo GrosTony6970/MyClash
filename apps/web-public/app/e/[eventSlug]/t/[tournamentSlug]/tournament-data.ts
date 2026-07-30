@@ -93,6 +93,9 @@ export interface Tournament {
   rulesetLabel?: string;
   status: string;
   color?: string | null;
+  /** The organiser's configured fighter-side colour tokens. Distinct from
+   *  `color` above, which is the tournament's own identity colour. */
+  sideColors?: { red: string; blue: string } | null;
   /** Present when the tournament's ruleset was re-pinned mid-event. */
   rulesetRepin?: RulesetRepinDisclosure | null;
 }

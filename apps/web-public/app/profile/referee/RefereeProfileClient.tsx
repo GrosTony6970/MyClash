@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { bracketRoundLabel } from '@myclash/types';
-import { Card, SkillBadge } from '@myclash/ui';
+import { Card, SkillBadge, sideColorsForTokens } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type TFn = (key: string, values?: Record<string, string | number>) => string;
@@ -25,6 +25,8 @@ interface RefereeHistoryEntry {
   bracketRound: number | null;
   bracketSize: number | null;
   cards: { yellow: number; red: number; black: number };
+  /** The tournament's configured fighter-side colour tokens. */
+  sideColors: { red: string; blue: string } | null;
   coReferees: {
     personId: string;
     name: string | null;
@@ -138,6 +140,9 @@ interface CoRefereeChipData {
 }
 interface RefereeMatchRow {
   matchId: string;
+  /** The tournament's configured side colour tokens, so each line paints in
+   *  the organiser's palette rather than a fixed red/blue. */
+  sideColors: { red: string; blue: string } | null;
   redFighterName: string | null;
   blueFighterName: string | null;
   /** Final score per side; null means unresolved, which renders as "-" rather
@@ -216,6 +221,7 @@ function buildRefereeTree(history: RefereeHistoryEntry[], unknown: string): Even
     if (!tierGroup.matches.has(entry.matchId)) {
       tierGroup.matches.set(entry.matchId, {
         matchId: entry.matchId,
+        sideColors: entry.sideColors ?? null,
         redFighterName: entry.redFighterName,
         blueFighterName: entry.blueFighterName,
         redScore: entry.redScore,
@@ -682,20 +688,8 @@ function MatchRow({ match, t }: { match: RefereeMatchRow; t: TFn }) {
   return (
     <li className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
       <span className="flex min-w-0 flex-1 basis-48 flex-col gap-px">
-        <FighterLine
-          side="red"
-          name={match.redFighterName}
-          score={match.redScore}
-          isWinner={match.winner === 'red'}
-          t={t}
-        />
-        <FighterLine
-          side="blue"
-          name={match.blueFighterName}
-          score={match.blueScore}
-          isWinner={match.winner === 'blue'}
-          t={t}
-        />
+        <FighterLine match={match} side="red" t={t} />
+        <FighterLine match={match} side="blue" t={t} />
       </span>
       <span
         className="flex flex-wrap items-center gap-1.5"
@@ -728,38 +722,32 @@ function MatchRow({ match, t }: { match: RefereeMatchRow; t: TFn }) {
   );
 }
 
-/**
- * Per-side presentation. Painted from the `corner-red`/`corner-blue` semantic
- * tokens rather than the tournament's configured side colours: the
- * referee-stats payload carries no scoring config, so `sideStyle()` has nothing
- * to resolve here — the same reasoning the public match page documents.
- */
-const SIDE_STYLE = {
-  red: { tint: 'bg-corner-red/10', stripe: 'bg-corner-red', label: 'scoring.liveMatch.red' },
-  blue: { tint: 'bg-corner-blue/10', stripe: 'bg-corner-blue', label: 'scoring.liveMatch.blue' },
+/** Screen-reader name for each side. Colour-free: the visible stripe carries the
+ *  organiser's configured colour, which these labels cannot know or spell. */
+const SIDE_LABEL = {
+  red: 'scoring.liveMatch.red',
+  blue: 'scoring.liveMatch.blue',
 } as const;
 
 /** One fighter's line: a corner-coloured stripe + soft tint, the name, and the
  *  score — mirroring the bracket MatchCard's FighterRow. The winner is
  *  emphasised; a null score shows "-" so "unknown" stays distinct from a
  *  genuine 0. */
-function FighterLine({
-  side,
-  name,
-  score,
-  isWinner,
-  t,
-}: {
-  side: 'red' | 'blue';
-  name: string | null;
-  score: number | null;
-  isWinner: boolean;
-  t: TFn;
-}) {
-  const style = SIDE_STYLE[side];
+function FighterLine({ match, side, t }: { match: RefereeMatchRow; side: 'red' | 'blue'; t: TFn }) {
+  const name = side === 'red' ? match.redFighterName : match.blueFighterName;
+  const score = side === 'red' ? match.redScore : match.blueScore;
+  const isWinner = match.winner === side;
+  // This profile is a light surface, so a black/white side is clamped to stay
+  // legible. `1a` is the tint's alpha in hex (~10%), matching the old /10.
+  // Colours come from the tournament's own config, carried per assignment by
+  // the referee-stats payload.
+  const hex = sideColorsForTokens(match.sideColors, 'light')[side];
   return (
-    <span className={`flex min-h-[22px] items-stretch overflow-hidden rounded-sm ${style.tint}`}>
-      <span aria-hidden="true" className={`w-[3px] shrink-0 ${style.stripe}`} />
+    <span
+      className="flex min-h-[22px] items-stretch overflow-hidden rounded-sm"
+      style={{ backgroundColor: `${hex}1a` }}
+    >
+      <span aria-hidden="true" className="w-[3px] shrink-0" style={{ backgroundColor: hex }} />
       <span className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2">
         <span
           className={[
@@ -769,7 +757,7 @@ function FighterLine({
         >
           {/* The stripe is decorative, so the side is spelled out for readers
               that never see it. */}
-          <span className="sr-only">{t(style.label)}: </span>
+          <span className="sr-only">{t(SIDE_LABEL[side])}: </span>
           {name ?? t('common.unknown')}
         </span>
         <span

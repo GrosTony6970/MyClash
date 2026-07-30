@@ -12,6 +12,9 @@ export interface ScheduleMatch {
   redScore: number;
   blueScore: number;
   isRed: boolean;
+  /** The tournament's configured fighter-side colour tokens. Per match, since a
+   *  personal schedule spans tournaments with different palettes. */
+  sideColors?: { red: string; blue: string } | null;
   poolName: string | null;
   tournamentName: string | null;
   /** Tournament (competition) id — pairs with `phase` to key the scheduled

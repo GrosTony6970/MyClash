@@ -38,7 +38,7 @@ Use `bg-stage` for a projector surface and nothing else — it is not a card, no
 
 - **`TVScoreboard`** — the three-column read-only projector view.
 - **`LiceWaitingDisplay`** — a white branded header strip over a full-bleed dark stage, for when there's no live match.
-- The corners are `corner-red` / `corner-blue` at their dark values. **Not yours to restyle** — across a hall, the corner colour is the only thing a spectator can read.
+- The corners are the tournament's configured `sideColors`, via `sideColorsFor(config, 'dark')`; `corner-red` / `corner-blue` at their dark values are just the fallback. **Not yours to restyle or to hardcode** — across a hall the corner colour is the only thing a spectator can read, so it has to be the colour the organiser announced.
 
 ## Don't
 

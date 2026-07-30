@@ -181,8 +181,8 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
                   <div>
                     <p className="text-sm font-medium text-foreground">
                       {t('publicApp.eventHome.matchVersus', {
-                        red: m.redFighterName ?? '?',
-                        blue: m.blueFighterName ?? '?',
+                        a: m.redFighterName ?? '?',
+                        b: m.blueFighterName ?? '?',
                       })}
                     </p>
                     <p className="text-xs text-muted">

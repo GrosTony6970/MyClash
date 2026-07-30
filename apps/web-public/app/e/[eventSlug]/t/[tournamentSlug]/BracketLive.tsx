@@ -17,6 +17,7 @@ import {
   MedalPodium,
   extractBronzeMatch,
   type BracketSlotData,
+  type ColorToken,
   type PodiumData,
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -57,6 +58,9 @@ interface Props {
   /** Personal space: `${slotId}::${role ?? ''}` keys flagging the viewer's own
    *  referee rows (accent name + "YOU" chip). */
   refereeSelfKeys?: ReadonlySet<string>;
+  /** The tournament's configured fighter-side colour tokens. Without this the
+   *  bracket silently fell back to BracketView's old red/blue defaults. */
+  sideColors?: { red: string; blue: string } | null;
 }
 
 interface TournamentDataLike {
@@ -93,6 +97,7 @@ export function BracketLive({
   highlightRegistrationId,
   personalView = false,
   refereeSelfKeys,
+  sideColors,
 }: Props) {
   const { t } = useI18n();
   const router = useRouter();
@@ -281,6 +286,8 @@ export function BracketLive({
           lbRounds: lbRounds ?? undefined,
         }}
         bronzeMatch={bronze}
+        redColor={(sideColors?.red ?? 'red') as ColorToken}
+        blueColor={(sideColors?.blue ?? 'blue') as ColorToken}
         onMatchClick={onMatchClick}
         roundGapClass="gap-24"
         highlightRegistrationId={highlightRegistrationId}

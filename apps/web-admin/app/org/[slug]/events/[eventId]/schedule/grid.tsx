@@ -1678,8 +1678,8 @@ export function ScheduleGrid({
           m.roundCode || m.matchNumberLabel,
           m.tournamentName ?? '',
           t('organizer.schedulePage.grid.versus', {
-            red: m.redFighterName ?? '?',
-            blue: m.blueFighterName ?? '?',
+            a: m.redFighterName ?? '?',
+            b: m.blueFighterName ?? '?',
           }),
         ],
       }))
@@ -2712,7 +2712,7 @@ export function ScheduleGrid({
                       gridRow: `${rowFor(slot)} / span ${span}`, // base slot+3 (venue+lice+1-based) plus reserved pool-header rows
                       margin: '1px',
                     }}
-                    title={`${m.roundCode || m.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${t('organizer.schedulePage.grid.versus', { red: m.redFighterName ?? '?', blue: m.blueFighterName ?? '?' })}`}
+                    title={`${m.roundCode || m.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${t('organizer.schedulePage.grid.versus', { a: m.redFighterName ?? '?', b: m.blueFighterName ?? '?' })}`}
                   >
                     <span className="truncate">{m.roundCode || m.matchNumberLabel}</span>
                   </div>
@@ -3155,8 +3155,8 @@ function MatchChip({
       </div>
       <p className="text-muted truncate">
         {t('organizer.schedulePage.grid.versus', {
-          red: match.redFighterName ?? '?',
-          blue: match.blueFighterName ?? '?',
+          a: match.redFighterName ?? '?',
+          b: match.blueFighterName ?? '?',
         })}
       </p>
     </div>

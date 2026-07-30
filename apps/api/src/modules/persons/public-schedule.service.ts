@@ -17,6 +17,7 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
 import { computeMatchKind, fetchBracketRounds } from './match-kind.util';
+import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 
 export interface ScheduleMatch {
   id: string;
@@ -28,6 +29,12 @@ export interface ScheduleMatch {
   redScore: number;
   blueScore: number;
   isRed: boolean;
+  /**
+   * The tournament's configured fighter-side colour tokens. Carried per match
+   * because a person's schedule can span tournaments with different palettes.
+   * The client resolves tokens to hex via `sideStyle`.
+   */
+  sideColors: SideColors;
   poolName: string | null;
   tournamentName: string | null;
   /** Tournament (competition) id — pairs with `phase` to key the scheduled
@@ -135,7 +142,7 @@ export class PublicScheduleService {
         red_registration_id, blue_registration_id,
         pools ( name ),
         lices ( name ),
-        phases ( visibility_status, type, tournaments ( id, name ) )
+        phases ( visibility_status, type, tournaments ( id, name, scoring_config_json ) )
       `,
       )
       .or(
@@ -154,7 +161,7 @@ export class PublicScheduleService {
       const phase = m['phases'] as {
         visibility_status?: string | null;
         type?: string | null;
-        tournaments: { id: string; name: string } | null;
+        tournaments: { id: string; name: string; scoring_config_json?: unknown } | null;
       } | null;
       if (phase?.visibility_status !== 'published') return [];
 
@@ -173,6 +180,9 @@ export class PublicScheduleService {
           poolName: pool?.name ?? null,
           tournamentName: phase?.tournaments?.name ?? null,
           tournamentId: phase?.tournaments?.id ?? null,
+          // Per-ITEM, not per-response: one person's schedule spans tournaments,
+          // and each configures its own side colours.
+          sideColors: sideColorsFromScoringConfig(phase?.tournaments?.scoring_config_json),
           phase: (phaseType === 'pool' ? 'pool' : phaseType ? 'bracket' : null) as
             | 'pool'
             | 'bracket'

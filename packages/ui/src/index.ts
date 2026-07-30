@@ -183,7 +183,13 @@ export {
 } from './utils/color-token';
 export type { ColorToken } from './utils/color-token';
 
-export { sideStyle, styleForToken, legibleOn, sideColorsFor } from './utils/side-color';
+export {
+  sideStyle,
+  styleForToken,
+  legibleOn,
+  sideColorsFor,
+  sideColorsForTokens,
+} from './utils/side-color';
 export type { SideColorToken, SideColorStyle } from './utils/side-color';
 
 export { formatMatchClock } from './utils/format-match-clock';

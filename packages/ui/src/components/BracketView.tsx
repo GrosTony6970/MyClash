@@ -25,9 +25,12 @@ export interface BracketViewProps {
   onOverrideSlot?: (slotId: string) => void;
   /** Bracket configuration — drives double_elim layout. */
   bracketConfig?: BracketConfig;
-  /** Side colors driven by the tournament's scoring_config.display.sideColors. */
-  redColor?: ColorToken;
-  blueColor?: ColorToken;
+  /**
+   * Side colours driven by the tournament's scoring_config.display.sideColors.
+   * Required, not defaulted — see `MatchCard`.
+   */
+  redColor: ColorToken;
+  blueColor: ColorToken;
   /** Optional bronze match slot — rendered below the Final column on single-elim. */
   bronzeMatch?: BracketSlotData | null;
   /** Round-label overrides — by default, last-round = Final, etc. */
@@ -78,8 +81,8 @@ export function BracketView({
   onMatchClick,
   onOverrideSlot,
   bracketConfig,
-  redColor = 'red',
-  blueColor = 'blue',
+  redColor,
+  blueColor,
   bronzeMatch,
   roundLabels,
   weapon = null,

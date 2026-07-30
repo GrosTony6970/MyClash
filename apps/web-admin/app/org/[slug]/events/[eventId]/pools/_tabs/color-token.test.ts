@@ -24,13 +24,15 @@ describe('accentClassFor', () => {
     expect(accentClassFor(token)).toBe(expected);
   });
 
-  it('falls back to red-700 for an unknown token', () => {
-    expect(accentClassFor('unknown' as ColorToken)).toBe('bg-red-700');
+  // Neutral, not red. These helpers also paint bracket fighter sides, so a red
+  // fallback painted BOTH fighters red whenever a side colour failed to load.
+  it('falls back to neutral slate for an unknown token', () => {
+    expect(accentClassFor('unknown' as ColorToken)).toBe('bg-slate-400');
   });
 
-  it('falls back to red-700 for null and undefined', () => {
-    expect(accentClassFor(null)).toBe('bg-red-700');
-    expect(accentClassFor(undefined)).toBe('bg-red-700');
+  it('falls back to neutral slate for null and undefined', () => {
+    expect(accentClassFor(null)).toBe('bg-slate-400');
+    expect(accentClassFor(undefined)).toBe('bg-slate-400');
   });
 });
 
@@ -41,8 +43,8 @@ describe('tintBgClassFor', () => {
     expect(tintBgClassFor('slate')).toBe('bg-slate-50');
   });
 
-  it('falls back to red tint for unknown tokens', () => {
-    expect(tintBgClassFor('unknown')).toBe('bg-red-50');
+  it('falls back to the neutral slate tint for unknown tokens', () => {
+    expect(tintBgClassFor('unknown')).toBe('bg-slate-50');
   });
 });
 

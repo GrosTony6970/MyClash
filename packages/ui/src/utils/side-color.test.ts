@@ -53,3 +53,27 @@ describe('sideColorsFor', () => {
     expect(blue).toBe('#2563eb');
   });
 });
+
+describe('sideStyle', () => {
+  // `scoring_config_json` is free-form JSONB, so a hand-edited row or an older
+  // client can put anything in `sideColors`. Every caller reads `.border` off
+  // the result without a null check, so an unknown token used to crash the
+  // surface rather than degrade it.
+  it('falls back to the side token when the configured colour is not in the palette', () => {
+    const style = sideStyle(
+      { display: { sideColors: { red: 'cyan', blue: 'blue' } } } as never,
+      'red',
+    );
+    expect(style.token).toBe('red');
+    expect(style.border).toBe('#dc2626');
+  });
+
+  it('resolves every configured token in the palette', () => {
+    expect(sideStyle(withSidesFor('purple'), 'red').token).toBe('purple');
+    expect(sideStyle(withSidesFor('grey'), 'red').token).toBe('grey');
+    expect(sideStyle(withSidesFor('brown'), 'red').token).toBe('brown');
+    expect(sideStyle(withSidesFor('pink'), 'red').token).toBe('pink');
+  });
+});
+
+const withSidesFor = (red: string) => ({ display: { sideColors: { red, blue: 'blue' } } }) as never;

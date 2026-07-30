@@ -45,6 +45,7 @@ import {
   type RefereePenaltyInput,
   type RefereeSkillInfo,
 } from './referee-stats';
+import { sideColorsFromScoringConfig } from '../events/side-colors';
 import {
   buildProfileRecentMatch,
   type ProfileRecentMatch,
@@ -1520,7 +1521,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, event_kind))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, scoring_config_json, events(id, name, event_kind))))',
       )
       .eq('person_id', personId)
       .eq('scope_type', 'match')
@@ -1533,7 +1534,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, events(id, name, event_kind))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, scoring_config_json, events(id, name, event_kind))))',
       )
       .in('match_id', matchIds)
       .eq('scope_type', 'match');
@@ -1577,6 +1578,10 @@ export class FightersService {
           eventName: (event?.['name'] as string | null) ?? null,
           tournamentId: (tournament?.['id'] as string | null) ?? null,
           tournamentName: (tournament?.['name'] as string | null) ?? null,
+          // Carried per assignment: a referee's history spans tournaments, each
+          // with its own configured side colours. Without this the profile had
+          // nothing to resolve and fell back to red/blue.
+          sideColors: sideColorsFromScoringConfig(tournament?.['scoring_config_json']),
           weapon: (tournament?.['weapon'] as string | null) ?? null,
           scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
           phaseType: (phase?.['type'] as string | null) ?? null,

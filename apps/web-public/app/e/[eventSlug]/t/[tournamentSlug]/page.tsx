@@ -424,6 +424,7 @@ export default async function TournamentPage({ params }: Props) {
                   weapon={tournament.weapon}
                   podium={podium}
                   podiumDecided={podiumDecided}
+                  sideColors={tournament.sideColors}
                 />
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">

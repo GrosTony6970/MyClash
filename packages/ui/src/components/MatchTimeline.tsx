@@ -43,13 +43,6 @@ export interface MatchTimelineProps {
    *               back to the top every time a live event lands.
    */
   scale?: MatchTimelineScale;
-  /**
-   * Where side colours come from. 'config' paints the operator's configured
-   * per-tournament colour (`ev.sideColor`); 'tokens' uses the semantic
-   * corner-red/corner-blue tokens — for surfaces with no scoring config that
-   * must stay tokenized (the public match page).
-   */
-  sideColors?: 'config' | 'tokens';
   /** Shown when there are no events. Defaults to an em dash. */
   emptyLabel?: string;
   /**
@@ -74,11 +67,6 @@ const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   yellow: 'bg-yellow-500',
   red: 'bg-red-600',
   black: 'bg-gray-900 border border-gray-600',
-};
-
-const TOKEN_DOT: Record<'red' | 'blue', string> = {
-  red: 'bg-corner-red',
-  blue: 'bg-corner-blue',
 };
 
 interface ScaleStyles {
@@ -151,7 +139,6 @@ const STYLES: Record<MatchTimelineScale, ScaleStyles> = {
 export function MatchTimeline({
   events,
   scale = 'compact',
-  sideColors = 'config',
   emptyLabel,
   highlightNumber = null,
   onHighlightChange,
@@ -181,12 +168,8 @@ export function MatchTimeline({
       ?.scrollIntoView({ block: 'nearest' });
   }, [highlightNumber, scrolls]);
 
-  /** Dot styling: a token class in 'tokens' mode, an inline hex otherwise. */
-  function dotProps(side: 'red' | 'blue' | null | undefined, hex: string | null | undefined) {
-    if (sideColors === 'tokens') {
-      if (!side) return null;
-      return { className: `${s.dot} ${TOKEN_DOT[side]}` };
-    }
+  /** Dot styling: the side's configured colour as an inline hex. */
+  function dotProps(hex: string | null | undefined) {
     if (!hex) return null;
     // The TV stage is near-black: clamp a black-configured side so its dot
     // doesn't vanish, exactly as the big score numerals do.
@@ -207,8 +190,8 @@ export function MatchTimeline({
     >
       {events.length === 0 && <li className={s.empty}>{emptyLabel ?? '—'}</li>}
       {events.map((ev) => {
-        const dot = dotProps(ev.side, ev.sideColor);
-        const oppDot = dotProps(ev.opponentSide, ev.opponentSideColor);
+        const dot = dotProps(ev.sideColor);
+        const oppDot = dotProps(ev.opponentSideColor);
         // Card severity is otherwise carried by colour alone — unreadable to a
         // colour-blind viewer, and `title` never fires on touch.
         const cardLabel = ev.card ? t(`scoring.penalties.cards.${ev.card}`) : null;

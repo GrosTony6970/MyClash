@@ -1005,7 +1005,12 @@ export class ArchiveService {
     persons: ArchiveRow[],
     roundCodes?: Map<string, string>,
   ): string {
-    const lines = ['round_code,match_label,red,blue,red_score,blue_score,winner'];
+    // Human-readable report an organiser opens in Excel, so the columns are
+    // named for the SIDES, not for a colour. `red`/`blue` here held fighter
+    // NAMES, and read as a lie for any tournament not run red-vs-blue. The
+    // machine-readable archive CSVs keep their DB column names — those
+    // round-trip on re-import.
+    const lines = ['round_code,match_label,fighter_1,fighter_2,score_1,score_2,winner'];
     for (const match of matches) {
       const red = this.registrationName(match['red_registration_id'], registrations, persons);
       const blue = this.registrationName(match['blue_registration_id'], registrations, persons);

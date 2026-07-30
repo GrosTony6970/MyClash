@@ -129,8 +129,8 @@ export async function AccompanistHome({ eventSlug }: Props) {
                   <div>
                     <p className="text-sm font-medium text-foreground">
                       {t('publicApp.accompanistHome.fighterVersus', {
-                        red: m.redFighterName ?? '?',
-                        blue: m.blueFighterName ?? '?',
+                        a: m.redFighterName ?? '?',
+                        b: m.blueFighterName ?? '?',
                       })}
                     </p>
                     <p className="text-xs text-muted">{m.matchNumberLabel}</p>

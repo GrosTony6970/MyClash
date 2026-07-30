@@ -6,8 +6,13 @@ import { BracketHighlightContext } from './highlight-context';
 
 export interface MatchCardProps {
   slot: BracketSlotData;
-  redColor?: ColorToken;
-  blueColor?: ColorToken;
+  /**
+   * The tournament's configured side colours. Required, not defaulted: a
+   * silent `'red'`/`'blue'` fallback here is exactly how a green-vs-purple
+   * tournament ended up with a red-and-blue bracket.
+   */
+  redColor: ColorToken;
+  blueColor: ColorToken;
   onClick?: (matchId: string | null, slotId: string, liceId: string | null) => void;
   onOverride?: (slotId: string) => void;
   /** Registers the card's outer element for connector geometry. */
@@ -58,8 +63,8 @@ function statusPill(status: string): { label: string; cls: string } {
 
 export function MatchCard({
   slot,
-  redColor = 'red',
-  blueColor = 'blue',
+  redColor,
+  blueColor,
   onClick,
   onOverride,
   registerRef,

@@ -127,8 +127,8 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                   </span>
                   <span className="text-muted truncate">
                     {t('organizer.schedulePage.liveBanner.versus', {
-                      red: ls.runningMatch.redFighterName ?? '?',
-                      blue: ls.runningMatch.blueFighterName ?? '?',
+                      a: ls.runningMatch.redFighterName ?? '?',
+                      b: ls.runningMatch.blueFighterName ?? '?',
                     })}
                   </span>
                 </div>
@@ -142,8 +142,8 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                   </span>
                   <span className="truncate">
                     {t('organizer.schedulePage.liveBanner.versus', {
-                      red: ls.nextMatch.redFighterName ?? '?',
-                      blue: ls.nextMatch.blueFighterName ?? '?',
+                      a: ls.nextMatch.redFighterName ?? '?',
+                      b: ls.nextMatch.blueFighterName ?? '?',
                     })}
                   </span>
                   {ls.nextMatch.scheduledAt && (

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
+import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -42,7 +43,9 @@ const DEFAULTS: DisplayState = {
   quickPenalties: [],
 };
 
-const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];
+// Derived, not retyped — see Step3Display: the old literal list reached only 8
+// of the 11 tokens the API accepts.
+const COLORS = TOURNAMENT_SIDE_COLORS;
 
 export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   const toast = useToast();

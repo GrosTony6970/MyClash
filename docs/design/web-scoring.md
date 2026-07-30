@@ -53,7 +53,7 @@ Scoring never sets `data-accent`. The accent is red.
 
 ## What differs
 
-- **The corners are the content.** `corner-red` / `corner-blue` aren't accents here — they're the record of the bout. On dark they brighten a step (`#ef4444` / `#3b82f6`) for contrast. **They are not yours to restyle** — that's the root rule, and this is the surface where breaking it would corrupt a result.
+- **The corners are the content.** They aren't accents here — they're the record of the bout, and the colour is the organiser's: resolve it with `sideColorsFor(config, 'dark')`, which reads the tournament's `sideColors` and clamps a black- or white-configured side so it stays visible on the dark stage. `corner-red` / `corner-blue` are only the fallback values. **Never hardcode a side colour on this surface** — that's the root rule, and this is where breaking it would corrupt a result.
 - **`Badge`, not `StatusBadge`.** `Badge` defaults to the dark surface; `StatusBadge` defaults to light. Same chip, different default.
 - **Routes:** `/lices`, `/lices/[liceId]`, `/matches/[matchId]`, `/offline`.
 - **Motion is functional.** `score-pop` (0.3s) and `shield-pulse` exist to make a score change _impossible to miss_ in peripheral vision. That's the one place motion earns its keep in this system.

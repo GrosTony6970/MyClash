@@ -53,6 +53,10 @@ export interface SideColorStyle {
   buttonClasses: string;
 }
 
+// raw-color-exempt — this map IS the fighter-side palette. The classes here are
+// the definition of each configurable token, not a styling choice made at a call
+// site, so there is no semantic token to defer to. Everything else must reach
+// these colours through `sideStyle`/`sideColorsFor` rather than restating them.
 const STYLES: Record<SideColorToken, SideColorStyle> = {
   white: {
     token: 'white',
@@ -156,13 +160,19 @@ const STYLES: Record<SideColorToken, SideColorStyle> = {
  * configuration still renders red) if the config is missing or
  * malformed. The fallback matches today's behaviour on first paint
  * before the match-config endpoint resolves.
+ *
+ * A token outside the palette falls back the same way rather than
+ * returning `undefined`: `scoring_config_json` is free-form JSONB, so a
+ * hand-edited row or an older client can put anything in `sideColors`,
+ * and every caller reads `.border`/`.panel` off the result unguarded.
  */
 export function sideStyle(
   config: TournamentScoringConfig | null | undefined,
   side: 'red' | 'blue',
 ): SideColorStyle {
   const configuredToken = config?.display?.sideColors?.[side] as SideColorToken | undefined;
-  return STYLES[configuredToken ?? side];
+  if (configuredToken && configuredToken in STYLES) return STYLES[configuredToken];
+  return STYLES[side];
 }
 
 /**
@@ -224,4 +234,23 @@ export function sideColorsFor(
     red: legibleOn(sideStyle(config, 'red').border, surface),
     blue: legibleOn(sideStyle(config, 'blue').border, surface),
   };
+}
+
+/**
+ * The same pairing as `sideColorsFor`, for payloads that carry the two colour
+ * TOKENS rather than a whole scoring config — the schedule and referee-stats
+ * endpoints send `{ red, blue }` and nothing else.
+ *
+ * Delegating rather than re-deriving is the point: a second copy of
+ * "token → hex → clamp" is how `MatchScoreboard` ended up with a hex map that
+ * disagreed with this one.
+ */
+export function sideColorsForTokens(
+  tokens: { red: string; blue: string } | null | undefined,
+  surface: 'dark' | 'light',
+): { red: string; blue: string } {
+  return sideColorsFor(
+    tokens ? ({ display: { sideColors: tokens } } as TournamentScoringConfig) : null,
+    surface,
+  );
 }

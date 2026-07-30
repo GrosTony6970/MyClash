@@ -18,7 +18,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Modal, useConfirm, useToast } from '@myclash/ui';
+import { Modal, sideColorsFor, useConfirm, useToast } from '@myclash/ui';
+import type { TournamentScoringConfig } from '@myclash/types';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
@@ -83,6 +84,8 @@ interface MatchSummary {
   blueClub: string | null;
   weapon: string;
   tournamentId: string;
+  /** The organiser's configured side colours for this tournament. */
+  scoringConfig: TournamentScoringConfig | null;
   phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
   // Best-of-N round state (bestOf = 1 for single-round matches).
   bestOf?: number;
@@ -178,6 +181,12 @@ export default function MatchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pendingNotice, setPendingNotice] = useState<string | null>(null);
+
+  // The organiser's configured side colours. This page is light chrome, so a
+  // black/white side is clamped to stay readable. Previously the score, the
+  // round tally and the exchange deltas were all painted raw red/blue here,
+  // while the sibling pools table already resolved them properly.
+  const sideColors = sideColorsFor(summary?.scoringConfig ?? null, 'light');
 
   // Void modal state
   const [voidTarget, setVoidTarget] = useState<Exchange | null>(null);
@@ -418,12 +427,12 @@ export default function MatchDetailPage() {
             <h1 className="font-display font-bold text-2xl sm:text-3xl">
               {summary
                 ? t('organizer.schedulePage.grid.versus', {
-                    red: summary.redName || '?',
-                    blue: summary.blueName || '?',
+                    a: summary.redName || '?',
+                    b: summary.blueName || '?',
                   })
                 : t('organizer.schedulePage.grid.versus', {
-                    red: match?.redFighterName ?? '?',
-                    blue: match?.blueFighterName ?? '?',
+                    a: match?.redFighterName ?? '?',
+                    b: match?.blueFighterName ?? '?',
                   })}
             </h1>
             <p className="text-muted text-sm mt-0.5 font-mono">
@@ -437,9 +446,9 @@ export default function MatchDetailPage() {
           </div>
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums">
-              <span className="text-red-600">{match?.redScore ?? 0}</span>
+              <span style={{ color: sideColors.red }}>{match?.redScore ?? 0}</span>
               <span className="text-muted mx-2">–</span>
-              <span className="text-blue-600">{match?.blueScore ?? 0}</span>
+              <span style={{ color: sideColors.blue }}>{match?.blueScore ?? 0}</span>
             </p>
             {summary?.bestOf != null && summary.bestOf > 1 && (
               <p className="mt-0.5 text-xs font-semibold text-muted tabular-nums">
@@ -447,9 +456,9 @@ export default function MatchDetailPage() {
                   bestOf: summary.bestOf,
                   round: summary.currentRound ?? 1,
                 })}{' '}
-                <span className="text-red-600">{summary.redRoundWins ?? 0}</span>
+                <span style={{ color: sideColors.red }}>{summary.redRoundWins ?? 0}</span>
                 <span className="mx-1">–</span>
-                <span className="text-blue-600">{summary.blueRoundWins ?? 0}</span>
+                <span style={{ color: sideColors.blue }}>{summary.blueRoundWins ?? 0}</span>
               </p>
             )}
             <div className="mt-3 flex flex-col items-end gap-1.5">
@@ -597,14 +606,14 @@ export default function MatchDetailPage() {
                         {(ex.redScoreDelta !== 0 || ex.blueScoreDelta !== 0) && (
                           <span className="ml-2">
                             {ex.redScoreDelta > 0 && (
-                              <span className="text-red-500">
+                              <span style={{ color: sideColors.red }}>
                                 {t('organizer.matchDetail.redDelta', {
                                   delta: ex.redScoreDelta,
                                 })}{' '}
                               </span>
                             )}
                             {ex.blueScoreDelta > 0 && (
-                              <span className="text-blue-500">
+                              <span style={{ color: sideColors.blue }}>
                                 {t('organizer.matchDetail.blueDelta', {
                                   delta: ex.blueScoreDelta,
                                 })}

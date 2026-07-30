@@ -336,7 +336,9 @@ export function ScheduleView({
     if (m.status === 'completed') {
       const my = m.isRed ? m.redScore : m.blueScore;
       const opp = m.isRed ? m.blueScore : m.redScore;
-      const vals = { red: String(my), blue: String(opp) };
+      // `a` is the VIEWER's score and `b` the opponent's, whichever side they
+      // were on — the old `{red}`/`{blue}` names claimed a side these never had.
+      const vals = { a: String(my), b: String(opp) };
       if (my > opp) return { label: t('publicApp.me.schedule.won', vals), tone: 'done' as const };
       if (my < opp) return { label: t('publicApp.me.schedule.lost', vals), tone: 'lost' as const };
       return { label: t('publicApp.me.schedule.draw', vals), tone: 'draw' as const };
@@ -365,6 +367,7 @@ export function ScheduleView({
           isLive={liveKeys.has(item.key)}
           liveLabel={t('publicApp.me.schedule.live')}
           side={m.isRed ? 'red' : 'blue'}
+          sideColors={m.sideColors}
           href={
             eventSlug
               ? `/e/${eventSlug}/match/${m.id}?return=${encodeURIComponent(

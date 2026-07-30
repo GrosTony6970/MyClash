@@ -5,7 +5,7 @@ export interface SideColors {
   blue: TournamentSideColor;
 }
 
-const DEFAULT_SIDE_COLORS: SideColors = { red: 'red', blue: 'blue' };
+export const DEFAULT_SIDE_COLORS: SideColors = { red: 'red', blue: 'blue' };
 
 /**
  * The configured fighter-side colour TOKENS from a tournament's

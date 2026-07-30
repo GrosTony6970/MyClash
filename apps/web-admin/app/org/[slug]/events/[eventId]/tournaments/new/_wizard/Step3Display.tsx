@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
+import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
 import {
   buildDisplayConfigFromRow,
@@ -15,7 +16,10 @@ import { getPublicApiUrl } from '@/lib/api-url';
 const apiUrl = getPublicApiUrl();
 const DEFAULTS: DisplayState = DISPLAY_DEFAULTS;
 
-const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];
+// Derived, not retyped: this list used to hardcode 8 of the 11 tokens the API
+// accepts, so grey, brown and pink were fully styled and validated server-side
+// but unreachable from the UI.
+const COLORS = TOURNAMENT_SIDE_COLORS;
 
 export function Step3Display({
   tournamentId,

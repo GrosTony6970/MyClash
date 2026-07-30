@@ -1,3 +1,5 @@
+import { DEFAULT_SIDE_COLORS, type SideColors } from '../events/side-colors';
+
 export type RefereeRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
 export type RefereeCard = 'yellow' | 'red' | 'black';
 
@@ -9,6 +11,8 @@ export interface RefereeAssignmentInput {
   eventName?: string | null;
   tournamentId?: string | null;
   tournamentName?: string | null;
+  /** The tournament's configured fighter-side colour tokens. */
+  sideColors?: SideColors | null;
   weapon?: string | null;
   scheduledAt?: string | null;
   // Phase/round metadata used to break refereed matches down by type
@@ -91,6 +95,11 @@ export interface RefereeHistoryEntry {
   eventName: string | null;
   tournamentId: string | null;
   tournamentName: string | null;
+  /**
+   * The tournament's configured fighter-side colour tokens, so the profile
+   * paints each assignment in the organiser's palette rather than red/blue.
+   */
+  sideColors: SideColors;
   weapon: string | null;
   scheduledAt: string | null;
   durationMs: number;
@@ -218,6 +227,7 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
               eventName: assignment.eventName ?? null,
               tournamentId: assignment.tournamentId ?? null,
               tournamentName: assignment.tournamentName ?? null,
+              sideColors: assignment.sideColors ?? DEFAULT_SIDE_COLORS,
               weapon: assignment.weapon ?? null,
               scheduledAt: assignment.scheduledAt ?? null,
               durationMs: durationByMatch.get(assignment.matchId) ?? 0,

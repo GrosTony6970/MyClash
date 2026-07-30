@@ -14,11 +14,20 @@
 import { useEffect, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
+
+/**
+ * Each side's colour for this match, from the tournament's own config. This
+ * page is a light surface, so a black/white side gets clamped to stay legible.
+ */
+function scoreColors(match: ScheduleMatch): { red: string; blue: string } {
+  return sideColorsForTokens(match.sideColors, 'light');
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,6 +40,9 @@ interface ScheduleMatch {
   redScore: number;
   blueScore: number;
   isRed: boolean;
+  /** The tournament's configured side colours — per match, since a schedule
+   *  can span tournaments with different palettes. */
+  sideColors?: { red: string; blue: string } | null;
   poolName: string | null;
   tournamentName: string | null;
   liceName: string | null;
@@ -410,9 +422,13 @@ export default function MySchedulePage() {
                           </p>
                           {item.data.status === 'completed' && (
                             <p className="text-xs font-mono mt-0.5">
-                              <span className="text-corner-red">{item.data.redScore}</span>
+                              <span style={{ color: scoreColors(item.data).red }}>
+                                {item.data.redScore}
+                              </span>
                               <span className="text-muted mx-1">–</span>
-                              <span className="text-corner-blue">{item.data.blueScore}</span>
+                              <span style={{ color: scoreColors(item.data).blue }}>
+                                {item.data.blueScore}
+                              </span>
                             </p>
                           )}
                         </>

@@ -12,7 +12,7 @@
  * keyboard users, who can never reach a hover.
  */
 
-import * as React from 'react';
+import type * as React from 'react';
 import { useCallback, useRef } from 'react';
 import type { BoutFlowPoint } from '../utils/bout-flow';
 import { CHART_W, type BoutFlowGeometry } from './bout-flow-geometry';

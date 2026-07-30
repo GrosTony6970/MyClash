@@ -227,6 +227,7 @@ export default function PersonalTournamentPage() {
                     highlightRegistrationId={highlightRegistrationId}
                     personalView
                     refereeSelfKeys={refereeSelfKeys}
+                    sideColors={tournament.sideColors}
                   />
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
