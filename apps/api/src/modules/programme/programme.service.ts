@@ -31,6 +31,22 @@ function minToTime(min: number): string {
 }
 
 /**
+ * `YYYY-MM-DD` for the WALL-CLOCK day a Date falls on.
+ *
+ * Not `toISOString().slice(0, 10)`, which is the UTC day: an event day whose
+ * 09:00 local start is stored as 08:00Z is the same date here but would drift
+ * across midnight for late-evening blocks in a positive-offset zone. The
+ * scheduler places matches with `setHours` (container-local `TZ`), so every
+ * read-back that compares days has to speak the same clock.
+ */
+function localDateIso(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * Normalise the `HH:MM:SS[.sss]` strings PostgREST returns for `TIME`
  * columns down to the `HH:MM` form the DTO regex (and the FE
  * `<input type="time">`) expects. Pass-through for already-trimmed
@@ -913,6 +929,15 @@ export class ProgrammeService {
 
     // Look up the event date so we can scope cascade shifts to the
     // block's day. start_date + dayIndex → date for THIS block.
+    //
+    // WALL-CLOCK, not UTC. The scheduler stores matches with `setHours` (see
+    // the `blockStartDt` construction in generate), i.e. container-local time
+    // via `TZ` in docker-compose. This used to read them back with
+    // getUTCHours/setUTCDate, so on any container that is not UTC the two
+    // disagreed by the offset: a block at 09:00 local is stored as 08:00Z, and
+    // `480 < 540` skipped EVERY match. The bar moved and not one match followed
+    // it — silently, on every non-UTC deployment. `deleteBlock` already used
+    // wall-clock math and its comment pointed here; this is that fix.
     const { data: eventData } = await this.supabase.service
       .from('events')
       .select('start_date')
@@ -920,11 +945,9 @@ export class ProgrammeService {
       .single();
     if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
 
-    const startDate = new Date(
-      `${(eventData as Record<string, string>)['start_date']}T00:00:00.000Z`,
-    );
-    startDate.setUTCDate(startDate.getUTCDate() + block.dayIndex);
-    const blockDateIso = startDate.toISOString().slice(0, 10);
+    const startDate = new Date(`${(eventData as Record<string, string>)['start_date']}T00:00:00`);
+    startDate.setDate(startDate.getDate() + block.dayIndex);
+    const blockDateIso = localDateIso(startDate);
 
     // Walk the matches we want to consider shifting: every match under
     // every phase under every tournament of this event. PostgREST
@@ -956,11 +979,12 @@ export class ProgrammeService {
         const oldStartMin = timeToMin(block.startTime);
         for (const m of matches) {
           if (!m.scheduled_at) continue;
-          // Same calendar day as the block?
-          if (m.scheduled_at.slice(0, 10) !== blockDateIso) continue;
-          // At or after the block's old startTime?
           const matchDate = new Date(m.scheduled_at);
-          const matchMinOfDay = matchDate.getUTCHours() * 60 + matchDate.getUTCMinutes();
+          // Same calendar day as the block, in WALL-CLOCK terms — the stored
+          // instant's local date, not the UTC prefix of its ISO string.
+          if (localDateIso(matchDate) !== blockDateIso) continue;
+          // At or after the block's old startTime, read the same way.
+          const matchMinOfDay = matchDate.getHours() * 60 + matchDate.getMinutes();
           if (matchMinOfDay < oldStartMin) continue;
 
           const shifted = new Date(matchDate.getTime() + deltaMin * 60_000);
@@ -1296,11 +1320,10 @@ export class ProgrammeService {
    * Generate Grid for a full reflow.
    *
    * Uses wall-clock (`setHours`/`setDate`) date math matching the
-   * scheduler at lines 517-520 — both must agree on what timezone
-   * "10:00" means so the [start, end) window catches exactly the
-   * matches the scheduler placed inside the block. (moveBlock still
-   * uses UTC math; same fix should be applied there if its cascade
-   * shifts the wrong matches on a non-UTC container.)
+   * scheduler — both must agree on what timezone "10:00" means so the
+   * [start, end) window catches exactly the matches the scheduler placed
+   * inside the block. `moveBlock` now does the same; it used to use UTC math,
+   * which silently shifted NOTHING on a non-UTC container.
    */
   async deleteBlock(
     eventId: string,

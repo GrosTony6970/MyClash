@@ -1086,6 +1086,21 @@ describe('ProgrammeService', () => {
   // ── Slice 5: drag a fixed block + cascade-shift later matches ──────────────
 
   describe('moveBlock', () => {
+    /**
+     * A `scheduled_at` for a WALL-CLOCK time on the event's day.
+     *
+     * These fixtures used to be hard-coded `...Z` strings, which quietly
+     * asserted UTC semantics and passed only because CI runs in UTC. The
+     * scheduler stores matches with `setHours` (container-local `TZ`), and
+     * moveBlock now reads them back the same way — so on a UTC+1 container a
+     * match written "08:30Z" is 09:30 local and genuinely IS after a 09:00
+     * block. Constructing the fixture from local parts makes each test mean
+     * the same thing on every machine, which is the property that was missing
+     * when moveBlock silently shifted nothing in production.
+     */
+    const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
+      new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+
     function buildMoveMocks(opts: {
       block: Record<string, unknown>;
       eventStartDate: string;
@@ -1182,9 +1197,9 @@ describe('ProgrammeService', () => {
         },
         eventStartDate: '2026-06-02',
         matches: [
-          { id: 'match-before', scheduled_at: '2026-06-02T08:30:00.000Z' },
-          { id: 'match-after', scheduled_at: '2026-06-02T09:15:00.000Z' },
-          { id: 'match-other-day', scheduled_at: '2026-06-03T09:15:00.000Z' },
+          { id: 'match-before', scheduled_at: at(2026, 6, 2, 8, 30) },
+          { id: 'match-after', scheduled_at: at(2026, 6, 2, 9, 15) },
+          { id: 'match-other-day', scheduled_at: at(2026, 6, 3, 9, 15) },
           { id: 'match-unscheduled', scheduled_at: null },
         ],
       });
@@ -1192,7 +1207,7 @@ describe('ProgrammeService', () => {
       const result = await service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' });
 
       // Only the at-or-after match on the same day should be shifted.
-      expect(updates).toEqual([{ id: 'match-after', scheduled_at: '2026-06-02T10:15:00.000Z' }]);
+      expect(updates).toEqual([{ id: 'match-after', scheduled_at: at(2026, 6, 2, 10, 15) }]);
       expect(result.shiftedMatches).toBe(1);
       expect(result.deltaMinutes).toBe(60);
     });
@@ -1220,15 +1235,64 @@ describe('ProgrammeService', () => {
         },
         eventStartDate: '2026-06-02',
         matches: [
-          { id: 'match-before', scheduled_at: '2026-06-02T12:00:00.000Z' },
-          { id: 'match-after', scheduled_at: '2026-06-02T14:45:00.000Z' },
+          { id: 'match-before', scheduled_at: at(2026, 6, 2, 12, 0) },
+          { id: 'match-after', scheduled_at: at(2026, 6, 2, 14, 45) },
         ],
       });
 
       const result = await service.moveBlock('event-1', 'block-2', { newStartTime: '13:00' });
 
-      expect(updates).toEqual([{ id: 'match-after', scheduled_at: '2026-06-02T13:45:00.000Z' }]);
+      expect(updates).toEqual([{ id: 'match-after', scheduled_at: at(2026, 6, 2, 13, 45) }]);
       expect(result.deltaMinutes).toBe(-60);
+    });
+
+    /**
+     * THE REGRESSION. moveBlock used to compare `getUTCHours()` against a block
+     * time that the scheduler had written with `setHours`. On any container
+     * whose TZ is not UTC the two disagree by the offset, and east of Greenwich
+     * the comparison fails low: a 09:00 block is stored 08:00Z, `480 < 540`,
+     * and EVERY match is skipped. The bar moved; nothing followed it; nothing
+     * threw. `20-schedule.spec.ts` caught it against the real deployment.
+     *
+     * The fixture is a match at the block's exact start — the boundary the old
+     * code got wrong — expressed in wall-clock terms, so this test fails on the
+     * UTC implementation on any non-UTC machine and passes on the fixed one
+     * everywhere.
+     */
+    it('shifts a match sitting exactly on the block start, whatever the container TZ', async () => {
+      const { updates } = buildMoveMocks({
+        block: {
+          id: 'block-tz',
+          event_id: 'event-1',
+          day_index: 0,
+          sort_order: 0,
+          block_type: 'competition',
+          label: 'Pools',
+          competition_id: null,
+          competition_phase: null,
+          workshop_id: null,
+          lice_count: 2,
+          start_time: '09:00',
+          end_time: '18:00',
+          match_gap_seconds: 0,
+          match_duration_minutes: 5,
+          generated_at: null,
+        },
+        eventStartDate: '2099-03-01',
+        // Both sides of the boundary. The earlier match also leaves `buildMoveMocks`
+        // a spare update chain — it queues one per match, and the day-blocks
+        // query consumes whatever is next, so a fixture where EVERY match
+        // shifts starves it and fails on the wrong assertion entirely.
+        matches: [
+          { id: 'match-before-start', scheduled_at: at(2099, 3, 1, 8, 30) },
+          { id: 'match-at-start', scheduled_at: at(2099, 3, 1, 9, 0) },
+        ],
+      });
+
+      const result = await service.moveBlock('event-1', 'block-tz', { newStartTime: '10:00' });
+
+      expect(updates).toEqual([{ id: 'match-at-start', scheduled_at: at(2099, 3, 1, 10, 0) }]);
+      expect(result.shiftedMatches).toBe(1);
     });
 
     it('cascades following same-day blocks by Δ (the moved block included)', async () => {
