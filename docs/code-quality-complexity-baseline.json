@@ -173,6 +173,7 @@
     "tests/e2e/09-double-elim.spec.ts",
     "tests/e2e/10-scoring-pad.spec.ts",
     "tests/e2e/11-league.spec.ts",
+    "tests/e2e/17-archive-restore.spec.ts",
     "tests/e2e/_bracket.ts"
   ],
   "functions": [

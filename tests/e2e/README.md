@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`16` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`17` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -386,6 +386,45 @@ Things worth knowing before touching it:
 It needs the `data-testid`s in `apps/web-scoring` — added with it — so a
 **web-scoring redeploy** is a precondition for it going green.
 
+## Archive export → restore round-trip (opt-in)
+
+`E2E_ARCHIVE=1 pnpm test:e2e:prod tests/e2e/17-*.spec.ts` runs
+`17-archive-restore.spec.ts`. `archive.service.ts` is ~1300 lines and had no
+end-to-end coverage: `archive.migration-coverage.test.ts` proves tables are
+**listed**, never that a restore reproduces anything, and `archive.service.test.ts`
+mocks Supabase — a mock inserts any column without caring what it references,
+which is exactly how `matches.referee_id` stayed unmapped.
+
+It plays a tournament to a champion, exports the archive, restores it, and holds
+the copy to the original: persons **copied under new ids** (and reset to
+`unclaimed`), the registrations, the bracket slot by slot with its scores, the
+champion **by name** — every id was regenerated, so a name is the only comparable
+identity — and every match result plus every exchange, compared through the
+archive's own `resultsCsv`/`exchangesCsv` reports. Then it checks the **source is
+untouched**.
+
+Both restore paths, because they are different code with different rules:
+
+| path                                 | what only it does                                            |
+| ------------------------------------ | ------------------------------------------------------------ |
+| event scope                          | forces the copy to `draft`, **copies** the person rows       |
+| tournament scope, into its own event | forces the tournament to `draft`, **shares** the person rows |
+| tournament scope, into another event | copies the persons instead (the clone-last-year flow)        |
+
+Notes worth having before touching it:
+
+- **`GET events/:slug` resolves by SLUG and is public** — the wrong door for an
+  id-addressed draft. The restored event row is read from the copy's own archive
+  export, which is the org-admin route and returns the raw row.
+- **Row order is not part of the contract.** `listRowsByIds` has no `ORDER BY`,
+  so the CSV comparisons are multisets of sorted rows, and `exchangesCsv` has its
+  two id columns dropped first.
+- It builds its **own `event_kind: 'test'` event**: an event-scope archive of the
+  shared throwaway event would drag in every other spec's tournaments and vary
+  run to run, and `test` is the one kind that stays hard-deletable with results
+  recorded — which the copy inherits, since `restoreEventCopy` spreads the source
+  row. `E2E_CLEANUP` deletes both; otherwise both URLs are printed.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -406,6 +445,7 @@ It needs the `data-testid`s in `apps/web-scoring` — added with it — so a
 | 14  | Referee compensation                | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
 | 15  | Public site on real data            | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
 | 16  | The pad's other buttons + the clock | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
+| 17  | Archive export → restore round-trip | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them
