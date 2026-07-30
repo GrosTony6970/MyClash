@@ -19,6 +19,7 @@ const API_URL = 'http://localhost:4000';
 beforeEach(async () => {
   await db.outbox.clear();
   await db.synced.clear();
+  await db.rejected.clear();
   vi.restoreAllMocks();
 });
 
@@ -210,5 +211,185 @@ describe('drain — concurrency', () => {
     // Only one fetch call — second drain was a no-op
     expect(callCount).toBe(1);
     void second; // suppress unused warning
+  });
+});
+
+// ── Rejection (HTTP 400) ──────────────────────────────────────────────────────
+
+/**
+ * The branch that used to DELETE a referee's scored hit.
+ *
+ * `dropTerminal` treated every 400 as "retrying can never succeed", removed the
+ * row outright and logged a console warning. The pad then reported zero pending
+ * and a green bar — a success signal for a hit nobody would ever see again. And
+ * of the 400s this endpoint returns, only one (a best-of round awaiting advance)
+ * is actually terminal; a stale sequence, a locked match and a rejected payload
+ * all clear.
+ *
+ * These are the only cases covering it. There were none.
+ */
+
+/** Routes by method + URL, because the 400 path issues a GET and a second POST. */
+function mockExchangeApi(opts: {
+  /** Rows `GET /exchanges` reports — drives the re-derived sequence. */
+  serverRows?: Array<{ sequence: number }>;
+  /** Decides each POST's response from the sequence it carried. */
+  post: (sequence: number) => { status: number; body: unknown };
+}) {
+  const posted: number[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation((_url: string, init?: { method?: string; body?: string }) => {
+      if ((init?.method ?? 'GET') === 'GET') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(opts.serverRows ?? []),
+        });
+      }
+      const sequence = (JSON.parse(init?.body ?? '{}') as { sequence: number }).sequence;
+      posted.push(sequence);
+      const r = opts.post(sequence);
+      return Promise.resolve({
+        ok: r.status >= 200 && r.status < 300,
+        status: r.status,
+        json: () => Promise.resolve(r.body),
+      });
+    }),
+  );
+  return { posted };
+}
+
+describe('drain — a refused exchange (400)', () => {
+  it('is never deleted — it is held in `rejected`, and nothing is marked synced', async () => {
+    await addExchange('m1', 1, 'uuid-bad');
+    // Refuses at any sequence, so the re-derived retry fails too.
+    mockExchangeApi({
+      serverRows: [{ sequence: 9 }],
+      post: () => ({ status: 400, body: { message: 'Match is locked' } }),
+    });
+
+    await new SyncEngine(API_URL).drain();
+
+    expect(await db.outbox.count(), 'the outbox must not still be blocked by it').toBe(0);
+    expect(await db.synced.count(), 'it never reached the server').toBe(0);
+    const held = await db.rejected.toArray();
+    expect(held).toHaveLength(1);
+    expect(held[0]?.clientUuid).toBe('uuid-bad');
+    // The server's own words — a 400 carries a real message (only 5xx is masked).
+    expect(held[0]?.rejectedReason).toBe('Match is locked');
+  });
+
+  it('is re-sent once under a sequence derived from the server, and that succeeds', async () => {
+    // The collision case: the match already used sequence 1..5 elsewhere.
+    await addExchange('m1', 1, 'uuid-collides');
+    const { posted } = mockExchangeApi({
+      serverRows: [{ sequence: 5 }],
+      post: (sequence) =>
+        sequence > 5
+          ? { status: 201, body: { id: 'srv-1' } }
+          : { status: 400, body: { message: 'duplicate key value violates unique constraint' } },
+    });
+
+    await new SyncEngine(API_URL).drain();
+
+    expect(posted, 'first at its own sequence, then re-derived past the server max').toEqual([
+      1, 6,
+    ]);
+    expect(await db.rejected.count(), 'a recovered hit must NOT be left held').toBe(0);
+    const synced = await db.synced.toArray();
+    expect(synced).toHaveLength(1);
+    // The sequence actually accepted is what gets recorded, or `nextSequence`
+    // would keep handing out the one the server already rejected.
+    expect(synced[0]?.sequence).toBe(6);
+  });
+
+  it('retries exactly once, never in a loop', async () => {
+    await addExchange('m1', 1, 'uuid-bad');
+    const { posted } = mockExchangeApi({
+      serverRows: [{ sequence: 9 }],
+      post: () => ({ status: 400, body: { message: 'nope' } }),
+    });
+
+    await new SyncEngine(API_URL).drain();
+
+    expect(posted).toHaveLength(2);
+  });
+
+  it('keeps draining the entries behind it', async () => {
+    // The property `dropTerminal` existed for: one permanently-failing entry at
+    // the head of an in-order queue must not strand everything after it.
+    await addExchange('m1', 1, 'uuid-bad');
+    await addExchange('m1', 2, 'uuid-good');
+    mockExchangeApi({
+      serverRows: [{ sequence: 9 }],
+      post: () => ({ status: 400, body: { message: 'nope' } }),
+    });
+    // Second entry succeeds; the first is refused at every sequence.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url: string, init?: { method?: string; body?: string }) => {
+        if ((init?.method ?? 'GET') === 'GET') {
+          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+        }
+        const body = JSON.parse(init?.body ?? '{}') as { clientUuid: string };
+        const refused = body.clientUuid === 'uuid-bad';
+        return Promise.resolve({
+          ok: !refused,
+          status: refused ? 400 : 201,
+          json: () => Promise.resolve(refused ? { message: 'nope' } : { id: 'srv-2' }),
+        });
+      }),
+    );
+
+    await new SyncEngine(API_URL).drain();
+
+    expect(await db.rejected.count()).toBe(1);
+    expect(await db.synced.count(), 'the entry behind it still synced').toBe(1);
+    expect(await db.outbox.count()).toBe(0);
+  });
+
+  it('reports error, not idle, while a refused hit is held', async () => {
+    await addExchange('m1', 1, 'uuid-bad');
+    mockExchangeApi({
+      serverRows: [{ sequence: 9 }],
+      post: () => ({ status: 400, body: { message: 'nope' } }),
+    });
+
+    const engine = new SyncEngine(API_URL);
+    const states: Array<{ status: string; pendingCount: number; rejectedCount: number }> = [];
+    engine.subscribe((s) => states.push({ ...s }));
+    await engine.drain();
+
+    // An empty outbox used to mean 'idle' — a green bar over a discarded hit.
+    const final = states[states.length - 1]!;
+    expect({
+      status: final.status,
+      pending: final.pendingCount,
+      rejected: final.rejectedCount,
+    }).toEqual({ status: 'error', pending: 0, rejected: 1 });
+  });
+
+  it('retryRejected re-queues held entries with fresh sequences and drains them', async () => {
+    await addExchange('m1', 1, 'uuid-was-locked');
+    mockExchangeApi({
+      serverRows: [{ sequence: 9 }],
+      post: () => ({ status: 400, body: { message: 'Match is locked' } }),
+    });
+    const engine = new SyncEngine(API_URL);
+    await engine.drain();
+    expect(await db.rejected.count()).toBe(1);
+
+    // …the operator unlocks the match and hits Retry.
+    mockExchangeApi({
+      serverRows: [{ sequence: 9 }],
+      post: () => ({ status: 201, body: { id: 'srv-9' } }),
+    });
+    const requeued = await engine.retryRejected();
+
+    expect(requeued).toBe(1);
+    expect(await db.rejected.count()).toBe(0);
+    expect(await db.synced.count()).toBe(1);
+    expect(await engine.getRejectedCount()).toBe(0);
   });
 });

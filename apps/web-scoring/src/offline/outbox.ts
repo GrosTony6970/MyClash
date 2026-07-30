@@ -7,7 +7,7 @@
  *   - 1000 exchanges insert in <500ms locally.
  */
 
-import { db, type OutboxEntry } from './db';
+import { db, type OutboxEntry, type RejectedEntry } from './db';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -92,13 +92,65 @@ export async function clearMatch(matchId: string): Promise<void> {
 }
 
 /**
- * Permanently drop an entry the server TERMINALLY rejected (HTTP 400 — e.g. the
- * best-of round is awaiting advance, or a stale/invalid payload). Retrying can
- * never succeed, so delete it WITHOUT writing to `synced` (it never landed on
- * the server). The max-based nextSequence stays correct across the gap.
+ * Move an entry the server REFUSED (HTTP 400) out of the outbox and into
+ * `rejected`, keeping the payload and recording why.
+ *
+ * This replaces a hard delete. The delete existed to stop a permanently-failing
+ * entry blocking an in-order queue — moving the row achieves that identically,
+ * and stops a scored hit being destroyed on the way. Nothing is written to
+ * `synced`: it never reached the server.
+ *
+ * A 400 is NOT proof that a retry can never succeed. A stale sequence, a locked
+ * match and a round awaiting advance all clear on their own; only the payload
+ * as-sent is known to be unacceptable. See `retryRejected` in sync.ts.
  */
-export async function dropTerminal(id: number): Promise<void> {
-  await db.outbox.delete(id);
+export async function quarantine(id: number, reason: string): Promise<void> {
+  await db.transaction('rw', db.outbox, db.rejected, async () => {
+    const entry = await db.outbox.get(id);
+    if (!entry) return;
+    const { id: _outboxId, ...payload } = entry;
+    await db.rejected.add({ ...payload, rejectedReason: reason, rejectedAt: Date.now() });
+    await db.outbox.delete(id);
+  });
+}
+
+/** Every quarantined entry, oldest first. */
+export async function getRejected(): Promise<RejectedEntry[]> {
+  return db.rejected.orderBy('id').toArray();
+}
+
+/** How many exchanges the server has refused and nobody has dealt with yet. */
+export async function rejectedCount(): Promise<number> {
+  return db.rejected.count();
+}
+
+/**
+ * Put every quarantined entry back in the outbox to be tried again.
+ *
+ * Sequences are re-derived per match, because the most common reason a retry
+ * would fail again is the sequence the entry was rejected with. `attempts` and
+ * `lastError` reset — this is a fresh attempt, initiated by the operator.
+ */
+export async function requeueRejected(): Promise<number> {
+  const entries = await getRejected();
+  if (entries.length === 0) return 0;
+
+  const nextByMatch = new Map<string, number>();
+  for (const matchId of new Set(entries.map((e) => e.matchId))) {
+    nextByMatch.set(matchId, await nextSequence(matchId));
+  }
+
+  await db.transaction('rw', db.outbox, db.rejected, async () => {
+    for (const entry of entries) {
+      const { id, rejectedReason: _reason, rejectedAt: _at, lastError: _err, ...payload } = entry;
+      const sequence = nextByMatch.get(entry.matchId) ?? entry.sequence;
+      nextByMatch.set(entry.matchId, sequence + 1);
+      await db.outbox.add({ ...payload, sequence, attempts: 0 });
+      if (id !== undefined) await db.rejected.delete(id);
+    }
+  });
+
+  return entries.length;
 }
 
 // ── Sequence ──────────────────────────────────────────────────────────────────

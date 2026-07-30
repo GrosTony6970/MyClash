@@ -203,6 +203,11 @@ export default function MatchScoringPage({ params }: Props) {
   // 4-state durable-sync indicator. Browser-offline always wins; otherwise the
   // bar reflects the SyncEngine's own phase (syncing / error / idle→online).
   const pending = syncState?.pendingCount ?? 0;
+  // Exchanges the server REFUSED. The engine forces `status: 'error'` while any
+  // are held, so this only changes the WORDING — but the wording is the point:
+  // "sync error" reads as a connection problem the operator waits out, and this
+  // is a hit that will never arrive unless they act.
+  const rejected = syncState?.rejectedCount ?? 0;
   const syncPhase: 'online' | 'syncing' | 'offline' | 'error' =
     networkStatus === 'offline' || syncState?.status === 'offline'
       ? 'offline'
@@ -219,6 +224,7 @@ export default function MatchScoringPage({ params }: Props) {
         data-network={networkStatus}
         data-sync={syncPhase}
         data-pending={pending}
+        data-rejected={rejected}
         // Offline is neutral, not red: in a sports hall it is the expected
         // state and the outbox is doing its job. That frees danger for the one
         // state that actually needs the operator — a failed sync — and drops
@@ -239,14 +245,22 @@ export default function MatchScoringPage({ params }: Props) {
             : syncPhase === 'syncing'
               ? `⟳ ${t('scoring.lice.syncing')}`
               : syncPhase === 'error'
-                ? `⚠ ${t('scoring.lice.syncError')}`
+                ? rejected > 0
+                  ? `⚠ ${t('scoring.lice.hitsRefused', {
+                      count: String(rejected),
+                      plural: rejected === 1 ? '' : 'S',
+                    })}`
+                  : `⚠ ${t('scoring.lice.syncError')}`
                 : `● ${t('scoring.lice.offlineQueued')}`}
           {pending > 0 ? ` (${pending})` : ''}
         </span>
         {syncPhase === 'error' && (
           <button
             type="button"
-            onClick={() => void syncEngine.drain()}
+            // Refused exchanges are no longer in the outbox, so a plain drain
+            // would not touch them — `retryRejected` re-queues them first (with
+            // fresh sequences) and then drains.
+            onClick={() => void (rejected > 0 ? syncEngine.retryRejected() : syncEngine.drain())}
             className="rounded bg-danger px-2 py-0.5 text-danger-foreground transition-colors hover:bg-danger-hover"
           >
             {t('scoring.lice.retry')}

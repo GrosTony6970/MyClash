@@ -783,7 +783,7 @@
     "apps/web-scoring/src/components/ScoringPad.tsx:102",
     "apps/web-scoring/src/hooks/usePenalties.ts:59",
     "apps/web-scoring/src/hooks/useScoringSubmit.ts:47",
-    "apps/web-scoring/src/offline/sync.ts:69",
+    "apps/web-scoring/src/offline/sync.ts:164",
     "eslint-rules/no-literal-string.mjs:81",
     "eslint-rules/no-server-api-url-leak.mjs:105",
     "infra/ops-runner/backup-core.mjs:154",

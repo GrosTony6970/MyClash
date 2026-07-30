@@ -10,7 +10,17 @@
  *   - UI shows pending count, syncing indicator, error state
  */
 
-import { dropTerminal, getAllPending, markFailed, markSynced, totalPendingCount } from './outbox';
+import {
+  getAllPending,
+  markFailed,
+  markSynced,
+  nextSequence,
+  quarantine,
+  rejectedCount,
+  requeueRejected,
+  totalPendingCount,
+} from './outbox';
+import type { OutboxEntry } from './db';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +29,12 @@ export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 export interface SyncState {
   status: SyncStatus;
   pendingCount: number;
+  /**
+   * Exchanges the server REFUSED, held in `rejected` rather than destroyed.
+   * Non-zero forces `status: 'error'` — a refused hit must never be reported to
+   * a referee as a clean sync.
+   */
+  rejectedCount: number;
   /** Last error message, if status === 'error' */
   lastError?: string;
 }
@@ -52,10 +68,89 @@ export class SyncEngine {
   }
 
   private async emit(status: SyncStatus, lastError?: string): Promise<void> {
-    const pendingCount = await totalPendingCount();
-    const state: SyncState = { status, pendingCount, lastError };
+    const [pendingCount, rejected] = await Promise.all([totalPendingCount(), rejectedCount()]);
+    // A held rejection outranks every other phase. Emitting 'idle' with refused
+    // exchanges on disk is what made the bar go green over a hit that was
+    // thrown away — the operator has to be told, and told until they act.
+    const effectiveStatus = rejected > 0 && status !== 'offline' ? 'error' : status;
+    const state: SyncState = {
+      status: effectiveStatus,
+      pendingCount,
+      rejectedCount: rejected,
+      lastError,
+    };
     for (const listener of this.listeners) {
       listener(state);
+    }
+  }
+
+  // ── Posting ─────────────────────────────────────────────────────────────────
+
+  /**
+   * POST one outbox entry, at the given sequence.
+   *
+   * The sequence is a parameter rather than read off the entry so the 400 path
+   * can re-send the SAME hit under a corrected one. Every optional field is
+   * sent as an explicit null — see the note on `CreateExchangeDto`; do not
+   * "tidy" these into omissions.
+   */
+  private postExchange(entry: OutboxEntry, sequence: number): Promise<Response> {
+    return fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/exchanges`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        clientUuid: entry.clientUuid,
+        sequence,
+        type: entry.type,
+        occurredAt: entry.occurredAt,
+        firstStrikerColor: entry.firstStrikerColor ?? null,
+        firstStrikeValue: entry.firstStrikeValue ?? null,
+        afterblowValue: entry.afterblowValue ?? null,
+        noExchangeReason: entry.noExchangeReason ?? null,
+        clockTimeMs: entry.clockTimeMs ?? null,
+      }),
+    });
+  }
+
+  /**
+   * Re-send a refused entry ONCE under a sequence derived from the server.
+   *
+   * Deliberately blind to WHY the server refused: matching on the message would
+   * bind the client to wording it does not own. If the cause was a sequence
+   * collision this succeeds; if it was anything else it fails the same way and
+   * the caller quarantines. One attempt, never a loop.
+   *
+   * Returns the sequence actually used and the server's row id, or null.
+   */
+  private async retryWithFreshSequence(
+    entry: OutboxEntry,
+  ): Promise<{ sequence: number; serverId: string } | null> {
+    const sequence = await this.freshSequence(entry.matchId);
+    // Same sequence means nothing changed — a second identical POST would only
+    // reproduce the same refusal.
+    if (sequence === null || sequence === entry.sequence) return null;
+
+    const res = await this.postExchange(entry, sequence);
+    // 409 is the idempotency answer on client_uuid: it IS on the server.
+    if (!res.ok && res.status !== 201 && res.status !== 409) return null;
+    const data = (await res.json().catch(() => ({}))) as Partial<ExchangeResponse>;
+    return { sequence, serverId: data.id ?? entry.clientUuid };
+  }
+
+  /** Highest sequence this match has anywhere — server or local — plus one. */
+  private async freshSequence(matchId: string): Promise<number | null> {
+    try {
+      const res = await fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      const rows = (await res.json()) as Array<{ sequence?: number | null }>;
+      const serverMax = rows.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0);
+      return Math.max(serverMax + 1, await nextSequence(matchId));
+    } catch {
+      // Offline again — nothing to re-derive from. The caller quarantines.
+      return null;
     }
   }
 
@@ -86,22 +181,7 @@ export class SyncEngine {
       if (this.aborted) break;
 
       try {
-        const res = await fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/exchanges`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            clientUuid: entry.clientUuid,
-            sequence: entry.sequence,
-            type: entry.type,
-            occurredAt: entry.occurredAt,
-            firstStrikerColor: entry.firstStrikerColor ?? null,
-            firstStrikeValue: entry.firstStrikeValue ?? null,
-            afterblowValue: entry.afterblowValue ?? null,
-            noExchangeReason: entry.noExchangeReason ?? null,
-            clockTimeMs: entry.clockTimeMs ?? null,
-          }),
-        });
+        const res = await this.postExchange(entry, entry.sequence);
 
         if (res.ok || res.status === 201) {
           // Success or idempotent duplicate — remove from outbox
@@ -121,14 +201,29 @@ export class SyncEngine {
           );
           consecutiveFailures = 0;
         } else if (res.status === 400) {
-          // Terminal rejection — retrying can never succeed (best-of round
-          // awaiting advance, stale sequence, invalid payload). Drop it so the
-          // queue keeps draining instead of looping forever.
+          // A refusal, NOT proof that a retry can never succeed. The single
+          // most likely cause is a sequence this match has already used (two
+          // pads, or a reload that seeded from a stale max), so re-derive the
+          // sequence from the server and try exactly once more.
           const body = (await res.json().catch(() => ({}))) as { message?: string };
-          console.warn(
-            `Dropping rejected exchange ${entry.clientUuid}: ${body.message ?? 'HTTP 400'}`,
-          );
-          await dropTerminal(entry.id!);
+          const retried = await this.retryWithFreshSequence(entry);
+
+          if (retried) {
+            await markSynced(
+              entry.id!,
+              entry.clientUuid,
+              entry.matchId,
+              retried.sequence,
+              retried.serverId,
+            );
+          } else {
+            // Held, never destroyed: a refused exchange is a hit a referee
+            // actually scored. Moving it out of the outbox keeps the in-order
+            // queue draining — the whole point of the delete this replaces —
+            // and `emit` now forces 'error' while any are held, so the bar
+            // cannot go green over it.
+            await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`);
+          }
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else {
@@ -170,6 +265,23 @@ export class SyncEngine {
     this.running = false;
   }
 
+  /**
+   * Put every refused exchange back in the queue and drain again — what the
+   * operator's Retry button does.
+   *
+   * The conditions behind a 400 are mostly transient in the operator's own
+   * hands: unlock the match, advance the round, let the other pad finish. So
+   * the recovery is one deliberate action, not an automatic loop that would
+   * hammer the server for as long as the condition holds. `requeueRejected`
+   * re-derives sequences, so a stale one is fixed on the way through.
+   */
+  async retryRejected(): Promise<number> {
+    const requeued = await requeueRejected();
+    if (requeued > 0) await this.drain();
+    else await this.emit('idle');
+    return requeued;
+  }
+
   /** Abort an in-progress drain (e.g. user navigates away). */
   abort(): void {
     this.aborted = true;
@@ -178,6 +290,11 @@ export class SyncEngine {
   /** Current pending count without triggering a drain. */
   async getPendingCount(): Promise<number> {
     return totalPendingCount();
+  }
+
+  /** Exchanges the server refused and nobody has retried yet. */
+  async getRejectedCount(): Promise<number> {
+    return rejectedCount();
   }
 }
 

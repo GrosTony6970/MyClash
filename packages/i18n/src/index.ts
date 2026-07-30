@@ -1412,6 +1412,10 @@ export const en = {
       offlineQueued: 'OFFLINE - exchanges queued locally',
       syncing: 'SYNCING',
       syncError: 'SYNC ERROR',
+      // Distinct from syncError on purpose: "sync error" reads as a connection
+      // problem that will clear itself, and this one never will until the
+      // operator retries. `{plural}` is filled by the caller (see voidedHidden).
+      hitsRefused: '{count} HIT{plural} NOT RECORDED',
       backToMatchList: 'Back to match list',
       title: 'Lice {liceName}',
       red: 'Red',
@@ -8325,6 +8329,7 @@ export const fr = {
       offlineQueued: 'HORS LIGNE - echanges en attente locale',
       syncing: 'SYNCHRONISATION',
       syncError: 'ERREUR DE SYNCHRO',
+      hitsRefused: '{count} TOUCHE{plural} NON ENREGISTREE{plural}',
       backToMatchList: 'Retour a la liste des assauts',
       title: 'Lice {liceName}',
       red: 'Rouge',
