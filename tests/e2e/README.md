@@ -14,8 +14,19 @@ data**. They are isolated from the local a11y/perf suites (`tests/a11y`,
 - **specs** — read the run context via `_context.ts` and drive the flows.
 - **`global-teardown.ts`** — by default **preserves** the test event and prints
   its admin URL so you can inspect what was created. Set `E2E_CLEANUP=1` to
-  hard-delete it instead (it clears each tournament's pools → matches first, so
-  the cascade isn't blocked by the `registrations`/`matches` RESTRICT FKs).
+  hard-delete it instead. Two things have to happen in order for that to work:
+  the event is first reclassified as a **club event**, then each tournament's
+  pools (→ matches) are cleared before the tournament and finally the event go.
+  - The **club flip** is what makes the delete possible at all. Six specs score
+    real matches, and a `standard` event holding recorded results refuses both
+    deletes ("Submit a deletion request instead") — correct for a real event,
+    exactly wrong for a throwaway one. `allowsDirectHardDelete` is true for club
+    and test kinds, and the flip is deliberately the LAST thing that happens:
+    the event must stay `standard` all run, because club events do not count
+    toward league standings and cannot be submitted to HEMA Ratings, which `11`
+    and `12` depend on.
+  - The **pool clearing** keeps the cascade from hitting the
+    `registrations`/`matches` RESTRICT FKs.
 
 ## Running locally
 
@@ -342,8 +353,8 @@ Set `E2E_PUBLIC_URL` if web-public is not at `https://app.myclash.fr`.
 | --- | ----------------------------------- | ----------------------------------- | ---------------------------------------- |
 | 1   | CSV participant import              | `01-participants-import.spec.ts`    | active                                   |
 | 2   | Create tournament (wizard step 1)   | `02-create-tournament.spec.ts`      | active                                   |
-| 3   | Create event (wizard)               | `03-create-event.spec.ts`           | step 1 active; full flow `test.fixme`    |
-| 4   | Schedule / programme                | `04-schedule.spec.ts`               | load smoke active; generate `test.fixme` |
+| 3   | Create event (wizard)               | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
+| 4   | Schedule / programme                | `04-schedule.spec.ts`               | active (page load + generate)            |
 | 5   | Referee auto-assign board           | `05-referee-board.spec.ts`          | active                                   |
 | 6   | Offline scoring sync (PWA)          | `06-offline-sync.spec.ts`           | active                                   |
 | 7   | Populate rich demo event            | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
@@ -356,6 +367,5 @@ Set `E2E_PUBLIC_URL` if web-public is not at `https://app.myclash.fr`.
 | 14  | Referee compensation                | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
 | 15  | Public site on real data            | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
 
-The `test.fixme` flows are scaffolded and finalized during the interactive
-Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
-the date-picker fill behaviour, and the schedule generate preconditions).
+Every spec in the table above runs — there are no `test.fixme` flows left. The
+opt-in ones are gated purely on their env flag, and the nightly sets all six.
