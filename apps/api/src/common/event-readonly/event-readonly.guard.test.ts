@@ -39,20 +39,24 @@ function makeContext(opts: {
   method?: string;
   params?: Record<string, string>;
   body?: Record<string, unknown>;
+  url?: string;
   allowOnArchived?: boolean;
 }): ExecutionContext {
-  const { method = 'POST', params = {}, body = {}, allowOnArchived = false } = opts;
+  const { method = 'POST', params = {}, body = {}, url = '', allowOnArchived = false } = opts;
 
   reflectorGetAllAndOverride.mockReturnValue(allowOnArchived ? true : undefined);
 
   return {
     switchToHttp: () => ({
-      getRequest: () => ({ method, params, body }),
+      getRequest: () => ({ method, params, body, url }),
     }),
     getHandler: () => ({}),
     getClass: () => ({}),
   } as unknown as ExecutionContext;
 }
+
+/** A real event id shape — the path match requires 36 chars. */
+const EVENT_UUID = 'aaba08c8-f692-49ac-ace3-45ce2c58ef8a';
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -194,5 +198,54 @@ describe('EventReadOnlyGuard', () => {
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
     expect(fromMock).toHaveBeenCalledWith('events');
+  });
+
+  // ── (9) The event's OWN routes, which name the param `:id` ────────────────
+  //
+  // PATCH events/:id, POST events/:id/publish|unpublish|logo|hero all bind
+  // `params.id`, which no branch read — so every one of them slipped past the
+  // guard and an archived event stayed editable. Confirmed against the deployed
+  // API before the fix: archive an event, PATCH it, 200.
+
+  it.each([
+    ['PATCH', `/api/v1/events/${EVENT_UUID}`],
+    ['POST', `/api/v1/events/${EVENT_UUID}/publish`],
+    ['POST', `/api/v1/events/${EVENT_UUID}/unpublish`],
+    ['POST', `/api/v1/events/${EVENT_UUID}/logo`],
+  ])('blocks %s %s on an archived event', async (method, url) => {
+    const ctx = makeContext({ method, params: { id: EVENT_UUID }, url });
+
+    fromMock.mockReturnValueOnce(makeChain({ data: { status: 'archived' }, error: null }));
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+    expect(fromMock).toHaveBeenCalledWith('events');
+  });
+
+  it('allows the same routes when the event is not archived', async () => {
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: EVENT_UUID },
+      url: `/api/v1/events/${EVENT_UUID}`,
+    });
+
+    fromMock.mockReturnValueOnce(makeChain({ data: { status: 'draft' }, error: null }));
+
+    expect(await guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('does not read `:id` on another entity’s route', async () => {
+    // `PATCH tournaments/:id` binds the same param name for a different entity.
+    // Matching the PATH is what keeps the two apart — resolving `params.id` as
+    // an event id would send this down the tournaments branch's job.
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: EVENT_UUID },
+      url: `/api/v1/tournaments/${EVENT_UUID}`,
+    });
+
+    const result = await guard.canActivate(ctx);
+
+    expect(result).toBe(true);
+    expect(fromMock).not.toHaveBeenCalled();
   });
 });

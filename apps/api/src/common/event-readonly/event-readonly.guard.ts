@@ -60,6 +60,20 @@ export class EventReadOnlyGuard implements CanActivate {
     // (a) Direct eventId route param
     if (params['eventId']) return params['eventId'];
 
+    // (a′) `/events/<uuid>` anywhere in the path.
+    //
+    // The event's OWN mutating routes name the param `:id`, not `:eventId` —
+    // PATCH events/:id, POST events/:id/publish, /unpublish, /logo, /hero. A
+    // params-only lookup resolved nothing for any of them, so the guard fell
+    // through to "not event-scoped" and an ARCHIVED event stayed fully
+    // editable: rename it, re-slug it, publish it again. Nothing threw.
+    //
+    // Read off the path rather than off `params['id']`: `:id` means a different
+    // entity on most other controllers (tournaments, clubs, deletion requests),
+    // and matching the path segment cannot be broken by a param rename either.
+    const fromPath = /(?:^|\/)events\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(request.url ?? '');
+    if (fromPath) return fromPath[1] as string;
+
     // (b) tournamentId → tournaments.event_id
     if (params['tournamentId']) {
       const { data } = await this.supabase.service

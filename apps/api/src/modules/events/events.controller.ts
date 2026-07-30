@@ -35,6 +35,7 @@ import {
 } from './dto/events.dto';
 import { EventThemesService } from './event-themes.service';
 import { Public } from '../../common/auth/public.decorator';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { EventsService } from './events.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -218,6 +219,12 @@ export class EventsController {
   /** DELETE /api/v1/events/:id?mode=hard */
   @Delete('events/:id')
   @HttpCode(HttpStatus.OK)
+  // Deleting an archived event is governed by `deleteEvent` itself, which has a
+  // KIND-AWARE rule the blanket read-only guard cannot express: a test or club
+  // event stays disposable while archived, everything else must go through a
+  // deletion request (and gets told so). Without this opt-out the guard would
+  // refuse both alike, and a throwaway event could never be torn down.
+  @AllowOnArchivedEvent()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Hard delete event (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
