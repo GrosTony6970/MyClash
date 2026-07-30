@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`18` (see the Status table), so you can run one by number.
+Specs are numbered `01`…`19` (see the Status table), so you can run one by number.
 Note that **PowerShell does not expand globs and Playwright reads its argument as
 a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
 literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
@@ -466,6 +466,41 @@ Things worth knowing before touching it:
 - It creates its own `event_kind: 'test'` event for the wrong-event case, and
   disables the staff account as its **last** act — nothing after that can log in.
 
+## Workshops: who actually got the seat (opt-in)
+
+`E2E_WORKSHOPS=1 pnpm test:e2e:prod tests/e2e/19-workshops.spec.ts` runs
+`19-workshops.spec.ts`. Workshops are **31 endpoints that had zero assertions**:
+`07` touches them, but its `step()` helper catches every error and carries on
+(1714 lines, 10 `expect`s, excluded from the nightly).
+
+That gap matters more here than almost anywhere else, because **the failure mode
+is silent mis-allocation, not a throw**. A seat given to the wrong person reads
+exactly like a seat given to the right one, and a waitlist promoted out of order
+looks identical to one promoted in order. So every assertion is about **which
+person ended up in which slot** — the whole roster compared as one object, keyed
+by name — never about counts.
+
+A 2-seat workshop and five people, enrolled one at a time (position is derived
+from how many are already waiting, so a batch would prove nothing about order):
+
+| step                    | what only it proves                                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| enrol 5                 | the first two sit; the rest queue 1, 2, 3 in arrival order                                                                               |
+| refuse a seated one     | the freed seat goes to the **top** of the queue, and `recompactWaitlist` closes the gap behind them rather than leaving a hole           |
+| re-enrol the refused    | 403, and the row is **not** resurrected                                                                                                  |
+| promote a seated person | 400 — promote only applies to someone waiting                                                                                            |
+| accept the last waiter  | a deliberate override: seats **past capacity**                                                                                           |
+| instructors             | `workshops.instructors` keys on `global_persons.id` while enrolment keys on the event-scoped `persons.id` — two identities for one human |
+| breaks, public list     | the public read is status-gated; a **draft** workshop must not leak                                                                      |
+
+> **`POST workshops/:id/notify` is deliberately out of scope** — it messages real
+> people, the same rule that keeps `15` on a club-kind event.
+>
+> Promotion _does_ notify, but safely: `waitlistPromoted` returns early unless
+> the person has a `claimed_by_user_id`, and every attendee here comes from
+> `ensureRoster` unclaimed. That is a precondition, not a coincidence — **never
+> enrol a claimed person in this spec.**
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -488,6 +523,7 @@ Things worth knowing before touching it:
 | 16  | The pad's other buttons + the clock | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
 | 17  | Archive export → restore round-trip | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
 | 18  | Staff PIN login + the staff rules   | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
+| 19  | Workshops: seats, waitlist, staff   | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them
