@@ -38,8 +38,10 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`17` (see the Status table), so you can run one by number —
-`pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
+Specs are numbered `01`…`18` (see the Status table), so you can run one by number.
+Note that **PowerShell does not expand globs and Playwright reads its argument as
+a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
+literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
 > in **once** per run and reuses the session for 45 min. Don't loop runs rapidly
@@ -425,6 +427,45 @@ Notes worth having before touching it:
   recorded — which the copy inherits, since `restoreEventCopy` spreads the source
   row. `E2E_CLEANUP` deletes both; otherwise both URLs are printed.
 
+## The referee's real login (opt-in)
+
+`E2E_STAFF=1 pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts` runs
+`18-staff-pad.spec.ts`. Every other scoring spec (`06`, `08`, `10`, `16`)
+authenticates with the **organizer's** cookie from `global-setup`, which takes
+the first branch of `authorizeMatchScoring`. A referee at an event does not have
+that cookie — they sign in on a shared tablet with a PIN
+(`POST /api/v1/staff-auth/login`), landing in the second branch, whose four
+rules nothing had ever driven:
+
+| rule                               | the failure it describes                                |
+| ---------------------------------- | ------------------------------------------------------- |
+| `match.eventId !== staff.event_id` | a tablet signed into yesterday's event                  |
+| `!match.liceId`                    | **the organizer never assigned the piste** — a live 403 |
+| `!isLiceAssigned(...)`             | the referee reaching for someone else's piste           |
+| `canOverrideLocked: false`         | staff may never reopen a locked match                   |
+
+Things worth knowing before touching it:
+
+- **The storage state is the whole trick.** `playwright.e2e.config.ts` applies
+  the organizer's `storageState` to every context, and the organizer branch wins
+  whenever `sb-access-token` resolves — so calling the staff login from the
+  shared fixtures would re-prove the branch already covered four times. The
+  staff half runs in `browser.newContext({ storageState: undefined })`, and
+  `context.request` shares that context's cookie jar, so the **browser's** PIN
+  login is what authenticates the API assertions too.
+- **The refusals are asserted by their REASON, not their status.** All three
+  lice/event rules return 403; matching only the status would let any of them
+  stand in for any other. A 4xx carries its real message in `detail`/`message` —
+  only a 5xx hides it.
+- **There is no `POST /matches/:id/lock`.** Locking is `MatchAutoLockService`, a
+  60 s interval that locks a completed group once `autoLockDelayMinutes` has
+  elapsed. The spec builds a one-match pool with the delay at 0 and polls, which
+  makes it the only test that proves that scan runs in production at all. It
+  skips a group whose latest `ended_at` is null, so if that poll ever times out,
+  suspect completion not stamping `ended_at` before suspecting the spec.
+- It creates its own `event_kind: 'test'` event for the wrong-event case, and
+  disables the staff account as its **last** act — nothing after that can log in.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -446,6 +487,7 @@ Notes worth having before touching it:
 | 15  | Public site on real data            | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
 | 16  | The pad's other buttons + the clock | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
 | 17  | Archive export → restore round-trip | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
+| 18  | Staff PIN login + the staff rules   | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

@@ -60,6 +60,7 @@ jobs:
           E2E_PUBLIC_SITE: '1' # 15 — ~25 s
           E2E_PAD_UI: '1' # 16 — ~40 s
           E2E_ARCHIVE: '1' # 17 — ~1 min
+          E2E_STAFF: '1' # 18 — ~2-3 min (waits on the 60s auto-lock scan)
           # E2E_POPULATE stays OFF on purpose: 07 is a ~30 min demo-data
           # populator, not a regression test (its step() swallows every error),
           # so running it nightly would cost half an hour and assert nothing.
