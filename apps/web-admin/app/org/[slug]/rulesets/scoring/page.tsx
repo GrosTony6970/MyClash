@@ -204,7 +204,7 @@ export default function OrgScoringRulesetsPage() {
   const manageRows = rows.filter((row) => row.owner_organization_id === orgId);
 
   return (
-    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <div className="mb-6">
         <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
           {t('admin.rulesets.title')}

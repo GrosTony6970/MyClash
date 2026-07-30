@@ -52,7 +52,7 @@ export default function TournamentSettingsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
       <Button variant="back" size="sm" asChild>
         <Link href={`/org/${params.slug}/events/${params.eventId}/tournaments`}>
           ← {t('organizer.tournaments.settings.backToList')}

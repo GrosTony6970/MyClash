@@ -180,7 +180,7 @@ export default function AdminSystemVersionsPage() {
         : 'admin.systemVersions.actions.restart';
 
   return (
-    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-8 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="font-display font-bold text-2xl sm:text-3xl">

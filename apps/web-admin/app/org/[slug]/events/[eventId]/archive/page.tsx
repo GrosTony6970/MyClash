@@ -150,7 +150,7 @@ export default function OrganizerArchivePage() {
   };
 
   return (
-    <main id="main-content" className="mx-auto p-8 max-w-2xl">
+    <main className="mx-auto p-8 max-w-2xl">
       <div className="mb-2">
         <Button variant="back" size="sm" asChild>
           <Link href={`/org/${slug}/events/${eventId}`}>

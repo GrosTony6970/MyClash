@@ -140,7 +140,7 @@ export default function AdminLeagueRankingPage() {
   const groupKeys = Object.keys(groupedRows).sort();
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <Link
         href="/admin/leagues"
         className="mb-3 inline-flex items-center gap-1 rounded text-sm font-medium text-foreground-secondary hover:text-foreground"

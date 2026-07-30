@@ -799,7 +799,7 @@ export default function AdminClubsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Clubs"
         title={t('admin.clubs.title')}

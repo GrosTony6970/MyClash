@@ -209,7 +209,7 @@ export default function AdminPenaltyRulesetsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Rulesets"
         title={t('admin.penaltyRulesets.title')}

@@ -213,7 +213,7 @@ export default function SuperAdminDashboardPage() {
   }, [stats, t]);
 
   return (
-    <main id="main-content" className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
+    <main className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.dashboard.eyebrow')}
         title={t('admin.dashboard.title')}

@@ -264,7 +264,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
     .sort((a, b) => a - b);
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-2xl px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-2xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.rulesets.league.form.eyebrow')}
         title={

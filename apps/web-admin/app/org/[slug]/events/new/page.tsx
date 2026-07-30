@@ -1110,7 +1110,7 @@ export default function NewEventPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-2xl p-8">
+    <main className="mx-auto max-w-2xl p-8">
       <div className="mb-6 flex items-center gap-3">
         <Button type="button" variant="back" size="sm" onClick={() => router.push(`/org/${slug}`)}>
           {t('organizer.newEvent.backToOrg', { slug })}

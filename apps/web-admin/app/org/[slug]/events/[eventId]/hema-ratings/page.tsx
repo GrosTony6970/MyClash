@@ -102,7 +102,7 @@ export default function HemaRatingsSubmissionPage() {
   const canDownload = (preview?.counts.matches ?? 0) > 0;
 
   return (
-    <main id="main-content" className="mx-auto max-w-3xl p-8">
+    <main className="mx-auto max-w-3xl p-8">
       <div className="mb-2">
         <Button variant="back" size="sm" asChild>
           <Link href={`/org/${slug}/events/${eventId}`}>

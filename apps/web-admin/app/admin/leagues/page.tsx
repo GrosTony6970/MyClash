@@ -251,7 +251,7 @@ export default function AdminLeaguesPage() {
   } = useSortableList(leagues, getLeagueSortValue);
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Leagues"
         title={t('admin.adminLeagues.pageTitle')}

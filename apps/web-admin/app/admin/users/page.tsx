@@ -312,7 +312,7 @@ export default function AdminUsersPage() {
   } = useSortableList(filteredUsers, getUserSortValue);
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-[110rem] space-y-6 px-6 py-12 lg:px-8">
+    <main className="mx-auto w-full max-w-[110rem] space-y-6 px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.dashboard.eyebrow')}
         title={t('admin.users.title')}
