@@ -9171,13 +9171,13 @@ export interface components {
       type: 'clean' | 'afterblow' | 'double' | 'no_exchange';
       /** Format: date-time */
       occurredAt: string;
-      clockTimeMs?: number;
-      durationSincePrevMs?: number;
-      /** @enum {string} */
-      firstStrikerColor?: 'red' | 'blue';
-      firstStrikeValue?: number;
-      afterblowValue?: number;
-      noExchangeReason?: string;
+      clockTimeMs?: number | null;
+      durationSincePrevMs?: number | null;
+      /** @enum {string|null} */
+      firstStrikerColor?: 'red' | 'blue' | null;
+      firstStrikeValue?: number | null;
+      afterblowValue?: number | null;
+      noExchangeReason?: string | null;
     };
     VoidExchangeDto: {
       reason?: string;
