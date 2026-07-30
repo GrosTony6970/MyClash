@@ -222,7 +222,7 @@
     "apps/api/src/modules/auth/auth.service.ts:432",
     "apps/api/src/modules/auth/guest-sessions.controller.ts:53",
     "apps/api/src/modules/compensation/compensation.service.ts:234",
-    "apps/api/src/modules/deletion-requests/deletion-requests.service.ts:212",
+    "apps/api/src/modules/deletion-requests/deletion-requests.service.ts:219",
     "apps/api/src/modules/deletion-requests/deletion-requests.service.ts:52",
     "apps/api/src/modules/event-stats/event-stats.service.ts:260",
     "apps/api/src/modules/event-stats/event-stats.service.ts:81",
