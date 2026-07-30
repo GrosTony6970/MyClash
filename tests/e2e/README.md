@@ -27,7 +27,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`14` (see the Status table), so you can run one by number —
+Specs are numbered `01`…`15` (see the Status table), so you can run one by number —
 `pnpm test:e2e:prod tests/e2e/0N-*.spec.ts`.
 
 > Login is rate-limited (10/hour per IP, and 10/hour per email) — the suite logs
@@ -300,6 +300,42 @@ last).
 > hid it until the next reload. Fixed by migration 0163 (payments now key on
 > `person_id`); that assertion is red until the API is redeployed.
 
+## The public site, showing real data (opt-in)
+
+`E2E_PUBLIC_SITE=1 pnpm test:e2e:prod tests/e2e/15-*.spec.ts` runs
+`15-public-site.spec.ts`. `tests/a11y` already opens these pages, but it stubs
+`**/api/**` — it proves the markup is reachable and says nothing about whether
+the site can show a real tournament. This is the other half.
+
+Every assertion is on a string that did not exist before the run started, so no
+fixture, cache or stub can satisfy it. The sharpest is the **champion's name in
+the gold-medal row** of the final-ranking tab: that ranking is computed in the
+BROWSER by `computeFinalRanking` from bracket rows the API served, so seeing it
+proves the whole chain from scored exchanges to rendered podium.
+
+Two things this spec had to learn the hard way, both worth knowing before
+touching it:
+
+- **A draft tournament hides the bracket and final-ranking tabs** (`!isDraft`),
+  and the ranking content gates a second time on `status === 'completed'`. An
+  unpublished tournament falls back to the participants tab — where every
+  fighter's name is listed, so a bare "is the champion's name on the page" check
+  passes while proving nothing. The spec drives the real flow instead: publish
+  the event, publish the tournament, mark it completed.
+- **Every tab panel stays in the DOM**, inactive ones marked `hidden`. A
+  page-wide text lookup matches a name on a tab nobody is looking at, and
+  `.first()` returns that hidden copy. Assertions are scoped to `#panel-<key>`.
+
+It builds its **own** `event_kind: 'club'` event. The shared throwaway event is
+`standard`, and publishing a standard event ANNOUNCES it to the organisation's
+followers — a test run must never do that to real people. Club is the one kind
+that is fully public, silent on publish, and hard-deletable with results
+recorded. Teardown deletes it under `E2E_CLEANUP`, and otherwise flips it to
+`event_kind: 'test'` — the public resolver gates on KIND, not status, so merely
+unpublishing would leave it reachable by slug.
+
+Set `E2E_PUBLIC_URL` if web-public is not at `https://app.myclash.fr`.
+
 ## Status
 
 | #   | Flow                                | Spec                                | State                                    |
@@ -318,6 +354,7 @@ last).
 | 12  | Exports + HEMA Ratings bundle       | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
 | 13  | Subject export + deletion requests  | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
 | 14  | Referee compensation                | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
+| 15  | Public site on real data            | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
 
 The `test.fixme` flows are scaffolded and finalized during the interactive
 Playwright-MCP validation pass (which confirms the venue/lice wizard selectors,
