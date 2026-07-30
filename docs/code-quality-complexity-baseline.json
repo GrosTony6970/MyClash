@@ -840,7 +840,7 @@
     "tests/e2e/10-scoring-pad.spec.ts:383",
     "tests/e2e/_bracket.ts:416",
     "tests/e2e/global-setup.ts:25",
-    "tests/e2e/global-teardown.ts:20",
+    "tests/e2e/global-teardown.ts:25",
     "tests/perf/web-public.spec.ts:16"
   ]
 }
