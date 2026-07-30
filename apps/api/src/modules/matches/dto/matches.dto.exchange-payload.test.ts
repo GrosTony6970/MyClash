@@ -5,11 +5,12 @@ import { CreateExchangeDto } from './matches.dto';
  * The exact bodies the scoring pad posts — the app used live at an event.
  *
  * The pad fills every optional field with `?? null` for the ones an exchange
- * type does not use, in BOTH of its post paths (`offline/sync.ts` when the
- * outbox drains, `ScoringPad.tsx` online). Zod's `.optional()` accepts
- * `undefined` only, so those nulls made the schema reject a plain clean hit
- * with a 400 — and `SyncEngine` treats a 400 as terminal and DROPS the entry.
- * A referee's scored hit vanished with nothing but a console warning.
+ * type does not use. Every exchange goes through the outbox, so
+ * `apps/web-scoring/src/offline/sync.ts` is the single post path and it builds
+ * the body that way. Zod's `.optional()` accepts `undefined` only, so those
+ * nulls made the schema reject a plain clean hit with a 400 — and `SyncEngine`
+ * treated a 400 as terminal and DROPPED the entry. A referee's scored hit
+ * vanished with nothing but a console warning.
  *
  * The old class-validator `@IsOptional()` allowed null as well as undefined, so
  * the Zod migration changed this contract without anyone noticing. These cases

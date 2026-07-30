@@ -45,13 +45,13 @@ const createExchangeSchema = z
     //
     // Every optional field below is `.nullable()` as well, because the scoring
     // pad sends explicit NULLs for the fields an exchange type does not use:
-    // both the offline outbox drain (offline/sync.ts) and the online post
-    // (ScoringPad.tsx) build the body with `?? null`. Zod's `.optional()`
-    // accepts undefined ONLY, so a clean hit — which carries no afterblow and
-    // no no-exchange reason — was rejected with a 400, and the SyncEngine
-    // DROPS a 400 as terminal. The referee's hit disappeared with a console
-    // warning. The old class-validator `@IsOptional()` allowed null, so the
-    // Zod migration silently changed this contract. Do not narrow these back.
+    // the outbox drain (`apps/web-scoring/src/offline/sync.ts`, the pad's ONE
+    // post path) builds the body with `?? null`. Zod's `.optional()` accepts
+    // undefined ONLY, so a clean hit — which carries no afterblow and no
+    // no-exchange reason — was rejected with a 400, and the SyncEngine treated
+    // a 400 as terminal and DROPPED the hit with a console warning. The old
+    // class-validator `@IsOptional()` allowed null, so the Zod migration
+    // silently changed this contract. Do not narrow these back.
     clockTimeMs: z.number().int().min(0).nullable().optional(),
     durationSincePrevMs: z.number().int().nullable().optional(),
     firstStrikerColor: z.enum(['red', 'blue']).nullable().optional(),
