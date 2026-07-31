@@ -66,6 +66,13 @@ export interface SubmissionMatch {
   phaseConfig: Record<string, unknown> | null;
   poolSortOrder: number | null;
   bracketRound: number | null;
+  /**
+   * `swiss_rounds.round_number`. Required rather than optional: this shape has
+   * exactly two producers (`toSubmissionMatch` and the test fixture), so making
+   * it mandatory means the round column cannot silently go missing when the
+   * column is wired up.
+   */
+  swissRound: number | null;
   matchLabel: string | null;
 }
 

@@ -253,6 +253,58 @@ describe('formatRoundCode', () => {
   });
 });
 
+// ── Swiss ────────────────────────────────────────────────────────────────────
+
+describe('formatRoundCode — Swiss', () => {
+  const swiss = (over: Partial<Parameters<typeof formatRoundCode>[0]> = {}) =>
+    formatRoundCode({
+      weapon: 'Longsword',
+      poolNumber: null,
+      bracketRound: null,
+      bracketSize: null,
+      swissRound: 3,
+      matchNumber: 2,
+      ...over,
+    });
+
+  it('produces LSW-S3-M2 for a Swiss round-3 match', () => {
+    expect(swiss()).toBe('LSW-S3-M2');
+  });
+
+  it('never emits the segment-less LSW-M<n> a Swiss match used to produce', () => {
+    // The regression this whole branch exists for: no pool number and no
+    // bracket round meant no middle segment at all, so a Swiss match was
+    // indistinguishable from an unclassifiable one.
+    const before = formatRoundCode({
+      weapon: 'Longsword',
+      poolNumber: null,
+      bracketRound: null,
+      bracketSize: null,
+      matchNumber: 2,
+    });
+    expect(before).toBe('LSW-M2');
+    expect(swiss()).not.toBe(before);
+  });
+
+  it('strips the trailing M<n> out of a compound Swiss match label', () => {
+    // Swiss matches store `SW-R{n}-M{b}` in match_number_label; prefixing that
+    // whole string with M would give the doubled LSW-S1-MSW-R1-M3.
+    expect(swiss({ swissRound: 1, matchNumber: 'SW-R1-M3' })).toBe('LSW-S1-M3');
+  });
+
+  it('is ignored when a pool number is present, and outranks a bracket round', () => {
+    // Mutually exclusive on a real row; assert the precedence anyway so a
+    // malformed row degrades predictably rather than emitting two segments.
+    expect(swiss({ poolNumber: 1 })).toBe('LSW-P1-M2');
+    expect(swiss({ bracketRound: 3, bracketSize: 32 })).toBe('LSW-S3-M2');
+  });
+
+  it('treats an absent or null swissRound as no Swiss segment', () => {
+    expect(swiss({ swissRound: null })).toBe('LSW-M2');
+    expect(swiss({ swissRound: undefined })).toBe('LSW-M2');
+  });
+});
+
 // ── Double elimination ───────────────────────────────────────────────────────
 
 describe('doubleElimRoundLabel', () => {

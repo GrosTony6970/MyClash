@@ -1,52 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-  hemaGender,
-  hemaRatingsRound,
-  matchOutcome,
-  toCsv,
-  tournamentFileName,
-} from './hema-ratings-format';
-import {
-  buildSubmission,
-  type SubmissionFighter,
-  type SubmissionInput,
-  type SubmissionMatch,
-} from './hema-ratings-submission';
+import { hemaGender, matchOutcome, toCsv, tournamentFileName } from './hema-ratings-format';
+import { buildSubmission, type SubmissionInput } from './hema-ratings-submission';
+import { fighter, match, rowsOf } from './hema-ratings.fixtures';
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
-
-function fighter(overrides: Partial<SubmissionFighter> & { personId: string }): SubmissionFighter {
-  return {
-    givenName: 'Jean',
-    familyName: 'Dupont',
-    clubId: null,
-    nationality: 'FR',
-    genderCategory: null,
-    hemaRatingsId: '123',
-    ...overrides,
-  };
-}
-
-function match(overrides: Partial<SubmissionMatch> & { id: string }): SubmissionMatch {
-  return {
-    redPersonId: 'p1',
-    bluePersonId: 'p2',
-    winnerPersonId: 'p1',
-    endReason: null,
-    forfeited: false,
-    phaseType: 'pool',
-    phaseConfig: null,
-    poolSortOrder: 0,
-    bracketRound: null,
-    matchLabel: null,
-    ...overrides,
-  };
-}
-
-function rowsOf(csv: string): string[][] {
-  // No header row to skip — see HEADER_ROW. No fixture contains a quoted newline.
-  return csv.split('\n').map((line) => line.split(','));
-}
+// Round naming lives in hema-ratings-round.test.ts — see its header for why.
 
 // ── matchOutcome ──────────────────────────────────────────────────────────────
 
@@ -87,54 +44,6 @@ describe('matchOutcome', () => {
   it('excludes a match missing a fighter on either side', () => {
     expect(matchOutcome(match({ id: 'm', redPersonId: null }))).toBeNull();
     expect(matchOutcome(match({ id: 'm', bluePersonId: null }))).toBeNull();
-  });
-});
-
-// ── hemaRatingsRound ──────────────────────────────────────────────────────────
-
-describe('hemaRatingsRound', () => {
-  it('keeps the pool number rather than collapsing every pool to "Pools"', () => {
-    expect(hemaRatingsRound(match({ id: 'm', poolSortOrder: 0 }))).toBe('Pool 1');
-    expect(hemaRatingsRound(match({ id: 'm', poolSortOrder: 3 }))).toBe('Pool 4');
-    expect(hemaRatingsRound(match({ id: 'm', poolSortOrder: null }))).toBe('Pools');
-  });
-
-  it('uses HEMA Ratings vocabulary for single elimination', () => {
-    const single = (matchLabel: string) =>
-      hemaRatingsRound(match({ id: 'm', phaseType: 'single_elim', matchLabel }));
-    expect(single('F')).toBe('Final');
-    expect(single('Bronze Final')).toBe('Bronze Final'); // bronze wins over "final"
-    expect(single('SF1')).toBe('Semi Final');
-    expect(single('QF2')).toBe('Quarter Final');
-    expect(single('R16-3')).toBe('Round of 16');
-  });
-
-  it('names double-elim rounds from the wb/lb split, ending at Final', () => {
-    const de = (bracketRound: number) =>
-      hemaRatingsRound(
-        match({
-          id: 'm',
-          phaseType: 'double_elim',
-          phaseConfig: { wbRounds: 3, lbRounds: 4 },
-          bracketRound,
-        }),
-      );
-    expect(de(0)).toBe('Play-ins');
-    expect(de(1)).toBe('Winners Quarter Final');
-    expect(de(2)).toBe('Winners Semi Final');
-    expect(de(3)).toBe('Winners Final');
-    expect(de(4)).toBe('Losers Round 1');
-    expect(de(7)).toBe('Losers Round 4');
-    expect(de(8)).toBe('Final');
-    expect(de(9)).toBe('Final (reset)');
-  });
-
-  it('falls back to the match label when the bracket config is missing', () => {
-    expect(
-      hemaRatingsRound(
-        match({ id: 'm', phaseType: 'double_elim', phaseConfig: null, matchLabel: 'GF' }),
-      ),
-    ).toBe('GF');
   });
 });
 

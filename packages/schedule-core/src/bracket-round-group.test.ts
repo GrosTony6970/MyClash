@@ -47,6 +47,39 @@ describe('parseBracketRound', () => {
   });
 });
 
+describe('parseBracketRound — Swiss', () => {
+  it('labels an S<n> code as "Swiss Round n"', () => {
+    expect(parseBracketRound('LSW-S1-M1')?.label).toBe('Swiss Round 1');
+    expect(parseBracketRound('LSW-S5-M12')?.label).toBe('Swiss Round 5');
+  });
+
+  it('keeps the S<n> token so the group key is per round, not per phase', () => {
+    expect(parseBracketRound('LSW-S3-M2')?.token).toBe('S3');
+    expect(parseBracketRound('LSW-S3-M2')?.token).not.toBe(parseBracketRound('LSW-S4-M2')?.token);
+  });
+
+  it('orders Swiss rounds ascending and all of them before play-ins', () => {
+    const s1 = parseBracketRound('LSW-S1-M1')!.order;
+    const s9 = parseBracketRound('LSW-S9-M1')!.order;
+    const playIns = parseBracketRound('LSW-B-PI-M1')!.order;
+    expect(s1).toBeLessThan(s9);
+    // A Swiss phase feeding a bracket must read Swiss Round 1…N, then Play-ins.
+    expect(s9).toBeLessThan(playIns);
+  });
+
+  it('still returns null for pool codes, which also carry a middle segment', () => {
+    expect(parseBracketRound('LSW-P1-M3')).toBeNull();
+    expect(parseBracketRound('SB-P12-M3')).toBeNull();
+  });
+
+  it('does not mistake a weapon abbreviation or match number for a round', () => {
+    // weaponAbbr strips digits, so no abbreviation can match /^S\d+$/ —
+    // "Sabre" is SBR and a hypothetical S-weapon is still letters-only.
+    expect(parseBracketRound('SBR-B-QF-M1')?.label).toBe('Quarter-finals');
+    expect(parseBracketRound('SBR-P1-M3')).toBeNull();
+  });
+});
+
 describe('parseBracketRound — double elimination', () => {
   const parse = (token: string) => parseBracketRound(`LSW-B-${token}-M1`);
 

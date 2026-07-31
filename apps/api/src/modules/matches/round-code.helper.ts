@@ -22,6 +22,14 @@ export interface RoundCodeRowInput {
   matchNumberLabel: string | null;
   roundNumber: number | null;
   /**
+   * `swiss_rounds.round_number` — the S segment. Optional so the non-Swiss
+   * callers stay untouched, but every mapper that can see a Swiss match must
+   * pass it: without it the live surfaces would render a segment-less `LSW-M1`
+   * while the exports render `LSW-S3-M2`, which is precisely the two-identities
+   * divergence this helper exists to prevent.
+   */
+  swissRound?: number | null;
+  /**
    * Double-elim round split from `phases.config_json`. Absent for single-elim
    * phases, which keeps their codes byte-identical. Present, it switches the
    * label to the section-aware form (WBF / LB3 / GF) — a double-elim bracket
@@ -37,6 +45,7 @@ export function buildRoundCode(input: RoundCodeRowInput): string {
     poolNumber: input.poolNumber,
     bracketRound: input.bracketRound,
     bracketSize: input.bracketSize,
+    swissRound: input.swissRound ?? null,
     matchNumber: input.matchNumberLabel ?? input.roundNumber,
     wbRounds: input.wbRounds ?? null,
     lbRounds: input.lbRounds ?? null,

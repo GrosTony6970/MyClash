@@ -5,6 +5,7 @@
  *
  * Format:
  *   Pool match    →  <WEAPON>-P<pool_num>-M<match_num>      e.g. LSW-P1-M3
+ *   Swiss match   →  <WEAPON>-S<round_num>-M<match_num>     e.g. LSW-S3-M2
  *   Bracket match →  <WEAPON>-B-<ROUND>-M<match_num>        e.g. LSW-B-QF-M1
  *   Play-in match →  <WEAPON>-B-PI-M<match_num>             e.g. LSW-B-PI-M5
  *
@@ -13,6 +14,10 @@
  * tell LSW-M1 apart from LSW-QF-M1 without context). Play-ins are
  * single-elim slots at `bracket_slots.round === 0` (seed-in matches
  * before the main bracket).
+ *
+ * A Swiss match has neither a pool nor a bracket slot, so without its
+ * own S segment it produced exactly that ambiguity again — a bare
+ * LSW-M1 with no middle segment at all.
  *
  * Weapon abbreviations: canonical 5 weapons (LSW / SDW / RAP / SBR / SB)
  * plus a deterministic first-3-letters-uppercased fallback for anything
@@ -55,6 +60,11 @@ export interface RoundCodeInput {
   poolNumber: number | null;
   /** bracket_slots.round (1-indexed: 1 = first round, last = final). */
   bracketRound: number | null;
+  /**
+   * `swiss_rounds.round_number` (1-indexed). Optional rather than required
+   * because every non-Swiss caller predates it; absent behaves as null.
+   */
+  swissRound?: number | null;
   /**
    * Total fighters the bracket started with (tournaments.bracket_size).
    * Combined with bracketRound this resolves the position label
@@ -142,12 +152,16 @@ export function bracketRoundLabel(round: number, bracketSize: number | null): st
 export function formatRoundCode(input: RoundCodeInput): string {
   const w = weaponAbbr(input.weapon);
 
-  // Pool matches use a single P<n> segment; bracket matches get a
-  // B segment (plus the round label, or PI for play-ins) so the
-  // pool/bracket/play-in distinction shows up in the code itself.
+  // Pool matches use a single P<n> segment, Swiss matches a single S<n>
+  // segment; bracket matches get a B segment (plus the round label, or PI
+  // for play-ins) so the pool/swiss/bracket/play-in distinction shows up in
+  // the code itself. Swiss is tested before bracket only for readability —
+  // the three sources are mutually exclusive on a real match row.
   let middle: string[] = [];
   if (input.poolNumber !== null && input.poolNumber !== undefined) {
     middle = [`P${input.poolNumber}`];
+  } else if (input.swissRound !== null && input.swissRound !== undefined) {
+    middle = [`S${input.swissRound}`];
   } else if (input.bracketRound !== null && input.bracketRound !== undefined) {
     // A double-elim bracket needs section-aware labels: three of its rounds
     // would otherwise all read as a single-elim "F".

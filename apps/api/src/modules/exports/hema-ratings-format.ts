@@ -116,11 +116,19 @@ export function matchOutcome(
 export function hemaRatingsRound(
   match: Pick<
     SubmissionMatch,
-    'phaseType' | 'phaseConfig' | 'poolSortOrder' | 'bracketRound' | 'matchLabel'
+    'phaseType' | 'phaseConfig' | 'poolSortOrder' | 'bracketRound' | 'matchLabel' | 'swissRound'
   >,
 ): string {
   if (match.phaseType === 'pool') {
     return match.poolSortOrder === null ? 'Pools' : `Pool ${match.poolSortOrder + 1}`;
+  }
+  // Before the elimination branches, not after: the tail `?? 'Elimination'`
+  // would otherwise submit Swiss rounds to the PUBLIC HEMA Ratings database
+  // labelled as knockout bouts, which is unrecoverable once accepted.
+  if (match.phaseType === 'swiss') {
+    return match.swissRound === null || match.swissRound === undefined
+      ? 'Swiss'
+      : `Swiss Round ${match.swissRound}`;
   }
   if (match.phaseType === 'double_elim') return doubleElimRound(match);
   if (match.phaseType === 'single_elim') return singleElimRound(match.matchLabel);

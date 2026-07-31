@@ -1,28 +1,41 @@
 /**
- * Parse a bracket match's round code into a stable group key, human
- * label, and sort order so the Schedule sidebar can group bracket
- * matches by phase round (Play-ins → Final), the same way pools group.
+ * Parse a round-bearing match code into a stable group key, human label,
+ * and sort order so the Schedule sidebar can group matches by phase round
+ * (Swiss rounds → Play-ins → Final), the same way pools group.
  *
- * Round codes look like `<WEAPON>-B-<ROUND>-M<n>` (e.g. `LSW-B-QF-M1`,
- * `LSW-B-PI-M5`); the `<ROUND>` token is the segment right after `B`.
- * Pool codes (`LSW-P1-M3`) and anything without that segment return
- * null, so only bracket matches get grouped.
+ * Two code shapes carry a round:
+ *   Bracket → `<WEAPON>-B-<ROUND>-M<n>` (`LSW-B-QF-M1`, `LSW-B-PI-M5`);
+ *             the `<ROUND>` token is the segment right after `B`.
+ *   Swiss   → `<WEAPON>-S<n>-M<m>` (`LSW-S3-M2`).
+ * Pool codes (`LSW-P1-M3`) and anything without a round segment return
+ * null, so only round-bearing matches get grouped.
  *
  * Label vocabulary mirrors bracketRoundLabel() in @myclash/types and
  * the BracketView round headers. Pure: no React, no I/O.
+ *
+ * Named `parseBracketRound` for its original bracket-only scope; kept as-is
+ * because five call sites across web-admin import it from the package barrel
+ * and a rename would buy nothing functional.
  */
 export interface BracketRound {
-  /** Round token from the code: PI / R16 / QF / SF / F / B<n>. */
+  /** Round token from the code: S<n> / PI / R16 / QF / SF / F / B<n>. */
   token: string;
-  /** Human label, e.g. "Play-ins", "Round of 16", "Quarter-finals". */
+  /** Human label, e.g. "Swiss Round 3", "Play-ins", "Quarter-finals". */
   label: string;
-  /** Sort order, ascending = play-ins first … final last. */
+  /** Sort order, ascending = Swiss rounds first … final last. */
   order: number;
 }
 
 export function parseBracketRound(roundCode: string | undefined | null): BracketRound | null {
   if (!roundCode) return null;
   const parts = roundCode.split('-');
+
+  // Swiss first: its S<n> segment sits where a pool's P<n> does, and there
+  // is no `B` to key on. Unambiguous — a weapon abbreviation is letters-only
+  // (weaponAbbr strips digits), pools use P and match numbers use M.
+  const swiss = parseSwissToken(parts);
+  if (swiss) return swiss;
+
   const bIdx = parts.indexOf('B');
   if (bIdx === -1 || bIdx + 1 >= parts.length) return null;
   const token = parts[bIdx + 1]!;
@@ -58,6 +71,26 @@ export function parseBracketRound(roundCode: string | undefined | null): Bracket
     return { token, label: `Round ${n}`, order: 1000 + n };
   }
 
+  return null;
+}
+
+/**
+ * Swiss round token (`S<n>`), scanned across the segments so the code shape
+ * stays the parser's business rather than the caller's.
+ *
+ * Ordered BELOW play-ins (0) because a Swiss phase runs before any bracket it
+ * feeds — in a Swiss → single-elim tournament the sidebar must read Swiss
+ * Round 1 … Swiss Round 5, then Play-ins. The other bands start at 0 (PI),
+ * 100 (WB), 500 (LB), 900 (GF) and 1000 (single-elim named + B<n> fallback),
+ * so a negative band is the only one that cannot collide.
+ */
+function parseSwissToken(parts: string[]): BracketRound | null {
+  for (const part of parts) {
+    const m = /^S(\d+)$/.exec(part);
+    if (!m) continue;
+    const n = Number(m[1]);
+    return { token: part, label: `Swiss Round ${n}`, order: -1000 + n };
+  }
   return null;
 }
 
