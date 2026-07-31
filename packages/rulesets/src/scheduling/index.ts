@@ -32,6 +32,17 @@ export type {
   SlotSourceType,
 } from './double-elim';
 
+export { bandsOf, planSwissRound, recommendedRoundCount } from './swiss';
+export type {
+  SwissGrouping,
+  SwissPairing,
+  SwissPairingMethod,
+  SwissPlayer,
+  SwissRoundPlan,
+  SwissWarning,
+  SwissWarningCode,
+} from './swiss';
+
 export { detectFighterRefereeConflicts } from './conflict-check';
 export type {
   ScheduledMatch as ConflictScheduledMatch,
