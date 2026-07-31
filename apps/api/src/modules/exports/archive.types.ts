@@ -32,6 +32,8 @@ export interface ArchiveTables {
   pools: ArchiveRow[];
   poolMembers: ArchiveRow[];
   bracketSlots: ArchiveRow[];
+  swissRounds: ArchiveRow[];
+  swissEntrants: ArchiveRow[];
   matches: ArchiveRow[];
   matchEvents: ArchiveRow[];
   exchanges: ArchiveRow[];

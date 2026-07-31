@@ -75,6 +75,7 @@ interface MatchRow {
   phase_id: string | null;
   pool_id: string | null;
   bracket_slot_id: string | null;
+  swiss_round_id: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
 }
@@ -185,7 +186,7 @@ export class ScheduleGridService {
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, red_registration_id, blue_registration_id',
+        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, swiss_round_id, red_registration_id, blue_registration_id',
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -241,6 +242,24 @@ export class ScheduleGridService {
       }
     }
 
+    // 3b. Swiss round numbers, so a Swiss match reads LSW-S3-M2 on the grid
+    // rather than a segment-less LSW-M2. Same id→lookup shape as the slots
+    // above; a Swiss match has no slot and no pool, so nothing else supplies it.
+    const swissRoundIds = Array.from(
+      new Set(matches.map((m) => m.swiss_round_id).filter((id): id is string => Boolean(id))),
+    );
+    const swissRoundNumberById = new Map<string, number>();
+    if (swissRoundIds.length > 0) {
+      const { data: roundsData } = await this.supabase.service
+        .from('swiss_rounds')
+        .select('id, round_number')
+        .in('id', swissRoundIds)
+        .limit(swissRoundIds.length);
+      for (const r of (roundsData ?? []) as Array<{ id: string; round_number: number }>) {
+        swissRoundNumberById.set(r.id, r.round_number);
+      }
+    }
+
     // 4. Fighter display names via the canonical tournament-matches view —
     // the same registrations→persons join the public pool view + scoring
     // summary use. This replaces a manual registrations→persons batch lookup
@@ -286,6 +305,7 @@ export class ScheduleGridService {
         weapon: tournament?.weapon ?? null,
         poolNumber,
         bracketRound: slotSource?.round ?? null,
+        swissRound: m.swiss_round_id ? (swissRoundNumberById.get(m.swiss_round_id) ?? null) : null,
         ...codeConfig,
         matchNumberLabel: m.match_number_label,
         roundNumber: null,

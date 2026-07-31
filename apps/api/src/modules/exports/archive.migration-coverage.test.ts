@@ -9,10 +9,17 @@ import { ARCHIVE_COLLECTED_TABLES, ARCHIVE_EXCLUDED_TABLES } from './archive.ser
  * The archive export→restore round-trip only carries the tables wired into
  * ArchiveService (TABLE_TO_ARCHIVE_KEY). Historically, tables added to the
  * schema were silently dropped on restore because nobody remembered to add
- * them here. This test scans every migration for tables scoped to an event or
- * tournament and asserts each one is CONSCIOUSLY either collected by the
- * archive or listed in ARCHIVE_EXCLUDED_TABLES. A newly added scoped table
+ * them here. This test scans every migration for tables scoped to an event, a
+ * tournament or a PHASE and asserts each one is CONSCIOUSLY either collected by
+ * the archive or listed in ARCHIVE_EXCLUDED_TABLES. A newly added scoped table
  * fails CI until someone buckets it — no more silent data loss.
+ *
+ * `phase_id` counts because the guard was blind to it and that blindness was
+ * load-bearing: `swiss_rounds` and `swiss_entrants` are phase-scoped and carry
+ * every pairing a Swiss phase ever produced, yet neither would have been
+ * flagged. The three tables that were already phase-scoped (pools,
+ * bracket_slots, matches) were all archived, so widening the scan costs nothing
+ * and closes the hole for the next one.
  */
 
 function findMigrationsDir(): string {
@@ -37,7 +44,7 @@ function loadMigrationSql(): string {
     .join('\n');
 }
 
-/** Table names with an event_id or tournament_id column (CREATE or ALTER). */
+/** Table names with an event_id, tournament_id or phase_id column (CREATE or ALTER). */
 function scopedTablesFromMigrations(sql: string): { scoped: Set<string>; all: Set<string> } {
   const scoped = new Set<string>();
   const all = new Set<string>();
@@ -50,7 +57,7 @@ function scopedTablesFromMigrations(sql: string): { scoped: Set<string>; all: Se
     const name = match[1]!.toLowerCase();
     const body = match[2]!;
     all.add(name);
-    if (/\bevent_id\b/.test(body) || /\btournament_id\b/.test(body)) {
+    if (/\bevent_id\b/.test(body) || /\btournament_id\b/.test(body) || /\bphase_id\b/.test(body)) {
       scoped.add(name);
     }
   }
@@ -60,7 +67,7 @@ function scopedTablesFromMigrations(sql: string): { scoped: Set<string>; all: Se
     const alter = /ALTER TABLE\s+(?:public\.)?"?(\w+)"?/i.exec(statement);
     if (
       alter &&
-      /ADD COLUMN(?:\s+IF NOT EXISTS)?\s+(?:event_id|tournament_id)\b/i.test(statement)
+      /ADD COLUMN(?:\s+IF NOT EXISTS)?\s+(?:event_id|tournament_id|phase_id)\b/i.test(statement)
     ) {
       scoped.add(alter[1]!.toLowerCase());
     }

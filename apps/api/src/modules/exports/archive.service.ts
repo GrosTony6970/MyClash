@@ -65,6 +65,8 @@ const EMPTY_TABLES: ArchiveTables = {
   pools: [],
   poolMembers: [],
   bracketSlots: [],
+  swissRounds: [],
+  swissEntrants: [],
   matches: [],
   matchEvents: [],
   exchanges: [],
@@ -107,6 +109,8 @@ const TABLE_TO_ARCHIVE_KEY = {
   pools: 'pools',
   pool_members: 'poolMembers',
   bracket_slots: 'bracketSlots',
+  swiss_rounds: 'swissRounds',
+  swiss_entrants: 'swissEntrants',
   matches: 'matches',
   match_events: 'matchEvents',
   exchanges: 'exchanges',
@@ -232,6 +236,10 @@ const INSERT_ORDER: Array<keyof typeof TABLE_TO_ARCHIVE_KEY> = [
   'pools',
   'pool_members',
   'bracket_slots',
+  'swiss_entrants',
+  // Before `matches`: a match carries swiss_round_id, so the round it points at
+  // has to exist first or the FK remaps to null and the round loses its bouts.
+  'swiss_rounds',
   'matches',
   'referee_assignments',
   'match_events',
@@ -576,6 +584,7 @@ export class ArchiveService {
     this.mapFk(next, 'phase_id', maps.phases);
     this.mapFk(next, 'pool_id', maps.pools);
     this.mapFk(next, 'bracket_slot_id', maps.bracketSlots);
+    this.mapFk(next, 'swiss_round_id', maps.swissRounds);
     this.mapFk(next, 'match_id', maps.matches);
     this.mapFk(next, 'workshop_id', maps.workshops);
     this.mapFk(next, 'workshop_session_id', maps.workshopSessions);
@@ -775,6 +784,15 @@ export class ArchiveService {
     tables.pools = await this.listRowsByIds('pools', 'phase_id', ids(tables.phases));
     tables.poolMembers = await this.listRowsByIds('pool_members', 'pool_id', ids(tables.pools));
     tables.bracketSlots = await this.listRowsByIds('bracket_slots', 'phase_id', ids(tables.phases));
+    // Swiss rounds and its roster. Phase-scoped like pools and bracket slots,
+    // which is why the migration-coverage guard cannot see them on its own —
+    // it keys on event_id/tournament_id. See the note on that test.
+    tables.swissRounds = await this.listRowsByIds('swiss_rounds', 'phase_id', ids(tables.phases));
+    tables.swissEntrants = await this.listRowsByIds(
+      'swiss_entrants',
+      'phase_id',
+      ids(tables.phases),
+    );
     // Tournament-level staffing slot config + per-phase venue intent (structure,
     // always captured regardless of include level).
     tables.tournamentSlotConfig = await this.listRowsByIds(
@@ -909,6 +927,12 @@ export class ArchiveService {
         slotRound.set(slot['id'] as string, slot['round'] as number);
       }
     }
+    const swissRoundNumber = new Map<string, number>();
+    for (const round of tables.swissRounds) {
+      if (typeof round['round_number'] === 'number') {
+        swissRoundNumber.set(round['id'] as string, round['round_number'] as number);
+      }
+    }
     // bracketSize lives on phases.config_json (bracketSize, or
     // mainBracketSize for double-elim); no tournaments.bracket_size
     // column exists at the SQL level. The WB/LB split comes from the same
@@ -930,6 +954,7 @@ export class ArchiveService {
     for (const match of matches) {
       const poolId = match['pool_id'] as string | null;
       const bracketSlotId = match['bracket_slot_id'] as string | null;
+      const swissRoundId = match['swiss_round_id'] as string | null;
       const phaseId = match['phase_id'] as string | null;
       const poolNumber =
         poolId !== null && poolSortOrder.has(poolId)
@@ -947,6 +972,7 @@ export class ArchiveService {
           poolNumber,
           bracketRound,
           bracketSize,
+          swissRound: swissRoundId !== null ? (swissRoundNumber.get(swissRoundId) ?? null) : null,
           matchNumber: (match['match_number_label'] as string | null) ?? null,
           ...(phaseId !== null ? (roundShapeByPhaseId.get(phaseId) ?? {}) : {}),
         }),
@@ -1247,6 +1273,7 @@ interface IdMaps {
   phases: Map<string, string>;
   pools: Map<string, string>;
   bracketSlots: Map<string, string>;
+  swissRounds: Map<string, string>;
   matches: Map<string, string>;
   workshops: Map<string, string>;
   workshopSessions: Map<string, string>;
@@ -1272,6 +1299,7 @@ function createIdMaps(): IdMaps {
     phases: new Map(),
     pools: new Map(),
     bracketSlots: new Map(),
+    swissRounds: new Map(),
     matches: new Map(),
     workshops: new Map(),
     workshopSessions: new Map(),
@@ -1300,6 +1328,7 @@ function idMapForTable(
     phases: maps.phases,
     pools: maps.pools,
     bracket_slots: maps.bracketSlots,
+    swiss_rounds: maps.swissRounds,
     matches: maps.matches,
     workshops: maps.workshops,
     workshop_sessions: maps.workshopSessions,

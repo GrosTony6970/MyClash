@@ -100,6 +100,54 @@ export const poolMembers = pgTable('pool_members', {
   seed: integer('seed'),
 });
 
+// ── Swiss rounds ──────────────────────────────────────────────────────────────
+// A Swiss phase re-pairs the whole field every round, so it has rounds rather
+// than pools or a slot tree. No `pools` rows are involved at all: there is no
+// fixed group a fighter belongs to for the phase.
+export const swissRounds = pgTable(
+  'swiss_rounds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    phaseId: uuid('phase_id')
+      .notNull()
+      .references(() => phases.id, { onDelete: 'cascade' }),
+    roundNumber: integer('round_number').notNull(),
+    status: text('status').notNull().default('pending'),
+    // pending | running | completed
+    byeRegistrationId: uuid('bye_registration_id').references(() => registrations.id, {
+      onDelete: 'set null',
+    }),
+    // Ranked snapshot the pairing came from, engine warnings, manual adjustments.
+    pairingMetaJson: jsonb('pairing_meta_json'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Also the backstop against two near-simultaneous match completions each
+  // auto-committing the same next round: the second one gets 23505.
+  (table) => [unique().on(table.phaseId, table.roundNumber)],
+);
+
+// ── Swiss entrants ────────────────────────────────────────────────────────────
+// The phase roster, frozen at generation. Explicit rather than derived from
+// registrations because a Swiss phase can be a CUT of the field — pools → Swiss
+// → bracket is a valid three-stage tournament.
+export const swissEntrants = pgTable(
+  'swiss_entrants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    phaseId: uuid('phase_id')
+      .notNull()
+      .references(() => phases.id, { onDelete: 'cascade' }),
+    registrationId: uuid('registration_id')
+      .notNull()
+      .references(() => registrations.id, { onDelete: 'cascade' }),
+    // Excluded from later pairings; rounds already played still stand and still
+    // count toward opponents' tiebreaks.
+    withdrawnAtRound: integer('withdrawn_at_round'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.phaseId, table.registrationId)],
+);
+
 // ── Bracket slots ─────────────────────────────────────────────────────────────
 export const bracketSlots = pgTable('bracket_slots', {
   id: uuid('id').primaryKey().defaultRandom(),

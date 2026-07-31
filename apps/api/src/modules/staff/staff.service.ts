@@ -279,7 +279,7 @@ export class StaffService {
       const { data, error } = await this.supabase.service
         .from('matches')
         .select(
-          'id,lice_id,status,red_score,blue_score,match_number_label,bracket_slots(round),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+          'id,lice_id,status,red_score,blue_score,match_number_label,bracket_slots(round),swiss_rounds(round_number),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
         )
         .in('lice_id', liceIds)
         .in('status', ['running', 'paused', 'scheduled'])
@@ -452,7 +452,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name,clubs(name))),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round)',
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name,clubs(name))),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
       )
       .eq('lice_id', liceId)
       .in('status', ['scheduled', 'running', 'paused', 'completed'])
@@ -484,6 +484,9 @@ export class StaffService {
     const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
+    const swissRound =
+      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const red = row['red'] as {
       persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
     } | null;
@@ -498,6 +501,7 @@ export class StaffService {
         weapon: phase?.tournaments?.weapon ?? null,
         poolNumber,
         bracketRound,
+        swissRound,
         bracketSize,
         wbRounds,
         lbRounds,
@@ -557,7 +561,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -591,7 +595,7 @@ export class StaffService {
         //     0081 simplified the schema so the global_persons club
         //     fallback is no longer needed — persons.club_id is
         //     populated eagerly at insert/link time.
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -649,7 +653,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name)),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round)',
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name)),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -674,6 +678,9 @@ export class StaffService {
     const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
+    const swissRound =
+      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const red = row['red'] as { persons?: { given_name?: string; family_name?: string } } | null;
     const blue = row['blue'] as { persons?: { given_name?: string; family_name?: string } } | null;
     return {
@@ -683,6 +690,7 @@ export class StaffService {
         weapon: phase?.tournaments?.weapon ?? null,
         poolNumber,
         bracketRound,
+        swissRound,
         bracketSize,
         wbRounds,
         lbRounds,
@@ -921,6 +929,9 @@ export class StaffService {
     const bracketSlot = match['bracket_slots'] as { round?: number } | null;
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const swissRoundEmbed = match['swiss_rounds'] as { round_number?: number } | null;
+    const swissRound =
+      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const phaseCfg = phase?.config_json ?? null;
     const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
       | number
@@ -931,6 +942,7 @@ export class StaffService {
       weapon: tournament?.weapon ?? null,
       poolNumber,
       bracketRound,
+      swissRound,
       bracketSize,
       wbRounds,
       lbRounds,
@@ -1029,6 +1041,9 @@ export class StaffService {
     const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const swissRoundEmbed = match['swiss_rounds'] as { round_number?: number } | null;
+    const swissRound =
+      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const matchNumberLabel = (match['match_number_label'] as string | null | undefined) ?? null;
 
     // Human-readable bracket round (R16 / QF / SF / F) for the TV display's
@@ -1041,6 +1056,7 @@ export class StaffService {
       weapon,
       poolNumber,
       bracketRound,
+      swissRound,
       bracketSize,
       wbRounds,
       lbRounds,

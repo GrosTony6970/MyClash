@@ -81,7 +81,7 @@ export class MatchesService {
     const { data, error } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
+        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
       )
       .eq('match_id', matchId)
       .maybeSingle();
@@ -96,6 +96,7 @@ export class MatchesService {
       pool_id: string | null;
       pool_name: string | null;
       bracket_round: number | null;
+      swiss_round: number | null;
       red_name: string | null;
       blue_name: string | null;
       red_club: string | null;
@@ -184,6 +185,7 @@ export class MatchesService {
       weapon,
       poolNumber,
       bracketRound: row.bracket_round,
+      swissRound: row.swiss_round,
       bracketSize,
       wbRounds,
       lbRounds,

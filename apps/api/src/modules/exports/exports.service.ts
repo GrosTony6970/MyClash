@@ -143,6 +143,7 @@ export class ExportsService {
             red_registration_id, blue_registration_id,
             pools ( sort_order ),
             bracket_slots ( round ),
+            swiss_rounds ( round_number ),
             phases!inner ( tournament_id, type, sort_order, config_json ),
             red_reg:registrations!red_registration_id ( id, person_id ),
             blue_reg:registrations!blue_registration_id ( id, person_id )
@@ -212,6 +213,7 @@ export class ExportsService {
           red_registration_id, blue_registration_id,
           pools ( sort_order ),
           bracket_slots ( round ),
+          swiss_rounds ( round_number ),
           phases ( config_json, tournaments ( name, slug, weapon ) )
         )
       `,
@@ -238,6 +240,7 @@ export class ExportsService {
       const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
       const pool = match?.['pools'] as { sort_order?: number } | null;
       const bracketSlot = match?.['bracket_slots'] as { round?: number } | null;
+      const swissRound = match?.['swiss_rounds'] as { round_number?: number } | null;
       const matchLabel = (match?.['match_number_label'] as string | null) ?? '';
 
       const roundCode = formatRoundCode({
@@ -245,6 +248,9 @@ export class ExportsService {
         poolNumber: typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null,
         bracketRound: typeof bracketSlot?.round === 'number' ? bracketSlot.round : null,
         bracketSize,
+        // Without this a Swiss exchange row exports as a segment-less LSW-M1,
+        // indistinguishable from an unclassifiable match.
+        swissRound: typeof swissRound?.round_number === 'number' ? swissRound.round_number : null,
         matchNumber: matchLabel || null,
         // Without the WB/LB split a double-elim bracket falls back to
         // single-elim labels, so the winners final, the grand final and the

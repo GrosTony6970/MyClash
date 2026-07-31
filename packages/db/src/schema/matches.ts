@@ -14,7 +14,14 @@ import {
 } from 'drizzle-orm/pg-core';
 import { lices } from './events';
 import { persons } from './persons';
-import { bracketSlots, phases, pools, registrations, tournaments } from './tournaments';
+import {
+  bracketSlots,
+  phases,
+  pools,
+  registrations,
+  swissRounds,
+  tournaments,
+} from './tournaments';
 
 // ── Matches ───────────────────────────────────────────────────────────────────
 export const matches = pgTable('matches', {
@@ -24,6 +31,12 @@ export const matches = pgTable('matches', {
     .references(() => phases.id, { onDelete: 'cascade' }),
   poolId: uuid('pool_id').references(() => pools.id, { onDelete: 'set null' }),
   bracketSlotId: uuid('bracket_slot_id').references(() => bracketSlots.id, {
+    onDelete: 'set null',
+  }),
+  // Which Swiss round this bout belongs to. A separate column from
+  // `roundNumber` below, which 0111 already uses for the best-of-N round INSIDE
+  // a bout — reusing it would break BO3/BO5/BO7 scoring.
+  swissRoundId: uuid('swiss_round_id').references(() => swissRounds.id, {
     onDelete: 'set null',
   }),
   liceId: uuid('lice_id').references(() => lices.id, { onDelete: 'set null' }),
