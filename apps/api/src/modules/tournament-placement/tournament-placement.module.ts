@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PhasesModule } from '../phases/phases.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
+import { SwissCoreModule } from '../swiss/swiss-core.module';
 import { TournamentPlacementService } from './tournament-placement.service';
 
 /**
@@ -10,7 +11,9 @@ import { TournamentPlacementService } from './tournament-placement.service';
  * so every surface derives a fighter's finish from the same `computeFinalRanking`.
  */
 @Module({
-  imports: [PhasesModule, PoolStandingsModule],
+  // SwissCoreModule (the LEAF), never SwissModule: this module is reachable
+  // from PhasesModule, so the full Swiss module would close a cycle.
+  imports: [PhasesModule, PoolStandingsModule, SwissCoreModule],
   providers: [TournamentPlacementService],
   exports: [TournamentPlacementService],
 })

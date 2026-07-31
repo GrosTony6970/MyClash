@@ -9532,7 +9532,7 @@ export interface components {
       /** Format: uuid */
       poolPhaseId?: string;
       /** @enum {string} */
-      seedingStrategy?: 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
+      seedingStrategy?: 'snake' | 'by-rating' | 'random' | 'by-pool-rank' | 'by-swiss-rank';
       /** @enum {string} */
       secondChanceTarget?: 'gold' | 'bronze';
       bronzeMatch?: boolean;
@@ -9557,7 +9557,7 @@ export interface components {
     };
     ReseedBracketDto: {
       /** @enum {string} */
-      strategy: 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
+      strategy: 'snake' | 'by-rating' | 'random' | 'by-pool-rank' | 'by-swiss-rank';
     };
     UpdateBracketSlotDto: {
       /** Format: uuid */

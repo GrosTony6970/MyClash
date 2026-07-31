@@ -877,6 +877,17 @@ export class EventsService {
     };
     await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
 
+    const rows = await this.loadReadinessRows(eventId);
+    return {
+      eventId: event.id,
+      eventStatus: event.status,
+      tournaments: rows.tournaments.map(({ id, name }) => ({ id, name })),
+      ...computeEventReadiness(buildReadinessSnapshot(rows)),
+    };
+  }
+
+  /** The rows the readiness rules judge. Gathering only — no rules here. */
+  private async loadReadinessRows(eventId: string): Promise<ReadinessRows> {
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
     const [registrations, phases, liceCount] = await Promise.all([
@@ -887,18 +898,19 @@ export class EventsService {
 
     // Nothing hangs off an event with no phases, and assignments can only
     // point at a pool or a match — so skip the whole second batch rather than
-    // firing three round-trips whose answers cannot matter.
+    // firing four round-trips whose answers cannot matter.
     const phaseIds = phases.map((phase) => phase.id);
-    const [pools, matches, refereeAssignments] =
+    const [pools, swissRounds, matches, refereeAssignments] =
       phaseIds.length === 0
-        ? [[], [], []]
+        ? [[], [], [], []]
         : await Promise.all([
             this.getPoolsForPhases(phaseIds),
+            this.getSwissRoundsForPhases(phaseIds),
             this.getMatchScheduleRowsForPhases(phaseIds),
             this.getLiveRefereeAssignmentScopes(eventId),
           ]);
 
-    const rows: ReadinessRows = {
+    return {
       liceCount,
       tournaments: tournaments.map((tournament) => ({
         id: tournament.id,
@@ -908,14 +920,9 @@ export class EventsService {
       registrations,
       phases,
       pools,
+      swissRounds,
       matches,
       refereeAssignments,
-    };
-    return {
-      eventId: event.id,
-      eventStatus: event.status,
-      tournaments: rows.tournaments.map(({ id, name }) => ({ id, name })),
-      ...computeEventReadiness(buildReadinessSnapshot(rows)),
     };
   }
 
@@ -2146,6 +2153,17 @@ export class EventsService {
     if (phaseIds.length === 0) return [] as Array<{ id: string; phase_id: string }>;
     const { data, error } = await this.supabase.service
       .from('pools')
+      .select('id, phase_id')
+      .in('phase_id', phaseIds);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ id: string; phase_id: string }>;
+  }
+
+  /** Swiss rounds generated so far, for the readiness snapshot. */
+  private async getSwissRoundsForPhases(phaseIds: string[]) {
+    if (phaseIds.length === 0) return [] as Array<{ id: string; phase_id: string }>;
+    const { data, error } = await this.supabase.service
+      .from('swiss_rounds')
       .select('id, phase_id')
       .in('phase_id', phaseIds);
     if (error) throw new BadRequestException(error.message);

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   computeFinalRanking,
   rankingBracketShape,
@@ -11,6 +11,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // class metadata preserved.
 import { PhasesService } from '../phases/phases.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
+import { SwissStandingsService } from '../swiss/swiss-standings.service';
 
 /** A single registration's final placement in one decided tournament, derived
  *  from the shared `computeFinalRanking` — the SAME ordering the public
@@ -54,6 +55,9 @@ export class TournamentPlacementService {
     private readonly supabase: SupabaseService,
     private readonly phases: PhasesService,
     private readonly poolStandings: PoolStandingsService,
+    // From the Swiss LEAF module, never SwissModule — this service is reachable
+    // from PhasesModule and the full module would close a cycle.
+    @Optional() private readonly swissStandings?: SwissStandingsService,
   ) {}
 
   /**
@@ -127,6 +131,13 @@ export class TournamentPlacementService {
     // that "not decided" signal, so bail rather than guess.
     if (hasBracket) return UNDECIDED;
 
+    // Swiss with no bracket after it: the standings ARE the result, so this
+    // phase can decide the podium on its own. Checked before the pool-only
+    // path below because a three-stage tournament has BOTH, and the Swiss
+    // phase is the later one.
+    const swiss = await this.swissPlacements(tournamentId);
+    if (swiss) return swiss;
+
     // Pool-only tournament: the overall pool rank IS the final result — but only
     // once every match is in, otherwise the standings are a mid-play snapshot.
     if (!(await this.isTournamentFullyPlayed(tournamentId))) return UNDECIDED;
@@ -142,6 +153,51 @@ export class TournamentPlacementService {
       };
       byRegistrationId.set(row.registrationId, placement);
       return { registrationId: row.registrationId, ...placement };
+    });
+    return { byRegistrationId, ordered, decided: true };
+  }
+
+  /**
+   * Placements from a Swiss phase, or null when there is no Swiss phase or it
+   * has not finished.
+   *
+   * "Finished" means every configured round is complete OR the organiser
+   * finalised early — decision 13 exists precisely so a phase cut short by the
+   * venue closing still produces a podium. Anything less returns null and the
+   * caller falls through to UNDECIDED, because a mid-Swiss leader is not a
+   * champion.
+   */
+  private async swissPlacements(tournamentId: string): Promise<TournamentPlacements | null> {
+    if (!this.swissStandings) return null;
+    const standings = await this.swissStandings.getSwissStandings(tournamentId);
+    if (!standings.phaseId) return null;
+
+    const complete =
+      Boolean(standings.finalized) ||
+      (standings.roundCount > 0 && standings.roundsCompleted >= standings.roundCount);
+    if (!complete || standings.rows.length === 0) return null;
+
+    const entries: PoolEntry[] = standings.rows.map((row) => ({
+      registrationId: row.registrationId,
+      fighterName: row.displayName,
+      clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+      poolScore: null,
+    }));
+    // No slots: computeFinalRanking's Swiss branch takes the order as given,
+    // which is the standings order the configured tiebreak chain produced.
+    const ranking = computeFinalRanking([], entries, null, { phaseType: 'swiss' });
+    if (ranking.length === 0) return null;
+
+    const totalRanked = ranking.length;
+    const byRegistrationId = new Map<string, TournamentPlacement>();
+    const ordered = ranking.map((entry) => {
+      const placement: TournamentPlacement = {
+        place: entry.place,
+        resultKind: entry.resultKind,
+        totalRanked,
+      };
+      byRegistrationId.set(entry.registrationId, placement);
+      return { registrationId: entry.registrationId, ...placement };
     });
     return { byRegistrationId, ordered, decided: true };
   }

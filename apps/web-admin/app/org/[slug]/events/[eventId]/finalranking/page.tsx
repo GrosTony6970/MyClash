@@ -382,6 +382,9 @@ function resultLabel(entry: FinalRankingEntry, maxRound: number, t: Translator):
       return roundLabel(entry.eliminationRound ?? 0, maxRound, t);
     case 'pool':
       return t('organizer.finalRanking.resultPools');
+    case 'swiss':
+      // Placed by the Swiss standings, not eliminated in a round.
+      return t('organizer.finalRanking.resultSwiss');
   }
 }
 

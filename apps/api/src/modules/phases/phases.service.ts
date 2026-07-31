@@ -53,6 +53,8 @@ import {
   type RankedRegistration,
 } from './bracket-r1-seeding';
 import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from './r1-ranking';
+// Value import, not `import type`: Nest DI metadata.
+import { SwissStandingsService } from '../swiss/swiss-standings.service';
 
 /**
  * Where a bracket's Round-1 rank order came from. The FE branches its success
@@ -60,7 +62,12 @@ import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from 
  * were read from — "populated from pool standings" would be a lie for a draw
  * that was actually shuffled.
  */
-type R1RankingSource = 'pool-standings' | 'registration-seed' | 'rating' | 'random';
+type R1RankingSource =
+  | 'pool-standings'
+  | 'swiss-standings'
+  | 'registration-seed'
+  | 'rating'
+  | 'random';
 // Value import (not `import type`): NestJS DI dependency. Type-only erases the
 // runtime metadata, so poolStandings resolved to `undefined` — which made
 // computePoolGate vacuously "complete" and populateBracket fall back to
@@ -83,6 +90,11 @@ export class PhasesService {
     private readonly settingsService?: SettingsService,
     @Optional()
     private readonly poolStandings?: PoolStandingsService,
+    // From the Swiss LEAF module, which PhasesModule already imports for
+    // auto-advance. Value-imported so `by-swiss-rank` does not silently
+    // resolve to undefined.
+    @Optional()
+    private readonly swissStandings?: SwissStandingsService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -1169,9 +1181,12 @@ export class PhasesService {
         throw new ConflictException('Pools have not finished yet');
       }
 
-      if (strategy === 'by-rating' || strategy === 'random') {
+      if (strategy === 'by-rating' || strategy === 'random' || strategy === 'by-swiss-rank') {
         // Pools decided WHEN we populate; these strategies decide the order
-        // from data that has nothing to do with pool results.
+        // from data that has nothing to do with pool results. `by-swiss-rank`
+        // is here because a three-stage tournament (pools → Swiss → bracket)
+        // HAS a pool phase but seeds its bracket from the Swiss phase that came
+        // after it.
         const resolved = await this.resolveRegistrationRanking(tournamentId, strategy, {
           randomSeed: config['seedingRandomSeed'] as number | undefined,
         });
@@ -1468,7 +1483,60 @@ export class PhasesService {
       const randomSeed = opts.randomSeed ?? Math.floor(Math.random() * 0x7fffffff);
       return { rankings: rankRandom(regs, randomSeed), source: 'random', randomSeed };
     }
+    if (strategy === 'by-swiss-rank') {
+      return { rankings: await this.rankFromSwiss(tournamentId), source: 'swiss-standings' };
+    }
     return { rankings: rankBySeed(regs), source: 'registration-seed' };
+  }
+
+  /**
+   * Round-1 order from a finished Swiss phase.
+   *
+   * No snake flattening, unlike `by-pool-rank`: pool standings are N separate
+   * lists that have to be interleaved, whereas Swiss standings are already ONE
+   * ranked list. Rank K becomes seed K.
+   *
+   * Refuses an unfinished phase rather than seeding from a mid-event snapshot,
+   * which would look like a real seeding and be defended as one.
+   */
+  private async rankFromSwiss(tournamentId: string): Promise<RankedRegistration[]> {
+    if (!this.swissStandings) {
+      throw new BadRequestException('Swiss standings are unavailable on this server');
+    }
+    const standings = await this.swissStandings.getSwissStandings(tournamentId);
+    if (!standings.phaseId) {
+      throw new BadRequestException(
+        'by-swiss-rank seeding needs a Swiss phase on this tournament; none was found.',
+      );
+    }
+    const complete =
+      Boolean(standings.finalized) ||
+      (standings.roundCount > 0 && standings.roundsCompleted >= standings.roundCount);
+    if (!complete) {
+      throw new BadRequestException(
+        `by-swiss-rank seeding needs the Swiss phase to be finished — ${standings.roundsCompleted} of ${standings.roundCount} rounds are complete. Finalise it early if the phase is being cut short.`,
+      );
+    }
+    if (standings.rows.length === 0) {
+      throw new BadRequestException('The Swiss phase has no ranked fighters to seed from.');
+    }
+
+    // Surface a tie AT THE CUT rather than picking one silently: if the rows
+    // either side of the boundary are level on every configured key, which of
+    // them qualifies is arbitrary, and the organiser should extend the chain or
+    // run a barrage instead of finding out afterwards.
+    const tied = standings.rows.filter((row, i) => i > 0 && row.decidingTiebreak === null);
+    if (tied.length > 0) {
+      this.logger.warn(
+        `by-swiss-rank: ${tied.length} fighter(s) tied on every configured key — ` +
+          `ranks ${tied.map((r) => r.rank).join(', ')}. Seeding order between them is arbitrary.`,
+      );
+    }
+
+    return standings.rows.map((row) => ({
+      rank: row.rank,
+      registrationId: row.registrationId,
+    }));
   }
 
   private async weightedRatingsForTournament(tournamentId: string): Promise<Map<string, number>> {

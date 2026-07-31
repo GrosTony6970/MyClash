@@ -49,8 +49,11 @@ export interface ReadinessTournamentSnapshot {
   /** Registrations excluding waitlist / withdrawn / disqualified. */
   activeFighterCount: number;
   hasPoolPhase: boolean;
+  hasSwissPhase: boolean;
   hasElimPhase: boolean;
   poolCount: number;
+  /** Rounds GENERATED so far, not the configured total. */
+  swissRoundCount: number;
   /** Pools with no `referee_assignments` row. */
   poolsWithoutReferee: number;
   /** Matches belonging to a pool of this tournament. */
@@ -78,6 +81,8 @@ export interface ReadinessRows {
   registrations: Array<{ tournament_id: string; status: string | null }>;
   phases: Array<{ id: string; tournament_id: string; type: string }>;
   pools: Array<{ id: string; phase_id: string }>;
+  /** Swiss rounds GENERATED so far, keyed to their phase. */
+  swissRounds: Array<{ id: string; phase_id: string }>;
   /** Matches of the event's phases — pool membership is read from `pool_id`. */
   matches: Array<{
     id: string;
@@ -115,6 +120,7 @@ const INACTIVE_REGISTRATION_STATUSES = new Set(['withdrawn', 'disqualified', 'wa
 export function buildReadinessSnapshot(rows: ReadinessRows): ReadinessSnapshot {
   const { phaseTypesByTournament, tournamentByPhase } = indexPhases(rows.phases);
   const { tournamentByPool, poolIdsByTournament } = indexPools(rows.pools, tournamentByPhase);
+  const swissRoundsByTournament = countByTournament(rows.swissRounds, tournamentByPhase);
 
   const refereedPoolIds = collectRefereedPoolIds(rows, tournamentByPool);
   const fighters = countActiveRegistrations(rows.registrations);
@@ -132,8 +138,10 @@ export function buildReadinessSnapshot(rows: ReadinessRows): ReadinessSnapshot {
         rulesetCode: tournament.ruleset_code,
         activeFighterCount: fighters.get(tournament.id) ?? 0,
         hasPoolPhase: types.has('pool'),
+        hasSwissPhase: types.has('swiss'),
         hasElimPhase: types.has('single_elim') || types.has('double_elim'),
         poolCount: poolIds.length,
+        swissRoundCount: swissRoundsByTournament.get(tournament.id) ?? 0,
         poolsWithoutReferee: poolIds.filter((poolId) => !refereedPoolIds.has(poolId)).length,
         poolMatchCount: stats?.total ?? 0,
         unscheduledPoolMatchCount: stats?.unscheduled ?? 0,
@@ -155,6 +163,20 @@ function indexPhases(phases: ReadinessRows['phases']): {
     phaseTypesByTournament.set(phase.tournament_id, types);
   }
   return { phaseTypesByTournament, tournamentByPhase };
+}
+
+/** Count phase-scoped rows per tournament, via their phase. */
+function countByTournament(
+  rows: Array<{ phase_id: string }>,
+  tournamentByPhase: Map<string, string>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of rows) {
+    const tournamentId = tournamentByPhase.get(row.phase_id);
+    if (!tournamentId) continue;
+    out.set(tournamentId, (out.get(tournamentId) ?? 0) + 1);
+  }
+  return out;
 }
 
 function indexPools(
@@ -265,7 +287,9 @@ function tournamentChecks(tournament: ReadinessTournamentSnapshot): ReadinessChe
     ...check,
     tournamentId: tournament.id,
   });
-  const hasFormat = tournament.hasPoolPhase || tournament.hasElimPhase;
+  // Swiss counts as a FORMAT. Without it a Swiss-only tournament reported
+  // "no format chosen" and short-circuited every downstream check below.
+  const hasFormat = tournament.hasPoolPhase || tournament.hasSwissPhase || tournament.hasElimPhase;
 
   const checks: ReadinessCheck[] = [
     at({
@@ -296,6 +320,9 @@ function tournamentChecks(tournament: ReadinessTournamentSnapshot): ReadinessChe
   checks.push(poolsCheck(tournament, at));
   if (tournament.poolCount > 0) checks.push(poolRefereesCheck(tournament, at));
   if (tournament.poolMatchCount > 0) checks.push(scheduleCheck(tournament, at));
+  // Omitted, not reported green, when there is no Swiss phase — a vacuous
+  // check is worse than no check (see the module docstring).
+  if (tournament.hasSwissPhase) checks.push(swissRoundsCheck(tournament, at));
   if (tournament.hasElimPhase) {
     // Never exceeds `info` — see the module docstring.
     checks.push(at({ key: 'bracket', level: 'info' }));
@@ -313,6 +340,24 @@ function poolsCheck(tournament: ReadinessTournamentSnapshot, at: AtTournament): 
     key: 'pools',
     level: tournament.poolCount === 0 ? 'warn' : 'ok',
     values: { count: tournament.poolCount },
+  });
+}
+
+/**
+ * How many Swiss rounds exist so far.
+ *
+ * Never exceeds `info`: rounds are generated one at a time as the phase runs,
+ * so "only round 1 exists" is the normal state on the morning of the event, not
+ * a gap for the organiser to close.
+ */
+function swissRoundsCheck(
+  tournament: ReadinessTournamentSnapshot,
+  at: AtTournament,
+): ReadinessCheck {
+  return at({
+    key: 'swissRounds',
+    level: 'info',
+    values: { rounds: tournament.swissRoundCount },
   });
 }
 

@@ -34,6 +34,7 @@ import {
   losersByRound,
   winnerLoser,
   type FinalRankingEntry,
+  type FinalRankingResultKind,
   type PoolEntry,
   type RankingBracketShape,
   type RankingSlot,
@@ -110,7 +111,14 @@ export function rankingBracketShape(bracket: {
   repechageEntryRound?: number | null;
 }): RankingBracketShape {
   return {
-    phaseType: bracket.phaseType === 'double_elim' ? 'double_elim' : 'single_elim',
+    phaseType:
+      bracket.phaseType === 'double_elim'
+        ? 'double_elim'
+        : // A Swiss phase has no bracket at all, so it must NOT fall through to
+          // the single-elim default the way an unrecorded legacy shape does.
+          bracket.phaseType === 'swiss'
+          ? 'swiss'
+          : 'single_elim',
     wbRounds: bracket.wbRounds ?? null,
     lbRounds: bracket.lbRounds ?? null,
     // Phases generated before the podium options shipped carry neither field;
@@ -138,6 +146,9 @@ export function computeFinalRanking(
     if (s.blueRegistrationId) bracketRegIds.add(s.blueRegistrationId);
   }
 
+  // Swiss has no slots to read: the standings ARE the result.
+  if (bracket?.phaseType === 'swiss') return orderSwiss(poolEntries, r);
+
   const decided =
     bracket?.phaseType === 'double_elim'
       ? orderDoubleElim(slots, bracket, r)
@@ -157,4 +168,40 @@ export function computeFinalRanking(
   }
 
   return r.entries;
+}
+
+/**
+ * Swiss ordering: the standings order, taken as given.
+ *
+ * They arrive already ranked by the phase's configured tiebreak chain, so
+ * there is nothing left to decide. Deliberately NOT the `pool` tail path — that
+ * kind means "never reached the bracket" and sorts every entry beneath any
+ * bracket entrant, which would place a Swiss champion below a fighter who lost
+ * their first bout.
+ */
+function orderSwiss(standings: PoolEntry[], r: Ranking): FinalRankingEntry[] {
+  for (const entry of standings) {
+    r.push(
+      {
+        registrationId: entry.registrationId,
+        fighterName: entry.fighterName,
+        clubAbbrev: entry.clubAbbrev,
+      },
+      swissResultKind(r.entries.length),
+    );
+  }
+  return r.entries;
+}
+
+/**
+ * The podium kinds still apply to a Swiss phase that decides its own winner —
+ * a medal is a medal however it was won — and everyone below fourth is 'swiss'
+ * rather than 'round', since nobody was eliminated in a round.
+ */
+function swissResultKind(placedSoFar: number): FinalRankingResultKind {
+  if (placedSoFar === 0) return 'champion';
+  if (placedSoFar === 1) return 'runnerUp';
+  if (placedSoFar === 2) return 'third';
+  if (placedSoFar === 3) return 'fourth';
+  return 'swiss';
 }

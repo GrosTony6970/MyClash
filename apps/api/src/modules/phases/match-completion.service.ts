@@ -102,7 +102,12 @@ export class MatchCompletionService {
       const phase = Array.isArray(phaseEmbed) ? phaseEmbed[0] : phaseEmbed;
       const type = (phase as { type?: string } | null)?.type;
       const tournamentId = (phase as { tournament_id?: string } | null)?.tournament_id;
-      if (type !== 'pool' || !tournamentId) return;
+      // A SWISS match can also be the one that fills a bracket: in a
+      // Swiss → elimination tournament the cut is taken from the Swiss
+      // standings, so the last Swiss bout is what makes the bracket seedable.
+      // populateBracket's own gate makes this a no-op until the phase is
+      // actually finished, so calling it on every Swiss completion is safe.
+      if ((type !== 'pool' && type !== 'swiss') || !tournamentId) return;
       await this.phases.populateBracket(tournamentId, {}, 'system', { silentIfGateNotMet: true });
     } catch (err) {
       this.logger.warn(`Auto-populate after pool match ${matchId} failed: ${describe(err)}`);

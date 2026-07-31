@@ -69,6 +69,7 @@ const FIX_ROUTE: Record<string, string> = {
   poolReferees: 'referees',
   schedule: 'schedule',
   bracket: 'bracket',
+  swissRounds: 'swiss',
 };
 
 /**

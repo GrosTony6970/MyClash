@@ -44,7 +44,15 @@ export type SecondChanceTarget = 'gold' | 'bronze';
  * Omit it (or pass single_elim) for the single-elimination ordering.
  */
 export interface RankingBracketShape {
-  phaseType: 'single_elim' | 'double_elim';
+  /**
+   * `swiss` is not a bracket shape — it is the absence of one. A Swiss phase
+   * decides its podium from the standings, so `computeFinalRanking` takes a
+   * third branch rather than reading slots. It belongs in this union because
+   * every caller derives the value from `phases.type` and the alternative was
+   * coercing it to `single_elim`, which silently produced a bracket ordering
+   * for a phase with no bracket.
+   */
+  phaseType: 'single_elim' | 'double_elim' | 'swiss';
   wbRounds?: number | null;
   lbRounds?: number | null;
   /**
@@ -72,7 +80,14 @@ export type FinalRankingResultKind =
   | 'third'
   | 'fourth'
   | 'round'
-  | 'pool';
+  | 'pool'
+  /**
+   * Placed by the Swiss standings rather than by a bracket result. Distinct
+   * from 'pool' because that kind means "never reached the bracket" and sorts
+   * strictly below every bracket entrant — a Swiss fighter placed 5th was not
+   * eliminated from anything.
+   */
+  | 'swiss';
 
 /** Which part of a double-elim bracket a fighter was eliminated in. */
 export type FinalRankingBracketSection = 'WB' | 'LB' | 'PLAYIN';

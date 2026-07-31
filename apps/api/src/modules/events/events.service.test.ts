@@ -2733,6 +2733,7 @@ describe('EventsService', () => {
         phases: [{ id: 'ph1', tournament_id: 't1', type: 'pool', config_json: null }],
         lices: [{ id: 'l1' }],
         pools: [{ id: 'pool1', phase_id: 'ph1' }],
+        swiss_rounds: [],
         matches: [
           { id: 'm1', pool_id: 'pool1', lice_id: 'l1', scheduled_at: '2026-08-01T09:00:00Z' },
         ],

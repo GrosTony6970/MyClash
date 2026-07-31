@@ -16,6 +16,7 @@ function baseRows(overrides: Partial<ReadinessRows> = {}): ReadinessRows {
     ],
     phases: [{ id: 'ph-pool', tournament_id: 't1', type: 'pool' }],
     pools: [{ id: 'p1', phase_id: 'ph-pool' }],
+    swissRounds: [],
     matches: [
       { id: 'm1', pool_id: 'p1', lice_id: 'l1', scheduled_at: '2026-08-01T09:00:00Z' },
       { id: 'm2', pool_id: 'p1', lice_id: 'l1', scheduled_at: '2026-08-01T09:20:00Z' },
@@ -196,6 +197,7 @@ describe('buildReadinessSnapshot — several tournaments', () => {
         { id: 'p1', phase_id: 'ph1' },
         { id: 'p2', phase_id: 'ph2' },
       ],
+      swissRounds: [],
       matches: [
         { id: 'm1', pool_id: 'p1', lice_id: 'l1', scheduled_at: '2026-08-01T09:00:00Z' },
         { id: 'm2', pool_id: 'p2', lice_id: null, scheduled_at: null },

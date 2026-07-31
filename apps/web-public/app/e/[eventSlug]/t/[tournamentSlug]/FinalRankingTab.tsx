@@ -245,6 +245,10 @@ function resultLabel(entry: FinalRankingEntry, maxRound: number): string {
       return roundLabel(entry.eliminationRound ?? 0, maxRound);
     case 'pool':
       return t('publicApp.tournament.finalRanking.pools');
+    case 'swiss':
+      // Placed by the Swiss standings, not eliminated in a round — so the
+      // label names the format rather than a bracket stage.
+      return t('publicApp.tournament.finalRanking.swiss');
   }
 }
 

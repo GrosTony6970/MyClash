@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFinalRanking, type RankingSlot } from './final-ranking';
+import { computeFinalRanking, rankingBracketShape, type RankingSlot } from './final-ranking';
 import { POOL, mk, poolEntry, resetSlotIds } from './final-ranking-test-helpers';
 
 // 8-fighter single-elim: QF (round 1) → SF (round 2) → Final (round 3, pos 1)
@@ -204,5 +204,78 @@ describe('computeFinalRanking — double elimination', () => {
     const tail = ranking.slice(-2);
     expect(tail.map((e) => e.registrationId).sort()).toEqual(['x', 'y']);
     expect(tail.every((e) => e.bracketSection === 'PLAYIN')).toBe(true);
+  });
+});
+
+describe('computeFinalRanking — Swiss', () => {
+  const SWISS = { phaseType: 'swiss' as const };
+
+  /** Swiss standings arrive already ranked by the configured tiebreak chain. */
+  const standings = [poolEntry('a', 0), poolEntry('b', 0), poolEntry('c', 0), poolEntry('d', 0)];
+
+  it('takes the standings order as given — no slots to read', () => {
+    const ranking = computeFinalRanking([], standings, null, SWISS);
+    expect(ranking.map((e) => e.registrationId)).toEqual(['a', 'b', 'c', 'd']);
+    expect(ranking.map((e) => e.place)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('awards the podium kinds, then `swiss` below fourth', () => {
+    const ranking = computeFinalRanking(
+      [],
+      [...standings, poolEntry('e', 0), poolEntry('f', 0)],
+      null,
+      SWISS,
+    );
+    expect(ranking.map((e) => e.resultKind)).toEqual([
+      'champion',
+      'runnerUp',
+      'third',
+      'fourth',
+      'swiss',
+      'swiss',
+    ]);
+  });
+
+  it('does NOT use the `pool` kind, which would sink every fighter to the tail', () => {
+    // `pool` means "never reached the bracket" and sorts below all bracket
+    // entrants. A Swiss champion is not that.
+    const ranking = computeFinalRanking([], standings, null, SWISS);
+    expect(ranking.some((e) => e.resultKind === 'pool')).toBe(false);
+  });
+
+  it('ranks a Swiss phase even though it has no slots at all', () => {
+    // The single-elim path returns [] when it cannot decide; Swiss must not.
+    expect(computeFinalRanking([], standings, null, SWISS)).toHaveLength(4);
+  });
+
+  it('returns nothing for an empty field rather than throwing', () => {
+    expect(computeFinalRanking([], [], null, SWISS)).toEqual([]);
+  });
+
+  it('is not reachable by accident — an unknown phase type still reads single-elim', () => {
+    resetSlotIds();
+    const slots: RankingSlot[] = [mk(1, 1, 'a', 5, 'b', 3)];
+    const ranking = computeFinalRanking(slots, POOL, null, { phaseType: 'single_elim' });
+    expect(ranking[0]?.resultKind).toBe('champion');
+    expect(ranking.some((e) => e.resultKind === 'swiss')).toBe(false);
+  });
+});
+
+describe('rankingBracketShape', () => {
+  it('carries swiss through instead of coercing it to single_elim', () => {
+    // The coercion this replaces meant a Swiss phase was ranked as if a loss
+    // eliminated the fighter — from a bracket it does not have.
+    expect(rankingBracketShape({ phaseType: 'swiss' }).phaseType).toBe('swiss');
+  });
+
+  it('still defaults an unknown or missing phase type to single_elim', () => {
+    // Legacy phases with no recorded shape must keep reading as single-elim.
+    expect(rankingBracketShape({ phaseType: null }).phaseType).toBe('single_elim');
+    expect(rankingBracketShape({}).phaseType).toBe('single_elim');
+    expect(rankingBracketShape({ phaseType: 'something_else' }).phaseType).toBe('single_elim');
+  });
+
+  it('still recognises double_elim', () => {
+    expect(rankingBracketShape({ phaseType: 'double_elim' }).phaseType).toBe('double_elim');
   });
 });

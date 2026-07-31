@@ -17,8 +17,10 @@ function readyTournament(
     rulesetCode: 'TF_v1',
     activeFighterCount: 16,
     hasPoolPhase: true,
+    hasSwissPhase: false,
     hasElimPhase: true,
     poolCount: 4,
+    swissRoundCount: 0,
     poolsWithoutReferee: 0,
     poolMatchCount: 24,
     unscheduledPoolMatchCount: 0,
@@ -131,6 +133,41 @@ describe('computeEventReadiness — format and pools', () => {
 
   it('does not emit `format` once any phase exists', () => {
     expect(find(computeEventReadiness(readySnapshot()).checks, 'format')).toBeUndefined();
+  });
+
+  it('counts Swiss as a format, so a Swiss-only tournament is not "no format"', () => {
+    // Without this a Swiss-only tournament reported "no format chosen" and the
+    // early return above skipped EVERY downstream check.
+    const snapshot = readySnapshot({
+      tournaments: [
+        readyTournament({
+          hasPoolPhase: false,
+          hasElimPhase: false,
+          hasSwissPhase: true,
+          poolCount: 0,
+          poolMatchCount: 0,
+          swissRoundCount: 1,
+        }),
+      ],
+    });
+    const { checks } = computeEventReadiness(snapshot);
+    expect(find(checks, 'format')).toBeUndefined();
+    expect(find(checks, 'swissRounds')?.level).toBe('info');
+    expect(find(checks, 'swissRounds')?.values).toEqual({ rounds: 1 });
+  });
+
+  it('omits the Swiss row entirely when there is no Swiss phase', () => {
+    // Vacuous checks are omitted, never reported green.
+    expect(find(computeEventReadiness(readySnapshot()).checks, 'swissRounds')).toBeUndefined();
+  });
+
+  it('never lets the Swiss row exceed info, even with no rounds generated yet', () => {
+    // Rounds are generated one at a time as the phase runs, so "only round 1
+    // exists" is the normal state on the morning of the event.
+    const snapshot = readySnapshot({
+      tournaments: [readyTournament({ hasSwissPhase: true, swissRoundCount: 0 })],
+    });
+    expect(find(computeEventReadiness(snapshot).checks, 'swissRounds')?.level).toBe('info');
   });
 
   it('reports pools as info — not a warning — when the tournament goes straight to bracket', () => {
