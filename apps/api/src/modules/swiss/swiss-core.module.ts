@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ProgrammeModule } from '../programme/programme.module';
+import { RulesetResolverModule } from '../matches/ruleset-resolver.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { SwissAdvanceService } from './swiss-advance.service';
 import { SwissPairingService } from './swiss-pairing.service';
+import { SwissPublicRoundsService } from './swiss-public-rounds.service';
 import { SwissRoundStateService } from './swiss-round-state.service';
+import { SwissStandingsService } from './swiss-standings.service';
 
 /**
  * LEAF module for Swiss. Nothing it imports may reach PhasesModule.
@@ -28,8 +31,20 @@ import { SwissRoundStateService } from './swiss-round-state.service';
  * already uses. module-graph.test.ts pins all of this.
  */
 @Module({
-  imports: [SupabaseModule, ProgrammeModule],
-  providers: [SwissPairingService, SwissRoundStateService, SwissAdvanceService],
-  exports: [SwissPairingService, SwissRoundStateService, SwissAdvanceService],
+  imports: [SupabaseModule, ProgrammeModule, RulesetResolverModule],
+  providers: [
+    SwissPairingService,
+    SwissRoundStateService,
+    SwissAdvanceService,
+    SwissStandingsService,
+    SwissPublicRoundsService,
+  ],
+  exports: [
+    SwissPairingService,
+    SwissRoundStateService,
+    SwissAdvanceService,
+    SwissStandingsService,
+    SwissPublicRoundsService,
+  ],
 })
 export class SwissCoreModule {}

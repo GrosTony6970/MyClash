@@ -7247,6 +7247,46 @@ export interface paths {
     patch: operations['SwissController_setSides'];
     trace?: never;
   };
+  '/api/v1/tournaments/{tournamentId}/swiss-standings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Swiss standings
+     * @description Ranked on Swiss points or the ruleset score per the phase config, then the organiser-configured tiebreak chain.
+     */
+    get: operations['SwissStandingsController_getStandings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/swiss': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Swiss rounds and pairings
+     * @description Every round with its bouts, bye and pairing metadata — including forced rematches and manual adjustments, which are badged publicly.
+     */
+    get: operations['SwissStandingsController_getRounds'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/ai-assistant/drafts': {
     parameters: {
       query?: never;
@@ -21408,6 +21448,44 @@ export interface operations {
         'application/json': components['schemas']['SetSwissSidesDto'];
       };
     };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissStandingsController_getStandings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissStandingsController_getRounds: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {

@@ -118,6 +118,10 @@ const EXPECTED_PUBLIC = [
   'GET /tournaments/:id/stats/overview',
   'GET /tournaments/:id/stats/target-values',
   'GET /tournaments/:tournamentId/pool-standings',
+  // Swiss rounds and standings: the same results already printed on the wall
+  // and announced over the PA, read by a spectator with no account.
+  'GET /tournaments/:tournamentId/swiss',
+  'GET /tournaments/:tournamentId/swiss-standings',
   'GET /workshops/slug/:slug',
 ].sort();
 

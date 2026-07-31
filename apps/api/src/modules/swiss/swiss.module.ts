@@ -3,6 +3,7 @@ import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { SwissCoreModule } from './swiss-core.module';
+import { SwissStandingsController } from './swiss-standings.controller';
 import { SwissController } from './swiss.controller';
 import { SwissFinaliseService } from './swiss-finalise.service';
 import { SwissOverrideService } from './swiss-override.service';
@@ -21,7 +22,7 @@ import { SwissService } from './swiss.service';
  */
 @Module({
   imports: [SupabaseModule, SwissCoreModule, HemaRatingsModule, OrganizationsModule],
-  controllers: [SwissController],
+  controllers: [SwissController, SwissStandingsController],
   providers: [SwissService, SwissSeedingService, SwissOverrideService, SwissFinaliseService],
   exports: [SwissService, SwissOverrideService, SwissFinaliseService],
 })

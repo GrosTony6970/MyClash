@@ -5,11 +5,16 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { planSwissRound, type SwissRoundPlan } from '@myclash/rulesets/dist/scheduling/index';
+import {
+  planSwissRound,
+  type SwissPlayer,
+  type SwissRoundPlan,
+} from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest needs the runtime class for DI.
 import { ProgrammeService } from '../programme/programme.service';
 import { matchRulesetForPhase } from '../phases/match-ruleset';
+import { SwissStandingsService } from './swiss-standings.service';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
 import {
   activeEntrants,
@@ -42,6 +47,9 @@ export class SwissPairingService {
   constructor(
     private readonly supabase: SupabaseService,
     @Optional() private readonly programme?: ProgrammeService,
+    // Only read for score-band grouping; @Optional so the pairing path still
+    // works if the standings provider is ever absent.
+    @Optional() private readonly standings?: SwissStandingsService,
   ) {}
 
   /** Read-only preview of what the next round would be. Writes nothing. */
@@ -60,7 +68,7 @@ export class SwissPairingService {
 
     return {
       roundNumber: nextRoundNumber,
-      plan: planSwissRound(players, {
+      plan: planSwissRound(await this.withScores(players, context.tournamentId, config), {
         pairingMethod: config.pairingMethod,
         grouping: config.grouping,
       }),
@@ -119,6 +127,31 @@ export class SwissPairingService {
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
+
+  /**
+   * Attach the ruleset score, but ONLY when the pairing actually groups on it.
+   *
+   * Score-band grouping is the one mode that reads `SwissPlayer.score`; points
+   * grouping never looks at it. Computing full standings on every match
+   * completion just to discard the number would make the common path pay for
+   * the rare one.
+   */
+  private async withScores(
+    players: SwissPlayer[],
+    tournamentId: string,
+    config: SwissConfig,
+  ): Promise<SwissPlayer[]> {
+    if (config.grouping.kind !== 'scoreBands' || !this.standings) return players;
+
+    const standings = await this.standings.getSwissStandings(tournamentId);
+    const scoreOf = new Map(
+      standings.rows.map((row) => [row.registrationId, Number(row.stats['score'] ?? 0)]),
+    );
+    return players.map((player) => ({
+      ...player,
+      score: scoreOf.get(player.registrationId) ?? null,
+    }));
+  }
 
   private async insertRoundMatches(
     phaseId: string,
