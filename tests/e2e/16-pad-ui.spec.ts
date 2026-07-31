@@ -278,13 +278,23 @@ test.describe('scoring pad UI', () => {
       final.red_score,
       'red must lead for the overlay to name red — a tie would read "draw" instead',
     ).toBeGreaterThan(final.blue_score as number);
-    await expect(overlay, 'the overlay names the winner by score').toContainText(match.redName);
-    // …and only the winner. Naming both would mean the overlay is listing the
-    // fighters rather than announcing a result.
-    await expect(overlay).not.toContainText(match.blueName);
-    await expect(overlay, 'the overlay shows the final score').toContainText(
-      `${final.red_score} – ${final.blue_score}`,
+    // SCOPED TO THE HEADLINE, not the whole overlay. `9579b3a2` added the bout
+    // review — a flow chart and an exchange-by-exchange timeline — which names
+    // BOTH fighters by design. Asked of the overlay, "does it name only the
+    // winner" is really a question about the review and answers no; asked of
+    // the headline, it is the announcement rule it was always meant to be.
+    const headline = overlay.getByTestId('match-result-winner');
+    await expect(headline, 'the headline announces the winner by score').toContainText(
+      match.redName,
     );
+    await expect(
+      headline,
+      'the headline announces ONE winner — naming both would make it a fixture list',
+    ).not.toContainText(match.blueName);
+    await expect(
+      overlay.getByTestId('match-result-score'),
+      'the overlay shows the final score',
+    ).toHaveText(`${final.red_score} – ${final.blue_score}`);
   });
 });
 

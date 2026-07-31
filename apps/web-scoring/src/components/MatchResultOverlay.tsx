@@ -66,6 +66,11 @@ function ResultHeadline({
       </p>
       {winnerName ? (
         <p
+          // The headline is the part that ANNOUNCES a result; the bout review
+          // below it deliberately names both fighters, exchange by exchange. A
+          // test asking "does the overlay name only the winner" has to scope to
+          // this element or it is really asking about the review.
+          data-testid="match-result-winner"
           className="mb-2 flex items-center justify-center gap-2 text-3xl font-black animate-pulse"
           // The winner wears their own configured side colour, not gold.
           style={{ color: winner ? sideStyle(scoringConfig, winner).border : undefined }}
@@ -73,9 +78,14 @@ function ResultHeadline({
           <span aria-hidden>🏆</span> {winnerName}
         </p>
       ) : (
-        <p className="mb-2 text-3xl font-black text-foreground">{t('scoring.result.draw')}</p>
+        <p data-testid="match-result-draw" className="mb-2 text-3xl font-black text-foreground">
+          {t('scoring.result.draw')}
+        </p>
       )}
-      <p className="mb-4 font-mono text-2xl font-bold text-foreground-secondary">
+      <p
+        data-testid="match-result-score"
+        className="mb-4 font-mono text-2xl font-bold text-foreground-secondary"
+      >
         {redScore} – {blueScore}
       </p>
     </>
