@@ -3,15 +3,17 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime classes for DI metadata.
 import { BracketAdvanceService } from './bracket-advance.service';
 import { PhasesService } from './phases.service';
+import { SwissAdvanceService } from '../swiss/swiss-advance.service';
 
 /**
  * The single owner of "a match just completed".
  *
  * A match can complete down four different paths — `PATCH /matches/:id/status`,
  * the ruleset engine closing on the point cap, the clock's `end` action, and a
- * forfeit — and each one needs the same two side effects: advance the bracket,
- * and (for a pool match) try to auto-populate the bracket now the pools may be
- * finished.
+ * forfeit — and each one needs the same side effects: advance the bracket,
+ * (for a pool match) try to auto-populate the bracket now the pools may be
+ * finished, and (for a Swiss match) pair the next round if this one just
+ * closed.
  *
  * Wiring those by hand at each call site kept going wrong, silently, because a
  * missing call looks like nothing at all:
@@ -39,6 +41,7 @@ export class MatchCompletionService {
     private readonly supabase: SupabaseService,
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
     @Optional() private readonly phases?: PhasesService,
+    @Optional() private readonly swissAdvance?: SwissAdvanceService,
   ) {}
 
   /**
@@ -52,6 +55,7 @@ export class MatchCompletionService {
   async onMatchCompleted(matchId: string): Promise<void> {
     await this.advance(matchId);
     await this.maybePopulateBracket(matchId);
+    await this.maybeAdvanceSwiss(matchId);
   }
 
   private async advance(matchId: string): Promise<void> {
@@ -61,6 +65,22 @@ export class MatchCompletionService {
       // onMatchCompleted already swallows its own errors; this is belt-and-braces
       // so a future change there can never take the caller down with it.
       this.logger.warn(`Bracket advance after match ${matchId} failed: ${describe(err)}`);
+    }
+  }
+
+  /**
+   * After a SWISS match completes, pair the next round if this one just closed.
+   *
+   * A third side effect INSIDE the single owner, not a fifth call site: the
+   * four completion paths are unchanged, which is what
+   * di-wiring.regression.test.ts asserts. SwissAdvanceService swallows its own
+   * errors and no-ops for every non-Swiss match.
+   */
+  private async maybeAdvanceSwiss(matchId: string): Promise<void> {
+    try {
+      await this.swissAdvance?.onMatchCompleted(matchId);
+    } catch (err) {
+      this.logger.warn(`Swiss advance after match ${matchId} failed: ${describe(err)}`);
     }
   }
 

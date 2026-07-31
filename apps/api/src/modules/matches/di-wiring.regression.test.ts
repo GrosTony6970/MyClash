@@ -44,9 +44,18 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
       valueImports(file, 'MatchCompletionService'));
   }
 
-  it('match-completion.service value-imports its two collaborators', () => {
+  it('match-completion.service value-imports its three collaborators', () => {
     valueImports('../phases/match-completion.service.ts', 'BracketAdvanceService');
     valueImports('../phases/match-completion.service.ts', 'PhasesService');
+    // Swiss auto-advance. `import type` here injects undefined and every Swiss
+    // round silently stops pairing itself — the same failure mode as the two
+    // above, on a path where nothing else would ever notice.
+    valueImports('../phases/match-completion.service.ts', 'SwissAdvanceService');
+  });
+
+  it('swiss-advance.service value-imports its two collaborators', () => {
+    valueImports('../swiss/swiss-advance.service.ts', 'SwissPairingService');
+    valueImports('../swiss/swiss-advance.service.ts', 'SwissRoundStateService');
   });
 
   it('phases.service value-imports PoolStandingsService + BracketAdvanceService', () => {

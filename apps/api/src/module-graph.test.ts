@@ -174,6 +174,59 @@ describe('NestJS module graph', () => {
    * fix — Referees depends on the NotificationSchedulingModule leaf, never the
    * whole WorkersModule — so a regression fails here instead of in production.
    */
+  /**
+   * Swiss auto-advance forces an edge PhasesModule → Swiss, because
+   * MatchCompletionService has to pair the next round when a Swiss round's last
+   * bout finishes. That edge is only safe against the LEAF.
+   *
+   * Every module listed here reaches PhasesModule, so any one of them inside
+   * SwissCoreModule closes the cycle:
+   *   PhasesModule → SwissCoreModule → X → … → PhasesModule
+   *
+   * NotificationsModule is the one most likely to be added by accident, since
+   * the round-published notification belongs to this module's commit path:
+   *   NotificationsModule → WorkersModule → LeaguesModule →
+   *   TournamentPlacementModule → PhasesModule
+   * The leaf NotificationSchedulingModule exports the same
+   * NotificationEventsService with no back-edge — depend on that instead, the
+   * way RefereesModule already does.
+   */
+  it('SwissCoreModule stays a leaf that cannot reach PhasesModule', () => {
+    const graph = buildGraph();
+    const core = graph.get('SwissCoreModule') ?? [];
+
+    expect(graph.has('SwissCoreModule'), 'SwissCoreModule should exist').toBe(true);
+    for (const forbidden of [
+      'PhasesModule',
+      'MatchesModule',
+      'TournamentPlacementModule',
+      'LeaguesModule',
+      'WorkersModule',
+      'NotificationsModule',
+      'EventsModule',
+      'FollowsModule',
+    ]) {
+      expect(
+        core,
+        `SwissCoreModule must not import ${forbidden} — it reaches PhasesModule, which ` +
+          `imports SwissCoreModule for auto-advance. Depend on a leaf instead ` +
+          `(NotificationSchedulingModule for notifications).`,
+      ).not.toContain(forbidden);
+    }
+  });
+
+  it('PhasesModule depends on the Swiss leaf, never the whole SwissModule', () => {
+    const graph = buildGraph();
+    const phases = graph.get('PhasesModule') ?? [];
+
+    expect(phases).toContain('SwissCoreModule');
+    expect(
+      phases,
+      'Importing SwissModule here closes PhasesModule → SwissModule → SwissCoreModule ' +
+        'back into PhasesModule. MatchCompletionService only needs the leaf.',
+    ).not.toContain('SwissModule');
+  });
+
   it('RefereesModule reaches notification services without importing WorkersModule', () => {
     const graph = buildGraph();
     const referees = graph.get('RefereesModule') ?? [];

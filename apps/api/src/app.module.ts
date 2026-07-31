@@ -36,6 +36,7 @@ import { PhasesModule } from './modules/phases/phases.module';
 import { AIProvidersModule } from './modules/ai-providers/ai-providers.module';
 import { AIUsageModule } from './modules/ai-usage/ai-usage.module';
 import { ProgrammeModule } from './modules/programme/programme.module';
+import { SwissModule } from './modules/swiss/swiss.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
@@ -95,6 +96,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     NotificationsModule,
     PhasesModule,
     ProgrammeModule,
+    SwissModule,
     AIProvidersModule,
     AIUsageModule,
     OrganizerAIAssistantModule,

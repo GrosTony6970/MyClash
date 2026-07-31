@@ -4158,6 +4158,161 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/programme': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List all programme blocks for an event */
+    get: operations['ProgrammeController_listBlocks'];
+    /** Replace all programme blocks for an event (bulk save) */
+    put: operations['ProgrammeController_saveBlocks'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/suggest': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Auto-generate a suggested programme (does not persist) */
+    post: operations['ProgrammeController_suggest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/generate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Generate match schedule and workshop sessions from saved blocks. Optional dayIndices scopes generation to those days only. */
+    post: operations['ProgrammeController_generate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/blocks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a single programme block (admin / break bar). Appends one row at the next sort_order on its day — used by the grid add-break + undo-after-delete paths. */
+    post: operations['ProgrammeController_createBlock'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/blocks/{blockId}/move': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Move a fixed programme block to a new start time; cascade-shifts every match scheduled at or after the old start on the same day by the same Δ */
+    patch: operations['ProgrammeController_moveBlock'];
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/blocks/{blockId}/resize': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Resize a programme block by changing its end_time. The block's start_time stays put — only the duration changes. Validates newEndTime > startTime. */
+    patch: operations['ProgrammeController_resizeBlock'];
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/schedule-group': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Re-fan a group of matches (a pool or a bracket sub-tree) across the given lices from a start time, branch-aware for brackets, appending after existing occupants. */
+    post: operations['ProgrammeController_scheduleGroup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/blocks/{blockId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a single programme block. Matches scheduled INSIDE the block window on the same day are unscheduled (scheduled_at + lice_id → null) so they reappear in the Unscheduled sidebar. */
+    delete: operations['ProgrammeController_deleteBlock'];
+    options?: never;
+    head?: never;
+    /** Rename a single programme block (admin / break / workshop bar) */
+    patch: operations['ProgrammeController_updateBlockLabel'];
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/programme/full': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Reset the schedule: delete every programme block AND null scheduled_at + lice_id on every match in the event */
+    delete: operations['ProgrammeController_resetAll'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/ai-usage': {
     parameters: {
       query?: never;
@@ -6917,25 +7072,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/events/{eventId}/programme': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List all programme blocks for an event */
-    get: operations['ProgrammeController_listBlocks'];
-    /** Replace all programme blocks for an event (bulk save) */
-    put: operations['ProgrammeController_saveBlocks'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/programme/suggest': {
+  '/api/v1/tournaments/{tournamentId}/generate-swiss': {
     parameters: {
       query?: never;
       header?: never;
@@ -6944,49 +7081,42 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Auto-generate a suggested programme (does not persist) */
-    post: operations['ProgrammeController_suggest'];
+    /**
+     * Generate a Swiss phase
+     * @description Creates the phase, freezes its field and pairs round 1. Coexists with a pool phase — pools → Swiss → bracket is a valid three-stage tournament.
+     */
+    post: operations['SwissController_generate'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/api/v1/events/{eventId}/programme/generate': {
+  '/api/v1/swiss-phases/{phaseId}/next-round': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * Preview the next round
+     * @description Read-only. Shows the pairings, bye and warnings without writing anything.
+     */
+    get: operations['SwissController_previewNextRound'];
     put?: never;
-    /** Generate match schedule and workshop sessions from saved blocks. Optional dayIndices scopes generation to those days only. */
-    post: operations['ProgrammeController_generate'];
+    /**
+     * Commit the next round
+     * @description Normally unnecessary — a round auto-pairs when the previous one completes. This is the manual door for a round that needs re-triggering.
+     */
+    post: operations['SwissController_commitNextRound'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/api/v1/events/{eventId}/programme/blocks': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create a single programme block (admin / break bar). Appends one row at the next sort_order on its day — used by the grid add-break + undo-after-delete paths. */
-    post: operations['ProgrammeController_createBlock'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/programme/blocks/{blockId}/move': {
+  '/api/v1/swiss-phases/{phaseId}/config': {
     parameters: {
       query?: never;
       header?: never;
@@ -6999,11 +7129,105 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Move a fixed programme block to a new start time; cascade-shifts every match scheduled at or after the old start on the same day by the same Δ */
-    patch: operations['ProgrammeController_moveBlock'];
+    /** Update the Swiss configuration */
+    patch: operations['SwissController_updateConfig'];
     trace?: never;
   };
-  '/api/v1/events/{eventId}/programme/blocks/{blockId}/resize': {
+  '/api/v1/swiss-phases/{phaseId}/withdraw': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a fighter
+     * @description Excluded from later pairings; played results stand and still count toward opponents.
+     */
+    post: operations['SwissController_withdraw'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/swiss-phases/{phaseId}/rounds/{roundNumber}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete the last round (only while nothing in it has started) */
+    delete: operations['SwissController_deleteRound'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/swiss-phases/{phaseId}/finalise': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Freeze the standings and resolve the podium */
+    post: operations['SwissController_finalise'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/swiss-phases/{phaseId}/resume': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Resume a finalised phase
+     * @description Refused once a bracket seeded from these standings has a bout under way.
+     */
+    post: operations['SwissController_resume'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/swiss-rounds/{roundId}/swap': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Swap two fighters
+     * @description The default override. Invariant-preserving: everyone still appears once and there is still one bye. Either fighter may be the bye holder. 409 with warnings unless confirm is set.
+     */
+    post: operations['SwissController_swap'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/matches/{matchId}/swiss-sides': {
     parameters: {
       query?: never;
       header?: never;
@@ -7016,60 +7240,11 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Resize a programme block by changing its end_time. The block's start_time stays put — only the duration changes. Validates newEndTime > startTime. */
-    patch: operations['ProgrammeController_resizeBlock'];
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/programme/schedule-group': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Re-fan a group of matches (a pool or a bracket sub-tree) across the given lices from a start time, branch-aware for brackets, appending after existing occupants. */
-    post: operations['ProgrammeController_scheduleGroup'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/programme/blocks/{blockId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete a single programme block. Matches scheduled INSIDE the block window on the same day are unscheduled (scheduled_at + lice_id → null) so they reappear in the Unscheduled sidebar. */
-    delete: operations['ProgrammeController_deleteBlock'];
-    options?: never;
-    head?: never;
-    /** Rename a single programme block (admin / break / workshop bar) */
-    patch: operations['ProgrammeController_updateBlockLabel'];
-    trace?: never;
-  };
-  '/api/v1/events/{eventId}/programme/full': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Reset the schedule: delete every programme block AND null scheduled_at + lice_id on every match in the event */
-    delete: operations['ProgrammeController_resetAll'];
-    options?: never;
-    head?: never;
-    patch?: never;
+    /**
+     * Set both sides of a Swiss match
+     * @description The escape hatch. Can leave the round invalid; the response carries the validation, and an invalid round blocks the next one.
+     */
+    patch: operations['SwissController_setSides'];
     trace?: never;
   };
   '/api/v1/events/{eventId}/ai-assistant/drafts': {
@@ -9433,6 +9608,85 @@ export interface components {
       }[];
       confirmDestructive?: boolean;
     };
+    SaveProgrammeDto: {
+      blocks: {
+        id: string;
+        dayIndex: number;
+        sortOrder: number;
+        /** @enum {string} */
+        blockType: 'admin' | 'competition' | 'workshop' | 'break';
+        label: string;
+        /** Format: uuid */
+        competitionId?: string | null;
+        /** @enum {string|null} */
+        competitionPhase?: 'pool' | 'bracket' | 'finals' | null;
+        /** Format: uuid */
+        workshopId?: string | null;
+        liceCount: number;
+        startTime: string;
+        endTime: string;
+        matchGapSeconds: number;
+        matchDurationMinutes: number;
+        minRestMinutes: number;
+        colorHex?: string | null;
+      }[];
+    };
+    SuggestProgrammeDto: {
+      dayStartTime: string;
+      dayEndTime: string;
+      parallelLiceCount: number;
+      poolMatchDurationMinutes: number;
+      eliminationMatchDurationMinutes: number;
+      finalsMatchDurationMinutes: number;
+      matchGapSeconds: number;
+      minRestMinutes: number;
+      breakBetweenSessionsMinutes: number;
+      middayBreakStart: string;
+      middayBreakEnd: string;
+      registrationDurationMinutes: number;
+      gearCheckDurationMinutes: number;
+      refereeMeetingDurationMinutes: number;
+    };
+    CreateBlockDto: {
+      dayIndex: number;
+      /** @enum {string} */
+      blockType: 'admin' | 'competition' | 'workshop' | 'break';
+      label: string;
+      startTime: string;
+      endTime: string;
+      liceCount?: number;
+      matchGapSeconds?: number;
+      matchDurationMinutes?: number;
+      minRestMinutes?: number;
+      /** Format: uuid */
+      competitionId?: string | null;
+      /** @enum {string|null} */
+      competitionPhase?: 'pool' | 'bracket' | 'finals' | null;
+      /** Format: uuid */
+      workshopId?: string | null;
+      colorHex?: string | null;
+    };
+    MoveBlockDto: {
+      newStartTime: string;
+    };
+    ResizeBlockDto: {
+      newStartTime?: string;
+      newEndTime?: string;
+    };
+    ScheduleGroupDto: {
+      matchIds: string[];
+      liceIds: string[];
+      startTime: string;
+      /** @enum {string} */
+      mode: 'pool' | 'bracket-branch';
+      matchDurationMinutes?: number;
+      matchGapSeconds?: number;
+      minRestMinutes?: number;
+    };
+    UpdateBlockLabelDto: {
+      label: string;
+      colorHex?: string | null;
+    };
     UpdateAIFlagsDto: {
       aiFeaturesDisabled?: boolean;
       organizerChatDisabled?: boolean;
@@ -10079,84 +10333,104 @@ export interface components {
       title: string;
       body: string;
     };
-    SaveProgrammeDto: {
-      blocks: {
-        id: string;
-        dayIndex: number;
-        sortOrder: number;
-        /** @enum {string} */
-        blockType: 'admin' | 'competition' | 'workshop' | 'break';
-        label: string;
-        /** Format: uuid */
-        competitionId?: string | null;
-        /** @enum {string|null} */
-        competitionPhase?: 'pool' | 'bracket' | 'finals' | null;
-        /** Format: uuid */
-        workshopId?: string | null;
-        liceCount: number;
-        startTime: string;
-        endTime: string;
-        matchGapSeconds: number;
-        matchDurationMinutes: number;
-        minRestMinutes: number;
-        colorHex?: string | null;
-      }[];
-    };
-    SuggestProgrammeDto: {
-      dayStartTime: string;
-      dayEndTime: string;
-      parallelLiceCount: number;
-      poolMatchDurationMinutes: number;
-      eliminationMatchDurationMinutes: number;
-      finalsMatchDurationMinutes: number;
-      matchGapSeconds: number;
-      minRestMinutes: number;
-      breakBetweenSessionsMinutes: number;
-      middayBreakStart: string;
-      middayBreakEnd: string;
-      registrationDurationMinutes: number;
-      gearCheckDurationMinutes: number;
-      refereeMeetingDurationMinutes: number;
-    };
-    CreateBlockDto: {
-      dayIndex: number;
+    GenerateSwissDto: {
+      roundCount?: number;
       /** @enum {string} */
-      blockType: 'admin' | 'competition' | 'workshop' | 'break';
-      label: string;
-      startTime: string;
-      endTime: string;
-      liceCount?: number;
-      matchGapSeconds?: number;
-      matchDurationMinutes?: number;
-      minRestMinutes?: number;
+      seedingStrategy?: 'random' | 'by-rating' | 'by-pool-rank';
+      seedingRandomSeed?: number | null;
       /** Format: uuid */
-      competitionId?: string | null;
-      /** @enum {string|null} */
-      competitionPhase?: 'pool' | 'bracket' | 'finals' | null;
-      /** Format: uuid */
-      workshopId?: string | null;
-      colorHex?: string | null;
-    };
-    MoveBlockDto: {
-      newStartTime: string;
-    };
-    ResizeBlockDto: {
-      newStartTime?: string;
-      newEndTime?: string;
-    };
-    ScheduleGroupDto: {
-      matchIds: string[];
-      liceIds: string[];
-      startTime: string;
+      sourcePhaseId?: string | null;
       /** @enum {string} */
-      mode: 'pool' | 'bracket-branch';
-      matchDurationMinutes?: number;
-      matchGapSeconds?: number;
-      minRestMinutes?: number;
+      pairingMethod?: 'fold' | 'adjacent';
+      grouping?:
+        | {
+            /** @enum {string} */
+            kind: 'points';
+          }
+        | {
+            /** @enum {string} */
+            kind: 'scoreBands';
+            boundaries: number[];
+          };
+      /** @enum {string} */
+      rankBy?: 'swissPts' | 'rulesetScore';
+      points?: {
+        win: number;
+        draw: number;
+        loss: number;
+        bye: number;
+      };
+      tiebreakChain?: (
+        | 'buchholz'
+        | 'buchholzCut1'
+        | 'sonnebornBerger'
+        | 'opponentWinPct'
+        | 'headToHead'
+        | 'score'
+        | 'wins'
+        | 'diff'
+        | 'ptsScored'
+        | 'doubles'
+        | 'hitsReceived'
+        | 'rulesetChain'
+      )[];
+      minRatingCoveragePercent?: number | null;
     };
-    UpdateBlockLabelDto: {
-      label: string;
-      colorHex?: string | null;
+    UpdateSwissConfigDto: {
+      roundCount?: number;
+      /** @enum {string} */
+      pairingMethod?: 'fold' | 'adjacent';
+      grouping?:
+        | {
+            /** @enum {string} */
+            kind: 'points';
+          }
+        | {
+            /** @enum {string} */
+            kind: 'scoreBands';
+            boundaries: number[];
+          };
+      /** @enum {string} */
+      rankBy?: 'swissPts' | 'rulesetScore';
+      points?: {
+        win: number;
+        draw: number;
+        loss: number;
+        bye: number;
+      };
+      tiebreakChain?: (
+        | 'buchholz'
+        | 'buchholzCut1'
+        | 'sonnebornBerger'
+        | 'opponentWinPct'
+        | 'headToHead'
+        | 'score'
+        | 'wins'
+        | 'diff'
+        | 'ptsScored'
+        | 'doubles'
+        | 'hitsReceived'
+        | 'rulesetChain'
+      )[];
+      minRatingCoveragePercent?: number | null;
+    };
+    WithdrawSwissDto: {
+      /** Format: uuid */
+      registrationId: string;
+    };
+    SwapPairingDto: {
+      /** Format: uuid */
+      aRegistrationId: string;
+      /** Format: uuid */
+      bRegistrationId: string;
+      confirm?: boolean;
+    };
+    SetSwissSidesDto: {
+      /** Format: uuid */
+      redRegistrationId: string | null;
+      /** Format: uuid */
+      blueRegistrationId: string | null;
+      confirm?: boolean;
     };
     CreateOrganizerAIDraftDto: {
       /** @enum {string} */
@@ -16508,6 +16782,247 @@ export interface operations {
       };
     };
   };
+  ProgrammeController_listBlocks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_saveBlocks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SaveProgrammeDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_suggest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SuggestProgrammeDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_generate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_createBlock: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateBlockDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_moveBlock: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        blockId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MoveBlockDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_resizeBlock: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        blockId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ResizeBlockDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_scheduleGroup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScheduleGroupDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_deleteBlock: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        blockId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_updateBlockLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        blockId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateBlockLabelDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_resetAll: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   AIUsageController_getUsage: {
     parameters: {
       query?: never;
@@ -20689,102 +21204,20 @@ export interface operations {
       };
     };
   };
-  ProgrammeController_listBlocks: {
+  SwissController_generate: {
     parameters: {
-      query?: never;
+      query?: {
+        force?: boolean;
+      };
       header?: never;
       path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_saveBlocks: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
+        tournamentId: string;
       };
       cookie?: never;
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['SaveProgrammeDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_suggest: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SuggestProgrammeDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_generate: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_createBlock: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateBlockDto'];
+        'application/json': components['schemas']['GenerateSwissDto'];
       };
     };
     responses: {
@@ -20796,84 +21229,12 @@ export interface operations {
       };
     };
   };
-  ProgrammeController_moveBlock: {
+  SwissController_previewNextRound: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        eventId: string;
-        blockId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MoveBlockDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_resizeBlock: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        blockId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ResizeBlockDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_scheduleGroup: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ScheduleGroupDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  ProgrammeController_deleteBlock: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        blockId: string;
+        phaseId: string;
       };
       cookie?: never;
     };
@@ -20887,19 +21248,37 @@ export interface operations {
       };
     };
   };
-  ProgrammeController_updateBlockLabel: {
+  SwissController_commitNextRound: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        eventId: string;
-        blockId: string;
+        phaseId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_updateConfig: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        phaseId: string;
       };
       cookie?: never;
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['UpdateBlockLabelDto'];
+        'application/json': components['schemas']['UpdateSwissConfigDto'];
       };
     };
     responses: {
@@ -20911,16 +21290,124 @@ export interface operations {
       };
     };
   };
-  ProgrammeController_resetAll: {
+  SwissController_withdraw: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        eventId: string;
+        phaseId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WithdrawSwissDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_deleteRound: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        phaseId: string;
+        roundNumber: number;
       };
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_finalise: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        phaseId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_resume: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        phaseId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_swap: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        roundId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SwapPairingDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_setSides: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        matchId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetSwissSidesDto'];
+      };
+    };
     responses: {
       200: {
         headers: {
