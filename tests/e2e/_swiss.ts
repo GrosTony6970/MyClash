@@ -1,5 +1,12 @@
 import { sleep, type Api } from './_api';
-import { POINT_CAP, scoreMatch, type Person } from './_bracket';
+import {
+  createBracketTournament,
+  ensurePersons,
+  POINT_CAP,
+  scoreMatch,
+  type BracketTournament,
+  type Person,
+} from './_bracket';
 
 /**
  * Helpers for playing a Swiss phase end to end over the real API.
@@ -199,7 +206,7 @@ export async function playSwiss(
     for (const match of round.matches) {
       if (match.status === 'completed') continue;
       played += 1;
-      await scoreMatch(api, match.id, winnerColorFor(match, seeds), pointCap);
+      await scoreMatch(api, match.id, winnerSideOf(match, seeds), pointCap);
     }
     if (round.roundNumber >= swiss.roundCount) {
       return {
@@ -210,7 +217,7 @@ export async function playSwiss(
       };
     }
 
-    const next = await settleNextRound(
+    const next = await waitForRound(
       api,
       tournamentId,
       round.roundNumber + 1,
@@ -233,20 +240,32 @@ export async function playSwiss(
   }
 }
 
-/** Which side the lower seed is on — the deterministic winner. */
-function winnerColorFor(match: SwissMatch, seeds: Map<string, number>): 'red' | 'blue' {
+/**
+ * Which side the lower seed is on — the deterministic winner rule.
+ *
+ * Exported because the specs score rounds by hand too (to set up an override or
+ * a withdrawal mid-phase), and a second copy of this rule is a second chance for
+ * the two to disagree about who was supposed to win.
+ */
+export function winnerSideOf(match: SwissMatch, seeds: Map<string, number>): 'red' | 'blue' {
   const red = seeds.get(match.redRegistrationId ?? '') ?? Number.MAX_SAFE_INTEGER;
   const blue = seeds.get(match.blueRegistrationId ?? '') ?? Number.MAX_SAFE_INTEGER;
   return red <= blue ? 'red' : 'blue';
 }
 
-/** Poll until `roundNumber` has been paired by the auto-advance, or give up. */
-async function settleNextRound(
+/**
+ * Poll until `roundNumber` has been paired by the auto-advance, or give up.
+ *
+ * A poll, not a sleep: advancement is fire-and-forget, so the round appears some
+ * time AFTER the final exchange POST returns and a bare re-read races it.
+ * Exported for the specs that hand over mid-phase.
+ */
+export async function waitForRound(
   api: Api,
   tournamentId: string,
   roundNumber: number,
-  tries: number,
-  delayMs: number,
+  tries = 20,
+  delayMs = 750,
 ): Promise<SwissRounds | null> {
   for (let attempt = 0; attempt < tries; attempt++) {
     const swiss = await readSwiss(api, tournamentId);
@@ -256,150 +275,92 @@ async function settleNextRound(
   return null;
 }
 
-// ── Invariant checks ─────────────────────────────────────────────────────────
-
-export interface SwissViolation {
-  round: number;
-  detail: string;
-}
-
-/**
- * Every structural rule a Swiss phase owes, checked against the played rounds.
- *
- * Returns violations rather than asserting, so a spec can report them all at
- * once — a pairing bug usually breaks the same rule in several rounds and one
- * failed assertion per run makes that take four runs to see.
- */
-export function swissViolations(swiss: SwissRounds, entrantCount: number): SwissViolation[] {
-  const violations: SwissViolation[] = [];
-  const seen = new Map<string, Set<string>>();
-  const byeCount = new Map<string, number>();
-
-  for (const round of swiss.rounds) {
-    const appearances = new Map<string, number>();
-    const note = (id: string | null) => {
-      if (!id) return;
-      appearances.set(id, (appearances.get(id) ?? 0) + 1);
-    };
-
-    for (const match of round.matches) {
-      note(match.redRegistrationId);
-      note(match.blueRegistrationId);
-
-      const red = match.redRegistrationId;
-      const blue = match.blueRegistrationId;
-      if (!red || !blue) {
-        violations.push({ round: round.roundNumber, detail: `bout ${match.id} has an empty side` });
-        continue;
-      }
-      // A rematch is legal ONLY when the engine says no legal alternative
-      // existed — and it says so publicly, which is decision 16's whole point.
-      const forced = round.warnings.some(
-        (warning) =>
-          warning.code === 'forced-rematch' &&
-          warning.registrationIds.includes(red) &&
-          warning.registrationIds.includes(blue),
-      );
-      if (!forced && seen.get(red)?.has(blue)) {
-        violations.push({
-          round: round.roundNumber,
-          detail: `unflagged rematch: ${match.redFighterName} vs ${match.blueFighterName}`,
-        });
-      }
-      if (!seen.has(red)) seen.set(red, new Set());
-      if (!seen.has(blue)) seen.set(blue, new Set());
-      seen.get(red)!.add(blue);
-      seen.get(blue)!.add(red);
-    }
-
-    note(round.byeRegistrationId);
-    if (round.byeRegistrationId) {
-      byeCount.set(round.byeRegistrationId, (byeCount.get(round.byeRegistrationId) ?? 0) + 1);
-    }
-
-    const twice = [...appearances.entries()].filter(([, count]) => count > 1);
-    if (twice.length > 0) {
-      violations.push({
-        round: round.roundNumber,
-        detail: `fighter(s) appear more than once: ${twice.map(([id]) => id).join(', ')}`,
-      });
-    }
-    // An odd field gets exactly one bye; an even field gets none.
-    const expectedByes = entrantCount % 2 === 1 ? 1 : 0;
-    const actualByes = round.byeRegistrationId ? 1 : 0;
-    if (actualByes !== expectedByes) {
-      violations.push({
-        round: round.roundNumber,
-        detail: `expected ${expectedByes} bye for a field of ${entrantCount}, got ${actualByes}`,
-      });
-    }
-    if (appearances.size !== entrantCount) {
-      violations.push({
-        round: round.roundNumber,
-        detail: `${appearances.size} of ${entrantCount} entrants were dealt into the round`,
-      });
-    }
-  }
-
-  // Nobody sits out twice while someone else has never sat out. Only checkable
-  // once the phase is short enough that the bye pool has not been exhausted.
-  if (swiss.rounds.length <= entrantCount) {
-    for (const [registrationId, count] of byeCount) {
-      if (count > 1) {
-        violations.push({ round: 0, detail: `${registrationId} took ${count} byes` });
-      }
-    }
-  }
-  return violations;
-}
-
-/**
- * Buchholz recomputed from the rounds, independently of the server.
- *
- * The point of checking it here rather than trusting the standings: Buchholz is
- * the sum of every OPPONENT's Swiss points, so it is the one column that cannot
- * be right by accident — it only agrees if the opponent lists and the points
- * arithmetic are both right.
- *
- * A bye contributes 0, deliberately (FIDE's virtual-opponent rule is a
- * documented v1 omission), so this mirrors that and does not "fix" it.
- */
-export function expectedBuchholz(
-  swiss: SwissRounds,
-  points: { win: number; draw: number; loss: number; bye: number },
-): { swissPts: Map<string, number>; buchholz: Map<string, number> } {
-  const swissPts = new Map<string, number>();
-  const opponents = new Map<string, string[]>();
-  const add = (id: string, value: number) => swissPts.set(id, (swissPts.get(id) ?? 0) + value);
-
-  for (const round of swiss.rounds) {
-    if (round.byeRegistrationId) add(round.byeRegistrationId, points.bye);
-    for (const match of round.matches) {
-      const red = match.redRegistrationId;
-      const blue = match.blueRegistrationId;
-      if (!red || !blue || match.status !== 'completed') continue;
-      opponents.set(red, [...(opponents.get(red) ?? []), blue]);
-      opponents.set(blue, [...(opponents.get(blue) ?? []), red]);
-      if (match.winnerRegistrationId === null) {
-        add(red, points.draw);
-        add(blue, points.draw);
-        continue;
-      }
-      const winner = match.winnerRegistrationId;
-      add(winner, points.win);
-      add(winner === red ? blue : red, points.loss);
-    }
-  }
-
-  const buchholz = new Map<string, number>();
-  for (const [id, faced] of opponents) {
-    buchholz.set(
-      id,
-      faced.reduce((total, opponentId) => total + (swissPts.get(opponentId) ?? 0), 0),
-    );
-  }
-  return { swissPts, buchholz };
-}
-
 /** Read a numeric stat off a standings row (the API sends them loosely typed). */
 export const stat = (row: SwissStandingsRow, key: string): number => Number(row.stats[key] ?? 0);
+
+/**
+ * A swap that would put `fighter` back in front of `oldOpponent`, or null when
+ * this round's draw makes that impossible (either of them on the bye).
+ *
+ * Swapping `oldOpponent` with whoever `fighter` is currently drawn against is
+ * the minimal way to force the rematch warning.
+ */
+export function plannedRematch(
+  round: SwissRound,
+  fighter: string,
+  oldOpponent: string,
+): { a: string; b: string } | null {
+  if (round.byeRegistrationId === fighter || round.byeRegistrationId === oldOpponent) return null;
+  const bout = round.matches.find(
+    (match) => match.redRegistrationId === fighter || match.blueRegistrationId === fighter,
+  );
+  if (!bout) return null;
+  const current =
+    bout.redRegistrationId === fighter ? bout.blueRegistrationId! : bout.redRegistrationId!;
+  // Already facing them — the engine would have had to force it, and there is
+  // nothing left for a swap to create.
+  if (current === oldOpponent) return null;
+  return { a: current, b: oldOpponent };
+}
+
+/** registrationId → the bout id they are in, or 'bye'. */
+/** The round itself once it has paired, rather than the whole phase. */
+export async function waitForRoundOnly(
+  api: Api,
+  tournamentId: string,
+  roundNumber: number,
+): Promise<SwissRound | null> {
+  const swiss = await waitForRound(api, tournamentId, roundNumber);
+  return swiss?.rounds.find((round) => round.roundNumber === roundNumber) ?? null;
+}
+
+export function positionOf(round: SwissRound): Map<string, string> {
+  const positions = new Map<string, string>();
+  for (const match of round.matches) {
+    if (match.redRegistrationId) positions.set(match.redRegistrationId, match.id);
+    if (match.blueRegistrationId) positions.set(match.blueRegistrationId, match.id);
+  }
+  if (round.byeRegistrationId) positions.set(round.byeRegistrationId, 'bye');
+  return positions;
+}
+
+/**
+ * A tournament with `count` fighters and a freshly generated Swiss phase.
+ *
+ * Built on `createBracketTournament` deliberately: it creates a tournament with
+ * NO pools, pins the point cap so the ENGINE's completion is what ends a bout,
+ * and registers everyone seeded 1..N. All three are what a Swiss spec wants too,
+ * and a second copy would be a second thing to keep in step.
+ */
+export async function buildSwissTournament(
+  api: Api,
+  eventId: string,
+  opts: { key: string; count: number; roundCount: number },
+): Promise<{
+  tournament: BracketTournament;
+  generated: GeneratedSwiss;
+  seeds: Map<string, number>;
+}> {
+  const roster = await ensurePersons(api, eventId, opts.count);
+  const tournament = await createBracketTournament(api, eventId, {
+    name: `Swiss ${opts.key}`,
+    slug: `swiss-${opts.key}-${Date.now().toString(36)}`,
+    fighters: roster.slice(0, opts.count),
+  });
+
+  const generated = await api.json<GeneratedSwiss>(
+    await api.post(`tournaments/${tournament.id}/generate-swiss`, {
+      data: { roundCount: opts.roundCount, seedingStrategy: 'random' },
+    }),
+  );
+
+  return { tournament, generated, seeds: seedByRegistration(tournament.personByRegistrationId) };
+}
+
+/** The body of `POST /tournaments/:id/generate-swiss`. */
+export interface GeneratedSwiss {
+  phaseId: string;
+  entrants: number;
+  roundCount: number;
+  firstRound: { roundId: string; roundNumber: number } | null;
+}

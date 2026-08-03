@@ -1,63 +1,42 @@
 import { test, expect } from '@playwright/test';
 import { runContext } from './_context';
+import { apiFor, POINT_CAP, readBracket, scoreMatch, seedMap } from './_bracket';
 import {
-  apiFor,
-  createBracketTournament,
-  ensurePersons,
-  POINT_CAP,
-  readBracket,
-  scoreMatch,
-  seedMap,
-  type Api,
-} from './_bracket';
-import {
-  expectedBuchholz,
+  buildSwissTournament,
+  plannedRematch,
   playSwiss,
   readSwiss,
   readSwissAdmin,
   readSwissStandings,
   seedByRegistration,
+  positionOf,
   stat,
-  swissViolations,
-  type SwissMatch,
+  waitForRoundOnly,
+  winnerSideOf,
   type SwissRound,
-  type SwissRounds,
 } from './_swiss';
+import { expectedBuchholz, expectEngineDecided, swissViolations } from './_swiss-invariants';
 
 /**
  * Swiss system, end to end against a real database (run with E2E_SWISS=1).
+ * See `README.md` for the full rationale and the scenario table.
  *
  * Swiss earns an integration test for a reason no other format has: ROUND N+1
  * DOES NOT EXIST until round N is scored. `SwissAdvanceService.onMatchCompleted`
- * pairs it, invoked from `MatchCompletionService` and wrapped in a catch that
- * swallows — because a completion side effect must never fail the exchange that
+ * pairs it from inside `MatchCompletionService`, wrapped in a catch that
+ * swallows — a completion side effect must never fail the exchange that
  * triggered it. So a broken advance edge throws nothing, logs a warning nobody
- * is watching, and the tournament simply stops after round 1. That is the
- * double-elim `source_a_ref` failure mode again: silent, permanent, invisible to
- * every unit test.
+ * is watching, and the tournament simply stops after round 1: the double-elim
+ * `source_a_ref` failure mode again, invisible to every unit test.
  *
- * Three things only real rows can prove:
- *
- *   1. **Auto-advance fires from the PAD.** Bouts here are played with clean
- *      exchanges until the ruleset engine trips `first_to_points` — the path
- *      web-scoring actually drives. An earlier bracket spec declared winners with
- *      `PATCH /matches/:id/status`, and for a while that endpoint was the only
- *      one wired to advancement at all: a bracket scored on the pad advanced
- *      nowhere, and testing through the endpoint hid it.
- *   2. **The DI graph resolves at boot.** `SwissCoreModule` is a leaf precisely
- *      so `PhasesModule` can import it for auto-advance without closing a cycle.
- *      A NestJS module cycle is invisible to `tsc` AND to vitest (esbuild emits
- *      no decorator metadata) — it surfaces only when the API boots. Calling
- *      these endpoints against a deployed API is the check.
- *   3. **The standings arithmetic over real scored matches.** Buchholz is
- *      recomputed here from the rounds, independently, because it is the one
- *      column that cannot be right by accident: it only agrees if the opponent
- *      lists AND the points are both right.
+ * Bouts are played the way the PAD plays them — clean exchanges until the
+ * ruleset engine trips `first_to_points` — because for a while
+ * `PATCH /matches/:id/status` was the only path wired to advancement at all, and
+ * testing through that endpoint hid it.
  *
  * The round-1 draw is random (decision 1's default), so who plays whom differs
  * per run. Determinism comes from the winner RULE instead — the lower seed
- * always wins — which makes `Seed 01` unbeaten in every run whoever they were
- * drawn against, and makes every assertion below an invariant rather than a
+ * always wins — which makes every assertion below an invariant rather than a
  * hardcoded table.
  */
 const SWISS = ['1', 'true', 'yes'].includes((process.env.E2E_SWISS ?? '').toLowerCase());
@@ -75,44 +54,14 @@ const DEFAULT_POINTS = { win: 3, draw: 1, loss: 0, bye: 3 };
 test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', () => {
   test.skip(!SWISS, 'Writes real tournaments and scores real matches; opt in with E2E_SWISS=1.');
 
-  /**
-   * A tournament with `count` fighters and a freshly generated Swiss phase.
-   *
-   * `runContext()` is read HERE, not in the describe body: the body runs at
-   * collection time even when every test in it is skipped, and it reads a file
-   * global-setup writes. At describe level a fresh checkout would fail to
-   * collect the whole suite over a spec that was never going to run.
-   */
-  async function build(api: Api, key: string, count: number, roundCount: number) {
-    const { eventId } = runContext();
-    const roster = await ensurePersons(api, eventId, count);
-    // Reused from the bracket helper: it creates a tournament with NO pools,
-    // pins the point cap so the ENGINE's completion is what ends a bout, and
-    // registers everyone seeded 1..N. All three are what Swiss wants too.
-    const tournament = await createBracketTournament(api, eventId, {
-      name: `Swiss ${key}`,
-      slug: `swiss-${key}-${Date.now().toString(36)}`,
-      fighters: roster.slice(0, count),
-    });
-
-    const generated = await api.json<{
-      phaseId: string;
-      entrants: number;
-      roundCount: number;
-      firstRound: { roundId: string; roundNumber: number } | null;
-    }>(
-      await api.post(`tournaments/${tournament.id}/generate-swiss`, {
-        data: { roundCount, seedingStrategy: 'random' },
-      }),
-    );
-
-    return { tournament, generated, seeds: seedByRegistration(tournament.personByRegistrationId) };
-  }
-
   test('A. an odd field pairs itself round by round, off the pad', async ({ request }) => {
     test.setTimeout(900_000);
     const api = apiFor(request);
-    const { tournament, generated, seeds } = await build(api, 'odd', FIELD, ROUNDS);
+    const { tournament, generated, seeds } = await buildSwissTournament(api, runContext().eventId, {
+      key: 'odd',
+      count: FIELD,
+      roundCount: ROUNDS,
+    });
 
     // Generation pairs round 1 and nothing else — the rest is the engine's job.
     expect(generated.entrants).toBe(FIELD);
@@ -168,7 +117,11 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
   test('B. standings reproduce points and Buchholz computed independently', async ({ request }) => {
     test.setTimeout(900_000);
     const api = apiFor(request);
-    const { tournament, seeds } = await build(api, 'standings', FIELD, ROUNDS);
+    const { tournament, seeds } = await buildSwissTournament(api, runContext().eventId, {
+      key: 'standings',
+      count: FIELD,
+      roundCount: ROUNDS,
+    });
 
     const result = await playSwiss(api, tournament.id, seeds);
     expect(result.stallReport, result.stallReport).toBe('');
@@ -219,7 +172,11 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
   test('C. a swap preserves the round, and a rematch has to be confirmed', async ({ request }) => {
     test.setTimeout(900_000);
     const api = apiFor(request);
-    const { tournament, seeds } = await build(api, 'override', FIELD, ROUNDS);
+    const { tournament, seeds } = await buildSwissTournament(api, runContext().eventId, {
+      key: 'override',
+      count: FIELD,
+      roundCount: ROUNDS,
+    });
 
     const before = await readSwiss(api, tournament.id);
     const roundOne = before.rounds[0]!;
@@ -265,7 +222,7 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
     for (const match of rebyed.matches) {
       await scoreMatch(api, match.id, winnerSideOf(match, seeds), POINT_CAP);
     }
-    const roundTwo = await waitForRound(api, tournament.id, 2);
+    const roundTwo = await waitForRoundOnly(api, tournament.id, 2);
     expect(roundTwo, 'round 2 never paired itself after round 1 completed').toBeTruthy();
 
     const rematch = plannedRematch(roundTwo!, fighter, oldOpponent);
@@ -278,10 +235,25 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
       data: { aRegistrationId: rematch!.a, bRegistrationId: rematch!.b },
     });
     expect(refused.status(), 'a rematch-creating swap must warn before it happens').toBe(409);
+    // The warnings sit under `details`, NOT at the top level: every error goes
+    // through the RFC 9457 envelope in `api-exception.filter.ts`, which lifts the
+    // standard members out and moves everything else — here `warnings` — under
+    // `details`. Asserting the real location is what keeps a client that reads
+    // `body.warnings` (and silently gets `undefined`) from shipping.
     const body = (await refused.json()) as {
-      warnings?: Array<{ code: string; registrationIds: string[] }>;
+      message?: string;
+      details?: { warnings?: Array<{ code: string; registrationIds: string[] }> };
     };
-    expect(body.warnings?.some((warning) => warning.code === 'creates-rematch')).toBe(true);
+    expect(body.message).toBeTruthy();
+    const warnings = body.details?.warnings ?? [];
+    expect(
+      warnings.some((warning) => warning.code === 'creates-rematch'),
+      `409 carried no creates-rematch warning; got ${JSON.stringify(body.details)}`,
+    ).toBe(true);
+    // Named fighters, so the dialog can say WHO — an unnamed warning is one an
+    // organiser confirms without reading.
+    const rematchWarning = warnings.find((warning) => warning.code === 'creates-rematch')!;
+    expect(rematchWarning.registrationIds).toHaveLength(2);
 
     // The same request, confirmed: the organiser may well want it.
     await api.ok(
@@ -298,14 +270,18 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
   test('D. a withdrawal leaves its played results standing', async ({ request }) => {
     test.setTimeout(900_000);
     const api = apiFor(request);
-    const { tournament, seeds } = await build(api, 'withdraw', FIELD, ROUNDS);
+    const { tournament, seeds } = await buildSwissTournament(api, runContext().eventId, {
+      key: 'withdraw',
+      count: FIELD,
+      roundCount: ROUNDS,
+    });
 
     const opening = await readSwiss(api, tournament.id);
     const roundOne = opening.rounds[0]!;
     for (const match of roundOne.matches) {
       await scoreMatch(api, match.id, winnerSideOf(match, seeds), POINT_CAP);
     }
-    expect(await waitForRound(api, tournament.id, 2)).toBeTruthy();
+    expect(await waitForRoundOnly(api, tournament.id, 2)).toBeTruthy();
 
     // The LOSER leaves, so the surviving result is a win their opponent keeps.
     const bout = roundOne.matches[0]!;
@@ -369,7 +345,11 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
   }) => {
     test.setTimeout(900_000);
     const api = apiFor(request);
-    const { tournament, seeds } = await build(api, 'cut', FIELD, ROUNDS);
+    const { tournament, seeds } = await buildSwissTournament(api, runContext().eventId, {
+      key: 'cut',
+      count: FIELD,
+      roundCount: ROUNDS,
+    });
 
     const result = await playSwiss(api, tournament.id, seeds);
     expect(result.stallReport, result.stallReport).toBe('');
@@ -408,92 +388,3 @@ test.describe(SWISS ? 'Swiss system' : 'Swiss system (set E2E_SWISS=1 to run)', 
 });
 
 // ── Local helpers ────────────────────────────────────────────────────────────
-
-/** Which side the lower seed is on — the deterministic winner rule. */
-function winnerSideOf(match: SwissMatch, seeds: Map<string, number>): 'red' | 'blue' {
-  const red = seeds.get(match.redRegistrationId ?? '') ?? Number.MAX_SAFE_INTEGER;
-  const blue = seeds.get(match.blueRegistrationId ?? '') ?? Number.MAX_SAFE_INTEGER;
-  return red <= blue ? 'red' : 'blue';
-}
-
-/**
- * A swap that would put `fighter` back in front of `oldOpponent`, or null when
- * this round's draw makes that impossible (either of them on the bye).
- *
- * Swapping `oldOpponent` with whoever `fighter` is currently drawn against is
- * the minimal way to force the rematch warning.
- */
-function plannedRematch(
-  round: SwissRound,
-  fighter: string,
-  oldOpponent: string,
-): { a: string; b: string } | null {
-  if (round.byeRegistrationId === fighter || round.byeRegistrationId === oldOpponent) return null;
-  const bout = round.matches.find(
-    (match) => match.redRegistrationId === fighter || match.blueRegistrationId === fighter,
-  );
-  if (!bout) return null;
-  const current =
-    bout.redRegistrationId === fighter ? bout.blueRegistrationId! : bout.redRegistrationId!;
-  // Already facing them — the engine would have had to force it, and there is
-  // nothing left for a swap to create.
-  if (current === oldOpponent) return null;
-  return { a: current, b: oldOpponent };
-}
-
-/**
- * Poll until `roundNumber` has paired ITSELF, or give up.
- *
- * Advancement is fire-and-forget, so the round appears some time after the final
- * exchange POST returns — a bare re-read races it.
- */
-async function waitForRound(
-  api: Api,
-  tournamentId: string,
-  roundNumber: number,
-  tries = 20,
-  delayMs = 750,
-): Promise<SwissRound | null> {
-  for (let attempt = 0; attempt < tries; attempt++) {
-    const swiss = await readSwiss(api, tournamentId);
-    const round = swiss.rounds.find((r) => r.roundNumber === roundNumber);
-    if (round) return round;
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-  return null;
-}
-
-/** registrationId → the bout id they are in, or 'bye'. */
-function positionOf(round: SwissRound): Map<string, string> {
-  const positions = new Map<string, string>();
-  for (const match of round.matches) {
-    if (match.redRegistrationId) positions.set(match.redRegistrationId, match.id);
-    if (match.blueRegistrationId) positions.set(match.blueRegistrationId, match.id);
-  }
-  if (round.byeRegistrationId) positions.set(round.byeRegistrationId, 'bye');
-  return positions;
-}
-
-/**
- * Every completed bout ended on the point cap, with a winner.
- *
- * This is what separates "the test decided" from "the ENGINE decided": the
- * driver only ever posts exchanges, so a winner sitting exactly on the cap means
- * `first_to_points` fired. A bout completed with a NULL winner (both sides at the
- * cap) can never close its round, so the phase would stall — and this catches it
- * at the bout rather than four rounds later as a missing-round timeout.
- */
-function expectEngineDecided(swiss: SwissRounds): void {
-  for (const round of swiss.rounds) {
-    for (const match of round.matches) {
-      expect(match.status, `${match.matchNumberLabel} did not complete`).toBe('completed');
-      expect(
-        match.winnerRegistrationId,
-        `${match.matchNumberLabel} completed with no winner`,
-      ).not.toBeNull();
-      const winnerScore =
-        match.winnerRegistrationId === match.redRegistrationId ? match.redScore : match.blueScore;
-      expect(winnerScore, `${match.matchNumberLabel} winner did not reach the cap`).toBe(POINT_CAP);
-    }
-  }
-}

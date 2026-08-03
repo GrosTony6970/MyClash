@@ -17,7 +17,12 @@
 import { useState } from 'react';
 import { t } from '@myclash/i18n';
 import { ConfirmDialog, useToast } from '@myclash/ui';
-import { swissMutate, type SwissAdminRound, type UseSwissAdmin } from '../useSwissAdmin';
+import {
+  swissMutate,
+  type SwissAdminRound,
+  type SwissOverrideWarning,
+  type UseSwissAdmin,
+} from '../useSwissAdmin';
 import { RoundCard } from '../_components/RoundCard';
 
 export function RoundsTab({
@@ -42,7 +47,7 @@ export function RoundsTab({
     roundId: string;
     a: string;
     b: string;
-    message: string;
+    warnings: SwissOverrideWarning[];
   } | null>(null);
 
   if (!view || view.phaseId === null) {
@@ -78,7 +83,7 @@ export function RoundsTab({
     // 409 = the swap is legal but creates a rematch, a repeat bye or a same-club
     // pairing. Re-offer it rather than refusing: the organiser may well want it.
     if (!result.ok && result.status === 409 && !confirm) {
-      setPendingSwap({ roundId, a, b, message: result.message });
+      setPendingSwap({ roundId, a, b, warnings: result.warnings });
     }
   }
 
@@ -174,7 +179,16 @@ export function RoundsTab({
       <ConfirmDialog
         open={pendingSwap !== null}
         title={t('organizer.swiss.rounds.swapWarningTitle')}
-        description={pendingSwap?.message ?? ''}
+        // The WHY, not just "needs confirmation": the engine already said which
+        // rule this breaks, and asking someone to confirm an unnamed warning is
+        // how a rematch gets waved through.
+        description={(pendingSwap?.warnings ?? [])
+          .map((warning) =>
+            t(`organizer.swiss.rounds.swapWarning.${warning.code}`, {
+              fighters: warning.registrationIds.map((id) => nameOf(id)).join(' / '),
+            }),
+          )
+          .join(' ')}
         confirmLabel={t('organizer.swiss.rounds.swapWarningConfirm')}
         busy={busy}
         onCancel={() => setPendingSwap(null)}

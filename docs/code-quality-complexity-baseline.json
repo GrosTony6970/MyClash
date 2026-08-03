@@ -569,7 +569,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/TiebreakChainField.tsx:34",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/ConfigureTab.tsx:42",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/RefereesTab.tsx:29",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/RoundsTab.tsx:23",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/RoundsTab.tsx:28",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/StandingsTab.tsx:120",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/StandingsTab.tsx:50",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/page.tsx:50",
@@ -858,6 +858,8 @@
     "tests/e2e/07-populate-event.spec.ts:830",
     "tests/e2e/10-scoring-pad.spec.ts:383",
     "tests/e2e/_bracket.ts:416",
+    "tests/e2e/_swiss-invariants.ts:27",
+    "tests/e2e/_swiss.ts:180",
     "tests/e2e/global-setup.ts:25",
     "tests/e2e/global-teardown.ts:25",
     "tests/perf/web-public.spec.ts:16"

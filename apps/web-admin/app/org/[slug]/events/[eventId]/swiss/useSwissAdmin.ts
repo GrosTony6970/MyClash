@@ -149,11 +149,30 @@ export function useSwissAdmin(tournamentId: string, loadFailed: string): UseSwis
   return { view, loading, error, setError, reload: load, nameOf };
 }
 
-/** POST/PATCH/DELETE against the Swiss API, surfacing the server's own message. */
+/** One override warning, as `swiss-override.service.ts` raises it. */
+export interface SwissOverrideWarning {
+  code: 'creates-rematch' | 'repeat-bye' | 'same-club';
+  registrationIds: string[];
+}
+
+export type SwissMutateResult =
+  | { ok: true; data: unknown }
+  | { ok: false; status: number; message: string; warnings: SwissOverrideWarning[] };
+
+/**
+ * POST/PATCH/DELETE against the Swiss API, surfacing the server's own message
+ * AND the structured warnings behind a 409.
+ *
+ * The warnings are read from `details`, not from the top level: every error goes
+ * through the RFC 9457 envelope in `api-exception.filter.ts`, which lifts the
+ * standard members out and moves anything else — here `warnings` — under
+ * `details`. Reading `body.warnings` gets `undefined` and the operator is asked
+ * to confirm something the dialog cannot name.
+ */
 export async function swissMutate(
   path: string,
   init: { method: string; body?: unknown },
-): Promise<{ ok: true; data: unknown } | { ok: false; status: number; message: string }> {
+): Promise<SwissMutateResult> {
   const res = await fetch(`${getPublicApiUrl()}/api/v1${path}`, {
     method: init.method,
     credentials: 'include',
@@ -161,9 +180,17 @@ export async function swissMutate(
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
   if (res.ok) return { ok: true, data: await res.json().catch(() => null) };
-  const body = (await res.json().catch(() => null)) as { message?: string | string[] } | null;
+  const body = (await res.json().catch(() => null)) as {
+    message?: string | string[];
+    details?: { warnings?: SwissOverrideWarning[] };
+  } | null;
   const message = Array.isArray(body?.message)
     ? body.message.join(', ')
     : (body?.message ?? `HTTP ${res.status}`);
-  return { ok: false, status: res.status, message };
+  return {
+    ok: false,
+    status: res.status,
+    message,
+    warnings: body?.details?.warnings ?? [],
+  };
 }

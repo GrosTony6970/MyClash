@@ -5940,6 +5940,14 @@ export const en = {
         swapped: 'Fighters swapped.',
         swapWarningTitle: 'Swap anyway?',
         swapWarningConfirm: 'Swap anyway',
+        // Named, not just "needs confirmation": the engine already knows which
+        // rule the swap breaks, and confirming an unnamed warning is how a
+        // rematch gets waved through.
+        swapWarning: {
+          'creates-rematch': '{fighters} have already fought each other in this phase.',
+          'repeat-bye': '{fighters} has already had a bye.',
+          'same-club': '{fighters} are from the same club.',
+        },
         setSides: 'Swap sides',
         setSidesHelp:
           'Writes both sides of this bout directly. Can leave the round invalid, which blocks the next one.',
@@ -13127,6 +13135,11 @@ export const fr = {
         swapped: 'Tireurs echanges.',
         swapWarningTitle: 'Echanger quand meme ?',
         swapWarningConfirm: 'Echanger quand meme',
+        swapWarning: {
+          'creates-rematch': '{fighters} se sont deja rencontres dans cette phase.',
+          'repeat-bye': '{fighters} a deja ete exempt.',
+          'same-club': '{fighters} sont du meme club.',
+        },
         setSides: 'Inverser les cotes',
         setSidesHelp:
           'Ecrit les deux cotes de ce combat directement. Peut rendre la ronde invalide, ce qui bloque la suivante.',
