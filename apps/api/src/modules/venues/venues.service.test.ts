@@ -205,6 +205,8 @@ describe('VenuesService', () => {
       const result = await service.getTournamentPhaseVenues('t-1');
       expect(result).toEqual({
         pool: { id: 'v-1', name: 'Hall A' },
+        // A Swiss phase gets its own hall — unassigned here.
+        swiss: null,
         bracket: { id: 'v-2', name: 'Hall B' },
       });
     });
@@ -263,7 +265,11 @@ describe('VenuesService', () => {
         venue_id: 'v-1',
       });
       expect(eventVenueInserts[0]).toMatchObject({ event_id: 'e-1', venue_id: 'v-1' });
-      expect(result).toEqual({ pool: { id: 'v-1', name: 'Hall A' }, bracket: null });
+      expect(result).toEqual({
+        pool: { id: 'v-1', name: 'Hall A' },
+        swiss: null,
+        bracket: null,
+      });
     });
 
     it('setTournamentPhaseVenues rejects a venue from another org', async () => {

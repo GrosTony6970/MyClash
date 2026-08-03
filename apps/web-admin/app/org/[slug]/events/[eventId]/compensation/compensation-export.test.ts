@@ -2,6 +2,34 @@ import { describe, it, expect } from 'vitest';
 import type { CompensationReport } from '@myclash/types';
 import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
 
+type Referee = CompensationReport['referees'][number];
+
+const ALICE: Referee = {
+  personId: 'u1',
+  displayName: 'Alice, "Ace"',
+  totalTokens: 12,
+  amountOwed: 10,
+  paid: true,
+  paidAt: null,
+  breakdown: [
+    { phase: 'pool', role: 'arbitre_declarant', matchCount: 3, tokensPerMatch: 2, subtotal: 6 },
+    { phase: 'bracket', role: 'arbitre_declarant', matchCount: 2, tokensPerMatch: 3, subtotal: 6 },
+    { phase: 'swiss', role: 'arbitre_declarant', matchCount: 4, tokensPerMatch: 1, subtotal: 4 },
+  ],
+};
+
+const BOB: Referee = {
+  personId: 'u2',
+  displayName: 'Bob',
+  totalTokens: 20,
+  amountOwed: 20,
+  paid: false,
+  paidAt: null,
+  breakdown: [
+    { phase: 'finals', role: 'custom-abc', matchCount: 5, tokensPerMatch: 4, subtotal: 20 },
+  ],
+};
+
 function makeReport(): CompensationReport {
   return {
     planId: 'p1',
@@ -9,59 +37,33 @@ function makeReport(): CompensationReport {
     maxCap: null,
     minFloor: null,
     grandTotal: 30,
-    referees: [
-      {
-        personId: 'u1',
-        displayName: 'Alice, "Ace"',
-        totalTokens: 12,
-        amountOwed: 10,
-        paid: true,
-        paidAt: null,
-        breakdown: [
-          {
-            phase: 'pool',
-            role: 'arbitre_declarant',
-            matchCount: 3,
-            tokensPerMatch: 2,
-            subtotal: 6,
-          },
-          {
-            phase: 'bracket',
-            role: 'arbitre_declarant',
-            matchCount: 2,
-            tokensPerMatch: 3,
-            subtotal: 6,
-          },
-        ],
-      },
-      {
-        personId: 'u2',
-        displayName: 'Bob',
-        totalTokens: 20,
-        amountOwed: 20,
-        paid: false,
-        paidAt: null,
-        breakdown: [
-          { phase: 'finals', role: 'custom-abc', matchCount: 5, tokensPerMatch: 4, subtotal: 20 },
-        ],
-      },
-    ],
+    // Deep-cloned: two tests mutate a referee's displayName in place.
+    referees: [structuredClone(ALICE), structuredClone(BOB)],
   };
 }
 
 describe('compensationToCsv', () => {
   it('emits a header, one row per referee, and a grand-total row', () => {
     const lines = compensationToCsv(makeReport()).split('\r\n');
-    expect(lines[0]).toBe('Referee,Pool,Bracket,Finals,Total tokens,Amount (EUR),Paid');
+    expect(lines[0]).toBe('Referee,Pool,Swiss,Bracket,Finals,Total tokens,Amount (EUR),Paid');
     expect(lines).toHaveLength(4); // header + 2 referees + total
-    expect(lines[3]).toBe('Total,,,,,30.00,');
+    expect(lines[3]).toBe('Total,,,,,,30.00,');
   });
 
   it('splits phase tokens into columns and escapes commas/quotes per RFC 4180', () => {
     const alice = compensationToCsv(makeReport()).split('\r\n')[1];
-    // name (comma+quotes → quoted/doubled), pool 6.0, bracket 6.0, finals 0.0,
-    // total 12.0, amount 10.00, paid Yes
-    expect(alice).toBe('"Alice, ""Ace""",6.0,6.0,0.0,12.0,10.00,Yes');
+    // name (comma+quotes → quoted/doubled), pool 6.0, swiss 4.0, bracket 6.0,
+    // finals 0.0, total 12.0, amount 10.00, paid Yes
+    expect(alice).toBe('"Alice, ""Ace""",6.0,4.0,6.0,0.0,12.0,10.00,Yes');
+  });
+
+  it('keeps the total row aligned with the header when a column is added', () => {
+    // The total row used to hard-code its blank cells; adding Swiss silently
+    // shifted the amount into the Finals column.
+    const lines = compensationToCsv(makeReport()).split('\r\n');
+    const headerCount = lines[0]!.split(',').length;
+    expect(lines[3]!.split(',')).toHaveLength(headerCount);
+    expect(lines[3]!.split(',')[headerCount - 2]).toBe('30.00');
   });
 
   it('neutralises a spreadsheet formula planted in a referee name', () => {
@@ -80,7 +82,7 @@ describe('compensationToCsv', () => {
     const empty = { ...makeReport(), referees: [], grandTotal: 0 };
     const lines = compensationToCsv(empty).split('\r\n');
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toBe('Total,,,,,0.00,');
+    expect(lines[1]).toBe('Total,,,,,,0.00,');
   });
 });
 

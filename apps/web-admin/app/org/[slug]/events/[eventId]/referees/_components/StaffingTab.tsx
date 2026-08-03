@@ -3,7 +3,7 @@
 /**
  * StaffingTab — per-tournament referee slot configuration UI.
  *
- * Renders three sections (Pool / Bracket / Finals). Each section has a
+ * Renders four sections (Pool / Swiss / Bracket / Finals). Each section has a
  * `1..6` slot-count stepper and N slot rows. Each slot row carries an
  * optional display-name input and a multi-select chip list of allowed
  * skills.
@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, SkillBadge, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 
-const PHASE_TYPES = ['pool', 'bracket', 'finals'] as const;
+const PHASE_TYPES = ['pool', 'swiss', 'bracket', 'finals'] as const;
 type PhaseType = (typeof PHASE_TYPES)[number];
 
 interface SlotFormState {
@@ -33,16 +33,15 @@ interface SlotFormState {
   allowedSkillIds: string[];
 }
 
-interface PhaseSectionState {
-  pool: SlotFormState[];
-  bracket: SlotFormState[];
-  finals: SlotFormState[];
-}
+type PhaseSectionState = Record<PhaseType, SlotFormState[]>;
 
-interface ResolvedConfigResponse {
-  pool: Array<{ index: number; displayName: string | null; allowedSkillIds: string[] }>;
-  bracket: Array<{ index: number; displayName: string | null; allowedSkillIds: string[] }>;
-  finals: Array<{ index: number; displayName: string | null; allowedSkillIds: string[] }>;
+type ResolvedSlotResponse = {
+  index: number;
+  displayName: string | null;
+  allowedSkillIds: string[];
+};
+
+interface ResolvedConfigResponse extends Record<PhaseType, ResolvedSlotResponse[]> {
   inheritsEventDefault: boolean;
   isHardCodedFloor: boolean;
 }
@@ -577,15 +576,19 @@ function DestructiveConfirmDialog({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function toFormState(resp: ResolvedConfigResponse): PhaseSectionState {
-  function clone(slots: ResolvedConfigResponse['pool']): SlotFormState[] {
-    return slots.map((s) => ({
+  function clone(slots: ResolvedSlotResponse[] | undefined): SlotFormState[] {
+    // `swiss` is absent from a response served by an API that predates it; the
+    // resolver seeds it from `pool`, so falling back keeps the section usable.
+    return (slots ?? []).map((s) => ({
       index: s.index,
       displayName: s.displayName ?? '',
       allowedSkillIds: [...s.allowedSkillIds],
     }));
   }
+  const pool = clone(resp.pool);
   return {
-    pool: clone(resp.pool),
+    pool,
+    swiss: resp.swiss ? clone(resp.swiss) : pool.map((s) => ({ ...s })),
     bracket: clone(resp.bracket),
     finals: clone(resp.finals),
   };
@@ -601,6 +604,7 @@ function toApiPayload(state: PhaseSectionState) {
   }
   return {
     pool: pack(state.pool),
+    swiss: pack(state.swiss),
     bracket: pack(state.bracket),
     finals: pack(state.finals),
   };

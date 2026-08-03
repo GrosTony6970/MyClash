@@ -65,6 +65,60 @@ const PURE_REF_GLOBAL_ID = 'person-ref-b';
 const BLUE_PERSONS_ID = 'persons-row-blue';
 const BLUE_GLOBAL_ID = 'person-b-global';
 
+/**
+ * The five candidate-side reads `loadContext` makes, in order:
+ * event_referees → qualifications → global_persons → referee tournaments →
+ * referee days. Shared by every board fixture so a change to the candidate
+ * pipeline is edited once instead of per-fixture.
+ */
+function queueCandidateReads() {
+  fromMock
+    .mockReturnValueOnce(
+      makeChain({
+        data: [{ person_id: FIGHTER_REF_GLOBAL_ID }, { person_id: PURE_REF_GLOBAL_ID }],
+        error: null,
+      }),
+    )
+    .mockReturnValueOnce(
+      makeChain({
+        data: [
+          { person_id: FIGHTER_REF_GLOBAL_ID, role: 'arbitre_declarant', rating: 5 },
+          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_declarant', rating: 4 },
+          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_assesseur', rating: 4 },
+          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_table', rating: 4 },
+        ],
+        error: null,
+      }),
+    )
+    // global_persons by id (post-0063: listCandidates does a single id-in lookup)
+    .mockReturnValueOnce(
+      makeChain({
+        data: [
+          {
+            id: FIGHTER_REF_GLOBAL_ID,
+            claimed_by_user_id: 'user-a',
+            given_name: 'Fighter',
+            family_name: 'Referee',
+            club_id: null,
+          },
+          {
+            id: PURE_REF_GLOBAL_ID,
+            claimed_by_user_id: 'user-b',
+            given_name: 'Pure',
+            family_name: 'Referee',
+            club_id: null,
+          },
+        ],
+        error: null,
+      }),
+    )
+    // Slice 8: listCandidates now reads event_referee_tournaments +
+    // event_referee_days. Empty here — no fixture has granular allowlists, so
+    // the engine treats every candidate as available for every tournament + day.
+    .mockReturnValueOnce(makeChain({ data: [], error: null }))
+    .mockReturnValueOnce(makeChain({ data: [], error: null }));
+}
+
 function queueBoardReads(assignments: unknown[] = []) {
   fromMock
     // Slice 8: loadContext now fetches event.start_date up front.
@@ -112,52 +166,10 @@ function queueBoardReads(assignments: unknown[] = []) {
         ],
         error: null,
       }),
-    )
-    // event_referees — keyed on global_persons.id
-    .mockReturnValueOnce(
-      makeChain({
-        data: [{ person_id: FIGHTER_REF_GLOBAL_ID }, { person_id: PURE_REF_GLOBAL_ID }],
-        error: null,
-      }),
-    )
-    .mockReturnValueOnce(
-      makeChain({
-        data: [
-          { person_id: FIGHTER_REF_GLOBAL_ID, role: 'arbitre_declarant', rating: 5 },
-          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_declarant', rating: 4 },
-          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_assesseur', rating: 4 },
-          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_table', rating: 4 },
-        ],
-        error: null,
-      }),
-    )
-    // global_persons by id (post-0063: listCandidates does a single id-in lookup)
-    .mockReturnValueOnce(
-      makeChain({
-        data: [
-          {
-            id: FIGHTER_REF_GLOBAL_ID,
-            claimed_by_user_id: 'user-a',
-            given_name: 'Fighter',
-            family_name: 'Referee',
-            club_id: null,
-          },
-          {
-            id: PURE_REF_GLOBAL_ID,
-            claimed_by_user_id: 'user-b',
-            given_name: 'Pure',
-            family_name: 'Referee',
-            club_id: null,
-          },
-        ],
-        error: null,
-      }),
-    )
-    // Slice 8: listCandidates now reads event_referee_tournaments + event_referee_days.
-    // Empty here — fixture has no granular allowlists, so the engine
-    // treats every candidate as available for every tournament + day.
-    .mockReturnValueOnce(makeChain({ data: [], error: null }))
-    .mockReturnValueOnce(makeChain({ data: [], error: null }))
+    );
+  // event_referees → … → referee days
+  queueCandidateReads();
+  fromMock
     // registrations — now joined with persons(global_person_id) so the
     // map keys live in the same id-space as the candidate side.
     .mockReturnValueOnce(
@@ -187,6 +199,11 @@ function queueBoardReads(assignments: unknown[] = []) {
     // R4: bracket phases query (returns empty so these tests stay
     // pool-only — the bracket loader short-circuits and asks nothing
     // further). Other R4-specific tests cover the bracket path.
+    .mockReturnValueOnce(makeChain({ data: [], error: null }))
+    // Slice 7: swiss phases query. Empty for the same reason — the Swiss
+    // loader short-circuits before touching swiss_rounds or matches.
+    // NOTE: this mock chain is POSITIONAL. Any new query in loadContext must
+    // add an entry here or every test in this file reds with a bare TypeError.
     .mockReturnValueOnce(makeChain({ data: [], error: null }));
 }
 
@@ -197,6 +214,7 @@ describe('AssignmentBoardService', () => {
     vi.clearAllMocks();
     mockStaffing.getResolvedConfigForAssignmentBoard.mockResolvedValue({
       pool: [...HARD_CODED_DEFAULT_SLOTS],
+      swiss: [...HARD_CODED_DEFAULT_SLOTS],
       bracket: [...HARD_CODED_DEFAULT_SLOTS],
       finals: [...HARD_CODED_DEFAULT_SLOTS],
       inheritsEventDefault: true,
@@ -382,6 +400,166 @@ describe('AssignmentBoardService', () => {
         }),
       ]),
     );
+  });
+
+  // ── Slice 7: Swiss (round × piste) units ─────────────────────────────────
+  describe('Swiss rounds as board units', () => {
+    /**
+     * Same positional chain as `queueBoardReads`, but with no pools and a
+     * populated Swiss phase: phases → pools → … → bracket phases (empty) →
+     * swiss phases → swiss_rounds → matches → registrations.
+     */
+    function queueSwissBoardReads(assignments: unknown[] = []) {
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+        .mockReturnValueOnce(
+          makeChain({
+            data: [{ id: 'tournament-1', name: 'Longsword', weapon: 'longsword' }],
+            error: null,
+          }),
+        )
+        // listPhases filters type='pool' → none, so listPools is skipped entirely
+        .mockReturnValueOnce(makeChain({ data: [], error: null }));
+      queueCandidateReads();
+      fromMock
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              {
+                id: 'reg-fighter-ref',
+                person_id: FIGHTER_REF_PERSONS_ID,
+                tournament_id: 'tournament-1',
+                persons: { global_person_id: FIGHTER_REF_GLOBAL_ID },
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // lices → venue
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // bracket phases
+      queueSwissPhaseReads();
+    }
+
+    /**
+     * The Swiss loader's four reads: phases → swiss_rounds → matches →
+     * registrations. Round 3 runs three bouts across two pistes.
+     */
+    function queueSwissPhaseReads() {
+      fromMock
+        .mockReturnValueOnce(
+          makeChain({
+            data: [{ id: 'swiss-phase-1', tournament_id: 'tournament-1' }],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeChain({
+            data: [{ id: 'round-3', phase_id: 'swiss-phase-1', round_number: 3 }],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              swissMatch('sw-1', 'lice-1', '10:00', 'reg-fighter-ref', 'reg-b'),
+              swissMatch('sw-2', 'lice-1', '10:10', 'reg-c', 'reg-d'),
+              swissMatch('sw-3', 'lice-2', '10:00', 'reg-e', 'reg-f'),
+            ],
+            error: null,
+          }),
+        )
+        // registrations → persons, for the round's member list
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              {
+                id: 'reg-fighter-ref',
+                person_id: FIGHTER_REF_PERSONS_ID,
+                persons: {
+                  id: FIGHTER_REF_PERSONS_ID,
+                  global_person_id: FIGHTER_REF_GLOBAL_ID,
+                  given_name: 'Fighter',
+                  family_name: 'Referee',
+                  display_name: null,
+                  clubs: { name: 'Salle A' },
+                },
+              },
+            ],
+            error: null,
+          }),
+        );
+    }
+
+    function swissMatch(id: string, liceId: string, hhmm: string, red: string, blue: string) {
+      return {
+        id,
+        swiss_round_id: 'round-3',
+        scheduled_at: `2026-05-21T${hhmm}:00.000Z`,
+        lice_id: liceId,
+        red_registration_id: red,
+        blue_registration_id: blue,
+      };
+    }
+
+    it('emits one unit per (round × piste) carrying every bout of that piste', async () => {
+      queueSwissBoardReads();
+
+      const board = await service.getBoard('event-1');
+
+      const units = [...board.pools, ...board.unscheduledPools].filter((p) => p.kind === 'swiss');
+      expect(units).toHaveLength(2);
+      expect(units.map((u) => u.id)).toEqual(['swiss-round-3-lice-1', 'swiss-round-3-lice-2']);
+      expect(units[0]!.matchIds).toEqual(['sw-1', 'sw-2']);
+      expect(units[1]!.matchIds).toEqual(['sw-3']);
+      expect(units[0]!.name).toBe('LSW-S3');
+      expect(units[0]!.swissRound).toBe(3);
+      expect(units[0]!.swissRoundId).toBe('round-3');
+      expect(units[0]!.liceId).toBe('lice-1');
+      expect(units[0]!.scheduledStart).toBe('2026-05-21T10:00:00.000Z');
+    });
+
+    it('blocks a fighter from reffing their own round on EITHER piste', async () => {
+      queueSwissBoardReads();
+
+      const board = await service.getBoard('event-1');
+
+      // The fighter competes on lice-1. Both units must block them, because
+      // the two pistes of one round run at the same time.
+      const units = [...board.pools, ...board.unscheduledPools].filter((p) => p.kind === 'swiss');
+      for (const unit of units) {
+        expect(unit.roleSlots[0]!.candidates.blocked).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              personId: FIGHTER_REF_GLOBAL_ID,
+              reasons: expect.arrayContaining(['fighter_referee_overlap']),
+            }),
+          ]),
+        );
+      }
+    });
+
+    it('writes one scope_type=match row per bout, never a lice-scoped row', async () => {
+      queueSwissBoardReads();
+      const deleteChain = makeChain({ data: null, error: null });
+      const insertChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(deleteChain).mockReturnValueOnce(insertChain);
+
+      await service.applyPreview('event-1');
+
+      const rows = insertChain.insert.mock.calls[0]![0] as Array<Record<string, unknown>>;
+      const lice1Rows = rows.filter((r) => r['match_id'] === 'sw-1' || r['match_id'] === 'sw-2');
+      // Each assigned role fans out across both bouts of the piste.
+      expect(lice1Rows.length).toBeGreaterThan(0);
+      expect(lice1Rows.filter((r) => r['match_id'] === 'sw-1')).toHaveLength(
+        lice1Rows.filter((r) => r['match_id'] === 'sw-2').length,
+      );
+      // scope_type='lice' would drop this work out of the referee workload
+      // counts (qualifications.service.ts excludes lice-scoped rows).
+      expect(rows.every((r) => r['scope_type'] === 'match')).toBe(true);
+      expect(rows.every((r) => r['lice_id'] === null)).toBe(true);
+      expect(rows.every((r) => r['pool_id'] === null)).toBe(true);
+    });
   });
 
   // ── Slice C ──────────────────────────────────────────────────────────────

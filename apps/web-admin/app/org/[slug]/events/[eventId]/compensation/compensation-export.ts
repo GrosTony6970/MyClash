@@ -13,12 +13,17 @@ type Referee = CompensationReport['referees'][number];
 const HEADERS = [
   'Referee',
   'Pool',
+  'Swiss',
   'Bracket',
   'Finals',
   'Total tokens',
   'Amount (EUR)',
   'Paid',
 ] as const;
+
+/** Index of the 'Amount (EUR)' column, so the total row's padding follows the
+ *  header list instead of a hand-counted run of empty strings. */
+const AMOUNT_COLUMN = HEADERS.indexOf('Amount (EUR)');
 
 /**
  * Formula-safe: this file is downloaded and opened in a spreadsheet, and referee
@@ -36,6 +41,7 @@ function refereeCells(r: Referee): string[] {
   return [
     r.displayName,
     phaseTokens(r, 'pool').toFixed(1),
+    phaseTokens(r, 'swiss').toFixed(1),
     phaseTokens(r, 'bracket').toFixed(1),
     phaseTokens(r, 'finals').toFixed(1),
     r.totalTokens.toFixed(1),
@@ -49,7 +55,10 @@ export function compensationToCsv(report: CompensationReport): string {
   for (const r of report.referees) {
     lines.push(refereeCells(r).map(csvEscape).join(','));
   }
-  lines.push(['Total', '', '', '', '', report.grandTotal.toFixed(2), ''].map(csvEscape).join(','));
+  const totalCells = HEADERS.map((_, i) =>
+    i === 0 ? 'Total' : i === AMOUNT_COLUMN ? report.grandTotal.toFixed(2) : '',
+  );
+  lines.push(totalCells.map(csvEscape).join(','));
   return lines.join('\r\n');
 }
 
@@ -60,17 +69,24 @@ function htmlEscape(value: string): string {
 export function compensationToPrintHtml(title: string, report: CompensationReport): string {
   const body = report.referees
     .map((r) => {
-      const [name, pool, bracket, finals, total, amount, paid] = refereeCells(r);
+      const [name, ...rest] = refereeCells(r);
       return (
         `<tr><td>${htmlEscape(name ?? '')}</td>` +
-        `<td class="r">${pool}</td><td class="r">${bracket}</td><td class="r">${finals}</td>` +
-        `<td class="r">${total}</td><td class="r">${amount}</td><td class="r">${paid}</td></tr>`
+        rest.map((cell) => `<td class="r">${cell}</td>`).join('') +
+        `</tr>`
       );
     })
     .join('');
   const totalRow =
-    `<tr class="total"><td>Total</td><td></td><td></td><td></td><td></td>` +
-    `<td class="r">${report.grandTotal.toFixed(2)}</td><td></td></tr>`;
+    `<tr class="total"><td>Total</td>` +
+    HEADERS.slice(1)
+      .map((_, i) =>
+        i + 1 === AMOUNT_COLUMN
+          ? `<td class="r">${report.grandTotal.toFixed(2)}</td>`
+          : '<td></td>',
+      )
+      .join('') +
+    `</tr>`;
   return (
     `<!doctype html><html><head><meta charset="utf-8"><title>${htmlEscape(title)}</title>` +
     `<style>body{font-family:system-ui,sans-serif;padding:24px;color:#111}` +

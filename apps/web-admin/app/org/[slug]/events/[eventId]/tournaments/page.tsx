@@ -40,9 +40,11 @@ interface Tournament {
   maxWaitlist: number | null;
   /** Count of registered + checked_in registrations — drives the table's Registered column. */
   registered: number;
-  /** Venue each phase runs at (pools / bracket can differ) — drives the Venue(s) column. */
+  /** Venue each phase runs at (pools / swiss / bracket can differ) — drives the
+   *  Venue(s) column. Finals run with the bracket, so they share its venue. */
   phaseVenues: {
     pool: { id: string; name: string } | null;
+    swiss: { id: string; name: string } | null;
     bracket: { id: string; name: string } | null;
   };
 }
@@ -87,6 +89,9 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     registered: typeof row['registered'] === 'number' ? row['registered'] : 0,
     phaseVenues: {
       pool: parsePhaseVenue((row['phaseVenues'] as Record<string, unknown> | undefined)?.['pool']),
+      swiss: parsePhaseVenue(
+        (row['phaseVenues'] as Record<string, unknown> | undefined)?.['swiss'],
+      ),
       bracket: parsePhaseVenue(
         (row['phaseVenues'] as Record<string, unknown> | undefined)?.['bracket'],
       ),
@@ -346,12 +351,21 @@ export default function EventTournamentsPage() {
                     {tournament.weapon ?? '-'}
                   </DataTableCell>
                   <DataTableCell className="text-foreground-secondary">
-                    {tournament.phaseVenues.pool || tournament.phaseVenues.bracket ? (
+                    {tournament.phaseVenues.pool ||
+                    tournament.phaseVenues.swiss ||
+                    tournament.phaseVenues.bracket ? (
                       <div className="flex flex-col gap-0.5 text-xs">
                         {tournament.phaseVenues.pool && (
                           <span>
                             {t('organizer.tournaments.venuesEditor.poolsAt', {
                               venue: tournament.phaseVenues.pool.name,
+                            })}
+                          </span>
+                        )}
+                        {tournament.phaseVenues.swiss && (
+                          <span>
+                            {t('organizer.tournaments.venuesEditor.swissAt', {
+                              venue: tournament.phaseVenues.swiss.name,
                             })}
                           </span>
                         )}

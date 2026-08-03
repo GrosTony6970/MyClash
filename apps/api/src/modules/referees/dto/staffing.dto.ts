@@ -18,12 +18,18 @@ const staffingSlotSchema = z
 export class StaffingSlotDto extends createZodDto(staffingSlotSchema) {}
 
 /**
- * Whole-config payload for a (tournament|event) PUT. The three
- * phase-type arrays are independent and can each carry 1..6 slots.
+ * Whole-config payload for a (tournament|event) PUT. The phase-type
+ * arrays are independent and can each carry 1..6 slots.
  */
 const staffingConfigPayloadSchema = z
   .object({
     pool: z.array(staffingSlotSchema).min(1).max(6),
+    /**
+     * Optional, and the schema is `.strict()` — making it required would 400
+     * every PUT from a client that predates the Swiss format. Omitting it
+     * writes no Swiss rows, and the resolver seeds the bucket from `pool`.
+     */
+    swiss: z.array(staffingSlotSchema).min(1).max(6).optional(),
     bracket: z.array(staffingSlotSchema).min(1).max(6),
     finals: z.array(staffingSlotSchema).min(1).max(6),
     /**

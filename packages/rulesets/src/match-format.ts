@@ -38,6 +38,8 @@ const BestOfValueSchema = z
 export const BestOfConfigSchema = z
   .object({
     pool: BestOfValueSchema.default(1),
+    /** Optional, falling back to `pool` — see `timeLimitsSeconds.swiss`. */
+    swiss: BestOfValueSchema.optional(),
     bracket: BestOfValueSchema.default(1),
     finals: BestOfValueSchema.default(1),
   })
@@ -54,6 +56,13 @@ export const MatchFormatConfigSchema = z.object({
   timeLimitsSeconds: z
     .object({
       pool: z.number().int().positive().nullable().default(90),
+      /**
+       * Deliberately `.optional()` and NOT `.default()`. Every ruleset config
+       * persisted before the Swiss format lacks this key; a default would
+       * materialise 90s into all of them on the next round-trip and make the
+       * "Swiss inherits the pool clock" fallback unreachable.
+       */
+      swiss: z.number().int().positive().nullable().optional(),
       bracket: z.number().int().positive().nullable().default(90),
       finals: z.number().int().positive().nullable().default(90),
     })
@@ -157,18 +166,25 @@ export function getEffectiveMatchTimeLimitSeconds(
   config: MatchFormatConfig,
 ): number | null {
   if (match.phaseType === 'pool') return config.timeLimitsSeconds.pool;
+  // `?? pool` and not `?? bracket`: a Swiss round is a group stage, and a
+  // config written before Swiss existed carries no swiss key at all.
+  if (match.phaseType === 'swiss') {
+    return config.timeLimitsSeconds.swiss ?? config.timeLimitsSeconds.pool;
+  }
   if (isMedalMatch(match)) return config.timeLimitsSeconds.finals;
   return config.timeLimitsSeconds.bracket;
 }
 
 /**
  * Effective best-of for this match by phase, mirroring the time-limit dispatch:
- * pool → bestOf.pool, medal match → bestOf.finals, else (bracket) → bestOf.bracket.
+ * pool → bestOf.pool, swiss → bestOf.swiss ?? bestOf.pool, medal match →
+ * bestOf.finals, else (bracket) → bestOf.bracket.
  * Returns 1 (single round) when bestOf is absent (legacy configs).
  */
 export function getEffectiveBestOf(match: Match, config: MatchFormatConfig): number {
   const bestOf = config.bestOf ?? { pool: 1, bracket: 1, finals: 1 };
   if (match.phaseType === 'pool') return bestOf.pool;
+  if (match.phaseType === 'swiss') return bestOf.swiss ?? bestOf.pool;
   if (isMedalMatch(match)) return bestOf.finals;
   return bestOf.bracket;
 }
@@ -180,13 +196,15 @@ export function roundWinTarget(bestOf: number): number {
 
 /**
  * Effective max-doubles end condition by phase. The max-doubles "double loss"
- * rule applies ONLY in pools — bracket & finals must always produce a winner, so
- * they never end on max-doubles (single-round or best-of). A match without a
- * known phase is treated as non-pool (no max-doubles), matching the time-limit
- * dispatch's default.
+ * rule applies in the group stages — pools and Swiss rounds — where a
+ * double loss (0 points each) is a coherent result the standings can carry.
+ * Bracket & finals must always produce a winner, so they never end on
+ * max-doubles (single-round or best-of). A match without a known phase is
+ * treated as non-group (no max-doubles), matching the time-limit dispatch's
+ * default.
  */
 export function getEffectiveMaxDoubles(match: Match, config: MatchFormatConfig): number | null {
-  return match.phaseType === 'pool' ? config.maxDoubleHits : null;
+  return match.phaseType === 'pool' || match.phaseType === 'swiss' ? config.maxDoubleHits : null;
 }
 
 /**

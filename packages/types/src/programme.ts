@@ -1,5 +1,5 @@
 export type BlockType = 'admin' | 'competition' | 'workshop' | 'break';
-export type ProgrammePhase = 'pool' | 'bracket' | 'finals';
+export type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
 
 export interface ProgrammeBlock {
   id: string;
@@ -65,6 +65,13 @@ export interface SuggestConfig {
   parallelLiceCount: number;
   /** Duration of a pool match, in minutes (drives the Pools bars). */
   poolMatchDurationMinutes: number;
+  /**
+   * Duration of a Swiss-round match, in minutes (drives the Swiss bars).
+   * Optional: a payload predating the Swiss format omits it, and the server
+   * falls back to `poolMatchDurationMinutes` — a Swiss bout is a group-stage
+   * bout, so the pool clock is the honest default.
+   */
+  swissMatchDurationMinutes?: number;
   /** Duration of a non-final bracket match, in minutes (drives the Bracket bars). */
   eliminationMatchDurationMinutes: number;
   /** Duration of a final-round match — gold + bronze (drives the Finals bars). */

@@ -5,7 +5,7 @@
  * carry a rate for every catalog skill an event uses.
  */
 export type RefereeRole = string;
-export type CompensationPhase = 'pool' | 'bracket' | 'finals';
+export type CompensationPhase = 'pool' | 'swiss' | 'bracket' | 'finals';
 
 export interface CompensationRoleRate {
   id: string;

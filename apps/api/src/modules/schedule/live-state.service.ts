@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 
-type ProgrammePhase = 'pool' | 'bracket' | 'finals';
+type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
 
 export interface LiveMatch {
   id: string;

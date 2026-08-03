@@ -8,6 +8,12 @@ export interface RawBoardMatch {
   blue_score: number;
   match_number_label: string | null;
   bracket_slots: { round?: number } | null;
+  /**
+   * The Swiss round, when this is a Swiss bout. `staff.service.ts` has been
+   * selecting `swiss_rounds(round_number)` since the Swiss schema landed, but
+   * nothing read it — so every Swiss row on the live board showed no round.
+   */
+  swiss_rounds?: { round_number?: number } | null;
   red: { persons?: { given_name?: string; family_name?: string } | null } | null;
   blue: { persons?: { given_name?: string; family_name?: string } | null } | null;
 }
@@ -77,7 +83,15 @@ export function mapBoardMatch(row: RawBoardMatch): BoardMatch {
     redScore: row.red_score,
     blueScore: row.blue_score,
     status: row.status,
-    round: typeof row.bracket_slots?.round === 'number' ? row.bracket_slots.round : null,
+    // Bracket first, then Swiss: the two sources are mutually exclusive on a
+    // real match row (a match belongs to one phase), so the order is only for
+    // readability.
+    round:
+      typeof row.bracket_slots?.round === 'number'
+        ? row.bracket_slots.round
+        : typeof row.swiss_rounds?.round_number === 'number'
+          ? row.swiss_rounds.round_number
+          : null,
   };
 }
 

@@ -2564,6 +2564,7 @@ describe('EventsService', () => {
         scheduledEnd: string | null;
         phaseVenues: {
           pool: { id: string; name: string } | null;
+          swiss: { id: string; name: string } | null;
           bracket: { id: string; name: string } | null;
         };
       }>;
@@ -2582,6 +2583,7 @@ describe('EventsService', () => {
         refereeCount: 2,
         phaseVenues: {
           pool: { id: 'v-1', name: 'Hall A' },
+          swiss: null,
           bracket: { id: 'v-2', name: 'Hall B' },
         },
       });

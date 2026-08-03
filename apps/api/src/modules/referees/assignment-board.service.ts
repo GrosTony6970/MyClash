@@ -26,7 +26,14 @@ import {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
-import { StaffingService, type ResolvedConfig } from './staffing.service';
+import { StaffingService, type ResolvedConfig, type ResolvedSlot } from './staffing.service';
+import {
+  groupSwissMatchesIntoUnits,
+  registrationIdsByRound,
+  type SwissBoardUnit,
+  type SwissUnitMatch,
+  type SwissUnitRound,
+} from './swiss-board-units';
 import { buildFightersByPool } from './fighter-pool-membership';
 
 /**
@@ -89,16 +96,21 @@ export interface AssignmentBoardPool {
   /**
    * R4: phase-type kind. 'pool' for real pools (the pre-R4 default);
    * 'bracket' / 'finals' for individual bracket matches modelled as
-   * single-match pools. The frontend groups by this field to split
-   * assignment tables into Pool / Bracket / Finals sub-sections.
+   * single-match pools; 'swiss' for one (round × piste) unit. The frontend
+   * groups by this field to split assignment tables into
+   * Pool / Swiss / Bracket / Finals sub-sections.
    */
-  kind?: 'pool' | 'bracket' | 'finals';
+  kind?: 'pool' | 'swiss' | 'bracket' | 'finals';
   /**
-   * R4: when kind is 'bracket' or 'finals', this is the match_id the
-   * synthetic pool wraps. Used by manual assignments to record
-   * scope_type='match' instead of scope_type='pool'.
+   * The match ids this synthetic unit wraps, for every non-'pool' kind. Used
+   * by manual assignments to record `scope_type='match'` instead of
+   * `scope_type='pool'` — one row per id.
+   *
+   * A bracket/finals unit carries exactly one; a Swiss unit carries every bout
+   * of its round on its piste. It was a single `matchId` until Swiss, so any
+   * `=== pool.matchId` comparison is now a membership test.
    */
-  matchId?: string;
+  matchIds?: string[];
   /**
    * Bracket-only metadata so the frontend can render readable round
    * labels ('Quarter-final #2') instead of the raw 'R{N}P{M}' string.
@@ -108,6 +120,10 @@ export interface AssignmentBoardPool {
   bracketRound?: number;
   bracketPosition?: number;
   bracketMaxRound?: number;
+  /** Swiss-only: the round this unit belongs to. Undefined for other kinds. */
+  swissRound?: number;
+  /** Swiss-only: `swiss_rounds.id`, so the frontend can target the round's clear path. */
+  swissRoundId?: string;
   members: Array<{
     registrationId: string;
     /**
@@ -194,6 +210,86 @@ export interface AssignmentBoard {
   }>;
 }
 
+/**
+ * The resolved slot list a unit of this kind draws its roles from. One owner:
+ * this was a four-way ternary copy-pasted at four call sites, and a fifth kind
+ * had to be added to all four or slots silently fell back to `pool`.
+ */
+export function slotsForKind(
+  config: ResolvedConfig | undefined,
+  kind: NonNullable<AssignmentBoardPool['kind']>,
+): ResolvedSlot[] {
+  return config?.[kind] ?? [];
+}
+
+/** A unit that stores its assignments as `scope_type='match'` rows. */
+function isMatchScopedKind(kind: NonNullable<AssignmentBoardPool['kind']>): boolean {
+  return kind !== 'pool';
+}
+
+/**
+ * Project one Swiss (round × piste) unit into the board's pool shape.
+ *
+ * `members` is passed in rather than derived here: it is the FULL round's
+ * competitors, across every piste, which only the caller can see.
+ */
+function toSwissBoardPool(
+  unit: SwissBoardUnit,
+  tournament: TournamentRow | undefined,
+  members: AssignmentBoardPool['members'],
+): AssignmentBoardPool {
+  return {
+    id: unit.key,
+    // `LSW-S3` — the unit is the whole round on this piste, so it carries no
+    // single match number. Same helper the exports and the scoring pad use, so
+    // every surface reads one code shape.
+    name: formatRoundCode({
+      weapon: tournament?.weapon ?? null,
+      poolNumber: null,
+      bracketRound: null,
+      bracketSize: null,
+      swissRound: unit.roundNumber,
+      matchNumber: null,
+    }),
+    tournamentId: tournament?.id ?? '',
+    tournamentName: tournament?.name ?? '',
+    liceId: unit.liceId,
+    scheduledStart: unit.scheduledStart,
+    scheduledEnd: unit.scheduledEnd,
+    kind: 'swiss',
+    matchIds: unit.matches.map((m) => m.id),
+    swissRound: unit.roundNumber,
+    swissRoundId: unit.roundId,
+    members,
+    matches: unit.matches.map((m) => ({
+      id: m.id,
+      scheduledAt: m.scheduledAt,
+      liceId: m.liceId,
+      redRegistrationId: m.redRegistrationId,
+      blueRegistrationId: m.blueRegistrationId,
+    })),
+    roleSlots: [],
+  };
+}
+
+/** One `referee_assignments` INSERT row. Named so the pool-scoped and
+ *  match-scoped branches of the fan-out share one type instead of unioning
+ *  into `{}`. */
+interface RefereeAssignmentInsert {
+  event_id: string;
+  person_id: string;
+  scope_type: 'pool' | 'match';
+  pool_id: string | null;
+  match_id: string | null;
+  lice_id: null;
+  role: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  auto_assigned: boolean;
+  status: string;
+  conflicts_jsonb: unknown[];
+}
+
 export interface ManualAssignmentDto {
   poolId: string;
   /** Must be one of the pool's resolved slot's `allowedSkillIds`. */
@@ -211,6 +307,24 @@ interface TournamentRow {
 interface PhaseRow {
   id: string;
   tournament_id: string;
+}
+
+/** The person embed shared by the pool-member and Swiss-entrant projections. */
+interface PersonEmbedRow {
+  id: string;
+  global_person_id: string | null;
+  given_name: string | null;
+  family_name: string | null;
+  display_name?: string | null;
+  club_id?: string | null;
+  clubs?: { name: string | null } | Array<{ name: string | null }> | null;
+}
+
+/** A `registrations` row with its person embedded — the Swiss members source. */
+interface RegistrationPersonRow {
+  id: string;
+  person_id: string;
+  persons?: PersonEmbedRow | Array<PersonEmbedRow> | null;
 }
 
 interface PoolMemberRow {
@@ -457,24 +571,123 @@ export class AssignmentBoardService {
    * Remove ONE referee assignment (the pool-card Unassign button and the
    * swap-apply flow). Same lock guard as the bulk clears: a confirmed
    * row means the board is locked and must be unlocked first.
+   *
+   * A Swiss unit persists one row per bout, so removing the referee from the
+   * unit means removing every sibling row for the same (round × piste × role).
+   * Deleting only the row the frontend happened to hold would leave the
+   * referee assigned to — and paid for — the rest of the round.
    */
   async deleteAssignment(assignmentId: string): Promise<{ deleted: number }> {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, status')
+      .select('id, status, scope_type, match_id, role, event_id')
       .eq('id', assignmentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Assignment ${assignmentId} not found`);
-    if ((data as { status: string }).status === 'confirmed') {
+    const row = data as {
+      id: string;
+      status: string;
+      scope_type: string;
+      match_id: string | null;
+      role: string | null;
+      event_id: string;
+    };
+    if (row.status === 'confirmed') {
       throw new ConflictException('Assignments are locked. Unlock the board before removing.');
     }
+
+    const ids = await this.swissSiblingAssignmentIds(row);
     const { error: delErr } = await this.supabase.service
       .from('referee_assignments')
       .delete()
-      .eq('id', assignmentId);
+      .in('id', ids);
     if (delErr) throw new BadRequestException(delErr.message);
-    return { deleted: 1 };
+    return { deleted: ids.length };
+  }
+
+  /**
+   * Every assignment row that belongs to the same Swiss (round × piste × role)
+   * unit as `row`, including `row` itself. Just `[row.id]` for anything that
+   * is not a Swiss match-scoped assignment.
+   */
+  private async swissSiblingAssignmentIds(row: {
+    id: string;
+    scope_type: string;
+    match_id: string | null;
+    role: string | null;
+    event_id: string;
+  }): Promise<string[]> {
+    if (row.scope_type !== 'match' || !row.match_id || !row.role) return [row.id];
+
+    const { data: matchRow } = await this.supabase.service
+      .from('matches')
+      .select('id, swiss_round_id, lice_id')
+      .eq('id', row.match_id)
+      .maybeSingle();
+    const match = matchRow as { swiss_round_id: string | null; lice_id: string | null } | null;
+    if (!match?.swiss_round_id) return [row.id];
+
+    // Same round AND same piste: two pistes of one round are two units with
+    // their own crews, so the other piste's rows must survive.
+    let query = this.supabase.service
+      .from('matches')
+      .select('id')
+      .eq('swiss_round_id', match.swiss_round_id);
+    query = match.lice_id ? query.eq('lice_id', match.lice_id) : query.is('lice_id', null);
+    const { data: siblingMatches, error: mErr } = await query;
+    if (mErr) throw new BadRequestException(mErr.message);
+    const matchIds = ((siblingMatches ?? []) as Array<{ id: string }>).map((m) => m.id);
+    if (matchIds.length === 0) return [row.id];
+
+    const { data: siblings, error: aErr } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id')
+      .eq('event_id', row.event_id)
+      .eq('scope_type', 'match')
+      .eq('role', row.role)
+      .in('match_id', matchIds);
+    if (aErr) throw new BadRequestException(aErr.message);
+    const ids = ((siblings ?? []) as Array<{ id: string }>).map((s) => s.id);
+    return ids.length > 0 ? ids : [row.id];
+  }
+
+  /**
+   * Bulk-clear every referee assignment for one Swiss round, across all its
+   * pistes. `clearPoolAssignments` cannot serve this: it keys on `pool_id`,
+   * and a Swiss phase creates no `pools` rows at all.
+   */
+  async clearSwissRoundAssignments(roundId: string): Promise<{ deleted: number }> {
+    const { data: matches, error: matchesErr } = await this.supabase.service
+      .from('matches')
+      .select('id')
+      .eq('swiss_round_id', roundId);
+    if (matchesErr) throw new BadRequestException(matchesErr.message);
+    const matchIds = ((matches ?? []) as Array<{ id: string }>).map((m) => m.id);
+    if (matchIds.length === 0) return { deleted: 0 };
+
+    const { data: rows, error: rowsErr } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id, status')
+      .eq('scope_type', 'match')
+      .in('match_id', matchIds);
+    if (rowsErr) throw new BadRequestException(rowsErr.message);
+
+    const all = (rows ?? []) as Array<{ id: string; status: string }>;
+    if (all.some((r) => r.status === 'confirmed')) {
+      throw new ConflictException('Assignments are locked. Unlock the board before clearing.');
+    }
+    if (all.length === 0) return { deleted: 0 };
+
+    const { error: delErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .in(
+        'id',
+        all.map((r) => r.id),
+      );
+    if (delErr) throw new BadRequestException(delErr.message);
+    return { deleted: all.length };
   }
 
   async applyPreview(eventId: string): Promise<AssignmentResult & { persisted: number }> {
@@ -496,12 +709,7 @@ export class AssignmentBoardService {
     // Staffing rows exist, so legacy requests keep working unchanged.
     const config = context.slotConfigByTournament.get(pool.tournamentId);
     const kind = pool.kind ?? 'pool';
-    const sourceSlots =
-      kind === 'finals'
-        ? (config?.finals ?? [])
-        : kind === 'bracket'
-          ? (config?.bracket ?? [])
-          : (config?.pool ?? []);
+    const sourceSlots = slotsForKind(config, kind);
     const allowed = new Set<string>();
     for (const slot of sourceSlots) {
       for (const sid of slot.allowedSkillIds) allowed.add(sid);
@@ -576,14 +784,14 @@ export class AssignmentBoardService {
     }
 
     // Slice 7b: same person cannot hold two different roles on the same
-    // pool / bracket match. The auto-assigner already enforces this via
-    // `alreadyAssignedToPool` (referee-assigner.ts:449-461) — the manual
-    // PATCH was the missing entry-point. Match by pool_id for real pools
-    // and by match_id for the bracket / finals projections.
-    const isMatchScoped = (pool.kind ?? 'pool') !== 'pool';
+    // pool / bracket match / Swiss round-piste. The auto-assigner already
+    // enforces this via `alreadyAssignedToPool` (referee-assigner.ts:449-461)
+    // — the manual PATCH was the missing entry-point. Match by pool_id for
+    // real pools and by match_id membership for the synthetic projections.
+    const unitMatchIds = new Set(pool.matchIds ?? []);
     const conflictingExisting = context.assignments.find((a) => {
       if (a.person_id !== candidate.personId || a.role === dto.role) return false;
-      if (isMatchScoped) return a.match_id === pool.matchId;
+      if (isMatchScopedKind(kind)) return a.match_id !== null && unitMatchIds.has(a.match_id);
       return a.pool_id === pool.id;
     });
     if (conflictingExisting && rules.enableTwoRolesRule) {
@@ -707,7 +915,10 @@ export class AssignmentBoardService {
     // engine pipeline so it gets the same slot-config + conflict
     // detection as real pools.
     const bracketPools = await this.loadBracketAsPools(tournamentIds, tournamentById);
-    const allPools = [...pools, ...bracketPools];
+    // Swiss phases contribute one unit per (round × piste) — several bouts per
+    // unit, unlike bracket's one.
+    const swissPools = await this.loadSwissRoundsAsPools(tournamentIds, tournamentById);
+    const allPools = [...pools, ...swissPools, ...bracketPools];
 
     // Fighter source-of-truth: pool_members. listRegistrations above is
     // status-filtered ('registered'|'checked_in'), which silently drops
@@ -744,7 +955,7 @@ export class AssignmentBoardService {
 
   /**
    * R4: load bracket matches as synthetic "pool of one match" entries.
-   * `kind` and `matchId` on each entry let the rest of the pipeline
+   * `kind` and `matchIds` on each entry let the rest of the pipeline
    * (engine slot config, board grouping, persistence) treat them
    * correctly without scattering bracket-specific code paths.
    *
@@ -856,7 +1067,7 @@ export class AssignmentBoardService {
         scheduledStart: m.scheduled_at,
         scheduledEnd,
         kind,
-        matchId: m.id,
+        matchIds: [m.id],
         ...(info
           ? {
               bracketRound: info.round,
@@ -877,6 +1088,155 @@ export class AssignmentBoardService {
         roleSlots: [],
       };
     });
+  }
+
+  /**
+   * Load a Swiss phase as synthetic units, one per **(round × piste)**.
+   *
+   * Unlike a bracket match, a Swiss unit wraps several bouts: the consecutive
+   * matches of round N that run on lice L. That is genuinely pool-shaped —
+   * one crew, one piste, back-to-back bouts — so the rest and
+   * no-back-to-back constraints downstream stay meaningful.
+   *
+   * `members` is the FULL round's competitors, across every piste, not just
+   * this unit's. A fighter competing in round N must not referee round N
+   * whichever piste either of them is on, because both run at the same time.
+   */
+  private async loadSwissRoundsAsPools(
+    tournamentIds: string[],
+    tournamentById: Map<string, TournamentRow>,
+  ): Promise<AssignmentBoardPool[]> {
+    const loaded = await this.loadSwissPhaseData(tournamentIds);
+    if (!loaded) return [];
+    const { tournamentIdByPhase, rounds, matches } = loaded;
+
+    const regIdsByRound = registrationIdsByRound(matches);
+    const memberByRegId = await this.loadSwissMembers(
+      [...new Set(matches.flatMap((m) => [m.redRegistrationId, m.blueRegistrationId]))].filter(
+        (id): id is string => id !== null,
+      ),
+    );
+
+    return groupSwissMatchesIntoUnits(rounds, matches).map((unit) => {
+      const tournamentId = tournamentIdByPhase.get(unit.phaseId);
+      return toSwissBoardPool(
+        unit,
+        tournamentId ? tournamentById.get(tournamentId) : undefined,
+        [...(regIdsByRound.get(unit.roundId) ?? [])]
+          .map((regId) => memberByRegId.get(regId))
+          .filter((m): m is AssignmentBoardPool['members'][number] => m !== undefined),
+      );
+    });
+  }
+
+  /**
+   * The three reads behind {@link loadSwissRoundsAsPools}: swiss phases →
+   * their rounds → those rounds' matches. Returns null as soon as a level is
+   * empty, so the caller does no work and the query chain short-circuits.
+   */
+  private async loadSwissPhaseData(tournamentIds: string[]): Promise<{
+    tournamentIdByPhase: Map<string, string>;
+    rounds: SwissUnitRound[];
+    matches: SwissUnitMatch[];
+  } | null> {
+    if (tournamentIds.length === 0) return null;
+    const { data: swissPhases, error: phErr } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id')
+      .in('tournament_id', tournamentIds)
+      .eq('type', 'swiss');
+    if (phErr) throw new BadRequestException(phErr.message);
+    const phases = (swissPhases ?? []) as Array<{ id: string; tournament_id: string }>;
+    if (phases.length === 0) return null;
+
+    const { data: roundRows, error: rErr } = await this.supabase.service
+      .from('swiss_rounds')
+      .select('id, phase_id, round_number')
+      .in(
+        'phase_id',
+        phases.map((p) => p.id),
+      );
+    if (rErr) throw new BadRequestException(rErr.message);
+    const rounds = (
+      (roundRows ?? []) as Array<{ id: string; phase_id: string; round_number: number }>
+    ).map<SwissUnitRound>((r) => ({
+      id: r.id,
+      phaseId: r.phase_id,
+      roundNumber: r.round_number,
+    }));
+    if (rounds.length === 0) return null;
+
+    const matches = await this.loadSwissMatchRows(rounds.map((r) => r.id));
+    if (matches.length === 0) return null;
+
+    return {
+      tournamentIdByPhase: new Map(phases.map((p) => [p.id, p.tournament_id])),
+      rounds,
+      matches,
+    };
+  }
+
+  /** Every match of the given Swiss rounds, in the units grouper's shape. */
+  private async loadSwissMatchRows(roundIds: string[]): Promise<SwissUnitMatch[]> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, swiss_round_id, scheduled_at, lice_id, red_registration_id, blue_registration_id',
+      )
+      .in('swiss_round_id', roundIds);
+    if (error) throw new BadRequestException(error.message);
+    return (
+      (data ?? []) as Array<{
+        id: string;
+        swiss_round_id: string | null;
+        scheduled_at: string | null;
+        lice_id: string | null;
+        red_registration_id: string | null;
+        blue_registration_id: string | null;
+      }>
+    )
+      .filter((m): m is typeof m & { swiss_round_id: string } => m.swiss_round_id !== null)
+      .map((m) => ({
+        id: m.id,
+        swissRoundId: m.swiss_round_id,
+        liceId: m.lice_id,
+        scheduledAt: m.scheduled_at,
+        redRegistrationId: m.red_registration_id,
+        blueRegistrationId: m.blue_registration_id,
+      }));
+  }
+
+  /**
+   * Registration → board member, for the Swiss overlap guard.
+   *
+   * `personId` resolves to `persons.global_person_id`, the id-space the
+   * referee candidates come from (`event_referees.person_id`). Projecting the
+   * event-scoped `persons.id` would compare two unrelated UUID spaces and
+   * silently never match — the Denis-Allaume bug.
+   */
+  private async loadSwissMembers(
+    registrationIds: string[],
+  ): Promise<Map<string, AssignmentBoardPool['members'][number]>> {
+    const out = new Map<string, AssignmentBoardPool['members'][number]>();
+    if (registrationIds.length === 0) return out;
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .select(
+        'id, person_id, persons(id, global_person_id, given_name, family_name, display_name, club_id, clubs(name))',
+      )
+      .in('id', registrationIds);
+    if (error) throw new BadRequestException(error.message);
+    for (const row of (data ?? []) as unknown as RegistrationPersonRow[]) {
+      const person = this.firstRelation(row.persons);
+      const club = this.firstRelation(person?.clubs);
+      out.set(row.id, {
+        registrationId: row.id,
+        personId: person?.global_person_id ?? '',
+        personName: this.formatName(person),
+        clubLabel: club?.name ?? null,
+      });
+    }
+    return out;
   }
 
   /**
@@ -1272,12 +1632,8 @@ export class AssignmentBoardService {
     return context.pools.map((pool) => {
       const kind = pool.kind ?? 'pool';
       const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
-      const slots =
-        kind === 'finals'
-          ? (slotConfig?.finals ?? [])
-          : kind === 'bracket'
-            ? (slotConfig?.bracket ?? [])
-            : (slotConfig?.pool ?? []);
+      const slots = slotsForKind(slotConfig, kind);
+      const unitMatchIds = new Set(pool.matchIds ?? []);
       const fighterPersonIds = Array.from(
         new Set<string>([
           ...pool.members.map((m) => m.personId),
@@ -1291,7 +1647,10 @@ export class AssignmentBoardService {
       const assignments: RefereeCommitmentPool['assignments'] = [];
       for (const a of context.assignments) {
         if (!a.role || !a.person_id) continue;
-        const matchesPool = kind === 'pool' ? a.pool_id === pool.id : a.match_id === pool.matchId;
+        const matchesPool =
+          kind === 'pool'
+            ? a.pool_id === pool.id
+            : a.match_id !== null && unitMatchIds.has(a.match_id);
         if (matchesPool) {
           assignments.push({
             personId: a.person_id,
@@ -1353,17 +1712,28 @@ export class AssignmentBoardService {
       candidateByPersonId.set(candidate.personId, candidate);
     }
     // R4: assignments can be either pool-scoped or match-scoped. We key
-    // the lookup with a uniform string so the per-pool roleSlot matcher
-    // doesn't care which scope produced it.
-    //   - pool-scoped: `${pool_id}:${role}`
-    //   - match-scoped: `match-${match_id}:${role}`
+    // the lookup with a uniform `${unitId}:${role}` string so the per-pool
+    // roleSlot matcher doesn't care which scope produced it.
+    //
+    // The unit id for a match-scoped row is resolved through the loaded units
+    // rather than rebuilt as `match-${match_id}`. That shortcut held only
+    // while every match-scoped unit wrapped exactly one match; a Swiss unit
+    // wraps a whole (round × piste), so the string would never match and
+    // every Swiss slot would render empty however many rows were persisted.
+    const unitIdByMatchId = new Map<string, string>();
+    for (const pool of context.pools) {
+      for (const matchId of pool.matchIds ?? []) unitIdByMatchId.set(matchId, pool.id);
+    }
     const assignmentByPoolRole = new Map<string, RefereeAssignmentRow>();
     for (const assignment of context.assignments) {
       if (!assignment.role) continue;
       if (assignment.pool_id) {
         assignmentByPoolRole.set(`${assignment.pool_id}:${assignment.role}`, assignment);
       } else if (assignment.match_id) {
-        assignmentByPoolRole.set(`match-${assignment.match_id}:${assignment.role}`, assignment);
+        const unitId = unitIdByMatchId.get(assignment.match_id);
+        // A Swiss unit's N rows all resolve to the same key. They are written
+        // and deleted together, so the first one wins and reads the same.
+        if (unitId) assignmentByPoolRole.set(`${unitId}:${assignment.role}`, assignment);
       }
     }
     // R3: the engine's RefereeAssignment now carries `slotIndex`, so key
@@ -1392,12 +1762,8 @@ export class AssignmentBoardService {
       const poolMembers = new Set(pool.members.map((member) => member.personId));
       const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
       const kind = pool.kind ?? 'pool';
-      const slots =
-        kind === 'finals'
-          ? (slotConfig?.finals ?? [])
-          : kind === 'bracket'
-            ? (slotConfig?.bracket ?? [])
-            : (slotConfig?.pool ?? []);
+      const slots = slotsForKind(slotConfig, kind);
+      const unitMatchIds = new Set(pool.matchIds ?? []);
 
       return {
         ...pool,
@@ -1462,7 +1828,7 @@ export class AssignmentBoardService {
             if (rules.enableAvailabilityRule && this.isUnavailable(candidate, pool, dayIndexOf)) {
               reasons.push('unavailable');
             }
-            // Already holding a different role on this same pool/bracket.
+            // Already holding a different role on this same pool/bracket/round.
             if (
               rules.enableTwoRolesRule &&
               candidate.personId &&
@@ -1471,7 +1837,9 @@ export class AssignmentBoardService {
                   a.person_id === candidate.personId &&
                   a.role &&
                   a.role !== primaryRole &&
-                  (kind === 'pool' ? a.pool_id === pool.id : a.match_id === pool.matchId),
+                  (kind === 'pool'
+                    ? a.pool_id === pool.id
+                    : a.match_id !== null && unitMatchIds.has(a.match_id)),
               )
             ) {
               reasons.push('duplicate_role_same_pool');
@@ -1626,52 +1994,71 @@ export class AssignmentBoardService {
     for (const candidate of context.candidates) {
       candidateByPersonId.set(candidate.personId, candidate);
     }
-    // R4: assignments may target a real pool or a synthetic bracket "pool"
-    // (poolId prefixed with `match-`). scope_type + pool_id/match_id mirror
+    // R4: assignments may target a real pool or a synthetic unit (a bracket
+    // match, or a Swiss round × piste). scope_type + pool_id/match_id mirror
     // that distinction.
-    const rows = assignments
-      .map((assignment) => {
-        const candidate = candidateByPersonId.get(assignment.personId);
-        const pool = context.pools.find((p) => p.id === assignment.poolId);
-        if (!candidate || !pool) return null;
-        const isMatchScoped = (pool.kind ?? 'pool') !== 'pool';
-        return {
-          event_id: eventId,
-          person_id: candidate.personId,
-          scope_type: isMatchScoped ? 'match' : 'pool',
-          pool_id: isMatchScoped ? null : assignment.poolId,
-          match_id: isMatchScoped ? (pool.matchId ?? null) : null,
-          // CHECK referee_assignments_scope_check (migration 0091)
-          // requires lice_id IS NULL for both 'pool' and 'match'
-          // scopes; lice_id is reserved for the 'lice' scope, which
-          // this code path never constructs. Writing pool.liceId here
-          // (a denormalised convenience of where the pool is
-          // anchored) fails the constraint and 400s the INSERT.
-          lice_id: null,
-          role: assignment.role,
-          starts_at: pool.scheduledStart,
-          ends_at: pool.scheduledEnd,
-          auto_assigned: replaceAutoAssigned,
-          status: 'assigned',
-          conflicts_jsonb: [],
-        };
-      })
-      .filter((row): row is NonNullable<typeof row> => row !== null);
+    //
+    // A synthetic unit fans out to ONE ROW PER MATCH. `scope_type='lice'` is
+    // not an option even though a Swiss round-piste looks session-shaped:
+    // qualifications.service.ts deliberately excludes lice-scoped rows from
+    // workload counts ("a full session, not a determinate match list"), so
+    // every Swiss duty would vanish from referee stats and compensation.
+    const rows = assignments.flatMap<RefereeAssignmentInsert>((assignment) => {
+      const candidate = candidateByPersonId.get(assignment.personId);
+      const pool = context.pools.find((p) => p.id === assignment.poolId);
+      if (!candidate || !pool) return [];
+      const base = {
+        event_id: eventId,
+        person_id: candidate.personId,
+        // CHECK referee_assignments_scope_check (migration 0091)
+        // requires lice_id IS NULL for both 'pool' and 'match'
+        // scopes; lice_id is reserved for the 'lice' scope, which
+        // this code path never constructs. Writing pool.liceId here
+        // (a denormalised convenience of where the pool is
+        // anchored) fails the constraint and 400s the INSERT.
+        lice_id: null,
+        role: assignment.role,
+        starts_at: pool.scheduledStart,
+        ends_at: pool.scheduledEnd,
+        auto_assigned: replaceAutoAssigned,
+        status: 'assigned',
+        conflicts_jsonb: [],
+      } satisfies Omit<RefereeAssignmentInsert, 'scope_type' | 'pool_id' | 'match_id'>;
+      if (!isMatchScopedKind(pool.kind ?? 'pool')) {
+        return [{ ...base, scope_type: 'pool', pool_id: assignment.poolId, match_id: null }];
+      }
+      return (pool.matchIds ?? []).map((matchId) => ({
+        ...base,
+        scope_type: 'match',
+        pool_id: null,
+        match_id: matchId,
+      }));
+    });
 
     if (rows.length === 0) return;
 
     // Defence in depth: drop any row where the person is a member of
-    // the pool they'd be reffing. The engine has its own filter, and
+    // the unit they'd be reffing. The engine has its own filter, and
     // applyManual throws upstream, but we guard the chokepoint so a
     // future bypass (engine bug, manual SQL, etc.) can't reintroduce
     // a fighter-as-own-referee row. A logger.warn surfaces hits.
+    //
+    // Match-scoped rows are resolved back to their unit rather than skipped:
+    // a bracket unit carries `members: []` so its behaviour is unchanged, but
+    // a Swiss unit carries the whole round's competitors and this is the last
+    // line of defence for them.
     const fightersByPool = buildFightersByPool(context.pools);
+    const unitIdByMatchId = new Map<string, string>();
+    for (const pool of context.pools) {
+      for (const matchId of pool.matchIds ?? []) unitIdByMatchId.set(matchId, pool.id);
+    }
     const filteredRows = rows.filter((row) => {
-      if (!row.pool_id) return true;
-      const members = fightersByPool.get(row.pool_id);
+      const unitId = row.pool_id ?? (row.match_id ? unitIdByMatchId.get(row.match_id) : null);
+      if (!unitId) return true;
+      const members = fightersByPool.get(unitId);
       if (members?.has(row.person_id)) {
         this.logger.warn(
-          `Dropped fighter-conflict referee assignment: person=${row.person_id} pool=${row.pool_id} role=${row.role}`,
+          `Dropped fighter-conflict referee assignment: person=${row.person_id} unit=${unitId} role=${row.role}`,
         );
         return false;
       }
@@ -1679,10 +2066,12 @@ export class AssignmentBoardService {
     });
     if (filteredRows.length === 0) return;
 
-    if (!replaceAutoAssigned && filteredRows.length === 1) {
+    // Single manual write: clear any existing assignment for the same
+    // (scope, target, role) tuple before inserting the new one. Keyed off the
+    // caller's intent (one assignment) rather than the row count, because a
+    // Swiss unit turns one assignment into N rows.
+    if (!replaceAutoAssigned && assignments.length === 1) {
       const row = filteredRows[0]!;
-      // Single manual write: clear any existing assignment for the same
-      // (scope, target, role) tuple before inserting the new one.
       if (row.scope_type === 'pool' && row.pool_id) {
         await this.supabase.service
           .from('referee_assignments')
@@ -1691,14 +2080,19 @@ export class AssignmentBoardService {
           .eq('scope_type', 'pool')
           .eq('pool_id', row.pool_id)
           .eq('role', row.role);
-      } else if (row.scope_type === 'match' && row.match_id) {
-        await this.supabase.service
-          .from('referee_assignments')
-          .delete()
-          .eq('event_id', eventId)
-          .eq('scope_type', 'match')
-          .eq('match_id', row.match_id)
-          .eq('role', row.role);
+      } else {
+        const matchIds = filteredRows
+          .map((r) => r.match_id)
+          .filter((id): id is string => id !== null);
+        if (matchIds.length > 0) {
+          await this.supabase.service
+            .from('referee_assignments')
+            .delete()
+            .eq('event_id', eventId)
+            .eq('scope_type', 'match')
+            .in('match_id', matchIds)
+            .eq('role', row.role);
+        }
       }
     }
 

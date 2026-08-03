@@ -10,6 +10,12 @@ const suggestProgrammeSchema = z
     dayEndTime: z.string().regex(HH_MM),
     parallelLiceCount: z.number().int().min(1),
     poolMatchDurationMinutes: z.number().int().min(1),
+    /**
+     * Optional, and the schema is `.strict()` — required would 400 every
+     * suggest from a client predating the Swiss format. Absent falls back to
+     * `poolMatchDurationMinutes`.
+     */
+    swissMatchDurationMinutes: z.number().int().min(1).optional(),
     eliminationMatchDurationMinutes: z.number().int().min(1),
     finalsMatchDurationMinutes: z.number().int().min(1),
     matchGapSeconds: z.number().int().min(0),
@@ -32,7 +38,7 @@ const programmeBlockSchema = z
     blockType: z.enum(['admin', 'competition', 'workshop', 'break']),
     label: z.string().min(1),
     competitionId: z.uuid().nullish(),
-    competitionPhase: z.enum(['pool', 'bracket', 'finals']).nullish(),
+    competitionPhase: z.enum(['pool', 'swiss', 'bracket', 'finals']).nullish(),
     workshopId: z.uuid().nullish(),
     liceCount: z.number().int().min(0),
     startTime: z.string().regex(HH_MM),
@@ -125,7 +131,7 @@ const createBlockSchema = z
     matchDurationMinutes: z.number().int().min(0).optional(),
     minRestMinutes: z.number().int().min(0).optional(),
     competitionId: z.uuid().nullish(),
-    competitionPhase: z.enum(['pool', 'bracket', 'finals']).nullish(),
+    competitionPhase: z.enum(['pool', 'swiss', 'bracket', 'finals']).nullish(),
     workshopId: z.uuid().nullish(),
     colorHex: z.string().regex(HEX_COLOR).nullish(),
   })

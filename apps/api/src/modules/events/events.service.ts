@@ -1675,10 +1675,17 @@ export class EventsService {
       }
     }
 
-    // Per-phase venue assignment (pools / bracket) → drives the tournament-list
-    // "Venue(s)" column. One grouped query across all tournaments.
+    // Per-phase venue assignment (pools / swiss / bracket) → drives the
+    // tournament-list "Venue(s)" column. One grouped query across all
+    // tournaments.
     type PhaseVenue = { id: string; name: string } | null;
-    const phaseVenuesByTournament = new Map<string, { pool: PhaseVenue; bracket: PhaseVenue }>();
+    type TournamentPhaseVenues = { pool: PhaseVenue; swiss: PhaseVenue; bracket: PhaseVenue };
+    const emptyPhaseVenues = (): TournamentPhaseVenues => ({
+      pool: null,
+      swiss: null,
+      bracket: null,
+    });
+    const phaseVenuesByTournament = new Map<string, TournamentPhaseVenues>();
     const { data: phaseVenueRows } = await this.supabase.service
       .from('tournament_phase_venues')
       .select('tournament_id, phase_kind, venues(id, name)')
@@ -1688,11 +1695,12 @@ export class EventsService {
       phase_kind: string;
       venues: { id: string; name: string } | null;
     }>) {
-      const cur = phaseVenuesByTournament.get(row.tournament_id) ?? { pool: null, bracket: null };
+      const cur = phaseVenuesByTournament.get(row.tournament_id) ?? emptyPhaseVenues();
       const venue = row.venues
         ? { id: String(row.venues.id), name: String(row.venues.name) }
         : null;
       if (row.phase_kind === 'pool') cur.pool = venue;
+      else if (row.phase_kind === 'swiss') cur.swiss = venue;
       else if (row.phase_kind === 'bracket') cur.bracket = venue;
       phaseVenuesByTournament.set(row.tournament_id, cur);
     }
@@ -1720,7 +1728,7 @@ export class EventsService {
         refereeCount: refereeSets.get(id)?.size ?? 0,
         scheduledStart: scheduledStartByTournament.get(id) ?? null,
         scheduledEnd: scheduledEndByTournament.get(id) ?? null,
-        phaseVenues: phaseVenuesByTournament.get(id) ?? { pool: null, bracket: null },
+        phaseVenues: phaseVenuesByTournament.get(id) ?? emptyPhaseVenues(),
       };
     });
   }

@@ -23,6 +23,31 @@ import type {
 const FINALS_LABEL_RE = /FINAL|^F$|GOLD|BRONZE|3RD/i;
 
 /**
+ * Which rate a completed match is paid at, from its PHASE TYPE.
+ *
+ * This used to infer the phase from `lice_id` presence: a match on a piste was
+ * "bracket", a match off one was "pool". That held only while match-scoped
+ * assignments came exclusively from the bracket loader. Swiss also stores
+ * `scope_type='match'` rows, so a scheduled Swiss bout would have been paid at
+ * the BRACKET rate and an unscheduled one at the POOL rate — never at the
+ * Swiss rate migration 0164 seeded.
+ *
+ * Elimination phases still split on the label, because finals share their
+ * phase with the earlier rounds.
+ */
+export function compensationPhaseFor(
+  phaseType: string | null | undefined,
+  matchNumberLabel: string | null,
+): CompensationPhase | null {
+  if (phaseType === 'pool') return 'pool';
+  if (phaseType === 'swiss') return 'swiss';
+  if (phaseType === 'single_elim' || phaseType === 'double_elim') {
+    return matchNumberLabel && FINALS_LABEL_RE.test(matchNumberLabel) ? 'finals' : 'bracket';
+  }
+  return null;
+}
+
+/**
  * Clamp a resolved tier amount to the event's optional cap and floor. The floor
  * is applied last, so a referee who worked is guaranteed the minimum even when
  * it exceeds the cap.
@@ -313,23 +338,27 @@ export class CompensationService {
       ),
     ];
 
-    type LiceMatchRow = { lice_id: string; match_number_label: string | null };
-    const liceMatchesByPhase = new Map<string, { bracket: number; finals: number }>();
+    type LiceMatchRow = {
+      lice_id: string;
+      match_number_label: string | null;
+      phases: { type: string } | Array<{ type: string }> | null;
+    };
+    // A lice-scoped assignment covers the whole session, so its matches are
+    // bucketed one by one — a session can mix Swiss rounds and bracket rounds.
+    const liceMatchesByPhase = new Map<string, Map<CompensationPhase, number>>();
     if (liceIds.length > 0) {
       const { data: liceMatches } = await this.supabase.service
         .from('matches')
-        .select('lice_id, match_number_label')
+        .select('lice_id, match_number_label, phases(type)')
         .in('lice_id', liceIds)
         .eq('status', 'completed');
-      for (const m of (liceMatches ?? []) as LiceMatchRow[]) {
-        const lid = m.lice_id;
-        if (!liceMatchesByPhase.has(lid)) liceMatchesByPhase.set(lid, { bracket: 0, finals: 0 });
-        const counts = liceMatchesByPhase.get(lid)!;
-        if (m.match_number_label && FINALS_LABEL_RE.test(m.match_number_label)) {
-          counts.finals++;
-        } else {
-          counts.bracket++;
-        }
+      for (const m of (liceMatches ?? []) as unknown as LiceMatchRow[]) {
+        const phaseRel = Array.isArray(m.phases) ? m.phases[0] : m.phases;
+        const phase = compensationPhaseFor(phaseRel?.type, m.match_number_label);
+        if (!phase) continue;
+        const counts = liceMatchesByPhase.get(m.lice_id) ?? new Map<CompensationPhase, number>();
+        counts.set(phase, (counts.get(phase) ?? 0) + 1);
+        liceMatchesByPhase.set(m.lice_id, counts);
       }
     }
 
@@ -346,15 +375,15 @@ export class CompensationService {
       id: string;
       match_number_label: string | null;
       status: string;
-      lice_id: string | null;
+      phases: { type: string } | Array<{ type: string }> | null;
     };
     const matchRows = new Map<string, MatchRow>();
     if (matchIds.length > 0) {
       const { data: matches } = await this.supabase.service
         .from('matches')
-        .select('id, match_number_label, status, lice_id')
+        .select('id, match_number_label, status, phases(type)')
         .in('id', matchIds);
-      for (const m of (matches ?? []) as MatchRow[]) {
+      for (const m of (matches ?? []) as unknown as MatchRow[]) {
         matchRows.set(m.id, m);
       }
     }
@@ -369,22 +398,15 @@ export class CompensationService {
         if (count > 0) addMatches(personId, role, 'pool', count);
       } else if (a['scope_type'] === 'lice' && a['lice_id']) {
         const counts = liceMatchesByPhase.get(a['lice_id'] as string);
-        if (counts) {
-          if (counts.bracket > 0) addMatches(personId, role, 'bracket', counts.bracket);
-          if (counts.finals > 0) addMatches(personId, role, 'finals', counts.finals);
+        for (const [phase, count] of counts ?? []) {
+          if (count > 0) addMatches(personId, role, phase, count);
         }
       } else if (a['scope_type'] === 'match' && a['match_id']) {
         const match = matchRows.get(a['match_id'] as string);
         if (match && match.status === 'completed') {
-          const phase: CompensationPhase =
-            match.lice_id &&
-            match.match_number_label &&
-            FINALS_LABEL_RE.test(match.match_number_label)
-              ? 'finals'
-              : match.lice_id
-                ? 'bracket'
-                : 'pool';
-          addMatches(personId, role, phase, 1);
+          const phaseRel = Array.isArray(match.phases) ? match.phases[0] : match.phases;
+          const phase = compensationPhaseFor(phaseRel?.type, match.match_number_label);
+          if (phase) addMatches(personId, role, phase, 1);
         }
       }
     }

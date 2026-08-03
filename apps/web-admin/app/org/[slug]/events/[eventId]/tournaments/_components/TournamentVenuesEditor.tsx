@@ -13,12 +13,16 @@ interface VenueOption {
 }
 
 /**
- * Per-phase venue picker for a tournament: assign which venue the Pools and the
- * Bracket run at. Used both in the create wizard (Step 4) and the tournament
- * settings (Venues tab). Saving stores INTENT (PUT /tournaments/:id/phase-venues)
- * — it steers future scheduling but does not move existing matches. The explicit
- * "Move now" buttons re-point a phase's already-scheduled matches on demand.
+ * Per-phase venue picker for a tournament: assign which venue the Pools, the
+ * Swiss rounds and the Bracket run at. Used both in the create wizard (Step 4)
+ * and the tournament settings (Venues tab). Saving stores INTENT (PUT
+ * /tournaments/:id/phase-venues) — it steers future scheduling but does not
+ * move existing matches. The explicit "Move now" buttons re-point a phase's
+ * already-scheduled matches on demand.
+ *
+ * Finals run with the bracket, so they share its venue and have no row here.
  */
+type PhaseVenueKind = 'pool' | 'swiss' | 'bracket';
 export function TournamentVenuesEditor({
   tournamentId,
   eventId,
@@ -29,13 +33,15 @@ export function TournamentVenuesEditor({
   const toast = useToast();
   const [venues, setVenues] = useState<VenueOption[]>([]);
   const [poolVenueId, setPoolVenueId] = useState<string>('');
+  const [swissVenueId, setSwissVenueId] = useState<string>('');
   const [bracketVenueId, setBracketVenueId] = useState<string>('');
   // The persisted assignment (≠ the editing selects) — gates the "Move now" buttons.
   const [savedPool, setSavedPool] = useState<string>('');
+  const [savedSwiss, setSavedSwiss] = useState<string>('');
   const [savedBracket, setSavedBracket] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [movingKind, setMovingKind] = useState<'pool' | 'bracket' | null>(null);
+  const [movingKind, setMovingKind] = useState<PhaseVenueKind | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +51,7 @@ export function TournamentVenuesEditor({
       ),
       fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/phase-venues`, {
         credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : { pool: null, bracket: null })),
+      }).then((r) => (r.ok ? r.json() : { pool: null, swiss: null, bracket: null })),
     ])
       .then(([venueRows, phaseVenues]) => {
         if (cancelled) return;
@@ -54,10 +60,13 @@ export function TournamentVenuesEditor({
           .map((v: Record<string, unknown>) => ({ id: String(v['id']), name: String(v['name']) }));
         setVenues(opts);
         const pool = phaseVenues?.pool?.id ?? '';
+        const swiss = phaseVenues?.swiss?.id ?? '';
         const bracket = phaseVenues?.bracket?.id ?? '';
         setPoolVenueId(pool);
+        setSwissVenueId(swiss);
         setBracketVenueId(bracket);
         setSavedPool(pool);
+        setSavedSwiss(swiss);
         setSavedBracket(bracket);
       })
       .catch(() => {
@@ -79,10 +88,15 @@ export function TournamentVenuesEditor({
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pool: poolVenueId || null, bracket: bracketVenueId || null }),
+        body: JSON.stringify({
+          pool: poolVenueId || null,
+          swiss: swissVenueId || null,
+          bracket: bracketVenueId || null,
+        }),
       });
       if (!res.ok) throw new Error(t('organizer.tournaments.venuesEditor.saveError'));
       setSavedPool(poolVenueId);
+      setSavedSwiss(swissVenueId);
       setSavedBracket(bracketVenueId);
       toast.success(t('organizer.tournaments.venuesEditor.saved'));
     } catch (e) {
@@ -94,7 +108,7 @@ export function TournamentVenuesEditor({
     }
   }
 
-  async function moveNow(kind: 'pool' | 'bracket') {
+  async function moveNow(kind: PhaseVenueKind) {
     setMovingKind(kind);
     try {
       const res = await fetch(
@@ -137,6 +151,12 @@ export function TournamentVenuesEditor({
             onChange={setPoolVenueId}
           />
           <VenueSelect
+            label={t('organizer.tournaments.venuesEditor.swiss')}
+            value={swissVenueId}
+            venues={venues}
+            onChange={setSwissVenueId}
+          />
+          <VenueSelect
             label={t('organizer.tournaments.venuesEditor.bracket')}
             value={bracketVenueId}
             venues={venues}
@@ -154,7 +174,7 @@ export function TournamentVenuesEditor({
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
 
-      {(savedPool || savedBracket) && (
+      {(savedPool || savedSwiss || savedBracket) && (
         <div className="rounded-md border border-border bg-background p-4">
           <p className="text-sm text-foreground-secondary">
             {t('organizer.tournaments.venuesEditor.moveHelp')}
@@ -170,6 +190,18 @@ export function TournamentVenuesEditor({
                 {movingKind === 'pool'
                   ? t('common.saving')
                   : t('organizer.tournaments.venuesEditor.movePools')}
+              </button>
+            )}
+            {savedSwiss && (
+              <button
+                type="button"
+                onClick={() => void moveNow('swiss')}
+                disabled={movingKind !== null}
+                className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+              >
+                {movingKind === 'swiss'
+                  ? t('common.saving')
+                  : t('organizer.tournaments.venuesEditor.moveSwiss')}
               </button>
             )}
             {savedBracket && (

@@ -80,7 +80,7 @@ interface AssignmentBoardPool {
   /** Distinguishes real pools from bracket / finals matches surfaced
    *  alongside them. Default 'pool' for backwards compatibility with
    *  any caller that doesn't populate it. */
-  kind?: 'pool' | 'bracket' | 'finals';
+  kind?: 'pool' | 'swiss' | 'bracket' | 'finals';
   members: Array<{
     registrationId: string;
     personId: string;

@@ -128,4 +128,15 @@ export class AssignmentBoardController {
   async clearPoolAssignments(@Param('poolId', ParseUUIDPipe) poolId: string) {
     return this.assignments.clearPoolAssignments(poolId);
   }
+
+  @Delete('swiss-rounds/:roundId/referee-assignments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Clear every referee assignment for one Swiss round, across all its pistes (refuses when locked)',
+  })
+  @ApiParam({ name: 'roundId', type: 'string', format: 'uuid' })
+  async clearSwissRoundAssignments(@Param('roundId', ParseUUIDPipe) roundId: string) {
+    return this.assignments.clearSwissRoundAssignments(roundId);
+  }
 }

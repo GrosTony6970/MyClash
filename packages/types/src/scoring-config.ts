@@ -14,6 +14,13 @@ export interface MatchFormatConfig {
   timerMode: TimerMode;
   timeLimitsSeconds: {
     pool: number | null;
+    /**
+     * Optional on purpose: every ruleset config persisted before the Swiss
+     * format exists without this key, and `getEffectiveMatchTimeLimitSeconds`
+     * falls back to `pool` when it is absent. Giving it a default would
+     * rewrite those stored configs on the next round-trip.
+     */
+    swiss?: number | null;
     bracket: number | null;
     finals: number | null;
   };
@@ -28,6 +35,8 @@ export interface MatchFormatConfig {
    */
   bestOf: {
     pool: number;
+    /** Optional, falling back to `pool` — same reasoning as `timeLimitsSeconds.swiss`. */
+    swiss?: number;
     bracket: number;
     finals: number;
   };

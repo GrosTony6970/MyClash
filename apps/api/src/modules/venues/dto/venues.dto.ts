@@ -62,6 +62,7 @@ export class SetEventVenuesDto extends createZodDto(setEventVenuesSchema) {}
 const setTournamentPhaseVenuesSchema = z
   .object({
     pool: z.uuid().nullable().optional(),
+    swiss: z.uuid().nullable().optional(),
     bracket: z.uuid().nullable().optional(),
   })
   .strict();

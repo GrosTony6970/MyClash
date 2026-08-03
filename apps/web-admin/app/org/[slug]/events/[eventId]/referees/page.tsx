@@ -130,9 +130,12 @@ interface AssignmentBoardPool {
   scheduledStart: string | null;
   scheduledEnd: string | null;
   /** R4: 'pool' (default) | 'bracket' | 'finals'. */
-  kind?: 'pool' | 'bracket' | 'finals';
-  /** R4: present when kind !== 'pool'; the underlying match id. */
-  matchId?: string;
+  kind?: 'pool' | 'swiss' | 'bracket' | 'finals';
+  /**
+   * Present when kind !== 'pool': the match ids this unit wraps. One for a
+   * bracket/finals card, every bout of the (round × piste) for a Swiss card.
+   */
+  matchIds?: string[];
   members: Array<{
     registrationId: string;
     personId: string;
@@ -514,6 +517,26 @@ function eachDayIso(startIso: string, endIso: string | null): string[] {
   return days;
 }
 
+/**
+ * Per-bout spacing of a multi-match unit, in minutes, so a drag re-fans it at
+ * the cadence it already runs at instead of the server's 5-minute default.
+ *
+ * `scheduledEnd` is "last start + the inferred interval", so the window spans
+ * exactly N intervals for N bouts. Null when it cannot be derived — the server
+ * then picks its own default.
+ */
+function unitMatchDurationMinutes(pool: {
+  matchIds?: string[];
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+}): number | null {
+  const count = pool.matchIds?.length ?? 0;
+  if (count < 1 || !pool.scheduledStart || !pool.scheduledEnd) return null;
+  const spanMs = new Date(pool.scheduledEnd).getTime() - new Date(pool.scheduledStart).getTime();
+  if (!Number.isFinite(spanMs) || spanMs <= 0) return null;
+  return Math.max(1, Math.round(spanMs / count / 60_000));
+}
+
 /** Programme-block tint per kind in the timeline / by-timeslot bars. */
 function breakBarClasses(kind: string): string {
   if (kind === 'break') return 'border-slate-300 bg-slate-100 text-slate-600';
@@ -702,7 +725,9 @@ function AssignmentsTab({
   // the hovered drop cell.
   const dragPool = useRef<{
     id: string;
-    matchId: string | null;
+    matchIds: string[];
+    /** Per-bout spacing of the dragged unit, so a re-fan keeps its cadence. */
+    matchDurationMinutes: number | null;
     liceId: string | null;
     scheduledStart: string | null;
   } | null>(null);
@@ -793,8 +818,53 @@ function AssignmentsTab({
   }
 
   // Drag-drop a pool card onto a (timeslot row × lice column) cell: move the
-  // whole pool to that lice + start time. Bracket/finals cards are a single
-  // match (PATCH); real pools shift all their matches (POST reschedule).
+  // whole card to that lice + start time. Three shapes:
+  //   - real pool          → POST /pools/:id/reschedule (shifts all its matches)
+  //   - bracket/finals     → PATCH /matches/:id/schedule (exactly one match)
+  //   - Swiss round×piste  → POST /programme/schedule-group, mode 'pool'
+  //     (several bouts, no `pools` row to reschedule). That endpoint already
+  //     means "keep this group on one lice, appended after what's there", which
+  //     is exactly the Swiss unit's semantics — no Swiss-specific route needed.
+  /** The one request that moves the dragged card, per its shape. */
+  function postPoolMove(
+    dragged: NonNullable<typeof dragPool.current>,
+    liceId: string | null,
+    blockStartIso: string,
+  ): Promise<Response> {
+    const json = { 'Content-Type': 'application/json' };
+    if (dragged.matchIds.length > 1) {
+      return fetch(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: json,
+        body: JSON.stringify({
+          matchIds: dragged.matchIds,
+          liceIds: [liceId],
+          startTime: blockStartIso,
+          mode: 'pool',
+          ...(dragged.matchDurationMinutes
+            ? { matchDurationMinutes: dragged.matchDurationMinutes }
+            : {}),
+        }),
+      });
+    }
+    const singleMatchId = dragged.matchIds[0];
+    if (singleMatchId) {
+      return fetch(`${apiUrl}/api/v1/matches/${singleMatchId}/schedule`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: json,
+        body: JSON.stringify({ liceId, scheduledAt: blockStartIso }),
+      });
+    }
+    return fetch(`${apiUrl}/api/v1/pools/${dragged.id}/reschedule`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: json,
+      body: JSON.stringify({ liceId, startAtIso: blockStartIso }),
+    });
+  }
+
   async function handlePoolDrop(targetLiceId: string, blockStartIso: string) {
     const dragged = dragPool.current;
     dragPool.current = null;
@@ -802,22 +872,12 @@ function AssignmentsTab({
     if (!dragged || isReadOnly || board?.locked) return;
     const liceId = targetLiceId === NO_LICE ? null : targetLiceId;
     if ((dragged.liceId ?? null) === liceId && dragged.scheduledStart === blockStartIso) return;
+    // schedule-group needs a target lice; there is no "unschedule" through it.
+    if (dragged.matchIds.length > 1 && liceId === null) return;
     setRunning(true);
     setError(null);
     try {
-      const res = dragged.matchId
-        ? await fetch(`${apiUrl}/api/v1/matches/${dragged.matchId}/schedule`, {
-            method: 'PATCH',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ liceId, scheduledAt: blockStartIso }),
-          })
-        : await fetch(`${apiUrl}/api/v1/pools/${dragged.id}/reschedule`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ liceId, startAtIso: blockStartIso }),
-          });
+      const res = await postPoolMove(dragged, liceId, blockStartIso);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? t('organizer.refereesPage.assignmentLoadFailed'));
@@ -1329,7 +1389,8 @@ function AssignmentsTab({
                               onDragStart={() => {
                                 dragPool.current = {
                                   id: pool.id,
-                                  matchId: pool.matchId ?? null,
+                                  matchIds: pool.matchIds ?? [],
+                                  matchDurationMinutes: unitMatchDurationMinutes(pool),
                                   liceId: pool.liceId ?? null,
                                   scheduledStart: pool.scheduledStart,
                                 };

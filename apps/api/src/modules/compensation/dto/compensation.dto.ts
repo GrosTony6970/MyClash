@@ -25,7 +25,7 @@ const roleRateEntrySchema = z.object({
   // A referee_skills.id (system 'arbitre_*' or per-event 'custom-…'). No enum:
   // custom skills are dynamic, and computeReport tolerates an unknown role.
   refereeRole: z.string().min(1).max(100),
-  compensationPhase: z.enum(['pool', 'bracket', 'finals']),
+  compensationPhase: z.enum(['pool', 'swiss', 'bracket', 'finals']),
   tokensPerMatch: z.number().min(0),
 });
 // Exported as a DTO so it remains usable as a type (consumed by the service).

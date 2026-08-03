@@ -13,6 +13,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
   pool: 'organizer.eventCompensation.phases.pool',
+  swiss: 'organizer.eventCompensation.phases.swiss',
   bracket: 'organizer.eventCompensation.phases.bracket',
   finals: 'organizer.eventCompensation.phases.finals',
 };
@@ -410,6 +411,9 @@ export default function CompensationPage() {
                   {t('organizer.eventCompensation.poolPoints')}
                 </th>
                 <th className="py-3 px-4 text-center">
+                  {t('organizer.eventCompensation.swissPoints')}
+                </th>
+                <th className="py-3 px-4 text-center">
                   {t('organizer.eventCompensation.bracketPoints')}
                 </th>
                 <th className="py-3 px-4 text-center">
@@ -423,7 +427,7 @@ export default function CompensationPage() {
             <tbody>
               {report.referees.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted">
+                  <td colSpan={8} className="py-8 text-center text-muted">
                     {t('organizer.eventCompensation.empty')}
                   </td>
                 </tr>
@@ -442,6 +446,9 @@ export default function CompensationPage() {
                     </td>
                     <td className="py-2.5 px-4 text-center text-foreground-secondary tabular-nums">
                       {phaseTokens(referee, 'pool')}
+                    </td>
+                    <td className="py-2.5 px-4 text-center text-foreground-secondary tabular-nums">
+                      {phaseTokens(referee, 'swiss')}
                     </td>
                     <td className="py-2.5 px-4 text-center text-foreground-secondary tabular-nums">
                       {phaseTokens(referee, 'bracket')}
@@ -476,7 +483,7 @@ export default function CompensationPage() {
                       key={`${referee.personId}-detail`}
                       className="border-b border-border bg-background"
                     >
-                      <td colSpan={7} className="px-8 py-3">
+                      <td colSpan={8} className="px-8 py-3">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-muted uppercase tracking-wide">

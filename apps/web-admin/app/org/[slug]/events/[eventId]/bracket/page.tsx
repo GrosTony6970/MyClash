@@ -139,7 +139,8 @@ interface RefBoardRoleSlot {
   };
 }
 interface RefBoardPool {
-  matchId?: string;
+  /** One entry for a bracket/finals unit; a whole (round × piste) for Swiss. */
+  matchIds?: string[];
   roleSlots: RefBoardRoleSlot[];
 }
 interface RefBoard {
@@ -580,7 +581,7 @@ export default function BracketPage() {
   const editMatchId = overrideModal?.matchId ?? null;
   const editMatchRoleSlots: RefBoardRoleSlot[] =
     editMatchId && refereeBoard
-      ? (refereeBoard.pools.find((p) => p.matchId === editMatchId)?.roleSlots ?? [])
+      ? (refereeBoard.pools.find((p) => p.matchIds?.includes(editMatchId))?.roleSlots ?? [])
       : [];
 
   // The slot open in the edit modal + whether it can be forfeited (both sides
@@ -843,7 +844,8 @@ export default function BracketPage() {
 
         // 3. Referees — diff the board's current assignments vs the draft and
         //    PUT only the changed (role, refereeId) pairs.
-        const roleSlots = refereeBoard?.pools.find((p) => p.matchId === matchId)?.roleSlots ?? [];
+        const roleSlots =
+          refereeBoard?.pools.find((p) => p.matchIds?.includes(matchId))?.roleSlots ?? [];
         const current = roleSlots.map((rs) => ({
           role: rs.role,
           refereeId: rs.assignment?.personId ?? null,

@@ -5132,10 +5132,13 @@ export const en = {
         saveError: 'Could not save venues.',
         loadError: 'Could not load venues.',
         poolsAt: 'Pools: {venue}',
+        swissAt: 'Swiss: {venue}',
         bracketAt: 'Bracket: {venue}',
+        swiss: 'Swiss rounds venue',
         moveHelp:
           'Saving sets where new matches are scheduled. To move already-scheduled matches onto the assigned venue now, use the buttons below.',
         movePools: 'Move pool matches now',
+        moveSwiss: 'Move Swiss matches now',
         moveBracket: 'Move bracket matches now',
         moved: 'Moved {count} matches to the venue.',
         moveError: 'Could not move matches.',
@@ -5618,6 +5621,7 @@ export const en = {
       euroAmount: '{amount} EUR',
       phases: {
         pool: 'Pool',
+        swiss: 'Swiss',
         bracket: 'Bracket',
         finals: 'Finals',
       },
@@ -5646,6 +5650,7 @@ export const en = {
       refresh: 'Refresh',
       referee: 'Referee',
       poolPoints: 'Pool pts',
+      swissPoints: 'Swiss pts',
       bracketPoints: 'Bracket pts',
       finalsPoints: 'Finals pts',
       total: 'Total',
@@ -5669,6 +5674,7 @@ export const en = {
       },
       phases: {
         pool: 'Pool',
+        swiss: 'Swiss',
         bracket: 'Bracket',
         finals: 'Finals',
       },
@@ -5855,6 +5861,7 @@ export const en = {
           parallelLices: 'Parallel lices',
           matchDuration: 'Match duration (min)',
           poolMatchDuration: 'Pool Match duration (min)',
+          swissMatchDuration: 'Swiss Match duration (min)',
           eliminationMatchDuration: 'Elimination Match duration (min)',
           finalsMatchDuration: 'Finals Match duration (min)',
           matchGap: 'Match gap (sec)',
@@ -5983,6 +5990,7 @@ export const en = {
         undoAction: 'Undo',
         dismiss: 'Dismiss',
         bracketBadge: 'Bracket',
+        swissBadge: 'Swiss',
       },
     },
     workshopsPage: {
@@ -6675,6 +6683,7 @@ export const en = {
       saveError: 'Could not save staffing config.',
       phase: {
         pool: 'Pool',
+        swiss: 'Swiss',
         bracket: 'Bracket',
         finals: 'Finals',
       },
@@ -12101,10 +12110,13 @@ export const fr = {
         saveError: 'Impossible d enregistrer les lieux.',
         loadError: 'Impossible de charger les lieux.',
         poolsAt: 'Poules : {venue}',
+        swissAt: 'Suisse : {venue}',
         bracketAt: 'Tableau : {venue}',
+        swiss: 'Lieu des rondes suisses',
         moveHelp:
           'L enregistrement definit ou les nouveaux matchs sont planifies. Pour deplacer maintenant les matchs deja planifies vers le lieu attribue, utilisez les boutons ci-dessous.',
         movePools: 'Deplacer les matchs de poule maintenant',
+        moveSwiss: 'Deplacer les matchs suisses maintenant',
         moveBracket: 'Deplacer les matchs de tableau maintenant',
         moved: '{count} matchs deplaces vers le lieu.',
         moveError: 'Impossible de deplacer les matchs.',
@@ -12595,6 +12607,7 @@ export const fr = {
       euroAmount: '{amount} EUR',
       phases: {
         pool: 'Poule',
+        swiss: 'Suisse',
         bracket: 'Tableau',
         finals: 'Finales',
       },
@@ -12623,6 +12636,7 @@ export const fr = {
       refresh: 'Actualiser',
       referee: 'Arbitre',
       poolPoints: 'Pts poule',
+      swissPoints: 'Pts suisse',
       bracketPoints: 'Pts tableau',
       finalsPoints: 'Pts finales',
       total: 'Total',
@@ -12646,6 +12660,7 @@ export const fr = {
       },
       phases: {
         pool: 'Poule',
+        swiss: 'Suisse',
         bracket: 'Tableau',
         finals: 'Finales',
       },
@@ -12833,6 +12848,7 @@ export const fr = {
           parallelLices: 'Lices en parallèle',
           matchDuration: 'Durée de match (min)',
           poolMatchDuration: 'Durée de match de poule (min)',
+          swissMatchDuration: 'Durée de match suisse (min)',
           eliminationMatchDuration: "Durée de match d'élimination (min)",
           finalsMatchDuration: 'Durée de match de finale (min)',
           matchGap: 'Intervalle entre matchs (s)',
@@ -12965,6 +12981,7 @@ export const fr = {
         undoAction: 'Annuler',
         dismiss: 'Fermer',
         bracketBadge: 'Tableau',
+        swissBadge: 'Suisse',
       },
     },
     workshopsPage: {
@@ -13672,6 +13689,7 @@ export const fr = {
       saveError: 'Impossible de sauvegarder la configuration.',
       phase: {
         pool: 'Poule',
+        swiss: 'Suisse',
         bracket: 'Tableau',
         finals: 'Finales',
       },

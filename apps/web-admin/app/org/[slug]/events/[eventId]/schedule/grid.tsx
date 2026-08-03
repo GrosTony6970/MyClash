@@ -3125,7 +3125,10 @@ function MatchChip({
   onDragStart: () => void;
 }) {
   const { t } = useI18n();
-  const isBracket = match.phaseType !== null && match.phaseType !== 'pool';
+  // Swiss is neither pool nor bracket: it gets its own badge so an organiser
+  // can tell a Swiss round from an elimination round at a glance on the grid.
+  const isSwiss = match.phaseType === 'swiss';
+  const isBracket = match.phaseType !== null && match.phaseType !== 'pool' && !isSwiss;
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- draggable match card; onClick is a modifier-gated (ctrl/meta) shortcut, not the primary affordance
     <div
@@ -3139,7 +3142,7 @@ function MatchChip({
       title={`${match.roundCode || match.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}`}
       className={[
         'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-surface hover:border-muted transition-colors',
-        isBracket ? 'border-amber-300' : 'border-border',
+        isBracket ? 'border-amber-300' : isSwiss ? 'border-sky-300' : 'border-border',
         saving ? 'opacity-50' : '',
       ].join(' ')}
     >
@@ -3150,6 +3153,11 @@ function MatchChip({
         {isBracket && (
           <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] text-amber-800">
             {t('organizer.schedulePage.grid.bracketBadge')}
+          </span>
+        )}
+        {isSwiss && (
+          <span className="shrink-0 rounded bg-sky-100 px-1 py-px text-[10px] text-sky-800">
+            {t('organizer.schedulePage.grid.swissBadge')}
           </span>
         )}
       </div>

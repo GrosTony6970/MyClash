@@ -10,6 +10,10 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import { cascadeBlockShift } from './block-cascade';
+// A pure zod schema (its only dependency is zod), so this is a plain file
+// import and NOT a ProgrammeModule → SwissModule edge. SwissCoreModule imports
+// ProgrammeModule, so a real module edge here would close a cycle.
+import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import type {
   CreateBlockDto,
   SaveProgrammeDto,
@@ -251,6 +255,10 @@ export class ProgrammeService {
       .eq('event_id', eventId);
     const liceCount = (licesData ?? []).length || 1;
     const parallelLice = Math.min(cfg.parallelLiceCount || liceCount, liceCount);
+    // A Swiss bout is a group-stage bout, so it inherits the pool clock unless
+    // the organiser sets its own. Optional on the DTO so payloads predating
+    // the Swiss format keep working.
+    const swissDurationMin = cfg.swissMatchDurationMinutes ?? cfg.poolMatchDurationMinutes;
 
     // Load tournaments
     const { data: tournamentsData } = await this.supabase.service
@@ -268,6 +276,14 @@ export class ProgrammeService {
       /** Matches per pool, ordered by pool sort order — drives the strict
        *  one-pool-per-lice bottleneck estimate. */
       poolPerPoolCounts: number[];
+      /**
+       * Bouts the WHOLE Swiss phase will produce — `roundCount × ⌈entrants/2⌉`
+       * — not the bouts that happen to exist yet. Rounds are paired one at a
+       * time as the previous one completes, so sizing the block off existing
+       * matches would reserve room for round 1 alone and leave every later
+       * round with nowhere to land.
+       */
+      swissMatchCount: number;
       bracketMatchCount: number;
       /** Final-round bracket matches (gold + bronze) — carved into a Finals block. */
       finalsMatchCount: number;
@@ -277,9 +293,14 @@ export class ProgrammeService {
     for (const t of tournaments) {
       const { data: phasesData } = await this.supabase.service
         .from('phases')
-        .select('id, type')
+        // config_json carries the Swiss roundCount the block estimate needs.
+        .select('id, type, config_json')
         .eq('tournament_id', t.id);
-      const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
+      const phases = (phasesData ?? []) as Array<{
+        id: string;
+        type: string;
+        config_json?: unknown;
+      }>;
 
       const poolPhaseIds = phases.filter((p) => p.type === 'pool').map((p) => p.id);
 
@@ -330,11 +351,16 @@ export class ProgrammeService {
       const finalsMatchCount =
         finalRound == null ? 0 : bracketRows.filter((r) => r.bracket_round === finalRound).length;
 
+      const swissMatchCount = await this.estimateSwissMatchCount(
+        phases.filter((p) => p.type === 'swiss'),
+      );
+
       tournamentStats.push({
         id: t.id,
         name: t.name,
         poolMatchCount,
         poolPerPoolCounts,
+        swissMatchCount,
         bracketMatchCount,
         finalsMatchCount,
       });
@@ -542,6 +568,54 @@ export class ProgrammeService {
       advance(Math.ceil(neededMin));
     };
 
+    // Swiss sessions — one block per tournament, reserving the WHOLE phase up
+    // front (decision 7). Rounds are placed into it as they are paired.
+    for (const t of tournamentStats) {
+      if (t.swissMatchCount === 0) continue;
+      maybeInsertMidday();
+      const neededMin = computeNeededMin(
+        t.swissMatchCount,
+        parallelLice,
+        swissDurationMin,
+        cfg.matchGapSeconds,
+      );
+      const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
+      push(
+        {
+          dayIndex,
+          blockType: 'competition',
+          label: `${t.name} — Swiss`,
+          competitionId: t.id,
+          competitionPhase: 'swiss',
+          workshopId: null,
+          // A Swiss round spreads ACROSS pistes (no pool affinity), so the
+          // block claims every parallel lice rather than one per group.
+          liceCount: parallelLice,
+          startTime: minToTime(cursor),
+          endTime: minToTime(cursor + alloc),
+          matchGapSeconds: cfg.matchGapSeconds,
+          matchDurationMinutes: swissDurationMin,
+          minRestMinutes: cfg.minRestMinutes,
+        },
+        neededMin,
+      );
+      advance(Math.ceil(neededMin));
+      push({
+        dayIndex,
+        blockType: 'break',
+        label: 'Break',
+        competitionId: null,
+        competitionPhase: null,
+        workshopId: null,
+        liceCount: 0,
+        startTime: minToTime(cursor),
+        endTime: minToTime(cursor + cfg.breakBetweenSessionsMinutes),
+        matchGapSeconds: 0,
+        matchDurationMinutes: 0,
+      });
+      advance(cfg.breakBetweenSessionsMinutes);
+    }
+
     for (const t of tournamentStats) {
       if (t.bracketMatchCount === 0) continue;
       const eliminationMatchCount = t.bracketMatchCount - t.finalsMatchCount;
@@ -703,8 +777,14 @@ export class ProgrammeService {
           },
         );
         // Restrict this block's lices to its phase's assigned venue, if any
-        // (pool block → Pools venue; bracket/finals block → Bracket venue).
-        const phaseKind = block.competitionPhase === 'pool' ? 'pool' : 'bracket';
+        // (pool block → Pools venue; swiss block → Swiss venue;
+        // bracket/finals block → Bracket venue).
+        const phaseKind =
+          block.competitionPhase === 'pool'
+            ? 'pool'
+            : block.competitionPhase === 'swiss'
+              ? 'swiss'
+              : 'bracket';
         const phaseVenueId = phaseVenueByKey.get(`${block.competitionId}:${phaseKind}`) ?? null;
         const candidateLices = phaseVenueId
           ? allLices.filter((l) => l.venue_id === phaseVenueId)
@@ -1478,6 +1558,8 @@ export class ProgrammeService {
         bracket_round: null,
         bracket_position: null,
       }));
+    } else if (phase === 'swiss') {
+      return this.loadSwissMatches(tournamentId);
     } else {
       // Partition the bracket by final round so a 'bracket' block schedules the
       // elimination rounds and a 'finals' block schedules only the final round
@@ -1494,6 +1576,105 @@ export class ProgrammeService {
       if (!opts?.splitFinals || finalRound == null) return rows;
       return rows.filter((r) => r.bracket_round !== finalRound);
     }
+  }
+
+  /**
+   * Bouts the whole Swiss phase will produce: `roundCount × ⌈activeEntrants/2⌉`,
+   * summed over the tournament's Swiss phases.
+   *
+   * Read from the phase CONFIG and the entrant roster, not from `matches`.
+   * Only the current round exists at any moment — decision 3 pairs the next
+   * one on completion — so counting rows would size the block for round 1 and
+   * strand every round after it.
+   *
+   * A withdrawn entrant still occupies the estimate: the field is frozen at
+   * generation, and over-reserving a few minutes is the safe direction.
+   */
+  private async estimateSwissMatchCount(
+    swissPhases: Array<{ id: string; config_json?: unknown }>,
+  ): Promise<number> {
+    if (swissPhases.length === 0) return 0;
+
+    const { data: entrantRows } = await this.supabase.service
+      .from('swiss_entrants')
+      .select('phase_id')
+      .in(
+        'phase_id',
+        swissPhases.map((p) => p.id),
+      );
+    const entrantsByPhase = new Map<string, number>();
+    for (const row of (entrantRows ?? []) as Array<{ phase_id: string }>) {
+      entrantsByPhase.set(row.phase_id, (entrantsByPhase.get(row.phase_id) ?? 0) + 1);
+    }
+
+    let total = 0;
+    for (const phase of swissPhases) {
+      const entrants = entrantsByPhase.get(phase.id) ?? 0;
+      if (entrants < 2) continue;
+      const roundCount = parseSwissConfig(phase.config_json)?.roundCount ?? 0;
+      if (roundCount < 1) continue;
+      // An odd field gives one bye per round, so ⌊n/2⌋ bouts — but ⌈n/2⌉ is
+      // what the block must hold when the field is even.
+      total += roundCount * Math.floor(entrants / 2);
+    }
+    return total;
+  }
+
+  /**
+   * Every Swiss match for a tournament, ordered by round then label.
+   *
+   * `bracket_round` / `bracket_position` stay null: a Swiss phase has no tree,
+   * so `decidePoolAffinity` reads `hasTree === false` and returns `'off'`
+   * (greedy). That is the right allocation — a Swiss round spreads ACROSS
+   * pistes rather than being pinned to one, unlike a pool.
+   */
+  private async loadSwissMatches(tournamentId: string): Promise<BracketMatchRow[]> {
+    const { data: phasesData } = await this.supabase.service
+      .from('phases')
+      .select('id, type')
+      .eq('tournament_id', tournamentId);
+    const swissPhaseIds = ((phasesData ?? []) as Array<{ id: string; type: string }>)
+      .filter((p) => p.type === 'swiss')
+      .map((p) => p.id);
+    if (swissPhaseIds.length === 0) return [];
+
+    const { data: matchesData } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, swiss_round_id, swiss_rounds(round_number)',
+      )
+      .in('phase_id', swissPhaseIds)
+      .order('match_number_label', { ascending: true });
+
+    const raw = (matchesData ?? []) as unknown as Array<{
+      id: string;
+      red_registration_id: string;
+      blue_registration_id: string;
+      pool_id: string | null;
+      match_number_label: string | null;
+      phase_id: string;
+      swiss_rounds: { round_number: number } | Array<{ round_number: number }> | null;
+    }>;
+    const roundOf = (row: (typeof raw)[number]): number => {
+      const rel = Array.isArray(row.swiss_rounds) ? row.swiss_rounds[0] : row.swiss_rounds;
+      return rel?.round_number ?? 0;
+    };
+
+    return raw
+      .slice()
+      .sort((a, b) => roundOf(a) - roundOf(b))
+      .map((r) => ({
+        id: r.id,
+        red_registration_id: r.red_registration_id,
+        blue_registration_id: r.blue_registration_id,
+        pool_id: r.pool_id,
+        pool_sort_order: null,
+        match_number_label: r.match_number_label,
+        phase_id: r.phase_id,
+        phase_type: 'swiss',
+        bracket_round: null,
+        bracket_position: null,
+      }));
   }
 
   /** Slot id → {round, position} for bracket matches. Empty input = no query. */
@@ -1564,7 +1745,13 @@ export class ProgrammeService {
       .select('id, type')
       .eq('tournament_id', tournamentId);
     const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
-    const bracketPhases = phases.filter((p) => p.type !== 'pool');
+    // The two ELIM types only. This used to be `type !== 'pool'`, which swept
+    // a Swiss phase's matches into the Bracket block: they have no
+    // bracket_slot_id, so they never matched finalRound and were re-fetched
+    // by every bracket block.
+    const bracketPhases = phases.filter(
+      (p) => p.type === 'single_elim' || p.type === 'double_elim',
+    );
     const bracketPhaseIds = bracketPhases.map((p) => p.id);
     if (bracketPhaseIds.length === 0) return { rows: [], finalRound: null };
     const phaseTypeById = new Map(bracketPhases.map((p) => [p.id, p.type]));
@@ -1624,7 +1811,7 @@ export class ProgrammeService {
       if (!block.competitionPhase) {
         throw new BadRequestException(`Competition block "${block.label}" requires a phase`);
       }
-      if (!['pool', 'bracket', 'finals'].includes(block.competitionPhase)) {
+      if (!['pool', 'swiss', 'bracket', 'finals'].includes(block.competitionPhase)) {
         throw new BadRequestException(`Competition block "${block.label}" has an invalid phase`);
       }
       if (block.liceCount < 1) {

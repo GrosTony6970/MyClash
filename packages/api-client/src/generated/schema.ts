@@ -4088,6 +4088,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/swiss-rounds/{roundId}/referee-assignments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Clear every referee assignment for one Swiss round, across all its pistes (refuses when locked) */
+    delete: operations['AssignmentBoardController_clearSwissRoundAssignments'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/slot-config': {
     parameters: {
       query?: never;
@@ -9636,6 +9653,11 @@ export interface components {
         displayName?: string | null;
         allowedSkillIds: string[];
       }[];
+      swiss?: {
+        index: number;
+        displayName?: string | null;
+        allowedSkillIds: string[];
+      }[];
       bracket: {
         index: number;
         displayName?: string | null;
@@ -9659,7 +9681,7 @@ export interface components {
         /** Format: uuid */
         competitionId?: string | null;
         /** @enum {string|null} */
-        competitionPhase?: 'pool' | 'bracket' | 'finals' | null;
+        competitionPhase?: 'pool' | 'swiss' | 'bracket' | 'finals' | null;
         /** Format: uuid */
         workshopId?: string | null;
         liceCount: number;
@@ -9676,6 +9698,7 @@ export interface components {
       dayEndTime: string;
       parallelLiceCount: number;
       poolMatchDurationMinutes: number;
+      swissMatchDurationMinutes?: number;
       eliminationMatchDurationMinutes: number;
       finalsMatchDurationMinutes: number;
       matchGapSeconds: number;
@@ -9701,7 +9724,7 @@ export interface components {
       /** Format: uuid */
       competitionId?: string | null;
       /** @enum {string|null} */
-      competitionPhase?: 'pool' | 'bracket' | 'finals' | null;
+      competitionPhase?: 'pool' | 'swiss' | 'bracket' | 'finals' | null;
       /** Format: uuid */
       workshopId?: string | null;
       colorHex?: string | null;
@@ -9858,7 +9881,7 @@ export interface components {
       rates: {
         refereeRole: string;
         /** @enum {string} */
-        compensationPhase: 'pool' | 'bracket' | 'finals';
+        compensationPhase: 'pool' | 'swiss' | 'bracket' | 'finals';
         tokensPerMatch: number;
       }[];
     };
@@ -10248,6 +10271,8 @@ export interface components {
     SetTournamentPhaseVenuesDto: {
       /** Format: uuid */
       pool?: string | null;
+      /** Format: uuid */
+      swiss?: string | null;
       /** Format: uuid */
       bracket?: string | null;
     };
@@ -16698,6 +16723,25 @@ export interface operations {
       };
     };
   };
+  AssignmentBoardController_clearSwissRoundAssignments: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        roundId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   StaffingController_getEventDefault: {
     parameters: {
       query?: never;
@@ -20521,7 +20565,7 @@ export interface operations {
       header?: never;
       path: {
         tournamentId: string;
-        kind: 'pool' | 'bracket';
+        kind: 'pool' | 'swiss' | 'bracket';
       };
       cookie?: never;
     };

@@ -17,7 +17,20 @@ import type {
 type Row = Record<string, unknown>;
 
 type PhaseVenue = { id: string; name: string } | null;
-type TournamentPhaseVenues = { pool: PhaseVenue; bracket: PhaseVenue };
+/**
+ * 'finals' run with the bracket, so there is no separate key for them. Swiss
+ * does get its own: a Swiss phase can occupy a different hall from the bracket
+ * that follows it, and before this it silently rode the bracket assignment.
+ */
+type TournamentPhaseVenues = { pool: PhaseVenue; swiss: PhaseVenue; bracket: PhaseVenue };
+
+/** The assignable phase-venue kinds, iterated by both the read and the write. */
+const PHASE_VENUE_KINDS = ['pool', 'swiss', 'bracket'] as const;
+export type PhaseVenueKind = (typeof PHASE_VENUE_KINDS)[number];
+
+export function isPhaseVenueKind(value: string): value is PhaseVenueKind {
+  return (PHASE_VENUE_KINDS as readonly string[]).includes(value);
+}
 
 /**
  * Venues — org-level catalogue of physical locations reusable
@@ -556,7 +569,7 @@ export class VenuesService {
       .select('phase_kind, venues(id, name)')
       .eq('tournament_id', tournamentId);
     if (error) throw new BadRequestException(error.message);
-    const out: TournamentPhaseVenues = { pool: null, bracket: null };
+    const out: TournamentPhaseVenues = { pool: null, swiss: null, bracket: null };
     for (const row of (data ?? []) as unknown as Array<{
       phase_kind: string;
       venues: { id: string; name: string } | null;
@@ -564,8 +577,7 @@ export class VenuesService {
       const venue = row.venues
         ? { id: String(row.venues.id), name: String(row.venues.name) }
         : null;
-      if (row.phase_kind === 'pool') out.pool = venue;
-      else if (row.phase_kind === 'bracket') out.bracket = venue;
+      if (isPhaseVenueKind(row.phase_kind)) out[row.phase_kind] = venue;
     }
     return out;
   }
@@ -578,7 +590,7 @@ export class VenuesService {
    */
   async setTournamentPhaseVenues(
     tournamentId: string,
-    assignments: { pool?: string | null; bracket?: string | null },
+    assignments: Partial<Record<PhaseVenueKind, string | null>>,
     userId: string,
   ): Promise<TournamentPhaseVenues> {
     const { data: tournament, error: tErr } = await this.supabase.service
@@ -601,7 +613,7 @@ export class VenuesService {
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
 
     // Validate any provided venue belongs to this org.
-    const requestedVenueIds = [assignments.pool, assignments.bracket].filter(
+    const requestedVenueIds = PHASE_VENUE_KINDS.map((kind) => assignments[kind]).filter(
       (v): v is string => typeof v === 'string',
     );
     if (requestedVenueIds.length > 0) {
@@ -618,8 +630,7 @@ export class VenuesService {
       }
     }
 
-    const kinds: Array<'pool' | 'bracket'> = ['pool', 'bracket'];
-    for (const kind of kinds) {
+    for (const kind of PHASE_VENUE_KINDS) {
       if (!(kind in assignments)) continue; // omitted → leave unchanged
       const venueId = assignments[kind] ?? null;
       if (venueId === null) {
@@ -650,12 +661,12 @@ export class VenuesService {
    * "Move now": re-point a phase-kind's EXISTING matches onto its assigned
    * venue's lices (round-robin, preserving scheduled_at), org-admin. This is the
    * explicit, on-demand counterpart to the intent stored by
-   * {@link setTournamentPhaseVenues} — it never runs automatically. 'finals' run
-   * with the bracket, so kind is just pool | bracket.
+   * {@link setTournamentPhaseVenues} — it never runs automatically. 'finals'
+   * run with the bracket, so the kinds are pool | swiss | bracket.
    */
   async applyTournamentPhaseVenue(
     tournamentId: string,
-    kind: 'pool' | 'bracket',
+    kind: PhaseVenueKind,
     userId: string,
   ): Promise<{ moved: number; venueId: string }> {
     const { data: tournament, error: tErr } = await this.supabase.service
@@ -685,13 +696,19 @@ export class VenuesService {
     const venueId = pvRow ? String((pvRow as Row)['venue_id'] ?? '') || null : null;
     if (!venueId) throw new BadRequestException(`No ${kind} venue is assigned for this tournament`);
 
-    // Phases of this kind ('pool' vs the elim/swiss family = "bracket").
-    const phaseTypes = kind === 'pool' ? ['pool'] : ['single_elim', 'double_elim', 'swiss'];
+    // Phases of this kind. Swiss now has its own venue, so it must NOT be
+    // swept along by a bracket move — that would drag a whole Swiss phase into
+    // the elimination hall the moment the organiser applied the bracket venue.
+    const phaseTypes: Record<PhaseVenueKind, string[]> = {
+      pool: ['pool'],
+      swiss: ['swiss'],
+      bracket: ['single_elim', 'double_elim'],
+    };
     const { data: phaseRows } = await this.supabase.service
       .from('phases')
       .select('id')
       .eq('tournament_id', tournamentId)
-      .in('type', phaseTypes);
+      .in('type', phaseTypes[kind]);
     const phaseIds = ((phaseRows ?? []) as Array<{ id: string }>).map((p) => String(p.id));
     if (phaseIds.length === 0) return { moved: 0, venueId };
 

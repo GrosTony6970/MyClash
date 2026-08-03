@@ -39,6 +39,27 @@ describe('assembleBoardRows', () => {
     });
   });
 
+  it('reads the round from swiss_rounds for a Swiss bout', () => {
+    // staff.service.ts has selected swiss_rounds(round_number) since the Swiss
+    // schema landed, but nothing read it — Swiss rows showed no round at all.
+    const input = base();
+    input.matches = [
+      {
+        id: 'm1',
+        lice_id: 'L1',
+        status: 'running',
+        red_score: 0,
+        blue_score: 0,
+        match_number_label: 'SW-R3-M2',
+        bracket_slots: null,
+        swiss_rounds: { round_number: 3 },
+        red: { persons: { given_name: 'Marie', family_name: 'D' } },
+        blue: { persons: { given_name: 'Jean', family_name: 'P' } },
+      },
+    ];
+    expect(assembleBoardRows(input)[0]!.currentMatch?.round).toBe(3);
+  });
+
   it('is idle (currentMatch null) when the lice has no running/scheduled match', () => {
     expect(assembleBoardRows(base())[0]!.currentMatch).toBeNull();
   });

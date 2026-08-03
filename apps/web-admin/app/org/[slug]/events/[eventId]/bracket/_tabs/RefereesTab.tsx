@@ -69,8 +69,9 @@ interface AssignmentBoardPool {
   liceId: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  kind?: 'pool' | 'bracket' | 'finals';
-  matchId?: string;
+  kind?: 'pool' | 'swiss' | 'bracket' | 'finals';
+  /** One entry for a bracket/finals unit; a whole (round × piste) for Swiss. */
+  matchIds?: string[];
   /** Bracket-only metadata so the title can render 'Quarter-final #2'
    *  instead of the raw 'R{N}P{M}'. See Slice 3 of the pools+bracket
    *  referees overhaul. */

@@ -33,6 +33,7 @@ interface SuggestConfig {
   dayEndTime: string;
   parallelLiceCount: number;
   poolMatchDurationMinutes: number;
+  swissMatchDurationMinutes: number;
   eliminationMatchDurationMinutes: number;
   finalsMatchDurationMinutes: number;
   matchGapSeconds: number;
@@ -52,6 +53,8 @@ const DEFAULT_CONFIG: SuggestConfig = {
   dayEndTime: '19:00',
   parallelLiceCount: 0,
   poolMatchDurationMinutes: 5,
+  // A Swiss bout is a group-stage bout, so it defaults to the pool clock.
+  swissMatchDurationMinutes: 5,
   eliminationMatchDurationMinutes: 8,
   finalsMatchDurationMinutes: 10,
   matchGapSeconds: 10,
@@ -511,6 +514,7 @@ export function ProgrammePlanner({
               ['dayEnd', 'dayEndTime', 'time'],
               ['parallelLices', 'parallelLiceCount', 'number'],
               ['poolMatchDuration', 'poolMatchDurationMinutes', 'number'],
+              ['swissMatchDuration', 'swissMatchDurationMinutes', 'number'],
               ['eliminationMatchDuration', 'eliminationMatchDurationMinutes', 'number'],
               ['finalsMatchDuration', 'finalsMatchDurationMinutes', 'number'],
               ['matchGap', 'matchGapSeconds', 'number'],

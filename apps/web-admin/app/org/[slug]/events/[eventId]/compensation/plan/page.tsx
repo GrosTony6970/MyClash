@@ -18,7 +18,12 @@ interface RefereeSkill {
   sortOrder: number;
 }
 
-const PHASES: { id: CompensationPhase }[] = [{ id: 'pool' }, { id: 'bracket' }, { id: 'finals' }];
+const PHASES: { id: CompensationPhase }[] = [
+  { id: 'pool' },
+  { id: 'swiss' },
+  { id: 'bracket' },
+  { id: 'finals' },
+];
 
 type RatesGrid = Record<string, Record<string, string>>;
 

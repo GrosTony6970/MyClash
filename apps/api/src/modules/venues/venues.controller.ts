@@ -18,7 +18,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
-import { VenuesService } from './venues.service';
+import { VenuesService, isPhaseVenueKind } from './venues.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -233,15 +233,15 @@ export class VenuesController {
       "Move now: re-point a phase's existing matches onto its assigned venue's lices (org admin+).",
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  @ApiParam({ name: 'kind', enum: ['pool', 'bracket'] })
+  @ApiParam({ name: 'kind', enum: ['pool', 'swiss', 'bracket'] })
   async applyTournamentPhaseVenue(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Param('kind') kind: string,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
-    if (kind !== 'pool' && kind !== 'bracket') {
-      throw new BadRequestException("kind must be 'pool' or 'bracket'");
+    if (!isPhaseVenueKind(kind)) {
+      throw new BadRequestException("kind must be 'pool', 'swiss' or 'bracket'");
     }
     return this.venues.applyTournamentPhaseVenue(tournamentId, kind, userId);
   }

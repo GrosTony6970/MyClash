@@ -29,7 +29,13 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type { StaffingConfigPayloadDto, StaffingSlotDto } from './dto/staffing.dto';
 
-export type PhaseType = 'pool' | 'bracket' | 'finals';
+export type PhaseType = 'pool' | 'swiss' | 'bracket' | 'finals';
+
+/**
+ * The four slot buckets, in the order the Staffing tab renders them. Iterated
+ * by every write path so a new phase type is added in exactly one place.
+ */
+export const PHASE_TYPES: readonly PhaseType[] = ['pool', 'swiss', 'bracket', 'finals'] as const;
 
 export interface ResolvedSlot {
   index: number;
@@ -37,10 +43,10 @@ export interface ResolvedSlot {
   allowedSkillIds: string[];
 }
 
-export interface ResolvedConfig {
-  pool: ResolvedSlot[];
-  bracket: ResolvedSlot[];
-  finals: ResolvedSlot[];
+/** The slot rows for every phase type, without the resolution metadata. */
+export type PhaseSlots = Record<PhaseType, ResolvedSlot[]>;
+
+export interface ResolvedConfig extends PhaseSlots {
   inheritsEventDefault: boolean; // true when the tournament has no rows of its own
   isHardCodedFloor: boolean; // true when neither tournament nor event rows exist
 }
@@ -78,8 +84,32 @@ export const HARD_CODED_DEFAULT_SLOTS: ResolvedSlot[] = [
 ];
 
 /** Empty rows for a (tournament|event) — used to detect "no config" state. */
-function emptyConfig(): { pool: ResolvedSlot[]; bracket: ResolvedSlot[]; finals: ResolvedSlot[] } {
-  return { pool: [], bracket: [], finals: [] };
+function emptyConfig(): PhaseSlots {
+  return { pool: [], swiss: [], bracket: [], finals: [] };
+}
+
+/**
+ * A Swiss round is a group stage, so its crew looks like a pool's — and every
+ * config written before the Swiss format existed has no `swiss` rows at all.
+ * Seed the empty bucket from `pool` at read time rather than backfilling rows,
+ * so an organiser who later saves an explicit Swiss config simply overrides it
+ * and a change to `pool` keeps flowing through until they do.
+ *
+ * Applied at every resolve site. Never at a write site: persisting the seed
+ * would freeze it, which is the opposite of what "inherit" means here.
+ */
+function seedSwissFromPool(rows: PhaseSlots): PhaseSlots {
+  return rows.swiss.length > 0 ? rows : { ...rows, swiss: rows.pool.map((s) => ({ ...s })) };
+}
+
+/** Every bucket at the legacy 3-role floor. */
+function hardCodedFloor(): PhaseSlots {
+  return {
+    pool: [...HARD_CODED_DEFAULT_SLOTS],
+    swiss: [...HARD_CODED_DEFAULT_SLOTS],
+    bracket: [...HARD_CODED_DEFAULT_SLOTS],
+    finals: [...HARD_CODED_DEFAULT_SLOTS],
+  };
 }
 
 @Injectable()
@@ -102,7 +132,7 @@ export class StaffingService {
     const tournamentRows = await this.loadTournamentRows(tournamentId);
     if (hasAnyRows(tournamentRows)) {
       return {
-        ...tournamentRows,
+        ...seedSwissFromPool(tournamentRows),
         inheritsEventDefault: false,
         isHardCodedFloor: false,
       };
@@ -111,16 +141,14 @@ export class StaffingService {
     const eventRows = await this.loadEventRows(eventId);
     if (hasAnyRows(eventRows)) {
       return {
-        ...eventRows,
+        ...seedSwissFromPool(eventRows),
         inheritsEventDefault: true,
         isHardCodedFloor: false,
       };
     }
 
     return {
-      pool: [...HARD_CODED_DEFAULT_SLOTS],
-      bracket: [...HARD_CODED_DEFAULT_SLOTS],
-      finals: [...HARD_CODED_DEFAULT_SLOTS],
+      ...hardCodedFloor(),
       inheritsEventDefault: true,
       isHardCodedFloor: true,
     };
@@ -138,18 +166,24 @@ export class StaffingService {
 
     const tournamentRows = await this.loadTournamentRows(tournamentId);
     if (hasAnyRows(tournamentRows)) {
-      return { ...tournamentRows, inheritsEventDefault: false, isHardCodedFloor: false };
+      return {
+        ...seedSwissFromPool(tournamentRows),
+        inheritsEventDefault: false,
+        isHardCodedFloor: false,
+      };
     }
 
     const eventRows = await this.loadEventRows(eventId);
     if (hasAnyRows(eventRows)) {
-      return { ...eventRows, inheritsEventDefault: true, isHardCodedFloor: false };
+      return {
+        ...seedSwissFromPool(eventRows),
+        inheritsEventDefault: true,
+        isHardCodedFloor: false,
+      };
     }
 
     return {
-      pool: [...HARD_CODED_DEFAULT_SLOTS],
-      bracket: [...HARD_CODED_DEFAULT_SLOTS],
-      finals: [...HARD_CODED_DEFAULT_SLOTS],
+      ...hardCodedFloor(),
       inheritsEventDefault: true,
       isHardCodedFloor: true,
     };
@@ -163,16 +197,14 @@ export class StaffingService {
     const eventRows = await this.loadEventRows(eventId);
     if (hasAnyRows(eventRows)) {
       return {
-        ...eventRows,
+        ...seedSwissFromPool(eventRows),
         inheritsEventDefault: false,
         isHardCodedFloor: false,
       };
     }
 
     return {
-      pool: [...HARD_CODED_DEFAULT_SLOTS],
-      bracket: [...HARD_CODED_DEFAULT_SLOTS],
-      finals: [...HARD_CODED_DEFAULT_SLOTS],
+      ...hardCodedFloor(),
       inheritsEventDefault: false,
       isHardCodedFloor: true,
     };
@@ -370,8 +402,11 @@ export class StaffingService {
       tournament_id: string;
       slot_dto: StaffingSlotDto;
     }> = [];
-    for (const phaseType of ['pool', 'bracket', 'finals'] as const) {
-      for (const slot of payload[phaseType]) {
+    for (const phaseType of PHASE_TYPES) {
+      // `swiss` is optional on the payload: a client that predates the format
+      // sends three buckets, and writing nothing lets the read-side pool seed
+      // keep answering for it.
+      for (const slot of payload[phaseType] ?? []) {
         allInserts.push({
           phase_type: phaseType,
           slot_index: slot.index,
@@ -435,8 +470,8 @@ export class StaffingService {
       event_id: string;
       slot_dto: StaffingSlotDto;
     }> = [];
-    for (const phaseType of ['pool', 'bracket', 'finals'] as const) {
-      for (const slot of payload[phaseType]) {
+    for (const phaseType of PHASE_TYPES) {
+      for (const slot of payload[phaseType] ?? []) {
         allInserts.push({
           phase_type: phaseType,
           slot_index: slot.index,
@@ -578,7 +613,10 @@ export class StaffingService {
         if (!phaseId) return null;
         const type = phaseTypeById.get(phaseId);
         if (type === 'pool') return 'pool';
-        if (type === 'single_elim' || type === 'double_elim' || type === 'swiss') return 'bracket';
+        // Swiss has its own bucket now — collapsing it onto 'bracket' here
+        // validated Swiss assignments against the wrong slot config.
+        if (type === 'swiss') return 'swiss';
+        if (type === 'single_elim' || type === 'double_elim') return 'bracket';
         return null;
       },
     );
@@ -685,7 +723,10 @@ export function classifyAssignmentsAgainstPayload(
   for (const a of assignments) {
     const phaseType = classify(a);
     if (!phaseType) continue;
-    const slots = payload[phaseType];
+    // `swiss` is optional on the payload; when it is absent the resolver seeds
+    // it from `pool`, so validate against the same slots the board will use.
+    const slots =
+      phaseType === 'swiss' ? (payload.swiss ?? payload.pool) : (payload[phaseType] ?? []);
     const role = a.role;
     if (!role) continue;
     const slotForRole = slots.find((s) => s.allowedSkillIds.includes(role));
@@ -710,11 +751,16 @@ function groupByPhaseType(
     display_name: string | null;
   }>,
   skillsBySlot: Map<string, string[]>,
-): { pool: ResolvedSlot[]; bracket: ResolvedSlot[]; finals: ResolvedSlot[] } {
+): PhaseSlots {
   const out = emptyConfig();
   const sorted = [...slots].sort((a, b) => a.slot_index - b.slot_index);
   for (const s of sorted) {
-    out[s.phase_type].push({
+    // Indexed straight off a DB value: a phase_type the CHECK permits but this
+    // build does not know would `push` onto undefined and take down every
+    // staffing read. Skip it instead.
+    const bucket = out[s.phase_type];
+    if (!bucket) continue;
+    bucket.push({
       index: s.slot_index,
       displayName: s.display_name,
       allowedSkillIds: skillsBySlot.get(s.id) ?? [],
@@ -723,17 +769,16 @@ function groupByPhaseType(
   return out;
 }
 
-function hasAnyRows(rows: {
-  pool: ResolvedSlot[];
-  bracket: ResolvedSlot[];
-  finals: ResolvedSlot[];
-}) {
-  return rows.pool.length > 0 || rows.bracket.length > 0 || rows.finals.length > 0;
+function hasAnyRows(rows: PhaseSlots) {
+  return PHASE_TYPES.some((phaseType) => rows[phaseType].length > 0);
 }
 
 function validatePayload(payload: StaffingConfigPayloadDto): void {
-  for (const phaseType of ['pool', 'bracket', 'finals'] as const) {
+  for (const phaseType of PHASE_TYPES) {
     const slots = payload[phaseType];
+    // `swiss` is optional — omitting it means "inherit the pool config", which
+    // is a valid save. Present-but-empty is not.
+    if (slots === undefined && phaseType === 'swiss') continue;
     if (!Array.isArray(slots) || slots.length === 0 || slots.length > 6) {
       throw new BadRequestException(`${phaseType} must have 1..6 slots`);
     }
