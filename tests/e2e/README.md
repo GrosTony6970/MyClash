@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`21` (see the Status table), so you can run one by number.
+Specs are numbered `01`…`22` (see the Status table), so you can run one by number.
 Note that **PowerShell does not expand globs and Playwright reads its argument as
 a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
 literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
@@ -548,6 +548,64 @@ which is what proves the 409 came from the lock and not from the row.
 > "at or after the block start" filter and every match was skipped — silently.
 > Fixed in `ef5b4e74`; `deleteBlock`'s comment had predicted it.
 
+## Swiss rounds pair themselves (opt-in)
+
+`E2E_SWISS=1 pnpm test:e2e:prod tests/e2e/22-swiss.spec.ts` runs
+**`22-swiss.spec.ts`**, the only test that plays a Swiss phase against a real
+database.
+
+Swiss earns this more than any other format, because **round N+1 does not exist
+until round N is scored**. `SwissAdvanceService.onMatchCompleted` pairs it, from
+inside `MatchCompletionService`, wrapped in a catch that swallows — a completion
+side effect must never fail the exchange that triggered it. So a broken advance
+edge throws nothing, logs a warning nobody is watching, and the tournament
+simply stops after round 1. That is the double-elim `source_a_ref` failure mode
+again: silent, permanent, and invisible to every unit test, because the unit
+tests mock Supabase and never let the edge run.
+
+Two more things only real rows reach:
+
+- **the DI graph.** `SwissCoreModule` is a leaf precisely so `PhasesModule` can
+  import it for auto-advance without closing a cycle. A NestJS module cycle is
+  invisible to `tsc` **and** to vitest (esbuild emits no decorator metadata) —
+  it surfaces only when the API boots. Calling these endpoints against a
+  deployed API is the check.
+- **`swiss_rounds UNIQUE (phase_id, round_number)`**, the backstop for two
+  near-simultaneous completions both seeing "round complete".
+
+Five scenarios over a 13-fighter, 4-round phase (~24 bouts each):
+
+| Scenario                | What only it proves                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| A. plays itself through | The next round pairs itself **off the pad**, four times running; one bye per round, nobody twice, no unflagged rematch           |
+| B. standings            | Points and **Buchholz recomputed independently** agree — the one column that cannot be right by accident                         |
+| C. override             | A swap preserves the round; a rematch-creating swap **409s with `creates-rematch`** and proceeds on confirm                      |
+| D. withdrawal           | Played results stand: the opponent keeps the win **and** the Buchholz contribution, and the already-drawn round keeps the leaver |
+| E. cut                  | `finalise` freezes the standings, and `by-swiss-rank` maps rank K onto **seed K** for the whole cut                              |
+
+The round-1 draw is random (the default), so who plays whom differs per run.
+Determinism comes from the winner **rule** instead — the lower seed always wins —
+which makes `Seed 01` unbeaten in every run whoever they were drawn against, and
+makes every assertion an invariant rather than a hardcoded table. Where a random
+draw can legitimately produce two unbeaten fighters, the spec asserts "holds the
+maximum score" rather than "is rank 1", so a correct outcome can never fail it.
+
+Bouts are played the way the **pad** plays them — clean exchanges until the
+ruleset engine trips `first_to_points` — reusing `scoreMatch` from `_bracket.ts`.
+`expectEngineDecided` then asserts every winner sits exactly on the cap, which is
+what separates "the test decided" from "the engine decided". A bout completed
+with a **null** winner (both sides at the cap) can never close its round, so the
+phase would stall; catching it at the bout beats a missing-round timeout four
+rounds later.
+
+> The driver (`_swiss.ts`) is **resumable**: it sequences on the latest round
+> number and skips finished bouts, rather than counting from 1. Scenarios C and D
+> score round 1 by hand — to set up a rematch swap, and to withdraw someone who
+> fought — then hand over mid-phase.
+>
+> Like the other playthrough specs it **completes matches**, so the event can no
+> longer be hard-deleted afterwards. Run it on a sandbox org.
+
 ## Status
 
 | #   | Flow                                 | Spec                                | State                                    |
@@ -573,6 +631,7 @@ which is what proves the 409 came from the lock and not from the row.
 | 19  | Workshops: seats, waitlist, staff    | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
 | 20  | Schedule generator invariants        | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above     |
 | 21  | Referee qualification + availability | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above     |
+| 22  | Swiss rounds, auto-advance, the cut  | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above        |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them
