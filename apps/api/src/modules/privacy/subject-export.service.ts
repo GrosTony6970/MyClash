@@ -170,6 +170,9 @@ export class SubjectExportService {
   private anchorValues(reach: SubjectReach, anchors: SubjectAnchors): string[] {
     if (reach === 'uid') return [anchors.uid];
     if (reach === 'global_person') return anchors.globalPersonIds;
+    // Already resolved for the own-matches path; a phase roster keyed on the
+    // registration reuses it rather than re-querying.
+    if (reach === 'registration') return anchors.registrationIds;
     return anchors.personIds;
   }
 

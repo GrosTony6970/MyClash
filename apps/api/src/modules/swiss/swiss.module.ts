@@ -5,6 +5,7 @@ import { SupabaseModule } from '../supabase/supabase.module';
 import { SwissCoreModule } from './swiss-core.module';
 import { SwissStandingsController } from './swiss-standings.controller';
 import { SwissController } from './swiss.controller';
+import { SwissAdminViewService } from './swiss-admin-view.service';
 import { SwissFinaliseService } from './swiss-finalise.service';
 import { SwissOverrideService } from './swiss-override.service';
 import { SwissSeedingService } from './swiss-seeding.service';
@@ -23,7 +24,13 @@ import { SwissService } from './swiss.service';
 @Module({
   imports: [SupabaseModule, SwissCoreModule, HemaRatingsModule, OrganizationsModule],
   controllers: [SwissController, SwissStandingsController],
-  providers: [SwissService, SwissSeedingService, SwissOverrideService, SwissFinaliseService],
+  providers: [
+    SwissService,
+    SwissSeedingService,
+    SwissOverrideService,
+    SwissFinaliseService,
+    SwissAdminViewService,
+  ],
   exports: [SwissService, SwissOverrideService, SwissFinaliseService],
 })
 export class SwissModule {}

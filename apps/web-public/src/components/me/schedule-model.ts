@@ -15,6 +15,8 @@ export interface RefereeAggregate {
   poolName: string | null;
   matchKind: string | null;
   roundOfCount: number | null;
+  /** Which Swiss round this card covers. Null for every other kind. */
+  swissRound: number | null;
   liceName: string | null;
   skillName: string | null;
   skillColor: string | null;
@@ -33,13 +35,18 @@ export const BRACKET_KINDS = new Set([
 ]);
 
 /** Stable key grouping per-match referee slots into one assignment: pool matches
- *  by pool, bracket matches by tier (round), swiss as one bucket. */
+ *  by pool, bracket matches by tier (round), swiss by ROUND.
+ *
+ *  Swiss used to key on the tournament alone, which folded every round a person
+ *  refereed into a single card — five separate duties spread across a day,
+ *  rendered as one entry with one time window. A Swiss round is the unit the
+ *  referee board assigns, so it is the unit the schedule shows. */
 export function refereeAssignmentKey(s: RefereeSlot): string {
   const tn = s.tournamentName ?? '';
   if (BRACKET_KINDS.has(s.matchKind ?? '')) {
     return `r|${tn}|round:${s.matchKind}:${s.roundOfCount ?? ''}`;
   }
-  if (s.matchKind === 'swiss') return `r|${tn}|swiss`;
+  if (s.matchKind === 'swiss') return `r|${tn}|swiss:${s.swissRound ?? ''}`;
   if (s.poolId) return `r|${tn}|pool:${s.poolId}`;
   return `r|${tn}|other:${s.poolName ?? s.matchId}`;
 }
@@ -75,6 +82,7 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
       poolName: base.poolName,
       matchKind: base.matchKind,
       roundOfCount: base.roundOfCount,
+      swissRound: base.swissRound,
       liceName: group.find((s) => s.liceName)?.liceName ?? null,
       skillName: base.skillName,
       skillColor: base.skillColor,

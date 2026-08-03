@@ -27,6 +27,7 @@ import {
 import { getPublicApiUrl } from '@/lib/api-url';
 import { SelfRowFocus } from './SelfRowFocus';
 import type { BracketSlot } from './page';
+import type { TournamentPhaseType } from './tournament-data';
 
 interface Props {
   /**
@@ -36,9 +37,10 @@ interface Props {
   isTournamentCompleted: boolean;
   tournamentId: string;
   bracketSlots: BracketSlot[];
-  /** Bracket format. Double-elim is ranked by losers-bracket exit, not by the
-   *  round of a fighter's first loss. Absent → single-elim. */
-  phaseType?: 'single_elim' | 'double_elim';
+  /** Phase format. Double-elim is ranked by losers-bracket exit, not by the
+   *  round of a fighter's first loss; `'swiss'` has no bracket at all and is
+   *  ordered by the Swiss standings. Absent → single-elim. */
+  phaseType?: TournamentPhaseType;
   wbRounds?: number | null;
   lbRounds?: number | null;
   /** Bronze mode reads gold/silver off the winners-bracket final instead of a
@@ -81,16 +83,23 @@ export function FinalRankingTab({
 }: Props) {
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
 
-  // Pool scores for the tiebreak + the "Pools" tail. Resolve client-side:
+  // The entries the ranking is built from. Resolve client-side:
   // getPublicApiUrl() returns the browser-reachable public URL (a server-passed prop
   // would be the docker-internal host, unreachable from the browser).
+  //
+  // A Swiss phase reads its OWN standings, not the pool ones. They arrive
+  // already ranked by the phase's tiebreak chain and `computeFinalRanking`
+  // takes them in that order — asking pool-standings for a Swiss-only
+  // tournament returns nothing at all, and the tab would say "computing"
+  // forever.
   useEffect(() => {
     const controller = new AbortController();
     const apiUrl = getPublicApiUrl();
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`, {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
+    const endpoint =
+      phaseType === 'swiss'
+        ? `${apiUrl}/api/v1/tournaments/${tournamentId}/swiss-standings`
+        : `${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`;
+    void fetch(endpoint, { cache: 'no-store', signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const rows = (data as { rows?: OverallStandingsRow[] } | null)?.rows ?? [];
@@ -108,11 +117,11 @@ export function FinalRankingTab({
         );
       })
       .catch(() => {
-        // Swallow — the ranking still renders from bracket data, just without
-        // pool scores / the non-bracket tail.
+        // Swallow — a bracket ranking still renders from slot data, just
+        // without pool scores / the non-bracket tail.
       });
     return () => controller.abort();
-  }, [tournamentId]);
+  }, [tournamentId, phaseType]);
 
   if (!isTournamentCompleted) {
     return (

@@ -170,7 +170,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
         <>
           <SectionTitle>{t('publicApp.me.hub.refereeing')}</SectionTitle>
           {refereeing.map((r) => {
-            const kind = matchKindLabel(t, r.matchKind, r.roundOfCount);
+            const kind = matchKindLabel(t, r.matchKind, r.roundOfCount, r.swissRound);
             // Pool phase: `poolName` already reads "Pool N", so the localized
             // "Pool" kind would be redundant ("Pool 1 · Pool"). Drop it there;
             // bracket phases keep their distinct kind label ("Final", …).

@@ -423,6 +423,7 @@ export const en = {
         kindQuarterFinal: 'Quarter-final',
         kindRoundOf: 'Round of {count}',
         kindSwiss: 'Swiss',
+        kindSwissRound: 'Swiss round {round}',
       },
       schedule: {
         tbd: 'Time TBD',
@@ -773,6 +774,9 @@ export const en = {
         organizerUpdates: 'New events from organisers you follow',
         organizerUpdatesDescription:
           'Get notified when an organiser you follow publishes a new event.',
+        swissRoundPublished: 'Swiss round paired',
+        swissRoundPublishedDescription:
+          'Get notified the moment the next Swiss round is drawn, with your opponent and piste.',
         decrease: 'Decrease lead time',
         increase: 'Increase lead time',
         signInRequired: 'Sign in to manage your notification preferences.',
@@ -964,11 +968,28 @@ export const en = {
         poolList: 'Pool List',
         poolMatches: 'Pool Matches',
         standings: 'Standings',
+        swiss: 'Swiss',
         bracket: 'Bracket',
         podium: 'Podium',
         participants: 'Participants',
         finalRanking: 'Final Ranking',
         stats: 'Statistics',
+      },
+      swiss: {
+        pending: 'Swiss pairings will appear here once the first round is drawn.',
+        progress: 'Round {done} of {total} complete',
+        finalisedAfter: 'Final standings after {done} of {total} rounds',
+        roundTitle: 'Round {round}',
+        bye: 'Bye',
+        // Badged publicly on purpose: a fighter asked to replay an opponent can
+        // see that no legal alternative existed, rather than assume the draw
+        // was fixed.
+        forcedRematch: 'Forced rematch',
+        forcedRematchHelp:
+          'No legal pairing avoided this repeat, so the engine allowed it rather than stalling the round.',
+        manuallyAdjusted: 'Manually adjusted',
+        manuallyAdjustedHelp: 'The organiser changed a pairing in this round by hand.',
+        podiumPending: 'The podium appears once the Swiss standings are final.',
       },
       standings: {
         modeOverall: 'Overall',
@@ -4963,6 +4984,13 @@ export const en = {
           ok: 'Every pool fight has a piste and a time.',
           warn: '{unscheduled} of {total} pool fight(s) are missing a piste or a time.',
         },
+        swissRounds: {
+          label: 'Swiss rounds',
+          // Never worse than info: rounds are paired one at a time as the phase
+          // runs, so "only round 1 exists" is the normal state on the morning
+          // of the event, not a gap for the organiser to close.
+          info: '{rounds} round(s) paired so far. The next one pairs itself when the current one finishes.',
+        },
         bracket: {
           label: 'Bracket',
           info: 'Fills from the pool standings once pools finish — usually on day two. Nothing to do now.',
@@ -5290,6 +5318,8 @@ export const en = {
         status: 'Status',
         noTournaments: 'No tournaments yet.',
         colPools: 'Pools',
+        colSwiss: 'Swiss',
+        swissRounds: '{count} rounds',
         colBracket: 'Bracket size',
         colElim: 'Elim type',
         colRuleset: 'Ruleset',
@@ -5341,6 +5371,7 @@ export const en = {
       sections: {
         persons: 'Participants',
         pools: 'Pools',
+        swiss: 'Swiss rounds',
         bracket: 'Bracket',
         finalRanking: 'Final ranking',
         hemaRatings: 'HEMA Ratings',
@@ -5779,6 +5810,196 @@ export const en = {
       reseedBlocked: 'Some Round 1 matches have already started — cannot reseed.',
       reseedSuccess: 'Round 1 reseeded.',
     },
+    // Copy shared by every referee-assignment surface (pools, bracket, Swiss),
+    // so the picker modal reads identically wherever it is opened.
+    /**
+     * The Swiss route. `swiss` is a 4th phase format alongside pool /
+     * single-elim / double-elim: every fighter plays the same number of rounds,
+     * paired each round against someone on a similar record, nobody eliminated.
+     */
+    swiss: {
+      page: {
+        title: 'Swiss rounds',
+        description:
+          'Every fighter plays the same number of rounds, paired each round against someone on a similar record. Nobody is eliminated and the ranking falls out of the standings.',
+        sectionsAria: 'Swiss sections',
+        pickTournament: 'Pick a tournament to configure its Swiss phase.',
+      },
+      tabs: {
+        configure: 'Configure',
+        rounds: 'Rounds',
+        standings: 'Standings',
+        referees: 'Referees',
+        disabledHint: 'Generate the Swiss phase first.',
+      },
+      errors: {
+        loadFailed: 'Could not load the Swiss phase.',
+      },
+      configure: {
+        formatTitle: 'Format',
+        roundCount: 'Number of rounds',
+        roundCountHelp:
+          'Every fighter plays this many rounds. Below three the standings are meaningless; above nine a one-day event runs out of time.',
+        recommended: 'Recommended: {count} for {fighters} fighters',
+        seeding: 'Round 1 draw',
+        seedingLocked: 'The draw is fixed once the phase exists. Regenerate to change it.',
+        seedingOption: {
+          random: 'Random draw',
+          'by-rating': 'By HEMA rating',
+          'by-pool-rank': 'By pool ranking',
+        },
+        seedingHint: {
+          random: 'Replayable: the seed is stored, so a contested draw can be reproduced exactly.',
+          'by-rating':
+            'Reads the synced hemaratings.com snapshot for this weapon. Refuses rather than seeding unrated fighters last.',
+          'by-pool-rank': 'Requires a completed pool phase to read the order from.',
+        },
+        minCoverage: 'Minimum rated coverage (%)',
+        minCoverageHelp:
+          'Below this, seeding by rating is refused outright. A draw that quietly falls back to registration order looks seeded and is not.',
+        pairingMethod: 'Pairing inside a group',
+        pairingOption: {
+          fold: 'Fold - top half against bottom half',
+          adjacent: 'Adjacent - 1v2, 3v4',
+        },
+        frozenAfterRound2:
+          'Frozen from round 2 on: changing this would rewrite what the rounds already played were worth.',
+        groupingTitle: 'Pairing groups on',
+        groupingExplainer:
+          'Swiss pairs fighters on EQUAL value. This is not the same setting as what the standings rank on: a continuous ruleset score gives everyone a unique value, so every group would hold one person and the pairing would degenerate to a flat 1v2, 3v4 down the table.',
+        grouping: {
+          points: 'Swiss points',
+          pointsHint: 'Discrete 3 / 1 / 0. The default, and what keeps the format Swiss.',
+          scoreBands: 'Score bands',
+          scoreBandsHint:
+            'Groups a continuous ruleset score into bands you define. Use when Swiss points are too coarse for your field.',
+        },
+        boundariesLabel: 'Band boundaries, ascending',
+        boundariesHint:
+          'Between 1 and 10 boundaries, strictly ascending. The preview below runs the same function the pairing does.',
+        bandsNoData: 'No standings yet - the preview appears once a round has been scored.',
+        bandLabel: 'Band {index} - {count} fighter(s)',
+        bandSingleton: 'alone - downfloats into the band below',
+        rankingTitle: 'Standings rank on',
+        rankingExplainer:
+          'What decides the final order. Independent of what the pairing groups on above.',
+        rankBy: {
+          swissPts: 'Swiss points',
+          swissPtsHint: 'Wins, draws and byes at the values set below.',
+          rulesetScore: 'The ruleset own score',
+          rulesetScoreHint:
+            'Offered on every ruleset. When the ruleset declares no score column, one is added to the table - nobody is placed on a number they cannot see.',
+        },
+        points: {
+          win: 'Win',
+          draw: 'Draw',
+          loss: 'Loss',
+          bye: 'Bye',
+        },
+        tiebreakTitle: 'Tiebreak chain',
+        tiebreakExplainer:
+          'Applied in order, to separate fighters level on the primary ranking. "Ruleset chain" splices in whatever this ruleset normally does.',
+        tiebreakEmpty: 'No tiebreaks: fighters level on the primary ranking stay in draw order.',
+        removeTiebreak: 'Remove',
+        moveUp: 'Move {key} earlier',
+        moveDown: 'Move {key} later',
+        lifecycleTitle: 'Phase',
+        generate: 'Generate Swiss phase',
+        generated: 'Swiss phase generated.',
+        save: 'Save configuration',
+        saved: 'Configuration saved.',
+        regenerate: 'Regenerate',
+        regenerateTitle: 'Regenerate the Swiss phase?',
+        regenerateBody:
+          'This deletes the phase and every round in it, then redraws from scratch. Refused once a bout has been fought.',
+        regenerateConfirm: 'Delete and redraw',
+        finalise: 'Finalise standings',
+        finalised: 'Standings finalised.',
+        finalisedAt: 'Final standings after {round} of {total} rounds.',
+        resume: 'Resume',
+        resumed: 'Phase resumed.',
+        assignReferees: 'Assign referees',
+        entrantsTitle: 'Entrants ({count})',
+        withdrawHint:
+          'A withdrawal takes no part in later rounds. The rounds they already played stand, and still count toward their opponents.',
+        withdraw: 'Withdraw',
+        withdrawn: 'Fighter withdrawn.',
+        withdrawnAt: 'out from round {round}',
+      },
+      rounds: {
+        noPhase: 'No Swiss phase yet.',
+        empty: 'No rounds paired yet.',
+        progress: '{done} of {total} rounds complete',
+        roundTitle: 'Round {round}',
+        finalisedBanner: 'The standings are finalised. Resume the phase to edit rounds again.',
+        advanced: 'Show advanced overrides',
+        manuallyAdjusted: 'Manually adjusted',
+        forcedRematch: 'Forced rematch',
+        bye: 'Bye',
+        swapHint: 'Click one fighter, then another in the same round, to exchange them.',
+        swapped: 'Fighters swapped.',
+        swapWarningTitle: 'Swap anyway?',
+        swapWarningConfirm: 'Swap anyway',
+        setSides: 'Swap sides',
+        setSidesHelp:
+          'Writes both sides of this bout directly. Can leave the round invalid, which blocks the next one.',
+        sidesSet: 'Sides updated.',
+        delete: 'Delete round',
+        deleteTitle: 'Delete round {round}?',
+        deleteBody: 'This removes the round and its {count} bout(s). Only the last round can go.',
+        deleteConfirm: 'Delete round',
+        deleted: 'Round deleted.',
+        invalidTitle: 'This round is invalid and blocks the next one.',
+        invalid: {
+          duplicated: 'Fighting twice',
+          missing: 'Not in the round at all',
+          unknown: 'Not an entrant of this phase',
+        },
+      },
+      standings: {
+        empty: 'No standings yet.',
+        after: 'After {done} of {total} rounds',
+        rankedBy: {
+          swissPts: 'ranked on Swiss points',
+          rulesetScore: 'ranked on the ruleset score',
+        },
+        withdrawn: 'withdrew R{round}',
+        exportCsv: 'Export CSV',
+      },
+      referees: {
+        loading: 'Loading the referee board...',
+        empty: 'No Swiss rounds to staff yet.',
+        loadFailed: 'Could not load the referee board.',
+        assignFailed: 'Could not save that assignment.',
+        roundTitle: 'Round {round}',
+        clearRound: 'Clear round',
+        clearTitle: 'Clear every referee on round {round}?',
+        clearBody: 'Every assignment on every piste of this round is removed.',
+        clearConfirm: 'Clear round',
+        cleared: 'Round cleared.',
+        clearFailed: 'Could not clear the round.',
+      },
+      tiebreak: {
+        buchholz: 'Buchholz',
+        buchholzCut1: 'Buchholz -1',
+        sonnebornBerger: 'Sonneborn-Berger',
+        opponentWinPct: 'Opponent win %',
+        headToHead: 'Head to head',
+        score: 'Ruleset score',
+        wins: 'Wins',
+        diff: 'Point difference',
+        ptsScored: 'Points scored',
+        doubles: 'Doubles',
+        hitsReceived: 'Hits received',
+        rulesetChain: 'Ruleset chain',
+      },
+    },
+    refereeBoard: {
+      cancel: 'Cancel',
+      pick: 'Pick',
+      pickerRecommended: 'Recommended',
+      pickerBlocked: 'Blocked',
+    },
     poolsPage: {
       refereesLoading: 'Loading referees...',
       refereesLoadFailed: 'Could not load referee assignments.',
@@ -5795,10 +6016,6 @@ export const en = {
       refereesAssign: 'Assign',
       refereesUnassign: 'Unassign',
       refereesUnassigned: 'Unassigned',
-      refereesCancel: 'Cancel',
-      refereesPick: 'Pick',
-      refereesPickerRecommended: 'Recommended',
-      refereesPickerBlocked: 'Blocked',
     },
     schedulePage: {
       breadcrumbEvent: 'Event',
@@ -6326,10 +6543,6 @@ export const en = {
       refereesAssign: 'Assign',
       refereesUnassign: 'Unassign',
       refereesUnassigned: 'Unassigned',
-      refereesCancel: 'Cancel',
-      refereesPick: 'Pick',
-      refereesPickerRecommended: 'Recommended',
-      refereesPickerBlocked: 'Blocked',
       refereesTournamentTabsLabel: 'Switch tournament',
     },
     pools: {
@@ -7343,6 +7556,7 @@ export const fr = {
         kindQuarterFinal: 'Quart de finale',
         kindRoundOf: 'Tableau de {count}',
         kindSwiss: 'Suisse',
+        kindSwissRound: 'Ronde suisse {round}',
       },
       schedule: {
         tbd: 'Horaire à confirmer',
@@ -7698,6 +7912,9 @@ export const fr = {
         organizerUpdates: 'Nouveaux evenements des organisateurs suivis',
         organizerUpdatesDescription:
           'Etre notifie quand un organisateur que vous suivez publie un nouvel evenement.',
+        swissRoundPublished: 'Ronde suisse appariee',
+        swissRoundPublishedDescription:
+          'Etre notifie des que la prochaine ronde suisse est tiree, avec votre adversaire et votre piste.',
         decrease: 'Reduire le delai',
         increase: 'Augmenter le delai',
         signInRequired: 'Connectez-vous pour gerer vos preferences de notification.',
@@ -7895,11 +8112,25 @@ export const fr = {
         poolList: 'Liste des poules',
         poolMatches: 'Matchs de poules',
         standings: 'Classements',
+        swiss: 'Suisse',
         bracket: 'Tableau',
         podium: 'Podium',
         participants: 'Participants',
         finalRanking: 'Classement final',
         stats: 'Statistiques',
+      },
+      swiss: {
+        pending: 'Les appariements suisses apparaitront des le tirage de la premiere ronde.',
+        progress: 'Ronde {done} sur {total} terminee',
+        finalisedAfter: 'Classement final apres {done} rondes sur {total}',
+        roundTitle: 'Ronde {round}',
+        bye: 'Exempt',
+        forcedRematch: 'Re-rencontre forcee',
+        forcedRematchHelp:
+          "Aucun appariement legal n'evitait cette repetition ; le moteur l'a autorisee plutot que de bloquer la ronde.",
+        manuallyAdjusted: 'Ajuste manuellement',
+        manuallyAdjustedHelp: "L'organisateur a modifie un appariement de cette ronde a la main.",
+        podiumPending: 'Le podium apparait une fois le classement suisse fige.',
       },
       standings: {
         modeOverall: 'Général',
@@ -11936,6 +12167,10 @@ export const fr = {
           ok: 'Chaque combat de poule a une piste et un horaire.',
           warn: '{unscheduled} combat(s) de poule sur {total} sans piste ou sans horaire.',
         },
+        swissRounds: {
+          label: 'Rondes suisses',
+          info: '{rounds} ronde(s) appariee(s). La suivante se tire seule des que la courante se termine.',
+        },
         bracket: {
           label: 'Tableau',
           info: 'Se remplit depuis le classement des poules une fois celles-ci terminees - en general le deuxieme jour. Rien a faire pour le moment.',
@@ -12269,6 +12504,8 @@ export const fr = {
         status: 'Statut',
         noTournaments: 'Aucun tournoi pour le moment.',
         colPools: 'Poules',
+        colSwiss: 'Suisse',
+        swissRounds: '{count} rondes',
         colBracket: 'Taille du tableau',
         colElim: 'Type d elim',
         colRuleset: 'Ruleset',
@@ -12322,6 +12559,7 @@ export const fr = {
       sections: {
         persons: 'Participants',
         pools: 'Poules',
+        swiss: 'Rondes suisses',
         bracket: 'Tableau',
         finalRanking: 'Classement final',
         hemaRatings: 'HEMA Ratings',
@@ -12766,6 +13004,190 @@ export const fr = {
       reseedBlocked: 'Certains matchs du 1er tour sont deja lances - re-tirage impossible.',
       reseedSuccess: '1er tour re-tire.',
     },
+    swiss: {
+      page: {
+        title: 'Rondes suisses',
+        description:
+          "Chaque tireur dispute le meme nombre de rondes, apparie a chaque fois avec quelqu'un au palmares proche. Personne n'est elimine et le classement decoule des resultats.",
+        sectionsAria: 'Sections suisses',
+        pickTournament: 'Choisissez un tournoi pour configurer sa phase suisse.',
+      },
+      tabs: {
+        configure: 'Configurer',
+        rounds: 'Rondes',
+        standings: 'Classement',
+        referees: 'Arbitres',
+        disabledHint: "Generez d'abord la phase suisse.",
+      },
+      errors: {
+        loadFailed: 'Impossible de charger la phase suisse.',
+      },
+      configure: {
+        formatTitle: 'Format',
+        roundCount: 'Nombre de rondes',
+        roundCountHelp:
+          "Chaque tireur dispute ce nombre de rondes. En dessous de trois le classement n'a pas de sens ; au-dessus de neuf un evenement d'une journee manque de temps.",
+        recommended: 'Recommande : {count} pour {fighters} tireurs',
+        seeding: 'Tirage de la ronde 1',
+        seedingLocked: 'Le tirage est fige une fois la phase creee. Regenerez pour le changer.',
+        seedingOption: {
+          random: 'Tirage aleatoire',
+          'by-rating': 'Par classement HEMA',
+          'by-pool-rank': 'Par classement de poule',
+        },
+        seedingHint: {
+          random: 'Rejouable : la graine est enregistree, un tirage conteste peut etre reproduit.',
+          'by-rating':
+            "Lit l'instantane hemaratings.com pour cette arme. Refuse plutot que de classer les non-notes en dernier.",
+          'by-pool-rank': "Necessite une phase de poules terminee pour en lire l'ordre.",
+        },
+        minCoverage: 'Couverture minimale notee (%)',
+        minCoverageHelp:
+          "En dessous, le tirage par classement est refuse. Un tirage qui retombe en silence sur l'ordre d'inscription a l'air classe et ne l'est pas.",
+        pairingMethod: "Appariement au sein d'un groupe",
+        pairingOption: {
+          fold: 'Plie - moitie haute contre moitie basse',
+          adjacent: 'Adjacent - 1c2, 3c4',
+        },
+        frozenAfterRound2:
+          'Fige a partir de la ronde 2 : le modifier reecrirait la valeur des rondes deja disputees.',
+        groupingTitle: "L'appariement groupe sur",
+        groupingExplainer:
+          "Le systeme suisse apparie sur une valeur EGALE. Ce n'est pas le meme reglage que celui du classement : un score continu donne a chacun une valeur unique, donc chaque groupe ne contiendrait qu'une personne et l'appariement degenererait en 1c2, 3c4.",
+        grouping: {
+          points: 'Points suisses',
+          pointsHint: 'Discret 3 / 1 / 0. Le defaut, et ce qui garde le format suisse.',
+          scoreBands: 'Tranches de score',
+          scoreBandsHint:
+            'Groupe un score continu en tranches que vous definissez. Utile quand les points suisses sont trop grossiers.',
+        },
+        boundariesLabel: 'Bornes des tranches, croissantes',
+        boundariesHint:
+          "Entre 1 et 10 bornes, strictement croissantes. L'apercu ci-dessous utilise la fonction qui apparie reellement.",
+        bandsNoData: "Pas encore de classement - l'apercu apparait apres une ronde arbitree.",
+        bandLabel: 'Tranche {index} - {count} tireur(s)',
+        bandSingleton: 'seul - redescend dans la tranche inferieure',
+        rankingTitle: 'Le classement se base sur',
+        rankingExplainer:
+          "Ce qui decide l'ordre final. Independant de ce sur quoi l'appariement groupe ci-dessus.",
+        rankBy: {
+          swissPts: 'Points suisses',
+          swissPtsHint: 'Victoires, nuls et exempts aux valeurs definies ci-dessous.',
+          rulesetScore: 'Le score du reglement',
+          rulesetScoreHint:
+            "Propose pour tout reglement. Si le reglement ne declare aucune colonne de score, elle est ajoutee au tableau - personne n'est classe sur un nombre invisible.",
+        },
+        points: {
+          win: 'Victoire',
+          draw: 'Nul',
+          loss: 'Defaite',
+          bye: 'Exempt',
+        },
+        tiebreakTitle: 'Chaine de departages',
+        tiebreakExplainer:
+          "Appliquee dans l'ordre pour departager les ex aequo. « Chaine du reglement » insere ce que ce reglement fait normalement.",
+        tiebreakEmpty: "Aucun departage : les ex aequo restent dans l'ordre du tirage.",
+        removeTiebreak: 'Retirer',
+        moveUp: 'Deplacer {key} plus tot',
+        moveDown: 'Deplacer {key} plus tard',
+        lifecycleTitle: 'Phase',
+        generate: 'Generer la phase suisse',
+        generated: 'Phase suisse generee.',
+        save: 'Enregistrer la configuration',
+        saved: 'Configuration enregistree.',
+        regenerate: 'Regenerer',
+        regenerateTitle: 'Regenerer la phase suisse ?',
+        regenerateBody:
+          "Cela supprime la phase et toutes ses rondes, puis retire au sort. Refuse des qu'un combat a eu lieu.",
+        regenerateConfirm: 'Supprimer et retirer',
+        finalise: 'Figer le classement',
+        finalised: 'Classement fige.',
+        finalisedAt: 'Classement final apres {round} rondes sur {total}.',
+        resume: 'Reprendre',
+        resumed: 'Phase reprise.',
+        assignReferees: 'Affecter les arbitres',
+        entrantsTitle: 'Participants ({count})',
+        withdrawHint:
+          'Un forfait ne participe plus aux rondes suivantes. Les rondes deja disputees restent acquises et comptent pour ses adversaires.',
+        withdraw: 'Forfait',
+        withdrawn: 'Tireur declare forfait.',
+        withdrawnAt: 'sorti a la ronde {round}',
+      },
+      rounds: {
+        noPhase: 'Pas encore de phase suisse.',
+        empty: 'Aucune ronde appariee.',
+        progress: '{done} rondes terminees sur {total}',
+        roundTitle: 'Ronde {round}',
+        finalisedBanner: 'Le classement est fige. Reprenez la phase pour modifier les rondes.',
+        advanced: 'Afficher les corrections avancees',
+        manuallyAdjusted: 'Ajuste manuellement',
+        forcedRematch: 'Re-rencontre forcee',
+        bye: 'Exempt',
+        swapHint: 'Cliquez un tireur, puis un autre de la meme ronde, pour les echanger.',
+        swapped: 'Tireurs echanges.',
+        swapWarningTitle: 'Echanger quand meme ?',
+        swapWarningConfirm: 'Echanger quand meme',
+        setSides: 'Inverser les cotes',
+        setSidesHelp:
+          'Ecrit les deux cotes de ce combat directement. Peut rendre la ronde invalide, ce qui bloque la suivante.',
+        sidesSet: 'Cotes mises a jour.',
+        delete: 'Supprimer la ronde',
+        deleteTitle: 'Supprimer la ronde {round} ?',
+        deleteBody:
+          'Cela retire la ronde et ses {count} combat(s). Seule la derniere ronde peut partir.',
+        deleteConfirm: 'Supprimer la ronde',
+        deleted: 'Ronde supprimee.',
+        invalidTitle: 'Cette ronde est invalide et bloque la suivante.',
+        invalid: {
+          duplicated: 'Combat deux fois',
+          missing: 'Absent de la ronde',
+          unknown: 'Pas participant de cette phase',
+        },
+      },
+      standings: {
+        empty: 'Pas encore de classement.',
+        after: 'Apres {done} rondes sur {total}',
+        rankedBy: {
+          swissPts: 'classe sur les points suisses',
+          rulesetScore: 'classe sur le score du reglement',
+        },
+        withdrawn: 'forfait R{round}',
+        exportCsv: 'Exporter CSV',
+      },
+      referees: {
+        loading: 'Chargement du tableau des arbitres...',
+        empty: 'Aucune ronde suisse a couvrir.',
+        loadFailed: 'Impossible de charger le tableau des arbitres.',
+        assignFailed: "Impossible d'enregistrer cette affectation.",
+        roundTitle: 'Ronde {round}',
+        clearRound: 'Vider la ronde',
+        clearTitle: 'Retirer tous les arbitres de la ronde {round} ?',
+        clearBody: 'Toutes les affectations sur toutes les pistes de cette ronde sont retirees.',
+        clearConfirm: 'Vider la ronde',
+        cleared: 'Ronde videe.',
+        clearFailed: 'Impossible de vider la ronde.',
+      },
+      tiebreak: {
+        buchholz: 'Buchholz',
+        buchholzCut1: 'Buchholz -1',
+        sonnebornBerger: 'Sonneborn-Berger',
+        opponentWinPct: '% victoires adversaires',
+        headToHead: 'Confrontation directe',
+        score: 'Score du reglement',
+        wins: 'Victoires',
+        diff: 'Difference de points',
+        ptsScored: 'Points marques',
+        doubles: 'Doubles',
+        hitsReceived: 'Touches recues',
+        rulesetChain: 'Chaine du reglement',
+      },
+    },
+    refereeBoard: {
+      cancel: 'Annuler',
+      pick: 'Choisir',
+      pickerRecommended: 'Recommandes',
+      pickerBlocked: 'Bloques',
+    },
     poolsPage: {
       refereesLoading: 'Chargement des arbitres...',
       refereesLoadFailed: 'Impossible de charger les affectations.',
@@ -12782,10 +13204,6 @@ export const fr = {
       refereesAssign: 'Affecter',
       refereesUnassign: 'Retirer',
       refereesUnassigned: 'Non affecte',
-      refereesCancel: 'Annuler',
-      refereesPick: 'Choisir',
-      refereesPickerRecommended: 'Recommandes',
-      refereesPickerBlocked: 'Bloques',
     },
     schedulePage: {
       breadcrumbEvent: 'Événement',
@@ -13323,10 +13741,6 @@ export const fr = {
       refereesAssign: 'Affecter',
       refereesUnassign: 'Retirer',
       refereesUnassigned: 'Non affecte',
-      refereesCancel: 'Annuler',
-      refereesPick: 'Choisir',
-      refereesPickerRecommended: 'Recommandes',
-      refereesPickerBlocked: 'Bloques',
       refereesTournamentTabsLabel: 'Changer de tournoi',
     },
     pools: {

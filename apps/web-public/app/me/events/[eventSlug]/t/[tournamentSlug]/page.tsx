@@ -16,10 +16,12 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { useMyEvents } from '@/components/me/hooks';
 import { HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import {
+  bracketPhaseType,
   derivePodium,
   colorTokenToHex,
   type TournamentData,
 } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/tournament-data';
+import { SwissRoundsView } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView';
 import { StandingsView } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/StandingsView';
 import { PoolMatchesView } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/PoolMatchesView';
 import { BracketLive } from '../../../../../e/[eventSlug]/t/[tournamentSlug]/BracketLive';
@@ -103,13 +105,17 @@ export default function PersonalTournamentPage() {
 
   const isDraft = tournament.status === 'draft';
   const poolsTabVisible = pools.length > 0;
+  const swissTabVisible = !isDraft && Boolean(data.swissPhaseId);
   const bracketTabVisible = !isDraft;
   const finalRankingTabVisible = !isDraft;
 
   const visibleByKey: Partial<Record<TabKey, boolean>> = {
     pools: poolsTabVisible,
     poolmatches: poolsTabVisible,
-    standings: poolsTabVisible,
+    // Swiss has standings too — gating this on pools alone hid them for a
+    // Swiss-only tournament, which is where the /me referee cards deep-link.
+    standings: poolsTabVisible || swissTabVisible,
+    swiss: swissTabVisible,
     bracket: bracketTabVisible,
     finalranking: finalRankingTabVisible,
   };
@@ -119,7 +125,14 @@ export default function PersonalTournamentPage() {
       : tournament.status === 'running'
         ? 'standings'
         : 'pools';
-  const fallbackOrder: TabKey[] = ['pools', 'poolmatches', 'standings', 'bracket', 'finalranking'];
+  const fallbackOrder: TabKey[] = [
+    'pools',
+    'poolmatches',
+    'standings',
+    'swiss',
+    'bracket',
+    'finalranking',
+  ];
   const defaultTab: TabKey = visibleByKey[preferredDefault]
     ? preferredDefault
     : (fallbackOrder.find((k) => visibleByKey[k]) ?? 'pools');
@@ -190,13 +203,24 @@ export default function PersonalTournamentPage() {
             {
               key: 'standings',
               label: t('publicApp.tournament.tabs.standings'),
-              visible: poolsTabVisible,
+              visible: poolsTabVisible || swissTabVisible,
               panel: (
                 <StandingsView
                   tournamentId={tournament.id}
                   pools={pools}
                   bracketSize={bracketSize}
                   colorToken={tournamentColor}
+                  highlightRegistrationId={highlightRegistrationId}
+                />
+              ),
+            },
+            {
+              key: 'swiss',
+              label: t('publicApp.tournament.tabs.swiss'),
+              visible: swissTabVisible,
+              panel: (
+                <SwissRoundsView
+                  tournamentId={tournament.id}
                   highlightRegistrationId={highlightRegistrationId}
                 />
               ),
@@ -218,7 +242,7 @@ export default function PersonalTournamentPage() {
                     playInMatchCount={data.playInMatchCount}
                     hasPlayInRound={data.hasPlayInRound}
                     rounds={bracketRounds}
-                    phaseType={data.phaseType}
+                    phaseType={bracketPhaseType(data.phaseType)}
                     wbRounds={data.wbRounds}
                     lbRounds={data.lbRounds}
                     weapon={tournament.weapon}
@@ -241,7 +265,9 @@ export default function PersonalTournamentPage() {
               visible: finalRankingTabVisible,
               panel: (
                 <FinalRankingTab
-                  isTournamentCompleted={Boolean(podium?.gold && podium?.silver)}
+                  isTournamentCompleted={
+                    Boolean(podium?.gold && podium?.silver) || Boolean(data.swissFinalized)
+                  }
                   tournamentId={tournament.id}
                   bracketSlots={bracketSlots}
                   phaseType={data.phaseType}

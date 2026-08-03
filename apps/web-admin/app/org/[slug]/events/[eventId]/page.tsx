@@ -35,6 +35,8 @@ interface Tournament {
   color?: string | null;
   rulesetCode?: string | null;
   poolCount?: number;
+  /** Configured Swiss round count; null when the tournament has no Swiss phase. */
+  swissRoundCount?: number | null;
   bracketSize?: number | null;
   eliminationType?: string | null;
 }
@@ -632,6 +634,7 @@ export default function EventDetailPage() {
                 {t('organizer.eventHub.dashboard.assignedReferees')}
               </DataTableCell>
               <DataTableCell as="th">{t('organizer.eventHub.dashboard.colPools')}</DataTableCell>
+              <DataTableCell as="th">{t('organizer.eventHub.dashboard.colSwiss')}</DataTableCell>
               <DataTableCell as="th">{t('organizer.eventHub.dashboard.colBracket')}</DataTableCell>
               <DataTableCell as="th">{t('organizer.eventHub.dashboard.colElim')}</DataTableCell>
               <DataTableCell as="th">{t('organizer.eventHub.dashboard.colRuleset')}</DataTableCell>
@@ -643,7 +646,7 @@ export default function EventDetailPage() {
             <tbody>
               {(stats?.tournaments ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-muted">
+                  <td colSpan={10} className="px-4 py-6 text-center text-muted">
                     {t('organizer.eventHub.dashboard.noTournaments')}
                   </td>
                 </tr>
@@ -684,6 +687,15 @@ export default function EventDetailPage() {
                     <DataTableCell>
                       <Link href={`/org/${slug}/events/${eventId}/pools`} className={cellLinkClass}>
                         {tournament.poolCount ?? 0}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <Link href={`/org/${slug}/events/${eventId}/swiss`} className={cellLinkClass}>
+                        {tournament.swissRoundCount
+                          ? t('organizer.eventHub.dashboard.swissRounds', {
+                              count: tournament.swissRoundCount,
+                            })
+                          : '—'}
                       </Link>
                     </DataTableCell>
                     <DataTableCell>

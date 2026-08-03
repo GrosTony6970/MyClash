@@ -11,8 +11,9 @@ import {
   type SwissRoundPlan,
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
-// Value import, not `import type`: Nest needs the runtime class for DI.
+// Value imports, not `import type`: Nest needs the runtime class for DI.
 import { ProgrammeService } from '../programme/programme.service';
+import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { matchRulesetForPhase } from '../phases/match-ruleset';
 import { SwissStandingsService } from './swiss-standings.service';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
@@ -50,6 +51,8 @@ export class SwissPairingService {
     // Only read for score-band grouping; @Optional so the pairing path still
     // works if the standings provider is ever absent.
     @Optional() private readonly standings?: SwissStandingsService,
+    // From the LEAF NotificationSchedulingModule — see this class's docblock.
+    @Optional() private readonly notifications?: NotificationEventsService,
   ) {}
 
   /** Read-only preview of what the next round would be. Writes nothing. */
@@ -119,6 +122,11 @@ export class SwissPairingService {
 
     const matchIds = await this.insertRoundMatches(phaseId, roundId, roundNumber, plan);
     await this.scheduleRound(phaseId, matchIds);
+    // AFTER scheduling, so the message can name the piste. Swallowed on
+    // failure for the same reason `scheduleRound` is: this runs inside
+    // MatchCompletionService, which is documented as never throwing, and an
+    // un-notified round is recoverable where an unpaired one is not.
+    await this.notifyRoundPublished(roundId, roundNumber);
 
     this.logger.log(
       `swiss round ${roundNumber} committed phase=${phaseId} matches=${matchIds.length} bye=${plan.byeRegistrationId ?? 'none'}`,
@@ -204,6 +212,22 @@ export class SwissPairingService {
     }
   }
 
+  /**
+   * Announce the round to its field (decision 17).
+   *
+   * Never throws: the notification service applies its own status gate and
+   * preference gate, and a delivery failure must not roll back a round that is
+   * already written and scheduled.
+   */
+  private async notifyRoundPublished(roundId: string, roundNumber: number): Promise<void> {
+    if (!this.notifications) return;
+    try {
+      await this.notifications.swissRoundPublished(roundId);
+    } catch (err) {
+      this.logger.warn(`swiss round ${roundNumber} notification failed: ${describe(err)}`);
+    }
+  }
+
   private async eventAndLices(
     phaseId: string,
   ): Promise<{ eventId: string; liceIds: string[] } | null> {
@@ -236,8 +260,7 @@ export class SwissPairingService {
   private seedOrderOf(rounds: SwissRoundRecord[]): string[] {
     const first = rounds.find((r) => r.roundNumber === 1);
     if (!first) return [];
-    const meta = (first as unknown as { pairingMeta?: { ranked?: unknown } }).pairingMeta;
-    const ranked = meta?.ranked;
+    const ranked = first.pairingMeta?.['ranked'];
     return Array.isArray(ranked) ? ranked.filter((id): id is string => typeof id === 'string') : [];
   }
 

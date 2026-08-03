@@ -18,6 +18,7 @@ import { SwissService } from './swiss.service';
 import { SwissPairingService } from './swiss-pairing.service';
 import { SwissOverrideService } from './swiss-override.service';
 import { SwissFinaliseService } from './swiss-finalise.service';
+import { SwissAdminViewService } from './swiss-admin-view.service';
 import {
   GenerateSwissDto,
   SetSwissSidesDto,
@@ -55,8 +56,20 @@ export class SwissController {
     private readonly pairing: SwissPairingService,
     private readonly override: SwissOverrideService,
     private readonly finaliser: SwissFinaliseService,
+    private readonly adminView: SwissAdminViewService,
     private readonly supabase: SupabaseService,
   ) {}
+
+  @Get('tournaments/:tournamentId/swiss-admin')
+  @ApiOperation({
+    summary: 'The organiser view of a Swiss phase',
+    description:
+      'Config, entrant roster with names and withdrawals, and every round with its pairings and validity. Answers for a tournament with no Swiss phase too, so the Configure tab can propose a round count for the field.',
+  })
+  @ApiParam({ name: 'tournamentId', format: 'uuid' })
+  async getAdminView(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.adminView.getAdminView(tournamentId);
+  }
 
   @Post('tournaments/:tournamentId/generate-swiss')
   @ApiOperation({

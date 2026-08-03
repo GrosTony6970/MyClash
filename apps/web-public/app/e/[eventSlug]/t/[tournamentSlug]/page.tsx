@@ -25,7 +25,14 @@ import { PoolsCompositionView } from './PoolsCompositionView';
 import { ParticipantsTab, type ParticipantsTabEntry } from './ParticipantsTab';
 import { FinalRankingTab } from './FinalRankingTab';
 import { StatsTab } from './StatsTab';
-import { derivePodium, colorTokenToHex, type TournamentData } from './tournament-data';
+import {
+  bracketPhaseType,
+  derivePodium,
+  colorTokenToHex,
+  type TournamentData,
+} from './tournament-data';
+import { SwissRoundsView } from './SwissRoundsView';
+import { SwissPodiumPanel } from './SwissPodiumPanel';
 
 // Re-exported so the sibling tab components keep importing these types from
 // `./page` while the definitions live in the shared `./tournament-data`.
@@ -163,6 +170,10 @@ export default async function TournamentPage({ params }: Props) {
     secondChanceTarget,
     bronzeMatch,
     repechageEntryRound,
+    swissPhaseId,
+    swissRoundCount,
+    swissRoundsCompleted,
+    swissFinalized,
   } = data;
   const podium = derivePodium(bracketSlots, {
     phaseType,
@@ -195,13 +206,23 @@ export default async function TournamentPage({ params }: Props) {
   // the API returns empty pools for non-public statuses).
   const isDraft = tournament.status === 'draft';
   const poolsTabVisible = pools.length > 0;
-  const standingsTabVisible = pools.length > 0;
+  const swissTabVisible = !isDraft && Boolean(swissPhaseId);
+  // A Swiss phase has standings too. This used to be `pools.length > 0`, which
+  // hid the exact tab a Swiss-only tournament needs — and the exact tab the
+  // personal space deep-linked Swiss referees to.
+  const standingsTabVisible = pools.length > 0 || swissTabVisible;
   // Bracket tab is visible once the tournament is public — visitors should
   // know the section exists even before the operator generates the bracket
   // (the panel renders a placeholder when bracketSlots is empty). Hidden
   // while still draft.
   const bracketTabVisible = !isDraft;
-  const podiumTabVisible = podiumDecided;
+  // Swiss decides its own podium once every round is played or the organiser
+  // freezes the standings; there are no bracket slots for derivePodium to read.
+  const swissPodiumReady =
+    swissTabVisible &&
+    (Boolean(swissFinalized) ||
+      ((swissRoundCount ?? 0) > 0 && swissRoundsCompleted === swissRoundCount));
+  const podiumTabVisible = podiumDecided || swissPodiumReady;
   const participantsTabVisible = participantsTabEntries.length > 0;
   // Final Ranking tab is visible once public too — content gates on
   // `tournament.status === 'completed'`; otherwise placeholder. Hidden
@@ -219,6 +240,7 @@ export default async function TournamentPage({ params }: Props) {
     pools: poolsTabVisible,
     poolmatches: poolsTabVisible,
     standings: standingsTabVisible,
+    swiss: swissTabVisible,
     bracket: bracketTabVisible,
     podium: podiumTabVisible,
     finalranking: finalRankingTabVisible,
@@ -235,6 +257,7 @@ export default async function TournamentPage({ params }: Props) {
     'pools',
     'poolmatches',
     'standings',
+    'swiss',
     'bracket',
     'podium',
     'finalranking',
@@ -402,6 +425,12 @@ export default async function TournamentPage({ params }: Props) {
             ),
           },
           {
+            key: 'swiss',
+            label: t('publicApp.tournament.tabs.swiss'),
+            visible: swissTabVisible,
+            panel: <SwissRoundsView tournamentId={tournament.id} />,
+          },
+          {
             key: 'bracket',
             label: t('publicApp.tournament.tabs.bracket'),
             visible: bracketTabVisible,
@@ -418,7 +447,7 @@ export default async function TournamentPage({ params }: Props) {
                   playInMatchCount={playInMatchCount}
                   hasPlayInRound={hasPlayInRound}
                   rounds={bracketRounds}
-                  phaseType={phaseType}
+                  phaseType={bracketPhaseType(phaseType)}
                   wbRounds={wbRounds}
                   lbRounds={lbRounds}
                   weapon={tournament.weapon}
@@ -441,6 +470,8 @@ export default async function TournamentPage({ params }: Props) {
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
                 </div>
+              ) : swissPodiumReady ? (
+                <SwissPodiumPanel tournamentId={tournament.id} />
               ) : null,
           },
           {
@@ -455,7 +486,9 @@ export default async function TournamentPage({ params }: Props) {
                 // usually still `published`, never flipped to `completed`, so
                 // the old status gate left this empty while the admin (which
                 // computes from completed matches) showed it.
-                isTournamentCompleted={Boolean(podium?.gold && podium?.silver)}
+                // Swiss has no final to read a champion from, so its own
+                // "settled" signal stands in for the bracket's.
+                isTournamentCompleted={Boolean(podium?.gold && podium?.silver) || swissPodiumReady}
                 tournamentId={tournament.id}
                 bracketSlots={bracketSlots}
                 phaseType={phaseType}

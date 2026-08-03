@@ -110,7 +110,7 @@ export function ScheduleView({
   const referees = aggregateReferee(schedule.refereeSlots);
 
   const refereePhaseLabel = (r: RefereeAggregate): string | null => {
-    const kind = matchKindLabel(t, r.matchKind, r.roundOfCount);
+    const kind = matchKindLabel(t, r.matchKind, r.roundOfCount, r.swissRound);
     // Pool phase: `poolName` already reads "Pool N", so drop the redundant "Pool"
     // kind; bracket phases keep their distinct kind label ("Final", "Round of 16").
     return r.matchKind === 'pool' ? (r.poolName ?? kind) : (kind ?? r.poolName);

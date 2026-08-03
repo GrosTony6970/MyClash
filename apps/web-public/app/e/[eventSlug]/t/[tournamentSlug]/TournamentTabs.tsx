@@ -20,6 +20,7 @@ export type TabKey =
   | 'pools'
   | 'poolmatches'
   | 'standings'
+  | 'swiss'
   | 'bracket'
   | 'podium'
   | 'finalranking'
@@ -58,6 +59,7 @@ const TAB_ORDER: TabKey[] = [
   'pools',
   'poolmatches',
   'standings',
+  'swiss',
   'bracket',
   'podium',
   'finalranking',
@@ -82,6 +84,7 @@ export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
     pools: null,
     poolmatches: null,
     standings: null,
+    swiss: null,
     bracket: null,
     podium: null,
     finalranking: null,

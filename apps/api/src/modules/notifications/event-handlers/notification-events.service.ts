@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { announcesOnPublish, asEventKind } from '@myclash/types';
 import { NotificationSchedulerService } from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { loadSwissRoundContext } from './swiss-round-context';
 
 interface ContactRow {
   id: string;
@@ -144,6 +145,84 @@ export class NotificationEventsService {
         });
       }),
     );
+  }
+
+  /**
+   * Tell a Swiss field that the next round is paired.
+   *
+   * Fired from the COMMIT path, which under decision 3 runs automatically when
+   * the previous round's last bout completes — so this is the moment a fighter
+   * learns their next opponent and piste, and there is no organiser action to
+   * hang it off instead.
+   *
+   * Suppressed while the tournament is still `draft`: generating a phase to try
+   * the format out must not message the whole field.
+   *
+   * The bye holder IS notified. Sitting a round out is information they need as
+   * much as a pairing, and they are the one person who would otherwise hear
+   * nothing at all.
+   */
+  async swissRoundPublished(roundId: string): Promise<void> {
+    const round = await loadSwissRoundContext(this.supabase, roundId);
+    if (!round) return;
+
+    const personByRegistration = await this.swissRecipients(round.phaseId, round.roundNumber);
+    if (personByRegistration.size === 0) return;
+
+    const contacts = await this.getContacts([...personByRegistration.values()]);
+    const byPerson = new Map(contacts.map((contact) => [contact.id, contact]));
+
+    const jobs = [...personByRegistration.entries()].flatMap(([registrationId, personId]) => {
+      const contact = byPerson.get(personId);
+      if (!contact?.claimed_by_user_id) return [];
+      return [
+        {
+          kind: 'swiss_round_published' as const,
+          entityId: roundId,
+          userId: contact.claimed_by_user_id,
+          title: `${round.tournamentName} — round ${round.roundNumber}`,
+          body: round.opponentLine(registrationId),
+          url: round.url,
+          email: contact.email,
+          emailSubject: `${round.tournamentName}: round ${round.roundNumber} pairings`,
+          preference: 'swiss_round_published' as const,
+        },
+      ];
+    });
+    if (jobs.length === 0) return;
+
+    await this.scheduler.sendImmediateBulk(jobs);
+    this.logger.log(`swiss_round_published round=${roundId} recipients=${jobs.length}`);
+  }
+
+  /**
+   * Who is still in the round: registrationId → persons.id.
+   *
+   * A withdrawal takes no part from its round on, so telling them who they
+   * "face" would be wrong as well as unwanted.
+   */
+  private async swissRecipients(
+    phaseId: string,
+    roundNumber: number,
+  ): Promise<Map<string, string>> {
+    const { data } = await this.supabase.service
+      .from('swiss_entrants')
+      .select('registration_id, withdrawn_at_round, registrations ( person_id )')
+      .eq('phase_id', phaseId);
+
+    const byRegistration = new Map<string, string>();
+    for (const entrant of (data ?? []) as Array<{
+      registration_id: string;
+      withdrawn_at_round: number | null;
+      registrations?: { person_id?: string | null } | null;
+    }>) {
+      if (entrant.withdrawn_at_round !== null && entrant.withdrawn_at_round <= roundNumber) {
+        continue;
+      }
+      const personId = entrant.registrations?.person_id;
+      if (personId) byRegistration.set(entrant.registration_id, personId);
+    }
+    return byRegistration;
   }
 
   /**

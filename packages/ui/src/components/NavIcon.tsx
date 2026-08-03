@@ -38,6 +38,7 @@ import {
   Server,
   Settings,
   Shield,
+  Shuffle,
   ShieldCheck,
   Snowflake,
   Sparkles,
@@ -126,6 +127,7 @@ export const NAV_ICON_NAMES = [
   'live',
   'tournaments',
   'pools',
+  'swiss',
   'bracket',
   'finalRanking',
   'penalties',
@@ -182,6 +184,9 @@ export const NAV_ICON_GLYPHS: Record<NavIconName, LucideIcon> = {
   live: Radio,
   tournaments: Trophy,
   pools: LayoutGrid,
+  // Re-pairing every round is the thing a Swiss phase does that no other
+  // format does; ArrowLeftRight would have read as the workspace switcher.
+  swiss: Shuffle,
   bracket: GitMerge,
   finalRanking: ListOrdered,
   penalties: TriangleAlert,

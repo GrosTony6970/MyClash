@@ -32,6 +32,13 @@ export interface SwissRoundRecord {
   roundNumber: number;
   status: string;
   byeRegistrationId: string | null;
+  /**
+   * `swiss_rounds.pairing_meta_json` — the engine warnings, the ranked snapshot
+   * and the manual adjustments. Declared rather than left implicit: the loader
+   * has always populated it, and every consumer was reaching it through a cast,
+   * which is how a field ends up silently renamed on one side.
+   */
+  pairingMeta: Record<string, unknown> | null;
   matches: SwissMatchRecord[];
 }
 

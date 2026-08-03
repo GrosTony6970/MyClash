@@ -33,8 +33,15 @@
  * a uid exports nothing; reading some other table's persons.id as a uid exports
  * A DIFFERENT PERSON'S ROWS. Both failures are silent, which is why the reach is
  * declared per column here rather than inferred from the column name.
+ *
+ * `registration` is the fourth: a `registrations.id`, resolved from the
+ * subject's person ids. It exists because a phase roster row (swiss_entrants)
+ * names the subject only through their registration, and the coverage guard —
+ * which scans for `*user_id` / `*person_id` names and foreign keys to persons —
+ * cannot see that at all. Art. 15 is about what we hold, not what a regex
+ * notices.
  */
-export type SubjectReach = 'uid' | 'global_person' | 'person';
+export type SubjectReach = 'uid' | 'global_person' | 'person' | 'registration';
 
 export interface SubjectReachSpec {
   column: string;
@@ -105,6 +112,13 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   // ── Competition participation ───────────────────────────────────────────────
   registrations: {
     reaches: [{ column: 'person_id', reach: 'person' }],
+    file: 'events.csv',
+  },
+  swiss_entrants: {
+    // The Swiss phase roster. Personal data: it records that this person was
+    // entered into this phase and, via `withdrawn_at_round`, that they pulled
+    // out and when.
+    reaches: [{ column: 'registration_id', reach: 'registration' }],
     file: 'events.csv',
   },
   matches: {
@@ -347,6 +361,10 @@ export const SUBJECT_EXPORT_EXCLUDED_TABLES = new Set<string>([
   'event_broadcast_notifications', // the org's outgoing message; the subject's RECIPIENT row is exported
   'deletion_requests', // event-lifecycle protection raised by an org admin for the org
   'tournament_penalty_reviews', // an organiser's review of a penalty; the penalty itself is exported
+  // The round itself is the organiser's structure, not the subject's data — a
+  // pairing table for a whole field. The subject's own place in it IS exported:
+  // swiss_entrants above, and their bouts through matches.
+  'swiss_rounds',
   'ai_data_quality_scans', // super-admin data-quality operations
   'ai_data_quality_findings',
 

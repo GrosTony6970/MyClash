@@ -52,6 +52,9 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
       { href: 'live', labelKey: 'organizer.eventHub.sections.live', icon: 'live' },
       { href: 'tournaments', labelKey: 'organizer.shell.nav.tournaments', icon: 'tournaments' },
       { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', icon: 'pools' },
+      // Between Pools and Bracket because that is where the phase runs:
+      // pools -> Swiss -> bracket is a valid three-stage tournament.
+      { href: 'swiss', labelKey: 'organizer.eventHub.sections.swiss', icon: 'swiss' },
       { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', icon: 'bracket' },
       {
         href: 'finalranking',

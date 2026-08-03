@@ -18,92 +18,27 @@
  *      time window overlaps with any pool in this tournament. Shows
  *      currently-assigned refs so the operator knows who's locked out.
  *   3. Slot cards per tournament pool — current assignment + Assign /
- *      Unassign buttons. Reuses the same backend endpoints the
- *      event-level Assignments tab uses.
+ *      Unassign buttons.
  *
- * Data source: the existing
- * `GET /api/v1/events/:eventId/referee-assignment-board` endpoint.
- * Filtered client-side to this tournament's pools.
+ * The board itself — fetch, catalogues, assign/unassign/swap — lives in the
+ * shared `useAssignmentBoard` hook, so this file is the pool-specific layout
+ * and nothing else. The bracket and Swiss tabs read the same payload.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { Modal } from '@myclash/ui';
-import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { type AppLocale } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
-import {
-  SwapSuggestionsPanel,
-  type SwapSuggestion,
-} from '../../referees/_components/SwapSuggestionsPanel';
+import { SwapSuggestionsPanel } from '../../referees/_components/SwapSuggestionsPanel';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
-import { getPublicApiUrl } from '@/lib/api-url';
-
-interface AssignmentBoardCandidate {
-  userId: string;
-  personId: string | null;
-  displayName: string;
-  clubLabel: string | null;
-  qualifications: Array<{ role: string; rating: number | null }>;
-  workload: number;
-}
-
-interface AssignmentBoardRoleSlot {
-  slotIndex: number;
-  displayName: string | null;
-  allowedSkillIds: string[];
-  role: string;
-  assignment: {
-    id: string;
-    userId: string;
-    personId: string | null;
-    displayName: string;
-    status: string;
-    autoAssigned: boolean;
-  } | null;
-  missingReasons: string[];
-  candidates: {
-    recommended: AssignmentBoardCandidate[];
-    warning: Array<AssignmentBoardCandidate & { warnings: string[] }>;
-    blocked: Array<AssignmentBoardCandidate & { reasons: string[] }>;
-  };
-}
-
-interface AssignmentBoardPool {
-  id: string;
-  name: string;
-  tournamentId: string;
-  tournamentName: string;
-  liceId: string | null;
-  scheduledStart: string | null;
-  scheduledEnd: string | null;
-  /** Distinguishes real pools from bracket / finals matches surfaced
-   *  alongside them. Default 'pool' for backwards compatibility with
-   *  any caller that doesn't populate it. */
-  kind?: 'pool' | 'swiss' | 'bracket' | 'finals';
-  members: Array<{
-    registrationId: string;
-    personId: string;
-    personName: string;
-    clubLabel?: string | null;
-  }>;
-  roleSlots: AssignmentBoardRoleSlot[];
-}
-
-interface RefereeSkill {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface AssignmentBoard {
-  pools: AssignmentBoardPool[];
-  unscheduledPools: AssignmentBoardPool[];
-  candidates: AssignmentBoardCandidate[];
-  locked: boolean;
-  /** R4: engine-computed back-to-back swap proposals. */
-  swapSuggestions?: SwapSuggestion[];
-}
+import { CandidatePicker } from '../../referees/_components/CandidatePicker';
+import { formatHHMM } from '../../referees/_components/format-hhmm';
+import {
+  useAssignmentBoard,
+  type AssignmentBoardPool,
+  type AssignmentBoardRoleSlot,
+} from '../../referees/_components/useAssignmentBoard';
 
 interface Props {
   eventId: string;
@@ -113,102 +48,26 @@ interface Props {
 
 export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   const { locale } = useI18n();
-  const apiUrl = getPublicApiUrl();
-  const [board, setBoard] = useState<AssignmentBoard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    board,
+    allBoardPools,
+    loading,
+    busy,
+    error,
+    skillNameById,
+    skillColorById,
+    liceNameById,
+    manualAssign,
+    unassign,
+    applySwap,
+  } = useAssignmentBoard(eventId, {
+    loadFailed: t('organizer.poolsPage.refereesLoadFailed'),
+    mutationFailed: t('organizer.poolsPage.refereesAssignFailed'),
+  });
   const [picker, setPicker] = useState<{
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
   } | null>(null);
-  const [skills, setSkills] = useState<RefereeSkill[]>([]);
-  // Lice id → name map. Surfaces a human label on the timeline cards and
-  // the per-tournament PoolSlotCards. Silent fallback to nothing when the
-  // fetch fails — the consumer renders no extra label, never the UUID.
-  const [liceNameById, setLiceNameById] = useState<Map<string, string>>(() => new Map());
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const lices = (await res.json()) as Array<{ id: string; name: string }>;
-        const map = new Map<string, string>();
-        for (const l of lices) map.set(l.id, l.name);
-        setLiceNameById(map);
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [apiUrl, eventId]);
-
-  // Load the skills catalog so chips can tint by the skill's own colour
-  // and the role label can render the human name instead of the raw id.
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as RefereeSkill[];
-        setSkills(data);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
-    return () => controller.abort();
-  }, [apiUrl, eventId]);
-
-  const skillNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const skill of skills) if (skill.name) map.set(skill.id, skill.name);
-    return map;
-  }, [skills]);
-  const skillColorById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const skill of skills) if (skill.color) map.set(skill.id, skill.color);
-    return map;
-  }, [skills]);
-
-  const loadBoard = useCallback(
-    async (signal?: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignment-board`, {
-          credentials: 'include',
-          signal,
-        });
-        if (!res.ok) {
-          throw new Error(t('organizer.poolsPage.refereesLoadFailed'));
-        }
-        setBoard((await res.json()) as AssignmentBoard);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('organizer.poolsPage.refereesLoadFailed'));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [apiUrl, eventId],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadBoard sets state only after the awaited request resolves
-    void loadBoard(controller.signal);
-    return () => controller.abort();
-  }, [loadBoard]);
-
-  const allBoardPools = useMemo(
-    () => (board ? [...board.pools, ...board.unscheduledPools] : []),
-    [board],
-  );
 
   const tournamentPools = useMemo(
     () =>
@@ -267,82 +126,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     }
     return set;
   }, [concurrentPools]);
-
-  async function manualAssign(poolId: string, role: string, userId: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignments`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poolId, role, userId }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.poolsPage.refereesAssignFailed'));
-      }
-      setBoard((await res.json()) as AssignmentBoard);
-      setPicker(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.poolsPage.refereesAssignFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function unassign(assignmentId: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/referee-assignments/${assignmentId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.poolsPage.refereesAssignFailed'));
-      }
-      await loadBoard();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.poolsPage.refereesAssignFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /**
-   * R4: apply a back-to-back swap suggestion. Unassign-then-assign,
-   * mirroring the event-level Assignments tab's applySwap. The
-   * board's slot list resolves the old assignment id by
-   * (poolId, slotIndex).
-   */
-  async function applySwap(s: SwapSuggestion) {
-    if (!board) return;
-    const pool = allBoardPools.find((p) => p.id === s.fromPoolId);
-    const slot = pool?.roleSlots.find((rs) => rs.slotIndex === s.fromSlotIndex);
-    const oldId = slot?.assignment?.id;
-    if (!slot) return;
-    setBusy(true);
-    setError(null);
-    try {
-      if (oldId) {
-        const delRes = await fetch(`${apiUrl}/api/v1/referee-assignments/${oldId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        if (!delRes.ok) {
-          const body = (await delRes.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? t('organizer.poolsPage.refereesAssignFailed'));
-        }
-      }
-      await manualAssign(s.fromPoolId, slot.role, s.toPersonId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.poolsPage.refereesAssignFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   if (loading && !board) {
     return <p className="text-sm text-muted">{t('organizer.poolsPage.refereesLoading')}</p>;
@@ -406,8 +189,12 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         <CandidatePicker
           pool={picker.pool}
           slot={picker.slot}
-          busyConcurrentUserIds={busyConcurrentUserIds}
-          onAssign={(userId) => void manualAssign(picker.pool.id, picker.slot.role, userId)}
+          busyUserIds={busyConcurrentUserIds}
+          onAssign={(userId) => {
+            void manualAssign(picker.pool.id, picker.slot.role, userId).then((ok) => {
+              if (ok) setPicker(null);
+            });
+          }}
           onCancel={() => setPicker(null)}
         />
       )}
@@ -460,131 +247,4 @@ function ConcurrentPoolsPanel({
       </ul>
     </section>
   );
-}
-
-function CandidatePicker({
-  pool,
-  slot,
-  busyConcurrentUserIds,
-  onAssign,
-  onCancel,
-}: {
-  pool: AssignmentBoardPool;
-  slot: AssignmentBoardRoleSlot;
-  busyConcurrentUserIds: Set<string>;
-  onAssign: (userId: string) => void;
-  onCancel: () => void;
-}) {
-  // Augment the blocked list with the busy-in-concurrent-pool reason so
-  // the operator sees why a recommended-looking candidate isn't available.
-  const augmentedBlocked = useMemo(() => {
-    const fromBlocked = slot.candidates.blocked.map((c) => ({
-      ...c,
-      reasons: busyConcurrentUserIds.has(c.userId)
-        ? [...c.reasons, 'busy_in_concurrent_pool']
-        : c.reasons,
-    }));
-    // Promote any recommended candidate that's busy concurrently into blocked.
-    const promoted = slot.candidates.recommended
-      .filter((c) => busyConcurrentUserIds.has(c.userId))
-      .map((c) => ({ ...c, reasons: ['busy_in_concurrent_pool'] }));
-    return [...promoted, ...fromBlocked];
-  }, [slot, busyConcurrentUserIds]);
-
-  const availableRecommended = useMemo(
-    () => slot.candidates.recommended.filter((c) => !busyConcurrentUserIds.has(c.userId)),
-    [slot, busyConcurrentUserIds],
-  );
-
-  return (
-    <Modal
-      open
-      onClose={onCancel}
-      size="lg"
-      title={`${pool.name} - ${slot.displayName ?? slot.role}`}
-      description={pool.tournamentName}
-      footer={
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          {t('organizer.poolsPage.refereesCancel')}
-        </button>
-      }
-    >
-      <div className="max-h-96 space-y-3 overflow-y-auto">
-        <CandidateGroup
-          title={t('organizer.poolsPage.refereesPickerRecommended')}
-          candidates={availableRecommended}
-          onSelect={(c) => onAssign(c.userId)}
-        />
-        {augmentedBlocked.length > 0 && (
-          <CandidateGroup
-            title={t('organizer.poolsPage.refereesPickerBlocked')}
-            candidates={augmentedBlocked.map((c) => ({ ...c, blockedReasons: c.reasons }))}
-            disabled
-          />
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-function CandidateGroup({
-  title,
-  candidates,
-  onSelect,
-  disabled = false,
-}: {
-  title: string;
-  candidates: Array<AssignmentBoardCandidate & { blockedReasons?: string[] }>;
-  onSelect?: (candidate: AssignmentBoardCandidate) => void;
-  disabled?: boolean;
-}) {
-  if (candidates.length === 0) return null;
-  return (
-    <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
-        {title} ({candidates.length})
-      </p>
-      <ul className="space-y-1">
-        {candidates.map((c) => (
-          <li
-            key={c.userId}
-            className={[
-              'flex items-center justify-between gap-3 rounded border px-3 py-1.5 text-sm',
-              disabled
-                ? 'border-border bg-background text-muted'
-                : 'border-border bg-surface hover:border-border',
-            ].join(' ')}
-          >
-            <div className="min-w-0">
-              <p className="truncate font-medium text-foreground">{c.displayName}</p>
-              {c.clubLabel && <p className="truncate text-[10px] text-muted">{c.clubLabel}</p>}
-              {c.blockedReasons && (
-                <p className="text-[10px] text-danger">{c.blockedReasons.join(', ')}</p>
-              )}
-            </div>
-            {!disabled && onSelect && (
-              <button
-                type="button"
-                onClick={() => onSelect(c)}
-                className="rounded border border-success px-2 py-0.5 text-xs font-semibold text-success hover:bg-success/10"
-              >
-                {t('organizer.poolsPage.refereesPick')}
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function formatHHMM(iso: string | null, locale: AppLocale): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString(localeToBcp47(locale), { hour: '2-digit', minute: '2-digit' });
 }

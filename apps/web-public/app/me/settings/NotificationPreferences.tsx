@@ -14,6 +14,7 @@ interface Prefs {
   scheduleChanges: boolean;
   resultsPublished: boolean;
   organizerUpdates: boolean;
+  swissRoundPublished: boolean;
   enabled: boolean;
 }
 
@@ -198,6 +199,18 @@ export function NotificationPreferences({ apiUrl }: { apiUrl: string }) {
                   onChange={(v) => void patch({ organizerUpdates: v })}
                   disabled={!prefs.enabled}
                   ariaLabel={t('publicApp.meSettings.notif.organizerUpdates')}
+                />
+              }
+            />
+            <SettingRow
+              label={t('publicApp.meSettings.notif.swissRoundPublished')}
+              description={t('publicApp.meSettings.notif.swissRoundPublishedDescription')}
+              control={
+                <Switch
+                  checked={prefs.swissRoundPublished}
+                  onChange={(v) => void patch({ swissRoundPublished: v })}
+                  disabled={!prefs.enabled}
+                  ariaLabel={t('publicApp.meSettings.notif.swissRoundPublished')}
                 />
               }
             />

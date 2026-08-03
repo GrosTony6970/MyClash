@@ -111,18 +111,50 @@ export interface TournamentData {
   playInMatchCount?: number;
   hasPlayInRound?: boolean;
   bracketRounds: number;
-  /** Bracket format. Absent on legacy payloads → single-elim. */
-  phaseType?: 'single_elim' | 'double_elim';
+  /**
+   * The phase that decides this tournament. Absent on legacy payloads →
+   * single-elim.
+   *
+   * `'swiss'` is not a bracket shape — it is the absence of one, and it appears
+   * here only when the tournament has a Swiss phase and NO elimination phase.
+   * It must reach `computeFinalRanking`, which takes a third branch for it;
+   * letting it fall through to the single-elim default would rank a Swiss field
+   * off an empty slot tree and produce nothing.
+   */
+  phaseType?: TournamentPhaseType;
   wbRounds?: number | null;
   lbRounds?: number | null;
   secondChanceTarget?: 'gold' | 'bronze' | null;
   bronzeMatch?: boolean | null;
   repechageEntryRound?: number | null;
+  /** Present when the tournament has a Swiss phase. Drives the Swiss tab. */
+  swissPhaseId?: string | null;
+  swissRoundCount?: number;
+  swissRoundsCompleted?: number;
+  /** The organiser froze the standings, so the podium is decided. */
+  swissFinalized?: boolean;
+}
+
+export type TournamentPhaseType = 'single_elim' | 'double_elim' | 'swiss';
+
+/**
+ * The bracket-shaped subset of `phaseType`, for components that draw a bracket.
+ *
+ * `BracketLive` feeds `BracketView.bracketConfig` in @myclash/ui, and a Swiss
+ * tournament has no slots for it to draw — so it is narrowed HERE, once, rather
+ * than widening a UI-package type for a value that can never reach it.
+ */
+export function bracketPhaseType(
+  phaseType?: TournamentPhaseType,
+): 'single_elim' | 'double_elim' | undefined {
+  return phaseType === 'swiss' ? undefined : phaseType;
 }
 
 /** The bracket shape needed to read a double-elim podium. */
 export interface PodiumShape {
-  phaseType?: 'single_elim' | 'double_elim';
+  // Widened with the payload: harmless here, since this only ever tests for
+  // double-elim and returns undefined for an empty slot list anyway.
+  phaseType?: TournamentPhaseType;
   wbRounds?: number | null;
   lbRounds?: number | null;
   /** Bronze mode has no grand final — the winners-bracket final takes the title. */

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
 import { ProgrammeModule } from '../programme/programme.module';
 import { RulesetResolverModule } from '../matches/ruleset-resolver.module';
 import { SupabaseModule } from '../supabase/supabase.module';
@@ -22,16 +23,17 @@ import { SwissStandingsService } from './swiss-standings.service';
  *   PhasesModule, MatchesModule, TournamentPlacementModule, LeaguesModule,
  *   WorkersModule, NotificationsModule, EventsModule, FollowsModule.
  *
- * NotificationsModule is the trap worth naming, because the notification this
- * module will eventually fire lives behind it:
+ * NotificationsModule is the trap worth naming, because the `swiss_round_published`
+ * notification this module fires lives behind it:
  *   NotificationsModule → WorkersModule → LeaguesModule →
  *   TournamentPlacementModule → PhasesModule
  * The leaf NotificationSchedulingModule exports the same
  * NotificationEventsService without the back-edge — the fix RefereesModule
- * already uses. module-graph.test.ts pins all of this.
+ * already uses, and the reason the import below is that one and not the
+ * obvious-looking NotificationsModule. module-graph.test.ts pins all of this.
  */
 @Module({
-  imports: [SupabaseModule, ProgrammeModule, RulesetResolverModule],
+  imports: [SupabaseModule, ProgrammeModule, RulesetResolverModule, NotificationSchedulingModule],
   providers: [
     SwissPairingService,
     SwissRoundStateService,

@@ -35,6 +35,12 @@ export const notificationPreferences = pgTable('notification_preferences', {
   refereeStartingMinutesBefore: text('referee_starting_minutes_before').default('10'),
   scheduleChanges: boolean('schedule_changes').notNull().default(true),
   resultsPublished: boolean('results_published').notNull().default(true),
+  // 0160. Missing from this mirror until now — added here rather than left
+  // half-right beside the 0165 column below it.
+  organizerUpdates: boolean('organizer_updates').notNull().default(true),
+  // 0165. A Swiss round auto-pairs on the previous one completing, so this
+  // fires without an organiser acting and needs its own opt-out.
+  swissRoundPublished: boolean('swiss_round_published').notNull().default(true),
   enabled: boolean('enabled').notNull().default(true),
 });
 

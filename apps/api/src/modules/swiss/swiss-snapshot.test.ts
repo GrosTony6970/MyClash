@@ -34,6 +34,7 @@ const round = (
   roundNumber,
   status: 'completed',
   byeRegistrationId,
+  pairingMeta: null,
   matches,
 });
 

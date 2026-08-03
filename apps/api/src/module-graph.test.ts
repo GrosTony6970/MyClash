@@ -213,6 +213,17 @@ describe('NestJS module graph', () => {
           `(NotificationSchedulingModule for notifications).`,
       ).not.toContain(forbidden);
     }
+
+    // The positive half: `swiss_round_published` fires from the commit path, so
+    // the leaf really does need NotificationEventsService. Asserting the source
+    // of it stops a future edit from "fixing" a missing provider by reaching for
+    // NotificationsModule, which the loop above would then reject — this line
+    // says which import is the right one, not just which are wrong.
+    expect(
+      core,
+      'SwissCoreModule fires swiss_round_published, so it must import the leaf ' +
+        'NotificationSchedulingModule that exports NotificationEventsService.',
+    ).toContain('NotificationSchedulingModule');
   });
 
   it('PhasesModule depends on the Swiss leaf, never the whole SwissModule', () => {

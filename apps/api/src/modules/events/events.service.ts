@@ -26,6 +26,9 @@ import { ClubsService } from '../clubs/clubs.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { derivePoolSchedule, type PoolMatchTimeRow } from './pool-schedule';
 import { sideColorsFromScoringConfig } from './side-colors';
+// A zod schema, not a provider — a plain file import, so no module edge to the
+// Swiss modules and nothing for module-graph.test.ts to object to.
+import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import { nextIsoDay } from './date-window';
 import {
   buildReadinessSnapshot,
@@ -774,9 +777,14 @@ export class EventsService {
       persons.map((person) => person.club_id).filter((clubId): clubId is string => Boolean(clubId)),
     );
 
-    // Index phases by tournament. A tournament has at most one pool phase
-    // and at most one elim phase (single_elim or double_elim).
+    // Index phases by tournament. A tournament has at most one phase of each
+    // kind, and all three can coexist: pools → Swiss → bracket is a valid
+    // three-stage tournament (decision 10).
     const poolPhaseByTournament = new Map<string, { id: string }>();
+    const swissPhaseByTournament = new Map<
+      string,
+      { id: string; config_json: Record<string, unknown> | null }
+    >();
     const elimPhaseByTournament = new Map<
       string,
       { id: string; type: string; config_json: Record<string, unknown> | null }
@@ -784,6 +792,11 @@ export class EventsService {
     for (const phase of phases) {
       if (phase.type === 'pool') {
         poolPhaseByTournament.set(phase.tournament_id, { id: phase.id });
+      } else if (phase.type === 'swiss') {
+        swissPhaseByTournament.set(phase.tournament_id, {
+          id: phase.id,
+          config_json: phase.config_json,
+        });
       } else if (phase.type === 'single_elim' || phase.type === 'double_elim') {
         elimPhaseByTournament.set(phase.tournament_id, {
           id: phase.id,
@@ -835,6 +848,7 @@ export class EventsService {
       },
       tournaments: tournaments.map((tournament) => {
         const poolPhase = poolPhaseByTournament.get(tournament.id);
+        const swissPhase = swissPhaseByTournament.get(tournament.id);
         const elimPhase = elimPhaseByTournament.get(tournament.id);
         const bracketSize = elimPhase
           ? ((elimPhase.config_json?.['bracketSize'] as number | undefined) ?? null)
@@ -847,6 +861,12 @@ export class EventsService {
           color: tournament.color ?? null,
           rulesetCode: tournament.ruleset_code ?? null,
           poolCount: poolPhase ? (poolCountByPhase.get(poolPhase.id) ?? 0) : 0,
+          // The CONFIGURED round count, not the rounds generated so far: the
+          // overview answers "how long is this format", and a Swiss phase on
+          // the morning of the event has exactly one round in the table.
+          swissRoundCount: swissPhase
+            ? (parseSwissConfig(swissPhase.config_json)?.roundCount ?? null)
+            : null,
           bracketSize,
           eliminationType: elimPhase ? elimPhase.type : null,
           fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
@@ -1305,6 +1325,7 @@ export class EventsService {
     const bracketPhase = phaseRows.find(
       (phase) => phase['type'] === 'single_elim' || phase['type'] === 'double_elim',
     );
+    const swiss = await this.resolveSwissSummary(phaseRows);
 
     const pools =
       poolPhase && typeof poolPhase['id'] === 'string'
@@ -1317,7 +1338,14 @@ export class EventsService {
             bracketSlots: [],
             bracketSize: 0,
             bracketRounds: 0,
-            phaseType: 'single_elim' as const,
+            // A Swiss phase has no bracket, so it must NOT wear the single-elim
+            // default: `computeFinalRanking` reads this to choose its ordering,
+            // and 'single_elim' here would rank a Swiss field off an empty slot
+            // tree and return nothing at all.
+            phaseType: (swiss.swissPhaseId ? 'swiss' : 'single_elim') as
+              | 'single_elim'
+              | 'double_elim'
+              | 'swiss',
             wbRounds: null,
             lbRounds: null,
             secondChanceTarget: 'gold' as const,
@@ -1335,6 +1363,43 @@ export class EventsService {
       tournament: tournamentHeader,
       pools,
       ...bracket,
+      ...swiss,
+    };
+  }
+
+  /**
+   * What the public page needs to know about a Swiss phase without loading it.
+   *
+   * The rounds themselves come from `GET /tournaments/:id/swiss`, which the tab
+   * fetches live. These four fields are what the SERVER render needs: whether
+   * to show the tab at all, whether the Standings tab is reachable (it used to
+   * be gated on `pools.length > 0`, which hid it for a Swiss-only tournament),
+   * and whether the podium has resolved.
+   */
+  private async resolveSwissSummary(phaseRows: Array<Record<string, unknown>>) {
+    const swissPhase = phaseRows.find((phase) => phase['type'] === 'swiss');
+    const phaseId = typeof swissPhase?.['id'] === 'string' ? swissPhase['id'] : null;
+    if (!phaseId) {
+      return {
+        swissPhaseId: null,
+        swissRoundCount: 0,
+        swissRoundsCompleted: 0,
+        swissFinalized: false,
+      };
+    }
+
+    const config = parseSwissConfig(swissPhase?.['config_json']);
+    const { data: rounds } = await this.supabase.service
+      .from('swiss_rounds')
+      .select('id, status')
+      .eq('phase_id', phaseId);
+    const roundRows = (rounds ?? []) as Array<{ status: string }>;
+
+    return {
+      swissPhaseId: phaseId,
+      swissRoundCount: config?.roundCount ?? roundRows.length,
+      swissRoundsCompleted: roundRows.filter((round) => round.status === 'completed').length,
+      swissFinalized: Boolean(config?.finalized),
     };
   }
 

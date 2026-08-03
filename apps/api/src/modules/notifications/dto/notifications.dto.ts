@@ -25,6 +25,8 @@ const updateNotificationPreferencesSchema = z
     resultsPublished: z.boolean().optional(),
     /** New event published by an organiser you follow. */
     organizerUpdates: z.boolean().optional(),
+    /** Next Swiss round paired — your opponent and piste. */
+    swissRoundPublished: z.boolean().optional(),
     enabled: z.boolean().optional(),
   })
   .strict();

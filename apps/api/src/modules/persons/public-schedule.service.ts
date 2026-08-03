@@ -16,7 +16,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
-import { computeMatchKind, fetchBracketRounds } from './match-kind.util';
+import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 
 export interface ScheduleMatch {
@@ -41,10 +41,12 @@ export interface ScheduleMatch {
    *  programme block, so the schedule can show the block end instead of the
    *  last match's start. Null when the phase/tournament can't be resolved. */
   tournamentId: string | null;
-  /** Coarse programme phase for block lookup: 'pool' for a pool phase, else
-   *  'bracket' (single/double elim, swiss). Mirrors the generated
-   *  `— Pools` / `— Bracket` programme blocks. Null when unknown. */
-  phase: 'pool' | 'bracket' | null;
+  /** Coarse programme phase for block lookup — the PROGRAMME taxonomy, which
+   *  gained `swiss` as a 4th token in 0164. The key is
+   *  `${tournamentId}:${phase}`, so collapsing swiss onto 'bracket' pointed a
+   *  Swiss bout at the Bracket block's end time, or at no block at all.
+   *  Mirrors the generated `— Pools` / `— Swiss` / `— Bracket` blocks. */
+  phase: 'pool' | 'swiss' | 'bracket' | null;
   liceName: string | null;
 }
 
@@ -69,6 +71,9 @@ export interface RefereeSlot {
   matchKind: string | null;
   /** fighter count for matchKind === 'round_of' (e.g. 16) */
   roundOfCount: number | null;
+  /** Which Swiss round, for matchKind === 'swiss'. Null otherwise. Without it
+   *  every Swiss duty of a tournament collapses into one card. */
+  swissRound: number | null;
   /** Bracket slot id for bracket matches (null for pool/swiss). */
   bracketSlotId: string | null;
   skillName: string | null;
@@ -183,10 +188,13 @@ export class PublicScheduleService {
           // Per-ITEM, not per-response: one person's schedule spans tournaments,
           // and each configures its own side colours.
           sideColors: sideColorsFromScoringConfig(phase?.tournaments?.scoring_config_json),
-          phase: (phaseType === 'pool' ? 'pool' : phaseType ? 'bracket' : null) as
-            | 'pool'
-            | 'bracket'
-            | null,
+          phase: (phaseType === 'pool'
+            ? 'pool'
+            : phaseType === 'swiss'
+              ? 'swiss'
+              : phaseType
+                ? 'bracket'
+                : null) as 'pool' | 'swiss' | 'bracket' | null,
           liceName: lice?.name ?? null,
         },
       ];
@@ -315,6 +323,7 @@ export class PublicScheduleService {
         liceName: lice?.name ?? null,
         matchKind: null,
         roundOfCount: null,
+        swissRound: null,
         bracketSlotId: (match?.['bracket_slot_id'] as string | null) ?? null,
         skillName: null,
         skillColor: null,
@@ -327,11 +336,22 @@ export class PublicScheduleService {
     // Match kind (pool / bracket round) — bracket round lives on bracket_slots.
     const slotIds = [...new Set(raw.map((s) => s.bracketSlotId).filter((x): x is string => !!x))];
     const roundBySlot = await fetchBracketRounds(this.supabase.service, slotIds);
+    // Swiss round (match-scoped) — the number lives on swiss_rounds, so it
+    // needs the same follow-up lookup the bracket round does.
+    const swissRoundByMatch = await fetchSwissRounds(this.supabase.service, [
+      ...new Set(raw.map((s) => s.matchId).filter((id): id is string => Boolean(id))),
+    ]);
     for (const s of raw) {
       const round = s.bracketSlotId ? (roundBySlot.get(s.bracketSlotId) ?? null) : null;
-      const { kind, roundOfCount } = computeMatchKind(s.phaseType, round, s.bracketSize);
+      const { kind, roundOfCount, swissRound } = computeMatchKind(
+        s.phaseType,
+        round,
+        s.bracketSize,
+        s.matchId ? (swissRoundByMatch.get(s.matchId) ?? null) : null,
+      );
       s.matchKind = kind;
       s.roundOfCount = roundOfCount;
+      s.swissRound = swissRound;
     }
 
     // Pool-scoped assignments (no match) carry no direct lice and no match count.
@@ -414,6 +434,7 @@ export class PublicScheduleService {
         liceName: s.liceName,
         matchKind: s.matchKind,
         roundOfCount: s.roundOfCount,
+        swissRound: s.swissRound,
         bracketSlotId: s.bracketSlotId,
         skillName: s.skillName,
         skillColor: s.skillColor,

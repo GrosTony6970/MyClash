@@ -118,6 +118,9 @@ describe('NotificationsService', () => {
       // Defaults ON: following an organiser is already an explicit opt-in, so
       // the follow itself is the consent and this toggle turns it back off.
       organizerUpdates: true,
+      // Also ON by default: a Swiss round auto-pairs, so this is how a fighter
+      // learns their next opponent at all.
+      swissRoundPublished: true,
       enabled: true,
     });
   });

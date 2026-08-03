@@ -7089,6 +7089,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/tournaments/{tournamentId}/swiss-admin': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organiser view of a Swiss phase
+     * @description Config, entrant roster with names and withdrawals, and every round with its pairings and validity. Answers for a tournament with no Swiss phase too, so the Configure tab can propose a round count for the field.
+     */
+    get: operations['SwissController_getAdminView'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/tournaments/{tournamentId}/generate-swiss': {
     parameters: {
       query?: never;
@@ -10385,6 +10405,7 @@ export interface components {
       scheduleChanges?: boolean;
       resultsPublished?: boolean;
       organizerUpdates?: boolean;
+      swissRoundPublished?: boolean;
       enabled?: boolean;
     };
     SendBroadcastNotificationDto: {
@@ -21275,6 +21296,25 @@ export interface operations {
       header?: never;
       path: {
         eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_getAdminView: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
       };
       cookie?: never;
     };

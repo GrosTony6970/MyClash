@@ -18,6 +18,7 @@ function slot(over: Partial<RefereeSlot>): RefereeSlot {
     liceName: null,
     matchKind: null,
     roundOfCount: null,
+    swissRound: null,
     bracketSlotId: null,
     skillName: 'Director',
     skillColor: 'blue',
@@ -33,6 +34,16 @@ describe('refereeAssignmentKey', () => {
     const c = slot({ matchId: '3', matchKind: 'pool', poolId: 'p2' });
     expect(refereeAssignmentKey(a)).toBe(refereeAssignmentKey(b));
     expect(refereeAssignmentKey(a)).not.toBe(refereeAssignmentKey(c));
+  });
+
+  it('groups Swiss matches by ROUND, not into one bucket per tournament', () => {
+    // The whole point: a referee working rounds 1 and 3 has two separate duties
+    // at two separate times, and the old key collapsed them into one card.
+    const r1a = slot({ matchId: '1', matchKind: 'swiss', swissRound: 1 });
+    const r1b = slot({ matchId: '2', matchKind: 'swiss', swissRound: 1 });
+    const r3 = slot({ matchId: '3', matchKind: 'swiss', swissRound: 3 });
+    expect(refereeAssignmentKey(r1a)).toBe(refereeAssignmentKey(r1b));
+    expect(refereeAssignmentKey(r1a)).not.toBe(refereeAssignmentKey(r3));
   });
 
   it('groups bracket matches by tier, separating rounds', () => {

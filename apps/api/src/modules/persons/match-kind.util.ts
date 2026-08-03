@@ -20,28 +20,67 @@ export interface MatchKind {
   kind: string | null;
   /** fighter count for kind === 'round_of' (e.g. 16), else null */
   roundOfCount: number | null;
+  /**
+   * Which Swiss round, for kind === 'swiss', else null.
+   *
+   * Swiss's analogue of `roundOfCount`, and needed for the same reason: without
+   * it every Swiss duty of a tournament is indistinguishable, so the personal
+   * space folded five rounds of refereeing into a single card.
+   */
+  swissRound: number | null;
 }
 
-/** Normalised match-kind token + (for round_of) the fighter count. */
+/** Normalised match-kind token + (for round_of / swiss) which round it is. */
 export function computeMatchKind(
   phaseType: string | null,
   bracketRound: number | null,
   bracketSize: number | null,
+  swissRound: number | null = null,
 ): MatchKind {
-  if (phaseType === 'pool') return { kind: 'pool', roundOfCount: null };
-  if (phaseType === 'swiss') return { kind: 'swiss', roundOfCount: null };
+  if (phaseType === 'pool') return { kind: 'pool', roundOfCount: null, swissRound: null };
+  if (phaseType === 'swiss') return { kind: 'swiss', roundOfCount: null, swissRound };
   if (phaseType === 'single_elim' || phaseType === 'double_elim') {
-    if (bracketRound === 0) return { kind: 'play_in', roundOfCount: null };
+    if (bracketRound === 0) return { kind: 'play_in', roundOfCount: null, swissRound: null };
     if (bracketRound != null && bracketRound > 0) {
       const code = bracketRoundLabel(bracketRound, bracketSize);
-      if (code === 'F') return { kind: 'final', roundOfCount: null };
-      if (code === 'SF') return { kind: 'semi_final', roundOfCount: null };
-      if (code === 'QF') return { kind: 'quarter_final', roundOfCount: null };
+      if (code === 'F') return { kind: 'final', roundOfCount: null, swissRound: null };
+      if (code === 'SF') return { kind: 'semi_final', roundOfCount: null, swissRound: null };
+      if (code === 'QF') return { kind: 'quarter_final', roundOfCount: null, swissRound: null };
       const m = /^R(\d+)$/.exec(code);
-      return { kind: 'round_of', roundOfCount: m ? Number(m[1]) : null };
+      return { kind: 'round_of', roundOfCount: m ? Number(m[1]) : null, swissRound: null };
     }
   }
-  return { kind: null, roundOfCount: null };
+  return { kind: null, roundOfCount: null, swissRound: null };
+}
+
+/**
+ * Map of match id → Swiss round number (empty matchIds → empty map).
+ *
+ * Sibling of `fetchBracketRounds` and needed for the same reason: the round
+ * number lives on `swiss_rounds`, not on `matches`, so a payload that has only
+ * the match needs a follow-up lookup to say WHICH round it is.
+ */
+export async function fetchSwissRounds(
+  client: SupabaseClient,
+  matchIds: string[],
+): Promise<Map<string, number | null>> {
+  const map = new Map<string, number | null>();
+  if (matchIds.length === 0) return map;
+  const { data } = await client
+    .from('matches')
+    .select('id, swiss_rounds(round_number)')
+    .in('id', matchIds);
+  for (const row of Array.isArray(data) ? (data as Array<Record<string, unknown>>) : []) {
+    // Many-to-one embeds are objects, but normalise defensively — a schema
+    // change that made the FK non-unique would silently flip this to an array.
+    const embed = row['swiss_rounds'];
+    const round = Array.isArray(embed) ? embed[0] : embed;
+    map.set(
+      String(row['id']),
+      ((round as { round_number?: number } | null)?.round_number ?? null) as number | null,
+    );
+  }
+  return map;
 }
 
 /** Map of bracket_slot id → round number (empty slotIds → empty map). */

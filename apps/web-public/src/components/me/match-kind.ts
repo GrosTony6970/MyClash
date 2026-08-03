@@ -12,6 +12,7 @@ export function matchKindLabel(
   t: TFn,
   kind: string | null,
   roundOfCount: number | null,
+  swissRound: number | null = null,
 ): string | null {
   switch (kind) {
     case 'pool':
@@ -27,7 +28,9 @@ export function matchKindLabel(
     case 'round_of':
       return roundOfCount ? t('publicApp.me.hub.kindRoundOf', { count: roundOfCount }) : null;
     case 'swiss':
-      return t('publicApp.me.hub.kindSwiss');
+      return swissRound
+        ? t('publicApp.me.hub.kindSwissRound', { round: swissRound })
+        : t('publicApp.me.hub.kindSwiss');
     default:
       return null;
   }
@@ -35,14 +38,18 @@ export function matchKindLabel(
 
 /** Referee match-kind → the tournament tab a referee entry should deep-link to.
  *  Pool phases open the Pool List; bracket phases open the Bracket (where the
- *  referee's own match is highlighted); Swiss opens Standings. Unknown/null keeps
+ *  referee's own match is highlighted); Swiss opens its own Swiss tab — it used
+ *  to open Standings, a tab that is HIDDEN for a Swiss-only tournament, so the
+ *  link landed on whatever the status default happened to be. Unknown/null keeps
  *  the prior no-hash behaviour (status-based default tab). */
-export function matchKindHash(kind: string | null): '' | '#pools' | '#standings' | '#bracket' {
+export function matchKindHash(
+  kind: string | null,
+): '' | '#pools' | '#swiss' | '#standings' | '#bracket' {
   switch (kind) {
     case 'pool':
       return '#pools';
     case 'swiss':
-      return '#standings';
+      return '#swiss';
     case 'play_in':
     case 'final':
     case 'semi_final':

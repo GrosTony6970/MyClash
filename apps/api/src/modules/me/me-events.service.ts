@@ -21,7 +21,9 @@ import { Injectable } from '@nestjs/common';
 import { asEventKind, isPubliclyVisible, type EventKind } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
-import { computeMatchKind, fetchBracketRounds } from '../persons/match-kind.util';
+// A zod schema, not a provider — plain file import, no module edge.
+import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
+import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from '../persons/match-kind.util';
 
 type Row = Record<string, unknown>;
 
@@ -45,6 +47,17 @@ export interface MyEventTournament {
   registered: boolean;
   registrationId: string | null;
   poolName: string | null;
+  /**
+   * Swiss progress for this fighter's tournament: how many rounds are done out
+   * of how many are configured. Null when the tournament has no Swiss phase.
+   *
+   * Deliberately NOT their points. Swiss points are `SwissStandingsService`'s
+   * to compute — recomputing them here from the raw rounds would make a second
+   * owner of the scoring, and this is a cross-event list that would pay for a
+   * ruleset run per tournament to show one number the standings already show.
+   */
+  swissRoundsCompleted: number | null;
+  swissRoundCount: number | null;
   seed: number | null;
   bibNumber: number | null;
 }
@@ -64,6 +77,8 @@ export interface MyEventRefereeOf {
   matchKind: string | null;
   /** fighter count for matchKind === 'round_of' (e.g. 16) */
   roundOfCount: number | null;
+  /** Which Swiss round, for matchKind === 'swiss'. Null otherwise. */
+  swissRound: number | null;
   /** Bracket slot id for match-scoped assignments (null for pool/lice/swiss).
    *  Personal-space self-highlight key: matches BracketSlot.id on the bracket. */
   bracketSlotId: string | null;
@@ -350,6 +365,7 @@ export class MeEventsService {
         venueName: a.venueName,
         matchKind: a.matchKind,
         roundOfCount: a.roundOfCount,
+        swissRound: a.swissRound,
         bracketSlotId: a.bracketSlotId,
         startsAt: a.startsAt,
         endsAt: a.endsAt,
@@ -375,6 +391,7 @@ export class MeEventsService {
       this.fetchTournamentsForEvents(eventIds),
       this.fetchMatchCounts(registrations.map((r) => r.id)),
     ]);
+    const swissByTournament = await this.fetchSwissProgress(allTournaments.map((t) => t.id));
     const regByTournament = new Map(registrations.map((r) => [r.tournamentId, r]));
     const tournamentToEvent = new Map(allTournaments.map((t) => [t.id, t.eventId]));
 
@@ -393,6 +410,8 @@ export class MeEventsService {
         registered: Boolean(reg),
         registrationId: reg?.id ?? null,
         poolName: reg?.poolName ?? null,
+        swissRoundsCompleted: swissByTournament.get(t.id)?.completed ?? null,
+        swissRoundCount: swissByTournament.get(t.id)?.total ?? null,
         seed: reg?.seed ?? null,
         bibNumber: reg?.bibNumber ?? null,
       });
@@ -519,6 +538,7 @@ export class MeEventsService {
       venueName: string | null;
       matchKind: string | null;
       roundOfCount: number | null;
+      swissRound: number | null;
       bracketSlotId: string | null;
       startsAt: string | null;
       endsAt: string | null;
@@ -575,8 +595,10 @@ export class MeEventsService {
         phaseType,
         bracketSize: config?.bracketSize ?? null,
         bracketSlotId: (match?.['bracket_slot_id'] as string | null) ?? null,
+        matchId: (match?.['id'] as string | null) ?? null,
         matchKind: null as string | null,
         roundOfCount: null as number | null,
+        swissRound: null as number | null,
         startsAt: (r['starts_at'] as string | null) ?? null,
         endsAt: (r['ends_at'] as string | null) ?? null,
         poolId: (r['pool_id'] as string | null) ?? null,
@@ -588,11 +610,22 @@ export class MeEventsService {
       ...new Set(assignments.map((a) => a.bracketSlotId).filter((x): x is string => !!x)),
     ];
     const roundBySlot = await fetchBracketRounds(this.supabase.service, slotIds);
+    // Swiss round (match-scoped) — the number lives on swiss_rounds, so it
+    // needs the same kind of follow-up lookup the bracket round does.
+    const swissRoundByMatch = await fetchSwissRounds(this.supabase.service, [
+      ...new Set(assignments.map((a) => a.matchId).filter((x): x is string => !!x)),
+    ]);
     for (const a of assignments) {
       const round = a.bracketSlotId ? (roundBySlot.get(a.bracketSlotId) ?? null) : null;
-      const { kind, roundOfCount } = computeMatchKind(a.phaseType, round, a.bracketSize);
+      const { kind, roundOfCount, swissRound } = computeMatchKind(
+        a.phaseType,
+        round,
+        a.bracketSize,
+        a.matchId ? (swissRoundByMatch.get(a.matchId) ?? null) : null,
+      );
       a.matchKind = kind;
       a.roundOfCount = roundOfCount;
+      a.swissRound = swissRound;
     }
 
     // Pool-scoped assignments carry no direct lice — borrow a representative
@@ -661,6 +694,7 @@ export class MeEventsService {
       venueName: a.venueName,
       matchKind: a.matchKind,
       roundOfCount: a.roundOfCount,
+      swissRound: a.swissRound,
       bracketSlotId: a.bracketSlotId,
       startsAt: a.startsAt,
       endsAt: a.endsAt,
@@ -764,6 +798,47 @@ export class MeEventsService {
     }
 
     return { events, workshopsByEvent };
+  }
+
+  /**
+   * Swiss round progress per tournament: rounds completed out of the configured
+   * total. Two batched queries for the whole list, not one per tournament.
+   */
+  private async fetchSwissProgress(
+    tournamentIds: string[],
+  ): Promise<Map<string, { completed: number; total: number }>> {
+    const out = new Map<string, { completed: number; total: number }>();
+    if (tournamentIds.length === 0) return out;
+
+    const { data: phases } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id, config_json')
+      .eq('type', 'swiss')
+      .in('tournament_id', tournamentIds);
+    const phaseRows = Array.isArray(phases) ? (phases as Row[]) : [];
+    if (phaseRows.length === 0) return out;
+
+    const tournamentByPhase = new Map<string, string>();
+    for (const phase of phaseRows) {
+      const phaseId = String(phase['id']);
+      tournamentByPhase.set(phaseId, String(phase['tournament_id']));
+      out.set(String(phase['tournament_id']), {
+        completed: 0,
+        total: parseSwissConfig(phase['config_json'])?.roundCount ?? 0,
+      });
+    }
+
+    const { data: rounds } = await this.supabase.service
+      .from('swiss_rounds')
+      .select('phase_id, status')
+      .in('phase_id', [...tournamentByPhase.keys()]);
+    for (const round of Array.isArray(rounds) ? (rounds as Row[]) : []) {
+      if (round['status'] !== 'completed') continue;
+      const tournamentId = tournamentByPhase.get(String(round['phase_id']));
+      const entry = tournamentId ? out.get(tournamentId) : undefined;
+      if (entry) entry.completed += 1;
+    }
+    return out;
   }
 
   private async fetchRegistrations(personIds: string[]): Promise<

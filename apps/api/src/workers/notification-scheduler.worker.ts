@@ -24,7 +24,11 @@ export type ImmediateNotificationKind =
   // FollowNotificationSchedulerService.replaceJob with its hardcoded 3-way
   // jobId switch. This one fires now, push-first with email fallback and
   // preference gating — which is exactly what sendImmediate already does.
-  | 'organizer_published_event';
+  | 'organizer_published_event'
+  // Immediate for the same reason: a Swiss round auto-pairs the instant the
+  // previous one completes, so the pairing IS the news — a reminder scheduled
+  // against its start time would arrive after fighters had already been called.
+  | 'swiss_round_published';
 
 export type FollowNotificationKind =
   | 'follow_match_starting'
@@ -36,10 +40,23 @@ export type NotificationKind =
   | ImmediateNotificationKind
   | FollowNotificationKind;
 
-export type NotificationPreferenceToggle =
-  | 'schedule_changes'
-  | 'results_published'
-  | 'organizer_updates';
+/**
+ * The per-kind opt-outs, as column names.
+ *
+ * Declared as a const array so the SELECT below and the type both come from
+ * ONE list — the three hand-written `Pick<…, 'enabled' | 'schedule_changes' |
+ * …>` unions that used to enumerate this were a fourth place to forget a new
+ * toggle, and a toggle missing from the select reads as `undefined`, which is
+ * not `=== false`, so the opt-out silently stops working.
+ */
+export const PREFERENCE_TOGGLE_COLUMNS = [
+  'schedule_changes',
+  'results_published',
+  'organizer_updates',
+  'swiss_round_published',
+] as const;
+
+export type NotificationPreferenceToggle = (typeof PREFERENCE_TOGGLE_COLUMNS)[number];
 
 export interface ScheduledNotificationJob {
   kind: NotificationKind;
@@ -68,16 +85,16 @@ interface PushSubscriptionRow {
   auth_key: string;
 }
 
-interface NotificationPreferenceRow {
+type NotificationPreferenceRow = {
   user_id: string;
   enabled: boolean;
   match_starting_minutes_before: string | number | null;
   workshop_starting_minutes_before: string | number | null;
   referee_starting_minutes_before: string | number | null;
-  schedule_changes?: boolean | null;
-  results_published?: boolean | null;
-  organizer_updates?: boolean | null;
-}
+} & { [K in NotificationPreferenceToggle]?: boolean | null };
+
+/** The `enabled` master switch plus every per-kind toggle. */
+type TogglePreferences = Pick<NotificationPreferenceRow, 'enabled' | NotificationPreferenceToggle>;
 
 /**
  * Custom BullMQ job ids MUST NOT contain ':'.
@@ -476,31 +493,18 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     );
   }
 
-  private async getPreference(
-    userId: string,
-  ): Promise<Pick<
-    NotificationPreferenceRow,
-    'enabled' | 'schedule_changes' | 'results_published' | 'organizer_updates'
-  > | null> {
+  private async getPreference(userId: string): Promise<TogglePreferences | null> {
     const { data } = await this.supabase.service
       .from('notification_preferences')
-      .select('user_id, enabled, schedule_changes, results_published, organizer_updates')
+      .select(`user_id, enabled, ${PREFERENCE_TOGGLE_COLUMNS.join(', ')}`)
       .eq('user_id', userId)
       .maybeSingle();
-    return (
-      (data as Pick<
-        NotificationPreferenceRow,
-        'enabled' | 'schedule_changes' | 'results_published' | 'organizer_updates'
-      > | null) ?? null
-    );
+    return (data as TogglePreferences | null) ?? null;
   }
 
   private isDisabledByPreference(
     job: ScheduledNotificationJob,
-    preference: Pick<
-      NotificationPreferenceRow,
-      'enabled' | 'schedule_changes' | 'results_published' | 'organizer_updates'
-    > | null,
+    preference: TogglePreferences | null,
   ): boolean {
     return Boolean(job.preference && preference?.[job.preference] === false);
   }

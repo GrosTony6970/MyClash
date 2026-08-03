@@ -21,8 +21,9 @@ export interface ScheduleMatch {
    *  programme block, so the section header can show the block end (e.g. 11:30)
    *  instead of the last match's start. Null when unresolved. */
   tournamentId: string | null;
-  /** Coarse programme phase for block lookup: 'pool' or 'bracket'. Null unknown. */
-  phase: 'pool' | 'bracket' | null;
+  /** Coarse programme phase for block lookup — the PROGRAMME taxonomy, which
+   *  carries `swiss` as a 4th token. Null unknown. */
+  phase: 'pool' | 'swiss' | 'bracket' | null;
   liceName: string | null;
 }
 
@@ -46,6 +47,9 @@ export interface RefereeSlot {
   /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
   matchKind: string | null;
   roundOfCount: number | null;
+  /** Which Swiss round, for matchKind === 'swiss'. Keys the per-round referee
+   *  card — without it five rounds of duty fold into one. */
+  swissRound: number | null;
   bracketSlotId: string | null;
   skillName: string | null;
   skillColor: string | null;
@@ -124,6 +128,8 @@ export interface MyEventRefereeOf {
   /** 'pool' | 'play_in' | 'final' | 'semi_final' | 'quarter_final' | 'round_of' | 'swiss' | null */
   matchKind: string | null;
   roundOfCount: number | null;
+  /** Which Swiss round, for matchKind === 'swiss'. Null otherwise. */
+  swissRound: number | null;
   /** Bracket slot id for match-scoped assignments (null otherwise) — used to
    *  self-highlight the viewer's own bracket match. */
   bracketSlotId: string | null;
