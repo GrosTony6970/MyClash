@@ -187,6 +187,7 @@ export {
   sideStyle,
   styleForToken,
   legibleOn,
+  outlineInkOn,
   sideColorsFor,
   sideColorsForTokens,
 } from './utils/side-color';
@@ -203,8 +204,14 @@ export {
   ascendingWithNumbers,
   orderedWithNumbers,
   exchangeOptionLabel,
+  NO_EXCHANGE_REASONS,
+  NO_EXCHANGE_REASON_KEYS,
 } from './utils/exchange-timeline';
-export type { UnifiedEvent, BuildTimelineArgs } from './utils/exchange-timeline';
+export type {
+  UnifiedEvent,
+  BuildTimelineArgs,
+  NoExchangeReasonId,
+} from './utils/exchange-timeline';
 
 export type { ClockEvent } from './types/match-events';
 

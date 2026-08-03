@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useScoringTheme } from '../../../src/theme/ThemeProvider';
+import { ThemeSwitcher } from '../../../src/theme/ThemeSwitcher';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { sideStyle } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
@@ -43,6 +45,7 @@ interface LiceQueueResponse {
 export default function LiceMatchListPage({ params }: Props) {
   const router = useRouter();
   const { t } = useI18n();
+  const { chromeScope } = useScoringTheme();
   const apiUrl = getApiUrl();
 
   const [liceId, setLiceId] = useState<string | null>(null);
@@ -90,19 +93,25 @@ export default function LiceMatchListPage({ params }: Props) {
 
   if (loading) {
     return (
-      <main id="main-content" className="flex min-h-screen items-center justify-center">
+      // Same scope as the loaded state below, or the screen changes surface
+      // the moment the fetch lands.
+      <main
+        id="main-content"
+        data-theme={chromeScope}
+        className="flex min-h-screen items-center justify-center bg-background text-foreground"
+      >
         <p className="text-muted">{t('scoring.lice.loadingMatch')}</p>
       </main>
     );
   }
 
   return (
-    // data-theme='light' — this is the app's light chrome (see MatchHeader:
-    // "hybrid: light chrome, dark scoring area"). The body scope is dark and
-    // tokens inherit, so the light region needs its own scope to override with.
+    // Own data-theme — this is the app's chrome (see MatchHeader: "hybrid:
+    // light chrome, dark scoring area"). Tokens inherit from <body>, so a
+    // region that differs from the pad needs its own scope to override with.
     <main
       id="main-content"
-      data-theme="light"
+      data-theme={chromeScope}
       className="min-h-screen flex flex-col bg-background text-foreground"
     >
       {/* Network status */}
@@ -130,7 +139,9 @@ export default function LiceMatchListPage({ params }: Props) {
           <h1 className="text-base font-bold uppercase tracking-wide">
             {t('scoring.lice.title', { liceName: data?.liceName ?? '—' })}
           </h1>
-          <div className="w-20" />
+          <div className="flex w-20 justify-end">
+            <ThemeSwitcher />
+          </div>
         </div>
       </header>
 

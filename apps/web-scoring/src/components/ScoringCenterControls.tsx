@@ -20,6 +20,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
+import { useScoringTheme } from '../theme/ThemeProvider';
 import {
   buildUnifiedTimeline,
   clockStatusSemantic,
@@ -41,6 +42,7 @@ import { usePenalties } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
+import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
 
 interface ScoringCenterControlsProps {
   matchId: string;
@@ -133,8 +135,13 @@ export function ScoringCenterControls({
   onEndRound,
 }: ScoringCenterControlsProps) {
   const { t } = useI18n();
+  // This column IS the pad, so it takes the pad scope. Needed in JS because
+  // statusPillTone picks raw palette classes by argument — they cannot follow
+  // the CSS scope the way a semantic token class does.
+  const { padScope } = useScoringTheme();
   const status = clockState?.status ?? 'idle';
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [noExchangeOpen, setNoExchangeOpen] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
 
   // Live ticker — runs while running AND while halted so the wall-clock
@@ -262,7 +269,7 @@ export function ScoringCenterControls({
 
       {/* Status badge */}
       {(() => {
-        const tone = statusPillTone(clockStatusSemantic(status), 'dark');
+        const tone = statusPillTone(clockStatusSemantic(status), padScope);
         return (
           <span
             data-testid="clock-status"
@@ -399,16 +406,25 @@ export function ScoringCenterControls({
             >
               ⚔ {t('scoring.lice.eventRowDouble')}
             </button>
+            {/* Opens the reason picker rather than recording straight away —
+                the pad used to hard-code 'other' on every no-exchange. */}
             <button
               type="button"
               data-testid="no-exchange-button"
               disabled={!canScore || submit.submitting}
-              onClick={() => submit.submitNoExchange('other')}
+              onClick={() => setNoExchangeOpen(true)}
               className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-border bg-surface px-4 py-2 text-sm font-bold text-foreground-secondary hover:bg-border active:bg-muted/40 disabled:opacity-40"
             >
               ⏸ {t('scoring.lice.eventRowNoExchange')}
             </button>
           </div>
+
+          <NoExchangeReasonDialog
+            open={noExchangeOpen}
+            onClose={() => setNoExchangeOpen(false)}
+            onChoose={(reason) => submit.submitNoExchange(reason)}
+            busy={submit.submitting}
+          />
 
           {/* Exchanges count + Clear last exchange */}
           <div className="flex flex-col items-center gap-1 mt-3 w-full">

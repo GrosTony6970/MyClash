@@ -5,6 +5,7 @@ import type { MatchFormatConfig } from '@myclash/types';
 import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
 import { clockStatusSemantic, statusPillTone } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import { useScoringTheme } from '../theme/ThemeProvider';
 import {
   type ClockState,
   displayClockMs,
@@ -57,6 +58,7 @@ export default function MatchClock({
   onMatchChanged,
 }: MatchClockProps) {
   const { t } = useI18n();
+  const { padScope } = useScoringTheme();
   const [clockState, setClockState] = useState<ClockState | null>(null);
   const [displayMs, setDisplayMs] = useState(0);
   const [wallElapsedMs, setWallElapsedMs] = useState(0);
@@ -174,7 +176,7 @@ export default function MatchClock({
       </div>
 
       {(() => {
-        const tone = statusPillTone(clockStatusSemantic(status), 'dark');
+        const tone = statusPillTone(clockStatusSemantic(status), padScope);
         return (
           <div
             className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-widest ${tone.className} ${

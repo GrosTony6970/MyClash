@@ -64,13 +64,30 @@ export interface UnifiedEvent {
 type UnifiedEventDraft = Omit<UnifiedEvent, 'number'>;
 
 /**
- * `exchanges.no_exchange_reason` stores the raw button id the pad submitted
- * (see ScoringPad's `noExchangeReasons` list), not a label — rendering it as-is
- * would put `out_of_bounds` on a projector. Map the known ids back to their
- * existing labels; anything else is free text from an older client and passes
- * through unchanged.
+ * The reasons a referee can give for a no-exchange, in the order the pad
+ * offers them — `other` last, as the fallback.
+ *
+ * ONE owner for the id → label mapping, deliberately. These ids are written to
+ * `exchanges.no_exchange_reason` by the scoring pad's picker and read back here
+ * to label a recorded row, so a second table would let the writer and the
+ * reader drift.
  */
-const NO_EXCHANGE_REASON_KEYS: Record<string, string> = {
+export const NO_EXCHANGE_REASONS = [
+  'out_of_bounds',
+  'simultaneous_stop',
+  'no_valid_hit',
+  'other',
+] as const;
+
+export type NoExchangeReasonId = (typeof NO_EXCHANGE_REASONS)[number];
+
+/**
+ * `exchanges.no_exchange_reason` stores the raw id the pad submitted, not a
+ * label — rendering it as-is would put `out_of_bounds` on a projector. Map the
+ * known ids back to their labels; anything else is free text from an older
+ * client and passes through unchanged.
+ */
+export const NO_EXCHANGE_REASON_KEYS: Record<NoExchangeReasonId, string> = {
   out_of_bounds: 'scoring.pad.noExchangeReasons.outOfBounds',
   simultaneous_stop: 'scoring.pad.noExchangeReasons.simultaneousStop',
   no_valid_hit: 'scoring.pad.noExchangeReasons.noValidHit',
@@ -82,7 +99,7 @@ function noExchangeNote(
   t: (k: string, p?: Record<string, string>) => string,
 ): string | null {
   if (!raw) return null;
-  const key = NO_EXCHANGE_REASON_KEYS[raw];
+  const key = NO_EXCHANGE_REASON_KEYS[raw as NoExchangeReasonId];
   return key ? t(key) : raw;
 }
 

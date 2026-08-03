@@ -218,6 +218,24 @@ export function legibleOn(hex: string, bg: 'dark' | 'light'): string {
 }
 
 /**
+ * Ink for an OUTLINE control — one painted in a fighter's colour but with no
+ * fill behind it (the pad's afterblow buttons).
+ *
+ * `SideColorStyle.text` is the ink for the FILLED pairing: it sits on `panel`,
+ * so it is deliberately near-white (#fee2e2 for red) and is only legible over
+ * that dark fill. An outline control has no fill, so the ink lands on the page
+ * instead. On a dark surface the near-white still reads — measured 14.6:1 — but
+ * on a light one it collapses to 1.17:1, which is invisible.
+ *
+ * Hence: keep the established `text` ink on dark (the scoring pad's default
+ * look is unchanged, to the byte), and fall back to the side colour itself —
+ * clamped by `legibleOn` — when the control paints on light.
+ */
+export function outlineInkOn(style: SideColorStyle, surface: 'dark' | 'light'): string {
+  return surface === 'dark' ? style.text : legibleOn(style.border, 'light');
+}
+
+/**
  * Both sides' colours at once, already clamped for the surface they paint on.
  *
  * The pairing every scoreboard-shaped surface wants: two fighters, the

@@ -384,7 +384,7 @@ export function MatchView({
   });
 
   // Spacebar shortcut: toggles the primary clock action when no input
-  // is focused and the drawer isn't open.
+  // is focused, the drawer isn't open, and no modal is up.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.code !== 'Space') return;
@@ -400,6 +400,14 @@ export function MatchView({
         return;
       }
       if (drawerOpen) return;
+      // Any open modal blocks the shortcut. Asked of the DOM rather than
+      // tracked as state because the dialogs are owned by children (the
+      // no-exchange reason picker in ScoringCenterControls, the reset-clock
+      // confirm next to it) — lifting each one's open flag up here would mean
+      // this guard silently misses the next dialog anyone adds. Every shared
+      // primitive (Modal, ConfirmDialog, PromptDialog) portals to <body> with
+      // this exact pair of attributes.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const status = clockState?.status ?? 'idle';
       const action: 'start' | 'halt' | 'resume' | null =
         status === 'idle'

@@ -2,8 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { MaintenanceBanner } from '@myclash/ui';
 import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
+import { ServiceWorkerRegistration } from '../src/components/ServiceWorkerRegistration';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getServerT, resolveServerLocale } from '../src/i18n/server-locale';
+import { ThemeProvider } from '../src/theme/ThemeProvider';
+import { resolveServerTheme } from '../src/theme/server-theme';
+import { padScopeFor } from '../src/theme/theme';
 import '../src/styles/globals.css';
 
 // Tournament Manual aesthetic — same font stack as apps/web-admin and
@@ -65,6 +69,11 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await resolveServerLocale();
   const t = await getServerT();
+  // The pad scope goes on <body> and everything inherits it; chrome regions
+  // (header, corrections drawer, lice lists) re-scope themselves from the
+  // ThemeProvider. This layout is the ONLY writer of the body attribute — the
+  // switcher changes the cookie and refreshes rather than touching the DOM.
+  const themeMode = await resolveServerTheme();
   return (
     <html
       lang={locale}
@@ -75,34 +84,26 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body
-        data-theme="dark"
+        data-theme={padScopeFor(themeMode)}
         className="bg-background font-body text-foreground min-h-screen antialiased"
       >
+        {/* `strong` rather than white-on-black: the dark scope inverts
+            --color-strong, so the skip link stays high-contrast on either
+            surface without knowing which one it landed on. */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-skip-link focus:px-4 focus:py-2 focus:bg-white focus:text-black focus:rounded focus:shadow-lg focus:text-sm focus:font-semibold"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-skip-link focus:px-4 focus:py-2 focus:bg-strong focus:text-strong-foreground focus:rounded focus:shadow-lg focus:text-sm focus:font-semibold"
         >
           {t('navigation.skipToMainContent')}
         </a>
         <I18nProvider locale={locale}>
-          <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
-          {children}
-          <HeartbeatRunner />
+          <ThemeProvider mode={themeMode}>
+            <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
+            {children}
+            <HeartbeatRunner />
+          </ThemeProvider>
         </I18nProvider>
-        {/* Service worker registration */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(reg) { console.log('SW registered:', reg.scope); })
-                    .catch(function(err) { console.warn('SW registration failed:', err); });
-                });
-              }
-            `,
-          }}
-        />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

@@ -1,5 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import { legibleOn, sideColorsFor, sideStyle } from './side-color';
+import { legibleOn, outlineInkOn, sideColorsFor, sideStyle } from './side-color';
+
+describe('outlineInkOn', () => {
+  const SIDES = ['red', 'blue'] as const;
+
+  // The scoring pad's default (hybrid) theme paints on dark. This must not
+  // move: it is what every existing tablet renders today.
+  it.each(SIDES)('keeps the established filled-pairing ink on dark (%s)', (side) => {
+    const style = sideStyle(null, side);
+    expect(outlineInkOn(style, 'dark')).toBe(style.text);
+  });
+
+  // style.text is near-white because it is meant to sit on style.panel. On an
+  // outline control there is no panel, so on a light pad it lands on the page
+  // — measured at 1.17:1 in the browser before this existed.
+  it.each(SIDES)('uses the side colour, not the panel ink, on light (%s)', (side) => {
+    const style = sideStyle(null, side);
+    expect(outlineInkOn(style, 'light')).not.toBe(style.text);
+    expect(outlineInkOn(style, 'light')).toBe(style.border);
+  });
+
+  it('still clamps a near-white configured colour on light', () => {
+    const white = sideStyle(
+      { display: { sideColors: { red: 'white', blue: 'blue' } } } as never,
+      'red',
+    );
+    expect(outlineInkOn(white, 'light')).toBe('#1f2937');
+  });
+});
 
 describe('legibleOn', () => {
   it('replaces a near-black colour with a light fallback on a dark surface', () => {

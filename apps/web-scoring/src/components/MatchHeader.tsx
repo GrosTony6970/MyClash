@@ -9,17 +9,20 @@
  *   ↗ External display
  *   [ NEXT-MATCH tile ]
  *
- * The header sits in light surfaces even though the central scoring zone
- * below stays dark — operator decided "hybrid: light chrome, dark scoring
- * area" for visual unity with the admin app. That is why the root element
- * carries data-theme='light': the app body is dark, and semantic tokens
- * inherit, so a light region needs its own scope to override with.
+ * In the default `hybrid` theme the header sits on a light surface even though
+ * the central scoring zone below stays dark — operator decided "hybrid: light
+ * chrome, dark scoring area" for visual unity with the admin app. That is why
+ * the root element carries its own data-theme: semantic tokens inherit, so a
+ * region that differs from <body> needs a scope to override with. The value is
+ * no longer pinned — see src/theme/theme.ts for the mode → scope table.
  */
 
 import { useEffect } from 'react';
 import Link from 'next/link';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
+import { useScoringTheme } from '../theme/ThemeProvider';
+import { ThemeSwitcher } from '../theme/ThemeSwitcher';
 import { sideStyle } from '@myclash/ui';
 import { useAdjacentMatches } from '@myclash/ui';
 import {
@@ -80,6 +83,7 @@ export function MatchHeader({
   blueRoundWins = 0,
 }: MatchHeaderProps) {
   const { t } = useI18n();
+  const { chromeScope } = useScoringTheme();
   const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
   // Tournament · Pool · Piste — skips any part that's missing (e.g. bracket matches have no pool).
   const contextLine = [tournamentName, poolName, liceName]
@@ -107,12 +111,12 @@ export function MatchHeader({
   const blueStyle = sideStyle(config, 'blue');
 
   return (
-    // data-theme='light' because the app body is dark but this chrome is a
-    // light surface — you read it between bouts, not mid-exchange. Without the
-    // scope the dark tokens inherit straight through, which is why this file
-    // used to hardcode slate-*.
+    // Own data-theme because the chrome may differ from <body>: under `hybrid`
+    // this is light over a dark pad — you read it between bouts, not
+    // mid-exchange. Without the scope the body's tokens inherit straight
+    // through, which is why this file used to hardcode slate-*.
     <header
-      data-theme="light"
+      data-theme={chromeScope}
       className="border-b border-border bg-surface text-foreground px-4 py-3"
     >
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">
@@ -185,17 +189,20 @@ export function MatchHeader({
           </button>
         </div>
 
-        {/* Right: external display + next-match tile */}
+        {/* Right: theme + external display + next-match tile */}
         <div className="flex flex-col items-end gap-2">
-          {displayUrl && (
-            <button
-              type="button"
-              onClick={() => openScoreboardPopup(displayUrl)}
-              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
-            >
-              ↗ {t('scoring.lice.externalDisplay')}
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <ThemeSwitcher />
+            {displayUrl && (
+              <button
+                type="button"
+                onClick={() => openScoreboardPopup(displayUrl)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
+              >
+                ↗ {t('scoring.lice.externalDisplay')}
+              </button>
+            )}
+          </div>
 
           {next && (
             <Link

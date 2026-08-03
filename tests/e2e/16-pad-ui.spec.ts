@@ -163,14 +163,22 @@ test.describe('scoring pad UI', () => {
     await expect(page.getByTestId('double-count')).toHaveAttribute('data-count', '1');
     await expectScore('double', 2, 0);
 
-    // ── 3) No exchange ────────────────────────────────────────────────────────
-    // The pad hard-codes reason 'other' on this button; the row has to carry it.
+    // ── 3) No exchange — via the reason picker ────────────────────────────────
+    // The button now opens a picker instead of recording straight away. Choose a
+    // reason that is NOT 'other' on purpose: 'other' is what the pad used to
+    // hard-code for every no-exchange, so it is the one value that cannot prove
+    // the referee's choice actually reached the row.
     await page.getByTestId('no-exchange-button').click();
+    const reasonPicker = page.getByTestId('no-exchange-reason');
+    await expect(reasonPicker.first()).toBeVisible({ timeout: 10_000 });
+    await page.locator('[data-testid="no-exchange-reason"][data-reason="out_of_bounds"]').click();
+    // One tap records AND dismisses — no separate confirm step mid-bout.
+    await expect(reasonPicker.first()).toBeHidden({ timeout: 10_000 });
     await expect.poll(exchangeCount, { timeout: 20_000 }).toBe(3);
     const noExchange = (await readExchanges())[2]!;
     expect({ type: noExchange.type, reason: noExchange.no_exchange_reason }).toEqual({
       type: 'no_exchange',
-      reason: 'other',
+      reason: 'out_of_bounds',
     });
     await expectScore('no exchange', 2, 0);
 

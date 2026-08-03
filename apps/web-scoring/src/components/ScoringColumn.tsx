@@ -26,7 +26,8 @@ import { useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { computeAfterblowDeltas } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { sideStyle } from '@myclash/ui';
+import { useScoringTheme } from '../theme/ThemeProvider';
+import { outlineInkOn, sideStyle } from '@myclash/ui';
 import { usePenalties, type PenaltyCard, type PenaltyRulesetEntry } from '../hooks/usePenalties';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 
@@ -101,6 +102,7 @@ export function ScoringColumn({
   penaltiesRefreshKey,
 }: ScoringColumnProps) {
   const { t } = useI18n();
+  const { padScope } = useScoringTheme();
   const style = sideStyle(config, side);
   const otherStyle = sideStyle(config, side === 'red' ? 'blue' : 'red');
   const visibleClean = config.buttons.clean.filter((b) => b.visible);
@@ -175,13 +177,16 @@ export function ScoringColumn({
     // address ONE side: this component renders twice and every control inside
     // it — clean, afterblow, penalty rows, card chips — exists in both copies.
     <div className="flex flex-col gap-3 px-2" data-testid="scoring-column" data-side={side}>
-      {/* Score numeral — gold when capped (winner), subtle side-colour glow when leading. */}
+      {/* Score numeral — gold when capped (winner), subtle side-colour glow when
+          leading. Gold via the token, not a literal: theme.css brightens it to
+          #fbbf24 on dark and keeps #f59e0b on light, so a hardcoded hex would
+          wash out on a light pad. */}
       <p
         className="text-center text-8xl font-black tabular-nums leading-none mt-2"
         style={{
-          color: reachedCap ? '#fbbf24' : style.border,
+          color: reachedCap ? 'var(--color-gold)' : style.border,
           textShadow: reachedCap
-            ? '0 0 14px rgba(251,191,36,0.55)'
+            ? '0 0 14px color-mix(in srgb, var(--color-gold) 55%, transparent)'
             : leading
               ? `0 0 14px ${style.border}`
               : 'none',
@@ -200,7 +205,7 @@ export function ScoringColumn({
               className="h-full rounded-full transition-[width] duration-300"
               style={{
                 width: `${Math.min(100, Math.round((score / pointCap) * 100))}%`,
-                backgroundColor: reachedCap ? '#fbbf24' : style.border,
+                backgroundColor: reachedCap ? 'var(--color-gold)' : style.border,
               }}
             />
           </div>
@@ -294,7 +299,9 @@ export function ScoringColumn({
                   onClick={() => submit.submitAfterblow(side, btn)}
                   disabled={submit.submitting || !canScore}
                   className="min-h-[56px] rounded-xl border-2 bg-transparent font-bold text-lg flex flex-col items-center justify-center gap-1 disabled:opacity-40 transition-colors touch-manipulation"
-                  style={{ borderColor: style.border, color: style.text }}
+                  // `bg-transparent`, so the ink lands on the PAGE, not on
+                  // style.panel — style.text would be near-white on a light pad.
+                  style={{ borderColor: style.border, color: outlineInkOn(style, padScope) }}
                   title={
                     isFull
                       ? t('scoring.pad.afterblowTitleFull', {

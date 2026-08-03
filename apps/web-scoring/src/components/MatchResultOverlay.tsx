@@ -19,6 +19,7 @@ import { BoutFlowChart, MatchTimeline, buildBoutFlow, buildUnifiedTimeline } fro
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { sideStyle } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import { useScoringTheme } from '../theme/ThemeProvider';
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties } from '../hooks/usePenalties';
 import { matchWinnerSide } from './match-winner';
@@ -113,6 +114,9 @@ function BoutReview({
   refreshKey,
 }: Omit<MatchResultOverlayProps, 'redScore' | 'blueScore' | 'nextMatchHref' | 'onClose'>) {
   const { t } = useI18n();
+  // The chart picks its own side colours in JS via sideColorsFor(config,
+  // surface), so it needs the scope as a value — a CSS token cannot reach it.
+  const { padScope } = useScoringTheme();
   const [highlight, setHighlight] = useState<number | null>(null);
   const { active: exchanges } = useExchanges(apiUrl, matchId, refreshKey);
   const { active: penalties } = usePenalties(apiUrl, matchId, refreshKey);
@@ -149,7 +153,7 @@ function BoutReview({
         config={scoringConfig}
         redName={redName}
         blueName={blueName}
-        surface="dark"
+        surface={padScope}
         scale="compact"
         highlightNumber={highlight}
         onHighlightChange={setHighlight}

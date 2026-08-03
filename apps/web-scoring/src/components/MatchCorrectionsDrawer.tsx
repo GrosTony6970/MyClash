@@ -19,6 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
+import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
 import { buildUnifiedTimeline, ConfirmDialog, exchangeOptionLabel } from '@myclash/ui';
 import { useExchanges } from '../hooks/useExchanges';
@@ -89,6 +90,7 @@ export function MatchCorrectionsDrawer({
   clockTimeMs,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
+  const { chromeScope } = useScoringTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetText, setResetText] = useState('');
@@ -225,12 +227,12 @@ export function MatchCorrectionsDrawer({
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- backdrop click-to-dismiss is a mouse convenience; keyboard close is the header button.
     <div className="fixed inset-0 z-sidebar flex justify-end bg-black/50" onClick={onClose}>
-      {/* data-theme='light' — part of the app's light chrome (see MatchHeader).
-          The body scope is dark and tokens inherit, so the drawer needs its own
-          scope or every semantic class here resolves dark. */}
+      {/* Own data-theme — part of the app's chrome (see MatchHeader). Tokens
+          inherit from <body>, so the drawer needs its own scope or every
+          semantic class here resolves to the pad's surface. */}
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- stopPropagation keeps a click inside the drawer from closing it; not an interactive control. */}
       <aside
-        data-theme="light"
+        data-theme={chromeScope}
         onClick={(e) => e.stopPropagation()}
         className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-surface text-foreground shadow-2xl"
       >

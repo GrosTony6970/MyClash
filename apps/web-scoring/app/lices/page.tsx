@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { useScoringTheme } from '../../src/theme/ThemeProvider';
+import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { api } from '../../src/lib/api';
 
 interface LiceAssignment {
@@ -16,6 +18,13 @@ interface LiceAssignment {
 export default function LicePickerPage() {
   const router = useRouter();
   const { t } = useI18n();
+  // Chrome, like /lices/[liceId]. This page used to carry NO data-theme and so
+  // inherited the pad scope from <body> — which is why tapping through to the
+  // per-lice list flashed from dark to light (known-deviations D9).
+  const { chromeScope } = useScoringTheme();
+  // Every branch below is the same screen in a different state, so they must
+  // all render in the same scope or the page changes surface while it loads.
+  const shellClass = 'min-h-screen bg-background text-foreground';
 
   const [assignments, setAssignments] = useState<LiceAssignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +88,7 @@ export default function LicePickerPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main data-theme={chromeScope} className={`flex items-center justify-center ${shellClass}`}>
         <p className="text-muted">{t('scoring.lice.loadingAssignments')}</p>
       </main>
     );
@@ -87,7 +96,10 @@ export default function LicePickerPage() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-8">
+      <main
+        data-theme={chromeScope}
+        className={`flex items-center justify-center p-8 ${shellClass}`}
+      >
         <div className="text-center">
           <p className="text-danger mb-4">{error}</p>
           <button
@@ -103,7 +115,10 @@ export default function LicePickerPage() {
 
   if (assignments.length === 0) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8">
+      <main
+        data-theme={chromeScope}
+        className={`flex flex-col items-center justify-center p-8 ${shellClass}`}
+      >
         <div className="text-center max-w-sm">
           <h1 className="text-xl font-bold mb-2">{t('scoring.lice.noAssignedTitle')}</h1>
           <p className="text-muted text-sm">{t('scoring.lice.noAssignedDescription')}</p>
@@ -113,19 +128,22 @@ export default function LicePickerPage() {
   }
 
   return (
-    <main className="min-h-screen p-6">
+    <main data-theme={chromeScope} className={`p-6 ${shellClass}`}>
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
           <p className="text-muted text-sm mt-1">{t('scoring.lice.selectLice')}</p>
         </div>
-        <button
-          onClick={() => void handleLogout()}
-          disabled={loggingOut}
-          className="text-sm text-muted hover:text-foreground underline disabled:opacity-50"
-        >
-          {t('scoring.lice.logout')}
-        </button>
+        <div className="flex items-center gap-4">
+          <ThemeSwitcher />
+          <button
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+            className="text-sm text-muted hover:text-foreground underline disabled:opacity-50"
+          >
+            {t('scoring.lice.logout')}
+          </button>
+        </div>
       </header>
 
       <div className="grid gap-4 max-w-lg">

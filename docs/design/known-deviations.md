@@ -164,24 +164,8 @@ Radius is **not** a deviation: `rounded-md/lg/xl/full` is the vocabulary, delibe
 
 ---
 
-## D9 — `/lices` is dark, `/lices/[liceId]` is light
-
-Found 2026-07-27 while tokenizing web-scoring, **not resolved**.
-
-That app is a deliberate hybrid — light chrome, dark scoring area (see
-`web-scoring.md`). The split is fine. What isn't: the two piste screens sit on
-opposite sides of it. `/lices` (the list of your pistes) is dark, and
-`/lices/[liceId]` (the matches on one piste) is light, so tapping from one to
-the other flashes white.
-
-It reads as an accident of which screen got written when, not a decision.
-Resolving it needs a call on which one is "chrome" — most likely both, since
-neither is a surface you read mid-exchange. Left alone here because flipping a
-screen the operator uses at every event is their call, not a sweep's.
-
----
-
 ## Fixed
 
+- ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-scoring/src/theme/theme.ts` rather than implied by which screen was written when.
 - ~~`web-scoring` loaded no fonts at all~~ — it imported `theme.css` but never defined `--font-fraunces`/`--font-geist`/`--font-jetbrains`, so the scorer's tablet rendered display type in Georgia and body in system sans. Valid CSS, correct colours, silently wrong type. Fixed by wiring `next/font` into `apps/web-scoring/app/layout.tsx`; `pnpm design:lint` now asserts this class of bug can't recur.
 - ~~`web-marketing` requested a non-existent font~~ — see D4.
