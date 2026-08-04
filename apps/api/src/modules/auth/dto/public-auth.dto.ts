@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { acceptedLegalShape } from '../../../common/legal/accepted-legal.schema';
 
 /**
  * DTOs for the public email + password account flow on app.${DOMAIN}.
@@ -13,6 +14,10 @@ const publicSignupSchema = z
   .object({
     email: z.email().max(254),
     password: z.string().max(256),
+    // Account creation — see accepted-legal.schema.ts. Login below carries no
+    // such fields: an existing account that is behind on a revised policy is
+    // asked by the banner, never blocked from signing in.
+    ...acceptedLegalShape,
   })
   .strict();
 export class PublicSignupDto extends createZodDto(publicSignupSchema) {}

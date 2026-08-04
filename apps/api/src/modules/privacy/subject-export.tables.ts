@@ -103,6 +103,18 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'account.json',
     note: 'Holds ip_first_seen + user_agent — device telemetry, deleted outright on erasure.',
   },
+  legal_acceptances: {
+    // What the subject agreed to and when. Exported because Art. 15 covers the
+    // consent record as much as anything else — and because a subject asking
+    // "what did I sign up to" deserves the same answer we would give a court.
+    //
+    // Only the `user_id` reach is declared. The guest branch is reachable
+    // through `guest_session_id`, but a guest has no account to request an
+    // export from; those rows leave with the session row itself (ON DELETE
+    // CASCADE, and the retention worker sweeps expired guest sessions).
+    reaches: [{ column: 'user_id', reach: 'uid' }],
+    file: 'account.json',
+  },
 
   // ── Roles & memberships ─────────────────────────────────────────────────────
   organization_members: { reaches: [{ column: 'user_id', reach: 'uid' }], file: 'account.json' },

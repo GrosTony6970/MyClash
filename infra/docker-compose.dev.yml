@@ -361,6 +361,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: https://api.myclash.localhost
         NEXT_PUBLIC_ADMIN_URL: https://admin.myclash.localhost
+        NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
     container_name: myclash-dev-web-public
     restart: unless-stopped
     environment:
@@ -417,6 +418,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: https://admin.myclash.localhost
         NEXT_PUBLIC_SCORING_URL: https://scoring.myclash.localhost
+        NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
     container_name: myclash-dev-web-admin
     restart: unless-stopped
     environment:

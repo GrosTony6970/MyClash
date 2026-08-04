@@ -15,6 +15,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { Public } from '../../common/auth/public.decorator';
+import { acceptedLegalShape } from '../../common/legal/accepted-legal.schema';
 import { AuthService, type GlobalPersonSearchResult } from './auth.service';
 import {
   GlobalPersonClaimConfirmDto,
@@ -37,6 +38,8 @@ const claimPersonsSchema = z
   })
   .strict();
 class ClaimPersonsDto extends createZodDto(claimPersonsSchema) {}
+
+class AcceptLegalDto extends createZodDto(z.object(acceptedLegalShape).strict()) {}
 
 @ApiTags('auth')
 @Controller()
@@ -171,6 +174,39 @@ export class MeController {
    * page can render the right Change-password and Delete-account
    * variants.
    */
+  /**
+   * GET /api/v1/me/legal
+   *
+   * What this user accepted, what is outstanding, and what is currently
+   * published. The settings block renders it; the banner re-reads it after an
+   * accept so the two views cannot disagree.
+   */
+  @Get('me/legal')
+  @ApiOperation({ summary: 'Terms and privacy acceptances for the current user' })
+  @ApiResponse({ status: 200, description: '{ accepted, pending, current }' })
+  async getLegal(@Req() req: FastifyRequest) {
+    return this.auth.getLegalStatus(req);
+  }
+
+  /**
+   * POST /api/v1/me/legal
+   *
+   * Accept the currently published documents. 400 when the posted versions are
+   * not the published ones — the client is running a stale bundle and must
+   * reload before it can consent to anything.
+   */
+  @Post('me/legal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Accept the current terms and privacy policy' })
+  @ApiResponse({ status: 200, description: '{ pending }' })
+  @ApiResponse({ status: 400, description: 'legal_version_stale' })
+  async acceptLegal(@Req() req: FastifyRequest, @Body() dto: AcceptLegalDto) {
+    return this.auth.acceptLegal(req, {
+      terms: dto.acceptedTerms,
+      privacy: dto.acceptedPrivacy,
+    });
+  }
+
   @Get('me/security-status')
   @ApiOperation({ summary: 'Security status (does this user have a password set)' })
   @ApiResponse({ status: 200, description: '{ hasPassword, email }' })

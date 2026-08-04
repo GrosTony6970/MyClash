@@ -1,6 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
+// Value import, not `import type`: Nest reads design:paramtypes to inject it.
+import {
+  LegalAcceptanceService,
+  type AcceptanceContext,
+  type AcceptedLegalVersions,
+} from '../privacy/legal-acceptance.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RESERVED_SLUGS, type SignupDto } from './dto/signup.dto';
 
@@ -27,6 +33,7 @@ export class OnboardingService {
     private readonly supabase: SupabaseService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    private readonly legal: LegalAcceptanceService,
   ) {}
 
   // ── Slug availability check ─────────────────────────────────────────────
@@ -61,9 +68,17 @@ export class OnboardingService {
 
   // ── Signup ───────────────────────────────────────────────────────────────
 
-  async signup(dto: SignupDto): Promise<SignupResult> {
+  async signup(dto: SignupDto, context: AcceptanceContext = {}): Promise<SignupResult> {
     const { email, displayName, method, password, orgName, orgSlug } = dto;
     const normalizedSlug = orgSlug.toLowerCase().trim();
+
+    // 0. Agreement, before anything is created or any email leaves the box. A
+    //    client running a bundle from before a policy revision is turned away
+    //    here rather than after it has an account it was not told about.
+    const versions = this.legal.assertCurrent({
+      terms: dto.acceptedTerms,
+      privacy: dto.acceptedPrivacy,
+    });
 
     // 1. Validate slug
     const slugCheck = await this.checkSlugAvailability(normalizedSlug);
@@ -83,9 +98,17 @@ export class OnboardingService {
     }
 
     if (method === 'magic_link') {
-      return this.signupWithMagicLink(email, displayName, orgName, normalizedSlug);
+      return this.signupWithMagicLink(email, displayName, orgName, normalizedSlug, versions);
     } else {
-      return this.signupWithPassword(email, displayName, password!, orgName, normalizedSlug);
+      return this.signupWithPassword(
+        email,
+        displayName,
+        password!,
+        orgName,
+        normalizedSlug,
+        versions,
+        context,
+      );
     }
   }
 
@@ -96,13 +119,21 @@ export class OnboardingService {
     displayName: string,
     orgName: string,
     orgSlug: string,
+    versions: AcceptedLegalVersions,
   ): Promise<SignupResult> {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const protocol = 'https';
 
     // The magic link callback will carry the org creation payload in the
     // redirect URL so we can create the org atomically after auth.
-    const redirectTo = `${protocol}://admin.${domain}/api/v1/auth/signup-callback?orgName=${encodeURIComponent(orgName)}&orgSlug=${encodeURIComponent(orgSlug)}&displayName=${encodeURIComponent(displayName)}`;
+    //
+    // The accepted versions ride along for the same reason the org payload
+    // does: on this path no auth.users row exists yet, so there is nothing to
+    // attach an acceptance to until the link is clicked. They were already
+    // checked against the registry above — carrying them keeps the record
+    // faithful to what the user actually ticked, even if the policy is revised
+    // between sending the mail and clicking the link.
+    const redirectTo = `${protocol}://admin.${domain}/api/v1/auth/signup-callback?orgName=${encodeURIComponent(orgName)}&orgSlug=${encodeURIComponent(orgSlug)}&displayName=${encodeURIComponent(displayName)}&acceptedTerms=${encodeURIComponent(versions.terms)}&acceptedPrivacy=${encodeURIComponent(versions.privacy)}`;
 
     const { data, error } = await this.supabase.service.auth.admin.generateLink({
       type: 'magiclink',
@@ -142,6 +173,8 @@ export class OnboardingService {
     password: string,
     orgName: string,
     orgSlug: string,
+    versions: AcceptedLegalVersions,
+    context: AcceptanceContext,
   ): Promise<SignupResult> {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const protocol = 'https';
@@ -163,6 +196,8 @@ export class OnboardingService {
     }
 
     const userId = authData.user.id;
+
+    await this.legal.recordForUser(userId, versions, context);
 
     // Atomically create org + membership
     await this.createOrgAndMembership(userId, orgName, orgSlug);

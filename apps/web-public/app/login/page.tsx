@@ -7,7 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Button, GoogleIcon } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
+import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
 type Tab = 'signin' | 'signup' | 'reset';
@@ -20,6 +22,7 @@ export default function PublicLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -66,6 +69,10 @@ export default function PublicLoginPage() {
 
   async function handleSignUp() {
     if (!email.trim() || !password || busy) return;
+    if (!acceptedLegal) {
+      setError(t('legal.accept.required'));
+      return;
+    }
     if (!passwordValidation.ok) {
       setError(t('publicApp.login.errors.weakPassword'));
       return;
@@ -81,14 +88,26 @@ export default function PublicLoginPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          // Checked server-side against the published registry; a stale pair is
+          // refused so a tab open across a policy revision cannot consent to the
+          // old text.
+          ...currentLegalVersionFields(),
+        }),
       });
       if (res.status === 503) {
         setError(t('publicApp.login.errors.signupsDisabled'));
         return;
       }
       if (!res.ok) {
-        setError(t('publicApp.login.errors.signupFailed'));
+        const body = (await res.json().catch(() => ({}))) as { code?: string };
+        setError(
+          body.code === 'legal_version_stale'
+            ? t('legal.accept.stale')
+            : t('publicApp.login.errors.signupFailed'),
+        );
         return;
       }
       setMessage(t('publicApp.login.signupCheckEmail', { email: email.trim() }));
@@ -306,6 +325,7 @@ export default function PublicLoginPage() {
                     />
                   </label>
                   <PasswordChecklist failing={passwordValidation.failing} t={t} />
+                  <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
                 </>
               )}
 
@@ -325,7 +345,9 @@ export default function PublicLoginPage() {
               {tab === 'signup' && (
                 <Button
                   type="button"
-                  disabled={busy || !passwordValidation.ok || password !== passwordConfirm}
+                  disabled={
+                    busy || !acceptedLegal || !passwordValidation.ok || password !== passwordConfirm
+                  }
                   loading={busy}
                   variant="primary"
                   className="w-full py-3"

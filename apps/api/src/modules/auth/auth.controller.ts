@@ -7,6 +7,8 @@ import {
   SIGNUP_ACTION_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
 import { ThrottleByEmail } from '../../common/throttling/throttle-by-email';
+import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
+import { acceptedVersionsOf } from '../../common/legal/accepted-legal.schema';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
 import { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -65,9 +67,10 @@ export class AuthController {
   @ApiResponse({ status: 403, description: 'OAuth user is not authorized for this flow' })
   async acceptOAuthSession(
     @Body() dto: OAuthSessionDto,
+    @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    await this.authService.acceptOAuthSession(dto, reply);
+    await this.authService.acceptOAuthSession(dto, reply, requestAcceptanceContext(request));
   }
 
   /**
@@ -105,8 +108,16 @@ export class AuthController {
   @ApiResponse({ status: 202, description: 'Confirmation email queued' })
   @ApiResponse({ status: 400, description: 'Weak password' })
   @ApiResponse({ status: 503, description: 'Signups temporarily disabled' })
-  async publicSignup(@Body() dto: PublicSignupDto): Promise<{ message: string }> {
-    return this.authService.publicSignup(dto.email, dto.password);
+  async publicSignup(
+    @Body() dto: PublicSignupDto,
+    @Req() request: FastifyRequest,
+  ): Promise<{ message: string }> {
+    return this.authService.publicSignup(
+      dto.email,
+      dto.password,
+      acceptedVersionsOf(dto),
+      requestAcceptanceContext(request),
+    );
   }
 
   /**

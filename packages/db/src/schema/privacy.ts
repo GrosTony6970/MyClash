@@ -1,8 +1,10 @@
 /**
- * Privacy — GDPR erasure receipts and data-retention policy.
+ * Privacy — GDPR erasure receipts, data-retention policy, and the record of
+ * who agreed to which published version of the terms and privacy policy.
  *
- * Both tables are service-role only (RLS enabled, no policies). See
- * migration 0161.
+ * `erasure_log` and `data_retention_settings` are service-role only (RLS
+ * enabled, no policies) — see migration 0161. `legal_acceptances` adds an
+ * owner-read policy — see migration 0166.
  */
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
@@ -47,4 +49,25 @@ export const dataRetentionSettings = pgTable('data_retention_settings', {
   lastRunRemoved: jsonb('last_run_removed').notNull().default({}),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: uuid('updated_by'),
+});
+
+/**
+ * Append-only evidence that a subject agreed to a specific published version of
+ * a document. Exactly one of `userId` / `guestSessionId` is set (CHECK in 0166).
+ *
+ * Re-acceptance INSERTS; nothing here is ever updated. `version` is the
+ * document's published "Last updated" date — the current value lives in
+ * `LEGAL_POLICIES` (`@myclash/types`), which is what makes a stale acceptance
+ * detectable.
+ */
+export const legalAcceptances = pgTable('legal_acceptances', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id'),
+  guestSessionId: uuid('guest_session_id'),
+  /** 'terms' | 'privacy' — mirrors LEGAL_DOCUMENT_KINDS. */
+  documentKind: text('document_kind').notNull(),
+  version: text('version').notNull(),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
 });

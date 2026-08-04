@@ -19,6 +19,8 @@ import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Public } from '../../common/auth/public.decorator';
+import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
+import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 
 // Pre-session bootstrap: org signup, slug availability, signup callback.
@@ -31,6 +33,7 @@ export class SignupController {
     private readonly onboarding: OnboardingService,
     private readonly auth: AuthService,
     private readonly supabase: SupabaseService,
+    private readonly legal: LegalAcceptanceService,
   ) {}
 
   /**
@@ -49,11 +52,11 @@ export class SignupController {
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 409, description: 'Slug already taken or reserved' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
-  async signup(@Body() dto: SignupDto) {
+  async signup(@Body() dto: SignupDto, @Req() request: FastifyRequest) {
     if (await isFlagEnabledDirect(this.supabase, 'disable_signups')) {
       throw new ServiceUnavailableException('Signups are temporarily disabled');
     }
-    return this.onboarding.signup(dto);
+    return this.onboarding.signup(dto, requestAcceptanceContext(request));
   }
 
   /**
@@ -83,11 +86,15 @@ export class SignupController {
   @ApiQuery({ name: 'orgName', required: true })
   @ApiQuery({ name: 'orgSlug', required: true })
   @ApiQuery({ name: 'displayName', required: false })
+  @ApiQuery({ name: 'acceptedTerms', required: false })
+  @ApiQuery({ name: 'acceptedPrivacy', required: false })
   async signupCallback(
     @Query('token_hash') tokenHash: string,
     @Query('orgName') orgName: string,
     @Query('orgSlug') orgSlug: string,
     @Query('displayName') _displayName: string | undefined,
+    @Query('acceptedTerms') acceptedTerms: string | undefined,
+    @Query('acceptedPrivacy') acceptedPrivacy: string | undefined,
     @Req() _req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
@@ -102,9 +109,30 @@ export class SignupController {
       const me = await this.auth.getMe(_req);
       if (me.type === 'claimed' && me.user?.id) {
         await this.onboarding.completeSignupAfterMagicLink(me.user.id, orgName, orgSlug);
+        // The account exists only now, which is why the acceptance is recorded
+        // here rather than when the link was requested. Not asserted: the
+        // versions were already checked at /auth/signup, and a policy revised
+        // between sending the mail and clicking it must not strand a user
+        // mid-signup on a redirect they cannot answer. A version that no longer
+        // matches simply shows up in `pendingLegal` and the banner asks again.
+        await this.recordCallbackAcceptance(me.user.id, acceptedTerms, acceptedPrivacy, _req);
       }
     }
 
     void reply.redirect(`/org/${orgSlug}`);
+  }
+
+  private async recordCallbackAcceptance(
+    userId: string,
+    acceptedTerms: string | undefined,
+    acceptedPrivacy: string | undefined,
+    request: FastifyRequest,
+  ): Promise<void> {
+    if (!acceptedTerms || !acceptedPrivacy) return;
+    await this.legal.recordForUser(
+      userId,
+      { terms: acceptedTerms, privacy: acceptedPrivacy },
+      requestAcceptanceContext(request),
+    );
   }
 }

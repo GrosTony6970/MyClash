@@ -49,4 +49,15 @@ export class MeResponseDto {
     device_label: string;
     expires_at: string;
   };
+
+  /**
+   * Documents this account has not accepted at the published version — empty
+   * for a guest or an anonymous caller, who have no account to attach one to.
+   *
+   * Drives the re-acceptance banner. It is a banner and not a wall on purpose:
+   * a competitor mid-event must not be locked out of their own schedule because
+   * the privacy policy gained a sub-processor.
+   */
+  @ApiProperty({ required: false, enum: ['terms', 'privacy'], isArray: true })
+  pendingLegal?: Array<'terms' | 'privacy'>;
 }

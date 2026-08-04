@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { GoogleIcon } from '@myclash/ui';
+import { LegalConsent } from '../../src/components/LegalConsent';
 import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -43,6 +45,7 @@ export default function SignupPage() {
   const [method, setMethod] = useState<Method>('magic_link');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   // Step 2 state
   const [orgName, setOrgName] = useState('');
@@ -92,6 +95,9 @@ export default function SignupPage() {
   // ── Step 1 validation ─────────────────────────────────────────────────────
 
   function validateStep1(): string | null {
+    // Checked before the google early-return: every method creates an account,
+    // so every method needs the agreement.
+    if (!acceptedLegal) return t('legal.accept.required');
     if (method === 'google') return null;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return t('admin.common.validEmailRequired');
@@ -119,7 +125,11 @@ export default function SignupPage() {
 
     setError(null);
     setLoading(true);
-    savePendingOrganizerSignup({ orgName: orgName.trim(), orgSlug });
+    savePendingOrganizerSignup({
+      orgName: orgName.trim(),
+      orgSlug,
+      ...currentLegalVersionFields(),
+    });
     const next = `/org/${orgSlug}`;
     const redirectTo = `${window.location.origin}/signup/oauth/callback?next=${encodeURIComponent(next)}`;
     const { error: oauthError } = await createOAuthSupabaseClient().auth.signInWithOAuth({
@@ -169,6 +179,10 @@ export default function SignupPage() {
         method,
         orgName: orgName.trim(),
         orgSlug,
+        // The versions this bundle displayed. The server compares them to what
+        // is published and refuses a stale pair, so a tab left open across a
+        // policy revision cannot record consent to the old text.
+        ...currentLegalVersionFields(),
       };
       if (method === 'password') body['password'] = password;
 
@@ -180,7 +194,10 @@ export default function SignupPage() {
       });
 
       if (!res.ok) {
-        const data = (await res.json()) as { message?: string };
+        const data = (await res.json()) as { message?: string; code?: string };
+        // The policy moved on while this tab was open. Say so in the user's
+        // language rather than passing through the server's English sentence.
+        if (data.code === 'legal_version_stale') throw new Error(t('legal.accept.stale'));
         throw new Error(data.message ?? t('admin.common.signupFailed'));
       }
 
@@ -341,6 +358,8 @@ export default function SignupPage() {
               </>
             )}
 
+            <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
+
             {error && (
               <p className="text-sm text-danger" role="alert">
                 {error}
@@ -349,7 +368,8 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors"
+              disabled={!acceptedLegal}
+              className="w-full bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t('auth.signup.continue')}
             </button>

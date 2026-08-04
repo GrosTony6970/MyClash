@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConflictException, BadRequestException } from '@nestjs/common';
+import { LEGAL_POLICIES } from '@myclash/types';
+import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { OnboardingService, type SignupResult } from './onboarding.service';
 import { RESERVED_SLUGS } from './dto/signup.dto';
+
+/**
+ * Every signup carries the published versions — the DTO requires them and the
+ * service checks them before it touches anything. Spread into each call so the
+ * tests below stay about slugs and mail, not about consent.
+ */
+const ACCEPTED = {
+  acceptedTerms: LEGAL_POLICIES.terms.version,
+  acceptedPrivacy: LEGAL_POLICIES.privacy.version,
+} as const;
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +41,11 @@ const mockConfig = {
   getOrThrow: vi.fn(),
 };
 
+// The REAL service over the mocked Supabase, not a stub: `assertCurrent` is the
+// gate under test in the stale-version case below, and a stub that always says
+// yes would make that test prove nothing.
+const legalService = new LegalAcceptanceService(mockSupabase as never);
+
 function makeQueryChain(result: unknown) {
   return {
     select: vi.fn().mockReturnThis(),
@@ -48,7 +65,12 @@ describe('OnboardingService', () => {
     vi.clearAllMocks();
     // Default: slug not taken
     fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
-    service = new OnboardingService(mockSupabase as never, mockMail as never, mockConfig as never);
+    service = new OnboardingService(
+      mockSupabase as never,
+      mockMail as never,
+      mockConfig as never,
+      legalService,
+    );
   });
 
   describe('checkSlugAvailability', () => {
@@ -88,6 +110,7 @@ describe('OnboardingService', () => {
         method: 'magic_link',
         orgName: 'Lyon AMHE',
         orgSlug: 'lyon-amhe',
+        ...ACCEPTED,
       });
 
       expect((result as Extract<SignupResult, { type: 'magic_link' }>).type).toBe('magic_link');
@@ -103,6 +126,7 @@ describe('OnboardingService', () => {
           method: 'magic_link',
           orgName: 'Admin Org',
           orgSlug: 'admin',
+          ...ACCEPTED,
         }),
       ).rejects.toThrow(ConflictException);
     });
@@ -116,6 +140,7 @@ describe('OnboardingService', () => {
           method: 'magic_link',
           orgName: 'Lyon AMHE',
           orgSlug: 'taken-slug',
+          ...ACCEPTED,
         }),
       ).rejects.toThrow(ConflictException);
     });
@@ -140,6 +165,7 @@ describe('OnboardingService', () => {
         password: 'securepassword123',
         orgName: 'Lyon AMHE',
         orgSlug: 'lyon-amhe',
+        ...ACCEPTED,
       });
 
       const typed = result as Extract<SignupResult, { type: 'password' }>;
@@ -157,6 +183,7 @@ describe('OnboardingService', () => {
           password: 'short',
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
+          ...ACCEPTED,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -176,8 +203,58 @@ describe('OnboardingService', () => {
           password: 'securepassword123',
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
+          ...ACCEPTED,
         }),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('signup — agreement', () => {
+    it('refuses a stale policy version before creating anything', async () => {
+      fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
+
+      await expect(
+        service.signup({
+          email: 'jean@example.com',
+          displayName: 'Jean',
+          method: 'password',
+          password: 'securepassword123',
+          orgName: 'Lyon AMHE',
+          orgSlug: 'lyon-amhe',
+          acceptedTerms: '1999-01-01',
+          acceptedPrivacy: LEGAL_POLICIES.privacy.version,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // The point of checking first: no account, and no email on its way to one.
+      expect(createUserMock).not.toHaveBeenCalled();
+      expect(mockMail.sendMagicLink).not.toHaveBeenCalled();
+    });
+
+    it('carries the accepted versions into the magic-link callback URL', async () => {
+      // On this path no auth.users row exists yet, so the versions ride the
+      // redirect rather than being stored — if they stop doing that, the
+      // acceptance is silently never recorded for every magic-link organiser.
+      fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/magic' } },
+        error: null,
+      });
+
+      await service.signup({
+        email: 'jean@example.com',
+        displayName: 'Jean Dupont',
+        method: 'magic_link',
+        orgName: 'Lyon AMHE',
+        orgSlug: 'lyon-amhe',
+        ...ACCEPTED,
+      });
+
+      const redirectTo = generateLinkMock.mock.calls[0]?.[0]?.options?.redirectTo as string;
+      expect(redirectTo).toContain(`acceptedTerms=${encodeURIComponent(ACCEPTED.acceptedTerms)}`);
+      expect(redirectTo).toContain(
+        `acceptedPrivacy=${encodeURIComponent(ACCEPTED.acceptedPrivacy)}`,
+      );
     });
   });
 });

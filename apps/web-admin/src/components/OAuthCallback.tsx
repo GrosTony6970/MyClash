@@ -10,7 +10,17 @@ import { getPublicApiUrl } from '../lib/api-url';
 
 type OAuthMode = 'admin_login' | 'organizer_signup';
 type OAuthResponse = { next?: string };
-type PendingSignup = { orgName: string; orgSlug: string };
+type PendingSignup = {
+  orgName: string;
+  orgSlug: string;
+  /**
+   * Policy versions the signup form displayed. Carried through sessionStorage
+   * because the Google round-trip leaves and re-enters the app, and the server
+   * refuses an organizer_signup that arrives without them.
+   */
+  acceptedTerms: string;
+  acceptedPrivacy: string;
+};
 
 const SIGNUP_STORAGE_KEY = 'myclash.oauth.organizerSignup';
 
@@ -29,8 +39,18 @@ function readPendingOrganizerSignup(): PendingSignup | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<PendingSignup>;
-    if (typeof parsed.orgName === 'string' && typeof parsed.orgSlug === 'string') {
-      return { orgName: parsed.orgName, orgSlug: parsed.orgSlug };
+    if (
+      typeof parsed.orgName === 'string' &&
+      typeof parsed.orgSlug === 'string' &&
+      typeof parsed.acceptedTerms === 'string' &&
+      typeof parsed.acceptedPrivacy === 'string'
+    ) {
+      return {
+        orgName: parsed.orgName,
+        orgSlug: parsed.orgSlug,
+        acceptedTerms: parsed.acceptedTerms,
+        acceptedPrivacy: parsed.acceptedPrivacy,
+      };
     }
   } catch {
     // Invalid storage is treated as a missing signup context.
@@ -76,6 +96,8 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
             }
             body['orgName'] = pending.orgName;
             body['orgSlug'] = pending.orgSlug;
+            body['acceptedTerms'] = pending.acceptedTerms;
+            body['acceptedPrivacy'] = pending.acceptedPrivacy;
           }
 
           const apiUrl = getPublicApiUrl();

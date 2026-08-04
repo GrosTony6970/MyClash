@@ -22,6 +22,7 @@ const REQUIRED_PROD_ENV = [
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_SCORING_URL',
   'NEXT_PUBLIC_PUBLIC_APP_URL',
+  'NEXT_PUBLIC_MARKETING_URL',
 ] as const;
 
 if (process.env['NODE_ENV'] === 'production') {

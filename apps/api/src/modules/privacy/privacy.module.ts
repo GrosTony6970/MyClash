@@ -7,6 +7,7 @@
  */
 import { Module } from '@nestjs/common';
 import { ErasureService } from './erasure.service';
+import { LegalAcceptanceService } from './legal-acceptance.service';
 import { PrivacyAdminController } from './privacy-admin.controller';
 import { RetentionService } from './retention.service';
 import { SubjectExportController } from './subject-export.controller';
@@ -14,7 +15,7 @@ import { SubjectExportService } from './subject-export.service';
 
 @Module({
   controllers: [SubjectExportController, PrivacyAdminController],
-  providers: [SubjectExportService, ErasureService, RetentionService],
-  exports: [ErasureService, RetentionService],
+  providers: [SubjectExportService, ErasureService, RetentionService, LegalAcceptanceService],
+  exports: [ErasureService, RetentionService, LegalAcceptanceService],
 })
 export class PrivacyModule {}

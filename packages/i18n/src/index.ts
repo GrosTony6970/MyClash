@@ -1708,6 +1708,40 @@ export const en = {
       goToDashboard: 'Go to your dashboard →',
     },
   },
+  /**
+   * Terms + privacy policy: the checkbox on every signup form, the footer that
+   * makes the documents reachable at all, the banner shown when a policy has
+   * been revised, and the "your agreements" block in settings.
+   */
+  legal: {
+    terms: 'Terms of Service',
+    privacy: 'Privacy Policy',
+    footerNote: 'MyClash — open source, AGPL-3.0',
+    accept: {
+      // {terms} and {privacy} are rendered as links by the form.
+      label: 'I have read and agree to the {terms} and the {privacy}.',
+      required: 'Please accept the Terms of Service and the Privacy Policy to continue.',
+      stale:
+        'The Terms of Service or the Privacy Policy have changed. Reload the page and accept the current version.',
+    },
+    guestNotice: 'By continuing you agree to the {terms} and the {privacy}.',
+    banner: {
+      title: 'Our terms have been updated',
+      body: 'Please review and accept the current version to keep using MyClash.',
+      review: 'Review and accept',
+      accepting: 'Saving…',
+      dismiss: 'Later',
+    },
+    settings: {
+      title: 'Your agreements',
+      description: 'What you have accepted, and when.',
+      acceptedOn: 'Accepted {date}',
+      version: 'Version {version}',
+      outdated: 'A newer version has been published',
+      notAccepted: 'Not yet accepted',
+      acceptCurrent: 'Accept the current version',
+    },
+  },
   admin: {
     globalPersonsImport: {
       title: 'Import Global Profiles',
@@ -4520,6 +4554,64 @@ export const en = {
     },
   },
   organizer: {
+    /**
+     * The event-day paper fallback (O-209 in docs/OWNER_TASKS.md). Every string
+     * here ends up on paper handed to a scorekeeper, so it must translate - the
+     * two older print helpers hardcode English headers, and that is the bug
+     * this section exists not to repeat.
+     */
+    printPack: {
+      title: 'Print pack',
+      breadcrumb: 'Print pack',
+      description:
+        'Blank sheets to run this tournament on paper if the app is unreachable. Print before the event and keep them at the piste.',
+      tournamentLabel: 'Tournament',
+      sections: 'What to print',
+      sectionPools: 'Pool sheets',
+      sectionPoolsHint: 'One page per pool: the roster and every bout, with blank score boxes.',
+      sectionScoresheets: 'Match scoresheets',
+      sectionScoresheetsHint: 'One page per bout, with numbered exchange rows.',
+      sectionPistes: 'Piste day-sheets',
+      sectionPistesHint: 'One page per piste: every bout on it, in order.',
+      sectionBracket: 'Bracket sheet',
+      sectionBracketHint: 'Every bracket bout, grouped by round.',
+      print: 'Print',
+      nothingSelected: 'Select at least one kind of sheet.',
+      noData: 'This tournament has no pools or bracket yet — there is nothing to print.',
+      loadError: 'Could not load the tournament data.',
+      popupBlocked:
+        'Your browser blocked the print window. Allow pop-ups for this site and try again.',
+      // Bracket round names, printed as sheet headings. Kept here rather than
+      // borrowed from publicApp.tournament.finalRanking so the pack owns every
+      // string that lands on its paper.
+      roundFinal: 'Final',
+      roundSemiFinals: 'Semi-finals',
+      roundQuarterFinals: 'Quarter-finals',
+      roundOf: 'Round of {count}',
+      sheet: {
+        poolSheet: 'Pool sheet',
+        scoresheet: 'Scoresheet',
+        pisteSheet: 'Piste sheet',
+        bracketSheet: 'Bracket',
+        fighter: 'Fighter',
+        club: 'Club',
+        bout: 'Bouts',
+        piste: 'Piste',
+        referee: 'Referee',
+        unassigned: 'Not assigned',
+        score: 'Score',
+        exchanges: 'Exchanges',
+        doubles: 'Doubles',
+        penalties: 'Penalties',
+        winner: 'Winner',
+        signature: 'Signature',
+        round: 'Bout',
+        generatedAt: 'Generated',
+        red: 'Red',
+        blue: 'Blue',
+        notes: 'Notes',
+      },
+    },
     venues: {
       title: 'Venues',
       description:
@@ -8866,6 +8958,35 @@ export const fr = {
       goToDashboard: 'Accéder à votre tableau de bord →',
     },
   },
+  legal: {
+    terms: "Conditions d'utilisation",
+    privacy: 'Politique de confidentialité',
+    footerNote: 'MyClash — open source, AGPL-3.0',
+    accept: {
+      label: "J'ai lu et j'accepte les {terms} et la {privacy}.",
+      required:
+        "Veuillez accepter les conditions d'utilisation et la politique de confidentialité pour continuer.",
+      stale:
+        "Les conditions d'utilisation ou la politique de confidentialité ont changé. Rechargez la page et acceptez la version en vigueur.",
+    },
+    guestNotice: 'En continuant, vous acceptez les {terms} et la {privacy}.',
+    banner: {
+      title: 'Nos conditions ont été mises à jour',
+      body: 'Merci de consulter et d’accepter la version en vigueur pour continuer à utiliser MyClash.',
+      review: 'Consulter et accepter',
+      accepting: 'Enregistrement…',
+      dismiss: 'Plus tard',
+    },
+    settings: {
+      title: 'Vos acceptations',
+      description: 'Ce que vous avez accepté, et quand.',
+      acceptedOn: 'Accepté le {date}',
+      version: 'Version {version}',
+      outdated: 'Une version plus récente a été publiée',
+      notAccepted: 'Pas encore accepté',
+      acceptCurrent: 'Accepter la version en vigueur',
+    },
+  },
   admin: {
     globalPersonsImport: {
       title: 'Importer des profils globaux',
@@ -11710,6 +11831,56 @@ export const fr = {
     },
   },
   organizer: {
+    printPack: {
+      title: 'Dossier papier',
+      breadcrumb: 'Dossier papier',
+      description:
+        "Feuilles vierges pour faire tourner ce tournoi sur papier si l'application est injoignable. À imprimer avant l'événement et à garder à la piste.",
+      tournamentLabel: 'Tournoi',
+      sections: 'Que faut-il imprimer ?',
+      sectionPools: 'Feuilles de poule',
+      sectionPoolsHint:
+        'Une page par poule : la liste et tous les combats, avec les cases de score vierges.',
+      sectionScoresheets: 'Feuilles de match',
+      sectionScoresheetsHint: 'Une page par combat, avec les lignes d’échanges numérotées.',
+      sectionPistes: 'Feuilles de piste',
+      sectionPistesHint: 'Une page par piste : tous ses combats, dans l’ordre.',
+      sectionBracket: 'Feuille de tableau',
+      sectionBracketHint: 'Tous les combats du tableau, groupés par tour.',
+      print: 'Imprimer',
+      nothingSelected: 'Sélectionnez au moins un type de feuille.',
+      noData: "Ce tournoi n'a ni poules ni tableau pour l'instant — il n'y a rien à imprimer.",
+      loadError: 'Impossible de charger les données du tournoi.',
+      popupBlocked:
+        "Votre navigateur a bloqué la fenêtre d'impression. Autorisez les pop-ups pour ce site et réessayez.",
+      roundFinal: 'Finale',
+      roundSemiFinals: 'Demi-finales',
+      roundQuarterFinals: 'Quarts de finale',
+      roundOf: 'Tableau de {count}',
+      sheet: {
+        poolSheet: 'Feuille de poule',
+        scoresheet: 'Feuille de match',
+        pisteSheet: 'Feuille de piste',
+        bracketSheet: 'Tableau',
+        fighter: 'Tireur',
+        club: 'Club',
+        bout: 'Combats',
+        piste: 'Piste',
+        referee: 'Arbitre',
+        unassigned: 'Non attribué',
+        score: 'Score',
+        exchanges: 'Échanges',
+        doubles: 'Coups doubles',
+        penalties: 'Pénalités',
+        winner: 'Vainqueur',
+        signature: 'Signature',
+        round: 'Combat',
+        generatedAt: 'Généré le',
+        red: 'Rouge',
+        blue: 'Bleu',
+        notes: 'Notes',
+      },
+    },
     venues: {
       title: 'Lieux',
       description:

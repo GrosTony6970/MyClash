@@ -19,6 +19,7 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { Public } from '../../common/auth/public.decorator';
+import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { GuestJwtService } from './guest-jwt.service';
 
 const createGuestSessionSchema = z
@@ -37,6 +38,7 @@ export class GuestSessionsController {
     private readonly supabase: SupabaseService,
     private readonly guestJwt: GuestJwtService,
     private readonly config: ConfigService,
+    private readonly legal: LegalAcceptanceService,
   ) {}
 
   /**
@@ -107,6 +109,15 @@ export class GuestSessionsController {
     }
 
     const s = session as { id: string; device_label: string; expires_at: string };
+
+    // 4b. Record that the notice was shown. A guest is informed, not gated: they
+    //     hand over no new personal data — the roster row is already the
+    //     organiser's — so blocking a competitor from finding their own pool
+    //     behind a checkbox would cost them something and protect nobody.
+    await this.legal.recordForGuestSession(s.id, {
+      ip: req.ip ?? null,
+      userAgent: ua,
+    });
 
     // 5. Sign JWT
     const token = this.guestJwt.sign(

@@ -3,6 +3,8 @@ import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { ToastProvider } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getServerT, resolveServerLocale } from '../src/i18n/server-locale';
+import { AppLegalFooter } from './_components/AppLegalFooter';
+import { LegalUpdateBanner } from './_components/LegalUpdateBanner';
 import { MaybeSiteHeader } from './_components/MaybeSiteHeader';
 import { RuntimeBanner } from './_components/RuntimeBanner';
 import { SimulatedTimeBadge } from './_components/SimulatedTimeBadge';
@@ -65,8 +67,10 @@ export default async function RootLayout({
         <I18nProvider locale={locale}>
           <ToastProvider>
             <RuntimeBanner />
+            <LegalUpdateBanner />
             <MaybeSiteHeader />
             {children}
+            <AppLegalFooter />
             <SimulatedTimeBadge />
           </ToastProvider>
         </I18nProvider>

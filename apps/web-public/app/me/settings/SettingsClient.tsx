@@ -5,6 +5,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@/i18n/I18nProvider';
 import { AccountSection } from './AccountSection';
 import { AISettingsSection } from './AISettingsSection';
+import { LegalSection } from './LegalSection';
 import { NotificationPreferences } from './NotificationPreferences';
 import { PrivacySettings } from './PrivacySettings';
 
@@ -48,6 +49,7 @@ export default function SettingsClient() {
         <NotificationPreferences apiUrl={apiUrl} />
         <PrivacySettings apiUrl={apiUrl} />
         <AISettingsSection apiUrl={apiUrl} />
+        <LegalSection apiUrl={apiUrl} />
         <AccountSection apiUrl={apiUrl} />
 
         <button

@@ -7,6 +7,8 @@ export * from './csv';
 export * from './date';
 export * from './event-kind';
 export * from './final-ranking';
+export * from './html';
+export * from './legal';
 export * from './password';
 export * from './programme';
 export * from './persons';

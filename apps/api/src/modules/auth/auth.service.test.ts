@@ -100,6 +100,23 @@ const mockErasure = {
   recordErasure: vi.fn().mockResolvedValue(undefined),
 };
 
+/**
+ * Stubbed, not real: `buildClaimedResponse` drives ordered `mockReturnValueOnce`
+ * chains on the Supabase mock, and a real LegalAcceptanceService would issue one
+ * more `from()` at the end of every getMe test. The acceptance logic has its own
+ * tests in privacy/legal-acceptance.service.test.ts.
+ */
+const legalService = {
+  assertCurrent: vi.fn((accepted: { terms?: string; privacy?: string }) => ({
+    terms: accepted.terms ?? 'v',
+    privacy: accepted.privacy ?? 'v',
+  })),
+  currentVersions: vi.fn(() => ({ terms: 'v', privacy: 'v' })),
+  recordForUser: vi.fn().mockResolvedValue(undefined),
+  pendingFor: vi.fn().mockResolvedValue([]),
+  summaryFor: vi.fn().mockResolvedValue([]),
+} as unknown as LegalAcceptanceService;
+
 function makeReply() {
   return {
     setCookie: vi.fn(),
@@ -164,6 +181,7 @@ describe('AuthService', () => {
       mockMailService as never,
       mockConfigService as never,
       mockErasure as never,
+      legalService,
       guestJwtService,
       mockOnboarding as never,
     );
@@ -1045,6 +1063,7 @@ describe('AuthService', () => {
         mockMailService as never,
         prodConfig as never,
         mockErasure as never,
+        legalService,
         guestJwtService,
         mockOnboarding as never,
       );

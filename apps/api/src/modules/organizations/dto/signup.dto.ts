@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { acceptedLegalShape } from '../../../common/legal/accepted-legal.schema';
 
 /** Reserved slugs that cannot be used as organization slugs. */
 export const RESERVED_SLUGS = [
@@ -47,6 +48,12 @@ const signupSchema = z
       .min(3)
       .max(50)
       .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, digits, and hyphens'),
+
+    // ── Agreement ────────────────────────────────────────────────────────────
+    // Required, not optional: this is the only place an organiser account comes
+    // into existence, so a signup without an acceptance is one we cannot later
+    // evidence. The versions are checked against the published registry.
+    ...acceptedLegalShape,
   })
   .strict();
 export class SignupDto extends createZodDto(signupSchema) {}

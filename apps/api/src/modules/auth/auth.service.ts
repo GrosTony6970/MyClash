@@ -20,6 +20,12 @@ import { OnboardingService } from '../organizations/onboarding.service';
 // metadata to inject it, and a type-only import erases that at compile time.
 import { ErasureService } from '../privacy/erasure.service';
 import {
+  LegalAcceptanceService,
+  type AcceptanceContext,
+  type LegalAcceptanceSummary,
+} from '../privacy/legal-acceptance.service';
+import type { LegalDocumentKind } from '@myclash/types';
+import {
   buildClearCookieOptions,
   buildSessionCookieOptions,
   isProductionEnvironment,
@@ -126,6 +132,10 @@ export class AuthService {
     // Required, not optional: deleteAccount cannot satisfy Art. 17 without it,
     // so a missing wiring must fail at boot rather than at erasure time.
     private readonly erasure: ErasureService,
+    // Also required: an account-creation path that cannot record an acceptance
+    // is one whose consent we can never evidence, so a missing wiring must fail
+    // at boot rather than silently at signup.
+    private readonly legal: LegalAcceptanceService,
     private readonly guestJwt?: GuestJwtService,
     private readonly onboarding?: OnboardingService,
   ) {}
@@ -171,7 +181,11 @@ export class AuthService {
 
   // ── Magic link callback ─────────────────────────────────────────────────
 
-  async acceptOAuthSession(dto: OAuthSessionDto, reply: FastifyReply): Promise<void> {
+  async acceptOAuthSession(
+    dto: OAuthSessionDto,
+    reply: FastifyReply,
+    context: AcceptanceContext = {},
+  ): Promise<void> {
     const user = await this.requestAuthUser(dto.accessToken);
 
     if (!user) {
@@ -196,7 +210,14 @@ export class AuthService {
       if (!this.onboarding) {
         throw new BadRequestException('Organizer signup is not available');
       }
+      // Checked before the org is created: a signup that fails the policy check
+      // must not leave a half-made organisation behind.
+      const versions = this.legal.assertCurrent({
+        terms: dto.acceptedTerms,
+        privacy: dto.acceptedPrivacy,
+      });
       await this.onboarding.completeSignupAfterMagicLink(user.id, dto.orgName, dto.orgSlug);
+      await this.legal.recordForUser(user.id, versions, context);
       destination = destination === '/' ? `/org/${dto.orgSlug}` : destination;
     }
 
@@ -485,6 +506,12 @@ export class AuthService {
     // pulls every league_rankings row into memory — far too heavy for /me.
     const hasLeagueRoles = await this.hasLeagueGrant(user.id);
 
+    // Appended LAST, for the same reason the two queries above are: the getMe
+    // tests drive ordered `mockReturnValueOnce` chains, and inserting a query
+    // earlier silently hands every later one the wrong response. One indexed
+    // lookup; it never throws (see LegalAcceptanceService.pendingFor).
+    const pendingLegal = await this.legal.pendingFor(user.id);
+
     return {
       type: 'claimed',
       user: {
@@ -495,6 +522,7 @@ export class AuthService {
       },
       person,
       admin: { ...admin, hasLeagueRoles },
+      pendingLegal,
     };
   }
 
@@ -1034,6 +1062,52 @@ export class AuthService {
    * via magic link" variant and the delete-account modal needs the
    * email-confirm path (v1: refused with a hint).
    */
+  /**
+   * What the current user has agreed to, and what is outstanding. Feeds the
+   * "your agreements" block in settings and the banner's own re-check after an
+   * accept, so the two can never disagree about what is pending.
+   */
+  async getLegalStatus(request: FastifyRequest): Promise<{
+    accepted: LegalAcceptanceSummary[];
+    pending: LegalDocumentKind[];
+    current: { terms: string; privacy: string };
+  }> {
+    const user = await this.requireUser(request);
+    const [accepted, pending] = await Promise.all([
+      this.legal.summaryFor(user.id),
+      this.legal.pendingFor(user.id),
+    ]);
+    return { accepted, pending, current: this.legal.currentVersions() };
+  }
+
+  /**
+   * Accept the currently published documents. Used by the re-acceptance banner;
+   * signup does its own recording inline because the account does not exist yet
+   * at the point the checkbox is ticked.
+   */
+  async acceptLegal(
+    request: FastifyRequest,
+    accepted: { terms?: string; privacy?: string },
+  ): Promise<{ pending: LegalDocumentKind[] }> {
+    const user = await this.requireUser(request);
+    const versions = this.legal.assertCurrent(accepted);
+    await this.legal.recordForUser(user.id, versions, {
+      ip: request.ip ?? null,
+      userAgent:
+        typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : null,
+    });
+    return { pending: await this.legal.pendingFor(user.id) };
+  }
+
+  /** The authenticated user behind a request, or 401. */
+  private async requireUser(request: FastifyRequest): Promise<SupabaseAuthUser> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid session');
+    return user;
+  }
+
   async getSecurityStatus(
     request: FastifyRequest,
   ): Promise<{ hasPassword: boolean; email: string | null }> {
@@ -1164,13 +1238,21 @@ export class AuthService {
    * before login can succeed (Supabase sends its built-in
    * confirmation template; copy/branding is dashboard-side, not code).
    */
-  async publicSignup(email: string, password: string): Promise<{ message: string }> {
+  async publicSignup(
+    email: string,
+    password: string,
+    accepted: { terms?: string; privacy?: string },
+    context: AcceptanceContext = {},
+  ): Promise<{ message: string }> {
     if (await isFlagEnabledDirect(this.supabase, 'disable_public_signups')) {
       throw new ServiceUnavailableException({
         code: 'signups_disabled',
         message: 'Public signups are temporarily disabled',
       });
     }
+    // Before the account exists, so a stale-policy client is turned away without
+    // having created anything it would then have to be asked about.
+    const versions = this.legal.assertCurrent(accepted);
     const validation = validatePassword(password);
     if (!validation.ok) {
       throw new BadRequestException({
@@ -1180,7 +1262,7 @@ export class AuthService {
     }
     const normalized = email.trim().toLowerCase();
 
-    const { error } = await this.supabase.service.auth.admin.createUser({
+    const { data, error } = await this.supabase.service.auth.admin.createUser({
       email: normalized,
       password,
       email_confirm: false,
@@ -1191,6 +1273,14 @@ export class AuthService {
       // we'll send a confirmation link"); the UI shows the success
       // banner regardless of the underlying state.
       this.logger.warn(`public-signup failed for ${normalized}: ${error.message}`);
+    }
+
+    // Only when an account was actually created. An existing email takes the
+    // error branch above and creates nothing, so there is no subject to record
+    // an acceptance for — and writing one would leak that the email is taken.
+    const createdUserId = data?.user?.id;
+    if (createdUserId) {
+      await this.legal.recordForUser(createdUserId, versions, context);
     }
 
     return {

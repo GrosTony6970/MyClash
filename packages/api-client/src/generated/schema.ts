@@ -446,6 +446,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/me/legal': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Terms and privacy acceptances for the current user */
+    get: operations['MeController_getLegal'];
+    put?: never;
+    /** Accept the current terms and privacy policy */
+    post: operations['MeController_acceptLegal'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/security-status': {
     parameters: {
       query?: never;
@@ -8937,6 +8955,8 @@ export interface components {
       orgName?: string;
       orgSlug?: string;
       next?: string;
+      acceptedTerms?: string;
+      acceptedPrivacy?: string;
     };
     PasswordLoginDto: {
       /** Format: email */
@@ -8948,6 +8968,8 @@ export interface components {
       /** Format: email */
       email: string;
       password: string;
+      acceptedTerms: string;
+      acceptedPrivacy: string;
     };
     PublicLoginDto: {
       /** Format: email */
@@ -8969,6 +8991,7 @@ export interface components {
       person?: Record<string, never>;
       admin?: Record<string, never>;
       session?: Record<string, never>;
+      pendingLegal?: ('terms' | 'privacy')[];
     };
     SignupDto: {
       /** Format: email */
@@ -8979,6 +9002,8 @@ export interface components {
       password?: string;
       orgName: string;
       orgSlug: string;
+      acceptedTerms: string;
+      acceptedPrivacy: string;
     };
     CreateGuestSessionDto: {
       /** Format: uuid */
@@ -9000,6 +9025,10 @@ export interface components {
     };
     GlobalPersonClaimConfirmDto: {
       token: string;
+    };
+    AcceptLegalDto: {
+      acceptedTerms: string;
+      acceptedPrivacy: string;
     };
     ChangePasswordDto: {
       currentPassword: string;
@@ -11162,6 +11191,8 @@ export interface operations {
         token_hash: string;
         orgName: string;
         orgSlug: string;
+        acceptedPrivacy?: unknown;
+        acceptedTerms?: unknown;
         displayName?: unknown;
       };
       header?: never;
@@ -11383,6 +11414,53 @@ export interface operations {
       };
       /** @description Token does not match current session */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MeController_getLegal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description { accepted, pending, current } */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MeController_acceptLegal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AcceptLegalDto'];
+      };
+    };
+    responses: {
+      /** @description { pending } */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description legal_version_stale */
+      400: {
         headers: {
           [name: string]: unknown;
         };

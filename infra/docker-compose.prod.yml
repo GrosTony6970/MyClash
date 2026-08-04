@@ -662,6 +662,9 @@ services:
         # Cross-app link target for competitors who also hold an organiser /
         # super-admin grant (SiteHeader + PublicPersonalShell "Admin workspace").
         NEXT_PUBLIC_ADMIN_URL: https://admin.${DOMAIN}
+        # Marketing origin (apex host) — the terms + privacy policy the
+        # footer and the signup form link to live there, not in this app.
+        NEXT_PUBLIC_MARKETING_URL: ${NEXT_PUBLIC_MARKETING_URL}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -872,6 +875,7 @@ services:
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_SCORING_URL: ${NEXT_PUBLIC_SCORING_URL}
         NEXT_PUBLIC_PUBLIC_APP_URL: ${NEXT_PUBLIC_PUBLIC_APP_URL}
+        NEXT_PUBLIC_MARKETING_URL: ${NEXT_PUBLIC_MARKETING_URL}
         NEXT_PUBLIC_SENTRY_DSN_ADMIN: ${NEXT_PUBLIC_SENTRY_DSN_ADMIN:-}
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         SENTRY_RELEASE: ${GIT_COMMIT:-unknown}

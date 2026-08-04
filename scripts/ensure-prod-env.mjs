@@ -46,6 +46,8 @@ const SAMPLE_VALUES = new Map([
   // Cross-app deep links baked into admin + scoring at build time.
   ['NEXT_PUBLIC_SCORING_URL', new Set(['http://localhost:3002'])],
   ['NEXT_PUBLIC_PUBLIC_APP_URL', new Set(['http://localhost:3001'])],
+  // Marketing origin — hosts the terms + privacy policy the apps link to.
+  ['NEXT_PUBLIC_MARKETING_URL', new Set(['https://myclash.localhost'])],
   ['SEED_ADMIN_PASSWORD', new Set(['change-me-admin-password'])],
   ['SEED_ADMIN_EMAIL', new Set(['admin@yourdomain.com', ''])],
   // Scaleway S3 backup — no sample values, just detect empty
@@ -267,6 +269,8 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     // Cross-app deep links: admin → scoring app, admin/scoring → public app.
     ['NEXT_PUBLIC_SCORING_URL', `https://scoring.${domain}`],
     ['NEXT_PUBLIC_PUBLIC_APP_URL', supabaseUrl], // https://app.${DOMAIN}
+    // The marketing site is the apex host (see the myclash-marketing router).
+    ['NEXT_PUBLIC_MARKETING_URL', `https://${domain}`],
     ['POSTGRES_USER', state.values.get('POSTGRES_USER') || 'postgres'],
     ['POSTGRES_DB', state.values.get('POSTGRES_DB') || 'myclash'],
     ['TZ', state.values.get('TZ') || 'Europe/Paris'],

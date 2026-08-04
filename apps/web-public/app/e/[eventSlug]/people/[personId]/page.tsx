@@ -14,6 +14,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
+import { LegalNotice } from '../../../../../src/components/LegalConsent';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface PersonProfile {
@@ -290,6 +291,10 @@ export default function PersonProfilePage() {
               </button>
             )}
           </div>
+          {/* Notice, not a gate: continuing as a guest hands over no new
+              personal data — the roster row is already the organiser's — so a
+              competitor looking up their own pool is informed, not blocked. */}
+          <LegalNotice className="mt-3" />
         </div>
       )}
 
