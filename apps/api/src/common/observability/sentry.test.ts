@@ -51,7 +51,20 @@ describe('API Sentry helper', () => {
       environment: 'staging',
       release: 'abc123',
       tracesSampleRate: 0.25,
+      sendDefaultPii: false,
     });
+  });
+
+  it('never opts in to Sentry PII collection', () => {
+    // The privacy policy promises this: no IP address, no cookies, no request
+    // body and no user identity reach Sentry. `false` is also the SDK default,
+    // which is exactly why it is asserted here — a default that silently flips
+    // on an upgrade would make a published document wrong with no diff to
+    // review. If this test fails, the policy needs changing, not the test.
+    initApiSentry({ SENTRY_DSN_API: 'https://example@sentry.io/1' });
+
+    const options = mocks.sentryInit.mock.calls.at(-1)?.[0] as { sendDefaultPii?: boolean };
+    expect(options.sendDefaultPii).toBe(false);
   });
 
   it('captures exceptions with redacted context only when enabled', () => {

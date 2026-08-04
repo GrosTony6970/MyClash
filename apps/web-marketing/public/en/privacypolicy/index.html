@@ -558,17 +558,29 @@
           <tr><td><strong>OVHcloud</strong> (France)</td><td>Server hosting: the application, the database, uploaded files</td><td>🇪🇺 France</td></tr>
           <tr><td><strong>Scaleway</strong> (France)</td><td>Off-site storage of encrypted backups</td><td>🇪🇺 France</td></tr>
           <tr><td><strong>Resend</strong> (Netherlands)</td><td>Sending our emails: sign-in links, account emails, event notifications. Receives your email address and the content of the message</td><td>🇪🇺 European Union</td></tr>
-          <tr><td><strong>Sentry</strong> — Functional Software, Inc. (United States)</td><td>Error reporting. Receives technical error reports; identifying fields are stripped before sending, but a report may incidentally contain a fragment of data</td><td>🇺🇸 United States</td></tr>
+          <tr><td><strong>Sentry</strong> — Functional Software, Inc. (United States)</td><td>Error reporting. Receives <strong>application error logs only</strong> — see §7.1</td><td>🇺🇸 United States</td></tr>
           <tr><td><strong>Push services</strong> — Google, Mozilla, Apple, Microsoft depending on your browser</td><td>Delivering push notifications, <strong>only if you enable them</strong>. Receives the notification content and your browser's subscription address</td><td>🌍 Varies by browser</td></tr>
           <tr><td><strong>AI providers</strong> — Anthropic, OpenAI, Mistral AI, Google</td><td><strong>Optional, and off by default.</strong> Only where an organiser has supplied their own key does the content of their requests reach the chosen provider</td><td>🇺🇸 United States · 🇪🇺 France (Mistral)</td></tr>
         </tbody>
       </table>
       <p>Two components frequently mistaken for external services are <strong>not</strong> ones: our database and authentication (Supabase) and our file storage run <strong>on our own European servers</strong>, in self-hosted mode. No data reaches Supabase, Inc.</p>
 
-      <h3>7.1 HEMA Ratings</h3>
+      <h3>7.1 What Sentry does and does not receive</h3>
+      <p>Sentry receives a technical error log: the fault, the line of code that produced it, the version of the application, and the sequence of pages that led there. It is the tool that tells us the application is broken before you have to.</p>
+      <p><strong>We have explicitly disabled the collection of personal data by this tool.</strong> Concretely, the following are <strong>never</strong> transmitted:</p>
+      <ul>
+        <li>your IP address;</li>
+        <li>your cookies and your session;</li>
+        <li>the content of what you submit (forms, scores, messages);</li>
+        <li>your identity — we never attach an account to an error report.</li>
+      </ul>
+      <p>On top of that, the diagnostic details our servers add to a report pass through a filter that removes email addresses, authentication tokens and any value bearing the name of a secret.</p>
+      <p>One detail, for completeness: an error log contains the <strong>address of the page</strong> where it occurred, and some MyClash addresses include the name of a public profile — for instance <code>/fighters/jean-dupont</code>. That information is the same as what the page itself displays publicly. Nothing private travels with it.</p>
+
+      <h3>7.2 HEMA Ratings</h3>
       <p>MyClash <strong>reads</strong> public ratings from <a href="https://hemaratings.com" target="_blank" rel="noopener">hemaratings.com</a> to enrich fighter profiles. We send nothing automatically. An organiser may export their results in the HEMA Ratings format, but it is <strong>the organiser</strong> who chooses to submit that file, under their own responsibility.</p>
 
-      <h3>7.2 Legal authorities</h3>
+      <h3>7.3 Legal authorities</h3>
       <p>We may have to disclose data to the competent authorities upon lawful request, or to defend our rights.</p>
 
       <!-- 8 -->
@@ -577,7 +589,7 @@
       <table>
         <thead><tr><th>Flow</th><th>Destination</th><th>Safeguard</th><th>Can you avoid it?</th></tr></thead>
         <tbody>
-          <tr><td>Application error reports</td><td>Sentry, United States</td><td>Standard Contractual Clauses and the EU–US Data Privacy Framework</td><td>Not individually; the data is technical and stripped of identifiers</td></tr>
+          <tr><td>Application error logs</td><td>Sentry, United States</td><td>Standard Contractual Clauses and the EU–US Data Privacy Framework</td><td>Not individually — but see §7.1: these logs carry no personal data</td></tr>
           <tr><td>Push notifications</td><td>Your browser's push service</td><td>The provider's own framework</td><td><strong>Yes</strong> — do not enable notifications, or revoke them</td></tr>
           <tr><td>AI requests</td><td>The provider chosen by the organiser</td><td>Standard Contractual Clauses. Mistral AI is French, so that option stays within the EU</td><td><strong>Yes</strong> — the feature is off unless an organiser enables it</td></tr>
         </tbody>

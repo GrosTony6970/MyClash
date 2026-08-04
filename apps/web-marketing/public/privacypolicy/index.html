@@ -558,17 +558,29 @@
           <tr><td><strong>OVHcloud</strong> (France)</td><td>Hébergement des serveurs : l'application, la base de données, les fichiers téléversés</td><td>🇪🇺 France</td></tr>
           <tr><td><strong>Scaleway</strong> (France)</td><td>Stockage hors-site des sauvegardes chiffrées</td><td>🇪🇺 France</td></tr>
           <tr><td><strong>Resend</strong> (Pays-Bas)</td><td>Envoi de nos emails : liens de connexion, emails de compte, notifications d'événement. Reçoit votre adresse email et le contenu du message</td><td>🇪🇺 Union européenne</td></tr>
-          <tr><td><strong>Sentry</strong> — Functional Software, Inc. (États-Unis)</td><td>Remontée des erreurs. Reçoit des rapports d'erreur techniques ; les champs identifiants sont retirés avant envoi, mais un rapport peut incidemment contenir un fragment de données</td><td>🇺🇸 États-Unis</td></tr>
+          <tr><td><strong>Sentry</strong> — Functional Software, Inc. (États-Unis)</td><td>Remontée des erreurs. Reçoit <strong>uniquement des journaux d'erreur applicatifs</strong> — voir §7.1</td><td>🇺🇸 États-Unis</td></tr>
           <tr><td><strong>Services de push</strong> — Google, Mozilla, Apple, Microsoft selon votre navigateur</td><td>Acheminement des notifications push, <strong>uniquement si vous les activez</strong>. Reçoit le contenu de la notification et l'adresse d'abonnement de votre navigateur</td><td>🌍 Variable selon le navigateur</td></tr>
           <tr><td><strong>Fournisseurs d'IA</strong> — Anthropic, OpenAI, Mistral AI, Google</td><td><strong>Optionnel, et désactivé par défaut.</strong> Uniquement lorsqu'un organisateur a fourni sa propre clé, le contenu de ses requêtes parvient au fournisseur choisi</td><td>🇺🇸 États-Unis · 🇪🇺 France (Mistral)</td></tr>
         </tbody>
       </table>
       <p>Deux composants souvent pris pour des services externes n'en sont <strong>pas</strong> : notre base de données et notre authentification (Supabase) ainsi que notre stockage de fichiers fonctionnent <strong>sur nos propres serveurs européens</strong>, en mode auto-hébergé. Aucune donnée ne parvient à Supabase, Inc.</p>
 
-      <h3>7.1 HEMA Ratings</h3>
+      <h3>7.1 Ce que Sentry reçoit, et ce qu'il ne reçoit pas</h3>
+      <p>Sentry reçoit un journal d'erreur technique : la panne, la ligne de code qui l'a produite, la version de l'application et l'enchaînement de pages qui y a mené. C'est l'outil qui nous signale que l'application est cassée avant que vous ayez à le faire.</p>
+      <p><strong>Nous avons explicitement désactivé la collecte de données personnelles par cet outil.</strong> Concrètement, ne sont <strong>jamais</strong> transmis :</p>
+      <ul>
+        <li>votre adresse IP ;</li>
+        <li>vos cookies et votre session ;</li>
+        <li>le contenu de ce que vous saisissez (formulaires, scores, messages) ;</li>
+        <li>votre identité — nous n'attachons jamais de compte à un rapport d'erreur.</li>
+      </ul>
+      <p>S'y ajoute un filtre appliqué aux précisions de diagnostic que nos serveurs joignent à un rapport : il retire les adresses email, les jetons d'authentification et toute valeur portant le nom d'un secret.</p>
+      <p>Une précision, par souci d'exhaustivité : un journal d'erreur contient <strong>l'adresse de la page</strong> où elle s'est produite, et certaines adresses de MyClash comportent le nom d'un profil public — par exemple <code>/fighters/jean-dupont</code>. Cette information est la même que ce que la page affiche publiquement. Rien de privé ne l'accompagne.</p>
+
+      <h3>7.2 HEMA Ratings</h3>
       <p>MyClash <strong>lit</strong> les classements publics de <a href="https://hemaratings.com" target="_blank" rel="noopener">hemaratings.com</a> pour enrichir les profils de tireurs. Nous n'envoyons rien automatiquement. Un organisateur peut exporter ses résultats au format HEMA Ratings, mais c'est <strong>l'organisateur</strong> qui choisit de soumettre ce fichier, sous sa propre responsabilité.</p>
 
-      <h3>7.2 Autorités légales</h3>
+      <h3>7.3 Autorités légales</h3>
       <p>Nous pouvons être amenés à divulguer des données aux autorités compétentes sur réquisition légale, ou pour défendre nos droits.</p>
 
       <!-- 8 -->
@@ -577,7 +589,7 @@
       <table>
         <thead><tr><th>Flux</th><th>Destination</th><th>Garantie</th><th>Pouvez-vous l'éviter ?</th></tr></thead>
         <tbody>
-          <tr><td>Rapports d'erreur de l'application</td><td>Sentry, États-Unis</td><td>Clauses contractuelles types et cadre de protection des données UE–États-Unis</td><td>Pas individuellement ; les données sont techniques et dépourvues d'identifiants</td></tr>
+          <tr><td>Journaux d'erreur de l'application</td><td>Sentry, États-Unis</td><td>Clauses contractuelles types et cadre de protection des données UE–États-Unis</td><td>Pas individuellement — mais voir §7.1 : ces journaux ne portent aucune donnée personnelle</td></tr>
           <tr><td>Notifications push</td><td>Le service de push de votre navigateur</td><td>Le cadre propre au fournisseur</td><td><strong>Oui</strong> — n'activez pas les notifications, ou révoquez-les</td></tr>
           <tr><td>Requêtes d'IA</td><td>Le fournisseur choisi par l'organisateur</td><td>Clauses contractuelles types. Mistral AI étant français, cette option reste dans l'UE</td><td><strong>Oui</strong> — la fonction est inactive tant qu'un organisateur ne l'active pas</td></tr>
         </tbody>

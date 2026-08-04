@@ -24,6 +24,13 @@ export function initApiSentry(env: NodeJS.ProcessEnv = process.env): SentryInitR
     environment,
     release,
     tracesSampleRate: parseSampleRate(env['SENTRY_TRACES_SAMPLE_RATE']),
+    // Stated, not left to the default. `false` IS the SDK default today, but
+    // the privacy policy now makes a promise about it — no IP address, no
+    // cookies, no request bodies, no user identity leaves for Sentry — and a
+    // promise resting on a default is one SDK upgrade or one re-run of the
+    // Sentry setup wizard away from being false. Written down, flipping it is
+    // a visible diff instead of a silent change of behaviour.
+    sendDefaultPii: false,
   });
   sentryEnabled = true;
 
