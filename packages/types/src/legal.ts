@@ -40,12 +40,21 @@ export interface LegalPolicy {
 export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = {
   terms: {
     kind: 'terms',
-    version: '2026-05-13',
+    // 2026-08-04: rewrote §2 (three sign-in paths, guest participation, the
+    // acceptance record), marked Google OAuth as not yet enabled, added §4bis
+    // on organiser obligations, and replaced §12's "continued use is
+    // acceptance" with what the product actually does — it asks.
+    version: '2026-08-04',
     path: { en: '/en/terms', fr: '/terms' },
   },
   privacy: {
     kind: 'privacy',
-    version: '2026-05-13',
+    // 2026-08-04: full rewrite. The previous text was a template that
+    // described a different product and stated four things that were false of
+    // this one — Sentry self-hosted, no transfers outside the EU, analytics
+    // cookies behind a consent panel that did not exist, and a 30-day
+    // deletion grace period. See docs/decisions/ADR-012-cookie-consent.md.
+    version: '2026-08-04',
     path: { en: '/en/privacypolicy', fr: '/privacypolicy' },
   },
 };
