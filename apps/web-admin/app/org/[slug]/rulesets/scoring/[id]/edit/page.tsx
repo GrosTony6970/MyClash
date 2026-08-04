@@ -201,7 +201,7 @@ export default function OrgEditScoringRulesetPage() {
   }, [orgId, params.id, t]);
 
   return (
-    <main className="max-w-4xl p-8">
+    <main className="mx-auto w-full max-w-4xl p-8">
       <div className="mb-2 text-sm">
         <Link href={`/org/${slugForLink}/rulesets/scoring`} className="text-muted hover:underline">
           {t('admin.rulesets.backToList')}

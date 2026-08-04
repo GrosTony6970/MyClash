@@ -105,7 +105,7 @@ export default function OrgAISettingsPage() {
 
   if (loading) {
     return (
-      <main className="p-8 max-w-2xl">
+      <main className="mx-auto w-full max-w-5xl p-8">
         <div className="flex items-center gap-2 text-muted text-sm">
           <span className="w-4 h-4 border-2 border-muted border-t-transparent rounded-full animate-spin" />
           {t('common.loading')}
@@ -115,7 +115,7 @@ export default function OrgAISettingsPage() {
   }
 
   return (
-    <main className="p-8 max-w-3xl">
+    <main className="mx-auto w-full max-w-5xl p-8">
       <div className="flex items-center gap-2 text-sm text-muted mb-1">
         <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
           {slug}

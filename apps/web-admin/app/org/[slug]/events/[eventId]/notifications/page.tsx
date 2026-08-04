@@ -157,7 +157,7 @@ export default function EventNotificationsPage() {
   ];
 
   return (
-    <main className="max-w-5xl p-8">
+    <main className="mx-auto w-full max-w-5xl p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-muted">
         <Button variant="back" size="sm" asChild>
           <Link href={`/org/${slug}/events/${eventId}`}>
