@@ -674,6 +674,7 @@ Between them these found four real bugs on their first runs:
 | 23  | Swiss seeding refusals + set-sides    | `23-swiss-seeding.spec.ts`          | opt-in (`E2E_SWISS=1`); see above        |
 | 24  | Swiss admin route + public tab render | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above        |
 | 25  | Swiss archive + HEMA Ratings labels   | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above        |
+| 26  | Print pack route builds its document  | `26-print-pack.spec.ts`             | always                                   |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

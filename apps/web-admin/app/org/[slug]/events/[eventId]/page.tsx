@@ -888,6 +888,25 @@ export default function EventDetailPage() {
 
       <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('organizer.printPack.title')}
+        </h2>
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground-secondary">
+              {t('organizer.printPack.description')}
+            </p>
+            <Link
+              href={`/org/${slug}/events/${eventId}/print`}
+              className="shrink-0 rounded-md border border-border px-3 py-2 text-sm font-semibold text-foreground hover:border-accent"
+            >
+              {t('organizer.printPack.title')}
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.eventHub.archiveTitle')}
         </h2>
         <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">

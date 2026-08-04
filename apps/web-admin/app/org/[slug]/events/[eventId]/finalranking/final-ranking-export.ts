@@ -4,7 +4,7 @@
  * the print-window open. Columns mirror the on-screen table.
  */
 
-import { escapeCsvCell } from '@myclash/types';
+import { escapeCsvCell, escapeHtml } from '@myclash/types';
 
 export interface ExportRow {
   rank: number;
@@ -34,9 +34,7 @@ export function rankingToCsv(rows: ExportRow[]): string {
   return lines.join('\r\n');
 }
 
-function htmlEscape(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+const htmlEscape = escapeHtml;
 
 export function rankingToPrintHtml(title: string, rows: ExportRow[]): string {
   const body = rows

@@ -48,7 +48,9 @@ describe('rankingToPrintHtml', () => {
     ];
     const html = rankingToPrintHtml('Final <ranking>', rows);
     expect(html).toContain('<title>Final &lt;ranking&gt;</title>');
-    expect(html).toContain('A &lt;b&gt; &amp; "x"');
+    // Quotes escape too — the shared escaper is attribute-safe, so a name can
+    // be dropped into a title="…" without breaking out of it.
+    expect(html).toContain('A &lt;b&gt; &amp; &quot;x&quot;');
     // One header row + one row per entry.
     expect(html.match(/<tr>/g)?.length).toBe(rows.length + 1);
   });

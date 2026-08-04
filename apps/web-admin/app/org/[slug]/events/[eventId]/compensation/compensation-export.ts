@@ -6,7 +6,7 @@
  * title is passed in already localized.
  */
 
-import { escapeCsvCell, type CompensationReport } from '@myclash/types';
+import { escapeCsvCell, escapeHtml, type CompensationReport } from '@myclash/types';
 
 type Referee = CompensationReport['referees'][number];
 
@@ -62,9 +62,7 @@ export function compensationToCsv(report: CompensationReport): string {
   return lines.join('\r\n');
 }
 
-function htmlEscape(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+const htmlEscape = escapeHtml;
 
 export function compensationToPrintHtml(title: string, report: CompensationReport): string {
   const body = report.referees
