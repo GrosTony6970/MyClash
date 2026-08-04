@@ -362,6 +362,8 @@ services:
         NEXT_PUBLIC_API_URL: https://api.myclash.localhost
         NEXT_PUBLIC_ADMIN_URL: https://admin.myclash.localhost
         NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
+        # Staff sign-in target for the display hub + kiosk control layer.
+        NEXT_PUBLIC_SCORING_URL: https://scoring.myclash.localhost
     container_name: myclash-dev-web-public
     restart: unless-stopped
     environment:

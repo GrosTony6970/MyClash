@@ -21,6 +21,20 @@ export const en = {
       clubBadgeHelp:
         'Internal club activity — results do not count toward rankings or fighter statistics.',
     },
+    // The display hub (/e/[slug]/display) and the idle-hidden control layer on
+    // the per-lice kiosk route. Both are staff-facing, not spectator-facing.
+    display: {
+      hubTitle: 'Displays',
+      hubDescription: 'Pick a Lice to put on a screen, or sign in to score.',
+      chooseLice: 'Choose a Lice',
+      openDisplay: 'Open display',
+      staffSignIn: 'Staff sign-in',
+      staffSignInHelp: 'Referees and scorekeepers sign in with their username and PIN.',
+      noLices: 'This event has no Lice yet.',
+      switchLice: 'Switch Lice',
+      currentLice: 'On screen now',
+      backToHub: 'All displays',
+    },
     eventHome: {
       backToEvents: 'Back to events',
       backToHome: 'Back to event home',
@@ -6796,6 +6810,19 @@ export const en = {
       perLiceUrl: 'Stable Lice display URL',
       copyUrl: 'Copy URL',
       copied: 'Copied.',
+      showPin: 'Show PIN',
+      hidePin: 'Hide PIN',
+      resetPinError: 'Could not reset the PIN.',
+      resetPinDone: 'PIN updated.',
+      staffLogin: 'Staff sign-in',
+      staffLoginHelp:
+        'This is where referees sign in with their username and PIN — not the spectator app. The link opens the scoring pad with this event already filled in.',
+      staffLoginUrl: 'Staff sign-in link for this event',
+      staffLoginUrlFor: 'Sign-in link for {name}',
+      copyLoginUrl: 'Copy link',
+      scanQr: 'Scan from the tablet',
+      displayHubUrl: 'All displays (Lice picker)',
+      liceDisplayFor: 'Display for {lice}',
       roles: {
         arbitre_table: 'Table referee',
         event_staff: 'Event staff',
@@ -7252,6 +7279,18 @@ export const fr = {
       clubBadge: 'Événement de club',
       clubBadgeHelp:
         'Activité interne au club — les résultats ne comptent pas pour les classements ni les statistiques des combattants.',
+    },
+    display: {
+      hubTitle: 'Affichages',
+      hubDescription: 'Choisissez une lice à mettre sur un écran, ou connectez-vous pour arbitrer.',
+      chooseLice: 'Choisir une lice',
+      openDisplay: "Ouvrir l'affichage",
+      staffSignIn: 'Connexion staff',
+      staffSignInHelp: 'Les arbitres et scoreurs se connectent avec leur identifiant et leur PIN.',
+      noLices: "Cet évènement n'a pas encore de lice.",
+      switchLice: 'Changer de lice',
+      currentLice: "À l'écran",
+      backToHub: 'Tous les affichages',
     },
     eventHome: {
       backToEvents: 'Retour aux evenements',
@@ -14081,6 +14120,19 @@ export const fr = {
       perLiceUrl: 'URL stable affichage lice',
       copyUrl: 'Copier URL',
       copied: 'Copie.',
+      showPin: 'Afficher le PIN',
+      hidePin: 'Masquer le PIN',
+      resetPinError: 'Impossible de réinitialiser le PIN.',
+      resetPinDone: 'PIN mis à jour.',
+      staffLogin: 'Connexion staff',
+      staffLoginHelp:
+        "C'est ici que les arbitres se connectent avec leur identifiant et leur PIN — pas dans l'application spectateur. Le lien ouvre la tablette de scoring avec cet évènement déjà renseigné.",
+      staffLoginUrl: 'Lien de connexion staff pour cet évènement',
+      staffLoginUrlFor: 'Lien de connexion pour {name}',
+      copyLoginUrl: 'Copier le lien',
+      scanQr: 'À scanner depuis la tablette',
+      displayHubUrl: 'Tous les affichages (choix de lice)',
+      liceDisplayFor: 'Affichage pour {lice}',
       roles: {
         arbitre_table: 'Arbitre de table',
         event_staff: 'Staff evenement',

@@ -2,30 +2,13 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, usePrompt } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
-
-interface StaffAccount {
-  id: string;
-  display_name: string;
-  username: string;
-  role: 'arbitre_table' | 'event_staff';
-  status: 'active' | 'disabled';
-  liceIds: string[];
-}
-
-interface Lice {
-  id: string;
-  name: string;
-}
-
-interface EventInfo {
-  id: string;
-  slug: string;
-  name: string;
-}
+import { StaffAccountCard } from './StaffAccountCard';
+import { StaffLoginLink } from './StaffLoginLink';
+import type { EventInfo, Lice, StaffAccount } from './types';
 
 export default function EventStaffPage() {
   const { slug, eventId } = useParams<{ slug: string; eventId: string }>();
@@ -33,6 +16,9 @@ export default function EventStaffPage() {
   const { prompt, promptDialog } = usePrompt();
   const apiUrl = getPublicApiUrl();
   const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
+  // The scoring pad is where a referee's PIN actually works — the public app's
+  // Sign in is the spectator door and cannot produce a staff session.
+  const scoringUrl = process.env['NEXT_PUBLIC_SCORING_URL'] ?? 'https://scoring.myclash.fr';
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [accounts, setAccounts] = useState<StaffAccount[]>([]);
@@ -43,11 +29,15 @@ export default function EventStaffPage() {
     pin: '',
     role: 'arbitre_table' as 'arbitre_table' | 'event_staff',
   });
+  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState<string | null>(null);
 
-  const liceMap = useMemo(() => new Map(lices.map((lice) => [lice.id, lice.name])), [lices]);
+  // Every URL on this page — staff login, display hub, per-Lice display —
+  // resolves the event by SLUG on the server. The id is not a substitute, so
+  // there is nothing to show until the event has loaded.
+  const eventSlug = event?.slug ?? null;
 
   async function load() {
     try {
@@ -95,6 +85,7 @@ export default function EventStaffPage() {
   async function createAccount(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    setNotice(null);
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/staff-accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -106,6 +97,7 @@ export default function EventStaffPage() {
       return;
     }
     setForm({ displayName: '', username: '', pin: '', role: 'arbitre_table' });
+    setShowPin(false);
     await load();
   }
 
@@ -120,14 +112,23 @@ export default function EventStaffPage() {
   }
 
   async function resetPin(account: StaffAccount) {
-    const pin = await prompt({ title: t('organizer.staff.pin') });
+    const pin = await prompt({ title: t('organizer.staff.pin'), masked: true });
     if (!pin) return;
-    await fetch(`${apiUrl}/api/v1/events/${eventId}/staff-accounts/${account.id}/reset-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ pin }),
-    });
+    setError(null);
+    setNotice(null);
+    // The new PIN is never echoed back, so a silent failure here is
+    // indistinguishable from a typo at the tablet an hour later.
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/${eventId}/staff-accounts/${account.id}/reset-pin`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ pin }),
+      },
+    );
+    if (res.ok) setNotice(t('organizer.staff.resetPinDone'));
+    else setError(t('organizer.staff.resetPinError'));
   }
 
   async function setAccountLices(account: StaffAccount, liceId: string, checked: boolean) {
@@ -145,12 +146,6 @@ export default function EventStaffPage() {
     );
   }
 
-  async function copyUrl(url: string) {
-    await navigator.clipboard.writeText(url);
-    setCopied(url);
-    window.setTimeout(() => setCopied(null), 1500);
-  }
-
   return (
     <main className="mx-auto max-w-[110rem] p-8">
       <Button variant="back" size="sm" asChild>
@@ -160,6 +155,24 @@ export default function EventStaffPage() {
         {t('organizer.staff.title')}
       </h1>
       <p className="mt-1 text-sm text-muted">{t('organizer.staff.description')}</p>
+
+      {eventSlug && (
+        <section className="mt-6 rounded-lg border border-border bg-surface p-4">
+          <h2 className="font-display font-semibold text-lg">{t('organizer.staff.staffLogin')}</h2>
+          <div className="mt-2 space-y-2">
+            <StaffLoginLink
+              label={t('organizer.staff.staffLoginUrl')}
+              description={t('organizer.staff.staffLoginHelp')}
+              url={`${scoringUrl}/login?event=${encodeURIComponent(eventSlug)}`}
+              withQr
+            />
+            <StaffLoginLink
+              label={t('organizer.staff.displayHubUrl')}
+              url={`${publicAppUrl}/e/${eventSlug}/display`}
+            />
+          </div>
+        </section>
+      )}
 
       <form
         onSubmit={(event) => void createAccount(event)}
@@ -181,14 +194,25 @@ export default function EventStaffPage() {
           placeholder={t('organizer.staff.username')}
           className="rounded border border-border px-3 py-2 text-sm"
         />
-        <input
-          required
-          value={form.pin}
-          inputMode="numeric"
-          onChange={(event) => setForm((current) => ({ ...current, pin: event.target.value }))}
-          placeholder={t('organizer.staff.pin')}
-          className="rounded border border-border px-3 py-2 text-sm"
-        />
+        <div className="relative">
+          <input
+            required
+            value={form.pin}
+            type={showPin ? 'text' : 'password'}
+            autoComplete="off"
+            inputMode="numeric"
+            onChange={(event) => setForm((current) => ({ ...current, pin: event.target.value }))}
+            placeholder={t('organizer.staff.pin')}
+            className="w-full rounded border border-border py-2 pl-3 pr-16 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPin((current) => !current)}
+            className="absolute inset-y-0 right-2 text-xs font-semibold text-accent"
+          >
+            {showPin ? t('organizer.staff.hidePin') : t('organizer.staff.showPin')}
+          </button>
+        </div>
         <select
           value={form.role}
           onChange={(event) =>
@@ -208,6 +232,7 @@ export default function EventStaffPage() {
       </form>
 
       {error && <p className="mt-4 text-sm text-danger">{error}</p>}
+      {notice && <p className="mt-4 text-sm text-success">{notice}</p>}
       {loading && <p className="mt-8 text-sm text-muted">{t('organizer.staff.loading')}</p>}
 
       {!loading && accounts.length === 0 && (
@@ -218,80 +243,17 @@ export default function EventStaffPage() {
 
       <div className="mt-6 space-y-4">
         {accounts.map((account) => (
-          <section key={account.id} className="rounded-lg border border-border bg-surface p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="font-display font-semibold text-lg sm:text-xl">
-                  {account.display_name}
-                </h2>
-                <p className="text-sm text-muted">
-                  {account.username} - {t(`organizer.staff.roles.${account.role}`)} -{' '}
-                  {t(`organizer.staff.${account.status}`)}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => void resetPin(account)}
-                  className="rounded border px-3 py-2 text-sm"
-                >
-                  {t('organizer.staff.resetPin')}
-                </button>
-                <button
-                  onClick={() => void toggleStatus(account)}
-                  className="rounded border px-3 py-2 text-sm"
-                >
-                  {account.status === 'active'
-                    ? t('organizer.staff.disable')
-                    : t('organizer.staff.enable')}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h3 className="text-sm font-bold text-foreground-secondary">
-                {t('organizer.staff.assignments')}
-              </h3>
-              <div className="mt-2 flex flex-wrap gap-3">
-                {lices.map((lice) => (
-                  <label key={lice.id} className="inline-flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={account.liceIds.includes(lice.id)}
-                      onChange={(event) =>
-                        void setAccountLices(account, lice.id, event.target.checked)
-                      }
-                    />
-                    {lice.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h3 className="text-sm font-bold text-foreground-secondary">
-                {t('organizer.staff.displayUrls')}
-              </h3>
-              <div className="mt-2 space-y-2">
-                {account.liceIds.map((liceId) => {
-                  const liceName = liceMap.get(liceId) ?? liceId;
-                  const url = `${publicAppUrl}/e/${event?.slug ?? eventId}/lice/${encodeURIComponent(liceName)}/display`;
-                  return (
-                    <div
-                      key={liceId}
-                      className="flex items-center justify-between gap-3 rounded bg-background px-3 py-2 text-sm"
-                    >
-                      <span className="truncate">{url}</span>
-                      <button onClick={() => void copyUrl(url)} className="shrink-0 text-accent">
-                        {copied === url
-                          ? t('organizer.staff.copied')
-                          : t('organizer.staff.copyUrl')}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
+          <StaffAccountCard
+            key={account.id}
+            account={account}
+            lices={lices}
+            publicAppUrl={publicAppUrl}
+            scoringUrl={scoringUrl}
+            eventSlug={eventSlug}
+            onToggleStatus={(target) => void toggleStatus(target)}
+            onResetPin={(target) => void resetPin(target)}
+            onSetLices={(target, liceId, checked) => void setAccountLices(target, liceId, checked)}
+          />
         ))}
       </div>
 

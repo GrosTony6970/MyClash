@@ -1,22 +1,56 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { LanguageSwitcher } from '../../src/i18n/LanguageSwitcher';
 import { api } from '../../src/lib/api';
 
+/**
+ * The organizer hands a referee a link carrying the event (and their username):
+ * `…/login?event=<slug>&u=<username>`. Read straight off `window.location` —
+ * `useSearchParams` would make the React Compiler bail out of this page — via
+ * useSyncExternalStore so the server snapshot is empty and hydration matches.
+ * The querystring never changes without a navigation, so the subscription is a
+ * no-op.
+ */
+const subscribeQuery = (): (() => void) => () => {};
+const readQueryParam = (name: string): string =>
+  new URLSearchParams(window.location.search).get(name)?.trim() ?? '';
+const emptyParam = (): string => '';
+
 export default function ScoringLoginPage() {
   const { t } = useI18n();
+  const linkedEvent = useSyncExternalStore(
+    subscribeQuery,
+    () => readQueryParam('event'),
+    emptyParam,
+  );
+  const linkedUsername = useSyncExternalStore(
+    subscribeQuery,
+    () => readQueryParam('u'),
+    emptyParam,
+  );
+  const pinRef = useRef<HTMLInputElement>(null);
+
   const [email, setEmail] = useState('');
-  const [eventSlugOrCode, setEventSlugOrCode] = useState('');
-  const [username, setUsername] = useState('');
+  // `null` means "untouched, follow the link"; typing takes over from there, so
+  // the prefill needs no setState-in-an-effect.
+  const [eventEdit, setEventEdit] = useState<string | null>(null);
+  const [usernameEdit, setUsernameEdit] = useState<string | null>(null);
+  const eventSlugOrCode = eventEdit ?? linkedEvent;
+  const username = usernameEdit ?? linkedUsername;
   const [pin, setPin] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staffError, setStaffError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [staffLoading, setStaffLoading] = useState(false);
+
+  // A fully addressed link leaves exactly one thing to type.
+  useEffect(() => {
+    if (linkedEvent && linkedUsername) pinRef.current?.focus();
+  }, [linkedEvent, linkedUsername]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,7 +151,7 @@ export default function ScoringLoginPage() {
               id="eventSlugOrCode"
               required
               value={eventSlugOrCode}
-              onChange={(e) => setEventSlugOrCode(e.target.value)}
+              onChange={(e) => setEventEdit(e.target.value)}
               placeholder={t('scoring.login.eventIdentifierPlaceholder')}
               className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
@@ -133,7 +167,7 @@ export default function ScoringLoginPage() {
               id="staffUsername"
               required
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsernameEdit(e.target.value)}
               className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             />
           </div>
@@ -146,6 +180,7 @@ export default function ScoringLoginPage() {
             </label>
             <input
               id="staffPin"
+              ref={pinRef}
               type="password"
               inputMode="numeric"
               required

@@ -213,6 +213,56 @@ test.describe('public site', () => {
   });
 
   /**
+   * The screens an organiser hands out.
+   *
+   * Two rules that only a browser can prove: the hub can be reached knowing
+   * nothing but the event slug and lists the Lices to project, and the kiosk
+   * route it links to carries NO spectator sign-in — a referee's PIN works only
+   * on the scoring pad, so a `/login` link on that page is a dead end pointed at
+   * exactly the people who most need the right door.
+   */
+  test('the display hub picks a Lice, and the kiosk has no spectator sign-in', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(300_000);
+    const api = apiFor(request);
+    const { eventId, eventSlug } = fixture;
+    const token = Date.now().toString(36);
+    const mine = `Display A ${token}`;
+    const other = `Display B ${token}`;
+    for (const name of [mine, other]) {
+      await api.ok(await api.post(`events/${eventId}/lices`, { data: { name } }));
+    }
+
+    // ── The hub ────────────────────────────────────────────────────────────
+    await open(page, `/e/${eventSlug}/display`);
+    await expect(showing(page, mine)).toBeVisible({ timeout: 30_000 });
+    await expect(showing(page, other)).toBeVisible();
+    // The staff door: the pad's PIN form with this event already filled in.
+    const staffLink = page.locator(`a[href*="/login?event=${eventSlug}"]`).first();
+    await expect(staffLink, 'the hub must point staff at the scoring pad').toBeVisible();
+
+    // ── The kiosk it links to ──────────────────────────────────────────────
+    await open(page, `/e/${eventSlug}/lice/${encodeURIComponent(mine)}/display`);
+    await expect(showing(page, mine)).toBeVisible({ timeout: 30_000 });
+    expect(
+      await page.locator('a[href="/login"]').count(),
+      'the spectator Sign in must not appear on a display route',
+    ).toBe(0);
+
+    // The control layer is mounted but faded out until the screen is touched.
+    const controls = page.getByTestId('display-controls');
+    await expect(controls).toHaveAttribute('aria-hidden', 'true');
+    await page.mouse.move(400, 400);
+    await expect(controls).toHaveAttribute('aria-hidden', 'false', { timeout: 10_000 });
+    await expect(
+      controls.locator(`a[href*="${encodeURIComponent(other)}"]`),
+      'the switcher must offer the other Lice',
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  /**
    * Nothing this spec created may be left on the public site.
    *
    * `E2E_CLEANUP` hard-deletes the event outright — a club event is disposable

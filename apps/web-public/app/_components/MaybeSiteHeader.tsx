@@ -1,21 +1,23 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { isDisplayRoute } from '../../src/lib/display-routes';
 import { SiteHeader } from './SiteHeader';
 
 /**
  * Renders the public app's <SiteHeader /> on every route EXCEPT the
- * TV / projection display at /e/[eventSlug]/match/[matchId]/display.
+ * TV / projection displays (`isDisplayRoute` — the per-match and the
+ * per-lice one).
  *
- * The TV display is rendered fullscreen in a kiosk browser; a left
- * navigation bar would be wasted real estate and visually broken on
- * a projector. Other public routes (event pages, leagues, home) keep
- * the SiteHeader unchanged.
+ * A display is rendered fullscreen in a kiosk browser; a navigation bar
+ * would be wasted real estate and visually broken on a projector. It
+ * also put a spectator "Sign in" button on the screen an event's staff
+ * are handed — the wrong door, since a referee's PIN only works on the
+ * scoring pad. The staff sign-in lives on the display hub
+ * (/e/[eventSlug]/display) and in the kiosk's own control layer.
  */
-const DISPLAY_ROUTE = /^\/e\/[^/]+\/match\/[^/]+\/display\/?$/;
-
 export function MaybeSiteHeader(): React.ReactElement | null {
   const path = usePathname();
-  if (path && DISPLAY_ROUTE.test(path)) return null;
+  if (isDisplayRoute(path)) return null;
   return <SiteHeader />;
 }

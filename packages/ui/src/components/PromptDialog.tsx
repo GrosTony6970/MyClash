@@ -29,6 +29,11 @@ export interface PromptDialogProps {
   allowEmpty?: boolean;
   /** When true, render a textarea instead of an input. Default false. */
   multiline?: boolean;
+  /**
+   * When true, the single-line input masks what is typed (PINs, secrets).
+   * Ignored by the `multiline` branch — a masked textarea is not a thing.
+   */
+  masked?: boolean;
   /** When true, disables the confirm button. */
   busy?: boolean;
   /** Initial value. */
@@ -47,6 +52,7 @@ export function PromptDialog({
   danger = false,
   allowEmpty = false,
   multiline = false,
+  masked = false,
   busy = false,
   initialValue = '',
 }: PromptDialogProps) {
@@ -120,6 +126,8 @@ export function PromptDialog({
           ) : (
             <input
               autoFocus
+              type={masked ? 'password' : 'text'}
+              autoComplete={masked ? 'off' : undefined}
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={placeholder}
@@ -159,6 +167,8 @@ export interface PromptOptions {
   danger?: boolean;
   allowEmpty?: boolean;
   multiline?: boolean;
+  /** Mask the typed value (PINs). See {@link PromptDialogProps.masked}. */
+  masked?: boolean;
   initialValue?: string;
 }
 
@@ -208,6 +218,7 @@ export function usePrompt(): {
       danger={state.danger}
       allowEmpty={state.allowEmpty}
       multiline={state.multiline}
+      masked={state.masked}
       initialValue={state.initialValue}
       onConfirm={(value) => settle(value)}
       onCancel={() => settle(null)}

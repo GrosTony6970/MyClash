@@ -186,8 +186,17 @@ test.describe('staff pad', () => {
         'a refused PIN must not leave a session behind',
       ).toBe(401);
 
-      // ── The real login ──────────────────────────────────────────────────────
-      await signIn(page, eventSlug, username, PIN);
+      // ── The real login, through the link the organizer hands out ────────────
+      // The staff page copies `…/login?event=<slug>&u=<username>`; a referee at
+      // a piste knows neither the event slug nor the URL scheme, so the link
+      // must arrive with both filled in and leave exactly the PIN to type.
+      await page.goto(
+        `${scoringBase}/login?event=${encodeURIComponent(eventSlug)}&u=${encodeURIComponent(username)}`,
+      );
+      await expect(page.locator('#eventSlugOrCode')).toHaveValue(eventSlug, { timeout: 30_000 });
+      await expect(page.locator('#staffUsername')).toHaveValue(username);
+      await page.fill('#staffPin', PIN);
+      await page.locator('form:has(#staffPin) button[type="submit"]').click();
 
       // Assert the SESSION, not the landing URL: the pad is served both at
       // scoring.<domain> and same-origin under admin.<domain>/scoring, and the

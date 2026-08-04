@@ -25,8 +25,16 @@ A projector or a big TV, **10-foot read**, legible at ~15m across a sports hall.
 ```
 
 - **`cursor-none`** — there is no pointer, so **no hover state means anything**. If an affordance only appears on hover, it does not exist here.
-- **Nothing is interactive.** Nobody touches this screen. It is output.
-- **Chromeless** — no `SiteHeader` (`MaybeSiteHeader` strips it by regex), no sidebar, no nav. The stage is the whole viewport.
+- **Nothing is interactive**, with the single exception below. Nobody watches this screen and touches it. It is output.
+- **Chromeless** — no `SiteHeader`, no legal footer, no sidebar, no nav. The stage is the whole viewport. Both display routes are stripped by the shared `isDisplayRoute()` in `apps/web-public/src/lib/display-routes.ts`, read by `MaybeSiteHeader` and `AppLegalFooter`; they used to keep separate regexes and disagreed about the per-lice route, which left a spectator **Sign in** button on the screen the staff are handed.
+
+## The one interactive element
+
+`DisplayControls` on `/e/[eventSlug]/lice/[liceName]/display`: a control bar carrying the **Lice switcher**, a link to the display hub, and **staff sign-in** (the scoring pad — a referee's PIN works nowhere else).
+
+It is **invisible until the screen is touched** (`pointermove` / `touchstart` / `keydown`) and fades again after ~4s idle; while shown it sets `cursor-auto` over the stage's `cursor-none`, and its Lice list is fetched on the _first_ reveal, never on mount. Projection unchanged, spectators see nothing — and the person setting the screens up can change Lice without knowing the URL scheme.
+
+The picker itself lives one route up, at `/e/[eventSlug]/display` — an ordinary page with chrome and a pointer. **That** is the URL to hand out; these are the screens it points at.
 
 ## Scopes
 
@@ -43,7 +51,7 @@ Use `bg-stage` for a projector surface and nothing else — it is not a card, no
 ## Don't
 
 - **Don't** add a hover state, a tooltip, or anything requiring a pointer.
-- **Don't** put chrome on it. No header, no back link, no nav.
+- **Don't** put chrome on it. No header, no back link, no nav — the control layer above is the exception, and it is exhausted: anything else you want to reach belongs on the hub page.
 - **Don't** add a second idea to the screen. One match, or one lice.
 - **Don't** size type for a desk. Size it for the back row.
 

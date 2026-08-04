@@ -6,6 +6,7 @@ import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
 import { getPublicApiUrl } from '../../../../../../src/lib/api-url';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
+import { DisplayControls } from './DisplayControls';
 
 interface Props {
   eventSlug: string;
@@ -99,16 +100,26 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
     onFallbackPoll: () => void refresh(),
   });
 
+  // The control layer rides over BOTH states — it stays invisible until the
+  // screen is touched, so it costs the projection nothing either way.
   if (!payload.matchId) {
     return (
-      <LiceWaitingDisplay
-        eventName={payload.eventName}
-        liceName={liceName}
-        nextMatch={payload.nextMatch}
-        t={t}
-      />
+      <>
+        <LiceWaitingDisplay
+          eventName={payload.eventName}
+          liceName={liceName}
+          nextMatch={payload.nextMatch}
+          t={t}
+        />
+        <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
+      </>
     );
   }
 
-  return <DisplayView matchId={payload.matchId} eventSlug={eventSlug} />;
+  return (
+    <>
+      <DisplayView matchId={payload.matchId} eventSlug={eventSlug} />
+      <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
+    </>
+  );
 }

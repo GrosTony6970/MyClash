@@ -45,6 +45,9 @@ ARG NEXT_PUBLIC_API_URL
 # grant (rendered by SiteHeader + PublicPersonalShell). Inlined by `next build`.
 ARG NEXT_PUBLIC_ADMIN_URL
 ARG NEXT_PUBLIC_MARKETING_URL
+# Staff sign-in target — the display hub + kiosk control layer send referees to
+# the scoring pad, the only place an event PIN works.
+ARG NEXT_PUBLIC_SCORING_URL
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SENTRY_DSN_PUBLIC
