@@ -24,10 +24,12 @@ function BracketTree({
   scoringConfig,
   weapon,
   scrollerRef,
+  t,
 }: {
   bracket: TournamentBracketPayload;
   slots: BracketSlotData[];
   liceId: string;
+  t: (key: string, values?: Record<string, string | number>) => string;
   scoringConfig: TournamentScoringConfig | null;
   weapon: string | null;
   scrollerRef: React.RefObject<HTMLDivElement | null>;
@@ -57,6 +59,7 @@ function BracketTree({
         redColor={asColorToken(sideColors?.red ?? 'red')}
         blueColor={asColorToken(sideColors?.blue ?? 'blue')}
         highlightLiceId={liceId}
+        t={t}
       />
     </div>
   );
@@ -117,6 +120,7 @@ export function BracketDisclosure({
           scoringConfig={scoringConfig}
           weapon={weapon}
           scrollerRef={scrollerRef}
+          t={t}
         />
       )}
     </CollapsibleSection>

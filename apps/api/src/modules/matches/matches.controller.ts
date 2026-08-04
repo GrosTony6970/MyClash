@@ -355,6 +355,9 @@ export class MatchesController {
    * Returns current clock state computed from match_events timeline.
    * Reload-safe: always recomputes from server state.
    */
+  // Public alongside /display, /exchanges and /penalties — the projector reads
+  // all four anonymously (rationale in common/auth/public-routes.test.ts).
+  @Public()
   @Get('matches/:id/clock')
   @ApiOperation({ summary: 'Get clock state (computed from match_events timeline)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

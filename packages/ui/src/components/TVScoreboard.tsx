@@ -29,6 +29,7 @@ import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveM
 import type { ClockEvent, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
+import { roundLabel } from '../utils/round-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
@@ -241,6 +242,7 @@ export function TVScoreboard({
         blueBorder={blueStyle.border}
         mirror={mirror}
         connectionCue={connectionCue}
+        t={t}
       />
 
       <div className="grid flex-1 grid-cols-[1fr_minmax(380px,28%)_1fr] gap-6 px-6 py-4">
@@ -275,6 +277,7 @@ function TVHeader({
   blueBorder,
   mirror = false,
   connectionCue,
+  t,
 }: {
   match: DisplayMatch;
   redName: string;
@@ -283,15 +286,21 @@ function TVHeader({
   blueBorder: string;
   mirror?: boolean;
   connectionCue?: React.ReactNode;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }) {
   const matchCode = match.roundCode ?? match.matchNumberLabel ?? '';
   const eventName = match.event?.name ?? null;
   const liceName = match.lice?.name ?? null;
   const next = match.nextMatch ?? null;
-  // Tournament · Pool-or-bracket · Lice — mirrors the scoring pad header
-  // (MatchHeader) so the operator and the TV read the same context. Bracket
-  // matches have no pool, so the bracket round (R16/QF/SF/F) takes that slot.
-  const phaseLabel = match.poolName ?? match.bracketLabel ?? null;
+  // Tournament · Phase · Lice — mirrors the scoring pad header (MatchHeader)
+  // so the operator and the TV read the same context. Bracket and Swiss
+  // matches have no pool, so the round takes that slot — spelled out, because
+  // this line is read by an audience across a hall, not by an operator who
+  // knows the codes. The abbreviation stays in the match-code pill above.
+  // Truthiness, not `??`: an empty poolName is not nullish and would silently
+  // win over the round, leaving the phase slot blank (the pad's endpoint does
+  // return '' for a non-pool match — see MatchHeader).
+  const phaseLabel = match.poolName?.trim() ? match.poolName : roundLabel(match.roundToken, t);
   const contextLine = [match.tournament?.name ?? null, phaseLabel, liceName]
     .filter((p): p is string => !!p && p.trim().length > 0)
     .join(' · ');

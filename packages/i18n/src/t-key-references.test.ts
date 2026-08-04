@@ -70,6 +70,11 @@ const ROOTS = [
   'apps/web-scoring/src',
   'packages/ui/src',
   'packages/feature-flags/src',
+  // Holds key literals without calling `t()`: roundTokenLabel() maps a round
+  // token to an i18n key so the module can stay locale-agnostic. Whitelisting
+  // the `common.round.` prefix instead would have exempted that whole family
+  // from the orphan check forever.
+  'packages/types/src',
 ];
 
 const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', '.turbo', 'coverage']);

@@ -40,9 +40,12 @@ export interface MatchInfo {
   blueClub?: string | null;
   weapon?: string;
   tournamentId?: string;
-  /** Header context line (Tournament · Pool · Piste) — from GET /matches/:id/summary. */
+  /** Header context line (Tournament · Phase · Piste) — from GET /matches/:id/summary. */
   tournamentName?: string | null;
   poolName?: string | null;
+  /** Round token (`SF`, `R16`, `S3`, `GF`) for the phase slot on bracket and
+   *  Swiss matches, which have no pool and so named no phase at all. */
+  roundToken?: string | null;
   liceName?: string | null;
   eventSlug?: string;
   phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
@@ -436,6 +439,7 @@ export function MatchView({
         matchCode={match.roundCode ?? match.matchNumberLabel}
         tournamentName={match.tournamentName ?? null}
         poolName={match.poolName ?? null}
+        roundToken={match.roundToken ?? null}
         liceName={match.liceName ?? null}
         redName={redName}
         blueName={blueName}

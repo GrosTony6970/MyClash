@@ -149,6 +149,31 @@ export function bracketRoundLabel(round: number, bracketSize: number | null): st
   }
 }
 
+/**
+ * The bracket-position token for one match's round — `SF`, `R16`, `PI`, `GF`,
+ * `LB2`, `WBQF`, or the `B<n>` fallback.
+ *
+ * This is the exact token `formatRoundCode` embeds after the `B` segment, and
+ * it is the input `roundTokenLabel` expands into a human phase name. Extracted
+ * so a surface that wants the round WITHOUT the surrounding code (the TV
+ * header, the scoring pad) cannot drift from the code the operator announces:
+ * both now read the same function, and both stay section-aware for double-elim
+ * (where three different rounds would otherwise all be labelled "F").
+ *
+ * Returns null when the match has no bracket round at all (pool / Swiss).
+ */
+export function bracketToken(
+  input: Pick<RoundCodeInput, 'bracketRound' | 'bracketSize' | 'wbRounds' | 'lbRounds'>,
+): string | null {
+  const { bracketRound } = input;
+  if (bracketRound === null || bracketRound === undefined) return null;
+  if (input.wbRounds && input.lbRounds !== null && input.lbRounds !== undefined) {
+    return doubleElimRoundLabel(bracketRound, input.wbRounds, input.lbRounds);
+  }
+  if (bracketRound === 0) return 'PI';
+  return bracketRoundLabel(bracketRound, input.bracketSize) || null;
+}
+
 export function formatRoundCode(input: RoundCodeInput): string {
   const w = weaponAbbr(input.weapon);
 
@@ -164,17 +189,79 @@ export function formatRoundCode(input: RoundCodeInput): string {
     middle = [`S${input.swissRound}`];
   } else if (input.bracketRound !== null && input.bracketRound !== undefined) {
     // A double-elim bracket needs section-aware labels: three of its rounds
-    // would otherwise all read as a single-elim "F".
-    if (input.wbRounds && input.lbRounds !== null && input.lbRounds !== undefined) {
-      middle = ['B', doubleElimRoundLabel(input.bracketRound, input.wbRounds, input.lbRounds)];
-    } else if (input.bracketRound === 0) {
-      middle = ['B', 'PI'];
-    } else {
-      middle = ['B', bracketRoundLabel(input.bracketRound, input.bracketSize)];
-    }
+    // would otherwise all read as a single-elim "F". bracketToken owns that
+    // decision so the code and the display label cannot disagree. The `B`
+    // segment stays even when the round can't be labelled (`?? ''`, dropped by
+    // the filter below) — the match IS in a bracket, which is what B marks.
+    middle = ['B', bracketToken(input) ?? ''];
   }
 
   return [w, ...middle, matchSegment(input.matchNumber)].filter(Boolean).join('-');
+}
+
+/** An i18n key plus its interpolation params — see {@link roundTokenLabel}. */
+export interface RoundLabelDescriptor {
+  key: string;
+  params?: Record<string, string | number>;
+}
+
+/**
+ * Expand a round token into the human phase name operators actually say out
+ * loud: `SF` → "Semi Final", `LB2` → "Losers Round 2", `S3` → "Swiss Round 3".
+ *
+ * Returns an i18n KEY rather than a string so this module stays pure and
+ * locale-agnostic — every consumer (TV display, scoring pad, bracket headers)
+ * runs it through its own translator, and French finally gets round names at
+ * all. `bracketRoundLabel`/`formatRoundCode` keep emitting the short tokens:
+ * the codes on match cards, `parseBracketRound`, `computeMatchKind` and
+ * `groupBracketPoolsBySection` all parse those back, so the abbreviations are
+ * load-bearing and only the PRESENTATION widens here.
+ *
+ * Accepts the Swiss `S<n>` token too, which no bracket function emits — the TV
+ * header needs one field that names the phase for every kind of match, and a
+ * Swiss bout previously showed no phase whatsoever.
+ *
+ * Returns null for an unrecognised token so callers can omit the segment
+ * rather than render a raw code at the audience.
+ */
+export function roundTokenLabel(token: string | null | undefined): RoundLabelDescriptor | null {
+  if (!token) return null;
+
+  const NAMED: Record<string, string> = {
+    F: 'common.round.final',
+    SF: 'common.round.semiFinal',
+    QF: 'common.round.quarterFinal',
+    PI: 'common.round.playIn',
+    GF: 'common.round.grandFinal',
+    GFR: 'common.round.grandFinalReset',
+    WBF: 'common.round.winnersFinal',
+    WBSF: 'common.round.winnersSemiFinal',
+    WBQF: 'common.round.winnersQuarterFinal',
+  };
+  const named = NAMED[token];
+  if (named) return { key: named };
+
+  // Counted forms. Each pattern is anchored so `WBR16` can't be mistaken for
+  // `R16` — the winners-bracket prefixes are tested first for that reason.
+  const wbRoundOf = /^WBR(\d+)$/.exec(token);
+  if (wbRoundOf) return { key: 'common.round.winnersRoundOf', params: { count: wbRoundOf[1]! } };
+
+  const wbFallback = /^WBB(\d+)$/.exec(token);
+  if (wbFallback) return { key: 'common.round.winnersRound', params: { n: wbFallback[1]! } };
+
+  const losers = /^LB(\d+)$/.exec(token);
+  if (losers) return { key: 'common.round.losersRound', params: { n: losers[1]! } };
+
+  const swiss = /^S(\d+)$/.exec(token);
+  if (swiss) return { key: 'common.round.swissRound', params: { n: swiss[1]! } };
+
+  const roundOf = /^R(\d+)$/.exec(token);
+  if (roundOf) return { key: 'common.round.roundOf', params: { count: roundOf[1]! } };
+
+  const fallback = /^B(\d+)$/.exec(token);
+  if (fallback) return { key: 'common.round.bracketRound', params: { n: fallback[1]! } };
+
+  return null;
 }
 
 /**

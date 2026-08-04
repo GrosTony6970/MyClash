@@ -118,6 +118,11 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
         if (status === 'SUBSCRIBED') {
           if (wasConnectedRef.current) {
             console.info(`[realtime] reconnected: ${opts.channelName}`);
+            // Backfill what the socket missed while it was down. Without this
+            // the reconnect only stopped the poll, so the last thing to change
+            // during the outage was never picked up — on the per-lice display
+            // that meant the page could sit on a finished match indefinitely.
+            opts.onFallbackPoll();
           } else {
             console.info(`[realtime] connected: ${opts.channelName}`);
             wasConnectedRef.current = true;

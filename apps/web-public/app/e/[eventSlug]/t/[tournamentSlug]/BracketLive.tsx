@@ -292,6 +292,7 @@ export function BracketLive({
         roundGapClass="gap-24"
         highlightRegistrationId={highlightRegistrationId}
         youLabel={t('publicApp.me.hub.youChip')}
+        t={t}
         showReferees={showReferees}
         refereeSelfKeys={refereeSelfKeys}
         refereeRoleLabel={refereeRoleLabel}

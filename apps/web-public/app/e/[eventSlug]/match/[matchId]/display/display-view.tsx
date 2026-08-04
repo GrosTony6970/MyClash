@@ -28,6 +28,13 @@ export function DisplayView({ matchId, eventSlug }: Props) {
         apiBaseUrl={API_URL}
         supabaseClient={supabase}
         eventSlug={eventSlug}
+        // This screen runs unattended on a projector for a whole day, so it
+        // cannot depend on the websocket alone: when the channel failed to
+        // join, the board silently froze mid-bout and someone had to walk over
+        // and press F5. Every other live surface already polls (admin display
+        // 1.5s, control room 7s, piste screen 20s) — this was the one that
+        // didn't. 2s is well inside "the audience never notices".
+        pollMs={2000}
       />
     </div>
   );

@@ -1944,6 +1944,7 @@ export default function BracketPage() {
                 }}
                 onOverrideSlot={(slotId) => openOverride(slotId)}
                 playInLabel={t('organizer.phaseVisibility.playIns')}
+                t={t}
               />
             </div>
           </div>

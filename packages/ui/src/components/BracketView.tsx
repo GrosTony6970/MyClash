@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { formatRoundCode } from '@myclash/types';
+import { bracketRoundLabel, formatRoundCode } from '@myclash/types';
+import { roundColumnLabel, type RoundTranslator } from '../utils/round-label';
 import { MatchCard } from './bracket/MatchCard';
 import { BracketHighlightContext } from './bracket/highlight-context';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
@@ -62,6 +63,13 @@ export interface BracketViewProps {
    *  compact `gap-16`; consumers (e.g. the public bracket) can pass a wider
    *  value like `gap-24` without affecting other brackets. */
   roundGapClass?: string;
+  /**
+   * Translator for the round column headers (lib is i18n-free — the app owns
+   * the messages, same as `youLabel` and `<TVFooter t={…}>`). Omitted → the
+   * English defaults this component has always rendered, which is why a French
+   * viewer read "Semi-finals" above a bracket in an otherwise French page.
+   */
+  t?: RoundTranslator;
 }
 
 const ROUND_GAP_CLASS = 'gap-16';
@@ -96,6 +104,7 @@ export function BracketView({
   refereeRoleLabel,
   highlightLiceId,
   roundGapClass = ROUND_GAP_CLASS,
+  t,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
 
@@ -161,6 +170,7 @@ export function BracketView({
       roundCodeFor={roundCodeFor}
       pitchPx={pitchPx}
       roundGapClass={roundGapClass}
+      t={t}
     />
   );
 
@@ -197,6 +207,7 @@ interface SingleElimLayoutProps {
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
   pitchPx: number;
   roundGapClass: string;
+  t?: RoundTranslator;
 }
 
 function SingleElimLayout({
@@ -212,6 +223,7 @@ function SingleElimLayout({
   roundCodeFor,
   pitchPx,
   roundGapClass,
+  t,
 }: SingleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -242,16 +254,22 @@ function SingleElimLayout({
     for (let i = 0; i < main.length; i++) {
       const r = main[i]!;
       const remaining = main.length - i;
-      // Last round = the Finals column. The gold/silver vs bronze distinction is
+      // Name the column from the round TOKEN rather than a private if-chain, so
+      // these headers and the match codes on the cards below them can't drift
+      // apart. `1 << main.length` is the bracket size this column count implies.
+      // Last round = the Finals column; the gold/silver vs bronze distinction is
       // shown by the in-column labels ("Gold & Silver Match" / "Bronze Match").
-      if (remaining === 1) out[r] = 'Finals';
+      const token = bracketRoundLabel(i + 1, 1 << main.length);
+      const translated = t ? roundColumnLabel(token, t) : null;
+      if (translated) out[r] = translated;
+      else if (remaining === 1) out[r] = 'Finals';
       else if (remaining === 2) out[r] = 'Semi-finals';
       else if (remaining === 3) out[r] = 'Quarter-finals';
       else out[r] = `Round of ${1 << remaining}`;
     }
     if (roundNumbers.includes(0)) out[0] = playInLabel;
     return { ...out, ...(roundLabels ?? {}) };
-  }, [roundNumbers, playInLabel, roundLabels]);
+  }, [roundNumbers, playInLabel, roundLabels, t]);
 
   const edges = React.useMemo<ConnectorEdge[]>(() => {
     const out: ConnectorEdge[] = [

@@ -18,7 +18,7 @@ import {
   roundCodeFromMatchRow,
   type LiceMatchesPayload,
 } from './lice-matches';
-import { bracketRoundLabel } from '@myclash/types';
+import { bracketToken } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
@@ -1111,11 +1111,21 @@ export class StaffService {
       typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const matchNumberLabel = (match['match_number_label'] as string | null | undefined) ?? null;
 
-    // Human-readable bracket round (R16 / QF / SF / F) for the TV display's
-    // "tournament · pool-or-bracket · lice" line. Null for pool matches
-    // (they show poolName instead) and when the round can't be labelled.
-    const bracketLabel =
-      bracketRound !== null ? bracketRoundLabel(bracketRound, bracketSize) || null : null;
+    // Round token for the TV display's "tournament · phase · lice" line and the
+    // scoring pad header, expanded to a human name client-side by
+    // roundTokenLabel(). Null for pool matches, which show poolName instead.
+    //
+    // Swiss is included because it otherwise named NO phase at all: a Swiss
+    // bout has neither a pool nor a bracket slot, so the line collapsed to
+    // "Tournament · Lice 4". And the bracket side goes through bracketToken,
+    // which is the same function that builds the code below — previously this
+    // called bracketRoundLabel() directly WITHOUT wbRounds/lbRounds (already in
+    // scope, and passed on the very next line), so a double-elim winners final,
+    // grand final and grand final reset all displayed as "F".
+    const roundToken =
+      swissRound !== null
+        ? `S${swissRound}`
+        : bracketToken({ bracketRound, bracketSize, wbRounds, lbRounds });
 
     const roundCode = buildRoundCode({
       weapon,
@@ -1186,7 +1196,7 @@ export class StaffService {
       blueRoundWins: (match['blue_round_wins'] as number | null) ?? 0,
       awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
       poolName,
-      bracketLabel,
+      roundToken,
       fightIndex: extras.fightIndex,
       totalFightsInPool: extras.totalFightsInPool,
       redClub,

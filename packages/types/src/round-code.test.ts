@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bracketRoundLabel, doubleElimRoundLabel, formatRoundCode, weaponAbbr } from './round-code';
+import {
+  bracketRoundLabel,
+  bracketToken,
+  doubleElimRoundLabel,
+  formatRoundCode,
+  roundTokenLabel,
+  weaponAbbr,
+} from './round-code';
 
 describe('weaponAbbr', () => {
   it('returns canonical abbreviations for the five known weapons', () => {
@@ -364,5 +371,120 @@ describe('formatRoundCode — double elimination', () => {
         formatRoundCode({ ...base, bracketSize: 32, wbRounds: null, lbRounds: null }),
       );
     }
+  });
+});
+
+// ── Token extraction (shared by the code and the display label) ──────────────
+
+describe('bracketToken', () => {
+  it('returns the same token formatRoundCode embeds after the B segment', () => {
+    // The whole point of extracting it: a surface showing the round WITHOUT
+    // the code must not be able to drift from the code operators announce.
+    const cases = [
+      { bracketRound: 1, bracketSize: 32 },
+      { bracketRound: 3, bracketSize: 32 },
+      { bracketRound: 5, bracketSize: 32 },
+      { bracketRound: 0, bracketSize: 32 },
+      { bracketRound: 2, bracketSize: null },
+      { bracketRound: 3, bracketSize: 8, wbRounds: 3, lbRounds: 4 },
+      { bracketRound: 5, bracketSize: 8, wbRounds: 3, lbRounds: 4 },
+      { bracketRound: 8, bracketSize: 8, wbRounds: 3, lbRounds: 4 },
+      { bracketRound: 9, bracketSize: 8, wbRounds: 3, lbRounds: 4 },
+    ];
+    for (const c of cases) {
+      const code = formatRoundCode({ ...c, weapon: 'longsword', poolNumber: null, matchNumber: 1 });
+      expect(code).toBe(`LSW-B-${bracketToken(c)}-M1`);
+    }
+  });
+
+  it('is section-aware for double elim — three rounds that single-elim calls F', () => {
+    const de = { bracketSize: 8, wbRounds: 3, lbRounds: 4 };
+    expect(bracketToken({ ...de, bracketRound: 3 })).toBe('WBF');
+    expect(bracketToken({ ...de, bracketRound: 8 })).toBe('GF');
+    expect(bracketToken({ ...de, bracketRound: 9 })).toBe('GFR');
+    // Without the split, all three collapse to the single-elim label — the
+    // exact defect that made the TV header call every one of them "F".
+    expect(bracketToken({ bracketSize: 8, bracketRound: 3 })).toBe('F');
+  });
+
+  it('returns null when the match has no bracket round at all', () => {
+    expect(bracketToken({ bracketRound: null, bracketSize: 32 })).toBeNull();
+    expect(bracketToken({ bracketRound: undefined, bracketSize: 32 })).toBeNull();
+  });
+});
+
+// ── Human phase names ────────────────────────────────────────────────────────
+
+describe('roundTokenLabel', () => {
+  it('names every single-elim token', () => {
+    expect(roundTokenLabel('F')).toEqual({ key: 'common.round.final' });
+    expect(roundTokenLabel('SF')).toEqual({ key: 'common.round.semiFinal' });
+    expect(roundTokenLabel('QF')).toEqual({ key: 'common.round.quarterFinal' });
+    expect(roundTokenLabel('PI')).toEqual({ key: 'common.round.playIn' });
+    expect(roundTokenLabel('R16')).toEqual({
+      key: 'common.round.roundOf',
+      params: { count: '16' },
+    });
+    expect(roundTokenLabel('B4')).toEqual({ key: 'common.round.bracketRound', params: { n: '4' } });
+  });
+
+  it('names every double-elim token', () => {
+    expect(roundTokenLabel('GF')).toEqual({ key: 'common.round.grandFinal' });
+    expect(roundTokenLabel('GFR')).toEqual({ key: 'common.round.grandFinalReset' });
+    expect(roundTokenLabel('WBF')).toEqual({ key: 'common.round.winnersFinal' });
+    expect(roundTokenLabel('WBSF')).toEqual({ key: 'common.round.winnersSemiFinal' });
+    expect(roundTokenLabel('WBQF')).toEqual({ key: 'common.round.winnersQuarterFinal' });
+    expect(roundTokenLabel('LB2')).toEqual({
+      key: 'common.round.losersRound',
+      params: { n: '2' },
+    });
+    expect(roundTokenLabel('WBR16')).toEqual({
+      key: 'common.round.winnersRoundOf',
+      params: { count: '16' },
+    });
+    expect(roundTokenLabel('WBB2')).toEqual({
+      key: 'common.round.winnersRound',
+      params: { n: '2' },
+    });
+  });
+
+  it('names Swiss rounds, which no bracket function emits', () => {
+    // The TV header needs ONE field that names the phase for every match kind;
+    // a Swiss bout previously showed no phase segment whatsoever.
+    expect(roundTokenLabel('S3')).toEqual({ key: 'common.round.swissRound', params: { n: '3' } });
+  });
+
+  it('does not mistake a winners-bracket token for its single-elim namesake', () => {
+    expect(roundTokenLabel('WBR16')?.key).not.toBe(roundTokenLabel('R16')?.key);
+    expect(roundTokenLabel('WBB2')?.key).not.toBe(roundTokenLabel('B2')?.key);
+  });
+
+  it('returns null for nothing and for unrecognised tokens', () => {
+    // Callers omit the segment rather than render a raw code at the audience.
+    expect(roundTokenLabel(null)).toBeNull();
+    expect(roundTokenLabel(undefined)).toBeNull();
+    expect(roundTokenLabel('')).toBeNull();
+    expect(roundTokenLabel('P1')).toBeNull();
+    expect(roundTokenLabel('nonsense')).toBeNull();
+  });
+
+  it('covers every token bracketToken and formatRoundCode can produce', () => {
+    // Guards the pairing: a new token shape added to the generator must get a
+    // name here, or the display silently drops the phase.
+    const emitted = new Set<string>();
+    for (const size of [null, 2, 4, 8, 16, 32, 64, 128]) {
+      for (let round = 0; round <= 8; round++) {
+        const t = bracketToken({ bracketRound: round, bracketSize: size });
+        if (t) emitted.add(t);
+      }
+    }
+    for (let round = 0; round <= 9; round++) {
+      const t = bracketToken({ bracketRound: round, bracketSize: 8, wbRounds: 3, lbRounds: 4 });
+      if (t) emitted.add(t);
+    }
+    for (const token of emitted) {
+      expect(roundTokenLabel(token), `no label for token ${token}`).not.toBeNull();
+    }
+    expect(emitted.size).toBeGreaterThan(10);
   });
 });

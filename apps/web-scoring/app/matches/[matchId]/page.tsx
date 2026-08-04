@@ -145,6 +145,7 @@ export default function MatchScoringPage({ params }: Props) {
               tournamentId: string;
               tournamentName?: string | null;
               poolName?: string | null;
+              roundToken?: string | null;
               liceName?: string | null;
               phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
               /** Effective best-of for this match's phase (not a matches column). */
@@ -170,6 +171,7 @@ export default function MatchScoringPage({ params }: Props) {
           tournamentId: summary?.tournamentId,
           tournamentName: summary?.tournamentName ?? null,
           poolName: summary?.poolName ?? null,
+          roundToken: summary?.roundToken ?? null,
           liceName: summary?.liceName ?? null,
           phaseType: summary?.phaseType ?? null,
           lockedAt: raw.locked_at,

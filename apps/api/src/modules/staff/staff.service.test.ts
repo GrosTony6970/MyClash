@@ -108,6 +108,46 @@ describe('StaffService.getPublicMatchDisplay', () => {
       return { supabase: { service } };
     }
 
+    /** A minimal non-pool match row — the shape the round-token tests vary. */
+    function bareRow(id: string, overrides: Record<string, unknown> = {}) {
+      const side = (rid: string, given: string) => ({
+        id: rid,
+        persons: {
+          id: `p-${rid}`,
+          given_name: given,
+          family_name: 'X',
+          club_id: null,
+          clubs: null,
+          global_person_id: null,
+          global_persons: null,
+        },
+      });
+      return {
+        id,
+        status: 'scheduled',
+        red_score: 0,
+        blue_score: 0,
+        red_registration_id: 'reg-r',
+        blue_registration_id: 'reg-b',
+        match_number_label: '1',
+        pool_id: null,
+        lices: { id: 'lice-1', name: 'Lice 1', events: null },
+        pools: null,
+        red: side('reg-r', 'A'),
+        blue: side('reg-b', 'B'),
+        phases: {
+          tournaments: {
+            id: 't-1',
+            name: 'Longsword Open',
+            weapon: 'longsword',
+            scoring_config_json: null,
+            ruleset_config: null,
+          },
+        },
+        ...overrides,
+      };
+    }
+
     it('returns poolName + fightIndex + totalFightsInPool, and resolves club info per side', async () => {
       const row = {
         id: 'match-3',
@@ -184,8 +224,8 @@ describe('StaffService.getPublicMatchDisplay', () => {
       // Fighter photos resolve from the linked global identity; null when unlinked.
       expect(payload['redFighterPhotoUrl']).toBe('https://cdn.example/anthony.jpg');
       expect(payload['blueFighterPhotoUrl']).toBeNull();
-      // Pool matches carry poolName, not a bracket label.
-      expect(payload['bracketLabel']).toBeNull();
+      // Pool matches carry poolName, not a round token.
+      expect(payload['roundToken']).toBeNull();
     });
 
     it('returns null pool fields for bracket matches (no pool_id)', async () => {
@@ -245,11 +285,48 @@ describe('StaffService.getPublicMatchDisplay', () => {
       expect(payload['totalFightsInPool']).toBeNull();
       expect(payload['redClub']).toBeNull();
       expect(payload['blueClub']).toBeNull();
-      // Bracket round 4 with no known bracket size → labelled 'B4' for the
-      // TV context line (poolName is null here, so the label takes its slot).
-      expect(payload['bracketLabel']).toBe('B4');
+      // Bracket round 4 with no known bracket size → token 'B4' for the TV
+      // context line (poolName is null here, so the round takes its slot).
+      expect(payload['roundToken']).toBe('B4');
       expect(payload['redFighterPhotoUrl']).toBeNull();
       expect(payload['blueFighterPhotoUrl']).toBeNull();
+    });
+
+    it('names a Swiss round, which has neither a pool nor a bracket slot', async () => {
+      // Regression: both slots were null, so the TV context line read
+      // "Longsword Open · Lice 1" — a Swiss bout named no phase at all.
+      const row = bareRow('swiss-1', { swiss_rounds: { round_number: 3 } });
+      const { supabase } = makeExtendedSupabase(row, []);
+      const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
+
+      const payload = (await service.getPublicMatchDisplay('swiss-1')) as Record<string, unknown>;
+
+      expect(payload['poolName']).toBeNull();
+      expect(payload['roundToken']).toBe('S3');
+    });
+
+    it('distinguishes the three double-elim rounds a single-elim label calls F', async () => {
+      // Regression: this read bracketRoundLabel() without wbRounds/lbRounds —
+      // already in scope and passed to the round CODE one line below — so the
+      // winners final, grand final and grand final reset all displayed as 'F'.
+      const tokenForRound = async (round: number) => {
+        const base = bareRow('de-1', { bracket_slots: { round } });
+        const row = {
+          ...base,
+          phases: {
+            ...base.phases,
+            config_json: { bracketSize: 8, wbRounds: 3, lbRounds: 4 },
+          },
+        };
+        const { supabase } = makeExtendedSupabase(row, []);
+        const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
+        const payload = (await service.getPublicMatchDisplay('de-1')) as Record<string, unknown>;
+        return payload['roundToken'];
+      };
+
+      expect(await tokenForRound(3)).toBe('WBF');
+      expect(await tokenForRound(8)).toBe('GF');
+      expect(await tokenForRound(9)).toBe('GFR');
     });
   });
 });

@@ -6,7 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
+import { bracketToken, computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
@@ -194,6 +194,15 @@ export class MatchesService {
       roundNumber: null,
     });
 
+    // The round on its own, for the pad's "Tournament · Phase · Piste" line.
+    // That line only ever carried poolName, so a bracket or Swiss bout named no
+    // phase at all. Built from the same inputs as the code above so the header
+    // and the code on the same screen cannot disagree.
+    const roundToken =
+      row.swiss_round !== null && row.swiss_round !== undefined
+        ? `S${row.swiss_round}`
+        : bracketToken({ bracketRound: row.bracket_round, bracketSize, wbRounds, lbRounds });
+
     // Event timezone — so the public match view can format started/ended
     // times in the venue's wall clock (default Europe/Paris).
     const { data: eventRow } = await this.supabase.service
@@ -237,6 +246,7 @@ export class MatchesService {
     return {
       matchLabel: row.match_number_label ?? '',
       roundCode,
+      roundToken,
       status: row.status,
       poolName: row.pool_name ?? '',
       tournamentName: tournamentName ?? '',

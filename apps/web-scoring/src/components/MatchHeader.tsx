@@ -23,7 +23,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { ThemeSwitcher } from '../theme/ThemeSwitcher';
-import { sideStyle } from '@myclash/ui';
+import { sideStyle, roundLabel } from '@myclash/ui';
 import { useAdjacentMatches } from '@myclash/ui';
 import {
   displayUrlForMatch,
@@ -39,6 +39,8 @@ interface MatchHeaderProps {
   /** Header context line: Tournament · Pool · Piste (from match summary). */
   tournamentName?: string | null;
   poolName?: string | null;
+  /** Round token for bracket / Swiss matches, which carry no pool. */
+  roundToken?: string | null;
   liceName?: string | null;
   redName: string;
   blueName: string;
@@ -67,6 +69,7 @@ export function MatchHeader({
   matchCode,
   tournamentName,
   poolName,
+  roundToken,
   liceName,
   redName,
   blueName,
@@ -85,8 +88,15 @@ export function MatchHeader({
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
   const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
-  // Tournament · Pool · Piste — skips any part that's missing (e.g. bracket matches have no pool).
-  const contextLine = [tournamentName, poolName, liceName]
+  // Tournament · Phase · Piste — skips any part that's missing. Bracket and
+  // Swiss matches have no pool, and used to leave the phase slot empty; they
+  // fill it from the round token instead, named the same way the TV names it.
+  //
+  // Truthiness, not `??`: GET /matches/:id/summary returns poolName as '' for a
+  // non-pool match (the TV's endpoint returns null), and an empty string is not
+  // nullish — `??` would keep it and the phase would never appear here at all.
+  const phaseLabel = poolName?.trim() ? poolName : roundLabel(roundToken, t);
+  const contextLine = [tournamentName, phaseLabel, liceName]
     .filter((p): p is string => !!p && p.trim().length > 0)
     .join(' · ');
 

@@ -1399,6 +1399,34 @@ export const en = {
     saving: 'Saving...',
     tooManyRequests: 'Too many requests. Wait a moment and retry.',
     unknown: 'Unknown',
+    // Human phase names, keyed by the round tokens formatRoundCode emits.
+    // Resolved through roundTokenLabel() in @myclash/types so the TV display,
+    // the scoring pad and the bracket headers all name a round the same way —
+    // and so French gets round names at all (the bracket column headers were
+    // hardcoded English). The short tokens stay in the match CODE, which
+    // operators announce and several parsers read back.
+    round: {
+      final: 'Final',
+      semiFinal: 'Semi Final',
+      quarterFinal: 'Quarter Final',
+      roundOf: 'Round of {count}',
+      playIn: 'Play-in',
+      bracketRound: 'Round {n}',
+      swissRound: 'Swiss Round {n}',
+      grandFinal: 'Grand Final',
+      grandFinalReset: 'Grand Final Reset',
+      losersRound: 'Losers Round {n}',
+      winnersFinal: 'Winners Final',
+      winnersSemiFinal: 'Winners Semi Final',
+      winnersQuarterFinal: 'Winners Quarter Final',
+      winnersRoundOf: 'Winners Round of {count}',
+      winnersRound: 'Winners Round {n}',
+      // Bracket COLUMN headers name the whole round, not one bout. Only the
+      // three named rounds inflect — "Round of 16" already reads as a group.
+      columnFinals: 'Finals',
+      columnSemiFinals: 'Semi Finals',
+      columnQuarterFinals: 'Quarter Finals',
+    },
   },
   navigation: {
     skipToMainContent: 'Skip to main content',
@@ -8700,6 +8728,26 @@ export const fr = {
     saving: 'Enregistrement...',
     tooManyRequests: 'Trop de requetes. Attendez un instant puis reessayez.',
     unknown: 'Inconnu',
+    round: {
+      final: 'Finale',
+      semiFinal: 'Demi-finale',
+      quarterFinal: 'Quart de finale',
+      roundOf: 'Tableau de {count}',
+      playIn: 'Barrage',
+      bracketRound: 'Tour {n}',
+      swissRound: 'Ronde suisse {n}',
+      grandFinal: 'Grande finale',
+      grandFinalReset: 'Belle de la grande finale',
+      losersRound: 'Tour {n} du tableau des perdants',
+      winnersFinal: 'Finale du tableau principal',
+      winnersSemiFinal: 'Demi-finale du tableau principal',
+      winnersQuarterFinal: 'Quart de finale du tableau principal',
+      winnersRoundOf: 'Tableau principal de {count}',
+      winnersRound: 'Tour {n} du tableau principal',
+      columnFinals: 'Finale',
+      columnSemiFinals: 'Demi-finales',
+      columnQuarterFinals: 'Quarts de finale',
+    },
   },
   navigation: {
     skipToMainContent: 'Passer au contenu principal',

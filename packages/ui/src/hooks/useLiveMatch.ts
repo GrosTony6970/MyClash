@@ -55,9 +55,11 @@ export interface DisplayMatch {
   awaitingRoundAdvance?: boolean;
   sideOrder?: 'red_left' | 'blue_left';
   poolName?: string | null;
-  /** Human-readable bracket round (R16 / QF / SF / F). Null for pool matches
-   *  (which carry poolName instead). Drives the TV header context line. */
-  bracketLabel?: string | null;
+  /** Round token naming this match's phase — `SF`, `R16`, `PI`, `GF`, `LB2`,
+   *  `S3` for Swiss. Null for pool matches (which carry poolName instead).
+   *  Expand with `roundTokenLabel()` from `@myclash/types`; never render the
+   *  raw token at an audience. Drives the TV header context line. */
+  roundToken?: string | null;
   fightIndex?: number | null;
   totalFightsInPool?: number | null;
   redClub?: { name: string; logoUrl: string | null } | null;
@@ -126,11 +128,11 @@ function computeElapsedMs(state: ClockSnapshot): number {
  *   - `GET /api/v1/matches/:id/penalties` (per-side card list)
  *   - `GET /api/v1/matches/:id/exchanges` (scoring timeline rows)
  *   - `GET /api/v1/matches/:id/clock`     (state machine + activeMs)
- * The first three are `@Public()`. `/clock` is NOT — today it resolves for an
- * anonymous projector only because the global AuthGuard runs in shadow mode.
- * When the guard is enforced it will 401, and `refresh()` swallows that (the
- * `clockRes.ok` guard below), so the board would show a frozen clock with no
- * error. Mark it `@Public()` before flipping the guard.
+ * All four are `@Public()` — `/clock` was not, and resolved for an anonymous
+ * projector only because the global AuthGuard runs in shadow mode; enforcing
+ * the guard would have 401'd it into the `clockRes.ok` guard below, which
+ * swallows the failure and leaves a frozen clock with no error. The @Public()
+ * set is pinned in apps/api/src/common/auth/public-routes.test.ts.
  *
  * Subscribes to Supabase realtime postgres_changes on the `matches`,
  * `exchanges`, `match_penalties`, and `match_events` tables filtered
@@ -157,7 +159,11 @@ export function useLiveMatch(
    * (admin.${DOMAIN} → app.${DOMAIN}) and can be blocked under
    * self-signed `--dev-certs`; the poll hits the same-origin API that
    * already serves the initial render, so the screen stays live there.
-   * Omit (default) to rely on realtime alone (public same-origin display).
+   *
+   * The public display passes it too. Relying on realtime alone is what left
+   * that screen frozen on "Reconnecting" for a whole bout: a channel that
+   * fails to join never retries, and there was nothing else keeping the board
+   * fresh. Any unattended surface should set this.
    */
   pollMs?: number,
 ): UseLiveMatchResult {
@@ -282,6 +288,25 @@ export function useLiveMatch(
     const id = setInterval(() => void refresh(), pollMs);
     return () => clearInterval(id);
   }, [pollMs, refresh]);
+
+  // Catch up the moment the screen comes back or regains the network. A
+  // projector that was asleep, a laptop lid reopened, or a venue wifi blip all
+  // land here — and none of them fire a postgres_changes event for what was
+  // missed, so without this the board resumes showing stale state. Mirrors the
+  // wake-up handling the scoring tablets already use (useLiceMatches).
+  useEffect(() => {
+    const onWake = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+    window.addEventListener('online', onWake);
+    return () => {
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
+      window.removeEventListener('online', onWake);
+    };
+  }, [refresh]);
 
   return { match, penalties, exchanges, clock, elapsedMs, loadError, connected, refresh };
 }

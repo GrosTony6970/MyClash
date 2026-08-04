@@ -103,6 +103,11 @@ const EXPECTED_PUBLIC = [
   'GET /leagues/:leagueId/standings',
   'GET /leagues/:slug',
   'GET /matches/:id',
+  // The projector's four reads. /clock was the odd one out — undecorated, and
+  // resolving anonymously only because the guard still runs in shadow mode.
+  // useLiveMatch swallows a non-OK clock response, so enforcing the guard would
+  // have frozen every TV timer with no error rather than failing loudly.
+  'GET /matches/:id/clock',
   'GET /matches/:id/display',
   'GET /matches/:id/exchanges',
   'GET /matches/:id/penalties',
