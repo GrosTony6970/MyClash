@@ -32,7 +32,7 @@ describe('StaffService.getLiveBoard', () => {
       events: [{ id: 'E1', organization_id: 'O1', status: 'running' }],
     });
     const orgs = { assertOrgRole: vi.fn().mockRejectedValue(new ForbiddenException('no role')) };
-    const svc = new StaffService(supabase as never, orgs as never, {} as never);
+    const svc = new StaffService(supabase as never, orgs as never, {} as never, {} as never);
     // Force the Supabase-user branch:
     vi.spyOn(
       svc as never as { getSupabaseUserId: () => Promise<string> },
@@ -62,7 +62,7 @@ describe('StaffService.getLiveBoard', () => {
       event_staff_lice_assignments: [],
     });
     const orgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
-    const svc = new StaffService(supabase as never, orgs as never, {} as never);
+    const svc = new StaffService(supabase as never, orgs as never, {} as never, {} as never);
     vi.spyOn(
       svc as never as { getSupabaseUserId: () => Promise<string> },
       'getSupabaseUserId',
@@ -105,7 +105,7 @@ describe('StaffService.acknowledgeAttention', () => {
       }),
     };
     const orgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
-    const svc = new StaffService({ service } as never, orgs as never, {} as never);
+    const svc = new StaffService({ service } as never, orgs as never, {} as never, {} as never);
     vi.spyOn(
       svc as never as { getSupabaseUserId: () => Promise<string> },
       'getSupabaseUserId',

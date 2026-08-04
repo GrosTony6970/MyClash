@@ -23,6 +23,7 @@ import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/ruleset
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffJwtService } from './staff-jwt.service';
 import {
@@ -86,6 +87,9 @@ export class StaffService {
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
     private readonly jwt: StaffJwtService,
+    // Value import, not `import type` — a type-only import erases the DI
+    // metadata Nest needs to resolve this.
+    private readonly phases: PhasesService,
   ) {}
 
   async listAccounts(eventId: string, userId: string) {
@@ -593,6 +597,60 @@ export class StaffService {
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
     return this.getMatchesForLiceId(liceId);
+  }
+
+  /**
+   * Pools + matches for a tournament, for the piste screen.
+   *
+   * Exists rather than pointing the tablet at `/tournaments/:id/pools-with-matches`
+   * because that route takes only an id — it asserts nothing about WHICH event
+   * the caller belongs to, so any identity can read any tournament. This one
+   * pins the tournament to the staff session's own event first.
+   */
+  async getAssignedLiceTournamentPools(req: FastifyRequest, liceId: string, tournamentId: string) {
+    await this.requireTournamentInStaffEvent(req, liceId, tournamentId);
+    return this.phases.listPoolsWithMatches(tournamentId);
+  }
+
+  /** Bracket for a tournament on this lice. Same event-pinning as the pools route. */
+  async getAssignedLiceTournamentBracket(
+    req: FastifyRequest,
+    liceId: string,
+    tournamentId: string,
+  ) {
+    await this.requireTournamentInStaffEvent(req, liceId, tournamentId);
+    return this.phases.getTournamentBracket(tournamentId);
+  }
+
+  /** Staff session that is actually assigned to this lice, or 403. */
+  private async requireLiceAccess(req: FastifyRequest, liceId: string): Promise<StaffAccountRow> {
+    const staff = await this.requireStaffFromRequest(req);
+    const assigned = await this.isLiceAssigned(staff.id, liceId);
+    if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
+    return staff;
+  }
+
+  /**
+   * …and the tournament belongs to that staff account's event.
+   *
+   * Without this, a PIN issued for one event would read another event's draw.
+   */
+  private async requireTournamentInStaffEvent(
+    req: FastifyRequest,
+    liceId: string,
+    tournamentId: string,
+  ): Promise<void> {
+    const staff = await this.requireLiceAccess(req, liceId);
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id,event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Tournament not found');
+    if ((data as { event_id: string }).event_id !== staff.event_id) {
+      throw new ForbiddenException('Tournament belongs to another event');
+    }
   }
 
   private async getMatchesForLiceId(liceId: string): Promise<LiceMatchesPayload> {

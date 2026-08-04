@@ -109,6 +109,19 @@ function resolve(token: ColorToken | string | null | undefined): ColorToken {
   return (token in ACCENT_MAP ? token : 'slate') as ColorToken;
 }
 
+/**
+ * Narrow an arbitrary colour string to a `ColorToken`.
+ *
+ * Exists because `TournamentSideColor` and `ColorToken` are NOT the same set —
+ * a tournament may be configured `grey`, `brown` or `pink`, none of which is a
+ * token. Call sites used to paper over that with `as ColorToken`, a cast that
+ * is simply false for those three. This returns the real thing, falling back to
+ * `slate` exactly as every other helper here does.
+ */
+export function asColorToken(token: ColorToken | string | null | undefined): ColorToken {
+  return resolve(token);
+}
+
 /** Solid background class (used for color stripes and accent blocks). */
 export function accentClassFor(token: ColorToken | string | null | undefined): string {
   return ACCENT_MAP[resolve(token)];

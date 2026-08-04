@@ -16,6 +16,14 @@ export interface BracketHighlight {
   /** Humanises a referee_skills.id role into a label. App-provided (the lib is
    *  i18n-free); falls back to the raw role when omitted. */
   refereeRoleLabel?: (role: string | null) => string;
+  /**
+   * Lice whose matches this bracket should call out. Undefined → no lice
+   * highlight, so the admin and public brackets render unchanged.
+   *
+   * Set only by the scoring app's per-piste screen, where "which of these is
+   * mine" is the operator's only question.
+   */
+  highlightLiceId?: string | null;
 }
 
 /**

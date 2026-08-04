@@ -203,6 +203,33 @@ export class StaffController {
     return this.staff.getAssignedLiceMatches(req, liceId);
   }
 
+  // The piste screen's pool + bracket views. Staff-scoped rather than reusing
+  // /tournaments/:id/* directly: those take only an id and assert nothing about
+  // which event the caller belongs to.
+  @Get('staff/lices/:liceId/tournaments/:tournamentId/pools')
+  @ApiOperation({ summary: 'Pools with matches for a tournament running on an assigned Lice' })
+  @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async assignedLiceTournamentPools(
+    @Param('liceId', ParseUUIDPipe) liceId: string,
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.staff.getAssignedLiceTournamentPools(req, liceId, tournamentId);
+  }
+
+  @Get('staff/lices/:liceId/tournaments/:tournamentId/bracket')
+  @ApiOperation({ summary: 'Bracket for a tournament running on an assigned Lice' })
+  @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async assignedLiceTournamentBracket(
+    @Param('liceId', ParseUUIDPipe) liceId: string,
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.staff.getAssignedLiceTournamentBracket(req, liceId, tournamentId);
+  }
+
   @Public()
   @Get('events/:eventSlug/lices/:liceName/current')
   @ApiOperation({ summary: 'Public current match and queue for a Lice' })

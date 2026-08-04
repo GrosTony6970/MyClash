@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { sideStyle } from '@myclash/ui';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
 import type { LiceMatch } from '../../../../src/components/lice-match-types';
 import { isLiveStatus } from '../../../../src/components/partition-lice-matches';
 import { MatchStatusPill } from './MatchStatusPill';
+import { RefereeChipLine } from './RefereeChipLine';
 
 /**
  * A fighter line with the organiser's corner colour.
@@ -29,19 +29,6 @@ function FighterLine({
         ●{' '}
       </span>
       {name ?? '—'}
-    </p>
-  );
-}
-
-/** Referees officiating this bout. Absent when nobody is assigned. */
-function RefereeLine({ names }: { names: string[] }) {
-  const { t } = useI18n();
-  if (names.length === 0) return null;
-  return (
-    <p className="mt-1 truncate text-xs text-muted">
-      <span aria-hidden>⚖ </span>
-      <span className="sr-only">{t('scoring.lice.refereeLabel')}: </span>
-      {names.join(', ')}
     </p>
   );
 }
@@ -80,7 +67,7 @@ export function LiceMatchCard({ match, compact = false }: { match: LiceMatch; co
             <FighterLine name={match.redFighterName} color={redColor} compact={compact} />
             <FighterLine name={match.blueFighterName} color={blueColor} compact={compact} />
           </div>
-          <RefereeLine names={match.refereeNames} />
+          <RefereeChipLine referees={match.referees ?? []} />
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           {showScore && (

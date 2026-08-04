@@ -81,8 +81,15 @@ export function MatchCard({
   const redWins = isCompleted && winsThisRow('red', slot);
   const blueWins = isCompleted && winsThisRow('blue', slot);
 
-  const { highlightRegistrationId, youLabel, showReferees, refereeSelfKeys, refereeRoleLabel } =
-    React.useContext(BracketHighlightContext);
+  const {
+    highlightRegistrationId,
+    youLabel,
+    showReferees,
+    refereeSelfKeys,
+    refereeRoleLabel,
+    highlightLiceId,
+  } = React.useContext(BracketHighlightContext);
+  const isOnHighlightedLice = !!highlightLiceId && slot.liceId === highlightLiceId;
   const referees = slot.referees ?? [];
   const redIsYou = !!highlightRegistrationId && slot.redRegistrationId === highlightRegistrationId;
   const blueIsYou =
@@ -105,9 +112,16 @@ export function MatchCard({
   // Outer fill stays neutral white — the per-row tint set by each
   // FighterRow does the colour-coding. Adding an amber/slate card
   // background here would fight the row tints visually.
+  // The lice highlight COMPOSES with borderClass instead of joining its
+  // priority ladder, so a championship match on the highlighted lice keeps both
+  // signals. A ring and not a thicker border on purpose: BracketConnectors
+  // measures these elements to place its SVG endpoints, and `border-2` would
+  // shift every connector touching a highlighted card by a pixel. Rings and
+  // shadows sit outside the box model.
   const cardClasses = [
     'group relative flex h-[52px] w-full min-w-[256px] max-w-[360px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow',
     borderClass,
+    isOnHighlightedLice ? 'ring-2 ring-accent' : '',
     handleClick ? 'cursor-pointer hover:shadow-md' : '',
   ]
     .filter(Boolean)

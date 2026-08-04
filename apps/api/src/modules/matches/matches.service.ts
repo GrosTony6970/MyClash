@@ -15,7 +15,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
-import { resolveMatchReferees } from './resolve-match-referees';
+import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
@@ -294,7 +294,11 @@ export class MatchesService {
     const liceId = (matchRow as { lice_id?: string | null } | null)?.lice_id ?? null;
 
     const assignments = await fetchRefereeAssignmentIndex(this.supabase.service, eventId);
-    return resolveMatchReferees(assignments, { matchId, poolId, liceId });
+    // `referees: string[]` is a PUBLIC field on GET /matches/:id/summary, joined
+    // straight into a sentence by the public match page. `refereeNamesOnly`
+    // re-dedupes by name — the resolver now keys on (name, role), so a person
+    // with two roles would otherwise appear twice in that sentence.
+    return refereeNamesOnly(resolveMatchReferees(assignments, { matchId, poolId, liceId }));
   }
 
   async createMatch(dto: CreateMatchDto) {

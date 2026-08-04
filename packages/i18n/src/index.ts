@@ -1467,6 +1467,16 @@ export const en = {
       allMatches: 'All matches on this lice ({count})',
       allMatchesEmpty: 'No match on this lice yet.',
       refereeLabel: 'Referee',
+      poolsSection: 'Pools',
+      bracketSection: 'Bracket',
+      poolMatchesOnLice: '{onLice} of {total} matches on this lice',
+      poolsEmpty: 'No pools for this tournament.',
+      bracketEmpty: 'No bracket for this tournament yet.',
+      standingsEmpty: 'No results yet.',
+      standingsRank: '#',
+      standingsFighter: 'Fighter',
+      contextLoading: 'Loading...',
+      contextLoadError: 'Could not load. Tap to retry.',
       // Keyed on the StatusSemantic from @myclash/ui rather than on the raw DB
       // status, so the chip's text and its colour can never disagree. Only
       // these four are reachable: the endpoint filters out voided.
@@ -8755,6 +8765,16 @@ export const fr = {
       allMatches: 'Tous les assauts de cette lice ({count})',
       allMatchesEmpty: 'Aucun assaut sur cette lice pour le moment.',
       refereeLabel: 'Arbitre',
+      poolsSection: 'Poules',
+      bracketSection: 'Tableau',
+      poolMatchesOnLice: '{onLice} assauts sur {total} sur cette lice',
+      poolsEmpty: 'Aucune poule pour ce tournoi.',
+      bracketEmpty: 'Pas encore de tableau pour ce tournoi.',
+      standingsEmpty: 'Aucun résultat pour le moment.',
+      standingsRank: '#',
+      standingsFighter: 'Combattant',
+      contextLoading: 'Chargement...',
+      contextLoadError: 'Chargement impossible. Touchez pour réessayer.',
       statuses: {
         pending: 'PRÉVU',
         live: 'LIVE',

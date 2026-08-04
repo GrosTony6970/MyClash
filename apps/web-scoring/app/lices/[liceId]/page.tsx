@@ -11,6 +11,7 @@ import type { LiceMatch } from '../../../src/components/lice-match-types';
 import { AllMatchesDisclosure } from './_components/AllMatchesDisclosure';
 import { LiceHeader, NetworkBar } from './_components/LiceHeader';
 import { LiceMatchCard } from './_components/LiceMatchCard';
+import { TournamentSections } from './_components/TournamentSections';
 
 interface Props {
   params: Promise<{ liceId: string }>;
@@ -86,7 +87,8 @@ export default function LiceMatchListPage({ params }: Props) {
     void params.then(({ liceId: id }) => setLiceId(id));
   }, [params]);
 
-  const { data, loading, sessionExpired } = useLiceMatches(getApiUrl(), liceId);
+  const apiUrl = getApiUrl();
+  const { data, loading, sessionExpired } = useLiceMatches(apiUrl, liceId);
 
   useEffect(() => {
     if (sessionExpired) router.replace('/login');
@@ -134,6 +136,7 @@ export default function LiceMatchListPage({ params }: Props) {
           emptyLabel={t('scoring.lice.noNextMatch')}
         />
         <AllMatchesDisclosure matches={all} />
+        <TournamentSections matches={all} apiUrl={apiUrl} liceId={liceId ?? ''} />
       </div>
     </main>
   );

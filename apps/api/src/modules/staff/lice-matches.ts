@@ -10,6 +10,7 @@
 
 import type { TournamentScoringConfig } from '@myclash/types';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
+import type { ResolvedReferee } from '../matches/resolve-match-referees';
 import { poolMatchSortKey } from '../phases/pool-match-sort';
 
 /**
@@ -49,11 +50,14 @@ export interface LiceMatchRow {
   blueFighterName: string | null;
   redScore: number;
   blueScore: number;
+  tournamentId: string | null;
   tournamentName: string | null;
+  /** `pool` | `single_elim` | `double_elim` | `swiss` — which views to offer. */
+  phaseType: string | null;
   /** Drives `sideStyle()` for the corner dots. Never hardcode a side colour. */
   scoringConfig: TournamentScoringConfig | null;
   /** Resolved by scope precedence. Empty means "show no referee line". */
-  refereeNames: string[];
+  referees: ResolvedReferee[];
 }
 
 export interface LiceMatchesPayload {
@@ -143,10 +147,11 @@ export function compareLiceMatchOrder(
 
 export function mapLiceMatchRow(
   row: Record<string, unknown>,
-  refereeNames: string[],
+  referees: ResolvedReferee[],
 ): LiceMatchRow {
   const phase = row['phases'] as {
-    tournaments?: { name?: string; scoring_config_json?: unknown };
+    type?: string;
+    tournaments?: { id?: string; name?: string; scoring_config_json?: unknown };
   } | null;
   const red = row['red'] as { persons?: PersonEmbed } | null;
   const blue = row['blue'] as { persons?: PersonEmbed } | null;
@@ -161,8 +166,13 @@ export function mapLiceMatchRow(
     blueFighterName: formatPersonName(blue?.persons),
     redScore: (row['red_score'] as number | null) ?? 0,
     blueScore: (row['blue_score'] as number | null) ?? 0,
+    // Already joined by LICE_MATCH_SELECT — the screen needs the id to reach
+    // the tournament's pools and bracket, and the phase type to know which of
+    // those two even exist.
+    tournamentId: phase?.tournaments?.id ?? null,
     tournamentName: phase?.tournaments?.name ?? null,
+    phaseType: phase?.type ?? null,
     scoringConfig: (phase?.tournaments?.scoring_config_json as TournamentScoringConfig) ?? null,
-    refereeNames,
+    referees,
   };
 }

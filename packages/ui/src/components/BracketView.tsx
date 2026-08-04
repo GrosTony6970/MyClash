@@ -56,6 +56,8 @@ export interface BracketViewProps {
   refereeSelfKeys?: ReadonlySet<string>;
   /** Humanises a referee_skills.id role into a label (app-provided). */
   refereeRoleLabel?: (role: string | null) => string;
+  /** Ring the matches running on this lice. Undefined → no lice highlight. */
+  highlightLiceId?: string | null;
   /** Tailwind horizontal-gap class between round columns. Defaults to the
    *  compact `gap-16`; consumers (e.g. the public bracket) can pass a wider
    *  value like `gap-24` without affecting other brackets. */
@@ -92,6 +94,7 @@ export function BracketView({
   showReferees = false,
   refereeSelfKeys,
   refereeRoleLabel,
+  highlightLiceId,
   roundGapClass = ROUND_GAP_CLASS,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
@@ -165,7 +168,14 @@ export function BracketView({
   // context (empty by default → public + admin brackets unchanged).
   return (
     <BracketHighlightContext.Provider
-      value={{ highlightRegistrationId, youLabel, showReferees, refereeSelfKeys, refereeRoleLabel }}
+      value={{
+        highlightRegistrationId,
+        youLabel,
+        showReferees,
+        refereeSelfKeys,
+        refereeRoleLabel,
+        highlightLiceId,
+      }}
     >
       {layout}
     </BracketHighlightContext.Provider>

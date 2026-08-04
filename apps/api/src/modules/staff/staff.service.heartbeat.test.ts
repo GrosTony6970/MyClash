@@ -23,7 +23,7 @@ describe('StaffService.recordHeartbeat', () => {
         return chain;
       }),
     };
-    const svc = new StaffService({ service } as never, {} as never, {} as never);
+    const svc = new StaffService({ service } as never, {} as never, {} as never, {} as never);
     vi.spyOn(
       svc as never as { requireStaffFromRequest: () => Promise<{ id: string; event_id: string }> },
       'requireStaffFromRequest',

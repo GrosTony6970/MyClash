@@ -106,9 +106,15 @@ describe('formatPersonName', () => {
 
 describe('mapLiceMatchRow', () => {
   it('projects the fields the piste list renders', () => {
+    const referee = {
+      name: 'Marc Lefevre',
+      role: 'arbitre_declarant',
+      roleLabel: 'Déclarant',
+      roleColor: 'orange',
+    };
     const mapped = mapLiceMatchRow(
       row({ status: 'completed', red_score: 7, blue_score: 3, pool_id: 'p1' }),
-      ['Marc Lefevre'],
+      [referee],
     );
     expect(mapped).toMatchObject({
       id: 'm1',
@@ -119,7 +125,7 @@ describe('mapLiceMatchRow', () => {
       redScore: 7,
       blueScore: 3,
       tournamentName: 'Sidesword Open',
-      refereeNames: ['Marc Lefevre'],
+      referees: [referee],
     });
   });
 

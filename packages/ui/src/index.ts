@@ -179,6 +179,7 @@ export type { CountryOption } from './lib/countries';
 
 export {
   accentClassFor,
+  asColorToken,
   tintBgClassFor,
   tintBorderClassFor,
   tintTextClassFor,

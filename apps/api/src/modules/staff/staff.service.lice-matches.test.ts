@@ -33,6 +33,15 @@ function assignmentsChain(assignments: Array<Record<string, unknown>>) {
   return chain;
 }
 
+/** `referee_skills` resolves through select().in() — one `.eq()` fewer. */
+function skillsChain(skills: Array<Record<string, unknown>>) {
+  return {
+    select: vi.fn(() => ({
+      in: vi.fn().mockResolvedValue({ data: skills, error: null }),
+    })),
+  };
+}
+
 function matchesChain(matches: Array<Record<string, unknown>>, captured: CapturedQuery) {
   const chain: Record<string, unknown> = {
     eq: vi.fn().mockReturnThis(),
@@ -61,12 +70,14 @@ function matchesChain(matches: Array<Record<string, unknown>>, captured: Capture
 function makeLiceMatchesSupabase(
   matches: Array<Record<string, unknown>>,
   assignments: Array<Record<string, unknown>> = [],
+  skills: Array<Record<string, unknown>> = [],
 ) {
   const captured: CapturedQuery = { limitCalled: false };
   const service = {
     from: vi.fn((table: string) => {
       if (table === 'lices') return liceChain();
       if (table === 'referee_assignments') return assignmentsChain(assignments);
+      if (table === 'referee_skills') return skillsChain(skills);
       return matchesChain(matches, captured);
     }),
   };
@@ -79,7 +90,7 @@ function makeLiceMatchesSupabase(
 // These assertions exist to stop any of the three creeping back.
 describe('StaffService.getAssignedLiceMatches', () => {
   function makeService(supabase: unknown) {
-    const service = new StaffService(supabase as never, {} as never, {} as never);
+    const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
     const internals = service as unknown as Record<string, unknown>;
     internals['requireStaffFromRequest'] = vi.fn().mockResolvedValue({ id: 'staff-1' });
     internals['isLiceAssigned'] = vi.fn().mockResolvedValue(true);
@@ -159,6 +170,7 @@ describe('StaffService.getAssignedLiceMatches', () => {
           pool_id: 'p1',
           lice_id: null,
           person_id: 'gp1',
+          role: 'arbitre_assesseur',
           global_persons: { given_name: 'Pool', family_name: 'Referee' },
         },
         {
@@ -167,15 +179,61 @@ describe('StaffService.getAssignedLiceMatches', () => {
           pool_id: null,
           lice_id: null,
           person_id: 'gp2',
+          role: 'arbitre_declarant',
           global_persons: { given_name: 'Match', family_name: 'Referee' },
         },
+      ],
+      [
+        { id: 'arbitre_assesseur', name: 'Assesseur', color: 'blue' },
+        { id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' },
       ],
     );
 
     const result = await makeService(supabase).getAssignedLiceMatches({} as never, 'lice-1');
 
-    expect(result.matches.find((m) => m.id === 'm1')?.refereeNames).toEqual(['Pool Referee']);
-    expect(result.matches.find((m) => m.id === 'm2')?.refereeNames).toEqual(['Match Referee']);
+    expect(result.matches.find((m) => m.id === 'm1')?.referees).toEqual([
+      {
+        name: 'Pool Referee',
+        role: 'arbitre_assesseur',
+        roleLabel: 'Assesseur',
+        roleColor: 'blue',
+      },
+    ]);
+    expect(result.matches.find((m) => m.id === 'm2')?.referees).toEqual([
+      {
+        name: 'Match Referee',
+        role: 'arbitre_declarant',
+        roleLabel: 'Déclarant',
+        roleColor: 'orange',
+      },
+    ]);
+  });
+
+  it('carries the tournament id and phase type the pool/bracket views need', async () => {
+    // Both were already joined by LICE_MATCH_SELECT and thrown away; without
+    // them the screen cannot fetch a bracket or standings at all.
+    const { supabase } = makeLiceMatchesSupabase([
+      mk({
+        phases: {
+          type: 'single_elim',
+          config_json: null,
+          tournaments: {
+            id: 't1',
+            name: 'Sidesword',
+            weapon: 'sidesword',
+            scoring_config_json: null,
+          },
+        },
+      }),
+    ]);
+
+    const result = await makeService(supabase).getAssignedLiceMatches({} as never, 'lice-1');
+
+    expect(result.matches[0]).toMatchObject({
+      tournamentId: 't1',
+      tournamentName: 'Sidesword',
+      phaseType: 'single_elim',
+    });
   });
 
   it('sorts ties numerically, so M2 precedes M10 on the same clock time', async () => {

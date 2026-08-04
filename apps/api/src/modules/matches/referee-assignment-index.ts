@@ -24,12 +24,24 @@ interface PersonEmbed {
   family_name?: string | null;
 }
 
+/** What a `referee_assignments.role` resolves to for display. */
+export interface RefereeSkill {
+  name: string;
+  /** Design ColorToken (`'orange'`, `'blue'`, …) — NOT a hex value. */
+  color: string;
+}
+
+/** Colour for a role whose skill row could not be resolved. */
+const FALLBACK_SKILL_COLOR = 'slate';
+
 interface RawAssignmentRow {
   scope_type: string;
   match_id: string | null;
   pool_id: string | null;
   lice_id: string | null;
   person_id: string | null;
+  /** A `referee_skills.id`, not a role enum — it may be a `custom-…` id. */
+  role: string | null;
   /**
    * PostgREST returns a many-to-one embed as an object or as a single-element
    * array depending on how it resolves the relationship, and it has flipped
@@ -51,17 +63,56 @@ interface RawAssignmentRow {
  * payload. `phases.service.ts` does prefer `display_name` and stays the
  * outlier; unifying them is a deliberate product decision, not a refactor.
  */
-export function toAssignmentRow(raw: RawAssignmentRow): RefereeAssignmentRow {
+export function toAssignmentRow(
+  raw: RawAssignmentRow,
+  skillById: ReadonlyMap<string, RefereeSkill> = new Map(),
+): RefereeAssignmentRow {
   const embed = raw.global_persons;
   const person: PersonEmbed | null = Array.isArray(embed) ? (embed[0] ?? null) : (embed ?? null);
   const name = `${person?.given_name ?? ''} ${person?.family_name ?? ''}`.trim();
+  const skill = raw.role ? skillById.get(raw.role) : undefined;
   return {
     scopeType: raw.scope_type,
     matchId: raw.match_id,
     poolId: raw.pool_id,
     liceId: raw.lice_id,
     name,
+    role: raw.role,
+    // A deleted or event-scoped-elsewhere skill still has to render something;
+    // the raw id beats a blank chip, and beats the hardcoded 3-entry label map
+    // the public surfaces use, which shows custom skills as their id anyway.
+    roleLabel: raw.role ? (skill?.name ?? raw.role) : null,
+    roleColor: skill?.color ?? FALLBACK_SKILL_COLOR,
   };
+}
+
+/**
+ * `referee_skills.id` → `{name, color}` for the ids given.
+ *
+ * Skills are global (`is_system`) or event-scoped, and `referee_assignments.role`
+ * carries the id with no FK — so an id can legitimately resolve to nothing.
+ */
+export async function fetchRefereeSkillIndex(
+  supabase: SupabaseClient,
+  skillIds: readonly string[],
+): Promise<Map<string, RefereeSkill>> {
+  const byId = new Map<string, RefereeSkill>();
+  const ids = Array.from(new Set(skillIds.filter((id) => !!id)));
+  if (ids.length === 0) return byId;
+  const { data, error } = await supabase
+    .from('referee_skills')
+    .select('id, name, color')
+    .in('id', ids);
+  if (error) return byId;
+  for (const row of (data ?? []) as Array<{
+    id: string;
+    name: string | null;
+    color: string | null;
+  }>) {
+    if (!row.name) continue;
+    byId.set(row.id, { name: row.name, color: row.color ?? FALLBACK_SKILL_COLOR });
+  }
+  return byId;
 }
 
 /**
@@ -80,12 +131,16 @@ export async function fetchRefereeAssignmentIndex(
   const { data, error } = await supabase
     .from('referee_assignments')
     .select(
-      'scope_type, match_id, pool_id, lice_id, person_id, global_persons(given_name, family_name)',
+      'scope_type, match_id, pool_id, lice_id, person_id, role, global_persons(given_name, family_name)',
     )
     .eq('event_id', eventId)
     .in('status', [...ACTIVE_STATUSES]);
   if (error) return [];
-  return ((data ?? []) as unknown as RawAssignmentRow[])
-    .map(toAssignmentRow)
-    .filter((row) => row.name !== '');
+  const raw = (data ?? []) as unknown as RawAssignmentRow[];
+  // One skills query for the event, however many assignments it holds.
+  const skillById = await fetchRefereeSkillIndex(
+    supabase,
+    raw.map((row) => row.role).filter((role): role is string => !!role),
+  );
+  return raw.map((row) => toAssignmentRow(row, skillById)).filter((row) => row.name !== '');
 }

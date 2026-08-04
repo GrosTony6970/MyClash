@@ -59,7 +59,7 @@ describe('StaffService.getPublicMatchDisplay', () => {
       bracket_slots: null,
     };
     const { supabase, selectCalls } = makeSupabase(row);
-    const service = new StaffService(supabase as never, {} as never, {} as never);
+    const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
 
     const payload = (await service.getPublicMatchDisplay('match-1')) as { matchFormat: unknown };
 
@@ -166,7 +166,7 @@ describe('StaffService.getPublicMatchDisplay', () => {
       }));
 
       const { supabase } = makeExtendedSupabase(row, poolMatches);
-      const service = new StaffService(supabase as never, {} as never, {} as never);
+      const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
 
       const payload = (await service.getPublicMatchDisplay('match-3')) as Record<string, unknown>;
 
@@ -236,7 +236,7 @@ describe('StaffService.getPublicMatchDisplay', () => {
         bracket_slots: { round: 4 },
       };
       const { supabase } = makeExtendedSupabase(row, []);
-      const service = new StaffService(supabase as never, {} as never, {} as never);
+      const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
 
       const payload = (await service.getPublicMatchDisplay('bracket-1')) as Record<string, unknown>;
 
@@ -310,7 +310,7 @@ describe('StaffService.getMatchNeighbors', () => {
       mk('m2'),
       mk('m3'),
     ]);
-    const service = new StaffService(supabase as never, {} as never, {} as never);
+    const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
 
     const result = (await service.getMatchNeighbors('m2')) as {
       previous: { id: string } | null;
@@ -326,7 +326,7 @@ describe('StaffService.getMatchNeighbors', () => {
       mk('m1'),
       mk('m2'),
     ]);
-    const service = new StaffService(supabase as never, {} as never, {} as never);
+    const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
 
     const result = (await service.getMatchNeighbors('m1')) as {
       previous: { id: string } | null;
@@ -339,7 +339,7 @@ describe('StaffService.getMatchNeighbors', () => {
 
   it('returns both null when the match has no lice', async () => {
     const { supabase } = makeNeighborSupabase({ id: 'm1', lice_id: null }, []);
-    const service = new StaffService(supabase as never, {} as never, {} as never);
+    const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
 
     const result = (await service.getMatchNeighbors('m1')) as {
       previous: unknown;

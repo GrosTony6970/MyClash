@@ -7,6 +7,17 @@ import type { TournamentScoringConfig } from '@myclash/types';
  * generated OpenAPI client carries the path but no response schema, because the
  * Nest route returns a plain object rather than a DTO class.
  */
+/** One officiating referee, with the role's own catalogue colour. */
+export interface LiceMatchReferee {
+  name: string;
+  /** Raw `referee_skills.id`; null on legacy assignments. */
+  role: string | null;
+  /** `referee_skills.name` — DATA, never an i18n key. */
+  roleLabel: string | null;
+  /** `referee_skills.color` design token (`'orange'`…), not a hex value. */
+  roleColor: string;
+}
+
 export interface LiceMatch {
   id: string;
   /** `scheduled` | `running` | `paused` | `completed`. */
@@ -19,9 +30,12 @@ export interface LiceMatch {
   blueFighterName: string | null;
   redScore: number;
   blueScore: number;
+  tournamentId: string | null;
   tournamentName: string | null;
+  /** `pool` | `single_elim` | `double_elim` | `swiss`. */
+  phaseType: string | null;
   scoringConfig: TournamentScoringConfig | null;
-  refereeNames: string[];
+  referees: LiceMatchReferee[];
 }
 
 export interface LiceMatchesPayload {
