@@ -1454,7 +1454,6 @@ export const en = {
       // operator retries. `{plural}` is filled by the caller (see voidedHidden).
       hitsRefused: '{count} HIT{plural} NOT RECORDED',
       backToMatchList: 'Back to match list',
-      title: 'Lice {liceName}',
       red: 'Fighter 1',
       blue: 'Fighter 2',
       vs: 'vs',
@@ -1465,6 +1464,18 @@ export const en = {
       nextMatchLabel: 'NEXT',
       previousMatchLabel: 'PREVIOUS',
       noNextMatch: 'No next match',
+      allMatches: 'All matches on this lice ({count})',
+      allMatchesEmpty: 'No match on this lice yet.',
+      refereeLabel: 'Referee',
+      // Keyed on the StatusSemantic from @myclash/ui rather than on the raw DB
+      // status, so the chip's text and its colour can never disagree. Only
+      // these four are reachable: the endpoint filters out voided.
+      statuses: {
+        pending: 'SCHEDULED',
+        live: 'LIVE',
+        paused: 'PAUSED',
+        done: 'DONE',
+      },
       eventsHeader: 'Exchange history',
       exchangesCount: 'Exchanges: {count}',
       cleanHitsHeader: 'Clean hit',
@@ -8731,7 +8742,6 @@ export const fr = {
       syncError: 'ERREUR DE SYNCHRO',
       hitsRefused: '{count} TOUCHE{plural} NON ENREGISTREE{plural}',
       backToMatchList: 'Retour a la liste des assauts',
-      title: 'Lice {liceName}',
       red: 'Combattant 1',
       blue: 'Combattant 2',
       vs: 'vs',
@@ -8742,6 +8752,15 @@ export const fr = {
       nextMatchLabel: 'SUIVANT',
       previousMatchLabel: 'PRÉCÉDENT',
       noNextMatch: 'Aucun assaut suivant',
+      allMatches: 'Tous les assauts de cette lice ({count})',
+      allMatchesEmpty: 'Aucun assaut sur cette lice pour le moment.',
+      refereeLabel: 'Arbitre',
+      statuses: {
+        pending: 'PRÉVU',
+        live: 'LIVE',
+        paused: 'EN PAUSE',
+        done: 'TERMINÉ',
+      },
       eventsHeader: 'Historique des échanges',
       exchangesCount: 'Echanges : {count}',
       cleanHitsHeader: 'Touche propre',

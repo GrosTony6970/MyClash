@@ -193,6 +193,16 @@ export class StaffController {
     return this.staff.getAssignedLiceCurrent(req, liceId);
   }
 
+  @Get('staff/lices/:liceId/matches')
+  @ApiOperation({ summary: 'All matches on an assigned Lice, in schedule order' })
+  @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })
+  async assignedLiceMatches(
+    @Param('liceId', ParseUUIDPipe) liceId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.staff.getAssignedLiceMatches(req, liceId);
+  }
+
   @Public()
   @Get('events/:eventSlug/lices/:liceName/current')
   @ApiOperation({ summary: 'Public current match and queue for a Lice' })

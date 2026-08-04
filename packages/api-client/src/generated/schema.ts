@@ -4708,6 +4708,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/lices/{liceId}/matches': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** All matches on an assigned Lice, in schedule order */
+    get: operations['StaffController_assignedLiceMatches'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventSlug}/lices/{liceName}/current': {
     parameters: {
       query?: never;
@@ -17682,6 +17699,25 @@ export interface operations {
     };
   };
   StaffController_assignedCurrentMatch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        liceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_assignedLiceMatches: {
     parameters: {
       query?: never;
       header?: never;

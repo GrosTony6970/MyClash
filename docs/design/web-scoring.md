@@ -47,14 +47,14 @@ Dark here is not a preference. It's a sports hall with overhead lighting and a t
 
 Custom properties inherit, so a light region nested under the dark `<body>` needs a real selector to override with. That is what `[data-theme='light']` in `theme.css` is for, and it is the reason those surfaces exist at all in token form: before it, "light" was inexpressible and every one of them hardcoded `slate-*`. `theme-scope-parity.test.ts` asserts the light scope restores every token the dark scope sets — a token added to one and forgotten in the other leaks the wrong value into a nested region.
 
-> **Loose end:** `/lices` (the list of your pistes) is still dark while `/lices/[liceId]` (the matches on one piste) is light, so tapping from one to the other flashes. Not resolved here — it needs a call on which of the two is the "chrome" screen.
+> **Resolved:** `/lices` and `/lices/[liceId]` are both chrome now — each sets `data-theme={chromeScope}` on every branch, including their loading and error states, so tapping between them no longer flashes.
 
 Scoring never sets `data-accent`. The accent is red.
 
 ## What differs
 
 - **The corners are the content.** They aren't accents here — they're the record of the bout, and the colour is the organiser's: resolve it with `sideColorsFor(config, 'dark')`, which reads the tournament's `sideColors` and clamps a black- or white-configured side so it stays visible on the dark stage. `corner-red` / `corner-blue` are only the fallback values. **Never hardcode a side colour on this surface** — that's the root rule, and this is where breaking it would corrupt a result.
-- **`Badge`, not `StatusBadge`.** `Badge` defaults to the dark surface; `StatusBadge` defaults to light. Same chip, different default.
+- **`StatusBadge` with an explicit `surface`.** There is no `Badge` component — the barrel exports `StatusBadge` only, defaulting to `surface='light'`. On this app pass the scope you are in: `surface={padScope}` inside the scoring pad, `surface={chromeScope}` on the lice screens. The palette is picked in JS, so unlike a semantic class it cannot follow the `[data-theme]` cascade — it has to be told.
 - **Routes:** `/lices`, `/lices/[liceId]`, `/matches/[matchId]`, `/offline`.
 - **Motion is functional.** `score-pop` (0.3s) and `shield-pulse` exist to make a score change _impossible to miss_ in peripheral vision. That's the one place motion earns its keep in this system.
 

@@ -6,13 +6,23 @@ import { useI18n } from '../../src/i18n/I18nProvider';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { api } from '../../src/lib/api';
+import { isLiveStatus } from '../../src/components/partition-lice-matches';
+import { MatchStatusPill } from './[liceId]/_components/MatchStatusPill';
 
 interface LiceAssignment {
   liceId: string;
   liceName: string;
   eventName: string;
   tournamentName: string;
-  currentMatchId: string | null;
+  /**
+   * Status of the lice's current match, NOT merely whether one exists.
+   *
+   * The payload's `current` falls back to the next scheduled bout when nothing
+   * is running, so `currentMatch != null` was never a liveness signal — which
+   * is why this page used to pulse a LIVE pill on every piste that simply had
+   * something coming up.
+   */
+  currentMatchStatus: string | null;
 }
 
 export default function LicePickerPage() {
@@ -61,7 +71,7 @@ export default function LicePickerPage() {
           id: string;
           name: string;
           event?: { name?: string };
-          currentMatch?: { id?: string; tournamentName?: string | null };
+          currentMatch?: { id?: string; status?: string | null; tournamentName?: string | null };
         }>;
         try {
           lices = await api.get('/api/v1/staff/assigned-lices');
@@ -75,7 +85,7 @@ export default function LicePickerPage() {
             liceName: lice.name,
             eventName: lice.event?.name ?? '',
             tournamentName: lice.currentMatch?.tournamentName ?? '',
-            currentMatchId: lice.currentMatch?.id ?? null,
+            currentMatchStatus: lice.currentMatch?.status ?? null,
           })),
         );
       } catch {
@@ -129,47 +139,54 @@ export default function LicePickerPage() {
 
   return (
     <main data-theme={chromeScope} className={`p-6 ${shellClass}`}>
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
-          <p className="text-muted text-sm mt-1">{t('scoring.lice.selectLice')}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <ThemeSwitcher />
-          <button
-            onClick={() => void handleLogout()}
-            disabled={loggingOut}
-            className="text-sm text-muted hover:text-foreground underline disabled:opacity-50"
-          >
-            {t('scoring.lice.logout')}
-          </button>
-        </div>
-      </header>
+      {/*
+        One centred column for the header AND the cards. This screen used to be
+        the only one in the app hugging the left edge: the grid carried a
+        max-w-lg with no mx-auto, and the header no constraint at all — while
+        every other route here, including this page's own loading/error/empty
+        states above, centres.
+      */}
+      <div className="mx-auto w-full max-w-lg">
+        <header className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
+            <p className="text-muted text-sm mt-1">{t('scoring.lice.selectLice')}</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeSwitcher />
+            <button
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="text-sm text-muted hover:text-foreground underline disabled:opacity-50"
+            >
+              {t('scoring.lice.logout')}
+            </button>
+          </div>
+        </header>
 
-      <div className="grid gap-4 max-w-lg">
-        {assignments.map((assignment) => (
-          <button
-            key={assignment.liceId}
-            onClick={() => router.push(`/lices/${assignment.liceId}`)}
-            className="bg-surface hover:bg-border border border-border rounded-xl p-5 text-left transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold">{assignment.liceName}</h2>
-                <p className="text-muted text-sm">
-                  {[assignment.tournamentName, assignment.eventName].filter(Boolean).join(' - ')}
-                </p>
+        <div className="grid gap-4">
+          {assignments.map((assignment) => (
+            <button
+              key={assignment.liceId}
+              onClick={() => router.push(`/lices/${assignment.liceId}`)}
+              className="bg-surface hover:bg-border border border-border rounded-xl p-5 text-left transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold">{assignment.liceName}</h2>
+                  <p className="text-muted text-sm">
+                    {[assignment.tournamentName, assignment.eventName].filter(Boolean).join(' - ')}
+                  </p>
+                </div>
+                {isLiveStatus(assignment.currentMatchStatus) ? (
+                  <MatchStatusPill status={assignment.currentMatchStatus!} />
+                ) : (
+                  <span className="text-muted text-sm">-&gt;</span>
+                )}
               </div>
-              {assignment.currentMatchId ? (
-                <span className="bg-danger text-danger-foreground text-xs font-bold px-2 py-1 rounded-full animate-pulse">
-                  {t('scoring.lice.live')}
-                </span>
-              ) : (
-                <span className="text-muted text-sm">-&gt;</span>
-              )}
-            </div>
-          </button>
-        ))}
+            </button>
+          ))}
+        </div>
       </div>
     </main>
   );

@@ -100,6 +100,8 @@ export type { DataTableProps, DataTableRowProps, DataTableCellProps } from './co
 export { StatusBadge } from './components/StatusBadge';
 export type { StatusBadgeProps, StatusBadgeVariant } from './components/StatusBadge';
 
+export { CollapsibleSection } from './components/CollapsibleSection';
+
 export { FormField } from './components/FormField';
 export type { FormFieldProps } from './components/FormField';
 

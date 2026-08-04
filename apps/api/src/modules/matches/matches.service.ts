@@ -14,6 +14,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
+import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
@@ -274,6 +275,10 @@ export class MatchesService {
    * Referee name(s) officiating a match, by scope precedence
    * match → pool → lice (see resolveMatchReferees). Post-0063 assignments
    * key on `person_id`, resolved to a display name via `global_persons`.
+   *
+   * The event-wide load lives in `fetchRefereeAssignmentIndex` so the per-lice
+   * list can resolve a whole day off one copy of it. Names are composed the
+   * same way there as they were inline here, so this payload is unchanged.
    */
   private async resolveMatchRefereesForSummary(
     eventId: string,
@@ -288,49 +293,8 @@ export class MatchesService {
       .maybeSingle();
     const liceId = (matchRow as { lice_id?: string | null } | null)?.lice_id ?? null;
 
-    const { data: assignmentRows } = await this.supabase.service
-      .from('referee_assignments')
-      .select('scope_type, match_id, pool_id, lice_id, person_id, status')
-      .eq('event_id', eventId)
-      .in('status', ['assigned', 'confirmed', 'pending']);
-    const assignments = (assignmentRows ?? []) as Array<{
-      scope_type: string;
-      match_id: string | null;
-      pool_id: string | null;
-      lice_id: string | null;
-      person_id: string | null;
-    }>;
-    if (assignments.length === 0) return [];
-
-    const personIds = Array.from(
-      new Set(assignments.map((a) => a.person_id).filter((id): id is string => !!id)),
-    );
-    const nameById = new Map<string, string>();
-    if (personIds.length > 0) {
-      const { data: personRows } = await this.supabase.service
-        .from('global_persons')
-        .select('id, given_name, family_name')
-        .in('id', personIds);
-      for (const p of (personRows ?? []) as Array<{
-        id: string;
-        given_name: string | null;
-        family_name: string | null;
-      }>) {
-        const name = `${(p.given_name ?? '').trim()} ${(p.family_name ?? '').trim()}`.trim();
-        if (name) nameById.set(p.id, name);
-      }
-    }
-
-    return resolveMatchReferees(
-      assignments.map((a) => ({
-        scopeType: a.scope_type,
-        matchId: a.match_id,
-        poolId: a.pool_id,
-        liceId: a.lice_id,
-        name: a.person_id ? (nameById.get(a.person_id) ?? '') : '',
-      })),
-      { matchId, poolId, liceId },
-    );
+    const assignments = await fetchRefereeAssignmentIndex(this.supabase.service, eventId);
+    return resolveMatchReferees(assignments, { matchId, poolId, liceId });
   }
 
   async createMatch(dto: CreateMatchDto) {

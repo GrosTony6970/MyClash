@@ -2,11 +2,10 @@
 
 import { formatInZone } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
-import { EmptyState, useClock } from '@myclash/ui';
+import { CollapsibleSection, EmptyState, useClock } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 import { getPublicApiUrl } from '../../lib/api-url';
-import { CollapsibleSection } from './CollapsibleSection';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
 import { kindAccentClass } from './kind-accent';

@@ -8,6 +8,16 @@ import {
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
+import { fetchRefereeAssignmentIndex } from '../matches/referee-assignment-index';
+import { resolveMatchReferees } from '../matches/resolve-match-referees';
+import {
+  LICE_MATCH_SELECT,
+  LICE_MATCH_STATUSES,
+  compareLiceMatchOrder,
+  mapLiceMatchRow,
+  roundCodeFromMatchRow,
+  type LiceMatchesPayload,
+} from './lice-matches';
 import { bracketRoundLabel } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
@@ -470,44 +480,16 @@ export class StaffService {
   }
 
   private mapNeighborRow(row: Record<string, unknown>): NeighborTile {
-    const phase = row['phases'] as {
-      config_json?: Record<string, unknown> | null;
-      tournaments?: { weapon?: string };
-    } | null;
-    const pool = row['pools'] as { sort_order?: number } | null;
-    const bracketSlot = row['bracket_slots'] as { round?: number } | null;
-    const phaseCfg = phase?.config_json ?? null;
-    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
-      | number
-      | undefined;
-    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
-    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
-    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
-    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
-    const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
-    const swissRound =
-      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const red = row['red'] as {
       persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
     } | null;
     const blue = row['blue'] as {
       persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
     } | null;
-    const label = (row['match_number_label'] as string | null) ?? null;
     return {
       id: row['id'] as string,
-      matchNumberLabel: label,
-      roundCode: buildRoundCode({
-        weapon: phase?.tournaments?.weapon ?? null,
-        poolNumber,
-        bracketRound,
-        swissRound,
-        bracketSize,
-        wbRounds,
-        lbRounds,
-        matchNumberLabel: label,
-        roundNumber: null,
-      }),
+      matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
+      roundCode: roundCodeFromMatchRow(row),
       redFighterName: this.formatPersonName(red?.persons),
       blueFighterName: this.formatPersonName(blue?.persons),
       redClub: red?.persons?.clubs?.name ?? null,
@@ -560,9 +542,7 @@ export class StaffService {
 
     const { data: matches, error } = await this.supabase.service
       .from('matches')
-      .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
-      )
+      .select(LICE_MATCH_SELECT)
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
       .order('status', { ascending: true })
@@ -570,7 +550,11 @@ export class StaffService {
       .limit(8);
     if (error) throw new BadRequestException(error.message);
 
-    const mapped = (matches ?? []).map((match) => this.mapCurrentMatch(match));
+    // `LICE_MATCH_SELECT` is a concatenated const, so supabase-js cannot infer
+    // a row type from it the way it does from an inline literal.
+    const mapped = ((matches ?? []) as unknown as Array<Record<string, unknown>>).map((match) =>
+      this.mapCurrentMatch(match),
+    );
     const current =
       mapped.find((match) => match.status === 'running' || match.status === 'paused') ??
       mapped[0] ??
@@ -579,8 +563,81 @@ export class StaffService {
       liceId: (lice as { id: string }).id,
       liceName: (lice as { name: string }).name,
       event: (lice as { events: unknown }).events,
+      /**
+       * Falls back to the next SCHEDULED bout when nothing is running — the
+       * /lices picker and the public lice display both need something to
+       * point at, and the TV would flip to its waiting screen without it.
+       *
+       * So `current != null` does NOT mean "a bout is in progress". Read
+       * `current.status` before showing any liveness cue; inferring liveness
+       * from presence is what made three surfaces render a scheduled match
+       * under a "LIVE" banner.
+       */
       current,
       queue: mapped.filter((match) => match.id !== current?.id).slice(0, 5),
+    };
+  }
+
+  /**
+   * Every match on a lice, in schedule order, COMPLETED ONES INCLUDED.
+   *
+   * Separate from `getCurrentForLiceId` on purpose. That method's
+   * `{current, queue}` shape is read once per assigned lice by the /lices
+   * picker (an N+1 we do not want to make heavier) and by the PUBLIC lice
+   * display, so it stays capped and status-filtered. This is the piste
+   * operator's whole day: unbounded, played bouts included, and carrying the
+   * referee line.
+   */
+  async getAssignedLiceMatches(req: FastifyRequest, liceId: string) {
+    const staff = await this.requireStaffFromRequest(req);
+    const assigned = await this.isLiceAssigned(staff.id, liceId);
+    if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
+    return this.getMatchesForLiceId(liceId);
+  }
+
+  private async getMatchesForLiceId(liceId: string): Promise<LiceMatchesPayload> {
+    const { data: lice, error: liceError } = await this.supabase.service
+      .from('lices')
+      .select('id,name,event_id,events(id,slug,name,status)')
+      .eq('id', liceId)
+      .maybeSingle();
+    if (liceError) throw new BadRequestException(liceError.message);
+    if (!lice) throw new NotFoundException('Lice not found');
+    const row = lice as { id: string; name: string; event_id: string; events: unknown };
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(LICE_MATCH_SELECT)
+      .eq('lice_id', liceId)
+      .in('status', [...LICE_MATCH_STATUSES])
+      // No .limit(): the operator asked for the whole lice, and the three
+      // truncations on the old endpoint are exactly why a played bout was
+      // unreachable from this screen.
+      .order('scheduled_at', { ascending: true, nullsFirst: false });
+    if (error) throw new BadRequestException(error.message);
+
+    // One query for the event's assignments; precedence is then resolved in
+    // memory per match, so this stays a fixed 3 round trips however many bouts
+    // the lice holds.
+    const assignments = await fetchRefereeAssignmentIndex(this.supabase.service, row.event_id);
+    const rows = ((data ?? []) as unknown as Array<Record<string, unknown>>).sort(
+      compareLiceMatchOrder,
+    );
+
+    return {
+      liceId: row.id,
+      liceName: row.name,
+      event: row.events as LiceMatchesPayload['event'],
+      matches: rows.map((match) =>
+        mapLiceMatchRow(
+          match,
+          resolveMatchReferees(assignments, {
+            matchId: match['id'] as string,
+            poolId: (match['pool_id'] as string | null) ?? null,
+            liceId,
+          }),
+        ),
+      ),
     };
   }
 
@@ -664,39 +721,12 @@ export class StaffService {
     const next = (data ?? []).find((row) => (row as { id?: string }).id !== currentMatchId);
     if (!next) return null;
     const row = next as Record<string, unknown>;
-    const phase = row['phases'] as {
-      config_json?: Record<string, unknown> | null;
-      tournaments?: { weapon?: string };
-    } | null;
-    const pool = row['pools'] as { sort_order?: number } | null;
-    const bracketSlot = row['bracket_slots'] as { round?: number } | null;
-    const phaseCfg = phase?.config_json ?? null;
-    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
-      | number
-      | undefined;
-    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
-    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
-    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
-    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
-    const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
-    const swissRound =
-      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
     const red = row['red'] as { persons?: { given_name?: string; family_name?: string } } | null;
     const blue = row['blue'] as { persons?: { given_name?: string; family_name?: string } } | null;
     return {
       id: row['id'] as string,
       matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
-      roundCode: buildRoundCode({
-        weapon: phase?.tournaments?.weapon ?? null,
-        poolNumber,
-        bracketRound,
-        swissRound,
-        bracketSize,
-        wbRounds,
-        lbRounds,
-        matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
-        roundNumber: null,
-      }),
+      roundCode: roundCodeFromMatchRow(row),
       redFighterName: this.formatPersonName(red?.persons),
       blueFighterName: this.formatPersonName(blue?.persons),
     };
@@ -925,30 +955,7 @@ export class StaffService {
       };
     } | null;
     const tournament = phase?.tournaments ?? null;
-    const pool = match['pools'] as { sort_order?: number } | null;
-    const bracketSlot = match['bracket_slots'] as { round?: number } | null;
-    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
-    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
-    const swissRoundEmbed = match['swiss_rounds'] as { round_number?: number } | null;
-    const swissRound =
-      typeof swissRoundEmbed?.round_number === 'number' ? swissRoundEmbed.round_number : null;
-    const phaseCfg = phase?.config_json ?? null;
-    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
-      | number
-      | undefined;
-    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
-    const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
-    const roundCode = buildRoundCode({
-      weapon: tournament?.weapon ?? null,
-      poolNumber,
-      bracketRound,
-      swissRound,
-      bracketSize,
-      wbRounds,
-      lbRounds,
-      matchNumberLabel: (match['match_number_label'] as string | null | undefined) ?? null,
-      roundNumber: null,
-    });
+    const roundCode = roundCodeFromMatchRow(match);
 
     return {
       id: match['id'],

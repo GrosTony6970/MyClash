@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import * as React from 'react';
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -22,9 +22,11 @@ function Chevron({ open }: { open: boolean }) {
 
 /**
  * A retractable section: a full-width toggle button (header content + a trailing
- * chevron) over a body that only renders when open. Used for the schedule's day
- * groups and per-weapon groups. Header content is styled by the caller; the body
- * takes an optional id so it can be targeted / scrolled into view.
+ * chevron) over a body that only renders when open. Header content is styled by
+ * the caller; the body takes an optional class so it can be spaced or targeted.
+ *
+ * Used by the public schedule's day / weapon groups and by the scoring app's
+ * per-lice "all matches" list.
  */
 export function CollapsibleSection({
   open,
@@ -36,11 +38,11 @@ export function CollapsibleSection({
 }: {
   open: boolean;
   onToggle: () => void;
-  header: ReactNode;
-  children: ReactNode;
+  header: React.ReactNode;
+  children: React.ReactNode;
   headerClassName?: string;
   bodyClassName?: string;
-}): ReactNode {
+}): React.ReactNode {
   return (
     <div>
       <button
