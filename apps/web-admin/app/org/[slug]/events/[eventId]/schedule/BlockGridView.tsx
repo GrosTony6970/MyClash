@@ -15,11 +15,11 @@
  */
 
 import { useRef, useState } from 'react';
+import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
-import { blockTint } from './block-tint';
 import { liceUtilizationPct } from './lice-utilization';
 import { wouldOverlap, type SlotPlacement } from './detect-overlaps';
 import {
@@ -100,12 +100,6 @@ interface Props {
   onCreateAtCell: (slot: number) => void;
   dragOverLiceId: string | null;
   onDragOverLice: (liceId: string | null) => void;
-}
-
-function breakBarClasses(kind: string): string {
-  if (kind === 'break') return 'border-slate-300 bg-slate-100 text-slate-600';
-  if (kind === 'workshop') return 'border-amber-300 bg-amber-50 text-amber-800';
-  return 'border-purple-300 bg-purple-50 text-purple-800';
 }
 
 type TimeResize = { key: string; startSlot: number; previewEndSlot: number };
@@ -564,7 +558,9 @@ export function BlockGridView({
             startResize?.key === brkKey ? startResize.previewStartSlot : brk.startSlot;
           const endSlot =
             timeResize?.key === brkKey ? timeResize.previewEndSlot : brk.startSlot + brk.span;
-          const tint = blockTint(brk.colorHex);
+          // No colour picked is not "no tint" — the kind's default accent is
+          // what the edit popover's picker rings, so draw exactly that.
+          const tint = blockTint(resolveBlockAccent(brk.kind, brk.colorHex));
           return (
             <div
               key={`brk-${brk.id}`}
@@ -583,15 +579,14 @@ export function BlockGridView({
                 onBreakDragEnd();
               }}
               className={[
-                'group relative flex cursor-grab items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide active:cursor-grabbing',
-                tint ? 'text-foreground-secondary' : breakBarClasses(brk.kind),
+                'group relative flex cursor-grab items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary active:cursor-grabbing',
                 dragging ? 'pointer-events-none' : '',
               ].join(' ')}
               style={{
                 gridColumn: '2 / -1',
                 gridRow: `${rowFor(startSlot)} / ${rowFor(Math.max(startSlot + 1, endSlot))}`,
                 zIndex: 6,
-                ...(tint ?? {}),
+                ...tint,
               }}
             >
               <span className="truncate">

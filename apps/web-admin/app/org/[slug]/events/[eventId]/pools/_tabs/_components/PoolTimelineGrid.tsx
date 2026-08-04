@@ -21,6 +21,7 @@
 import { useMemo } from 'react';
 import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { groupPoolsByTimeslot } from '../../../referees/_components/group-pools-by-timeslot';
 import { useI18n } from '../../../../../../../../src/i18n/I18nProvider';
 
@@ -66,13 +67,6 @@ function byLice(a: TimelinePool, b: TimelinePool): number {
   });
 }
 
-/** Programme-block bar tint per kind. */
-function breakBarClasses(kind: string): string {
-  if (kind === 'break') return 'border-slate-300 bg-slate-100 text-slate-600';
-  if (kind === 'workshop') return 'border-amber-300 bg-amber-50 text-amber-800';
-  return 'border-purple-300 bg-purple-50 text-purple-800';
-}
-
 export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolClick }: Props) {
   const { locale } = useI18n();
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
@@ -109,9 +103,11 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
           row.kind === 'break' ? (
             <div
               key={`break-${row.brk.startIso}-${row.brk.label}`}
-              className={`rounded-md border px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide ${breakBarClasses(
-                row.brk.kind,
-              )}`}
+              // This projection carries no colorHex, so a bar here always shows
+              // the kind's default accent — the same one every other board and
+              // the organiser's swatch picker resolve to.
+              style={blockTint(resolveBlockAccent(row.brk.kind, null))}
+              className="rounded-md border px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary"
             >
               {row.brk.label}
             </div>

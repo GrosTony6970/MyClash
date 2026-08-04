@@ -1,6 +1,7 @@
 'use client';
 
 import { formatInZone } from '@myclash/time';
+import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { EmptyState, useClock } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
@@ -10,7 +11,6 @@ import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
 import { kindAccentClass } from './kind-accent';
 import { matchKindHash, matchKindLabel } from './match-kind';
-import { programmeTint } from './programme-tint';
 import { aggregateReferee, partitionAtBars, type RefereeAggregate } from './schedule-model';
 import { classifyTime, type TemporalState } from './schedule-time';
 import type {
@@ -430,23 +430,15 @@ export function ScheduleView({
   }
 
   function renderBar(row: ProgrammeContextRow): ReactNode {
-    const tint = programmeTint(row.colorHex);
+    // A bar with no admin-chosen colour still has one: its kind's default,
+    // resolved from the same table the organiser's picker rings.
+    const tint = blockTint(resolveBlockAccent(row.blockType, row.colorHex));
     return (
       <div
-        style={
-          tint
-            ? { borderColor: tint.borderColor, backgroundColor: tint.backgroundColor }
-            : undefined
-        }
-        className={[
-          'flex items-center gap-3 rounded-lg border border-l-4 px-4 py-3 text-sm',
-          tint ? 'text-foreground' : 'border-border bg-background/60 text-muted',
-        ].join(' ')}
+        style={{ borderColor: tint.borderColor, backgroundColor: tint.backgroundColor }}
+        className="flex items-center gap-3 rounded-lg border border-l-4 px-4 py-3 text-sm text-foreground"
       >
-        <span
-          className="shrink-0 font-bold tabular-nums"
-          style={tint ? { color: tint.borderColor } : undefined}
-        >
+        <span className="shrink-0 font-bold tabular-nums" style={{ color: tint.borderColor }}>
           {fmtTime(row.start)}
           {row.end ? `–${fmtTime(row.end)}` : ''}
         </span>

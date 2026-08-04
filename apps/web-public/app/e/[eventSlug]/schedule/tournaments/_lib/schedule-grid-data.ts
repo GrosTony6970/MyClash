@@ -92,8 +92,9 @@ export interface GridBreak {
   span: number;
   startTime: string;
   endTime: string;
-  /** 'admin' | 'break' — drives the bar tint. */
+  /** 'admin' | 'break' — selects the default accent when there's no colorHex. */
   kind: string;
+  /** Organiser-chosen "#rrggbb"; null = DEFAULT_BLOCK_ACCENT for the kind. */
   colorHex: string | null;
 }
 

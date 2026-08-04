@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
+import { DEFAULT_ORG_ACCENT } from '@myclash/types';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
@@ -356,7 +357,8 @@ export default function OrgDashboardPage() {
                 <span>{t('organizer.dashboard.brand.colorLabel')}</span>
                 <div className="flex items-center gap-3">
                   <ColorSwatchPicker
-                    value={brandColorDraft || '#64748b'}
+                    value={brandColorDraft}
+                    defaultColor={DEFAULT_ORG_ACCENT}
                     onChange={(hex) => setBrandColorDraft(hex)}
                     ariaLabel={t('organizer.dashboard.brand.colorAriaLabel')}
                   />
@@ -421,12 +423,12 @@ export default function OrgDashboardPage() {
 
 /**
  * Live preview of the brand colour applied to its canonical surface
- * — the public event-card accent stripe at
- * apps/web-public/app/_components/EventsListSections.tsx:182. When
- * the operator picks a swatch the left border + "Live" pill update
- * immediately; when the colour is cleared we fall back to the same
- * `#dc2626` default the public page uses, so the preview is
- * pixel-faithful for both states.
+ * — the public event-card accent stripe, applied at
+ * apps/web-public/app/_components/EventsListSections.tsx:264 and :330.
+ * When the operator picks a swatch the left border + "Live" pill
+ * update immediately; when the colour is cleared both fall back to
+ * DEFAULT_ORG_ACCENT, the same constant the public page reads, so the
+ * preview is pixel-faithful for both states.
  */
 function BrandColorPreview({
   color,
@@ -438,7 +440,7 @@ function BrandColorPreview({
   logoUrl?: string | null;
 }) {
   const { t } = useI18n();
-  const accent = color || '#dc2626';
+  const accent = color || DEFAULT_ORG_ACCENT;
   return (
     <div className="grid gap-2 text-sm font-semibold text-foreground-secondary">
       <span className="text-xs font-semibold uppercase tracking-wider text-muted">

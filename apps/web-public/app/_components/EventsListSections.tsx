@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { defaultLocale, t } from '@myclash/i18n';
 import { EventKindBadge, formatCountryName } from '@myclash/ui';
-import { asEventKind } from '@myclash/types';
+import { DEFAULT_ORG_ACCENT, asEventKind } from '@myclash/types';
 import { useI18n } from '@/i18n/I18nProvider';
 import { partitionEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
@@ -35,8 +35,6 @@ interface PublicEvent {
     brand_color?: string | null;
   } | null;
 }
-
-const DEFAULT_ORG_ACCENT = '#dc2626';
 
 function formatEventLocation(event: PublicEvent): string | null {
   const countryName = formatCountryName(event.country, defaultLocale);

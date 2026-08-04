@@ -2,6 +2,7 @@
  * @myclash/types — public API
  */
 
+export * from './branding';
 export * from './compensation';
 export * from './csv';
 export * from './date';

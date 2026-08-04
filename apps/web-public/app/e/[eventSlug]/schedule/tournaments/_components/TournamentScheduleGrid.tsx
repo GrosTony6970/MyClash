@@ -20,6 +20,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { formatInZone, zonedDay } from '@myclash/time';
+import { resolveBlockAccent } from '@myclash/types';
 import {
   accentClassFor,
   tintBgClassFor,
@@ -259,15 +260,19 @@ export function TournamentScheduleGrid({ data, eventSlug, emptyLabel }: Props) {
           {/* Break / ceremony bars — full width */}
           {dayBreaks.map((brk) => {
             const endSlot = brk.startSlot + brk.span;
+            // Every bar carries an accent — the organiser's, or the kind's
+            // default. Same resolution the admin board and its picker use.
+            const accent = resolveBlockAccent(brk.kind, brk.colorHex);
             return (
               <div
                 key={`brk-${brk.id}`}
-                className="flex items-center justify-center overflow-hidden border-y border-border bg-surface px-2 text-[11px] font-semibold uppercase tracking-wide text-muted"
+                className="flex items-center justify-center overflow-hidden border-y bg-surface px-2 text-[11px] font-semibold uppercase tracking-wide"
                 style={{
                   gridColumn: '2 / -1',
                   gridRow: `${rowFor(brk.startSlot)} / ${rowFor(Math.max(brk.startSlot + 1, endSlot))}`,
                   zIndex: 6,
-                  ...(brk.colorHex ? { color: brk.colorHex, borderColor: brk.colorHex } : {}),
+                  color: accent,
+                  borderColor: accent,
                 }}
               >
                 <span className="truncate">{`${brk.label} (${brk.startTime}–${brk.endTime})`}</span>

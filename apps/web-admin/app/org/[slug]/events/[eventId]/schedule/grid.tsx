@@ -11,6 +11,7 @@ import {
   tintTextClassFor,
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
+import { resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
@@ -2970,6 +2971,10 @@ export function ScheduleGrid({
                 }
           }
           lices={lices}
+          defaultColorHex={resolveBlockAccent(
+            editingBreak ? editingBreak.kind : 'competition',
+            null,
+          )}
           busy={blockEditBusy}
           onCancel={() => {
             setEditingBlock(null);
@@ -2987,6 +2992,8 @@ export function ScheduleGrid({
           title={t('organizer.schedulePage.grid.addBreakTitle')}
           initial={creatingBreak}
           lices={lices}
+          // createBreakBlock always POSTs blockType: 'break'.
+          defaultColorHex={resolveBlockAccent('break', null)}
           busy={blockEditBusy}
           onCancel={() => setCreatingBreak(null)}
           onSave={(draft) => void createBreakBlock(draft)}

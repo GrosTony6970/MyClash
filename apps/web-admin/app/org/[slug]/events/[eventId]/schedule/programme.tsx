@@ -7,10 +7,10 @@ import type {
   ProgrammeBlock,
   ProgrammeSuggestion,
 } from '@myclash/types';
+import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
-import { blockTint } from './block-tint';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -20,12 +20,6 @@ const BLOCK_TYPE_ICONS: Record<string, string> = {
   admin: '📋',
   competition: '⚔️',
   break: '☕',
-};
-
-const BLOCK_TYPE_COLORS: Record<string, string> = {
-  admin: 'bg-purple-50 border-purple-200',
-  competition: 'bg-blue-50 border-blue-200',
-  break: 'bg-gray-50 border-gray-200',
 };
 
 interface SuggestConfig {
@@ -790,7 +784,9 @@ function BlockRow({
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  const tint = blockTint(block.colorHex);
+  // Uncoloured blocks are not untinted — they get their kind's default accent,
+  // the same one the swatch picker below rings.
+  const accent = resolveBlockAccent(block.blockType, block.colorHex);
 
   return (
     <div
@@ -798,12 +794,8 @@ function BlockRow({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      style={tint ?? undefined}
-      className={[
-        'border rounded-xl transition-opacity',
-        tint ? '' : (BLOCK_TYPE_COLORS[block.blockType] ?? 'bg-gray-50 border-gray-200'),
-        dragging ? 'opacity-40' : '',
-      ].join(' ')}
+      style={blockTint(accent)}
+      className={['border rounded-xl transition-opacity', dragging ? 'opacity-40' : ''].join(' ')}
     >
       {/* Main row */}
       <div className="flex items-center gap-3 px-3 py-2.5">
@@ -964,6 +956,7 @@ function BlockRow({
               </div>
               <ColorSwatchPicker
                 value={block.colorHex ?? ''}
+                defaultColor={accent}
                 onChange={(hex) => onChange({ colorHex: hex })}
                 ariaLabel={t('organizer.schedulePage.editPopover.colorAriaLabel')}
               />

@@ -31,6 +31,12 @@ interface Props {
   title: string;
   initial: BlockEditDraft;
   lices: { id: string; name: string }[];
+  /**
+   * The accent the bar is drawn in while `colorHex` is empty — resolved from
+   * the block's kind by the caller, since this component only knows `mode`.
+   * The picker rings it, so the operator sees the colour they already have.
+   */
+  defaultColorHex: string;
   busy?: boolean;
   error?: string | null;
   onCancel: () => void;
@@ -45,6 +51,7 @@ export function BlockEditPopover({
   title,
   initial,
   lices,
+  defaultColorHex,
   busy,
   error,
   onCancel,
@@ -158,6 +165,7 @@ export function BlockEditPopover({
             </div>
             <ColorSwatchPicker
               value={colorHex}
+              defaultColor={defaultColorHex}
               onChange={setColorHex}
               ariaLabel={t('organizer.schedulePage.editPopover.colorAriaLabel')}
             />

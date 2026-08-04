@@ -84,9 +84,9 @@ export interface ProgrammeContextRow {
   label: string;
   start: string;
   end: string | null;
-  /** 'admin' | 'break' — drives the neutral vs. accented default when no colorHex. */
+  /** 'admin' | 'break' — selects the default accent when there's no colorHex. */
   blockType: string;
-  /** Admin-chosen "#rrggbb" tint for the bar; null = per-kind default. */
+  /** Organiser-chosen "#rrggbb" tint for the bar; null = DEFAULT_BLOCK_ACCENT. */
   colorHex: string | null;
 }
 

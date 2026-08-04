@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -535,13 +536,6 @@ function unitMatchDurationMinutes(pool: {
   const spanMs = new Date(pool.scheduledEnd).getTime() - new Date(pool.scheduledStart).getTime();
   if (!Number.isFinite(spanMs) || spanMs <= 0) return null;
   return Math.max(1, Math.round(spanMs / count / 60_000));
-}
-
-/** Programme-block tint per kind in the timeline / by-timeslot bars. */
-function breakBarClasses(kind: string): string {
-  if (kind === 'break') return 'border-slate-300 bg-slate-100 text-slate-600';
-  if (kind === 'workshop') return 'border-amber-300 bg-amber-50 text-amber-800';
-  return 'border-purple-300 bg-purple-50 text-purple-800'; // admin / other
 }
 
 /**
@@ -1314,9 +1308,10 @@ function AssignmentsTab({
           row.kind === 'break' ? (
             <div
               key={`break-${row.brk.id}`}
-              className={`flex items-center justify-center rounded-md border-y px-3 py-2 text-[11px] font-semibold uppercase tracking-wide ${breakBarClasses(
-                row.brk.kind,
-              )}`}
+              // breakItems carries no colorHex, so these bars always show the
+              // kind's default accent — same resolution as the schedule board.
+              style={blockTint(resolveBlockAccent(row.brk.kind, null))}
+              className="flex items-center justify-center rounded-md border-y px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary"
             >
               {row.brk.label}
             </div>

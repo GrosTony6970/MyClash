@@ -2167,6 +2167,7 @@ export const en = {
       sortAscLabel: 'Sort ascending',
       sortDescLabel: 'Sort descending',
       searchPlaceholder: 'Search…',
+      colorCustom: 'Custom',
       somethingWentWrong: 'Something went wrong',
       confirmRemoveEnrollment: 'Remove this enrollment?',
       poolDeletedToast: 'Pool deleted.',
@@ -4894,7 +4895,7 @@ export const en = {
     dashboard: {
       manageEvents: 'Manage events',
       brand: {
-        title: 'Branding',
+        title: 'Organization Branding',
         description:
           'Rename your organization, upload a logo, or pick a brand color. The slug stays unchanged so existing URLs keep working.',
         nameLabel: 'Organization name',
@@ -9448,6 +9449,7 @@ export const fr = {
       sortAscLabel: 'Tri croissant',
       sortDescLabel: 'Tri decroissant',
       searchPlaceholder: 'Rechercher...',
+      colorCustom: 'Personnalisee',
       somethingWentWrong: 'Une erreur est survenue',
       confirmRemoveEnrollment: 'Retirer cette inscription ?',
       poolDeletedToast: 'Poule supprimee.',
@@ -12189,7 +12191,7 @@ export const fr = {
     dashboard: {
       manageEvents: 'Gerer les evenements',
       brand: {
-        title: 'Identite visuelle',
+        title: 'Identite visuelle de l organisation',
         description:
           'Renommez votre organisation, televersez un logo ou choisissez une couleur. Le slug reste inchange pour que les URL existantes continuent de fonctionner.',
         nameLabel: 'Nom de l organisation',
