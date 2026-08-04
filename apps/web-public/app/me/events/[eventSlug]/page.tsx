@@ -156,6 +156,14 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
                       {tr.poolName}
                     </span>
                   )}
+                  {tr.swissRoundCount !== null && tr.swissRoundCount > 0 && (
+                    <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">
+                      {t('publicApp.me.hub.swissProgress', {
+                        done: tr.swissRoundsCompleted ?? 0,
+                        total: tr.swissRoundCount,
+                      })}
+                    </span>
+                  )}
                 </div>
                 <div className="my-3 h-px bg-border" />
                 <Eyebrow>{t('publicApp.me.hub.competition')}</Eyebrow>

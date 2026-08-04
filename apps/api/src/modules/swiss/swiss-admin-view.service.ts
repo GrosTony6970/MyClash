@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { recommendedRoundCount } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
-// Value import, not `import type`: Nest DI metadata.
+// Value imports, not `import type`: Nest DI metadata.
 import { SwissPairingService } from './swiss-pairing.service';
+import { SwissSeedingService, type RatingCoverage } from './swiss-seeding.service';
 import { activeEntrants, validateSwissRound, type SwissRoundValidation } from './swiss-snapshot';
 import {
   boardNumber,
@@ -28,16 +29,19 @@ export class SwissAdminViewService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly pairing: SwissPairingService,
+    private readonly seeding: SwissSeedingService,
   ) {}
 
   async getAdminView(tournamentId: string): Promise<SwissAdminView> {
     const registeredCount = await this.countRegistrations(tournamentId);
+    const ratingCoverage = await this.ratingCoverage(tournamentId);
     const phaseId = await this.findPhase(tournamentId);
     if (!phaseId) {
       return {
         phaseId: null,
         config: null,
         registeredCount,
+        ratingCoverage,
         recommendedRoundCount: recommendedRoundCount(registeredCount),
         entrants: [],
         rounds: [],
@@ -61,6 +65,7 @@ export class SwissAdminViewService {
       phaseId,
       config: context.config,
       registeredCount,
+      ratingCoverage,
       // The recommendation for the CURRENT field, so a Configure tab opened on
       // a live phase compares its roundCount against the same number that was
       // proposed at generation.
@@ -115,6 +120,30 @@ export class SwissAdminViewService {
           })),
       };
     });
+  }
+
+  /**
+   * How much of the field HEMA Ratings actually knows about.
+   *
+   * Computed whether or not a phase exists, because that is when the number
+   * matters: an organiser choosing between `random` and `by-rating` needs it
+   * BEFORE generating, and afterwards it explains the draw they got. Without it
+   * the only way to learn coverage is to submit `by-rating` and read the 400.
+   *
+   * Costs one extra `hema_ratings_snapshots` read per admin-page load. Accepted:
+   * this is an organiser page, not a hot path, and the alternative is a number
+   * the operator can only discover by being refused.
+   */
+  private async ratingCoverage(tournamentId: string): Promise<RatingCoverage | null> {
+    try {
+      const registrations = await this.seeding.loadRegistrations(tournamentId);
+      const { coverage } = await this.seeding.ratingsFor(tournamentId, registrations);
+      return coverage;
+    } catch {
+      // A ratings outage must not take the whole Configure tab down with it —
+      // every other field on this payload is still answerable.
+      return null;
+    }
   }
 
   private async findPhase(tournamentId: string): Promise<string | null> {
@@ -198,6 +227,8 @@ export interface SwissAdminView {
   phaseId: string | null;
   config: SwissConfig | null;
   registeredCount: number;
+  /** Null when the ratings lookup failed; `percent: 0` when nobody is rated. */
+  ratingCoverage: RatingCoverage | null;
   recommendedRoundCount: number;
   entrants: SwissAdminEntrant[];
   rounds: SwissAdminRound[];

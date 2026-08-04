@@ -424,6 +424,7 @@ export const en = {
         kindRoundOf: 'Round of {count}',
         kindSwiss: 'Swiss',
         kindSwissRound: 'Swiss round {round}',
+        swissProgress: 'Swiss · round {done} of {total}',
       },
       schedule: {
         tbd: 'Time TBD',
@@ -5759,6 +5760,11 @@ export const en = {
       autoPopulateSuccessFromSeed: 'Bracket populated from registration seed (no pool data)',
       autoPopulateSuccessFromRating: 'Bracket populated from HEMA ratings',
       autoPopulateSuccessFromRandom: 'Bracket populated from a random draw',
+      autoPopulateSuccessFromSwiss: 'Bracket populated from the Swiss standings',
+      // Names the fighters, not their ranks: "extend the chain or run a barrage"
+      // is only actionable if the organiser knows who is tied.
+      seedingTiedAtCut:
+        'Tied on every configured tiebreak: {fighters}. Which of them qualified was arbitrary — extend the tiebreak chain or run a barrage if that matters.',
       autoPopulateNoPoolsTitle: 'Auto-populate without pool data?',
       autoPopulateNoPoolsBody:
         'This tournament has no pool phase. The bracket will be seeded from registration order. Continue?',
@@ -5851,6 +5857,8 @@ export const en = {
             'Reads the synced hemaratings.com snapshot for this weapon. Refuses rather than seeding unrated fighters last.',
           'by-pool-rank': 'Requires a completed pool phase to read the order from.',
         },
+        ratingCoverage: '{rated} of {total} fighters rated ({percent}%)',
+        ratingCoverageBelow: 'Below the {threshold}% you require, so this draw would be refused.',
         minCoverage: 'Minimum rated coverage (%)',
         minCoverageHelp:
           'Below this, seeding by rating is refused outright. A draw that quietly falls back to registration order looks seeded and is not.',
@@ -7562,6 +7570,7 @@ export const fr = {
         kindRoundOf: 'Tableau de {count}',
         kindSwiss: 'Suisse',
         kindSwissRound: 'Ronde suisse {round}',
+        swissProgress: 'Suisse · ronde {done} sur {total}',
       },
       schedule: {
         tbd: 'Horaire à confirmer',
@@ -12954,6 +12963,9 @@ export const fr = {
         "Tableau rempli a partir de l'ordre d'inscription (aucune donnee de poule)",
       autoPopulateSuccessFromRating: 'Tableau rempli a partir du classement HEMA',
       autoPopulateSuccessFromRandom: 'Tableau rempli par tirage aleatoire',
+      autoPopulateSuccessFromSwiss: 'Tableau rempli depuis le classement suisse',
+      seedingTiedAtCut:
+        'A egalite sur tous les departages configures : {fighters}. Le choix entre eux etait arbitraire — allongez la chaine de departages ou organisez un barrage si cela compte.',
       autoPopulateNoPoolsTitle: 'Remplir le tableau sans donnees de poule ?',
       autoPopulateNoPoolsBody:
         "Ce tournoi n'a pas de phase de poules. Le tableau sera classe selon l'ordre d'inscription. Continuer ?",
@@ -13039,6 +13051,8 @@ export const fr = {
             "Lit l'instantane hemaratings.com pour cette arme. Refuse plutot que de classer les non-notes en dernier.",
           'by-pool-rank': "Necessite une phase de poules terminee pour en lire l'ordre.",
         },
+        ratingCoverage: '{rated} tireurs notes sur {total} ({percent} %)',
+        ratingCoverageBelow: 'En dessous des {threshold} % exiges : ce tirage serait refuse.',
         minCoverage: 'Couverture minimale notee (%)',
         minCoverageHelp:
           "En dessous, le tirage par classement est refuse. Un tirage qui retombe en silence sur l'ordre d'inscription a l'air classe et ne l'est pas.",

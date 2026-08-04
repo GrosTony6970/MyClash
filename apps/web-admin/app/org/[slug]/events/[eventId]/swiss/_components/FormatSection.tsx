@@ -86,6 +86,11 @@ export function FormatSection({
             ? t('organizer.swiss.configure.seedingLocked')
             : t(`organizer.swiss.configure.seedingHint.${draft.seedingStrategy}`)}
         </span>
+        <CoverageLine
+          coverage={view.ratingCoverage}
+          threshold={draft.minRatingCoveragePercent}
+          highlight={draft.seedingStrategy === 'by-rating'}
+        />
       </label>
 
       {draft.seedingStrategy === 'by-rating' && !hasPhase && (
@@ -128,5 +133,48 @@ export function FormatSection({
         {frozenReason && <span className="mt-1 block text-xs text-warning">{frozenReason}</span>}
       </label>
     </section>
+  );
+}
+
+/**
+ * How much of the field HEMA Ratings knows about.
+ *
+ * Shown whatever the strategy, because it is what makes `by-rating` a real
+ * choice rather than a guess — and it is shown BEFORE generating, since the
+ * seeder's only other way of telling the operator is a 400 on submit.
+ *
+ * Below the configured threshold it says so outright: that combination is
+ * already refused server-side, and finding out at submit time is the failure
+ * this line exists to prevent.
+ */
+function CoverageLine({
+  coverage,
+  threshold,
+  highlight,
+}: {
+  coverage: { rated: number; total: number; percent: number } | null;
+  threshold: number | null;
+  highlight: boolean;
+}) {
+  // Null means the ratings lookup itself failed; saying nothing beats claiming
+  // 0% and pushing the operator away from a strategy that may be fine.
+  if (!coverage || coverage.total === 0) return null;
+  const belowThreshold = threshold !== null && coverage.percent < threshold;
+  return (
+    <span
+      className={[
+        'mt-1 block text-xs',
+        belowThreshold && highlight ? 'text-warning' : 'text-muted',
+      ].join(' ')}
+    >
+      {t('organizer.swiss.configure.ratingCoverage', {
+        rated: coverage.rated,
+        total: coverage.total,
+        percent: coverage.percent,
+      })}
+      {belowThreshold && highlight && (
+        <> {t('organizer.swiss.configure.ratingCoverageBelow', { threshold })}</>
+      )}
+    </span>
   );
 }

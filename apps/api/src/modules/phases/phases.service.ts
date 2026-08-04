@@ -68,6 +68,24 @@ type R1RankingSource =
   | 'registration-seed'
   | 'rating'
   | 'random';
+
+/**
+ * Something the organiser should know about a draw that still succeeded.
+ *
+ * Not an exception: the bracket IS seeded and the tournament can run. But
+ * `tied-at-cut` means the fighters either side of the qualification boundary
+ * were level on EVERY configured tiebreak, so which of them qualified was
+ * arbitrary — the organiser may want to extend the chain or run a barrage, and
+ * they can only decide that if they are told.
+ *
+ * `fighters` carries names rather than ids for the same reason it is returned
+ * rather than logged: this ends up in front of a human.
+ */
+export interface SeedingWarning {
+  code: 'tied-at-cut';
+  fighters: string[];
+  ranks: number[];
+}
 // Value import (not `import type`): NestJS DI dependency. Type-only erases the
 // runtime metadata, so poolStandings resolved to `undefined` — which made
 // computePoolGate vacuously "complete" and populateBracket fall back to
@@ -907,6 +925,7 @@ export class PhasesService {
     // Resolve the rank order for the chosen strategy.
     let rankings: RankedRegistration[];
     let usedRandomSeed: number | undefined;
+    let warnings: SeedingWarning[] = [];
     if (dto.strategy === 'by-pool-rank') {
       rankings = await this.rankFromCompletedPools(tournamentId);
     } else {
@@ -914,6 +933,7 @@ export class PhasesService {
       const resolved = await this.resolveRegistrationRanking(tournamentId, dto.strategy, {});
       rankings = resolved.rankings;
       usedRandomSeed = resolved.randomSeed;
+      warnings = resolved.warnings;
     }
 
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
@@ -996,7 +1016,7 @@ export class PhasesService {
       },
     });
 
-    return { phaseId, strategy: dto.strategy, r1SlotCount: slots.length };
+    return { phaseId, strategy: dto.strategy, r1SlotCount: slots.length, warnings };
   }
 
   /**
@@ -1028,6 +1048,11 @@ export class PhasesService {
      * misleading "Bracket populated from pool standings" message.
      */
     source: R1RankingSource;
+    /**
+     * Things the organiser should know about a draw that still succeeded —
+     * currently only a tie at the qualification cut. Empty on the happy path.
+     */
+    warnings: SeedingWarning[];
   }> {
     // 1. Bracket phase + auth context (joined via tournaments + events).
     const { data: bracketPhase } = await this.supabase.service
@@ -1046,6 +1071,7 @@ export class PhasesService {
           slotsSeeded: 0,
           skipped: 'no_bracket',
           source: 'pool-standings',
+          warnings: [],
         };
       }
       throw new BadRequestException(
@@ -1115,6 +1141,7 @@ export class PhasesService {
             slotsSeeded: 0,
             skipped: 'r1_already_started',
             source: 'pool-standings',
+            warnings: [],
           };
         }
         throw new ConflictException({
@@ -1139,6 +1166,7 @@ export class PhasesService {
 
     let rankings: RankedRegistration[] = [];
     let source: R1RankingSource = 'pool-standings';
+    let warnings: SeedingWarning[] = [];
     let usedRandomSeed: number | undefined;
 
     if (poolPhase && this.poolStandings) {
@@ -1161,6 +1189,7 @@ export class PhasesService {
             slotsSeeded: 0,
             skipped: 'no_pool_data',
             source: 'pool-standings',
+            warnings: [],
           };
         }
         throw new ConflictException(
@@ -1176,6 +1205,7 @@ export class PhasesService {
             slotsSeeded: 0,
             skipped: 'pools_not_finished',
             source: 'pool-standings',
+            warnings: [],
           };
         }
         throw new ConflictException('Pools have not finished yet');
@@ -1193,6 +1223,7 @@ export class PhasesService {
         rankings = resolved.rankings;
         source = resolved.source;
         usedRandomSeed = resolved.randomSeed;
+        warnings = resolved.warnings;
       } else if (seedingMode === 'top-n-per-pool') {
         const topN =
           dto.topNPerPool ??
@@ -1236,6 +1267,7 @@ export class PhasesService {
       rankings = resolved.rankings;
       source = resolved.source;
       usedRandomSeed = resolved.randomSeed;
+      warnings = resolved.warnings;
     }
 
     // 7. Compute the plan + apply per-slot updates + match upsert.
@@ -1340,7 +1372,7 @@ export class PhasesService {
     this.logger.log(
       `Populated bracket (phase=${phaseId}, mode=${seedingMode}, strategy=${strategy}, slotsSeeded=${slotsSeeded}, source=${source})`,
     );
-    return { phaseId, seedingMode, slotsSeeded, source };
+    return { phaseId, seedingMode, slotsSeeded, source, warnings };
   }
 
   async listTournamentPools(tournamentId: string) {
@@ -1470,23 +1502,29 @@ export class PhasesService {
     tournamentId: string,
     strategy: SeedingStrategy,
     opts: { randomSeed?: number },
-  ): Promise<{ rankings: RankedRegistration[]; source: R1RankingSource; randomSeed?: number }> {
+  ): Promise<{
+    rankings: RankedRegistration[];
+    source: R1RankingSource;
+    randomSeed?: number;
+    warnings: SeedingWarning[];
+  }> {
     const regs = await this.loadSeedableRegistrations(tournamentId, {
       withRatings: strategy === 'by-rating',
     });
 
     if (strategy === 'by-rating') {
       const ratings = await this.weightedRatingsForTournament(tournamentId);
-      return { rankings: rankByRating(regs, ratings), source: 'rating' };
+      return { rankings: rankByRating(regs, ratings), source: 'rating', warnings: [] };
     }
     if (strategy === 'random') {
       const randomSeed = opts.randomSeed ?? Math.floor(Math.random() * 0x7fffffff);
-      return { rankings: rankRandom(regs, randomSeed), source: 'random', randomSeed };
+      return { rankings: rankRandom(regs, randomSeed), source: 'random', randomSeed, warnings: [] };
     }
     if (strategy === 'by-swiss-rank') {
-      return { rankings: await this.rankFromSwiss(tournamentId), source: 'swiss-standings' };
+      const { rankings, warnings } = await this.rankFromSwiss(tournamentId);
+      return { rankings, source: 'swiss-standings', warnings };
     }
-    return { rankings: rankBySeed(regs), source: 'registration-seed' };
+    return { rankings: rankBySeed(regs), source: 'registration-seed', warnings: [] };
   }
 
   /**
@@ -1499,7 +1537,9 @@ export class PhasesService {
    * Refuses an unfinished phase rather than seeding from a mid-event snapshot,
    * which would look like a real seeding and be defended as one.
    */
-  private async rankFromSwiss(tournamentId: string): Promise<RankedRegistration[]> {
+  private async rankFromSwiss(
+    tournamentId: string,
+  ): Promise<{ rankings: RankedRegistration[]; warnings: SeedingWarning[] }> {
     if (!this.swissStandings) {
       throw new BadRequestException('Swiss standings are unavailable on this server');
     }
@@ -1521,22 +1561,46 @@ export class PhasesService {
       throw new BadRequestException('The Swiss phase has no ranked fighters to seed from.');
     }
 
-    // Surface a tie AT THE CUT rather than picking one silently: if the rows
-    // either side of the boundary are level on every configured key, which of
-    // them qualifies is arbitrary, and the organiser should extend the chain or
-    // run a barrage instead of finding out afterwards.
-    const tied = standings.rows.filter((row, i) => i > 0 && row.decidingTiebreak === null);
-    if (tied.length > 0) {
-      this.logger.warn(
-        `by-swiss-rank: ${tied.length} fighter(s) tied on every configured key — ` +
-          `ranks ${tied.map((r) => r.rank).join(', ')}. Seeding order between them is arbitrary.`,
-      );
-    }
+    const warnings = this.tiedAtCutWarnings(standings.rows);
 
-    return standings.rows.map((row) => ({
-      rank: row.rank,
-      registrationId: row.registrationId,
-    }));
+    return {
+      rankings: standings.rows.map((row) => ({
+        rank: row.rank,
+        registrationId: row.registrationId,
+      })),
+      warnings,
+    };
+  }
+
+  /**
+   * Fighters left level on EVERY configured tiebreak.
+   *
+   * `applyRanking` writes `decidingTiebreak: null` on a row it could not
+   * separate from the one above, which is exactly the condition: if such a row
+   * straddles the qualification cut, which of the two qualified was arbitrary.
+   *
+   * RETURNED, not just logged. A server log is not somewhere an organiser looks
+   * between rounds, and a rank is not something they can act on — so the
+   * warning names the fighters and can be read straight off a toast.
+   */
+  private tiedAtCutWarnings(
+    rows: Array<{ rank: number; displayName: string; decidingTiebreak?: unknown }>,
+  ): SeedingWarning[] {
+    const tied = rows.filter((row, index) => index > 0 && row.decidingTiebreak === null);
+    if (tied.length === 0) return [];
+
+    this.logger.warn(
+      `by-swiss-rank: ${tied.length} fighter(s) tied on every configured key — ` +
+        `${tied.map((row) => `${row.displayName} (rank ${row.rank})`).join(', ')}. ` +
+        `Seeding order between them is arbitrary.`,
+    );
+    return [
+      {
+        code: 'tied-at-cut',
+        fighters: tied.map((row) => row.displayName).filter(Boolean),
+        ranks: tied.map((row) => row.rank),
+      },
+    ];
   }
 
   private async weightedRatingsForTournament(tournamentId: string): Promise<Map<string, number>> {

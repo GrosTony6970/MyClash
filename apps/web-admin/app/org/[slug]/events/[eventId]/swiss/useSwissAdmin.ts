@@ -81,10 +81,19 @@ export interface SwissAdminRound {
   matches: SwissAdminMatch[];
 }
 
+/** How many of the field HEMA Ratings actually has a rating for. */
+export interface RatingCoverage {
+  rated: number;
+  total: number;
+  percent: number;
+}
+
 export interface SwissAdminView {
   phaseId: string | null;
   config: SwissConfig | null;
   registeredCount: number;
+  /** Null when the ratings lookup failed; `percent: 0` when nobody is rated. */
+  ratingCoverage: RatingCoverage | null;
   recommendedRoundCount: number;
   entrants: SwissEntrant[];
   rounds: SwissAdminRound[];

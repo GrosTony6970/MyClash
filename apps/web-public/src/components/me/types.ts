@@ -110,6 +110,15 @@ export interface MyEventTournament {
   registered: boolean;
   registrationId: string | null;
   poolName: string | null;
+  /**
+   * Swiss progress for this fighter's tournament — rounds done out of rounds
+   * configured. Both null when the tournament has no Swiss phase.
+   *
+   * Deliberately NOT their points: those belong to SwissStandingsService, and a
+   * second implementation here would be a second owner of the scoring.
+   */
+  swissRoundsCompleted: number | null;
+  swissRoundCount: number | null;
   seed: number | null;
   bibNumber: number | null;
 }

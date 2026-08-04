@@ -335,6 +335,13 @@ export default function BracketPage() {
   const [populateMode, setPopulateMode] = useState<'overall' | 'top-n-per-pool'>('overall');
   const [populateTopN, setPopulateTopN] = useState<number | ''>('');
   const [populateMessage, setPopulateMessage] = useState<string | null>(null);
+  /**
+   * A draw that SUCCEEDED but that the organiser should look at — currently
+   * only a tie at the qualification cut, where which of two level fighters
+   * qualified was arbitrary. Rendered beside the success line, not instead of
+   * it: the bracket is seeded either way.
+   */
+  const [populateWarning, setPopulateWarning] = useState<string | null>(null);
   // Confirm dialog state for the "no pool phase → registration seed
   // fallback" path. The BE happily seeds from registration order in
   // this case, but the operator might have expected pool standings to
@@ -726,7 +733,8 @@ export default function BracketPage() {
       // table the fighters came from — a shuffled draw must not be reported
       // as "from pool standings".
       const result = (await res.json().catch(() => ({}))) as {
-        source?: 'pool-standings' | 'registration-seed' | 'rating' | 'random';
+        source?: 'pool-standings' | 'swiss-standings' | 'registration-seed' | 'rating' | 'random';
+        warnings?: Array<{ code: string; fighters: string[]; ranks: number[] }>;
       };
       const successKey =
         result.source === 'registration-seed'
@@ -735,8 +743,18 @@ export default function BracketPage() {
             ? 'organizer.bracket.autoPopulateSuccessFromRating'
             : result.source === 'random'
               ? 'organizer.bracket.autoPopulateSuccessFromRandom'
-              : 'organizer.bracket.autoPopulateSuccess';
+              : result.source === 'swiss-standings'
+                ? 'organizer.bracket.autoPopulateSuccessFromSwiss'
+                : 'organizer.bracket.autoPopulateSuccess';
       setPopulateMessage(t(successKey));
+      // Named fighters, not ranks: "extend the tiebreak chain or run a barrage"
+      // is only actionable if the organiser knows who is tied.
+      const tied = (result.warnings ?? []).find((warning) => warning.code === 'tied-at-cut');
+      setPopulateWarning(
+        tied
+          ? t('organizer.bracket.seedingTiedAtCut', { fighters: tied.fighters.join(', ') })
+          : null,
+      );
       refreshBracket();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.common.populateFailed'));
@@ -1375,6 +1393,7 @@ export default function BracketPage() {
                   {populating ? '…' : t('organizer.bracket.autoPopulateButton')}
                 </button>
                 {populateMessage && <span className="text-xs text-success">{populateMessage}</span>}
+                {populateWarning && <span className="text-xs text-warning">{populateWarning}</span>}
               </div>
             </div>
             {bracket.phaseType === 'double_elim' && (
