@@ -309,8 +309,12 @@ export async function waitForRoundOnly(
   api: Api,
   tournamentId: string,
   roundNumber: number,
+  // Short budgets are for NEGATIVE assertions: proving a round did not pair
+  // should not cost the full 15s the positive path is willing to wait.
+  tries = 20,
+  delayMs = 750,
 ): Promise<SwissRound | null> {
-  const swiss = await waitForRound(api, tournamentId, roundNumber);
+  const swiss = await waitForRound(api, tournamentId, roundNumber, tries, delayMs);
   return swiss?.rounds.find((round) => round.roundNumber === roundNumber) ?? null;
 }
 

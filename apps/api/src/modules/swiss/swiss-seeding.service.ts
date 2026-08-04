@@ -18,6 +18,16 @@ export interface SwissSeeding {
   /** Persisted when the draw was random, so it can be replayed exactly. */
   seed: number | null;
   coverage: RatingCoverage | null;
+  /**
+   * The phase the order was actually read from, for `by-pool-rank`.
+   *
+   * Resolved here rather than left to the caller because `rankFromCompletedPools`
+   * is what picks it when the request does not name one — and the config schema
+   * REQUIRES it, so a null here writes a phase whose own config cannot be parsed
+   * back. It is also the honest audit trail: a three-stage tournament should
+   * record which pool phase its Swiss draw came from.
+   */
+  sourcePhaseId: string | null;
 }
 
 /**
@@ -44,12 +54,15 @@ export class SwissSeedingService {
     tournamentId: string,
     registrations: SeedableRegistration[],
     dto: GenerateSwissDto,
-  ): Promise<{ order: string[]; seed: number | null; coverage: RatingCoverage | null }> {
+  ): Promise<SwissSeeding> {
     const strategy = dto.seedingStrategy ?? SWISS_DEFAULTS.seedingStrategy;
 
     if (strategy === 'by-pool-rank') {
-      const order = await this.rankFromCompletedPools(tournamentId, dto.sourcePhaseId ?? null);
-      return { order, seed: null, coverage: null };
+      const { order, sourcePhaseId } = await this.rankFromCompletedPools(
+        tournamentId,
+        dto.sourcePhaseId ?? null,
+      );
+      return { order, seed: null, coverage: null, sourcePhaseId };
     }
 
     if (strategy === 'by-rating') {
@@ -60,12 +73,22 @@ export class SwissSeedingService {
           `Only ${coverage.rated} of ${coverage.total} fighters (${coverage.percent}%) have a HEMA rating, below the ${threshold}% required. Seed by random draw instead, or lower the threshold.`,
         );
       }
-      return { order: idsOf(rankByRating(registrations, ratings)), seed: null, coverage };
+      return {
+        order: idsOf(rankByRating(registrations, ratings)),
+        seed: null,
+        coverage,
+        sourcePhaseId: null,
+      };
     }
 
     // Random: the seed is persisted so the draw can be replayed exactly.
     const seed = dto.seedingRandomSeed ?? Math.floor(Math.random() * 2_147_483_647);
-    return { order: idsOf(rankRandom(registrations, seed)), seed, coverage: null };
+    return {
+      order: idsOf(rankRandom(registrations, seed)),
+      seed,
+      coverage: null,
+      sourcePhaseId: null,
+    };
   }
 
   async ratingsFor(
@@ -100,11 +123,17 @@ export class SwissSeedingService {
     };
   }
 
-  /** Cross-pool ranking from a COMPLETED pool phase, refusing anything less. */
+  /**
+   * Cross-pool ranking from a COMPLETED pool phase, refusing anything less.
+   *
+   * Returns the phase it read alongside the order: when the request does not
+   * name one this is the only place that knows which it was, and the config
+   * schema requires it.
+   */
   async rankFromCompletedPools(
     tournamentId: string,
     sourcePhaseId: string | null,
-  ): Promise<string[]> {
+  ): Promise<{ order: string[]; sourcePhaseId: string }> {
     const query = this.supabase.service
       .from('phases')
       .select('id, type, status')
@@ -139,17 +168,7 @@ export class SwissSeedingService {
     // Snake across pools: pool A #1, pool B #1, … then the #2s. Reuses the
     // shape bracket seeding already uses so the two agree on what "pool rank"
     // means.
-    const rowsWithPool = ((members ?? []) as Array<Record<string, unknown>>).map((row) => {
-      const pool = row['pools'] as { sort_order?: number } | null;
-      return {
-        registrationId: row['registration_id'] as string,
-        poolOrder: pool?.sort_order ?? 0,
-        seed: (row['seed'] as number | null) ?? Number.MAX_SAFE_INTEGER,
-      };
-    });
-    return rowsWithPool
-      .sort((a, b) => a.seed - b.seed || a.poolOrder - b.poolOrder)
-      .map((r) => r.registrationId);
+    return { order: snakeAcrossPools(members ?? []), sourcePhaseId: phase.id };
   }
 
   async loadRegistrations(tournamentId: string): Promise<SeedableRegistration[]> {
@@ -176,3 +195,23 @@ export class SwissSeedingService {
 
 const idsOf = (ranked: RankedRegistration[]): string[] =>
   [...ranked].sort((a, b) => a.rank - b.rank).map((r) => r.registrationId);
+
+/**
+ * Snake the pool members into one list: every pool's #1, then every pool's #2, …
+ *
+ * Ties on seed break on the pool's own `sort_order`, so the order is stable
+ * across runs rather than dependent on however PostgREST returned the rows.
+ */
+function snakeAcrossPools(members: unknown[]): string[] {
+  return (members as Array<Record<string, unknown>>)
+    .map((row) => {
+      const pool = row['pools'] as { sort_order?: number } | null;
+      return {
+        registrationId: row['registration_id'] as string,
+        poolOrder: pool?.sort_order ?? 0,
+        seed: (row['seed'] as number | null) ?? Number.MAX_SAFE_INTEGER,
+      };
+    })
+    .sort((a, b) => a.seed - b.seed || a.poolOrder - b.poolOrder)
+    .map((row) => row.registrationId);
+}

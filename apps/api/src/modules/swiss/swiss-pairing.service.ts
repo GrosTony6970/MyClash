@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -20,6 +21,8 @@ import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
 import {
   activeEntrants,
   buildSwissPlayers,
+  describeInvalidRound,
+  validateSwissRound,
   type SwissEntrantRecord,
   type SwissRoundRecord,
 } from './swiss-snapshot';
@@ -65,6 +68,7 @@ export class SwissPairingService {
 
     const nextRoundNumber = rounds.length + 1;
     if (nextRoundNumber > config.roundCount) return null;
+    this.assertPreviousRoundValid(context);
 
     const field = activeEntrants(entrants, nextRoundNumber);
     const players = buildSwissPlayers(field, rounds, config.points, this.seedOrderOf(rounds));
@@ -135,6 +139,42 @@ export class SwissPairingService {
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
+
+  /**
+   * Refuse to pair on top of a round that is not a legal Swiss round.
+   *
+   * `setMatchSides` is the escape hatch: it writes whoever it is told to, so a
+   * fighter can end up in two bouts of one round or in none. Pairing round N+1
+   * from such a round does not fail — it carries the error forward into every
+   * later round's opponent lists and standings, permanently and invisibly.
+   *
+   * So advancement stops here instead. `SwissAdvanceService` swallows this (it
+   * must never fail the exchange that triggered it), which is exactly the
+   * behaviour wanted: the round simply does not pair, and the organiser sees
+   * why on the round card, which already renders this same validation. The
+   * manual commit route surfaces the message directly.
+   *
+   * Only the LAST round is checked. Earlier ones have already been carried, and
+   * re-litigating them would block a phase over history nobody can now change.
+   */
+  private assertPreviousRoundValid(context: SwissContext): void {
+    const previous = context.rounds[context.rounds.length - 1];
+    if (!previous) return;
+
+    const detail = describeInvalidRound(
+      validateSwissRound(
+        activeEntrants(context.entrants, previous.roundNumber).map((e) => e.registrationId),
+        previous.matches,
+        previous.byeRegistrationId,
+      ),
+    );
+    if (detail === null) return;
+
+    throw new ConflictException(
+      `Round ${previous.roundNumber} is not a valid Swiss round (${detail}). ` +
+        `Fix it before the next round can be paired.`,
+    );
+  }
 
   /**
    * Attach the ruleset score, but ONLY when the pairing actually groups on it.

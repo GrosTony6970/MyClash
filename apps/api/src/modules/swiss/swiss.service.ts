@@ -14,6 +14,7 @@ import { SwissSeedingService } from './swiss-seeding.service';
 import type { SwissConfig } from './dto/swiss-config.dto';
 import { writeSwissConfig } from './swiss-phase-config';
 import { SWISS_DEFAULTS, type GenerateSwissDto, type UpdateSwissConfigDto } from './dto/swiss.dto';
+import type { SwissSeeding } from './swiss-seeding.service';
 
 /**
  * Swiss phase lifecycle: create it, configure it, freeze it, unfreeze it.
@@ -54,7 +55,7 @@ export class SwissService {
     }
 
     const ranked = await this.seeding.resolveSeeding(tournamentId, registrations, dto);
-    const config = this.buildConfig(dto, registrations.length, ranked.seed);
+    const config = this.buildConfig(dto, registrations.length, ranked);
 
     const { data: inserted, error } = await this.supabase.service
       .from('phases')
@@ -213,13 +214,18 @@ export class SwissService {
   private buildConfig(
     dto: GenerateSwissDto,
     fighterCount: number,
-    seed: number | null,
+    ranked: SwissSeeding,
   ): SwissConfig {
     return {
       roundCount: dto.roundCount ?? recommendedRoundCount(fighterCount),
       seedingStrategy: dto.seedingStrategy ?? SWISS_DEFAULTS.seedingStrategy,
-      seedingRandomSeed: seed,
-      sourcePhaseId: dto.sourcePhaseId ?? null,
+      seedingRandomSeed: ranked.seed,
+      // The phase the order was ACTUALLY read from, which for `by-pool-rank` is
+      // resolved by the seeder when the request does not name one. Writing the
+      // request's null instead persisted a config that failed its own schema —
+      // the phase row and its entrants were inserted, then every read of it
+      // 400'd with "has an invalid config".
+      sourcePhaseId: dto.sourcePhaseId ?? ranked.sourcePhaseId,
       pairingMethod: dto.pairingMethod ?? SWISS_DEFAULTS.pairingMethod,
       grouping: dto.grouping ?? SWISS_DEFAULTS.grouping,
       rankBy: dto.rankBy ?? SWISS_DEFAULTS.rankBy,

@@ -213,3 +213,21 @@ export function validateSwissRound(
     unknown,
   };
 }
+
+/**
+ * Why a round is not a legal Swiss round, in words — or null when it is fine.
+ *
+ * Split from the validation itself so the pairing service can refuse to build on
+ * a broken round without owning the phrasing, and so the phrasing is testable
+ * without a Supabase mock.
+ */
+export function describeInvalidRound(validation: SwissRoundValidation): string | null {
+  if (validation.valid) return null;
+  return [
+    validation.duplicated.length > 0 ? `fighting twice: ${validation.duplicated.join(', ')}` : '',
+    validation.missing.length > 0 ? `not in the round: ${validation.missing.join(', ')}` : '',
+    validation.unknown.length > 0 ? `not an entrant: ${validation.unknown.join(', ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('; ');
+}

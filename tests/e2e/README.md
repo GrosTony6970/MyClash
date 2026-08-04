@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`22` (see the Status table), so you can run one by number.
+Specs are numbered `01`…`25` (see the Status table), so you can run one by number.
 Note that **PowerShell does not expand globs and Playwright reads its argument as
 a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
 literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
@@ -606,32 +606,74 @@ rounds later.
 > Like the other playthrough specs it **completes matches**, so the event can no
 > longer be hard-deleted afterwards. Run it on a sandbox org.
 
+## Swiss: seeding refusals, a broken round, and the data that escapes (opt-in)
+
+`E2E_SWISS=1` also runs **`23-swiss-seeding.spec.ts`**, **`24-swiss-public.spec.ts`**
+and **`25-swiss-data.spec.ts`** alongside `22`.
+
+**`23`** covers the two edges around the playthrough. Every seeding strategy
+shares one rule, written into `swiss-seeding.service.ts`'s own header: REFUSE
+rather than degrade, because a draw that quietly falls back to registration order
+looks seeded, gets defended as one, and nobody finds out until somebody checks.
+Two refusals implement it (`by-pool-rank` without a finished pool phase,
+`by-rating` under the coverage threshold) and neither had ever run. It also
+breaks a round on purpose with `setMatchSides` — the one override that can leave
+a fighter in two bouts — and proves the next round will not pair on top of it.
+
+**`24`** RENDERS the admin route and the public tab. `22` never opens a page, so
+between them `next build` proved the components compile and `t-key-references`
+proved every static key resolves, but nothing proved they render. It builds its
+own `event_kind: 'club'` event (publishing a `standard` event announces it to the
+organisation's real followers) and **plays before it publishes**, because
+`swiss_round_published` fires per round once the tournament is public. Its
+`expectNoRawKeys` is the only check that catches a dynamically-composed `t()` key
+the i18n sweep is blind to.
+
+**`25`** follows Swiss data OUT of the app — the archive round-trip and the HEMA
+Ratings bundle. Both had zero Swiss coverage despite slices 1/7/8 changing them.
+
+Between them these found four real bugs on their first runs:
+
+| bug                                                                                                  | why nothing caught it                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An invalid round paired the next one anyway                                                          | `swiss.dto.ts` DOCUMENTED the guard ("an invalid round blocks the next one from being committed"); nothing implemented it. `validateSwissRound` had only ever been called for reporting                                                        |
+| `by-pool-rank` with no explicit `sourcePhaseId` persisted a phase whose config failed its own schema | The seeder resolves the pool phase itself, but the config recorded the request's `null`. The phase row and its entrants were written, THEN every read of it 400'd                                                                              |
+| `swiss_rounds.bye_registration_id` was never remapped on restore                                     | Every other registration FK is in the list. The constraint is satisfied — the SOURCE row still exists — so a restored phase's byes silently point into another event, the holder renders blank, and their bye points vanish from the standings |
+| The swap-confirm dialog could not name the warning                                                   | Found earlier by `22`; the RFC 9457 envelope moves `warnings` under `details` and `swissMutate` never read them                                                                                                                                |
+
+> Like the other playthrough specs these **complete matches**, so their events
+> cannot be hard-deleted afterwards. `24` and `25` build and tear down their own;
+> `23` writes into the shared throwaway event.
+
 ## Status
 
-| #   | Flow                                 | Spec                                | State                                    |
-| --- | ------------------------------------ | ----------------------------------- | ---------------------------------------- |
-| 1   | CSV participant import               | `01-participants-import.spec.ts`    | active                                   |
-| 2   | Create tournament (wizard step 1)    | `02-create-tournament.spec.ts`      | active                                   |
-| 3   | Create event (wizard)                | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
-| 4   | Schedule / programme                 | `04-schedule.spec.ts`               | active (page load + generate)            |
-| 5   | Referee auto-assign board            | `05-referee-board.spec.ts`          | active                                   |
-| 6   | Offline scoring sync (PWA)           | `06-offline-sync.spec.ts`           | active                                   |
-| 7   | Populate rich demo event             | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
-| 8   | Offline scoring on a custom ruleset  | `08-offline-custom-ruleset.spec.ts` | active                                   |
-| 9   | Double-elimination playthrough       | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
-| 10  | Scoring-pad server contract          | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
-| 11  | League season                        | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
-| 12  | Exports + HEMA Ratings bundle        | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
-| 13  | Subject export + deletion requests   | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
-| 14  | Referee compensation                 | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
-| 15  | Public site on real data             | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
-| 16  | The pad's other buttons + the clock  | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
-| 17  | Archive export → restore round-trip  | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
-| 18  | Staff PIN login + the staff rules    | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
-| 19  | Workshops: seats, waitlist, staff    | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
-| 20  | Schedule generator invariants        | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above     |
-| 21  | Referee qualification + availability | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above     |
-| 22  | Swiss rounds, auto-advance, the cut  | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above        |
+| #   | Flow                                  | Spec                                | State                                    |
+| --- | ------------------------------------- | ----------------------------------- | ---------------------------------------- |
+| 1   | CSV participant import                | `01-participants-import.spec.ts`    | active                                   |
+| 2   | Create tournament (wizard step 1)     | `02-create-tournament.spec.ts`      | active                                   |
+| 3   | Create event (wizard)                 | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
+| 4   | Schedule / programme                  | `04-schedule.spec.ts`               | active (page load + generate)            |
+| 5   | Referee auto-assign board             | `05-referee-board.spec.ts`          | active                                   |
+| 6   | Offline scoring sync (PWA)            | `06-offline-sync.spec.ts`           | active                                   |
+| 7   | Populate rich demo event              | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
+| 8   | Offline scoring on a custom ruleset   | `08-offline-custom-ruleset.spec.ts` | active                                   |
+| 9   | Double-elimination playthrough        | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
+| 10  | Scoring-pad server contract           | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
+| 11  | League season                         | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
+| 12  | Exports + HEMA Ratings bundle         | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
+| 13  | Subject export + deletion requests    | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
+| 14  | Referee compensation                  | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
+| 15  | Public site on real data              | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
+| 16  | The pad's other buttons + the clock   | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
+| 17  | Archive export → restore round-trip   | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
+| 18  | Staff PIN login + the staff rules     | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
+| 19  | Workshops: seats, waitlist, staff     | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
+| 20  | Schedule generator invariants         | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above     |
+| 21  | Referee qualification + availability  | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above     |
+| 22  | Swiss rounds, auto-advance, the cut   | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above        |
+| 23  | Swiss seeding refusals + set-sides    | `23-swiss-seeding.spec.ts`          | opt-in (`E2E_SWISS=1`); see above        |
+| 24  | Swiss admin route + public tab render | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above        |
+| 25  | Swiss archive + HEMA Ratings labels   | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above        |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

@@ -581,6 +581,14 @@ export class ArchiveService {
     this.mapFk(next, 'replacement_registration_id', maps.registrations);
     this.mapFk(next, 'registration_a_id', maps.registrations);
     this.mapFk(next, 'registration_b_id', maps.registrations);
+    // `swiss_rounds.bye_registration_id`. Missed when the Swiss tables were
+    // registered, and silently: the FK points at `registrations(id)` and the
+    // SOURCE row still exists, so the constraint is satisfied and the restore
+    // succeeds with the copy's byes pointing into another event. The bye holder
+    // then renders blank everywhere — and their bye points vanish from the
+    // restored standings, because `swissRecords` credits `points.bye` by
+    // matching this id against the phase's own entrants.
+    this.mapFk(next, 'bye_registration_id', maps.registrations);
     this.mapFk(next, 'phase_id', maps.phases);
     this.mapFk(next, 'pool_id', maps.pools);
     this.mapFk(next, 'bracket_slot_id', maps.bracketSlots);
