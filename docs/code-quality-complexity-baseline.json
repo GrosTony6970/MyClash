@@ -639,7 +639,7 @@
     "apps/web-admin/src/components/OAuthCallback.tsx:70",
     "apps/web-admin/src/components/OrganizerAdminShell.tsx:69",
     "apps/web-admin/src/components/SuperAdminShell.tsx:149",
-    "apps/web-admin/src/components/SuperAdminShell.tsx:452",
+    "apps/web-admin/src/components/SuperAdminShell.tsx:460",
     "apps/web-admin/src/components/ai/AiBudgetView.tsx:9",
     "apps/web-admin/src/components/league/LeagueManageView.tsx:111",
     "apps/web-admin/src/components/league/LeagueRequestsPanel.tsx:59",

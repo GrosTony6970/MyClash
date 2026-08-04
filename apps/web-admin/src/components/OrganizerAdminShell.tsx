@@ -474,8 +474,13 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     </div>
   ) : null;
 
+  // Flex row with STICKY chrome, not fixed. Fixed chrome ignores document flow,
+  // so anything the root layout renders above this shell (the maintenance
+  // banner, the legal-update banner) ends up painted over by the header and the
+  // sidebar. Sticky keeps the same pinned-on-scroll feel while letting a banner
+  // of any height push the whole shell down.
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-skip-link focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent-foreground"
@@ -483,9 +488,12 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         {t('organizer.shell.skipToContent')}
       </a>
 
+      {/* `shrink-0` keeps the 288px rail from being squeezed by the flex row;
+          `h-screen` (rather than the stretch height a flex item would take) is
+          what gives the sticky element room to travel. */}
       <aside
         data-theme="dark"
-        className="fixed inset-y-0 left-0 z-sidebar hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground lg:flex"
+        className="sticky top-0 z-sidebar hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-background px-4 py-5 text-foreground lg:flex"
       >
         {/* Three-slot brand row: MyClash logo (always) + org name + org
             logo (when uploaded, as a secondary identity badge to the
@@ -528,105 +536,110 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-header border-b border-border bg-background/90 backdrop-blur lg:left-72">
-        <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground lg:hidden"
-              aria-label={t('organizer.shell.openMenu')}
-              onClick={() => setOpen(true)}
-            >
-              <span className="flex flex-col gap-1" aria-hidden="true">
-                <span className="h-0.5 w-5 rounded bg-current" />
-                <span className="h-0.5 w-5 rounded bg-current" />
-                <span className="h-0.5 w-5 rounded bg-current" />
-              </span>
-            </button>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-accent">
-                {urlEventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
-              </p>
-              <p className="truncate font-display text-base font-medium tracking-tight text-foreground sm:text-lg">
-                {urlEventId
-                  ? t('organizer.shell.eventTitle', {
-                      event: currentEvent?.name || urlEventId,
-                    })
-                  : t('organizer.shell.title', { organization: orgName || slug })}
-              </p>
-            </div>
-          </div>
-          <div className="hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted sm:flex">
-            <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
-            {t('organizer.shell.status')}
-          </div>
-        </div>
-      </header>
-
-      {open && (
-        <div className="fixed inset-0 z-overlay lg:hidden">
-          <button
-            type="button"
-            aria-label={t('organizer.shell.closeMenu')}
-            className="absolute inset-0 bg-slate-950/40"
-            onClick={() => setOpen(false)}
-          />
-          <div
-            ref={drawerRef}
-            data-theme="dark"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('organizer.shell.navigationLabel')}
-            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-background px-4 py-5 text-foreground shadow-2xl"
-          >
-            <div className="mb-6 flex items-center justify-between">
-              <Link
-                href={orgBase}
-                className="flex min-w-0 flex-1 items-center gap-3"
-                onClick={() => setOpen(false)}
-              >
-                <Image
-                  src="/brand/Logomini_nobackground.png"
-                  alt=""
-                  width={40}
-                  height={40}
-                  className="shrink-0"
-                />
-                <span className="min-w-0 flex-1 truncate font-display text-lg font-medium">
-                  {orgName || t('organizer.shell.brand')}
-                </span>
-                {orgLogoUrl && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={orgLogoUrl}
-                    alt=""
-                    width={28}
-                    height={28}
-                    onError={() => console.warn('[org-logo] drawer failed to render', orgLogoUrl)}
-                    className="h-7 w-7 shrink-0 rounded-md object-cover"
-                  />
-                )}
-              </Link>
+      {/* Right column. `min-w-0` is mandatory: without it a long event name or
+          the schedule grid blows the flex column out and breaks every truncate
+          below it. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-header border-b border-border bg-background/90 backdrop-blur">
+          <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="rounded-md border border-border px-3 py-1 text-sm text-foreground"
-                onClick={() => setOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground lg:hidden"
+                aria-label={t('organizer.shell.openMenu')}
+                onClick={() => setOpen(true)}
               >
-                {t('organizer.shell.close')}
+                <span className="flex flex-col gap-1" aria-hidden="true">
+                  <span className="h-0.5 w-5 rounded bg-current" />
+                  <span className="h-0.5 w-5 rounded bg-current" />
+                  <span className="h-0.5 w-5 rounded bg-current" />
+                </span>
               </button>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-accent">
+                  {urlEventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
+                </p>
+                <p className="truncate font-display text-base font-medium tracking-tight text-foreground sm:text-lg">
+                  {urlEventId
+                    ? t('organizer.shell.eventTitle', {
+                        event: currentEvent?.name || urlEventId,
+                      })
+                    : t('organizer.shell.title', { organization: orgName || slug })}
+                </p>
+              </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-            <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-              {accountFooter}
-              <LanguageSwitcher className="px-3" />
-              {logoutAction}
+            <div className="hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted sm:flex">
+              <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
+              {t('organizer.shell.status')}
             </div>
           </div>
-        </div>
-      )}
+        </header>
 
-      <div id="main-content" className="min-h-screen pt-16 lg:pl-72">
-        {children}
+        {open && (
+          <div className="fixed inset-0 z-overlay lg:hidden">
+            <button
+              type="button"
+              aria-label={t('organizer.shell.closeMenu')}
+              className="absolute inset-0 bg-slate-950/40"
+              onClick={() => setOpen(false)}
+            />
+            <div
+              ref={drawerRef}
+              data-theme="dark"
+              role="dialog"
+              aria-modal="true"
+              aria-label={t('organizer.shell.navigationLabel')}
+              className="relative flex h-full w-80 max-w-[85vw] flex-col bg-background px-4 py-5 text-foreground shadow-2xl"
+            >
+              <div className="mb-6 flex items-center justify-between">
+                <Link
+                  href={orgBase}
+                  className="flex min-w-0 flex-1 items-center gap-3"
+                  onClick={() => setOpen(false)}
+                >
+                  <Image
+                    src="/brand/Logomini_nobackground.png"
+                    alt=""
+                    width={40}
+                    height={40}
+                    className="shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-display text-lg font-medium">
+                    {orgName || t('organizer.shell.brand')}
+                  </span>
+                  {orgLogoUrl && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={orgLogoUrl}
+                      alt=""
+                      width={28}
+                      height={28}
+                      onError={() => console.warn('[org-logo] drawer failed to render', orgLogoUrl)}
+                      className="h-7 w-7 shrink-0 rounded-md object-cover"
+                    />
+                  )}
+                </Link>
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-3 py-1 text-sm text-foreground"
+                  onClick={() => setOpen(false)}
+                >
+                  {t('organizer.shell.close')}
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
+              <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+                {accountFooter}
+                <LanguageSwitcher className="px-3" />
+                {logoutAction}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div id="main-content" className="flex-1">
+          {children}
+        </div>
       </div>
     </div>
   );

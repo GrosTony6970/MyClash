@@ -249,11 +249,14 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
     );
   }
 
+  // Flex row with STICKY chrome, not fixed. Fixed chrome ignores document flow,
+  // so the banners the root layout renders above this shell (maintenance,
+  // legal update) would be painted over by the header and the sidebar.
   return (
-    <div data-accent="personal" className="min-h-screen bg-background text-foreground">
+    <div data-accent="personal" className="flex min-h-screen bg-background text-foreground">
       <aside
         data-theme="dark"
-        className="fixed inset-y-0 left-0 z-sidebar hidden w-72 flex-col border-r border-border bg-background px-4 py-5 text-foreground shadow-2xl lg:flex"
+        className="sticky top-0 z-sidebar hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-background px-4 py-5 text-foreground shadow-2xl lg:flex"
       >
         <div className="mb-7">
           <Link href="/me" className="flex items-center gap-3">
@@ -291,81 +294,87 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-header border-b border-border bg-surface/95 shadow-sm backdrop-blur lg:left-72">
-        <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground lg:hidden"
-              aria-label={t('publicApp.personalShell.openMenu')}
-              onClick={() => setOpen(true)}
-            >
-              <span className="flex flex-col gap-1" aria-hidden="true">
-                <span className="h-0.5 w-5 rounded bg-current" />
-                <span className="h-0.5 w-5 rounded bg-current" />
-                <span className="h-0.5 w-5 rounded bg-current" />
-              </span>
-            </button>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
-                {t('publicApp.personalShell.eyebrow')}
-              </p>
-              <p className="text-base font-bold text-foreground sm:text-lg">
-                {t('publicApp.personalShell.title')}
-              </p>
-            </div>
-          </div>
-          <div className="hidden items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-muted sm:flex">
-            <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
-            {t('publicApp.personalShell.status')}
-          </div>
-        </div>
-      </header>
-
-      {open && (
-        <div className="fixed inset-0 z-overlay lg:hidden">
-          <button
-            type="button"
-            aria-label={t('publicApp.personalShell.closeMenu')}
-            className="absolute inset-0 bg-slate-950/60"
-            onClick={() => setOpen(false)}
-          />
-          <div
-            data-theme="dark"
-            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-background px-4 py-5 text-foreground shadow-2xl"
-          >
-            <div className="mb-6 flex items-center justify-between">
-              <Link href="/me" className="flex items-center gap-3" onClick={() => setOpen(false)}>
-                <Image src="/brand/Logomini_nobackground.png" alt="" width={40} height={40} />
-                <span className="font-display text-lg font-bold">
-                  {t('publicApp.personalShell.brand')}
-                </span>
-              </Link>
+      {/* Right column — `min-w-0` so long names and wide cards can't blow the
+          flex column out. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-header border-b border-border bg-surface/95 shadow-sm backdrop-blur">
+          <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="rounded-md border border-border px-3 py-1 text-sm text-foreground"
-                onClick={() => setOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground lg:hidden"
+                aria-label={t('publicApp.personalShell.openMenu')}
+                onClick={() => setOpen(true)}
               >
-                {t('publicApp.personalShell.close')}
+                <span className="flex flex-col gap-1" aria-hidden="true">
+                  <span className="h-0.5 w-5 rounded bg-current" />
+                  <span className="h-0.5 w-5 rounded bg-current" />
+                  <span className="h-0.5 w-5 rounded bg-current" />
+                </span>
               </button>
-            </div>
-            {displayName && (
-              <div className="mb-4 flex items-center gap-2 pl-1">
-                <p className="min-w-0 text-[0.7rem] text-muted">
-                  {t('publicApp.personalShell.loggedAs')}{' '}
-                  <span className="font-semibold text-foreground">{displayName}</span>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+                  {t('publicApp.personalShell.eyebrow')}
                 </p>
-                <Avatar size="md" name={displayName} src={photoUrl ?? undefined} />
+                <p className="text-base font-bold text-foreground sm:text-lg">
+                  {t('publicApp.personalShell.title')}
+                </p>
               </div>
-            )}
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-            <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
+            </div>
+            <div className="hidden items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-muted sm:flex">
+              <span className="h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
+              {t('publicApp.personalShell.status')}
+            </div>
           </div>
-        </div>
-      )}
+        </header>
 
-      <div id="main-content" className="min-h-screen pt-16 pb-20 lg:pb-0 lg:pl-72">
-        {children}
+        {open && (
+          <div className="fixed inset-0 z-overlay lg:hidden">
+            <button
+              type="button"
+              aria-label={t('publicApp.personalShell.closeMenu')}
+              className="absolute inset-0 bg-slate-950/60"
+              onClick={() => setOpen(false)}
+            />
+            <div
+              data-theme="dark"
+              className="relative flex h-full w-80 max-w-[85vw] flex-col bg-background px-4 py-5 text-foreground shadow-2xl"
+            >
+              <div className="mb-6 flex items-center justify-between">
+                <Link href="/me" className="flex items-center gap-3" onClick={() => setOpen(false)}>
+                  <Image src="/brand/Logomini_nobackground.png" alt="" width={40} height={40} />
+                  <span className="font-display text-lg font-bold">
+                    {t('publicApp.personalShell.brand')}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-3 py-1 text-sm text-foreground"
+                  onClick={() => setOpen(false)}
+                >
+                  {t('publicApp.personalShell.close')}
+                </button>
+              </div>
+              {displayName && (
+                <div className="mb-4 flex items-center gap-2 pl-1">
+                  <p className="min-w-0 text-[0.7rem] text-muted">
+                    {t('publicApp.personalShell.loggedAs')}{' '}
+                    <span className="font-semibold text-foreground">{displayName}</span>
+                  </p>
+                  <Avatar size="md" name={displayName} src={photoUrl ?? undefined} />
+                </div>
+              )}
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
+              <div className="mt-4 border-t border-border pt-4">{logoutAction}</div>
+            </div>
+          </div>
+        )}
+
+        {/* `pb-20` clears the fixed mobile BottomNav; it has no desktop
+            counterpart, hence `lg:pb-0`. */}
+        <div id="main-content" className="flex-1 pb-20 lg:pb-0">
+          {children}
+        </div>
       </div>
       <BottomNav notificationsUnread={notificationsUnread} />
     </div>
