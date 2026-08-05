@@ -3,6 +3,10 @@
 **/dist/
 **/build/
 **/coverage/
+# Emitted at the repo root by `pnpm openapi:emit` (the drift gate uses its own
+# temp dir instead). Generated, so reformatting it is pointless — and without
+# this entry a manual emit reddens format:check for an unrelated reason.
+openapi.json
 
 # Lockfiles + caches
 pnpm-lock.yaml

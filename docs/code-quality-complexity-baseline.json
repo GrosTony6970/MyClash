@@ -561,7 +561,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/programme.tsx:340",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/programme.tsx:64",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/programme.tsx:762",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/staff/StaffAccountCard.tsx:32",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/staff/StaffAccountCard.tsx:43",
     "apps/web-admin/app/org/[slug]/events/[eventId]/staff/page.tsx:13",
     "apps/web-admin/app/org/[slug]/events/[eventId]/statistics/page.tsx:13",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/FormatSection.tsx:21",

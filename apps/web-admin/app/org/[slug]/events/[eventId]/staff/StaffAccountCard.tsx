@@ -24,6 +24,17 @@ interface Props {
   onSetLices: (account: StaffAccount, liceId: string, checked: boolean) => void;
 }
 
+// A literal map rather than a template literal interpolating the status. A
+// template would hand the i18n reverse sweep the prefix organizer.staff. — and a
+// prefix whitelists the WHOLE subtree under it, so every orphaned key on this
+// page went invisible to the orphan check. Two exact literals keep it working.
+// (Do not write the template form in this comment either: the sweep scans raw
+// text, so an example in a comment re-derives the prefix just as the code did.)
+const STATUS_KEYS = {
+  active: 'organizer.staff.active',
+  disabled: 'organizer.staff.disabled',
+} as const;
+
 /**
  * One local staff account: identity, enable/disable + PIN reset, Lice
  * assignments, the account's own PIN sign-in link, and one labelled display URL
@@ -48,7 +59,7 @@ export function StaffAccountCard({
         <div>
           <h2 className="font-display font-semibold text-lg sm:text-xl">{account.display_name}</h2>
           <p className="text-sm text-muted">
-            {account.username} - {t(`organizer.staff.${account.status}`)}
+            {account.username} - {t(STATUS_KEYS[account.status])}
           </p>
         </div>
         <div className="flex gap-2">

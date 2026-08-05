@@ -39,6 +39,10 @@ build/
 out/
 coverage/
 *.tsbuildinfo
+# Generated OpenAPI spec, written to the repo root by `pnpm openapi:emit`. The
+# committed artefact is packages/api-client/src/generated/schema.ts, not this.
+# Also needs a .prettierignore entry — Prettier does not read this file.
+openapi.json
 
 # ── Test artefacts ───────────────────────────────────────────────
 playwright-report/
