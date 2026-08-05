@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   BoutFlowChart,
   MatchTimeline,
@@ -10,86 +10,21 @@ import {
 } from '@myclash/ui';
 import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
-import { supabase } from '@/lib/supabase';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { showReconnecting } from './show-reconnecting';
 import { resolveMatchWinner } from './resolve-match-winner';
+import { useMatchLiveChannel } from './use-match-live-channel';
 import {
   mapMatchRow,
   type ExchangeRow,
-  type ExchangeType,
   type MatchPenaltyRow,
   type MatchRow,
   type MatchStatus,
   type MatchSummary,
 } from './match-row';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-// Supabase Realtime postgres_changes payloads use raw DB column names (snake_case).
-interface ExchangeChangeRaw {
-  id: string;
-  match_id: string;
-  sequence: number;
-  type: ExchangeType;
-  first_striker_color: 'red' | 'blue' | null;
-  afterblow_value: number | null;
-  no_exchange_reason: string | null;
-  red_score_delta: number;
-  blue_score_delta: number;
-  clock_time_ms: number | null;
-  round_number: number | null;
-  occurred_at: string;
-  voided: boolean;
-}
-
-interface MatchPenaltyChangeRaw extends MatchPenaltyRow {
-  match_id: string;
-}
-
-// Derive the API's exchange aliases from a raw realtime row, so realtime and
-// server-fetched rows share one shape.
-function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
-  const scoringSide =
-    raw.type === 'clean' || raw.type === 'afterblow' ? raw.first_striker_color : null;
-  const scoreDelta =
-    scoringSide === 'red'
-      ? raw.red_score_delta
-      : scoringSide === 'blue'
-        ? raw.blue_score_delta
-        : null;
-  // Defender's NETTED afterblow points (the opposite side's delta) — 0 in
-  // deductive mode, the raw afterblow in full. Mirrors the API's listExchanges.
-  const defenderDelta =
-    raw.type === 'afterblow'
-      ? scoringSide === 'red'
-        ? raw.blue_score_delta
-        : scoringSide === 'blue'
-          ? raw.red_score_delta
-          : null
-      : null;
-  return {
-    id: raw.id,
-    sequence: raw.sequence,
-    type: raw.type,
-    voided: raw.voided,
-    // REQUIRED by the shared timeline: `orderedWithNumbers` sorts on it, so a
-    // live-inserted row missing it would sort to the front of the ascending
-    // pass and get numbered #1 until the next refresh repaired it.
-    occurredAt: raw.occurred_at,
-    no_exchange_reason: raw.no_exchange_reason,
-    scoringSide,
-    scoreDelta,
-    defenderDelta,
-    clockTimeMs: raw.clock_time_ms,
-    // Carried so a live-inserted row can be filtered to the open round like a
-    // fetched one; without it a best-of bout's flow would fold every round in.
-    round_number: raw.round_number,
-  };
-}
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -361,24 +296,27 @@ export function MatchLiveView({
   const [summary, setSummary] = useState<MatchSummary>(initialSummary);
   const [exchanges, setExchanges] = useState<ExchangeRow[]>(initialExchanges);
   const [penalties, setPenalties] = useState<MatchPenaltyRow[]>(initialPenalties);
-  const [connected, setConnected] = useState(true);
-  const wasDisconnected = useRef(false);
-  // disable_realtime kill-switch — when on, the effect below degrades to polling.
+  // disable_realtime kill-switch — when on, the channel hook degrades to polling.
   const realtimeDisabled = useRealtimeDisabled();
 
   // A finished match is static — no realtime channel needed.
   const isFinal = initialMatch.status === 'completed' || initialMatch.status === 'voided';
 
-  const refresh = useCallback(async () => {
+  /**
+   * Volatile state only. `/summary` is deliberately absent: fighter names,
+   * clubs, referees, `scoringConfig`, `bestOf` and `matchFormat` do not change
+   * mid-bout, and leaving it out takes the fallback poll from four requests to
+   * three — see FALLBACK_POLL_MS for why that margin matters at a venue, where
+   * every phone shares one public IP.
+   */
+  const refreshLive = useCallback(async () => {
     try {
-      const [matchRes, summaryRes, exRes, penaltyRes] = await Promise.all([
+      const [matchRes, exRes, penaltyRes] = await Promise.all([
         fetch(`${apiUrl}/api/v1/matches/${matchId}`, { credentials: 'include' }),
-        fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
       ]);
       if (matchRes.ok) setMatch(mapMatchRow((await matchRes.json()) as Record<string, unknown>));
-      if (summaryRes.ok) setSummary((await summaryRes.json()) as MatchSummary);
       if (exRes.ok) setExchanges((await exRes.json()) as ExchangeRow[]);
       if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as MatchPenaltyRow[]);
     } catch {
@@ -386,95 +324,34 @@ export function MatchLiveView({
     }
   }, [matchId, apiUrl]);
 
-  useEffect(() => {
-    // Finished matches don't stream — skip the channel entirely (no banner).
-    if (isFinal) return;
-
-    // disable_realtime kill-switch: no websocket at all; degrade to a 30s
-    // refresh poll. The reconnecting banner is derived from the flag at
-    // render time (connected && !realtimeDisabled) — no setState needed here.
-    if (realtimeDisabled) {
-      const timer = window.setInterval(() => void refresh(), 30_000);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() kicks off the poll fetch; intentional on flag flip.
-      void refresh();
-      return () => window.clearInterval(timer);
-    }
-
-    const channel = supabase
-      .channel(`match:${matchId}:live`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'exchanges', filter: `match_id=eq.${matchId}` },
-        (payload) => {
-          const raw = payload.new as ExchangeChangeRaw;
-          setExchanges((prev) => {
-            if (prev.some((e) => e.id === raw.id)) return prev;
-            return [...prev, toExchangeRow(raw)];
+  /** Everything, summary included — the reconnect backfill, where a referee or
+   *  config change made during the outage also has to land. */
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      refreshLive(),
+      (async () => {
+        try {
+          const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, {
+            credentials: 'include',
           });
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'exchanges', filter: `match_id=eq.${matchId}` },
-        (payload) => {
-          const raw = payload.new as ExchangeChangeRaw;
-          setExchanges((prev) => prev.map((e) => (e.id === raw.id ? toExchangeRow(raw) : e)));
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'match_penalties',
-          filter: `match_id=eq.${matchId}`,
-        },
-        (payload) => {
-          const raw = payload.new as MatchPenaltyChangeRaw;
-          setPenalties((prev) => {
-            if (prev.some((penalty) => penalty.id === raw.id)) return prev;
-            return [...prev, raw];
-          });
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'match_penalties',
-          filter: `match_id=eq.${matchId}`,
-        },
-        (payload) => {
-          const raw = payload.new as MatchPenaltyChangeRaw;
-          setPenalties((prev) => prev.map((penalty) => (penalty.id === raw.id ? raw : penalty)));
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
-        (payload) => {
-          setMatch(mapMatchRow(payload.new as Record<string, unknown>));
-        },
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setConnected(true);
-          // Re-fetch to catch any changes missed during the disconnection window.
-          if (wasDisconnected.current) {
-            wasDisconnected.current = false;
-            void refresh();
-          }
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnected(false);
-          wasDisconnected.current = true;
+          if (res.ok) setSummary((await res.json()) as MatchSummary);
+        } catch {
+          // network failure — stay with current state
         }
-      });
+      })(),
+    ]);
+  }, [refreshLive, matchId, apiUrl]);
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [matchId, refresh, isFinal, realtimeDisabled]);
+  const connected = useMatchLiveChannel({
+    matchId,
+    isFinal,
+    realtimeDisabled,
+    refresh,
+    refreshLive,
+    setMatch,
+    setExchanges,
+    setPenalties,
+  });
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
@@ -489,7 +366,10 @@ export function MatchLiveView({
       />
 
       {/* Connection indicator — live match without a healthy channel (WS
-          dropped, or realtime disabled by the kill-switch → 30s polling). */}
+          dropped, or realtime disabled by the kill-switch). Either way the
+          fallback poll is now carrying the page, so this reports "updates are
+          slower", not "updates have stopped" — which is why it stays up while
+          the poll runs rather than being suppressed by it. */}
       {showReconnecting(connected && !realtimeDisabled, match.status) && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-warning/10 px-4 py-2 text-sm text-warning">
           <span className="h-2 w-2 rounded-full bg-warning" />

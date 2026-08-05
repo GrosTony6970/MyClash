@@ -65,6 +65,11 @@ are never rebuilt by these scripts — they use published images.
   `COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)`.
   `--dev-certs` appends the `infra/docker-compose.staging-certs.yml` overlay
   (Let's Encrypt **staging** certs — use while iterating to avoid rate limits).
+  Staging certs break **realtime**, not just page loads: a browser lets you click
+  through the interstitial to navigate, but does not extend that exception to the
+  WebSocket handshake, so every live surface sits on "Reconnecting…". Devices that
+  must see live data need the staging root installed once —
+  `node scripts/trust-staging-ca.mjs` (see [scripts/README.md](../../scripts/README.md)).
 - **`.deploy.lock`** — `deploy.sh`, `redeploy.sh`, and `rollback.sh` share one `flock` so
   they can't race each other.
 - **`up -d` timeout** — `deploy.sh`/`redeploy.sh` bound `up -d` and treat the health poll,

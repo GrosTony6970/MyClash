@@ -104,11 +104,15 @@ for (const host of hosts) {
       const issuer = cert.issuer?.CN ?? 'unknown issuer';
       if (isStagingIssuer(cert)) {
         // deploy.sh --dev-certs points ACME at the LE staging CA, whose roots no
-        // client trusts: every visitor gets a browser warning. Tolerated only
-        // when the operator has said so, and never silently.
+        // client trusts: every visitor gets a browser warning, and — less
+        // obviously — every realtime websocket dies, because a click-through
+        // exception covers page navigation but not the WS handshake. Tolerated
+        // only when the operator has said so, and never silently.
         const message =
           `https://${host}/ is serving a Let's Encrypt STAGING certificate ` +
-          `("${issuer}") — no browser trusts it. Redeploy without --dev-certs.`;
+          `("${issuer}") — no browser trusts it, and realtime websockets cannot ` +
+          `connect at all. Redeploy without --dev-certs, or install the staging ` +
+          `root on each device that needs live data: node scripts/trust-staging-ca.mjs`;
         if (allowStagingCert) warnings.push(message);
         else errors.push(message);
       } else {
