@@ -68,6 +68,43 @@ if (health.statusCode !== 200) {
   errors.push(`https://api.${domain}/health returned ${health.statusCode ?? 'no response'}`);
 }
 
+// Realtime, reachable AS app.${domain} — not merely up.
+//
+// supabase/realtime is multi-tenant and resolves the tenant from the first
+// label of the Host header. Traefik forwards the client's Host untouched, so
+// this only works while SELF_HOST_TENANT_NAME matches that label. When it did
+// not, every websocket handshake 403'd and every live public surface silently
+// fell back to polling — for months. Nothing caught it: the container's own
+// healthcheck addresses the tenant by PATH (/api/tenants/:id/health) and
+// answered 200 throughout.
+//
+// /api/ping is the cheapest route that resolves the tenant the way the socket
+// does. A misconfigured tenant answers 401 {"message":"Tenant not found in
+// database"}; a wrong/missing key answers 403.
+const realtimeKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (realtimeKey) {
+  const ping = await request({
+    protocol: 'https:',
+    host: `app.${domain}`,
+    path: '/realtime/v1/api/ping',
+    method: 'GET',
+    headers: { Authorization: `Bearer ${realtimeKey}` },
+    timeoutMs: 10_000,
+  });
+  if (ping.statusCode !== 200) {
+    errors.push(
+      `https://app.${domain}/realtime/v1/api/ping returned ${ping.statusCode ?? 'no response'} ` +
+        `(expected 200). 401 = realtime cannot resolve a tenant named "app" — check ` +
+        `SELF_HOST_TENANT_NAME against the Host Traefik forwards; websockets are dead.`,
+    );
+  }
+} else {
+  console.warn(
+    'SUPABASE_ANON_KEY not set — skipped the realtime tenant-resolution probe on ' +
+      `app.${domain}. This is the check that catches a dead websocket.`,
+  );
+}
+
 if (errors.length > 0) {
   console.error(`Edge/TLS review failed for ${domain}:`);
   for (const error of errors) console.error(`  - ${error}`);
@@ -88,7 +125,7 @@ function parseArgs(rawArgs) {
   return parsed;
 }
 
-function request({ protocol, host, path, method, timeoutMs }) {
+function request({ protocol, host, path, method, timeoutMs, headers }) {
   const client = protocol === 'https:' ? https : http;
   return new Promise((resolve) => {
     const req = client.request(
@@ -97,6 +134,7 @@ function request({ protocol, host, path, method, timeoutMs }) {
         host,
         path,
         method,
+        headers,
         timeout: timeoutMs,
         rejectUnauthorized: true,
       },

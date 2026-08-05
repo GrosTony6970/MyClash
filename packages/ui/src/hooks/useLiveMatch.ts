@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
 import type { ClockEvent, ExchangeRow, MatchStatus, Penalty } from '../types/match-events';
 
 // The wire shapes live in ../types/match-events (a leaf module the pure
@@ -19,6 +19,14 @@ export type {
 export interface DisplayMatch {
   id: string;
   status: MatchStatus;
+  /**
+   * `phases.type` for this match. Selects which `timeLimitsSeconds` entry the
+   * clock counts against — without it a pool bout is billed at the bracket
+   * limit, which is what the projector did for every match until now. Optional
+   * because a payload predating the projection resolves to the bracket limit,
+   * the same default the engine uses for an unknown phase.
+   */
+  phaseType?: PhaseType | null;
   matchNumberLabel: string | null;
   /** Round code computed server-side: e.g. `LSW-QF-M1`, `RAP-P2-M5`. */
   roundCode?: string | null;
@@ -136,7 +144,8 @@ function computeElapsedMs(state: ClockSnapshot): number {
  *
  * Subscribes to Supabase realtime postgres_changes on the `matches`,
  * `exchanges`, `match_penalties`, and `match_events` tables filtered
- * to this matchId. Any change triggers a refetch.
+ * to this matchId. Any change triggers a refetch. `pollMs` is the
+ * fallback for while that channel is down — see the parameter docs.
  *
  * Also runs a 50ms `setInterval` ticker while the clock is RUNNING
  * so the displayed timer doesn't visibly stutter.
@@ -153,17 +162,17 @@ export function useLiveMatch(
   matchId: string,
   supabaseClient: SupabaseClient,
   /**
-   * Optional fallback poll interval (ms). When set, `refresh()` re-runs
-   * on this interval IN ADDITION to the realtime subscription. Used by
-   * the admin external display, whose realtime WebSocket is cross-origin
-   * (admin.${DOMAIN} → app.${DOMAIN}) and can be blocked under
-   * self-signed `--dev-certs`; the poll hits the same-origin API that
-   * already serves the initial render, so the screen stays live there.
+   * Fallback poll interval (ms), used ONLY while the realtime channel is down.
+   * The poll starts on CLOSED / CHANNEL_ERROR / TIMED_OUT (firing once
+   * immediately) and stops the moment the channel reports SUBSCRIBED. Any
+   * unattended surface should set it: a channel that fails to join never
+   * retries, and without a fallback the board freezes mid-bout showing stale
+   * scores — which is exactly what happened to the public projector.
    *
-   * The public display passes it too. Relying on realtime alone is what left
-   * that screen frozen on "Reconnecting" for a whole bout: a channel that
-   * fails to join never retries, and there was nothing else keeping the board
-   * fresh. Any unattended surface should set this.
+   * It used to run unconditionally, IN ADDITION to realtime. That made a dead
+   * websocket invisible: the public display polled four endpoints every 2s for
+   * weeks while its socket 403'd, and looked perfectly healthy doing it. Same
+   * contract as `useRealtimeWithFallback` in the apps now.
    */
   pollMs?: number,
 ): UseLiveMatchResult {
@@ -226,8 +235,24 @@ export function useLiveMatch(
     void refresh();
   }, [refresh]);
 
-  // Supabase realtime subscription
+  // Supabase realtime subscription, with `pollMs` as its fallback. Both live
+  // in one effect because the channel's status IS what starts and stops the
+  // poll — splitting them is what let the two run at once.
   useEffect(() => {
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (pollTimer !== null || !pollMs || pollMs <= 0) return;
+      // Fire once immediately: the caller is degraded from this instant, not
+      // one interval from now.
+      void refresh();
+      pollTimer = setInterval(() => void refresh(), pollMs);
+    };
+    const stopPolling = () => {
+      if (pollTimer === null) return;
+      clearInterval(pollTimer);
+      pollTimer = null;
+    };
+
     const channel = supabaseClient
       .channel(`match:${matchId}:display`)
       .on(
@@ -258,6 +283,7 @@ export function useLiveMatch(
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setConnected(true);
+          stopPolling();
           // Re-fetch to catch changes missed while the channel was down.
           if (wasDisconnected.current) {
             wasDisconnected.current = false;
@@ -266,12 +292,14 @@ export function useLiveMatch(
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           setConnected(false);
           wasDisconnected.current = true;
+          startPolling();
         }
       });
     return () => {
+      stopPolling();
       void supabaseClient.removeChannel(channel);
     };
-  }, [matchId, supabaseClient, refresh]);
+  }, [matchId, supabaseClient, refresh, pollMs]);
 
   // Running-clock ticker
   useEffect(() => {
@@ -279,15 +307,6 @@ export function useLiveMatch(
     const timer = setInterval(() => setElapsedMs(computeElapsedMs(clock)), 50);
     return () => clearInterval(timer);
   }, [clock]);
-
-  // Fallback poll — resilience for surfaces whose realtime WebSocket may
-  // not connect (e.g. the cross-origin admin display under --dev-certs).
-  // No-op when pollMs is unset.
-  useEffect(() => {
-    if (!pollMs || pollMs <= 0) return;
-    const id = setInterval(() => void refresh(), pollMs);
-    return () => clearInterval(id);
-  }, [pollMs, refresh]);
 
   // Catch up the moment the screen comes back or regains the network. A
   // projector that was asleep, a laptop lid reopened, or a venue wifi blip all

@@ -65,6 +65,25 @@ describe('scoreboardClockMs', () => {
     // Before the clock starts, a countdown shows the full match time (01:30).
     expect(scoreboardClockMs(null, NOW, countdownPool90, 'pool', null)).toBe(90_000);
   });
+
+  it('counts a Swiss bout against the SWISS limit, and the pool limit when unset', () => {
+    // This module used to bill Swiss at the bracket limit, disagreeing with the
+    // engine that ends the bout (`swiss ?? pool`). Now delegated to
+    // @myclash/types, which mirrors the engine.
+    const withSwiss: MatchFormatConfig = {
+      ...DEFAULT_MATCH_FORMAT_CONFIG,
+      timerMode: 'countdown',
+      timeLimitsSeconds: { pool: 90, swiss: 120, bracket: 180, finals: 240 },
+    };
+    expect(scoreboardClockMs(halted(20_000), NOW, withSwiss, 'swiss', null)).toBe(100_000);
+
+    const preSwiss: MatchFormatConfig = {
+      ...DEFAULT_MATCH_FORMAT_CONFIG,
+      timerMode: 'countdown',
+      timeLimitsSeconds: { pool: 90, bracket: 180, finals: 240 },
+    };
+    expect(scoreboardClockMs(halted(20_000), NOW, preSwiss, 'swiss', null)).toBe(70_000);
+  });
 });
 
 describe('clockShouldTick', () => {

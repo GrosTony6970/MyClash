@@ -31,10 +31,15 @@ export function DisplayView({ matchId, eventSlug }: Props) {
         // This screen runs unattended on a projector for a whole day, so it
         // cannot depend on the websocket alone: when the channel failed to
         // join, the board silently froze mid-bout and someone had to walk over
-        // and press F5. Every other live surface already polls (admin display
-        // 1.5s, control room 7s, piste screen 20s) — this was the one that
-        // didn't. 2s is well inside "the audience never notices".
-        pollMs={2000}
+        // and press F5.
+        //
+        // Only a FALLBACK now — it runs while the channel is down and stops on
+        // SUBSCRIBED. It used to run unconditionally at 2s, which is how a
+        // websocket that had been 403-ing since Kong was dropped went unnoticed:
+        // the board looked live because it was being repainted 30 times a minute.
+        // With realtime carrying the updates, 10s is only ever the degraded
+        // cadence.
+        pollMs={10_000}
       />
     </div>
   );

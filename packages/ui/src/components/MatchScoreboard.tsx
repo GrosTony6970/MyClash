@@ -2,8 +2,12 @@
 
 import * as React from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MatchFormatConfig } from '@myclash/types';
-import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  displayClockMs,
+  formatClockMs,
+  shouldWarnClock,
+} from '@myclash/types';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { formatFightOfTotal } from './format-fight-of-total';
 import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
@@ -24,32 +28,11 @@ export interface MatchScoreboardProps {
 // useLiveMatch hook so both this component and TVScoreboard read
 // from one source-of-truth.
 
-// ── Helper functions ──────────────────────────────────────────────────────────
-
-function formatClockMs(ms: number): string {
-  const clamped = Math.max(0, ms);
-  const totalSeconds = Math.floor(clamped / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const centiseconds = Math.floor((clamped % 1000) / 10);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
-    centiseconds,
-  ).padStart(2, '0')}`;
-}
-
-function displayClockMs(elapsedMs: number, matchFormat: MatchFormatConfig): number {
-  const limitSeconds = matchFormat.timeLimitsSeconds.bracket;
-  if (matchFormat.timerMode === 'countdown' && limitSeconds !== null) {
-    return Math.max(0, limitSeconds * 1000 - elapsedMs);
-  }
-  return elapsedMs;
-}
-
-function shouldWarnClock(elapsedMs: number, matchFormat: MatchFormatConfig): boolean {
-  const limitSeconds = matchFormat.timeLimitsSeconds.bracket;
-  if (limitSeconds === null) return false;
-  return Math.max(0, limitSeconds * 1000 - elapsedMs) < 10_000;
-}
+// Clock math (phase limit, countdown/count-up, formatting) lives in
+// `@myclash/types` match-clock.ts — the one owner shared with the pad, the
+// projector and the ruleset engine. The three helpers that used to sit here
+// read `timeLimitsSeconds.bracket` unconditionally, so every pool bout and
+// every medal match on this preview counted against the wrong limit.
 
 // ── Sub-component ─────────────────────────────────────────────────────────────
 
@@ -171,8 +154,11 @@ export function MatchScoreboard({
   // resolution the pad and the public match page use.
   const sideColors = sideColorsFor(match.scoringConfig, 'dark');
   const matchFormat = match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
-  const shownMs = formatClockMs(displayClockMs(elapsedMs, matchFormat));
-  const warnClock = shouldWarnClock(elapsedMs, matchFormat);
+  const phaseType = match.phaseType ?? undefined;
+  const shownMs = formatClockMs(
+    displayClockMs(elapsedMs, matchFormat, phaseType, match.matchNumberLabel),
+  );
+  const warnClock = shouldWarnClock(elapsedMs, matchFormat, phaseType, match.matchNumberLabel);
   // External-display redesign: split the realtime penalty list per
   // side so each FighterPanel can render its own card row.
   const redPenalties = activePenalties.filter(

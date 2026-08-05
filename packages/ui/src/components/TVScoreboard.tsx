@@ -24,7 +24,13 @@ import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTranslator, getMessages } from '@myclash/i18n';
-import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  DEFAULT_SCORING_CONFIG,
+  displayClockMs,
+  formatClockMs,
+  shouldWarnClock,
+} from '@myclash/types';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
 import type { ClockEvent, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
@@ -510,6 +516,13 @@ function CenterColumn({
   t: (k: string, p?: Record<string, string>) => string;
 }) {
   const isEnded = clockStatus === 'ended';
+  // timerMode decides which way this numeral runs; the phase decides what it
+  // counts against. The projector ignored both until now — it rendered raw
+  // elapsed time, so a countdown tournament (the default) counted up all day.
+  const matchFormat = match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
+  const clockArgs = [matchFormat, match.phaseType ?? undefined, match.matchNumberLabel] as const;
+  const shownClockMs = displayClockMs(elapsedMs, ...clockArgs);
+  const warnClock = shouldWarnClock(elapsedMs, ...clockArgs);
   // Double cap reached: both fighters lose, scores are 0-0 (so the
   // score-derived winner below is null too). end_reason disambiguates
   // this from a genuine tie.
@@ -639,13 +652,15 @@ function CenterColumn({
           <p
             className={`text-stage-clock font-mono font-black tabular-nums leading-none ${
               clockStatus === 'running'
-                ? 'text-white'
+                ? warnClock
+                  ? 'text-red-500'
+                  : 'text-white'
                 : clockStatus === 'halted'
                   ? 'text-yellow-400'
                   : 'text-gray-600'
             }`}
           >
-            {formatClockMs(elapsedMs)}
+            {formatClockMs(shownClockMs)}
           </p>
           {match.startedAt && (
             <p className="text-stage-label uppercase tracking-widest text-gray-500">
@@ -709,15 +724,5 @@ function TVFooter({
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
-
-function formatClockMs(ms: number): string {
-  const clamped = Math.max(0, ms);
-  const totalSeconds = Math.floor(clamped / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const centiseconds = Math.floor((clamped % 1000) / 10);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
-    centiseconds,
-  ).padStart(2, '0')}`;
-}
+// Clock math and formatting live in `@myclash/types` match-clock.ts — the one
+// owner shared with the scoring pad, the admin preview and the ruleset engine.

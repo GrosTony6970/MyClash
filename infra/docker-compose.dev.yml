@@ -216,7 +216,14 @@ services:
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET:-a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here}
       APP_NAME: realtime
       SEED_SELF_HOST: 'true'
-      SELF_HOST_TENANT_NAME: realtime
+      # MUST equal the first label of the Host header Traefik forwards — the
+      # dev realtime routers below are on api.myclash.localhost, so `api`.
+      # Realtime resolves the tenant for the websocket connect (and every
+      # /api/* route that is not path-addressed) from that label; a mismatch
+      # 403s the handshake with an empty body and nothing else fails. See the
+      # long note in docker-compose.prod.yml — this env had the same wrong
+      # value there, and it cost the public projector its realtime for months.
+      SELF_HOST_TENANT_NAME: api
       FLY_ALLOC_ID: fly123
       FLY_APP_NAME: realtime
       ERL_AFLAGS: '-proto_dist inet_tcp'

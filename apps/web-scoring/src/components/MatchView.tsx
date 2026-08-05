@@ -18,7 +18,7 @@ import {
   pointCapWinnerSide,
 } from '@myclash/types';
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
-import { phaseTimeLimitSeconds } from './scoreboard-clock';
+import { effectiveTimeLimitSeconds } from './scoreboard-clock';
 import { matchWinnerSide } from './match-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
 
@@ -346,7 +346,7 @@ export function MatchView({
 
   // Phase time limit (ms) — drives the corrections drawer's display-anchored
   // time adjust. Null in count-up mode or when no limit is configured.
-  const limitSeconds = phaseTimeLimitSeconds(
+  const limitSeconds = effectiveTimeLimitSeconds(
     matchFormat,
     match.phaseType ?? undefined,
     match.matchNumberLabel,

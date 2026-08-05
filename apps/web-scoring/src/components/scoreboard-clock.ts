@@ -1,13 +1,30 @@
 /**
- * scoreboard-clock.ts — pure clock math for the scoreboard.
+ * scoreboard-clock.ts — the pad's clock STATE math.
  *
  * No React: every function is a pure transform so the timer behaviour can be
- * unit-tested without rendering. `scoreboardClockMs` is the single source of
- * truth for the big numeral — it counts DOWN from the phase time limit in
- * countdown mode and UP (elapsed) otherwise.
+ * unit-tested without rendering. This module owns what is specific to the pad —
+ * the persisted clock state and how much of it has actually run
+ * ({@link elapsedActiveMs}, {@link clockShouldTick}).
+ *
+ * How that elapsed time READS on a scoreboard — the phase time limit, countdown
+ * vs count-up, `MM:SS:CC` — belongs to `@myclash/types` (match-clock.ts), which
+ * the projector and the admin preview render from too. Those helpers used to be
+ * duplicated here, and the copy had drifted: it billed a Swiss bout at the
+ * BRACKET limit while the engine that ends the bout uses `swiss ?? pool`, so the
+ * pad could run a Swiss match against a clock nobody would honour. Re-exported
+ * below so this module stays the pad's single import.
  */
-import type { MatchFormatConfig } from '@myclash/types';
+import { displayClockMs, type MatchFormatConfig, type PhaseType } from '@myclash/types';
 import type { ClockEvent } from '@myclash/ui';
+
+export {
+  displayClockMs,
+  effectiveTimeLimitSeconds,
+  formatClockMs,
+  isMedalMatchLabel,
+  shouldWarnClock,
+  type PhaseType,
+} from '@myclash/types';
 
 export type ClockStatus = 'idle' | 'running' | 'halted' | 'ended';
 
@@ -25,62 +42,6 @@ export interface ClockState {
    * time ran, never where it stopped.
    */
   events?: ClockEvent[];
-}
-
-export type PhaseType = 'pool' | 'single_elim' | 'double_elim' | 'swiss';
-
-export function formatClockMs(ms: number): string {
-  const clamped = Math.max(0, ms);
-  const totalSeconds = Math.floor(clamped / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const centiseconds = Math.floor((clamped % 1000) / 10);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
-    centiseconds,
-  ).padStart(2, '0')}`;
-}
-
-export function isMedalMatchLabel(label: string | null | undefined) {
-  const normalized = (label ?? '').trim().toUpperCase();
-  return ['F', 'FINAL', 'GOLD', 'GOLD MEDAL MATCH', '3RD', 'BRONZE', 'BRONZE MEDAL MATCH'].includes(
-    normalized,
-  );
-}
-
-export function phaseTimeLimitSeconds(
-  matchFormat: MatchFormatConfig,
-  phaseType: PhaseType | undefined,
-  matchNumberLabel: string | null | undefined,
-) {
-  if (phaseType === 'pool') return matchFormat.timeLimitsSeconds.pool;
-  if (isMedalMatchLabel(matchNumberLabel)) return matchFormat.timeLimitsSeconds.finals;
-  return matchFormat.timeLimitsSeconds.bracket;
-}
-
-/** Convert raw elapsed active ms into the value to display: countdown subtracts
- *  from the phase limit (clamped at 0); count-up returns elapsed unchanged. */
-export function displayClockMs(
-  elapsedMs: number,
-  matchFormat: MatchFormatConfig,
-  phaseType: PhaseType | undefined,
-  matchNumberLabel: string | null | undefined,
-) {
-  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
-  if (matchFormat.timerMode === 'countdown' && limitSeconds !== null) {
-    return Math.max(0, limitSeconds * 1000 - elapsedMs);
-  }
-  return elapsedMs;
-}
-
-export function shouldWarnClock(
-  elapsedMs: number,
-  matchFormat: MatchFormatConfig,
-  phaseType: PhaseType | undefined,
-  matchNumberLabel: string | null | undefined,
-) {
-  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
-  if (limitSeconds === null) return false;
-  return Math.max(0, limitSeconds * 1000 - elapsedMs) < 10_000;
 }
 
 /** Whether the UI's `now` ticker should run. Running is obvious; HALTED must

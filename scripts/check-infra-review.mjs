@@ -564,9 +564,26 @@ for (const serviceName of requiredServices) {
   }
 }
 
-for (const [label, service] of [
-  ['prod supabase-realtime', services.get('supabase-realtime')],
-  ['dev supabase-realtime', devServices.get('supabase-realtime')],
+/**
+ * supabase/realtime is multi-tenant and resolves the tenant from the FIRST
+ * LABEL of the Host header. Traefik forwards the client's Host untouched, so
+ * SELF_HOST_TENANT_NAME must equal that label or the websocket handshake 403s —
+ * silently, since the container healthcheck addresses the tenant by path and
+ * keeps answering 200. This gate used to pin the literal name `realtime`, which
+ * is what the value WAS while every public socket was dead; assert the
+ * relationship instead, because that is the thing that has to hold.
+ */
+function realtimeTenantHost(composeText, wsRouterName) {
+  const match = new RegExp(
+    `traefik\\.http\\.routers\\.${wsRouterName}\\.rule=Host\\(\`([^\`]+)\`\\)`,
+  ).exec(composeText);
+  return match?.[1] ?? null;
+}
+
+const realtimeTenants = new Map();
+for (const [label, service, routerCompose, wsRouterName] of [
+  ['prod supabase-realtime', services.get('supabase-realtime'), composeText, 'myclash-realtime'],
+  ['dev supabase-realtime', devServices.get('supabase-realtime'), devComposeText, 'dev-realtime'],
 ]) {
   if (!service) {
     errors.push(`${label} service is missing.`);
@@ -576,11 +593,35 @@ for (const [label, service] of [
   requireContains(service, label, 'DB_ENC_KEY:');
   requireContains(service, label, 'API_JWT_SECRET:');
   requireContains(service, label, "SEED_SELF_HOST: 'true'");
-  requireContains(service, label, 'SELF_HOST_TENANT_NAME: realtime');
+
+  const tenant = /SELF_HOST_TENANT_NAME:\s*(\S+)/.exec(service)?.[1] ?? null;
+  if (!tenant) {
+    errors.push(`${label} is missing SELF_HOST_TENANT_NAME.`);
+    continue;
+  }
+  realtimeTenants.set(label, tenant);
+
+  const host = realtimeTenantHost(routerCompose, wsRouterName);
+  if (!host) {
+    errors.push(`${label}: could not find the ${wsRouterName} router's Host rule.`);
+    continue;
+  }
+  const hostLabel = host.split('.')[0];
+  if (tenant !== hostLabel) {
+    errors.push(
+      `${label} SELF_HOST_TENANT_NAME is "${tenant}" but the ${wsRouterName} router serves ` +
+        `Host \`${host}\`, whose first label is "${hostLabel}". Realtime resolves the tenant ` +
+        `from that label — every websocket handshake would 403.`,
+    );
+  }
 }
 const prodRealtime = services.get('supabase-realtime') ?? '';
 requireContains(prodRealtime, 'prod supabase-realtime', 'Authorization: Bearer');
-requireContains(prodRealtime, 'prod supabase-realtime', '/api/tenants/realtime/health');
+requireContains(
+  prodRealtime,
+  'prod supabase-realtime',
+  `/api/tenants/${realtimeTenants.get('prod supabase-realtime') ?? 'app'}/health`,
+);
 
 const prodStorage = services.get('supabase-storage') ?? '';
 requireContains(prodStorage, 'prod supabase-storage', 'http://supabase-storage:5000/status');

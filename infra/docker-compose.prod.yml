@@ -263,7 +263,22 @@ services:
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET}
       APP_NAME: realtime
       SEED_SELF_HOST: 'true'
-      SELF_HOST_TENANT_NAME: realtime
+      # MUST equal the first label of the Host header Traefik forwards, i.e.
+      # `app` for app.${DOMAIN}. Realtime is multi-tenant: the websocket
+      # connect and every /api/* route except the path-addressed
+      # /api/tenants/:id/* resolve the tenant from that label. Traefik passes
+      # the client's Host through unchanged, so a tenant named `realtime`
+      # meant every socket looked up a tenant called `app`, found nothing, and
+      # 403'd the handshake — for months, invisibly, because the healthcheck
+      # below addresses the tenant by PATH and kept returning 200.
+      #
+      # Kong (dropped in the 2026-07-29 parity slice) hid this: its upstream
+      # URL was http://realtime-dev.supabase-realtime:4000 with preserve_host
+      # off, so realtime saw a Host whose first label WAS the tenant name.
+      #
+      # Changing this name is a public-surface change: check
+      # scripts/check-edge-tls.mjs, which probes /realtime/v1/api/ping.
+      SELF_HOST_TENANT_NAME: app
       FLY_ALLOC_ID: fly123
       FLY_APP_NAME: realtime
       ERL_AFLAGS: '-proto_dist inet_tcp'
@@ -272,11 +287,16 @@ services:
       TZ: ${TZ}
     depends_on:
       db: { condition: service_healthy }
+    # The tenant is addressed by PATH here, so this probe passes even when
+    # host-based tenant resolution is broken: it proves realtime is UP, never
+    # that it can serve app.${DOMAIN}. That gap is covered by
+    # scripts/check-edge-tls.mjs. Keep the id in step with
+    # SELF_HOST_TENANT_NAME above.
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'curl -sSfL --head -o /dev/null -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" http://localhost:4000/api/tenants/realtime/health',
+          'curl -sSfL --head -o /dev/null -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" http://localhost:4000/api/tenants/app/health',
         ]
       interval: 30s
       timeout: 5s

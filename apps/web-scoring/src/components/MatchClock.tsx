@@ -20,7 +20,7 @@ export type { ClockStatus, ClockState } from './scoreboard-clock';
 export {
   formatClockMs,
   isMedalMatchLabel,
-  phaseTimeLimitSeconds,
+  effectiveTimeLimitSeconds,
   displayClockMs,
   shouldWarnClock,
 } from './scoreboard-clock';

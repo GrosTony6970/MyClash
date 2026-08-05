@@ -19,6 +19,7 @@ import {
   type LiceMatchesPayload,
 } from './lice-matches';
 import { bracketToken } from '@myclash/types';
+import type { PhaseType } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
@@ -710,7 +711,7 @@ export class StaffService {
         //     0081 simplified the schema so the global_persons club
         //     fallback is no longer needed — persons.club_id is
         //     populated eagerly at insert/link time.
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number)',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -1062,6 +1063,7 @@ export class StaffService {
     const blue = match['blue'] as { persons?: PersonEmbed } | null;
     const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
     const phases = match['phases'] as {
+      type?: PhaseType;
       config_json?: Record<string, unknown> | null;
       tournaments?: {
         id?: string;
@@ -1140,8 +1142,14 @@ export class StaffService {
     });
 
     // Effective best-of for this match's phase (1 = single round → TV hides the
-    // round counter). phaseType is derived from pool membership; medal matches
-    // resolve to finals via matchNumberLabel inside getEffectiveBestOf.
+    // round counter); medal matches resolve to finals via matchNumberLabel
+    // inside getEffectiveBestOf.
+    //
+    // phaseType is read from phases.type, not inferred as `pool ? 'pool' :
+    // undefined` — that guess is right for pools and bracket but silently bills
+    // a Swiss bout (which has no pool) as BRACKET. It travels in the payload
+    // too, so the scoreboards can count against the right time limit.
+    const phaseType = phases?.type ?? null;
     const displayMatchFormat = normalizeMatchFormatConfig(
       phases?.tournaments?.ruleset_config?.matchFormat ?? {},
     );
@@ -1153,7 +1161,7 @@ export class StaffService {
         rulesetCode: 'TF_v1',
         rulesetVersion: '1.0.0',
         status: 'running',
-        phaseType: pool ? 'pool' : undefined,
+        phaseType: phaseType ?? undefined,
         matchNumberLabel,
       } satisfies RulesetMatch,
       displayMatchFormat,
@@ -1162,6 +1170,7 @@ export class StaffService {
     return {
       id: match['id'],
       status: match['status'],
+      phaseType,
       scheduledAt: match['scheduled_at'],
       startedAt: match['started_at'],
       endedAt: match['ended_at'],

@@ -8,7 +8,7 @@
  * Pure: no React, no I/O.
  */
 import type { MatchFormatConfig } from '@myclash/types';
-import { phaseTimeLimitSeconds, type PhaseType } from './scoreboard-clock';
+import { effectiveTimeLimitSeconds, type PhaseType } from './scoreboard-clock';
 
 export function resumeBlockedByRuleset(
   matchFormat: MatchFormatConfig,
@@ -17,7 +17,7 @@ export function resumeBlockedByRuleset(
   elapsedMs: number,
 ): boolean {
   if (matchFormat.timerMode !== 'countdown') return false;
-  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
+  const limitSeconds = effectiveTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
   if (limitSeconds === null) return false;
   const remainingMs = Math.max(0, limitSeconds * 1000 - elapsedMs);
   return remainingMs <= matchFormat.softClockLimitSeconds * 1000;
