@@ -9875,14 +9875,10 @@ export interface components {
       displayName: string;
       username: string;
       pin: string;
-      /** @enum {string} */
-      role?: 'arbitre_table' | 'event_staff';
     };
     UpdateStaffAccountDto: {
       displayName?: string;
       username?: string;
-      /** @enum {string} */
-      role?: 'arbitre_table' | 'event_staff';
       /** @enum {string} */
       status?: 'active' | 'disabled';
     };

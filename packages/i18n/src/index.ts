@@ -6870,7 +6870,6 @@ export const en = {
       displayName: 'Display name',
       username: 'Username',
       pin: 'PIN',
-      role: 'Role',
       create: 'Create account',
       createError: 'Could not create staff account.',
       loading: 'Loading staff accounts...',
@@ -6900,10 +6899,6 @@ export const en = {
       scanQr: 'Scan from the tablet',
       displayHubUrl: 'All displays (Lice picker)',
       liceDisplayFor: 'Display for {lice}',
-      roles: {
-        arbitre_table: 'Table referee',
-        event_staff: 'Event staff',
-      },
     },
     hemaRatings: {
       backToEvent: 'Back to event',
@@ -14244,7 +14239,6 @@ export const fr = {
       displayName: 'Nom affiche',
       username: 'Identifiant',
       pin: 'PIN',
-      role: 'Role',
       create: 'Creer le compte',
       createError: 'Impossible de creer le compte staff.',
       loading: 'Chargement des comptes staff...',
@@ -14274,10 +14268,6 @@ export const fr = {
       scanQr: 'À scanner depuis la tablette',
       displayHubUrl: 'Tous les affichages (choix de lice)',
       liceDisplayFor: 'Affichage pour {lice}',
-      roles: {
-        arbitre_table: 'Arbitre de table',
-        event_staff: 'Staff evenement',
-      },
     },
     hemaRatings: {
       backToEvent: "Retour à l'évènement",

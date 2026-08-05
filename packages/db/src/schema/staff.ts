@@ -9,7 +9,6 @@ export const eventStaffAccounts = pgTable('event_staff_accounts', {
   displayName: text('display_name').notNull(),
   username: text('username').notNull(),
   pinHash: text('pin_hash').notNull(),
-  role: text('role').notNull().default('arbitre_table'),
   status: text('status').notNull().default('active'),
   createdByUserId: uuid('created_by_user_id'),
   disabledByUserId: uuid('disabled_by_user_id'),

@@ -48,8 +48,7 @@ export function StaffAccountCard({
         <div>
           <h2 className="font-display font-semibold text-lg sm:text-xl">{account.display_name}</h2>
           <p className="text-sm text-muted">
-            {account.username} - {t(`organizer.staff.roles.${account.role}`)} -{' '}
-            {t(`organizer.staff.${account.status}`)}
+            {account.username} - {t(`organizer.staff.${account.status}`)}
           </p>
         </div>
         <div className="flex gap-2">

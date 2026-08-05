@@ -67,7 +67,6 @@ type StaffAccountRow = {
   display_name: string;
   username: string;
   pin_hash: string;
-  role: string;
   status: string;
 };
 
@@ -98,7 +97,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
       .select(
-        'id,event_id,display_name,username,role,status,disabled_at,last_login_at,created_at,updated_at',
+        'id,event_id,display_name,username,status,disabled_at,last_login_at,created_at,updated_at',
       )
       .eq('event_id', eventId)
       .order('display_name', { ascending: true });
@@ -122,11 +121,10 @@ export class StaffService {
         display_name: dto.displayName.trim(),
         username: this.normalizeUsername(dto.username),
         pin_hash: await this.hashPin(dto.pin),
-        role: dto.role ?? 'arbitre_table',
         status: 'active',
         created_by_user_id: userId,
       })
-      .select('id,event_id,display_name,username,role,status,created_at,updated_at')
+      .select('id,event_id,display_name,username,status,created_at,updated_at')
       .single();
     if (error) throw new BadRequestException(error.message);
     return { ...data, liceIds: [] };
@@ -142,7 +140,6 @@ export class StaffService {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.displayName !== undefined) updates['display_name'] = dto.displayName.trim();
     if (dto.username !== undefined) updates['username'] = this.normalizeUsername(dto.username);
-    if (dto.role !== undefined) updates['role'] = dto.role;
     if (dto.status !== undefined) {
       updates['status'] = dto.status;
       updates['disabled_at'] = dto.status === 'disabled' ? new Date().toISOString() : null;
@@ -155,7 +152,7 @@ export class StaffService {
       .eq('event_id', eventId)
       .eq('id', accountId)
       .select(
-        'id,event_id,display_name,username,role,status,disabled_at,last_login_at,created_at,updated_at',
+        'id,event_id,display_name,username,status,disabled_at,last_login_at,created_at,updated_at',
       )
       .single();
     if (error) throw new BadRequestException(error.message);
@@ -170,7 +167,7 @@ export class StaffService {
       .update({ pin_hash: await this.hashPin(dto.pin), updated_at: new Date().toISOString() })
       .eq('event_id', eventId)
       .eq('id', accountId)
-      .select('id,event_id,display_name,username,role,status,updated_at')
+      .select('id,event_id,display_name,username,status,updated_at')
       .single();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Staff account not found');
@@ -208,7 +205,7 @@ export class StaffService {
 
     const { data: account, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,pin_hash,role,status')
+      .select('id,event_id,display_name,username,pin_hash,status')
       .eq('event_id', event.id)
       .ilike('username', this.normalizeUsername(dto.username))
       .maybeSingle();
@@ -505,7 +502,7 @@ export class StaffService {
   private async getMeForStaff(staffAccountId: string) {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,role,status,events(id,slug,name,status)')
+      .select('id,event_id,display_name,username,status,events(id,slug,name,status)')
       .eq('id', staffAccountId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -921,7 +918,7 @@ export class StaffService {
   private async getAccountForEvent(eventId: string, accountId: string): Promise<StaffAccountRow> {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,pin_hash,role,status')
+      .select('id,event_id,display_name,username,pin_hash,status')
       .eq('event_id', eventId)
       .eq('id', accountId)
       .maybeSingle();

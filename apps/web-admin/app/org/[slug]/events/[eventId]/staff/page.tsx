@@ -23,12 +23,7 @@ export default function EventStaffPage() {
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [accounts, setAccounts] = useState<StaffAccount[]>([]);
   const [lices, setLices] = useState<Lice[]>([]);
-  const [form, setForm] = useState({
-    displayName: '',
-    username: '',
-    pin: '',
-    role: 'arbitre_table' as 'arbitre_table' | 'event_staff',
-  });
+  const [form, setForm] = useState({ displayName: '', username: '', pin: '' });
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -96,7 +91,7 @@ export default function EventStaffPage() {
       setError(t('organizer.staff.createError'));
       return;
     }
-    setForm({ displayName: '', username: '', pin: '', role: 'arbitre_table' });
+    setForm({ displayName: '', username: '', pin: '' });
     setShowPin(false);
     await load();
   }
@@ -176,7 +171,7 @@ export default function EventStaffPage() {
 
       <form
         onSubmit={(event) => void createAccount(event)}
-        className="mt-6 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-5"
+        className="mt-6 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-4"
       >
         <input
           required
@@ -213,19 +208,6 @@ export default function EventStaffPage() {
             {showPin ? t('organizer.staff.hidePin') : t('organizer.staff.showPin')}
           </button>
         </div>
-        <select
-          value={form.role}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              role: event.target.value as 'arbitre_table' | 'event_staff',
-            }))
-          }
-          className="rounded border border-border px-3 py-2 text-sm"
-        >
-          <option value="arbitre_table">{t('organizer.staff.roles.arbitre_table')}</option>
-          <option value="event_staff">{t('organizer.staff.roles.event_staff')}</option>
-        </select>
         <button className="rounded bg-accent px-4 py-2 text-sm font-bold text-accent-foreground">
           {t('organizer.staff.create')}
         </button>

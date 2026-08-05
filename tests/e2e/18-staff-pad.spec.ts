@@ -95,7 +95,7 @@ test.describe('staff pad', () => {
 
     const account = await api.json<{ id: string; username: string }>(
       await api.post(`events/${eventId}/staff-accounts`, {
-        data: { displayName: `E2E Referee ${token}`, username, pin: PIN, role: 'arbitre_table' },
+        data: { displayName: `E2E Referee ${token}`, username, pin: PIN },
       }),
     );
     // The PIN is caller-chosen on reset too, so a spec can always know it.

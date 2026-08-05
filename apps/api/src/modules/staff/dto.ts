@@ -14,7 +14,6 @@ const createStaffAccountSchema = z
       .min(4)
       .max(12)
       .regex(/^[0-9]+$/),
-    role: z.enum(['arbitre_table', 'event_staff']).optional(),
   })
   .strict();
 export class CreateStaffAccountDto extends createZodDto(createStaffAccountSchema) {}
@@ -28,7 +27,6 @@ const updateStaffAccountSchema = z
       .max(64)
       .regex(/^[a-zA-Z0-9._-]+$/)
       .optional(),
-    role: z.enum(['arbitre_table', 'event_staff']).optional(),
     status: z.enum(['active', 'disabled']).optional(),
   })
   .strict();
