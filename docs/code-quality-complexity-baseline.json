@@ -860,7 +860,6 @@
     "packages/ui/src/utils/exchange-timeline.ts:165",
     "scripts/bootstrap-super-admin.mjs:102",
     "scripts/create-demo-org.mjs:67",
-    "scripts/deploy.ts:137",
     "scripts/ensure-prod-env.mjs:196",
     "scripts/generate-system-versions.mjs:36",
     "scripts/run-e2e.mjs:90",

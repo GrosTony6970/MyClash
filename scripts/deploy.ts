@@ -134,13 +134,8 @@ function edgeReview(env: DeployEnv): Promise<boolean> {
   return new Promise((resolve) => proc.on('exit', (code) => resolve(code === 0)));
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run');
-  const passthrough = args.filter((a) => a !== '--dry-run').join(' ');
-
-  hdr('MyClash deploy');
-  const env = loadEnv();
+/** Echo the resolved connection settings before anything touches the VPS. */
+function printPlan(env: DeployEnv, passthrough: string): void {
   console.log(`  Host:     ${env.user}@${env.host}`);
   console.log(`  Repo:     ${env.repoPath}`);
   console.log(`  SSH key:  ${env.sshKeyPath}`);
@@ -150,6 +145,58 @@ async function main() {
     warn('SUPABASE_ANON_KEY absent from .env.deploy — the edge realtime probe will be skipped.');
   }
   if (passthrough) console.log(`  Args:     ${passthrough}`);
+}
+
+/** The two post-deploy probes, injectable so they can be faked in a test. */
+export interface DeployProbes {
+  smoke: (url: string) => Promise<boolean>;
+  edge: (env: DeployEnv) => Promise<boolean>;
+}
+
+/**
+ * Post-deploy verification. Returns the list of failures instead of exiting, so
+ * `main` keeps ownership of the exit code.
+ *
+ * BOTH probes always run, even when the first fails — collecting every failure
+ * beats reporting the first one and hiding the rest. That is the same masking
+ * bug the CI gate chain had, and it is worth not repeating here.
+ */
+export async function postDeployChecks(
+  env: DeployEnv,
+  probes: DeployProbes = { smoke: smokeTest, edge: edgeReview },
+): Promise<string[]> {
+  const failures: string[] = [];
+
+  hdr('Local smoke test');
+  if (await probes.smoke(env.smokeUrl)) {
+    ok(`${env.smokeUrl} is reachable`);
+  } else {
+    err(`${env.smokeUrl} not reachable from local machine (could be DNS / TLS / firewall)`);
+    failures.push(`smoke test: ${env.smokeUrl}`);
+  }
+
+  // Edge check, run from HERE and not from CI on purpose: admin.${domain} sits
+  // behind a fail-closed geoblock allow-list, so only a machine in one of those
+  // countries can assert the whole edge. This is also the moment it matters —
+  // a compose or Traefik change has just landed.
+  hdr('Edge / TLS review');
+  if (await probes.edge(env)) {
+    ok(`edge review passed for ${env.edgeDomain}`);
+  } else {
+    failures.push(`edge review: ${env.edgeDomain}`);
+  }
+
+  return failures;
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const passthrough = args.filter((a) => a !== '--dry-run').join(' ');
+
+  hdr('MyClash deploy');
+  const env = loadEnv();
+  printPlan(env, passthrough);
 
   if (dryRun) {
     warn('Dry run — no commands will execute on the VPS.');
@@ -169,28 +216,7 @@ async function main() {
     process.exit(code);
   }
 
-  const failures: string[] = [];
-
-  hdr('Local smoke test');
-  const passed = await smokeTest(env.smokeUrl);
-  if (passed) {
-    ok(`${env.smokeUrl} is reachable`);
-  } else {
-    err(`${env.smokeUrl} not reachable from local machine (could be DNS / TLS / firewall)`);
-    failures.push(`smoke test: ${env.smokeUrl}`);
-  }
-
-  // Edge check, run from HERE and not from CI on purpose: admin.${domain} sits
-  // behind a fail-closed geoblock allow-list, so only a machine in one of those
-  // countries can assert the whole edge. This is also the moment it matters —
-  // a compose or Traefik change has just landed.
-  hdr('Edge / TLS review');
-  const edgePassed = await edgeReview(env);
-  if (edgePassed) {
-    ok(`edge review passed for ${env.edgeDomain}`);
-  } else {
-    failures.push(`edge review: ${env.edgeDomain}`);
-  }
+  const failures = await postDeployChecks(env);
 
   if (failures.length > 0) {
     hdr('Deploy finished with failures');
@@ -206,7 +232,13 @@ async function main() {
   ok('All steps finished successfully.');
 }
 
-main().catch((e) => {
-  err(String(e));
-  process.exit(1);
-});
+// Guarded so scripts/deploy.test.mjs can import `postDeployChecks` without
+// running a deploy. Same pattern (and same reason) as check-complexity.mjs.
+// `deploy:prod` runs `tsx scripts/deploy.ts`, so argv[1] ends in deploy.ts.
+const invokedDirectly = process.argv[1]?.endsWith('deploy.ts') ?? false;
+if (invokedDirectly) {
+  main().catch((e) => {
+    err(String(e));
+    process.exit(1);
+  });
+}
