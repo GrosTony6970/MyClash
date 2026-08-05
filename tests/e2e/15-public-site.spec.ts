@@ -50,6 +50,13 @@ interface Fixture {
 }
 let fixture: Fixture;
 
+/**
+ * Org-level venues the display-hub test creates. They outlive the event, so
+ * they are torn down explicitly — and only AFTER the event, because a venue
+ * refuses to delete while any lice still points at it.
+ */
+const createdVenueIds: string[] = [];
+
 /** Navigate and wait for the app shell, not just the HTML document. */
 async function open(page: Page, path: string): Promise<void> {
   await page.goto(`${publicBase}${path}`, { waitUntil: 'domcontentloaded' });
@@ -227,18 +234,62 @@ test.describe('public site', () => {
   }) => {
     test.setTimeout(300_000);
     const api = apiFor(request);
+    const { orgId } = runContext();
     const { eventId, eventSlug } = fixture;
     const token = Date.now().toString(36);
     const mine = `Display A ${token}`;
     const other = `Display B ${token}`;
-    for (const name of [mine, other]) {
-      await api.ok(await api.post(`events/${eventId}/lices`, { data: { name } }));
-    }
+
+    // Two halls, because that is the case the picker's grouping exists for:
+    // a tournament running in parallel across venues. The first is split into
+    // a named area so the heading has both halves to render.
+    const hallName = `Hall ${token}`;
+    const annexName = `Annex ${token}`;
+    const areaName = `Mat ${token}`;
+    const hall = await api.json<{ id: string }>(
+      await api.post(`organizations/${orgId}/venues`, { data: { name: hallName } }),
+    );
+    const annex = await api.json<{ id: string }>(
+      await api.post(`organizations/${orgId}/venues`, { data: { name: annexName } }),
+    );
+    const area = await api.json<{ id: string }>(
+      await api.post(`venues/${hall.id}/areas`, { data: { name: areaName } }),
+    );
+    createdVenueIds.push(hall.id, annex.id);
+
+    await api.ok(
+      await api.post(`events/${eventId}/lices`, {
+        data: { name: mine, venueId: hall.id, areaId: area.id },
+      }),
+    );
+    await api.ok(
+      await api.post(`events/${eventId}/lices`, {
+        data: { name: other, venueId: annex.id },
+      }),
+    );
 
     // ── The hub ────────────────────────────────────────────────────────────
     await open(page, `/e/${eventSlug}/display`);
     await expect(showing(page, mine)).toBeVisible({ timeout: 30_000 });
     await expect(showing(page, other)).toBeVisible();
+    // The point of the whole slice: an operator standing in one of the two
+    // halls can tell which pistes are in front of them. The first heading
+    // carries both the venue and its area.
+    await expect(
+      showing(page, `${hallName} — ${areaName}`),
+      'the picker must head the first group with its venue and area',
+    ).toBeVisible();
+    await expect(
+      showing(page, annexName),
+      'the parallel venue must get a heading of its own',
+    ).toBeVisible();
+    // Nothing is being fought — the block still renders rather than vanishing,
+    // so a quiet hall is distinguishable from a broken widget. Asserted on the
+    // testid, not the heading text, because the hub honours the viewer's locale.
+    await expect(
+      page.getByTestId('now-live-empty'),
+      'an idle hub must SAY nothing is running, not hide the block',
+    ).toBeVisible({ timeout: 30_000 });
     // The staff door: the pad's PIN form with this event already filled in.
     const staffLink = page.locator(`a[href*="/login?event=${eventSlug}"]`).first();
     await expect(staffLink, 'the hub must point staff at the scoring pad').toBeVisible();
@@ -293,6 +344,21 @@ test.describe('public site', () => {
         `[e2e] public event hidden (event_kind=test) but PRESERVED:\n` +
           `        ${baseURL}/org/${fixture.orgSlug}/events/${fixture.eventId}`,
       );
+    }
+
+    // The venues are org-level and survive the event, so they would pile up in
+    // a real organiser's catalogue one pair per run. Only attempted after a
+    // hard delete: while the event lives, its lices still point at them and
+    // the endpoint (rightly) refuses.
+    if (cleanup && res.ok()) {
+      for (const venueId of createdVenueIds) {
+        const del = await ctx.delete(`/api/v1/venues/${venueId}`);
+        if (!del.ok()) {
+          console.warn(`[e2e] could not delete venue ${venueId}: ${del.status()}`);
+        }
+      }
+    } else if (createdVenueIds.length > 0) {
+      console.log(`[e2e] venues PRESERVED with the event: ${createdVenueIds.join(', ')}`);
     }
     await ctx.dispose();
   });

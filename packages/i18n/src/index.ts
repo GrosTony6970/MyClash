@@ -28,6 +28,10 @@ export const en = {
       hubDescription: 'Pick a Lice to put on a screen, or sign in to score.',
       chooseLice: 'Choose a Lice',
       openDisplay: 'Open display',
+      nowLive: 'Now live',
+      nowLiveEmpty: 'No bout is being fought right now.',
+      // Heading for the pistes an organiser never attached to a venue.
+      noVenue: 'Venue not set',
       staffSignIn: 'Staff sign-in',
       staffSignInHelp: 'Referees and scorekeepers sign in with their username and PIN.',
       noLices: 'This event has no Lice yet.',
@@ -1241,6 +1245,9 @@ export const en = {
     },
     live: {
       badge: 'LIVE',
+      // A halted bout keeps its card — it still owns the piste — but must not
+      // pulse like a live exchange. See isLiveStatus in @myclash/types.
+      paused: 'Paused',
       scheduleUnavailableTitle: 'Schedule not available',
       scheduleUnavailableBody: 'No live schedule data found for this event.',
       liceNotFound: 'Lice not found.',
@@ -6200,6 +6207,19 @@ export const en = {
       refereesUnassigned: 'Unassigned',
     },
     schedulePage: {
+      // Where a piste physically stands. Grouping the public display picker
+      // by hall only works if someone can set the hall.
+      placement: {
+        title: 'Where is {lice}?',
+        help: 'The venue and area a Lice stands in. Spectators and screen operators see this on the display picker.',
+        venue: 'Venue',
+        area: 'Area',
+        noVenue: 'No venue',
+        noArea: 'No area',
+        editLabel: 'Set venue',
+        loadFailed: 'Could not load the venues for this event.',
+        saveFailed: 'Could not save the placement.',
+      },
       breadcrumbEvent: 'Event',
       breadcrumbSchedule: 'Schedule',
       title: 'Schedule',
@@ -7352,6 +7372,9 @@ export const fr = {
       hubDescription: 'Choisissez une lice à mettre sur un écran, ou connectez-vous pour arbitrer.',
       chooseLice: 'Choisir une lice',
       openDisplay: "Ouvrir l'affichage",
+      nowLive: 'En direct',
+      nowLiveEmpty: 'Aucun assaut en cours.',
+      noVenue: 'Lieu non défini',
       staffSignIn: 'Connexion staff',
       staffSignInHelp: 'Les arbitres et scoreurs se connectent avec leur identifiant et leur PIN.',
       noLices: "Cet évènement n'a pas encore de lice.",
@@ -8585,6 +8608,7 @@ export const fr = {
     },
     live: {
       badge: 'EN DIRECT',
+      paused: 'En pause',
       scheduleUnavailableTitle: 'Programme indisponible',
       scheduleUnavailableBody: 'Aucune donnée de programme en direct trouvée pour cet événement.',
       liceNotFound: 'Lice introuvable.',
@@ -13550,6 +13574,17 @@ export const fr = {
       refereesUnassigned: 'Non affecte',
     },
     schedulePage: {
+      placement: {
+        title: 'Où se trouve {lice} ?',
+        help: "Le lieu et l'espace où se trouve la lice. Les spectateurs et les régisseurs le voient sur le choix des affichages.",
+        venue: 'Lieu',
+        area: 'Espace',
+        noVenue: 'Aucun lieu',
+        noArea: 'Aucun espace',
+        editLabel: 'Définir le lieu',
+        loadFailed: 'Impossible de charger les lieux de cet événement.',
+        saveFailed: "Impossible d'enregistrer l'emplacement.",
+      },
       breadcrumbEvent: 'Événement',
       breadcrumbSchedule: 'Programme',
       title: 'Programme',

@@ -11,6 +11,7 @@ export * from './final-ranking';
 export * from './html';
 export * from './legal';
 export * from './match-clock';
+export * from './match-status';
 export * from './password';
 export * from './programme';
 export * from './persons';

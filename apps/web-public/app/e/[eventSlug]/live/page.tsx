@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { isLiveStatus } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -42,8 +43,19 @@ function scheduledTime(iso: string | null, locale: AppLocale): string {
   });
 }
 
-function LiveBadge() {
+/**
+ * A halted bout still holds its piste, so it keeps its card — but a stopped
+ * clock must not pulse like a live exchange.
+ */
+function LiveBadge({ paused = false }: { paused?: boolean }) {
   const { t } = useI18n();
+  if (paused) {
+    return (
+      <span className="inline-flex items-center bg-border text-muted text-xs font-bold px-2 py-0.5 rounded-full">
+        {t('publicApp.live.paused')}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1.5 bg-danger text-danger-foreground text-xs font-bold px-2 py-0.5 rounded-full">
       <span className="w-1.5 h-1.5 rounded-full bg-danger-foreground animate-pulse" />
@@ -54,7 +66,7 @@ function LiveBadge() {
 
 function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
   const { t, locale } = useI18n();
-  const isLive = match.status === 'running';
+  const isLive = isLiveStatus(match.status);
   return (
     <div
       className={[
@@ -65,7 +77,7 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-muted font-medium">{label}</span>
         {isLive ? (
-          <LiveBadge />
+          <LiveBadge paused={match.status === 'paused'} />
         ) : match.scheduledAt ? (
           <span className="text-xs text-muted">{scheduledTime(match.scheduledAt, locale)}</span>
         ) : null}
@@ -285,7 +297,7 @@ export default function LivePage() {
                 <span className="text-xs font-bold text-muted uppercase tracking-wide">
                   {ls.lice.name}
                 </span>
-                {ls.runningMatch && <LiveBadge />}
+                {ls.runningMatch && <LiveBadge paused={ls.runningMatch.status === 'paused'} />}
               </div>
 
               {ls.runningMatch ? (

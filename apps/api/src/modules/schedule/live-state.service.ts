@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
+import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
@@ -19,6 +20,12 @@ export interface LiveMatch {
 
 export interface LiveLiceState {
   lice: { id: string; name: string; sortOrder: number };
+  /**
+   * The bout occupying this piste — `running` OR `paused` (see
+   * `isLiveStatus`). A halt for a doctor call does not free the strip,
+   * and readers that dropped paused bouts made pistes blink out of the
+   * spectator boards mid-fight. Read `.status` to pick the cue.
+   */
   runningMatch: LiveMatch | null;
   nextMatch: LiveMatch | null;
 }
@@ -102,7 +109,7 @@ export class LiveStateService {
             'phases(tournaments(id,name))',
         )
         .in('lice_id', liceIds)
-        .in('status', ['running', 'scheduled'])
+        .in('status', ['running', 'paused', 'scheduled'])
         .order('scheduled_at', { ascending: true, nullsFirst: false });
       matchRows = (data ?? []) as unknown as Record<string, unknown>[];
     }
@@ -110,7 +117,13 @@ export class LiveStateService {
     const nowIso = now.toISOString();
     const liceStates: LiveLiceState[] = lices.map((lice) => {
       const liceMatches = matchRows.filter((m) => m['lice_id'] === lice.id);
-      const runningMatch = liceMatches.find((m) => m['status'] === 'running') ?? null;
+      // `running` wins over `paused` when a piste somehow carries both —
+      // an operator who forgot to end a bout should see the one actually
+      // being fought, not the stale halt.
+      const runningMatch =
+        liceMatches.find((m) => m['status'] === 'running') ??
+        liceMatches.find((m) => isLiveStatus(m['status'] as string)) ??
+        null;
       const nextMatch =
         liceMatches.find(
           (m) =>

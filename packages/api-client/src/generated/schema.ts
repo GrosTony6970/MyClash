@@ -10343,6 +10343,8 @@ export interface components {
       sortOrder?: number;
       /** Format: uuid */
       venueId?: string;
+      /** Format: uuid */
+      areaId?: string;
     };
     UpdateLiceDto: {
       name?: string;
@@ -10351,6 +10353,8 @@ export interface components {
       sortOrder?: number;
       /** Format: uuid */
       venueId?: string | null;
+      /** Format: uuid */
+      areaId?: string | null;
     };
     CreateVenueDto: {
       name: string;

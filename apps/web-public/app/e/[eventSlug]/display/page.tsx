@@ -2,8 +2,13 @@
  * Display hub — route: /e/[eventSlug]/display
  *
  * The one URL an organizer can hand to whoever runs the screens. It answers the
- * two questions the per-lice display URLs never did: *which* Lice am I putting
- * on this screen, and *where* do I sign in to actually score.
+ * three questions the per-lice display URLs never did: *what* is being fought
+ * right now, *which* Lice am I putting on this screen, and *where* do I sign in
+ * to actually score.
+ *
+ * The picker is grouped by venue and area, because a tournament can run in
+ * parallel across several halls and an operator standing in one of them should
+ * not have to guess which pistes are in front of them.
  *
  * Not a kiosk surface itself (a pointer exists here), so it keeps the site
  * chrome — unlike the `/lice/[liceName]/display` routes it links to.
@@ -16,21 +21,22 @@ import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
 import { getStaffLoginUrl } from '@/lib/scoring-url';
+import { NowLiveSection } from './NowLiveSection';
+import {
+  groupLicesByPlacement,
+  mapHubLice,
+  placementLabel,
+  type HubLice,
+  type LiceGroup,
+} from './lice-placement';
 
 interface Props {
   params: Promise<{ eventSlug: string }>;
 }
 
-interface LiceRow {
-  id: string;
-  name: string;
-  locationLabel: string | null;
-  sortOrder: number;
-}
-
 interface EventDisplays {
   name: string;
-  lices: LiceRow[];
+  lices: HubLice[];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -40,8 +46,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * One public call: `GET /events/:slug` already embeds `lices(*)`, so the hub
- * needs no endpoint of its own. Test-kind events 404 there, and so here.
+ * One public call: `GET /events/:slug` already embeds
+ * `lices(*, venues(id, name), venue_areas(id, name))`, so the hub needs no
+ * endpoint of its own. Test-kind events 404 there, and so here.
  */
 async function fetchDisplays(eventSlug: string, apiUrl: string): Promise<EventDisplays | null> {
   try {
@@ -53,24 +60,25 @@ async function fetchDisplays(eventSlug: string, apiUrl: string): Promise<EventDi
     const rows = Array.isArray(raw['lices'])
       ? (raw['lices'] as Array<Record<string, unknown>>)
       : [];
-    const lices = rows
-      .map((row) => ({
-        id: String(row['id'] ?? ''),
-        name: String(row['name'] ?? ''),
-        locationLabel:
-          typeof row['location_label'] === 'string' && row['location_label'].trim().length > 0
-            ? row['location_label']
-            : null,
-        sortOrder: typeof row['sort_order'] === 'number' ? row['sort_order'] : 0,
-      }))
-      .filter((lice) => lice.id.length > 0 && lice.name.length > 0)
-      // The embed carries no ordering of its own; the admin's column order is
-      // sort_order, and names break the ties.
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    const lices = rows.map(mapHubLice).filter((lice): lice is HubLice => lice !== null);
     return { name: String(raw['name'] ?? eventSlug), lices };
   } catch {
     return null;
   }
+}
+
+function LiceCard({ eventSlug, lice, label }: { eventSlug: string; lice: HubLice; label: string }) {
+  return (
+    <li>
+      <Link
+        href={`/e/${eventSlug}/lice/${encodeURIComponent(lice.name)}/display`}
+        className="flex h-full flex-col rounded-lg border border-border bg-surface p-4 transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
+      >
+        <span className="font-display text-lg font-bold">{lice.name}</span>
+        <span className="mt-2 text-sm font-semibold text-accent">{label} →</span>
+      </Link>
+    </li>
+  );
 }
 
 export default async function DisplayHubPage({ params }: Props) {
@@ -78,6 +86,11 @@ export default async function DisplayHubPage({ params }: Props) {
   const t = await getServerT();
   const displays = await fetchDisplays(eventSlug, getServerApiUrl());
   if (!displays) notFound();
+
+  const groups: LiceGroup[] = groupLicesByPlacement(displays.lices);
+  // A single-hall event is the common case and it looked fine as a flat grid;
+  // headings only earn their space once the pistes are actually split up.
+  const showHeadings = groups.length > 1;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-6">
@@ -94,6 +107,8 @@ export default async function DisplayHubPage({ params }: Props) {
         {t('publicApp.display.hubDescription')}
       </p>
 
+      <NowLiveSection eventSlug={eventSlug} lices={displays.lices} />
+
       <section className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="font-display text-lg font-semibold">{t('publicApp.display.staffSignIn')}</h2>
         <p className="mt-1 text-sm text-muted">{t('publicApp.display.staffSignInHelp')}</p>
@@ -108,29 +123,30 @@ export default async function DisplayHubPage({ params }: Props) {
       <h2 className="mt-8 font-display text-lg font-semibold">
         {t('publicApp.display.chooseLice')}
       </h2>
-      {displays.lices.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="mt-3 rounded-lg border border-dashed border-border p-6 text-sm text-muted">
           {t('publicApp.display.noLices')}
         </p>
       ) : (
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-          {displays.lices.map((lice) => (
-            <li key={lice.id}>
-              <Link
-                href={`/e/${eventSlug}/lice/${encodeURIComponent(lice.name)}/display`}
-                className="flex h-full flex-col rounded-lg border border-border bg-surface p-4 transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <span className="font-display text-lg font-bold">{lice.name}</span>
-                {lice.locationLabel && (
-                  <span className="mt-0.5 text-sm text-muted">{lice.locationLabel}</span>
-                )}
-                <span className="mt-2 text-sm font-semibold text-accent">
-                  {t('publicApp.display.openDisplay')} →
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        groups.map((group) => (
+          <section key={group.key} className="mt-4">
+            {showHeadings && (
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                {placementLabel(group.venueName, group.areaName) ?? t('publicApp.display.noVenue')}
+              </h3>
+            )}
+            <ul className="mt-2 grid gap-3 sm:grid-cols-2">
+              {group.lices.map((lice) => (
+                <LiceCard
+                  key={lice.id}
+                  eventSlug={eventSlug}
+                  lice={lice}
+                  label={t('publicApp.display.openDisplay')}
+                />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
     </main>
   );

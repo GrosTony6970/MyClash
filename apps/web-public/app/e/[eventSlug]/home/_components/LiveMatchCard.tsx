@@ -18,7 +18,21 @@ export interface LiveMatchCardMatch {
   tournamentName?: string | null;
 }
 
-export function LiveMatchCard({ match, href }: { match: LiveMatchCardMatch; href: string }) {
+export function LiveMatchCard({
+  match,
+  href,
+  pausedLabel,
+}: {
+  match: LiveMatchCardMatch;
+  href: string;
+  /**
+   * Rendered as a badge when the bout is halted. A paused bout still holds
+   * its piste, so it stays on the board — but the spectator has to be able
+   * to tell a live exchange from a stopped clock. Passed in already
+   * translated: this card is hook-free so it renders on the server too.
+   */
+  pausedLabel?: string | null;
+}) {
   const meta = [match.tournamentName, match.matchNumberLabel, match.liceName]
     .filter((v): v is string => Boolean(v))
     .join(' · ');
@@ -27,7 +41,14 @@ export function LiveMatchCard({ match, href }: { match: LiveMatchCardMatch; href
       href={href}
       className="block rounded-xl border border-success/40 bg-surface p-4 shadow-sm transition-colors hover:border-success focus:outline-none focus:ring-2 focus:ring-accent/40"
     >
-      <p className="mb-2 text-xs text-muted">{meta}</p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs text-muted">{meta}</p>
+        {pausedLabel && (
+          <span className="shrink-0 rounded-full bg-border px-2 py-0.5 text-xs font-bold text-muted">
+            {pausedLabel}
+          </span>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <p className="font-bold text-foreground">{match.redFighterName ?? '?'}</p>
         <p className="text-2xl font-black tabular-nums text-foreground">

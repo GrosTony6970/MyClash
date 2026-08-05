@@ -4,13 +4,12 @@ import { isLiveStatus, partitionLiceMatches } from './partition-lice-matches';
 const m = (id: string, status: string) => ({ id, status });
 
 describe('isLiveStatus', () => {
-  it('counts running and paused, and nothing else', () => {
-    expect(isLiveStatus('running')).toBe(true);
+  // The truth table now lives with the predicate, in
+  // packages/types/src/match-status.test.ts. This only guards the
+  // re-export the pad's call sites still import from here.
+  it('is re-exported from this module', () => {
     expect(isLiveStatus('paused')).toBe(true);
     expect(isLiveStatus('scheduled')).toBe(false);
-    expect(isLiveStatus('completed')).toBe(false);
-    expect(isLiveStatus(null)).toBe(false);
-    expect(isLiveStatus(undefined)).toBe(false);
   });
 });
 

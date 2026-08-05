@@ -55,6 +55,7 @@ import {
   computeGridEndSlot,
 } from '@myclash/schedule-core';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { LicePlacementEditor } from './LicePlacementEditor';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -90,6 +91,13 @@ interface Lice {
    * this via `venues(id, name)` on /events/:eventId/lices.
    */
   venues?: { id: string; name: string } | null;
+  /**
+   * The sub-room of that venue, when the hall is split into named areas
+   * (migration 0169). The grid's venue band ignores it — it only groups by
+   * hall — but the placement editor round-trips it, and the public display
+   * picker headings it.
+   */
+  venue_areas?: { id: string; name: string } | null;
 }
 
 // `computeVenueGroups` + the `VenueGroup` type now live in
@@ -458,6 +466,10 @@ export function ScheduleGrid({
   const [newLiceColor, setNewLiceColor] = useState('#ef4444');
   const [addLiceBusy, setAddLiceBusy] = useState(false);
   const [addLiceError, setAddLiceError] = useState<string | null>(null);
+
+  // The lice whose venue/area is being edited, or null. The editor is its
+  // own component — grid.tsx is long enough.
+  const [placingLice, setPlacingLice] = useState<Lice | null>(null);
 
   async function refetchLices(): Promise<void> {
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
@@ -2596,7 +2608,7 @@ export function ScheduleGrid({
               {lices.map((lice, liceIndex) => (
                 <div
                   key={lice.id}
-                  className="sticky bg-surface border-b border-border border-l border-l-border px-2 flex items-center justify-center"
+                  className="sticky bg-surface border-b border-border border-l border-l-border px-2 flex items-center justify-center gap-1"
                   style={{
                     gridColumn: liceIndex + 2,
                     gridRow: 2,
@@ -2608,6 +2620,17 @@ export function ScheduleGrid({
                   <span className="text-xs font-bold text-foreground-secondary truncate">
                     {lice.name}
                   </span>
+                  {/* The only way to place a lice after the event wizard has
+                      run — PATCH /lices/:id had no caller before this. */}
+                  <button
+                    type="button"
+                    onClick={() => setPlacingLice(lice)}
+                    title={t('organizer.schedulePage.placement.editLabel')}
+                    aria-label={t('organizer.schedulePage.placement.editLabel')}
+                    className="shrink-0 text-xs text-muted hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent rounded"
+                  >
+                    ⌖
+                  </button>
                 </div>
               ))}
 
@@ -3113,6 +3136,15 @@ export function ScheduleGrid({
             ✕
           </button>
         </div>
+      )}
+
+      {placingLice && (
+        <LicePlacementEditor
+          eventId={eventId}
+          lice={placingLice}
+          onClose={() => setPlacingLice(null)}
+          onSaved={refetchLices}
+        />
       )}
     </div>
   );

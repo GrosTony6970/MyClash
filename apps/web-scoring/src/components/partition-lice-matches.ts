@@ -1,3 +1,5 @@
+import { isLiveStatus } from '@myclash/types';
+
 /** How many upcoming bouts the NEXT section previews before the full list. */
 export const NEXT_PREVIEW_COUNT = 5;
 
@@ -10,10 +12,11 @@ export interface PartitionedLiceMatches<T> {
   all: T[];
 }
 
-/** Whether a match status means "happening on the piste right now". */
-export function isLiveStatus(status: string | null | undefined): boolean {
-  return status === 'running' || status === 'paused';
-}
+// `isLiveStatus` used to live here. It moved to `@myclash/types`
+// (match-status.ts) once the API needed the same answer — a Nest service
+// cannot import from an app. Re-exported so the pad's existing call sites
+// keep their local import path.
+export { isLiveStatus };
 
 /**
  * Split a lice's day into the three things the operator reads.

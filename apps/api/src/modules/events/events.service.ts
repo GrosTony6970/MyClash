@@ -506,7 +506,18 @@ export class EventsService {
   async getEventBySlug(slug: string) {
     const query = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug, logo_url, brand_color), themes(*), lices(*)');
+      // The embedded lices carry their venue + area so the public display
+      // hub can group the picker by hall without a second round-trip —
+      // /events/:eventId/lices has the same join but is UUID-gated, and
+      // this resolver is the slug-addressed one.
+      //
+      // Kept as ONE string literal on purpose: supabase-js parses the select
+      // at the type level, and splitting it across a `+` collapses the row
+      // type to GenericStringError at every call site.
+      // prettier-ignore
+      .select(
+        '*, organizations(name, slug, logo_url, brand_color), themes(*), lices(*, venues(id, name), venue_areas(id, name))',
+      );
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
     const { data, error } = await (

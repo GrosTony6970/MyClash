@@ -20,6 +20,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
+import { isLiveStatus } from '@myclash/types';
 import { useClientClock } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -115,7 +116,9 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
     onFallbackPoll: () => void fetchState(),
   });
 
-  const liveMatches = highlights.filter((m) => m.status === 'running');
+  // Paused counts as live: the fighters are on the strip waiting to resume,
+  // and dropping the card made pistes blink off the board on every halt.
+  const liveMatches = highlights.filter((m) => isLiveStatus(m.status));
   const upcomingMatches = highlights.filter((m) => m.status === 'scheduled').slice(0, 5);
 
   // ── Workshops: derive live / upcoming off the shared clock. ───────────────────
@@ -138,7 +141,12 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
           </h2>
           <div className="flex flex-col gap-3">
             {liveMatches.map((m) => (
-              <LiveMatchCard key={m.id} match={m} href={`/e/${eventSlug}/match/${m.id}`} />
+              <LiveMatchCard
+                key={m.id}
+                match={m}
+                href={`/e/${eventSlug}/match/${m.id}`}
+                pausedLabel={m.status === 'paused' ? t('publicApp.live.paused') : null}
+              />
             ))}
           </div>
           {liveWs.length > 0 && (
