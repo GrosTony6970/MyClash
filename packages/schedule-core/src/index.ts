@@ -9,3 +9,4 @@ export * from './schedule-blocks';
 export * from './bracket-round-group';
 export * from './compute-grid-end';
 export * from './event-days';
+export * from './workshop-board-geometry';

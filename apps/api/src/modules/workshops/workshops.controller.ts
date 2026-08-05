@@ -216,6 +216,16 @@ export class WorkshopsController {
   }
 
   @Public()
+  @Get('events/:eventSlug/public-workshop-breaks')
+  @ApiOperation({ summary: 'List workshop break bars for an event by slug (no auth)' })
+  @ApiParam({ name: 'eventSlug', type: 'string' })
+  async listPublicBreaks(@Param('eventSlug') eventSlug: string) {
+    // Distinct path from the organizer `events/:eventId/workshop-breaks` below:
+    // that one pipes a UUID and would 400 on a slug.
+    return this.workshops.listPublicWorkshopBreaks(eventSlug);
+  }
+
+  @Public()
   @Get('workshops/slug/:slug')
   @ApiOperation({ summary: 'Get a public workshop by event slug + workshop slug' })
   @ApiParam({ name: 'slug', type: 'string' })

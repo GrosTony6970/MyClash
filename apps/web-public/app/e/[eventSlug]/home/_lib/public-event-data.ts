@@ -27,17 +27,43 @@ export interface Tournament {
   scheduledEnd: string | null;
 }
 
+/**
+ * The placement fields (`venueId`/`areaId`) are what let the schedule grid put a
+ * workshop in the right room column; the API has always sent them on this
+ * payload — this type just used to drop them on the floor.
+ */
+export interface PublicWorkshopSession {
+  id: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  venueId: string | null;
+  areaId: string | null;
+  capacity: number | null;
+  confirmedCount: number;
+}
+
 export interface PublicWorkshop {
   id: string;
   slug: string;
   title: string;
   category: string | null;
   level: string | null;
+  capacity: number | null;
   color: string | null;
   coverImageUrl: string | null;
   durationMinutes: number | null;
   instructors: Array<{ displayName: string }>;
-  sessions: Array<{ startsAt: string | null; endsAt: string | null }>;
+  sessions: PublicWorkshopSession[];
+}
+
+/** A workshop-only break bar (lunch, pause…) — mirrors the API's WorkshopBreakView. */
+export interface PublicWorkshopBreak {
+  id: string;
+  dayIndex: number;
+  startTime: string;
+  endTime: string;
+  label: string | null;
+  color: string | null;
 }
 
 export interface PublicVenue {
@@ -46,7 +72,8 @@ export interface PublicVenue {
   address: string | null;
   hosts_tournament: boolean;
   hosts_workshop: boolean;
-  venue_areas: Array<{ id: string; name: string }> | null;
+  /** `sort_order` is already on the wire; sorting on it keeps grid columns stable. */
+  venue_areas: Array<{ id: string; name: string; sort_order?: number | null }> | null;
 }
 
 export interface HighlightMatch {
@@ -88,6 +115,22 @@ export async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise
     );
     if (!res.ok) return [];
     return (await res.json()) as PublicWorkshop[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchWorkshopBreaks(
+  eventSlug: string,
+  apiUrl: string,
+): Promise<PublicWorkshopBreak[]> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/public-workshop-breaks`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return [];
+    return (await res.json()) as PublicWorkshopBreak[];
   } catch {
     return [];
   }

@@ -85,6 +85,7 @@ const EXPECTED_PUBLIC = [
   'GET /events/:eventId/tournaments',
   'GET /events/:eventSlug/lices/:liceName/current',
   'GET /events/:eventSlug/participants',
+  'GET /events/:eventSlug/public-workshop-breaks', // break bars on the public workshop grid
   'GET /events/:eventSlug/public-workshops',
   'GET /events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches',
   'GET /events/:eventSlug/tournaments/:tournamentSlug/standings',

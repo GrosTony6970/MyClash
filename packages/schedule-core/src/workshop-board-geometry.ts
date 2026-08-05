@@ -9,7 +9,7 @@
  */
 
 import { zonedDay } from '@myclash/time';
-import { GRID_START_HOUR, isoToSlot, SLOT_MINUTES } from '@myclash/schedule-core';
+import { GRID_START_HOUR, isoToSlot, SLOT_MINUTES } from './schedule-grid-geometry';
 
 export interface BoardVenue {
   id: string;

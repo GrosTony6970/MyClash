@@ -19,14 +19,21 @@ import {
   SLOT_HEIGHT_MAX,
   SLOT_HEIGHT_MIN,
   SLOT_MINUTES,
+  buildAreaColumns,
+  buildColumnBands,
+  buildWorkshopSessionBlocks,
   hhmmToSlot,
   nowSlotForDay,
   resizeStartSlot,
   slotToHHMM,
   slotToTime,
   snapSlot,
+  unscheduledWorkshops,
   zoomToSlotHeight,
   formatDayLabel,
+  type AreaColumn,
+  type BoardVenue,
+  type BoardWorkshop,
 } from '@myclash/schedule-core';
 import { minutesIntoDayInZone } from '@myclash/time';
 import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
@@ -38,15 +45,6 @@ import {
   placeWorkshopBlock,
   type Interval,
 } from './workshop-placement';
-import {
-  buildAreaColumns,
-  buildColumnBands,
-  buildWorkshopSessionBlocks,
-  unscheduledWorkshops,
-  type AreaColumn,
-  type BoardVenue,
-  type BoardWorkshop,
-} from './workshop-board-geometry';
 
 export interface WorkshopBreak {
   id: string;
@@ -88,8 +86,13 @@ const COL_MIN_WIDTH_PX = 240;
 // flash of mis-sized columns).
 const COL_WIDTH_PX = 280;
 const GUTTER_PX = 56;
-const DEFAULT_ZOOM = 28;
-const ZOOM_KEY = 'myclash.workshops.zoom';
+// The board opens at the minimum row height so a whole day fits on one screen;
+// the operator can zoom in from there and their choice persists. The key is
+// versioned because the initializer below reads storage FIRST — bumping it is
+// the only way operators who already have an old zoom stored land on the new
+// default instead of staying where they were.
+const DEFAULT_ZOOM = SLOT_HEIGHT_MIN;
+const ZOOM_KEY = 'myclash.workshops.zoom.v2';
 const GRID_KEY = 'myclash.workshops.grid';
 const SLOTS_PER_HOUR = 60 / SLOT_MINUTES;
 

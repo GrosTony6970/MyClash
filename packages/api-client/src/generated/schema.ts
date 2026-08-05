@@ -8071,6 +8071,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventSlug}/public-workshop-breaks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List workshop break bars for an event by slug (no auth) */
+    get: operations['WorkshopsController_listPublicBreaks'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/workshops/slug/{slug}': {
     parameters: {
       query?: never;
@@ -22869,6 +22886,25 @@ export interface operations {
     };
   };
   WorkshopsController_listPublic: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventSlug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopsController_listPublicBreaks: {
     parameters: {
       query?: never;
       header?: never;

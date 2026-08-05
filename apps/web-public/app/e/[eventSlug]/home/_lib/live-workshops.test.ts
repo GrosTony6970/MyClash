@@ -19,11 +19,19 @@ function ws(
     title: slug,
     category: null,
     level: null,
+    capacity: null,
     color: null,
     coverImageUrl: null,
     durationMinutes: null,
     instructors: [],
-    sessions,
+    sessions: sessions.map((s, i) => ({
+      ...s,
+      id: `${slug}-s${i}`,
+      venueId: null,
+      areaId: null,
+      capacity: null,
+      confirmedCount: 0,
+    })),
   };
 }
 

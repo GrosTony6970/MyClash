@@ -167,6 +167,21 @@ export interface WorkshopView {
   sessions: WorkshopSessionView[];
 }
 
+/**
+ * A workshop-only break bar (lunch, pause…). Shared verbatim by the organizer
+ * board and the public schedule grid, so both draw the same bands.
+ */
+export interface WorkshopBreakView {
+  id: string;
+  dayIndex: number;
+  /** Wall-clock "HH:MM" in the event timezone. */
+  startTime: string;
+  endTime: string;
+  label: string | null;
+  /** Raw hex from the organizer's swatch picker, or null for the neutral bar. */
+  color: string | null;
+}
+
 // ── Raw row shapes (as returned by Supabase, snake_case) ───────────────────────
 
 interface RawSession {
@@ -1018,7 +1033,7 @@ export class WorkshopsService {
 
   // ── Workshop-only break blocks (separate store from event programme) ────────────
 
-  async listWorkshopBreaks(eventId: string) {
+  async listWorkshopBreaks(eventId: string): Promise<WorkshopBreakView[]> {
     const { data, error } = await this.supabase.service
       .from('workshop_breaks')
       .select('id, event_id, day_index, start_time, end_time, label, color')
@@ -1044,6 +1059,22 @@ export class WorkshopsService {
         color: b.color ?? null,
       };
     });
+  }
+
+  /**
+   * The same break bars, resolved by event SLUG and readable anonymously — the
+   * public workshop schedule grid draws them full-width across its columns.
+   *
+   * Resolves through `resolveEventBySlug` (the resolver `listPublicWorkshops`
+   * uses) and returns [] for an unknown slug rather than throwing, so a public
+   * page degrades to "no breaks" instead of 500ing. Note `workshop_breaks` has
+   * no status column: unlike workshops there is no publish gate, so a bar is
+   * public from the moment the organizer saves it.
+   */
+  async listPublicWorkshopBreaks(eventSlug: string): Promise<WorkshopBreakView[]> {
+    const event = await this.resolveEventBySlug(eventSlug);
+    if (!event) return [];
+    return this.listWorkshopBreaks(event.id);
   }
 
   async createWorkshopBreak(
