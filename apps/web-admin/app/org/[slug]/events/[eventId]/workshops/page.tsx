@@ -10,7 +10,7 @@
  *   ✓ Cancel session stub (notification via T-1201 when available)
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
@@ -30,13 +30,24 @@ import {
   Modal,
   TournamentColorDot,
   accentClassFor,
+  fuzzyMatch,
   useConfirm,
+  useSortableList,
   statusPillClass,
   workshopStatusSemantic,
 } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { WorkshopLogoField } from './WorkshopLogoField';
+import { WorkshopsTableHeader } from './WorkshopsTableHeader';
+import {
+  deriveWorkshopFilterOptions,
+  isWorkshopFilterActive,
+  workshopMatchesFilter,
+  workshopSearchHaystack,
+  workshopSortValue,
+} from './filter-workshops';
+import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -663,6 +674,35 @@ export default function WorkshopsAdminPage() {
     setTab(next);
   }
 
+  // ── List header: fuzzy search + column filters + sort ───────────────────────────
+  //
+  // The whole list is fetched in one go (no server paging), so everything here
+  // is a client-side derivation. Filter values live in the query string so a
+  // reload or a back-navigation lands the organiser back on the same view.
+
+  const { query, filter, setQuery, setFilter, clear: clearFilters } = useWorkshopListFilters();
+
+  // Options come from the loaded rows: category and level are free text, so
+  // there is no enum to read them from.
+  const filterOptions = useMemo(() => deriveWorkshopFilterOptions(workshops), [workshops]);
+  const filteredWorkshops = useMemo(
+    () =>
+      workshops.filter(
+        (w) => fuzzyMatch(query, workshopSearchHaystack(w)) && workshopMatchesFilter(w, filter),
+      ),
+    [workshops, query, filter],
+  );
+  const getWorkshopSortValue = useCallback((row: Workshop, key: string) => {
+    return workshopSortValue(row, key);
+  }, []);
+  const {
+    sorted: visibleWorkshops,
+    sortKey,
+    direction,
+    toggle: toggleSort,
+  } = useSortableList(filteredWorkshops, getWorkshopSortValue);
+  const filterActive = isWorkshopFilterActive(filter, query);
+
   // Workshop-only break blocks for the schedule board.
   const [breaks, setBreaks] = useState<WorkshopBreak[]>([]);
   useEffect(() => {
@@ -875,129 +915,161 @@ export default function WorkshopsAdminPage() {
           <p className="text-muted text-sm">{t('organizer.workshopsPage.empty')}</p>
         </div>
       ) : (
-        <DataTable>
-          <DataTableHead>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colName')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colCategory')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colLevel')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colCapacity')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colDuration')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colStartEnd')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colVenue')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colStatus')}</DataTableCell>
-            <DataTableCell as="th">{t('organizer.workshopsPage.colActions')}</DataTableCell>
-          </DataTableHead>
-          <tbody>
-            {workshops.map((w) => {
-              const session = w.sessions[0] ?? null;
-              const venueLabel = session?.venue?.name ?? w.venue?.name ?? null;
-              const areaLabel = session?.area?.name ?? null;
-              const venueArea = venueLabel
-                ? areaLabel
-                  ? `${venueLabel} · ${areaLabel}`
-                  : venueLabel
-                : '—';
-              const timeRange =
-                session && session.startsAt
-                  ? `${formatInZone(
-                      session.startsAt,
-                      eventTz,
-                      {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      },
-                      localeToBcp47(locale),
-                    )}${
-                      session.endsAt
-                        ? ` – ${formatInZone(
-                            session.endsAt,
-                            eventTz,
-                            {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            },
-                            localeToBcp47(locale),
-                          )}`
-                        : ''
-                    }`
-                  : '—';
-              return (
-                <DataTableRow key={w.id}>
-                  <DataTableCell className="relative">
-                    {w.color ? (
-                      <span
-                        aria-hidden="true"
-                        className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
-                      />
-                    ) : null}
-                    <p className="font-medium text-foreground">{w.title}</p>
-                    {w.instructors.length > 0 && (
-                      <p className="text-xs text-muted">
-                        {w.instructors.map((i) => i.displayName).join(', ')}
-                      </p>
-                    )}
-                  </DataTableCell>
-                  <DataTableCell className="text-foreground-secondary">
-                    {w.category ?? '—'}
-                  </DataTableCell>
-                  <DataTableCell className="text-foreground-secondary">
-                    {w.level ?? '—'}
-                  </DataTableCell>
-                  <DataTableCell className="text-foreground-secondary">
-                    {w.capacity ?? '—'}
-                  </DataTableCell>
-                  <DataTableCell className="text-foreground-secondary">
-                    {w.durationMinutes != null
-                      ? t('organizer.workshopsPage.board.minutesShort', {
-                          min: w.durationMinutes,
-                        })
-                      : '—'}
-                  </DataTableCell>
-                  <DataTableCell className="text-foreground-secondary">{timeRange}</DataTableCell>
-                  <DataTableCell className="text-foreground-secondary">{venueArea}</DataTableCell>
-                  <DataTableCell>
-                    <select
-                      value={w.status}
-                      onChange={(e) => void changeStatus(w, e.target.value)}
-                      aria-label={t('organizer.workshopsPage.statusAria')}
-                      className={`${statusPillClass(workshopStatusSemantic(w.status), 'light', {
-                        size: 'sm',
-                      })} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-                    >
-                      {['draft', 'published', 'running', 'completed'].map((s) => (
-                        <option key={s} value={s}>
-                          {STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : s}
-                        </option>
-                      ))}
-                    </select>
-                  </DataTableCell>
-                  <DataTableCell>
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(w)}
-                        className="text-xs font-semibold text-accent hover:text-accent-hover"
-                      >
-                        {t('organizer.workshopsPage.edit')}
-                      </button>
-                      {session && (
-                        <button
-                          onClick={() => void openRoster(session.id)}
-                          className="text-xs text-info hover:underline"
-                        >
-                          {t('organizer.workshopsPage.roster')}
-                        </button>
-                      )}
-                    </div>
+        <>
+          {filterActive && (
+            <div className="mb-2 flex items-center justify-end gap-3 text-xs text-muted">
+              <span>
+                {t('organizer.workshopsPage.filters.matchCount', {
+                  count: visibleWorkshops.length,
+                  total: workshops.length,
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="font-semibold text-accent hover:text-accent-hover"
+              >
+                {t('organizer.workshopsPage.filters.clear')}
+              </button>
+            </div>
+          )}
+          {/* The header controls widen the columns past a laptop viewport;
+              the table scrolls inside DataTable's overflow-x-auto rather than
+              squeezing the schedule column into four wrapped lines. */}
+          <DataTable className="min-w-[72rem]">
+            <DataTableHead>
+              <WorkshopsTableHeader
+                sortKey={sortKey}
+                direction={direction}
+                onToggleSort={toggleSort}
+                query={query}
+                onQueryChange={setQuery}
+                filter={filter}
+                onFilterChange={setFilter}
+                options={filterOptions}
+              />
+            </DataTableHead>
+            <tbody>
+              {visibleWorkshops.length === 0 && (
+                <DataTableRow>
+                  <DataTableCell colSpan={9} className="text-center text-muted">
+                    {t('organizer.workshopsPage.filters.emptyFiltered')}
                   </DataTableCell>
                 </DataTableRow>
-              );
-            })}
-          </tbody>
-        </DataTable>
+              )}
+              {visibleWorkshops.map((w) => {
+                const session = w.sessions[0] ?? null;
+                const venueLabel = session?.venue?.name ?? w.venue?.name ?? null;
+                const areaLabel = session?.area?.name ?? null;
+                const venueArea = venueLabel
+                  ? areaLabel
+                    ? `${venueLabel} · ${areaLabel}`
+                    : venueLabel
+                  : '—';
+                const timeRange =
+                  session && session.startsAt
+                    ? `${formatInZone(
+                        session.startsAt,
+                        eventTz,
+                        {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        },
+                        localeToBcp47(locale),
+                      )}${
+                        session.endsAt
+                          ? ` – ${formatInZone(
+                              session.endsAt,
+                              eventTz,
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                              localeToBcp47(locale),
+                            )}`
+                          : ''
+                      }`
+                    : '—';
+                return (
+                  <DataTableRow key={w.id}>
+                    <DataTableCell className="relative">
+                      {w.color ? (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
+                        />
+                      ) : null}
+                      <p className="font-medium text-foreground">{w.title}</p>
+                      {w.instructors.length > 0 && (
+                        <p className="text-xs text-muted">
+                          {w.instructors.map((i) => i.displayName).join(', ')}
+                        </p>
+                      )}
+                    </DataTableCell>
+                    <DataTableCell className="text-foreground-secondary">
+                      {w.category ?? '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-foreground-secondary">
+                      {w.level ?? '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-foreground-secondary">
+                      {w.capacity ?? '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-foreground-secondary">
+                      {w.durationMinutes != null
+                        ? t('organizer.workshopsPage.board.minutesShort', {
+                            min: w.durationMinutes,
+                          })
+                        : '—'}
+                    </DataTableCell>
+                    <DataTableCell className="whitespace-nowrap text-foreground-secondary">
+                      {timeRange}
+                    </DataTableCell>
+                    <DataTableCell className="text-foreground-secondary">{venueArea}</DataTableCell>
+                    <DataTableCell>
+                      <select
+                        value={w.status}
+                        onChange={(e) => void changeStatus(w, e.target.value)}
+                        aria-label={t('organizer.workshopsPage.statusAria')}
+                        className={`${statusPillClass(workshopStatusSemantic(w.status), 'light', {
+                          size: 'sm',
+                        })} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+                      >
+                        {['draft', 'published', 'running', 'completed'].map((s) => (
+                          <option key={s} value={s}>
+                            {STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : s}
+                          </option>
+                        ))}
+                      </select>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(w)}
+                          className="text-xs font-semibold text-accent hover:text-accent-hover"
+                        >
+                          {t('organizer.workshopsPage.edit')}
+                        </button>
+                        {session && (
+                          <button
+                            onClick={() => void openRoster(session.id)}
+                            className="text-xs text-info hover:underline"
+                          >
+                            {t('organizer.workshopsPage.roster')}
+                          </button>
+                        )}
+                      </div>
+                    </DataTableCell>
+                  </DataTableRow>
+                );
+              })}
+            </tbody>
+          </DataTable>
+        </>
       )}
 
       {/* Create modal */}

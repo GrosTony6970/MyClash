@@ -90,6 +90,10 @@ const SortChevron: React.FC<{ active: boolean; direction: 'asc' | 'desc' | null 
  *
  * Returns the original array (reference-equal) when no sort is active so
  * consumers can rely on identity for downstream memoization.
+ *
+ * Rows with no value in the sorted column (null / undefined / '') sink to the
+ * bottom in *both* directions — reversing them would put every "—" cell on
+ * top, which is never what the operator asked for by clicking the header.
  */
 export function sortRows<T>(
   rows: readonly T[],
@@ -103,6 +107,8 @@ export function sortRows<T>(
   indexed.sort((a, b) => {
     const va = getValue(a.row, sortKey);
     const vb = getValue(b.row, sortKey);
+    const missing = compareMissing(va, vb);
+    if (missing !== null) return missing === 0 ? a.index - b.index : missing;
     const cmp = compareValues(va, vb, collator);
     if (cmp !== 0) return direction === 'asc' ? cmp : -cmp;
     return a.index - b.index;
@@ -110,12 +116,19 @@ export function sortRows<T>(
   return indexed.map((entry) => entry.row);
 }
 
-function compareValues(a: unknown, b: unknown, collator: Intl.Collator): number {
+/**
+ * Direction-independent ordering for empty cells: `null` when both sides carry
+ * a value (compare them normally), otherwise the missing side goes last.
+ */
+function compareMissing(a: unknown, b: unknown): number | null {
   const aMissing = a === null || a === undefined || a === '';
   const bMissing = b === null || b === undefined || b === '';
+  if (!aMissing && !bMissing) return null;
   if (aMissing && bMissing) return 0;
-  if (aMissing) return 1;
-  if (bMissing) return -1;
+  return aMissing ? 1 : -1;
+}
+
+function compareValues(a: unknown, b: unknown, collator: Intl.Collator): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   if (a instanceof Date && b instanceof Date) return a.getTime() - b.getTime();
   return collator.compare(String(a), String(b));
