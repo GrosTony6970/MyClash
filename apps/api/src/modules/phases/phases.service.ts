@@ -42,6 +42,11 @@ import {
   structuralConfigChanges,
 } from './double-elim-config';
 import { buildRoundCode } from '../matches/round-code.helper';
+import {
+  fetchRefereeAssignmentIndex,
+  fetchRefereeSkillIndex,
+} from '../matches/referee-assignment-index';
+import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
 import { computePoolReschedule } from './pool-reschedule';
@@ -1804,10 +1809,44 @@ export class PhasesService {
       }
     }
 
+    // Piste name + officiating crew per slot, so a bracket card can say WHERE a
+    // bout runs and WHO calls it. Both are read from the event, which means one
+    // extra hop to find it — guarded on there being slots at all, so an
+    // ungenerated bracket costs exactly what it did before.
+    const liceNameById = new Map<string, string>();
+    let assignmentIndex: Awaited<ReturnType<typeof fetchRefereeAssignmentIndex>> = [];
+    if (rawSlots.length > 0) {
+      const { data: tournamentRow } = await this.supabase.service
+        .from('tournaments')
+        .select('event_id')
+        .eq('id', tournamentId)
+        .maybeSingle();
+      const eventId = (tournamentRow as { event_id: string | null } | null)?.event_id ?? null;
+      if (eventId) {
+        const { data: liceRows } = await this.supabase.service
+          .from('lices')
+          .select('id, name')
+          .eq('event_id', eventId);
+        for (const l of (liceRows ?? []) as Array<{ id: string; name: string | null }>) {
+          if (l.name) liceNameById.set(l.id, l.name);
+        }
+        assignmentIndex = await fetchRefereeAssignmentIndex(this.supabase.service, eventId);
+      }
+    }
+
     const enrichedSlots = rawSlots.map((s) => {
       const match = matchBySlot.get(s.id) ?? null;
       const red = s.registration_a_id ? (regById.get(s.registration_a_id) ?? null) : null;
       const blue = s.registration_b_id ? (regById.get(s.registration_b_id) ?? null) : null;
+      // poolId is null by construction: a bracket match sits in an elimination
+      // phase, so the scope ladder here is match → lice, never match → pool.
+      const referees = match
+        ? resolveMatchReferees(assignmentIndex, {
+            matchId: match.id,
+            poolId: null,
+            liceId: match.lice_id,
+          })
+        : [];
       return {
         id: s.id,
         round: s.round,
@@ -1824,6 +1863,16 @@ export class PhasesService {
         status: match?.status ?? 'scheduled',
         matchId: match?.id ?? null,
         liceId: match?.lice_id ?? null,
+        liceName: match?.lice_id ? (liceNameById.get(match.lice_id) ?? null) : null,
+        // BracketReferee shape (packages/ui) — the card renders the name, the
+        // role chip and a status dot, so all three travel together.
+        referees: referees.map((r) => ({
+          role: r.role,
+          roleLabel: r.roleLabel,
+          displayName: r.name,
+          status: r.status,
+          skillColor: r.roleColor,
+        })),
         // CamelCase aliases for the BracketSlotData shape on the FE
         // (the inline forfeit modal needs both regIds without an
         // extra fetch). Snake-case copies stay for backwards
@@ -2631,9 +2680,17 @@ export class PhasesService {
    * Queries the vw_tournament_query_matches view (red_name, blue_name, lice_id …)
    * and supplements referee_id from the raw matches table.
    */
-  async listPoolsWithMatches(
-    tournamentId: string,
-  ): Promise<Array<{ poolId: string; poolName: string; matches: unknown[] }>> {
+  async listPoolsWithMatches(tournamentId: string): Promise<
+    Array<{
+      poolId: string;
+      poolName: string;
+      /** Pool-scope referee defaults — the pool's crew, not a per-match override. */
+      referees: Array<{ role: string; roleLabel: string; roleColor: string; name: string }>;
+      /** Distinct pistes this pool's matches run on. A pool is NOT pinned to one. */
+      liceNames: string[];
+      matches: unknown[];
+    }>
+  > {
     // 1. Get the pool phase
     const { data: phase } = await this.supabase.service
       .from('phases')
@@ -2724,7 +2781,15 @@ export class PhasesService {
       // an array depending on the resolved FK cardinality; tolerate both.
       global_persons: GlobalPersonEmbed | GlobalPersonEmbed[] | null;
     };
-    type RoleAssignment = { refereeId: string; refereeName: string };
+    // roleLabel/roleColor ride along so a consumer can render the role as a
+    // human chip. `role` is a `referee_skills.id` (possibly a `custom-…` one),
+    // never an enum — without the join every surface prints the raw id.
+    type RoleAssignment = {
+      refereeId: string;
+      refereeName: string;
+      roleLabel: string;
+      roleColor: string;
+    };
 
     const matchIds = ((viewMatches ?? []) as Array<{ match_id: string }>).map((m) => m.match_id);
     const poolDefaults = new Map<string, Map<string, RoleAssignment>>();
@@ -2741,15 +2806,27 @@ export class PhasesService {
       if (assignErr) throw new BadRequestException(assignErr.message);
       assignmentRows = (data ?? []) as unknown as RefereeAssignmentRow[];
     }
+    // One skills query for the whole tournament, however many assignments it
+    // holds — same helper the lice payload uses, so a role renders identically
+    // on the piste screen and in the admin table.
+    const skillById = await fetchRefereeSkillIndex(
+      this.supabase.service,
+      assignmentRows.map((row) => row.role).filter((role): role is string => !!role),
+    );
     for (const row of assignmentRows) {
       const person: GlobalPersonEmbed | null = Array.isArray(row.global_persons)
         ? (row.global_persons[0] ?? null)
         : row.global_persons;
       const display =
         person?.display_name ?? [person?.given_name, person?.family_name].filter(Boolean).join(' ');
+      const skill = skillById.get(row.role);
       const entry: RoleAssignment = {
         refereeId: row.person_id,
         refereeName: display || row.person_id,
+        // A deleted or event-scoped-elsewhere skill still has to render: the raw
+        // id beats a blank chip.
+        roleLabel: skill?.name ?? row.role,
+        roleColor: skill?.color ?? 'slate',
       };
       if (row.match_id) {
         const byRole = perMatchAssignments.get(row.match_id) ?? new Map<string, RoleAssignment>();
@@ -2765,7 +2842,7 @@ export class PhasesService {
     function resolveReferees(
       matchId: string,
       poolId: string | null,
-    ): Array<{ role: string; refereeId: string; refereeName: string }> {
+    ): Array<{ role: string } & RoleAssignment> {
       const merged = new Map<string, RoleAssignment>();
       if (poolId) {
         const defaults = poolDefaults.get(poolId);
@@ -2781,6 +2858,9 @@ export class PhasesService {
       match_id: string;
       pool_id: string | null;
       lice_id: string | null;
+      /** Both were already in the view select and dropped here for two years. */
+      lice_name: string | null;
+      lice_number: number | null;
       red_registration_id: string | null;
       blue_registration_id: string | null;
       red_name: string | null;
@@ -2814,10 +2894,26 @@ export class PhasesService {
     return ((pools ?? []) as Array<{ id: string; name: string; sort_order: number }>).map(
       (pool) => {
         const poolNumber = pool.sort_order + 1;
+        const poolMatches = matchesByPool.get(pool.id) ?? [];
         return {
           poolId: pool.id,
           poolName: pool.name,
-          matches: (matchesByPool.get(pool.id) ?? []).map((m, idx) => ({
+          // Pool-scope defaults only. The per-match merge belongs on the rows:
+          // projecting it here would put one match's override in a header that
+          // does not describe every match under it.
+          referees: Array.from(poolDefaults.get(pool.id) ?? [], ([role, val]) => ({
+            role,
+            roleLabel: val.roleLabel,
+            roleColor: val.roleColor,
+            name: val.refereeName,
+          })),
+          // An array, not a field: `pools` has no lice_id, a pool's piste is
+          // derived from its matches, and nothing in the schema stops a pool
+          // being split across two pistes.
+          liceNames: Array.from(
+            new Set(poolMatches.map((m) => m.lice_name).filter((n): n is string => !!n)),
+          ),
+          matches: poolMatches.map((m, idx) => ({
             id: m.match_id,
             pool_id: m.pool_id,
             round_number: idx + 1,
@@ -2831,6 +2927,8 @@ export class PhasesService {
             blue_score: m.blue_score,
             status: m.status,
             lice_id: m.lice_id,
+            lice_name: m.lice_name ?? null,
+            lice_number: m.lice_number ?? null,
             referee_id: refereeMap.get(m.match_id) ?? null,
             match_number_label: m.match_number_label,
             referees: resolveReferees(m.match_id, m.pool_id),

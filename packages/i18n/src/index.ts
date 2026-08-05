@@ -1498,6 +1498,17 @@ export const en = {
       poolsSection: 'Pools',
       bracketSection: 'Bracket',
       poolMatchesOnLice: '{onLice} of {total} matches on this lice',
+      poolReferees: 'Referees',
+      // Heading for matches whose phase carries no tournament. They are kept
+      // rather than hidden — a bout the operator must still score.
+      otherMatches: 'Other matches',
+      poolTable: {
+        round: 'Round',
+        scoreRed: 'Score F1',
+        scoreBlue: 'Score F2',
+        lice: 'Lice',
+        status: 'Status',
+      },
       poolsEmpty: 'No pools for this tournament.',
       bracketEmpty: 'No bracket for this tournament yet.',
       standingsEmpty: 'No results yet.',
@@ -8816,6 +8827,15 @@ export const fr = {
       poolsSection: 'Poules',
       bracketSection: 'Tableau',
       poolMatchesOnLice: '{onLice} assauts sur {total} sur cette lice',
+      poolReferees: 'Arbitres',
+      otherMatches: 'Autres assauts',
+      poolTable: {
+        round: 'Ronde',
+        scoreRed: 'Score C1',
+        scoreBlue: 'Score C2',
+        lice: 'Lice',
+        status: 'Statut',
+      },
       poolsEmpty: 'Aucune poule pour ce tournoi.',
       bracketEmpty: 'Pas encore de tableau pour ce tournoi.',
       standingsEmpty: 'Aucun résultat pour le moment.',

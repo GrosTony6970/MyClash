@@ -52,6 +52,8 @@ export interface LiceMatchRow {
   blueScore: number;
   tournamentId: string | null;
   tournamentName: string | null;
+  /** Tournament weapon — feeds `formatRoundCode` on the bracket cards. */
+  weapon: string | null;
   /** `pool` | `single_elim` | `double_elim` | `swiss` — which views to offer. */
   phaseType: string | null;
   /** Drives `sideStyle()` for the corner dots. Never hardcode a side colour. */
@@ -151,7 +153,12 @@ export function mapLiceMatchRow(
 ): LiceMatchRow {
   const phase = row['phases'] as {
     type?: string;
-    tournaments?: { id?: string; name?: string; scoring_config_json?: unknown };
+    tournaments?: {
+      id?: string;
+      name?: string;
+      weapon?: string | null;
+      scoring_config_json?: unknown;
+    };
   } | null;
   const red = row['red'] as { persons?: PersonEmbed } | null;
   const blue = row['blue'] as { persons?: PersonEmbed } | null;
@@ -171,6 +178,11 @@ export function mapLiceMatchRow(
     // those two even exist.
     tournamentId: phase?.tournaments?.id ?? null,
     tournamentName: phase?.tournaments?.name ?? null,
+    // Joined all along by LICE_MATCH_SELECT and thrown away here. The bracket
+    // view derives its per-card round code from it, and with `weapon` null
+    // `formatRoundCode` returns undefined — which is why the piste's bracket
+    // cards were the only ones in the product with no code on them.
+    weapon: phase?.tournaments?.weapon ?? null,
     phaseType: phase?.type ?? null,
     scoringConfig: (phase?.tournaments?.scoring_config_json as TournamentScoringConfig) ?? null,
     referees,

@@ -14,6 +14,7 @@ const raw = (over: Record<string, unknown> = {}) => ({
   lice_id: null,
   person_id: 'gp1',
   role: 'arbitre_declarant',
+  status: 'confirmed',
   global_persons: { given_name: 'Marc', family_name: 'Lefevre' },
   ...over,
 });
@@ -80,6 +81,13 @@ describe('toAssignmentRow', () => {
       roleLabel: null,
       roleColor: 'slate',
     });
+  });
+
+  it('carries the confirmation status, defaulting an unprojected one to assigned', () => {
+    // Never 'confirmed' by default: the bracket card colour-codes this dot, and
+    // guessing upwards would show an unconfirmed board as a settled one.
+    expect(toAssignmentRow(raw()).status).toBe('confirmed');
+    expect(toAssignmentRow(raw({ status: undefined })).status).toBe('assigned');
   });
 });
 

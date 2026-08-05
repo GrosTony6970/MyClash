@@ -41,6 +41,7 @@ export function TournamentSections({
                 apiUrl={apiUrl}
                 liceId={liceId}
                 tournamentId={tournament.tournamentId}
+                scoringConfig={sample?.scoringConfig ?? null}
               />
             )}
             {tournament.hasBracket && (
@@ -49,7 +50,7 @@ export function TournamentSections({
                 liceId={liceId}
                 tournamentId={tournament.tournamentId}
                 scoringConfig={sample?.scoringConfig ?? null}
-                weapon={null}
+                weapon={sample?.weapon ?? null}
               />
             )}
           </section>

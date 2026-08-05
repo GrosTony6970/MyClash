@@ -252,7 +252,14 @@ export function MatchCard({
                 </span>
                 <SkillBadge
                   color={r.skillColor}
-                  label={refereeRoleLabel ? refereeRoleLabel(r.role) : (r.role ?? 'Referee')}
+                  // An app-provided mapper wins; otherwise the payload's own
+                  // resolved label; the raw role id is the last resort, since
+                  // `role` is a referee_skills.id and reads as gibberish.
+                  label={
+                    refereeRoleLabel
+                      ? refereeRoleLabel(r.role)
+                      : (r.roleLabel ?? r.role ?? 'Referee')
+                  }
                 />
               </li>
             );

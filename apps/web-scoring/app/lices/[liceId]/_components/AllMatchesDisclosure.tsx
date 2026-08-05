@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { CollapsibleSection } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import type { LiceMatch } from '../../../../src/components/lice-match-types';
-import { LiceMatchCard } from './LiceMatchCard';
+import { GroupedMatchList } from './GroupedMatchList';
 
 /**
  * The piste's whole day, behind one tap.
@@ -24,7 +24,7 @@ export function AllMatchesDisclosure({ matches }: { matches: LiceMatch[] }) {
       open={open}
       onToggle={() => setOpen((value) => !value)}
       headerClassName="min-h-[44px] rounded-xl border border-border bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted hover:border-muted"
-      bodyClassName="mt-2 flex flex-col gap-2"
+      bodyClassName="mt-2"
       header={t('scoring.lice.allMatches', { count: matches.length })}
     >
       {matches.length === 0 ? (
@@ -32,7 +32,7 @@ export function AllMatchesDisclosure({ matches }: { matches: LiceMatch[] }) {
           {t('scoring.lice.allMatchesEmpty')}
         </p>
       ) : (
-        matches.map((match) => <LiceMatchCard key={match.id} match={match} compact />)
+        <GroupedMatchList matches={matches} compact />
       )}
     </CollapsibleSection>
   );

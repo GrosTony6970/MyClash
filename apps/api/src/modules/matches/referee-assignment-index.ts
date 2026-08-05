@@ -40,6 +40,8 @@ interface RawAssignmentRow {
   pool_id: string | null;
   lice_id: string | null;
   person_id: string | null;
+  /** One of ACTIVE_STATUSES — the query filters on it, and now projects it too. */
+  status?: string | null;
   /** A `referee_skills.id`, not a role enum — it may be a `custom-…` id. */
   role: string | null;
   /**
@@ -83,6 +85,10 @@ export function toAssignmentRow(
     // the public surfaces use, which shows custom skills as their id anyway.
     roleLabel: raw.role ? (skill?.name ?? raw.role) : null,
     roleColor: skill?.color ?? FALLBACK_SKILL_COLOR,
+    // Defaulted, not required: rows reaching this helper have already passed the
+    // ACTIVE_STATUSES filter, and the neutral 'assigned' is what an unprojected
+    // row should read as — never 'confirmed', which would overstate the board.
+    status: raw.status ?? 'assigned',
   };
 }
 
@@ -131,7 +137,7 @@ export async function fetchRefereeAssignmentIndex(
   const { data, error } = await supabase
     .from('referee_assignments')
     .select(
-      'scope_type, match_id, pool_id, lice_id, person_id, role, global_persons(given_name, family_name)',
+      'scope_type, match_id, pool_id, lice_id, person_id, role, status, global_persons(given_name, family_name)',
     )
     .eq('event_id', eventId)
     .in('status', [...ACTIVE_STATUSES]);

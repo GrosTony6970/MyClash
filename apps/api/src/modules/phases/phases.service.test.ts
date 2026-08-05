@@ -1491,6 +1491,127 @@ describe('PhasesService', () => {
       expect(slot['matchId']).toBeNull();
       expect(slot['status']).toBe('scheduled');
     });
+
+    // Bracket cards could not say WHERE a bout runs or WHO calls it: the slot
+    // projection carried a bare `liceId` and nothing else, so MatchCard's lice
+    // pill and referee band — both already written — never rendered anywhere.
+    //
+    // Dispatched by TABLE NAME rather than by a mockReturnValueOnce sequence:
+    // this method now issues seven reads and an ordered chain re-breaks every
+    // time one is added or moved.
+    it('enriches slots with the piste name and the officiating crew', async () => {
+      const byTable: Record<string, unknown> = {
+        phases: makeChain({
+          data: {
+            id: 'phase-1',
+            type: 'single_elim',
+            visibility_status: 'published',
+            config_json: { bracketSize: 4, fighterCount: 4, rounds: 2 },
+          },
+          error: null,
+        }),
+        bracket_slots: makeAwaitableChain({
+          data: [
+            {
+              id: 's-1',
+              round: 0,
+              position: 0,
+              source_a_type: null,
+              source_a_ref: null,
+              source_b_type: null,
+              source_b_ref: null,
+              registration_a_id: null,
+              registration_b_id: null,
+            },
+          ],
+          error: null,
+        }),
+        matches: makeAwaitableChain({
+          data: [
+            {
+              id: 'match-1',
+              bracket_slot_id: 's-1',
+              status: 'ready',
+              red_score: null,
+              blue_score: null,
+              lice_id: 'lice-2',
+            },
+          ],
+          error: null,
+        }),
+        tournaments: makeChain({ data: { event_id: 'ev-1' }, error: null }),
+        lices: makeAwaitableChain({
+          data: [
+            { id: 'lice-1', name: 'Lice 1' },
+            { id: 'lice-2', name: 'Lice 2' },
+          ],
+          error: null,
+        }),
+        referee_assignments: makeAwaitableChain({
+          data: [
+            {
+              scope_type: 'match',
+              match_id: 'match-1',
+              pool_id: null,
+              lice_id: null,
+              person_id: 'gp-1',
+              role: 'arbitre_declarant',
+              status: 'confirmed',
+              global_persons: { given_name: 'Marc', family_name: 'Lefevre' },
+            },
+          ],
+          error: null,
+        }),
+        referee_skills: makeAwaitableChain({
+          data: [{ id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' }],
+          error: null,
+        }),
+      };
+      fromMock.mockImplementation(
+        (table: string) => byTable[table] ?? makeChain({ data: null, error: null }),
+      );
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slot = result!.slots[0] as Record<string, unknown>;
+      expect(slot['liceName']).toBe('Lice 2');
+      expect(slot['referees']).toEqual([
+        {
+          role: 'arbitre_declarant',
+          roleLabel: 'Déclarant',
+          displayName: 'Marc Lefevre',
+          status: 'confirmed',
+          skillColor: 'orange',
+        },
+      ]);
+    });
+
+    it('leaves an unplaced slot without a piste name and with no referees', async () => {
+      const slotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 's-1',
+            round: 0,
+            position: 0,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(phaseChain())
+        .mockReturnValueOnce(slotsChain)
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slot = result!.slots[0] as Record<string, unknown>;
+      expect(slot['liceName']).toBeNull();
+      expect(slot['referees']).toEqual([]);
+    });
   });
 
   describe('createInitialBracketMatches', () => {
@@ -1817,8 +1938,16 @@ describe('PhasesService', () => {
       };
       expect(match.referees).toEqual(
         expect.arrayContaining([
-          { role: 'arbitre_declarant', refereeId: 'person-1', refereeName: 'Alice' },
-          { role: 'arbitre_assesseur', refereeId: 'person-2', refereeName: 'Bob Jones' },
+          expect.objectContaining({
+            role: 'arbitre_declarant',
+            refereeId: 'person-1',
+            refereeName: 'Alice',
+          }),
+          expect.objectContaining({
+            role: 'arbitre_assesseur',
+            refereeId: 'person-2',
+            refereeName: 'Bob Jones',
+          }),
         ]),
       );
     });
@@ -1946,11 +2075,13 @@ describe('PhasesService', () => {
       }>;
       expect(matches).toHaveLength(3);
       for (const m of matches) {
-        expect(m.referees).toContainEqual({
-          role: 'arbitre_declarant',
-          refereeId: 'person-7',
-          refereeName: 'Joe Referee',
-        });
+        expect(m.referees).toContainEqual(
+          expect.objectContaining({
+            role: 'arbitre_declarant',
+            refereeId: 'person-7',
+            refereeName: 'Joe Referee',
+          }),
+        );
       }
     });
 
@@ -2068,16 +2199,20 @@ describe('PhasesService', () => {
       const m1 = matches.find((m) => m.id === 'm-1')!;
       const m2 = matches.find((m) => m.id === 'm-2')!;
 
-      expect(m1.referees).toContainEqual({
-        role: 'arbitre_declarant',
-        refereeId: 'person-7',
-        refereeName: 'Joe Default',
-      });
-      expect(m2.referees).toContainEqual({
-        role: 'arbitre_declarant',
-        refereeId: 'person-9',
-        refereeName: 'Lea Override',
-      });
+      expect(m1.referees).toContainEqual(
+        expect.objectContaining({
+          role: 'arbitre_declarant',
+          refereeId: 'person-7',
+          refereeName: 'Joe Default',
+        }),
+      );
+      expect(m2.referees).toContainEqual(
+        expect.objectContaining({
+          role: 'arbitre_declarant',
+          refereeId: 'person-9',
+          refereeName: 'Lea Override',
+        }),
+      );
       // The override replaces the role — should not see both at once.
       expect(m2.referees.filter((r) => r.role === 'arbitre_declarant')).toHaveLength(1);
     });
@@ -2176,11 +2311,150 @@ describe('PhasesService', () => {
 
       expect(refereeSelectCall).toContain('global_persons');
       expect(refereeSelectCall).not.toMatch(/(?:^|,\s*)persons\s*\(/);
-      expect(match.referees).toContainEqual({
-        role: 'arbitre_assesseur',
-        refereeId: 'gp-1',
-        refereeName: 'Joe Referee',
+      expect(match.referees).toContainEqual(
+        expect.objectContaining({
+          role: 'arbitre_assesseur',
+          refereeId: 'gp-1',
+          refereeName: 'Joe Referee',
+        }),
+      );
+    });
+
+    // The view select has always fetched lice_name/lice_number; the ViewMatch
+    // type and the mapper dropped both, so every consumer that wanted to say
+    // which piste a pool runs on had to fetch the lices list separately.
+    it('projects the piste name onto each match and collects the pool’s distinct pistes', async () => {
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          return makeChain({ data: { id: 'phase-1' }, error: null });
+        }
+        if (tableName === 'tournaments') {
+          return makeChain({ data: { event_id: 'event-1', weapon: 'longsword' }, error: null });
+        }
+        if (tableName === 'pools') {
+          return makeAwaitableChain({
+            data: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0 }],
+            error: null,
+          });
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          return makeAwaitableChain({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: 'lice-1',
+                lice_name: 'Lice 1',
+                lice_number: 1,
+                status: 'completed',
+                match_number_label: 'M1',
+              },
+              {
+                match_id: 'm-2',
+                pool_id: 'pool-1',
+                lice_id: 'lice-2',
+                lice_name: 'Lice 2',
+                lice_number: 2,
+                status: 'scheduled',
+                match_number_label: 'M2',
+              },
+              // Same piste as m-1 — must not appear twice in liceNames.
+              {
+                match_id: 'm-3',
+                pool_id: 'pool-1',
+                lice_id: 'lice-1',
+                lice_name: 'Lice 1',
+                lice_number: 1,
+                status: 'scheduled',
+                match_number_label: 'M3',
+              },
+            ],
+            error: null,
+          });
+        }
+        return makeChain({ data: null, error: null });
       });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      expect(result[0]!.liceNames).toEqual(['Lice 1', 'Lice 2']);
+      const matches = result[0]!.matches as Array<{ lice_name: string; lice_number: number }>;
+      expect(matches[0]).toMatchObject({ lice_name: 'Lice 1', lice_number: 1 });
+      expect(matches[1]).toMatchObject({ lice_name: 'Lice 2', lice_number: 2 });
+    });
+
+    // "The referee in this pool" is the pool's crew, not whatever one match
+    // happens to override — so the header projection reads scope_type='pool'
+    // and never the per-match merge the rows carry.
+    it('projects only pool-scope assignments onto the pool header, labelled and coloured', async () => {
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          return makeChain({ data: { id: 'phase-1' }, error: null });
+        }
+        if (tableName === 'tournaments') {
+          return makeChain({ data: { event_id: 'event-1', weapon: 'longsword' }, error: null });
+        }
+        if (tableName === 'pools') {
+          return makeAwaitableChain({
+            data: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0 }],
+            error: null,
+          });
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          return makeAwaitableChain({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: 'lice-1',
+                lice_name: 'Lice 1',
+                status: 'scheduled',
+                match_number_label: 'M1',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (tableName === 'referee_assignments') {
+          return makeAwaitableChain({
+            data: [
+              {
+                match_id: null,
+                pool_id: 'pool-1',
+                role: 'arbitre_declarant',
+                person_id: 'gp-1',
+                global_persons: { display_name: 'Pool Crew' },
+              },
+              {
+                match_id: 'm-1',
+                pool_id: null,
+                role: 'arbitre_assesseur',
+                person_id: 'gp-2',
+                global_persons: { display_name: 'One-Off Override' },
+              },
+            ],
+            error: null,
+          });
+        }
+        if (tableName === 'referee_skills') {
+          return makeAwaitableChain({
+            data: [{ id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' }],
+            error: null,
+          });
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      expect(result[0]!.referees).toEqual([
+        {
+          role: 'arbitre_declarant',
+          roleLabel: 'Déclarant',
+          roleColor: 'orange',
+          name: 'Pool Crew',
+        },
+      ]);
     });
   });
 

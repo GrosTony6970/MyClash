@@ -111,6 +111,7 @@ describe('mapLiceMatchRow', () => {
       role: 'arbitre_declarant',
       roleLabel: 'Déclarant',
       roleColor: 'orange',
+      status: 'confirmed',
     };
     const mapped = mapLiceMatchRow(
       row({ status: 'completed', red_score: 7, blue_score: 3, pool_id: 'p1' }),
@@ -120,6 +121,7 @@ describe('mapLiceMatchRow', () => {
       id: 'm1',
       status: 'completed',
       poolId: 'p1',
+      weapon: 'sidesword',
       redFighterName: 'Adrián Dader Laguna',
       blueFighterName: 'Valentin Arrois',
       redScore: 7,
@@ -133,6 +135,15 @@ describe('mapLiceMatchRow', () => {
     const mapped = mapLiceMatchRow(row({ red_score: null, blue_score: null }), []);
     expect(mapped.redScore).toBe(0);
     expect(mapped.blueScore).toBe(0);
+  });
+
+  it('projects the weapon, without which the bracket cards carry no round code', () => {
+    // `BracketView.roundCodeFor` returns undefined the moment weapon is null,
+    // so dropping it here silently blanks the code on every card — a screen
+    // that looks fine and is missing the one label the operator calls a bout by.
+    expect(mapLiceMatchRow(row(), []).weapon).toBe('sidesword');
+    const noWeapon = row({ phases: { config_json: null, tournaments: { name: 'T' } } });
+    expect(mapLiceMatchRow(noWeapon, []).weapon).toBeNull();
   });
 
   it('passes the tournament scoring config through for the corner colours', () => {

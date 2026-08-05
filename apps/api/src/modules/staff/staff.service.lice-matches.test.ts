@@ -197,6 +197,7 @@ describe('StaffService.getAssignedLiceMatches', () => {
         role: 'arbitre_assesseur',
         roleLabel: 'Assesseur',
         roleColor: 'blue',
+        status: 'assigned',
       },
     ]);
     expect(result.matches.find((m) => m.id === 'm2')?.referees).toEqual([
@@ -205,6 +206,7 @@ describe('StaffService.getAssignedLiceMatches', () => {
         role: 'arbitre_declarant',
         roleLabel: 'Déclarant',
         roleColor: 'orange',
+        status: 'assigned',
       },
     ]);
   });

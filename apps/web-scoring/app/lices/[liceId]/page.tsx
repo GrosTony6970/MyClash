@@ -9,8 +9,8 @@ import { useLiceMatches } from '../../../src/hooks/useLiceMatches';
 import { partitionLiceMatches } from '../../../src/components/partition-lice-matches';
 import type { LiceMatch } from '../../../src/components/lice-match-types';
 import { AllMatchesDisclosure } from './_components/AllMatchesDisclosure';
+import { GroupedMatchList } from './_components/GroupedMatchList';
 import { LiceHeader, NetworkBar } from './_components/LiceHeader';
-import { LiceMatchCard } from './_components/LiceMatchCard';
 import { TournamentSections } from './_components/TournamentSections';
 
 interface Props {
@@ -36,11 +36,7 @@ function MatchSection({
           {emptyLabel}
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {matches.map((match) => (
-            <LiceMatchCard key={match.id} match={match} />
-          ))}
-        </div>
+        <GroupedMatchList matches={matches} />
       )}
     </section>
   );
@@ -122,10 +118,21 @@ export default function LiceMatchListPage({ params }: Props) {
       data-theme={chromeScope}
       className="min-h-screen flex flex-col bg-background text-foreground"
     >
-      <NetworkBar status={networkStatus} />
-      <LiceHeader liceName={data?.liceName ?? null} />
+      {/* Sticky, not fixed: the operator scrolls a 60-bout day and still has to
+          know which piste this is, but fixed chrome leaves the flow and paints
+          over whatever the root layout puts above it. */}
+      {/* `bg-background` on the wrapper is load-bearing: NetworkBar's tint is
+          `bg-success/15`, so without an opaque backdrop the match list would
+          scroll visibly through it. */}
+      <div className="sticky top-0 z-sticky bg-background">
+        <NetworkBar status={networkStatus} />
+        <LiceHeader liceName={data?.liceName ?? null} />
+      </div>
 
-      <div className="flex-1 p-4 max-w-3xl w-full mx-auto">
+      {/* max-w-5xl, not 3xl: the pool grid is the admin Matches table (seven
+          columns, clubs included) and at 3xl it pushed Lice and Status off the
+          side on the 1024px tablets the pistes actually run. */}
+      <div className="flex-1 p-4 max-w-5xl w-full mx-auto">
         {/* Only rendered when something is genuinely running or paused. */}
         {live.length > 0 && (
           <MatchSection heading={t('scoring.lice.live')} matches={live} testId="live-section" />

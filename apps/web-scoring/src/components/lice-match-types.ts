@@ -32,6 +32,8 @@ export interface LiceMatch {
   blueScore: number;
   tournamentId: string | null;
   tournamentName: string | null;
+  /** Tournament weapon — `BracketView` needs it to render a card's round code. */
+  weapon: string | null;
   /** `pool` | `single_elim` | `double_elim` | `swiss`. */
   phaseType: string | null;
   scoringConfig: TournamentScoringConfig | null;

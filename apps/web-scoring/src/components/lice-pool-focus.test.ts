@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildLiceBracketFocus, buildLicePoolSummaries, type FocusPool } from './lice-pool-focus';
+import {
+  buildLiceBracketFocus,
+  buildLicePoolSummaries,
+  orderLicePoolSummaries,
+  type FocusPool,
+} from './lice-pool-focus';
 
 const pool = (poolId: string, matches: Array<[string, string | null]>): FocusPool => ({
   poolId,
@@ -56,6 +61,78 @@ describe('buildLicePoolSummaries', () => {
 
   it('returns an empty list for no pools', () => {
     expect(buildLicePoolSummaries([], 'lice-4')).toEqual([]);
+  });
+
+  it('carries the pool crew and the pistes through for the header', () => {
+    const summaries = buildLicePoolSummaries(
+      [
+        {
+          poolId: 'p1',
+          poolName: 'Pool 1',
+          referees: [
+            {
+              role: 'arbitre_declarant',
+              roleLabel: 'Déclarant',
+              roleColor: 'orange',
+              name: 'Marc',
+            },
+          ],
+          liceNames: ['Lice 1', 'Lice 2'],
+          matches: [{ id: 'm1', lice_id: 'lice-4' }],
+        },
+      ],
+      'lice-4',
+    );
+    expect(summaries[0]?.referees).toEqual([
+      { role: 'arbitre_declarant', roleLabel: 'Déclarant', roleColor: 'orange', name: 'Marc' },
+    ]);
+    expect(summaries[0]?.liceNames).toEqual(['Lice 1', 'Lice 2']);
+  });
+
+  it('defaults crew and pistes to empty when the payload omits them', () => {
+    const summaries = buildLicePoolSummaries([pool('p1', [['m1', 'lice-4']])], 'lice-4');
+    expect(summaries[0]?.referees).toEqual([]);
+    expect(summaries[0]?.liceNames).toEqual([]);
+  });
+});
+
+describe('orderLicePoolSummaries', () => {
+  const summaries = buildLicePoolSummaries(
+    [
+      pool('p1', [['m1', 'lice-2']]),
+      pool('p2', [['m2', 'lice-2']]),
+      pool('p3', [['m3', 'lice-4']]),
+      pool('p4', [['m4', 'lice-4']]),
+    ],
+    'lice-4',
+  );
+
+  it('floats this pistes pools to the front', () => {
+    expect(orderLicePoolSummaries(summaries).map((s) => s.poolId)).toEqual([
+      'p3',
+      'p4',
+      'p1',
+      'p2',
+    ]);
+  });
+
+  it('is stable — the organisers sort_order survives inside each half', () => {
+    // A comparator-based sort would be free to reorder the pools the operator
+    // is NOT on, which would make this section disagree with every other pool
+    // list in the product.
+    const ordered = orderLicePoolSummaries(summaries);
+    expect(ordered.filter((s) => !s.anyOnThisLice).map((s) => s.poolId)).toEqual(['p1', 'p2']);
+  });
+
+  it('leaves the order untouched when no pool is on this lice', () => {
+    const none = buildLicePoolSummaries([pool('p1', [['m1', 'lice-2']])], 'lice-9');
+    expect(orderLicePoolSummaries(none).map((s) => s.poolId)).toEqual(['p1']);
+  });
+
+  it('does not mutate its input', () => {
+    const before = summaries.map((s) => s.poolId);
+    orderLicePoolSummaries(summaries);
+    expect(summaries.map((s) => s.poolId)).toEqual(before);
   });
 });
 

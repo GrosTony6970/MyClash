@@ -8,7 +8,14 @@ import type { ColorToken } from '../../utils/color-token';
 /** A referee assigned to a bracket match (scope_type='match'). Mirrors the
  *  public pool-footer shape so both surfaces render referees identically. */
 export interface BracketReferee {
+  /** A `referee_skills.id` — an opaque id, NOT a human label. */
   role: string | null;
+  /**
+   * `referee_skills.name` for that id. Optional so payloads that ship only the
+   * raw role still type-check; when present the card prefers it, which is what
+   * stops the chip printing `arbitre_declarant` at a referee.
+   */
+  roleLabel?: string | null;
   displayName: string;
   status: string;
   /** Colour token of the role's referee_skill (e.g. 'red', 'slate'). */

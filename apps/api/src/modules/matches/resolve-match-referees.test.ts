@@ -17,6 +17,7 @@ const row = (over: Partial<RefereeAssignmentRow>): RefereeAssignmentRow => ({
   role: null,
   roleLabel: null,
   roleColor: 'slate',
+  status: 'assigned',
   ...over,
 });
 
@@ -70,12 +71,24 @@ describe('resolveMatchReferees', () => {
       row({ scopeType: 'match', matchId: 'm1', name: 'Marc Lefevre', role: 'arbitre_table' }),
     ];
     expect(resolveMatchReferees(rows, target)).toEqual([
-      { name: 'Marc Lefevre', role: 'arbitre_declarant', roleLabel: null, roleColor: 'slate' },
-      { name: 'Marc Lefevre', role: 'arbitre_table', roleLabel: null, roleColor: 'slate' },
+      {
+        name: 'Marc Lefevre',
+        role: 'arbitre_declarant',
+        roleLabel: null,
+        roleColor: 'slate',
+        status: 'assigned',
+      },
+      {
+        name: 'Marc Lefevre',
+        role: 'arbitre_table',
+        roleLabel: null,
+        roleColor: 'slate',
+        status: 'assigned',
+      },
     ]);
   });
 
-  it('carries the role label and colour through to the caller', () => {
+  it('carries the role label, colour and status through to the caller', () => {
     const rows = [
       row({
         scopeType: 'match',
@@ -84,6 +97,7 @@ describe('resolveMatchReferees', () => {
         role: 'arbitre_declarant',
         roleLabel: 'Déclarant',
         roleColor: 'orange',
+        status: 'confirmed',
       }),
     ];
     expect(resolveMatchReferees(rows, target)).toEqual([
@@ -92,6 +106,7 @@ describe('resolveMatchReferees', () => {
         role: 'arbitre_declarant',
         roleLabel: 'Déclarant',
         roleColor: 'orange',
+        status: 'confirmed',
       },
     ]);
   });

@@ -59,6 +59,7 @@ function BracketTree({
         redColor={asColorToken(sideColors?.red ?? 'red')}
         blueColor={asColorToken(sideColors?.blue ?? 'blue')}
         highlightLiceId={liceId}
+        showReferees
         t={t}
       />
     </div>
@@ -71,6 +72,11 @@ function BracketTree({
  * `BracketView` is the real draw the organizer sees — wide and horizontally
  * scrolling. Reproducing it as a list would be a second renderer to keep in
  * step with the first.
+ *
+ * `showReferees` is on here and nowhere else: the piste screen is the one
+ * surface where "who calls this bout" is an operational question. BracketView
+ * widens its vertical pitch to fit the band, so the connectors still land on
+ * the cards.
  */
 export function BracketDisclosure({
   apiUrl,

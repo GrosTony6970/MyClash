@@ -6,10 +6,20 @@
  * them, and it stays unit-testable under vitest's node environment.
  */
 
+/** One of a pool's default referees, carried through to the header. */
+export interface FocusReferee {
+  role: string;
+  roleLabel: string;
+  roleColor: string;
+  name: string;
+}
+
 /** Minimal shape of a pool row from `pools-with-matches`. */
 export interface FocusPool {
   poolId: string;
   poolName: string;
+  referees?: readonly FocusReferee[];
+  liceNames?: readonly string[];
   matches: ReadonlyArray<{ id: string; lice_id: string | null }>;
 }
 
@@ -22,6 +32,10 @@ export interface LicePoolSummary {
   total: number;
   /** Whether the pool touches this lice at all. */
   anyOnThisLice: boolean;
+  /** The pool's default crew, for the header. Empty when none is assigned. */
+  referees: FocusReferee[];
+  /** Every piste the pool's matches run on. */
+  liceNames: string[];
 }
 
 /**
@@ -46,8 +60,26 @@ export function buildLicePoolSummaries(
       onThisLice,
       total: pool.matches.length,
       anyOnThisLice: onThisLice.length > 0,
+      referees: [...(pool.referees ?? [])],
+      liceNames: [...(pool.liceNames ?? [])],
     };
   });
+}
+
+/**
+ * This piste's pools first, everything else after, each side keeping the
+ * organiser's own `sort_order`.
+ *
+ * The operator opens this screen to answer "which pool am I running", and on a
+ * four-pool tournament theirs was as likely to be last as first. A STABLE
+ * partition rather than a sort: reordering the pools they are *not* on would
+ * make the section disagree with every other list of pools in the product.
+ */
+export function orderLicePoolSummaries(summaries: readonly LicePoolSummary[]): LicePoolSummary[] {
+  return [
+    ...summaries.filter((summary) => summary.anyOnThisLice),
+    ...summaries.filter((summary) => !summary.anyOnThisLice),
+  ];
 }
 
 /** Minimal shape of a bracket slot. */

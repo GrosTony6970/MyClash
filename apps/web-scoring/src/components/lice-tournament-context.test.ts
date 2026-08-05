@@ -15,6 +15,7 @@ const match = (over: Partial<LiceMatch> = {}): LiceMatch => ({
   blueScore: 0,
   tournamentId: 't1',
   tournamentName: 'Sidesword',
+  weapon: 'sidesword',
   phaseType: 'pool',
   scoringConfig: null,
   referees: [],
