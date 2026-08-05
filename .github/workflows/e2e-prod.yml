@@ -17,6 +17,44 @@ env:
   PNPM_VERSION: '10.27.0'
 
 jobs:
+  # Edge review of the PUBLIC app host only.
+  #
+  # `--hosts=app` is not a shortcut, it is the whole reason this can run in CI:
+  # admin.${DOMAIN} sits behind myclash-geoblock-admin, an allow-list over
+  # [FR,BE,LU,CH,DE,IT,ES,GB,NL,AT] that fails CLOSED, and geoblock runs before
+  # the security-headers middleware — a GitHub runner would be denied before it
+  # could ever see an HSTS header. app.${DOMAIN} uses the public block-list
+  # ([CN,RU,KP,IR,BY], fails OPEN) and answers anyone.
+  #
+  # Separate job, not a step inside e2e-prod: a Playwright failure must not mask
+  # it, and it has to still run on the nights the suite is skipped. This is what
+  # notices, without a deploy, that the app certificate is expiring or that
+  # realtime has stopped resolving its tenant (websockets silently dead).
+  edge-review:
+    name: Edge / TLS review (public host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Review app host edge
+        if: '!cancelled()'
+        run: |
+          ARGS=(--domain "$EDGE_DOMAIN" --hosts=app)
+          if [ "${ALLOW_STAGING:-}" = "1" ]; then ARGS+=(--allow-staging-cert=1); fi
+          node scripts/check-edge-tls.mjs "${ARGS[@]}"
+        env:
+          EDGE_DOMAIN: ${{ vars.EDGE_DOMAIN || 'myclash.fr' }}
+          # Public by construction — it ships in every browser bundle. Without
+          # it the realtime probe is skipped and the job proves much less.
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # Set repo variable EDGE_ALLOW_STAGING_CERT=1 while prod runs on
+          # `deploy.sh --dev-certs`; the staging cert is reported either way.
+          ALLOW_STAGING: ${{ vars.EDGE_ALLOW_STAGING_CERT }}
+
   e2e-prod:
     name: Playwright against deployed env
     runs-on: ubuntu-latest

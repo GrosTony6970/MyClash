@@ -915,11 +915,37 @@ requireContains(
   'apps/web-public/src/components/PublicPersonalShell.tsx',
   "window.location.replace('/login')",
 );
-requireContains(
-  publicPersonalShellText,
-  'apps/web-public/src/components/PublicPersonalShell.tsx',
-  'fixed inset-y-0 left-0',
-);
+/**
+ * App chrome must be STICKY, never FIXED.
+ *
+ * a1a90ffc moved all three sidebar shells off `fixed inset-y-0 left-0`: fixed
+ * chrome ignores document flow, so the banners the root layout renders above
+ * the shell (maintenance, legal update) were painted over by the header and the
+ * sidebar. This gate pinned the OLD string, so it went red the moment that was
+ * fixed and stayed red — while never covering OrganizerAdminShell at all, the
+ * very shell the other two cite as their reference.
+ *
+ * So assert the invariant, not the snapshot: sticky present, `fixed inset-y-0`
+ * absent. Matched exactly — the mobile drawer's `fixed inset-0 z-overlay` and
+ * the skip-link's `focus:fixed` are correct and must not trip it.
+ *
+ * LeagueWorkspaceShell is not here on purpose: it is header-only and delegates
+ * the aside to its parent shell.
+ */
+for (const [label, text] of [
+  ['apps/web-public/src/components/PublicPersonalShell.tsx', publicPersonalShellText],
+  ['apps/web-admin/src/components/SuperAdminShell.tsx', superAdminShellText],
+  ['apps/web-admin/src/components/OrganizerAdminShell.tsx', organizerShellText],
+]) {
+  requireContains(text, label, 'sticky top-0 z-sidebar');
+  requireContains(text, label, 'sticky top-0 z-header');
+  if (/fixed inset-y-0/u.test(text)) {
+    errors.push(
+      `${label} must keep its chrome sticky, not fixed — \`fixed inset-y-0\` ignores document ` +
+        `flow and paints over the root layout's banners (see a1a90ffc).`,
+    );
+  }
+}
 for (const [label, text] of [
   ['apps/web-public/app/login/page.tsx', publicLoginPageText],
   ['apps/web-public/app/me/PersonalSpaceDashboard.tsx', publicPersonalDashboardText],
@@ -1014,11 +1040,8 @@ requireContains(
   'apps/web-admin/src/components/SuperAdminShell.tsx',
   'usePathname',
 );
-requireContains(
-  superAdminShellText,
-  'apps/web-admin/src/components/SuperAdminShell.tsx',
-  'fixed inset-y-0 left-0',
-);
+// Chrome layout for this shell is asserted with the other two above — see the
+// sticky-not-fixed block.
 requireContains(
   superAdminShellText,
   'apps/web-admin/src/components/SuperAdminShell.tsx',

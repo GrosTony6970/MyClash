@@ -43,6 +43,12 @@ interface DeployEnv {
   sshKeyPath: string;
   repoPath: string;
   smokeUrl: string;
+  /** Public domain for the post-deploy edge review. Defaults to DEPLOY_HOST. */
+  edgeDomain: string;
+  /** Optional. Absent → the edge review skips its realtime probe and says so. */
+  supabaseAnonKey: string | null;
+  /** DEPLOY_ALLOW_STAGING_CERT=1 while prod runs on `deploy.sh --dev-certs`. */
+  allowStagingCert: boolean;
 }
 
 function loadEnv(): DeployEnv {
@@ -76,6 +82,9 @@ function loadEnv(): DeployEnv {
     sshKeyPath: env['DEPLOY_SSH_KEY_PATH']!.replace(/^~(?=$|\/|\\)/, homedir()),
     repoPath: env['DEPLOY_REPO_PATH']!,
     smokeUrl: env['DEPLOY_SMOKE_URL']!,
+    edgeDomain: env['DEPLOY_EDGE_DOMAIN'] ?? env['DEPLOY_HOST']!,
+    supabaseAnonKey: env['SUPABASE_ANON_KEY'] ?? null,
+    allowStagingCert: env['DEPLOY_ALLOW_STAGING_CERT'] === '1',
   };
 }
 
@@ -104,6 +113,27 @@ async function smokeTest(url: string): Promise<boolean> {
   }
 }
 
+/**
+ * Runs `scripts/check-edge-tls.mjs` against the deployed domain and streams its
+ * output. Every host, not just one — HTTPS redirect, HSTS, certificate trust and
+ * expiry, the API health route, and realtime tenant resolution on app.${domain}.
+ *
+ * The realtime probe needs SUPABASE_ANON_KEY (public — it ships in every browser
+ * bundle); without it the script skips that one check and says so.
+ */
+function edgeReview(env: DeployEnv): Promise<boolean> {
+  const args = ['scripts/check-edge-tls.mjs', '--domain', env.edgeDomain];
+  if (env.allowStagingCert) args.push('--allow-staging-cert=1');
+  const proc = spawn(process.execPath, args, {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      ...(env.supabaseAnonKey ? { SUPABASE_ANON_KEY: env.supabaseAnonKey } : {}),
+    },
+  });
+  return new Promise((resolve) => proc.on('exit', (code) => resolve(code === 0)));
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
@@ -115,6 +145,10 @@ async function main() {
   console.log(`  Repo:     ${env.repoPath}`);
   console.log(`  SSH key:  ${env.sshKeyPath}`);
   console.log(`  Smoke:    ${env.smokeUrl}`);
+  console.log(`  Edge:     ${env.edgeDomain}${env.allowStagingCert ? ' (staging cert OK)' : ''}`);
+  if (!env.supabaseAnonKey) {
+    warn('SUPABASE_ANON_KEY absent from .env.deploy — the edge realtime probe will be skipped.');
+  }
   if (passthrough) console.log(`  Args:     ${passthrough}`);
 
   if (dryRun) {
@@ -122,6 +156,7 @@ async function main() {
     console.log(
       `\nWould run on VPS:\n  cd ${env.repoPath} && bash infra/scripts/deploy.sh ${passthrough}`,
     );
+    console.log(`Would then verify: node scripts/check-edge-tls.mjs --domain ${env.edgeDomain}`);
     return;
   }
 
@@ -134,12 +169,37 @@ async function main() {
     process.exit(code);
   }
 
+  const failures: string[] = [];
+
   hdr('Local smoke test');
   const passed = await smokeTest(env.smokeUrl);
   if (passed) {
     ok(`${env.smokeUrl} is reachable`);
   } else {
-    warn(`${env.smokeUrl} not reachable from local machine (could be DNS / TLS / firewall)`);
+    err(`${env.smokeUrl} not reachable from local machine (could be DNS / TLS / firewall)`);
+    failures.push(`smoke test: ${env.smokeUrl}`);
+  }
+
+  // Edge check, run from HERE and not from CI on purpose: admin.${domain} sits
+  // behind a fail-closed geoblock allow-list, so only a machine in one of those
+  // countries can assert the whole edge. This is also the moment it matters —
+  // a compose or Traefik change has just landed.
+  hdr('Edge / TLS review');
+  const edgePassed = await edgeReview(env);
+  if (edgePassed) {
+    ok(`edge review passed for ${env.edgeDomain}`);
+  } else {
+    failures.push(`edge review: ${env.edgeDomain}`);
+  }
+
+  if (failures.length > 0) {
+    hdr('Deploy finished with failures');
+    // The containers are up either way — the deploy itself succeeded. What
+    // failed is the verification, and it exits non-zero so it cannot scroll
+    // past: a websocket that 403'd for weeks is exactly what a warning buys.
+    for (const failure of failures) err(failure);
+    err('Post-deploy verification failed. The stack is deployed but NOT verified.');
+    process.exit(1);
   }
 
   hdr('Deploy complete');
