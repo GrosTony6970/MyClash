@@ -345,6 +345,9 @@ export function MatchLiveView({
   const connected = useMatchLiveChannel({
     matchId,
     isFinal,
+    // Live status, not the initial one — a bout that starts while the page is
+    // open must speed the fallback up without a reload.
+    matchStatus: match.status,
     realtimeDisabled,
     refresh,
     refreshLive,

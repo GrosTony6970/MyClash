@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
-import { FALLBACK_POLL_MS, shouldStartFallbackPoll } from './realtime-fallback';
+import { fallbackPollMs, shouldStartFallbackPoll } from './realtime-fallback';
 import {
   mapMatchRow,
   type ExchangeRow,
@@ -76,10 +76,35 @@ function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
   };
 }
 
+/** Visibility as an external store, so the interval is DERIVED in render rather
+ *  than pushed through an effect (`react-hooks/set-state-in-effect` is an error
+ *  here, and a subscription is what useSyncExternalStore is for). */
+function subscribeVisibility(onChange: () => void): () => void {
+  document.addEventListener('visibilitychange', onChange);
+  return () => document.removeEventListener('visibilitychange', onChange);
+}
+
+function useDocumentVisible(): boolean {
+  return useSyncExternalStore(
+    subscribeVisibility,
+    () => document.visibilityState === 'visible',
+    // Server render: assume visible, so the first client paint agrees with the
+    // markup and the interval only ever narrows after hydration.
+    () => true,
+  );
+}
+
 export interface MatchLiveChannelOptions {
   matchId: string;
   /** A completed / voided match is static — no channel, no poll, no banner. */
   isFinal: boolean;
+  /**
+   * Current `matches.status`. Drives the fallback cadence only — a running bout
+   * is refetched every few seconds, anything else slowly. Deliberately NOT a
+   * dependency of the channel effect: a status change must not tear down and
+   * rejoin the websocket.
+   */
+  matchStatus: string;
   /** `disable_realtime` kill-switch: skip the websocket, poll only. */
   realtimeDisabled: boolean;
   /**
@@ -110,10 +135,13 @@ export interface MatchLiveChannelOptions {
  *      froze on its server-rendered snapshot for the rest of the bout, showing a
  *      "Reconnecting…" banner that never resolved.
  *
- * Channel and poll live in ONE effect because the channel's status is what
- * starts and stops the poll — splitting them is what let both run at once on
- * the surfaces that learned this the hard way (see `useLiveMatch` in
- * `@myclash/ui`, whose contract this mirrors).
+ * The poll is a SECOND effect, not part of the channel effect, so that changing
+ * its cadence (status, tab visibility) never tears down and rejoins the
+ * websocket. The two still cannot run at once: the poll is gated on `degraded`,
+ * which the subscribe callback clears the instant the channel reports
+ * SUBSCRIBED. That state gate — not shared closure scope — is what keeps them
+ * mutually exclusive, which is the property the surfaces that learned this the
+ * hard way actually needed (see `useLiveMatch` in `@myclash/ui`).
  *
  * Returns the channel's connection state. The caller still owns the banner
  * decision (`showReconnecting`) — while the poll is carrying the page, realtime
@@ -122,6 +150,7 @@ export interface MatchLiveChannelOptions {
 export function useMatchLiveChannel({
   matchId,
   isFinal,
+  matchStatus,
   realtimeDisabled,
   refresh,
   refreshLive,
@@ -133,31 +162,28 @@ export function useMatchLiveChannel({
   // reports SUBSCRIBED.
   const [connected, setConnected] = useState(true);
   const wasDisconnected = useRef(false);
+  const visible = useDocumentVisible();
+
+  // The kill-switch degrades us before any channel exists, so it is folded in
+  // here rather than tracked as state.
+  const degraded = realtimeDisabled || !connected;
+  const pollMs = fallbackPollMs({ status: matchStatus, visible });
 
   useEffect(() => {
-    // Finished matches don't stream — no channel, and nothing to poll for.
+    if (isFinal || !degraded) return;
+    // Fire once immediately: on entering degraded the page is stale from this
+    // instant, and on a cadence change the new speed should take effect now.
+    void refreshLive();
+    const timer = setInterval(() => void refreshLive(), pollMs);
+    return () => clearInterval(timer);
+  }, [isFinal, degraded, pollMs, refreshLive]);
+
+  useEffect(() => {
+    // Finished matches don't stream — no channel at all.
     if (isFinal) return;
-
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    const startPolling = () => {
-      if (pollTimer !== null) return;
-      // Fire once immediately: the page is degraded from this instant, not one
-      // interval from now.
-      void refreshLive();
-      pollTimer = setInterval(() => void refreshLive(), FALLBACK_POLL_MS);
-    };
-    const stopPolling = () => {
-      if (pollTimer === null) return;
-      clearInterval(pollTimer);
-      pollTimer = null;
-    };
-
-    // Kill-switch path: no websocket at all. The banner is derived by the caller
-    // from the flag, so there is no `setConnected` to do here.
-    if (realtimeDisabled) {
-      startPolling();
-      return () => stopPolling();
-    }
+    // Kill-switch path: no websocket. `degraded` is already true, so the poll
+    // effect above is running; there is nothing to do here.
+    if (realtimeDisabled) return;
 
     const channel = supabase
       .channel(`match:${matchId}:live`)
@@ -218,34 +244,24 @@ export function useMatchLiveChannel({
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          // Clears `degraded`, which stops the poll effect.
           setConnected(true);
-          stopPolling();
           // Re-fetch to catch any changes missed during the disconnection window.
           if (wasDisconnected.current) {
             wasDisconnected.current = false;
             void refresh();
           }
         } else if (shouldStartFallbackPoll(status)) {
+          // Sets `degraded`, which starts the poll effect.
           setConnected(false);
           wasDisconnected.current = true;
-          startPolling();
         }
       });
 
     return () => {
-      stopPolling();
       void supabase.removeChannel(channel);
     };
-  }, [
-    matchId,
-    isFinal,
-    realtimeDisabled,
-    refresh,
-    refreshLive,
-    setMatch,
-    setExchanges,
-    setPenalties,
-  ]);
+  }, [matchId, isFinal, realtimeDisabled, refresh, setMatch, setExchanges, setPenalties]);
 
   return connected;
 }

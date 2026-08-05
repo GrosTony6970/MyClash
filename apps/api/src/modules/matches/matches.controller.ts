@@ -17,6 +17,8 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -76,6 +78,7 @@ export class MatchesController {
   }
 
   @Public()
+  @Throttle(PUBLIC_LIVE_READ_THROTTLE)
   @Get('matches/:id')
   @ApiOperation({ summary: 'Get match by ID (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -216,6 +219,7 @@ export class MatchesController {
   // ── Exchanges ─────────────────────────────────────────────────────────────────
 
   @Public()
+  @Throttle(PUBLIC_LIVE_READ_THROTTLE)
   @Get('matches/:id/exchanges')
   @ApiOperation({ summary: 'List exchanges for a match (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

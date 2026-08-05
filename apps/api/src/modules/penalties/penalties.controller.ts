@@ -12,7 +12,9 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { StaffService } from '../staff/staff.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -274,6 +276,7 @@ export class PenaltiesController {
   }
 
   @Public()
+  @Throttle(PUBLIC_LIVE_READ_THROTTLE)
   @Get('matches/:id/penalties')
   @ApiOperation({ summary: 'List penalties for a match' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
