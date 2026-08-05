@@ -120,7 +120,9 @@ const STYLES: Record<MatchTimelineScale, ScaleStyles> = {
   // friends would render dark-on-dark.
   tv: {
     box: 'max-h-[42vh] overflow-y-auto rounded-lg border border-gray-800 bg-gray-900/50 p-3 space-y-1.5',
-    row: 'flex items-center gap-2 text-lg py-0.5',
+    // Fluid: rows that keep an 18px cap on a projector but shrink with the
+    // stage in a window, so they stop pushing into the score numerals.
+    row: 'flex items-center gap-2 text-stage-row py-0.5',
     num: 'font-mono text-gray-500 tabular-nums w-9 flex-shrink-0',
     time: 'font-mono text-gray-400 tabular-nums flex-shrink-0',
     dot: 'inline-block h-3 w-3 rounded-full flex-shrink-0',

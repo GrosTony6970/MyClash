@@ -87,6 +87,36 @@
   --color-stage: #030712; /* gray-950 */
   --color-stage-foreground: #ffffff;
 
+  /* ── Stage type scale, fluid ────────────────────────────────────────────
+   * The ONLY --text-* keys in this file, and they are jurisdictionally narrow:
+   * the projector/kiosk stage surfaces ONLY (TVScoreboard, LiceWaitingDisplay).
+   * Never use them for app chrome — app type is the stock Tailwind scale
+   * stepped by breakpoints (DESIGN.md → Typography).
+   *
+   * These are NOT aliases (the thing the header comment warns about). Before
+   * them the stage was fixed rem at every size, so a windowed display overflowed
+   * its own columns: a 24rem numeral in a ~262px column painted over the clock.
+   *
+   * The rule, so a new key is derivable rather than guessed:
+   *   cap   = the fixed size this replaces, unchanged
+   *   slope = cap ÷ 19.2, expressed in vw
+   * so every clamp resolves to EXACTLY its old value at 1920px wide and shrinks
+   * linearly below. A projector sees no change; only small windows move.
+   *
+   * --text-stage-score and --text-stage-clock also cap against vh, because a
+   * short-but-wide window starves height, not width. Both terms are tuned to
+   * meet the same value at 1920×1080 (20vw = 36vh·1080 = 384px), so the vh term
+   * only ever bites on a squatter aspect than 16:9. */
+  --text-stage-score: clamp(4rem, min(20vw, 36vh), 24rem); /* was text-[24rem] */
+  --text-stage-clock: clamp(2rem, min(6.7vw, 12vh), 8rem); /* was text-9xl */
+  --text-stage-verdict: clamp(1.75rem, 3.75vw, 4.5rem); /* was text-7xl */
+  --text-stage-name: clamp(1.125rem, 2.5vw, 3rem); /* was text-5xl */
+  --text-stage-subtitle: clamp(1rem, 1.56vw, 1.875rem); /* was text-3xl */
+  --text-stage-club: clamp(0.8rem, 1.25vw, 1.5rem); /* was text-2xl */
+  --text-stage-row: clamp(0.75rem, 0.94vw, 1.125rem); /* was text-lg */
+  --text-stage-label: clamp(0.7rem, 0.83vw, 1rem); /* was text-base */
+  --text-stage-meta: clamp(0.65rem, 0.73vw, 0.875rem); /* was text-sm */
+
   /* ── Stacking layers ────────────────────────────────────────────────────
    * Tailwind ships NO --z-index-* defaults, so every key here is a pure
    * addition: `z-50` still resolves via the bare-value path, untouched.

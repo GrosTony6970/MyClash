@@ -66,7 +66,7 @@ export function LiceWaitingDisplay({
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-10 px-12 py-12 text-center">
-        <p className="text-7xl font-black uppercase tracking-widest text-amber-400">
+        <p className="text-stage-verdict font-black uppercase tracking-widest text-amber-400">
           {t('scoring.liveMatch.waitingForMatch')}
         </p>
 
@@ -76,23 +76,25 @@ export function LiceWaitingDisplay({
               {t('scoring.liveMatch.upNext')} ▸
             </span>
             {matchCode && (
-              <span className="rounded-full border-2 border-amber-300 bg-amber-50 px-5 py-1.5 font-mono text-2xl font-bold tracking-widest text-amber-700">
+              <span className="text-stage-club rounded-full border-2 border-amber-300 bg-amber-50 px-5 py-1.5 font-mono font-bold tracking-widest text-amber-700">
                 {matchCode}
               </span>
             )}
-            <p className="flex flex-wrap items-center justify-center gap-4 text-5xl font-bold leading-tight">
+            <p className="text-stage-name flex flex-wrap items-center justify-center gap-4 font-bold leading-tight">
               <span style={{ color: redStyle.border }}>{redName ?? '—'}</span>
-              <span className="text-2xl uppercase tracking-widest text-slate-500">
+              <span className="text-stage-club uppercase tracking-widest text-slate-500">
                 {t('scoring.liveMatch.versus')}
               </span>
               <span style={{ color: blueStyle.border }}>{blueName ?? '—'}</span>
             </p>
             {nextMatch.tournamentName && (
-              <p className="text-lg text-slate-400">{nextMatch.tournamentName}</p>
+              <p className="text-stage-row text-slate-400">{nextMatch.tournamentName}</p>
             )}
           </div>
         ) : (
-          <p className="max-w-3xl text-3xl text-slate-400">{t('scoring.liveMatch.noQueue')}</p>
+          <p className="text-stage-subtitle max-w-3xl text-slate-400">
+            {t('scoring.liveMatch.noQueue')}
+          </p>
         )}
       </main>
     </div>

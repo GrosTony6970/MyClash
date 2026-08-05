@@ -73,6 +73,13 @@ const CARD_CHIP_BG: Record<(typeof CARD_COLORS)[number], string> = {
   black: 'bg-gray-900 text-white border border-gray-600',
 };
 
+// Circular stage art (fighter photo, club logo). Tailwind v4 has no @theme
+// namespace for h-/w-, so these can't be --text-stage-* siblings in theme.css —
+// they live here instead, as the single owner of both diameters. Same rule as
+// that scale: cap ÷ 19.2 as the vw slope, so each hits its cap at 1920px wide.
+const STAGE_AVATAR = 'h-[clamp(3rem,6.67vw,8rem)] w-[clamp(3rem,6.67vw,8rem)]';
+const STAGE_CLUB_LOGO = 'h-[clamp(2rem,4.17vw,5rem)] w-[clamp(2rem,4.17vw,5rem)]';
+
 export function TVScoreboard({
   matchId,
   apiBaseUrl,
@@ -245,7 +252,12 @@ export function TVScoreboard({
         t={t}
       />
 
-      <div className="grid flex-1 grid-cols-[1fr_minmax(380px,28%)_1fr] gap-6 px-6 py-4">
+      {/* The 380px centre floor yields below ~1267px (where 30vw drops under it).
+          Without that `min()` a windowed display starves the fighter columns —
+          they'd hold ~262px at 1000px wide while the numeral still demanded its
+          full width, so the scores painted over the clock. Fluid type alone does
+          not fix it: the floor has to move too. */}
+      <div className="grid flex-1 grid-cols-[1fr_minmax(min(380px,30vw),28%)_1fr] gap-6 px-6 py-4">
         {leftColumn}
         <CenterColumn
           match={match}
@@ -339,7 +351,7 @@ function TVHeader({
             </span>
           )}
           {contextLine && <p className="text-sm font-semibold text-slate-500">{contextLine}</p>}
-          <p className="text-2xl font-bold">
+          <p className="text-stage-club font-bold">
             <span style={{ color: leftColor }}>{leftName}</span>{' '}
             <span className="text-slate-500">vs</span>{' '}
             <span style={{ color: rightColor }}>{rightName}</span>
@@ -386,23 +398,23 @@ function FighterColumn({
   const tint = legibleOn(tintHex, 'dark');
   return (
     <div className="flex flex-col items-center justify-start gap-6 pt-6">
-      <p className="text-[24rem] font-black leading-none tabular-nums" style={{ color: tint }}>
+      <p className="text-stage-score font-black leading-none tabular-nums" style={{ color: tint }}>
         {score}
       </p>
       {/* Fighter photo above the name; side-tinted initials when there's no
           photo so red vs blue stay distinguishable on the projector. */}
       <FighterAvatar name={name} photoUrl={photoUrl} tint={tint} />
-      <p className="text-center text-5xl font-bold leading-tight">{name}</p>
+      <p className="text-stage-name text-center font-bold leading-tight">{name}</p>
       {club && (
-        <div className="flex items-center justify-center gap-3 text-2xl text-gray-300">
+        <div className="text-stage-club flex items-center justify-center gap-3 text-gray-300">
           {club.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={club.logoUrl}
               alt=""
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-full border border-white/20 bg-white/5 object-contain"
+              width={80}
+              height={80}
+              className={`${STAGE_CLUB_LOGO} rounded-full border border-white/20 bg-white/5 object-contain`}
             />
           )}
           <span>{club.name}</span>
@@ -414,7 +426,7 @@ function FighterColumn({
           return (
             <span
               key={card}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-2xl font-bold transition-opacity ${CARD_CHIP_BG[card]} ${
+              className={`text-stage-club inline-flex items-center gap-2 rounded-full px-4 py-1.5 font-bold transition-opacity ${CARD_CHIP_BG[card]} ${
                 count === 0 ? 'opacity-30' : ''
               }`}
             >
@@ -448,14 +460,14 @@ function FighterAvatar({
         alt=""
         width={128}
         height={128}
-        className="h-32 w-32 rounded-full border-4 object-cover"
+        className={`${STAGE_AVATAR} rounded-full border-4 object-cover`}
         style={{ borderColor: tint }}
       />
     );
   }
   return (
     <div
-      className="flex h-32 w-32 items-center justify-center rounded-full border-4 bg-white/5 text-5xl font-black"
+      className={`${STAGE_AVATAR} text-stage-name flex items-center justify-center rounded-full border-4 bg-white/5 font-black`}
       style={{ borderColor: tint, color: tint }}
     >
       {initials(name)}
@@ -569,10 +581,12 @@ function CenterColumn({
 
   return (
     // min-w-0 as a grid item: without it this column's min-content width wins
-    // over the 380px track and the timeline rows push into the score numerals.
+    // over the centre track and the timeline rows push into the score numerals.
+    // Still needed now that the track floor is fluid — min-content doesn't care
+    // what the floor is.
     <div className="flex min-w-0 flex-col items-center gap-4 pt-6">
       <span
-        className={`rounded-full px-4 py-1 text-base font-bold uppercase tracking-widest ${
+        className={`text-stage-label rounded-full px-4 py-1 font-bold uppercase tracking-widest ${
           clockStatus === 'running'
             ? 'bg-green-900 text-green-300'
             : clockStatus === 'halted'
@@ -589,39 +603,41 @@ function CenterColumn({
         <div className="flex flex-col items-center gap-4 py-8 text-center">
           {isDoubleLoss ? (
             <>
-              <p className="text-7xl font-black uppercase tracking-widest text-red-500">
+              <p className="text-stage-verdict font-black uppercase tracking-widest text-red-500">
                 {t('scoring.liveMatch.doubleLoss')}
               </p>
-              <p className="text-3xl font-bold text-red-300">
+              <p className="text-stage-subtitle font-bold text-red-300">
                 {t('scoring.liveMatch.doubleLossSubtitle')}
               </p>
             </>
           ) : isBlackCard ? (
             <>
-              <p className="text-7xl font-black uppercase tracking-widest text-red-500">
+              <p className="text-stage-verdict font-black uppercase tracking-widest text-red-500">
                 {t('scoring.liveMatch.blackCard')}
               </p>
-              {winner && <p className="text-5xl font-bold">🏆 {winner.name}</p>}
+              {winner && <p className="text-stage-name font-bold">🏆 {winner.name}</p>}
             </>
           ) : (
             <>
-              <p className="text-7xl font-black uppercase tracking-widest text-amber-400">
+              <p className="text-stage-verdict font-black uppercase tracking-widest text-amber-400">
                 MATCH ENDED
               </p>
-              {winner && <p className="text-5xl font-bold">🏆 {winner.name}</p>}
+              {winner && <p className="text-stage-name font-bold">🏆 {winner.name}</p>}
             </>
           )}
           {countdownRemaining !== null && (
-            <p className="mt-4 text-2xl text-gray-400">Next match in {countdownRemaining}…</p>
+            <p className="text-stage-club mt-4 text-gray-400">
+              Next match in {countdownRemaining}…
+            </p>
           )}
           {countdownRemaining === null && !match.nextMatchId && (
-            <p className="mt-4 text-lg text-gray-500">Last match on this lice</p>
+            <p className="text-stage-row mt-4 text-gray-500">Last match on this lice</p>
           )}
         </div>
       ) : (
         <>
           <p
-            className={`font-mono text-9xl font-black tabular-nums leading-none ${
+            className={`text-stage-clock font-mono font-black tabular-nums leading-none ${
               clockStatus === 'running'
                 ? 'text-white'
                 : clockStatus === 'halted'
@@ -632,7 +648,7 @@ function CenterColumn({
             {formatClockMs(elapsedMs)}
           </p>
           {match.startedAt && (
-            <p className="text-base uppercase tracking-widest text-gray-500">
+            <p className="text-stage-label uppercase tracking-widest text-gray-500">
               Total{' '}
               <span className="font-mono">
                 {formatClockMs(Date.now() - new Date(match.startedAt).getTime())}
@@ -659,7 +675,7 @@ function CenterColumn({
       {/* Exchange history — the full timeline, scrollable and pinned to the
           newest row (the projector has no operator to scroll it). */}
       <div className="mt-4 w-full min-w-0">
-        <p className="mb-2 text-center text-sm font-bold uppercase tracking-widest text-gray-500">
+        <p className="text-stage-meta mb-2 text-center font-bold uppercase tracking-widest text-gray-500">
           {t('scoring.lice.eventsHeader')}
         </p>
         <MatchTimeline
