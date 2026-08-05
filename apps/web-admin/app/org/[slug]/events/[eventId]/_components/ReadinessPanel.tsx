@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { StatusBadge, statusPillTone } from '@myclash/ui';
+import { CollapsibleSection, StatusBadge, statusPillTone } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import {
   isOutstanding,
@@ -29,8 +30,15 @@ interface Props {
  * what passed cannot be read as "I have checked everything" — the green rows
  * are the reassurance, and their absence would leave the organiser wondering
  * whether the check ran at all.
+ *
+ * That completeness makes the panel long, so it starts folded and the dashboard
+ * below it stays above the fold. Folding costs nothing here because the header
+ * that remains carries the outstanding count and the roll-up chip — the whole
+ * signal an organiser needs to decide whether to open it.
  */
 export function ReadinessPanel({ report, error, slug, eventId }: Props) {
+  const [open, setOpen] = useState(false);
+
   if (error) {
     return (
       <section className="mb-8 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
@@ -42,17 +50,28 @@ export function ReadinessPanel({ report, error, slug, eventId }: Props) {
 
   return (
     <section className="mb-8 rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <PanelHeader report={report} />
-      <ReadinessGroups report={report} slug={slug} eventId={eventId} />
+      <CollapsibleSection
+        open={open}
+        onToggle={() => setOpen((wasOpen) => !wasOpen)}
+        header={<PanelHeader report={report} />}
+        bodyClassName="mt-4"
+      >
+        <ReadinessGroups report={report} slug={slug} eventId={eventId} />
+      </CollapsibleSection>
     </section>
   );
 }
 
+/**
+ * Rendered inside the disclosure's toggle button, so everything here also spells
+ * out the button's accessible name. `w-full` because the button nests its header
+ * in a `flex-1` span — without it the chip would not reach the right edge.
+ */
 function PanelHeader({ report }: { report: ReadinessReport }) {
   const { t } = useI18n();
   const outstanding = report.checks.filter(isOutstanding).length;
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="flex w-full flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.readiness.title')}

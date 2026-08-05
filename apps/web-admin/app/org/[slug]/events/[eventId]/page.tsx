@@ -886,7 +886,7 @@ export default function EventDetailPage() {
         </label>
       </section>
 
-      <section>
+      <section className="mb-8">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.printPack.title')}
         </h2>
@@ -905,7 +905,7 @@ export default function EventDetailPage() {
         </div>
       </section>
 
-      <section>
+      <section className="mb-8">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.eventHub.archiveTitle')}
         </h2>
