@@ -38,7 +38,7 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`25` (see the Status table), so you can run one by number.
+Specs are numbered `01`…`28` (see the Status table), so you can run one by number.
 Note that **PowerShell does not expand globs and Playwright reads its argument as
 a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
 literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
@@ -645,6 +645,100 @@ Between them these found four real bugs on their first runs:
 > cannot be hard-deleted afterwards. `24` and `25` build and tear down their own;
 > `23` writes into the shared throwaway event.
 
+## The platform console, and who is refused (opt-in)
+
+`E2E_SUPER_ADMIN=1 pnpm test:e2e:prod tests/e2e/27-super-admin.spec.ts` runs
+`27-super-admin.spec.ts`. 42 pages under `apps/web-admin/app/admin` and ~30
+`SuperAdminGuard` controllers had **no coverage at all** — `13` proves an org
+owner is refused on three destructive privacy routes and nothing else.
+
+Two halves, and they need **different accounts**:
+
+**Half A** sweeps every guarded controller as the ordinary organizer and asserts
+each refuses with **403 specifically**. Not "some 4xx": a 404 means the route
+moved, which is a different bug wearing the same colour, and a sweep that
+accepted it would go green the day a controller is renamed. It asserts the
+account is _not_ a super admin first, because otherwise the whole half is
+vacuous.
+
+> The sweep found on its first run that `admin/league-scoring-systems` guards
+> **per method, not per class** — its two GETs are open on purpose so an org
+> admin can pick a scoring system when creating a league, while every mutation
+> carries the guard. Probing its list would have asserted the opposite of the
+> truth, so that controller is probed with a write instead, sent with a
+> deliberately invalid body: if the guard ever vanished, validation answers 400,
+> the assertion fails loudly, and no row is created.
+>
+> **Adding an admin controller means adding a row to `GUARDED_ROUTES`.** The
+> sweep can only catch what it names.
+
+**Half B** drives the console — the reads, one inert write, and the audit row
+that write must leave. It needs a **dedicated platform account**
+(`E2E_SUPERADMIN_EMAIL` / `E2E_SUPERADMIN_PASSWORD` plus a `platform_roles` row)
+and runs in its own browser context, because `playwright.e2e.config.ts` applies
+the organizer's `storageState` everywhere. Without those vars it **skips**.
+
+> **Never promote the shared E2E account to super admin to save a login.**
+> `13-privacy` refuses to invoke retention/anonymise for real when `isSuperAdmin`
+> is true — promoting the organizer silently disarms that interlock and empties
+> its refusal assertions.
+
+The write is `disable_hema_sync` set to the value it already has, then re-read to
+prove it did not move. Every registry flag is behavioural, so the choice is about
+blast radius: a misbehaving write path there pauses an external sync, where
+`admin_lockdown` or `read_only_mode` would take the platform out from under a
+live event. Then the audit-log export must carry a row **attributed to the actor
+who made the change** — `audit_log` has one writer and masking happens at write
+time, so an action that succeeds and records nothing is invisible to every unit
+test.
+
+Out of scope on purpose, the same line `13` draws: retention runs, person
+anonymisation, backups, AI keys and budgets, org deletion, HEMA Ratings
+submission.
+
+## The live control room, and whether its realtime is alive (opt-in)
+
+`E2E_LIVE_BOARD=1 pnpm test:e2e:prod tests/e2e/28-live-control-room.spec.ts` runs
+`28-live-control-room.spec.ts`. `live-board-merge.test.ts` and
+`live-board-state.test.ts` cover the merge and health derivation as pure
+functions; nothing proved a channel ever **subscribes**.
+
+That gap is dangerous here because the failure is silent by construction.
+`useLiveBoard` runs a 7 s structural poll that is the source of truth, and
+`LiceRealtime`'s own fallback is deliberately a no-op because of it — so a board
+with every socket dead still fills in, still updates, still looks right, roughly
+seven seconds late. This project has already shipped that twice: the realtime
+tenant taken from the Host's first label, and an unpublished table in a
+`postgres_changes` binding.
+
+**So the proof is the channel's console line, not the score.** Asserting the
+board eventually shows `2–0` passes identically whether realtime delivered it or
+the poll did. `useRealtimeWithFallback` logs `[realtime] connected: <channel>` on
+SUBSCRIBED and `[realtime] dropped (<status>): <channel>` otherwise, and those
+are the only signals that tell the two apart (web-admin sets no `removeConsole`,
+so they survive the production build).
+
+Three assertions over two pistes with one bout each:
+
+| assertion                                 | what only it proves                                                        |
+| ----------------------------------------- | -------------------------------------------------------------------------- |
+| a `connected` line per lice, no `dropped` | the channel reached SUBSCRIBED — the binding and the publication agree     |
+| the scored piste shows the new score      | the realtime patch merges into the row it belongs to                       |
+| the untouched piste does not move         | `filter: lice_id=eq.<id>` is per lice; a leaking filter shows up only here |
+
+Two things worth knowing before touching it:
+
+- **The bout is left unfinished on purpose.** The board queries
+  `status in (running, paused, scheduled)`, so completing it removes the bout
+  from the piste and the row falls back to Idle. It scores two clean hits rather
+  than reusing `scoreMatch`, which plays to the cap.
+- **Websocket opens are recorded but not asserted** — they exist so a failure can
+  name the layer: no socket at all is the transport (cert chain, realtime tenant,
+  proxy), while a socket that opened and a channel that never subscribed is the
+  binding or the publication.
+- It skips itself when `disable_realtime` is on for the environment — that is a
+  decision, not a defect, and the spec says so rather than failing.
+
 ## Status
 
 | #   | Flow                                  | Spec                                | State                                    |
@@ -675,6 +769,8 @@ Between them these found four real bugs on their first runs:
 | 24  | Swiss admin route + public tab render | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above        |
 | 25  | Swiss archive + HEMA Ratings labels   | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above        |
 | 26  | Print pack route builds its document  | `26-print-pack.spec.ts`             | always                                   |
+| 27  | Platform guard sweep + the console    | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
+| 28  | Live control room + its realtime      | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above   |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

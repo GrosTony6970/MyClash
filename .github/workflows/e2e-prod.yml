@@ -102,6 +102,13 @@ jobs:
           E2E_WORKSHOPS: '1' # 19 — ~30 s
           E2E_SCHEDULE: '1' # 20 + 21 — ~1 min
           E2E_SWISS: '1' # 22 + 23 + 24 + 25 — ~6 min (played off the pad, plus a browser pass)
+          E2E_SUPER_ADMIN: '1' # 27 — ~5 s (the console half needs the secrets below)
+          E2E_LIVE_BOARD: '1' # 28 — ~15 s
+          # 27's console half runs only where a dedicated platform account exists.
+          # Absent these, it SKIPS rather than fails — the org owner must never be
+          # promoted to super admin, or 13's retention interlock silently disarms.
+          E2E_SUPERADMIN_EMAIL: ${{ secrets.E2E_SUPERADMIN_EMAIL }}
+          E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
           # E2E_POPULATE stays OFF on purpose: 07 is a ~30 min demo-data
           # populator, not a regression test (its step() swallows every error),
           # so running it nightly would cost half an hour and assert nothing.
