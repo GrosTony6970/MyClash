@@ -48,8 +48,17 @@ function LiceRealtime({
 
 export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) {
   const { t } = useI18n();
-  const { rows, timing, progress, eventSlug, error, acknowledge, applyMatchChange } =
-    useLiveBoard(eventId);
+  const {
+    rows,
+    timing,
+    progress,
+    accounts,
+    eventSlug,
+    error,
+    acknowledge,
+    setLiceScorer,
+    applyMatchChange,
+  } = useLiveBoard(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
   const [showHealthy, setShowHealthy] = useState(false);
   // One row expanded at a time, keyed by BOTH lice and bout so the panel
@@ -123,6 +132,8 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                   expanded={isExpanded(row)}
                   onToggle={() => toggle(row)}
                   eventSlug={eventSlug}
+                  accounts={accounts}
+                  onAssignScorer={setLiceScorer}
                   slug={slug}
                   eventId={eventId}
                   onAck={(id) => void acknowledge(id)}

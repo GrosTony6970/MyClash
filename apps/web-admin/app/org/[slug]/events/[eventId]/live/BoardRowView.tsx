@@ -7,7 +7,7 @@ import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { BoardRowDetail } from './BoardRowDetail';
 import { matchStatusLabel } from '@/lib/live-board/match-status';
-import type { BoardRow } from '@/lib/live-board/types';
+import type { BoardRow, LiveBoardAccount } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
 
@@ -22,6 +22,8 @@ export function BoardRowView({
   expanded,
   onToggle,
   eventSlug,
+  accounts,
+  onAssignScorer,
   slug,
   eventId,
   onAck,
@@ -35,6 +37,8 @@ export function BoardRowView({
   expanded: boolean;
   onToggle: () => void;
   eventSlug: string | null;
+  accounts: LiveBoardAccount[];
+  onAssignScorer: (liceId: string, staffAccountId: string | null) => Promise<string[]>;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
@@ -153,6 +157,8 @@ export function BoardRowView({
             nowMs={nowMs}
             matchDurationMinutes={matchDurationMinutes}
             eventSlug={eventSlug}
+            accounts={accounts}
+            onAssignScorer={onAssignScorer}
             slug={slug}
             eventId={eventId}
             t={t}

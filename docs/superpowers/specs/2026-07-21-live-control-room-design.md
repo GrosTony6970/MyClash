@@ -34,10 +34,23 @@ All three are _per-piste_ views, so the board is **one row per lice** carrying a
 
 **Deferred (not v1):**
 
-- Expandable row detail (inline exchange feed, health graph, scorer session history).
+- Expandable row detail (inline exchange feed, health graph, scorer session history). — **shipped in
+  v2**, as an in-place expansion; the row never navigates.
 - Inline destructive actions (reassign scorer, force tablet reload, void/intervene on a match).
-- A dedicated read-only big-screen / TV-wall mode.
+  — **partly shipped in v2: reassign scorer only.** See the reversal note below. Force-reload and
+  void/intervene remain deferred.
+- A dedicated read-only big-screen / TV-wall mode. — **shipped in v2** at `/display/wall/{eventId}`,
+  outside the org route tree so it inherits the chromeless display layout.
 - A hybrid/full client-side realtime store (see Alternatives).
+
+> **v2 reversal — "No destructive edits here" (2026-08-06).** v1 ruled that every real edit happens
+> on the page that owns it. That held for everything except assigning a scorer to a piste: the
+> organizer who has just watched a piste go amber is standing at the board, and sending them to the
+> Staff page to fix it costs them sight of every other piste at the moment they most need it. So
+> `PUT /events/:eventId/live/lices/:liceId/scorer` exists and the row expansion offers it — scoped to
+> that one operation, inside the expansion rather than on the collapsed row, and reporting any
+> co-scorer it displaces rather than silently discarding another organizer's setup. The rest of the
+> rule stands: force-reload, void and intervene are still owned by their own pages.
 
 ## Users & device
 
@@ -133,8 +146,9 @@ toggle floats it to the top, and the summary strip + red dot flag it either way.
   when empty.
 - **`ATTENTION`** is the only in-board write: `[Ack]` clears the flag (optimistic). 🚑/⚖/👨‍⚖️ = medic /
   dispute / head-ref.
-- **Row → deep-links:** piste/match → match page, scorer → Staff, `[assign]`/`NEXT` → schedule. No
-  destructive edits here.
+- **Row → deep-links:** piste/match → match page, scorer → Staff, `[assign]`/`NEXT` → schedule.
+  (v2: the row also expands in place; assigning a scorer is the one destructive edit it offers —
+  see the reversal note above.)
 
 **Responsive (< `md`):** rows become stacked cards, worst-first, healthy pistes folded into a
 "🟢 4 pistes synced ▸" expander so only problems show.

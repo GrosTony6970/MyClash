@@ -106,6 +106,69 @@ export function useLiveBoard(eventId: string) {
     [eventId, refetch],
   );
 
+  /**
+   * Put a scorer on a piste, or clear it.
+   *
+   * Optimistic like `acknowledge`, and reverting the same way — by re-fetching
+   * server truth rather than restoring a snapshot. On a live surface a
+   * three-second-old snapshot is worse than a seven-second-old server read, and
+   * the always-on poll already owns this state.
+   *
+   * `health: null` in the optimistic row is the load-bearing part: the incoming
+   * tablet has reported nothing yet, and inheriting the previous scorer's green
+   * is the one lie this board must not tell.
+   *
+   * Resolves to the ids it displaced so the caller can say so — replacing a
+   * piste's assignments drops any co-scorer the staff page had set.
+   */
+  const setLiceScorer = useCallback(
+    async (liceId: string, staffAccountId: string | null): Promise<string[]> => {
+      const next = accounts.find((a) => a.accountId === staffAccountId) ?? null;
+      setRows(
+        (prev) =>
+          prev?.map((r) =>
+            r.lice.id === liceId
+              ? {
+                  ...r,
+                  scorer: next
+                    ? {
+                        accountId: next.accountId,
+                        name: next.name,
+                        username: next.username,
+                        status: next.status,
+                        lastSeenAt: next.lastSeenAt,
+                        otherCount: 0,
+                        others: [],
+                      }
+                    : null,
+                  health: null,
+                  attention: null,
+                }
+              : r,
+          ) ?? prev,
+      );
+      try {
+        const res = await fetch(`${API}/api/v1/events/${eventId}/live/lices/${liceId}/scorer`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ staffAccountId }),
+        });
+        if (!res.ok) {
+          void refetch(); // revert to server truth
+          return [];
+        }
+        const body = (await res.json()) as { removedAccountIds?: string[] };
+        void refetch();
+        return body.removedAccountIds ?? [];
+      } catch {
+        void refetch();
+        return [];
+      }
+    },
+    [accounts, eventId, refetch],
+  );
+
   return {
     rows,
     timing,
@@ -115,6 +178,7 @@ export function useLiveBoard(eventId: string) {
     error,
     refetch,
     acknowledge,
+    setLiceScorer,
     applyMatchChange,
   };
 }

@@ -5631,6 +5631,12 @@ export const en = {
         timelineError: 'Could not load the exchange feed',
         reconnecting: 'Reconnecting — this feed may lag',
       },
+      reassign: {
+        label: 'Assign scorer',
+        none: 'No scorer',
+        alreadyOn: 'on {count} piste(s)',
+        removed: 'Removed from this piste: {names}',
+      },
       state: {
         attention: 'Needs attention',
         no_scorer: 'No scorer',
@@ -13051,6 +13057,12 @@ export const fr = {
         timelineEmpty: 'Aucun échange marqué pour l’instant',
         timelineError: 'Impossible de charger les échanges',
         reconnecting: 'Reconnexion — ce flux peut être en retard',
+      },
+      reassign: {
+        label: 'Affecter un marqueur',
+        none: 'Aucun marqueur',
+        alreadyOn: 'sur {count} piste(s)',
+        removed: 'Retiré de cette piste : {names}',
       },
       state: {
         attention: 'À traiter',
