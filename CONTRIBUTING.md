@@ -1,6 +1,7 @@
 # Contributing to MyClash
 
-MyClash follows a strict build-order workflow driven by an AI coding agent. This document covers the contribution process, required status checks, and development setup.
+MyClash is built slice by slice, largely by AI coding agents working against a live test event.
+This document covers the contribution process, required status checks, and development setup.
 
 ---
 
@@ -8,19 +9,19 @@ MyClash follows a strict build-order workflow driven by an AI coding agent. This
 
 Every pull request targeting `main` runs the following GitHub Actions jobs, all of which must pass before merging:
 
-| Check                     | Workflow                                                 | What it does                                                                                                                                                                                                           |
-| ------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                       |
-| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 7 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `design-tokens`, `i18n`, `api-client`                                                                             |
-| **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                       |
-| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` + `pnpm format:check`, plus the security (`security:client-secrets`), code-quality (`quality:*`), `db:review`/`db:perf:fixture`, `infra:review`, `observability:review`, and `perf:review` gates |
-| **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest)                                                                                                                                                                                         |
-| **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                        |
-| **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                         |
-| **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                     |
-| **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                   |
-| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-scoring production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                      |
-| **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                               |
+| Check                     | Workflow                                                 | What it does                                                                                                                                                                                                          |
+| ------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                      |
+| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 6 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `i18n`, `api-client`                                                                                             |
+| **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                      |
+| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` **plus fifteen further independent gates** — see [Before pushing](#before-pushing) for the full list. Each runs as its own step with `if: '!cancelled()'`, so one failure never hides the rest. |
+| **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest)                                                                                                                                                                                        |
+| **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                       |
+| **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                        |
+| **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                    |
+| **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                  |
+| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-scoring production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                     |
+| **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                              |
 
 To configure these as required checks in GitHub:
 
@@ -64,23 +65,58 @@ Local URLs:
 
 ---
 
-## Before opening a PR
+## Before pushing
 
-Run the full check suite locally:
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the full check — CI's Lint job runs sixteen
+further steps, and shared packages must be built first or a local pass proves nothing (`tsc`
+resolves workspace deps from `dist/` on disk, not through the pnpm symlink).
 
 ```bash
-pnpm lint && pnpm typecheck && pnpm test
+# 1. Shared packages first — the API and apps typecheck against their dist/
+pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
+  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+
+# 2. The three everyone knows about
+pnpm turbo run typecheck
+pnpm turbo run lint
+pnpm turbo run test
+
+# 3. The gates that actually fail CI
+pnpm security:client-secrets     # no server secrets reachable from client bundles
+pnpm quality:todos               # untracked debt markers
+pnpm quality:api-docs            # API doc coverage
+pnpm quality:complexity          # per-function/file line budget
+pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
+pnpm quality:openapi-drift       # generated client vs live routes
+pnpm quality:shared-types        # shared-type leaks
+pnpm design:lint                 # DESIGN.md vs packages/ui/src/theme.css
+pnpm db:review                   # schema / RLS review gates
+pnpm db:perf:fixture
+pnpm infra:review
+pnpm observability:review
+pnpm perf:review
+pnpm test:scripts                # root scripts/ — outside the turbo graph
+pnpm docs:mermaid                # a broken diagram renders as grey text, it does not throw
+pnpm format:check
 ```
 
-All three must exit 0. CI is the second line of defense, not the first.
+Run them as separate commands, not as one `&&` chain: each is an independent verdict, and chaining
+is exactly how eight of these silently stopped running in CI for six weeks.
+
+CI is the second line of defense, not the first.
 
 ---
 
 ## Workflow
 
-This project follows the build order in `docs/BUILD_ORDER.md`. Tasks are picked in order by the AI coding agent. Human contributions are welcome — open an issue first for non-trivial changes so the work can be coordinated with the build order.
+Work is slice-based: the maintainer runs a live test event, reports issues, and each slice lands as
+a scoped commit on `main`. `docs/BUILD_ORDER.md` is the historical build plan — it records how the
+project was built, not what happens next.
 
-See `AGENTS.md` for the full agent contract and `docs/BUILD_ORDER.md` for the task list.
+Human contributions are welcome — open an issue first for non-trivial changes so the work can be
+coordinated.
+
+See `CLAUDE.md` for the full agent contract.
 
 ---
 
@@ -102,15 +138,18 @@ The repository is analyzed by [code-review-graph](https://github.com/tirth8205/c
 
 ## Commit messages
 
-Reference the BUILD_ORDER task ID in every commit:
+**Conventional Commits**, enforced by commitlint through the `commit-msg` hook
+(`commitlint.config.cjs`). A message in any other shape is rejected before the commit is created.
 
-```
-T-104b: add person lookup endpoint with pg_trgm fuzzy search
+```text
+feat(persons): add person lookup endpoint with pg_trgm fuzzy search
 
 - GET /events/:id/persons/lookup?q=... returns masked email
 - pg_trgm index on unaccent(given_name) + unaccent(family_name)
 - Rate limited: 30 req/min per IP
 ```
+
+Body and footer line length are unconstrained, so detailed bodies and long trailers are fine.
 
 ---
 

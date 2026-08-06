@@ -26,14 +26,15 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 | ---------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
 | [`myclash.md`](./myclash.md)                                                 | Anyone                 | Product / functional / UX overview                          |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                             | Developers & AI agents | Master technical specification                              |
-| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                               | AI coding agent        | Sequenced task list with acceptance criteria                |
+| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                               | Developers             | Historical build plan — how the project was sequenced       |
 | [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)                             | Developers & QA        | End-to-end golden paths for manual and automated testing    |
 | [`docs/decisions/`](./docs/decisions/)                                       | Developers             | Architecture Decision Records (ADRs)                        |
 | [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                               | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
 | [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md)             | Project owner          | Flat ordered checklist for first production deploy          |
 | [`docs/pre-production-review-plan.md`](./docs/pre-production-review-plan.md) | Tech lead              | Staged review plan before production ship                   |
-| [`AGENTS.md`](./AGENTS.md)                                                   | AI coding agent        | Coder rules + persistent-memory protocol                    |
-| [`memory/MEMORY.md`](./memory/MEMORY.md)                                     | AI coding agent        | Persistent project memory (thematic)                        |
+| [`CLAUDE.md`](./CLAUDE.md)                                                   | AI coding agent        | Agent contract — hard rules, authority, workflow            |
+| [`DESIGN.md`](./DESIGN.md)                                                   | Developers & designers | Canonical UI design language                                |
+| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md)               | Developers & AI agents | Per-area rules learned the hard way                         |
 
 ---
 
@@ -135,7 +136,7 @@ External services: Scaleway Object Storage (S3-compatible, for the nightly backu
 
 ## Contributing
 
-This project follows a strict build-order workflow driven by an AI coding agent. See [`AGENTS.md`](./AGENTS.md) for the contract. Human contributions are welcome — open an issue first for non-trivial changes.
+This project is built slice by slice, largely by AI coding agents. See [`CLAUDE.md`](./CLAUDE.md) for the contract. Human contributions are welcome — open an issue first for non-trivial changes.
 
 ---
 

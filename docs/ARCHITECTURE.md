@@ -6,15 +6,13 @@
 >
 > **Companion docs:**
 >
-> - `docs/BUILD_ORDER.md` — sequenced task list for the AI coder.
+> - `docs/BUILD_ORDER.md` — historical build plan (how the project was sequenced).
 > - `docs/OWNER_TASKS.md` — operational checklist for the project owner (full version, organized by project phase).
 > - `docs/PRE_DEPLOY_CHECKLIST.md` — flat ordered checklist for everything that must happen before first production deploy.
 > - `myclash.md` (root) — functional/design understanding of the app (product-level).
-> - `AGENTS.md` (root) — short-form coder rules + persistent-memory protocol.
-> - `memory/MEMORY.md` — AI agent persistent memory index (thematic, maintained by the agent).
-> - `memory/PROMPT_LOG.md` — append-only log of user instructions.
-> - `memory/LESSONS_LEARNED.md` — permanent reusable rules from past mistakes.
-> - `memory/notes/` — thematic deep-dive notes spawned from MEMORY.md when entries grow.
+> - `CLAUDE.md` (root) — the agent contract: hard rules, which docs are authoritative, workflow, verification.
+> - `DESIGN.md` (root) — canonical UI design language.
+> - `docs/ENGINEERING_LESSONS.md` — reusable rules distilled from past mistakes, by area.
 >
 > **Status:** Draft v1.4 · **Owner:** Project author · **License:** AGPL-3.0
 > **Production domain:** `myclash.fr`
@@ -43,7 +41,7 @@
 18. [Repository Structure](#18-repository-structure-monorepo)
 19. [Development Roadmap](#19-development-roadmap)
 20. [Conventions & Standards](#20-conventions--standards)
-21. [AGENTS.md — AI Coder Instructions](#21-agentsmd--ai-coder-instructions)
+21. [AI Coder Instructions](#21-ai-coder-instructions)
 22. [Open Questions](#22-open-questions--future-work)
 
 ---
@@ -2758,14 +2756,10 @@ myclash/
 │   ├── gen-ffamhe-penalty-seed.ts  # generate the FFAMHE penalty seed data
 │   ├── seed-min.ts                 # seed a minimal dev dataset
 │   └── *.mjs                       # cross-cutting check/lint scripts
-├── memory/                         # AI agent persistent memory
-│   ├── MEMORY.md                   # thematic index (agent-maintained)
-│   ├── PROMPT_LOG.md               # append-only user-instruction log
-│   ├── LESSONS_LEARNED.md          # permanent rules
-│   └── notes/                      # spawned thematic deep-dives
 ├── docs/
 │   ├── ARCHITECTURE.md             # this file
-│   ├── BUILD_ORDER.md              # sequenced AI-coder tasks
+│   ├── BUILD_ORDER.md              # historical build plan
+│   ├── ENGINEERING_LESSONS.md      # reusable rules distilled from past mistakes
 │   ├── OWNER_TASKS.md              # owner-side operational tasks
 │   ├── HIERARCHY.md                # canonical domain vocabulary
 │   ├── GOLDEN_PATHS.md             # end-to-end happy-path walkthroughs
@@ -2775,7 +2769,9 @@ myclash/
 │   └── *_REVIEW.md                 # periodic review reports
 ├── .github/workflows/
 ├── .env.deploy.example             # template for the dev-machine deploy SSH config
-├── AGENTS.md                       # AI coder instructions (root, intentional)
+├── CLAUDE.md                       # agent contract (root, intentional)
+├── AGENTS.md                       # pointer at CLAUDE.md for non-Claude agents
+├── DESIGN.md                       # canonical UI design language (root, intentional)
 ├── myclash.md                      # functional/product reference (root, intentional)
 ├── README.md                       # GitHub-facing docs (root, intentional)
 ├── LICENSE                         # AGPL-3.0
@@ -2784,7 +2780,7 @@ myclash/
 └── turbo.json
 ```
 
-**Why three files at the root?** GitHub looks for `README.md` and `LICENSE` at root by convention; `AGENTS.md` must be at root so AI coders find it without configuration; `myclash.md` is a product-level companion to the README. Everything else is grouped by purpose: `memory/` for agent memory, `docs/` for project docs, `infra/scripts/` for VPS bash, `scripts/` for cross-platform Node.
+**Why these files at the root?** GitHub looks for `README.md` and `LICENSE` at root by convention; `CLAUDE.md` (with `AGENTS.md` pointing at it) must be at root so AI coders find it without configuration; `DESIGN.md` is the UI contract that `pnpm design:lint` diffs against the tokens; `myclash.md` is a product-level companion to the README. Everything else is grouped by purpose: `docs/` for project docs, `infra/scripts/` for VPS bash, `scripts/` for cross-platform Node.
 
 ---
 
@@ -2835,35 +2831,19 @@ High-level phases:
 
 ---
 
-## 21. AGENTS.md — AI Coder Instructions
+## 21. AI Coder Instructions
 
-> Place a copy of this section at repo root as `AGENTS.md`.
+The agent contract lives at the repo root in **`CLAUDE.md`** — hard rules, which documents are
+authoritative, the workflow, and how to verify a change. It is the single copy; this section used
+to duplicate it and drifted.
 
-You are an AI coding assistant working on **MyClash**. Read `docs/ARCHITECTURE.md` before any task. The architecture document is **authoritative**. If it conflicts with a user instruction, ask before deviating.
+Two pointers worth repeating here, because this document is where an agent usually starts:
 
-### Hard rules
-
-1. **Never bypass the ruleset engine.** Scores are always derived from exchanges via `@myclash/rulesets`. Do not store computed scores as the source of truth.
-2. **The TF_v1 implementation must reproduce the FAL 2026 reference data byte-for-byte.** A failing golden/snapshot test against the FAL 2026 reference fixtures (`packages/rulesets` tests) is a red flag — fix the engine, do not adjust the snapshot.
-3. **Offline scoring is non-negotiable.** Any change to the scoring app must preserve full offline functionality. E2E offline tests must pass.
-4. **RLS first, application checks second.** Every new table needs an RLS policy. Never disable RLS in production code paths.
-5. **No `eval`, no `Function()`, no dynamic code execution** for user-supplied formulas. Ruleset configs are validated against Zod schemas and dispatched to whitelisted functions.
-6. **All user-facing strings go through i18n.** Never hardcode English.
-7. **Don't commit secrets.** Use `.env.example` as the canonical key list.
-
-### Workflow
-
-1. Pick a task from the milestone in `docs/BUILD_ORDER.md` (high-level phases are in §19 of this file).
-2. Open a feature branch: `feat/<scope>-<short-name>`.
-3. Write tests first when feasible (especially in `packages/rulesets`).
-4. Implement.
-5. Run `pnpm lint && pnpm typecheck && pnpm test`.
-6. Open a PR. Reference the milestone and the architecture section involved.
-
-### When you don't know
-
-- If the architecture doc is silent on a decision, ask. Do not guess and write 500 lines that need to be unwound.
-- For UI ambiguity, refer to the prototype (`docs/prototype/`) — the design system is canonical.
+- **This document is authoritative for technical design.** If it conflicts with a user
+  instruction, ask before deviating. If it is silent on a decision, ask — do not guess and write
+  500 lines that need unwinding.
+- **For UI, `DESIGN.md` at the repo root is canonical**, with per-surface deltas in `docs/design/`
+  and token values in `packages/ui/src/theme.css` (gated by `pnpm design:lint`).
 
 ---
 

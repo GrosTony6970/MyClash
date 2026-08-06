@@ -1,17 +1,14 @@
 <!-- Thanks for contributing to MyClash! -->
 
-## Linked task
-
-- BUILD_ORDER task: <!-- e.g. T-104b -->
-- Related issue(s): <!-- #123 -->
-
 ## Summary
 
 <!-- 2-3 sentences describing what this PR changes and why. -->
 
+- Related issue(s): <!-- #123 -->
+
 ## Acceptance criteria
 
-<!-- Copy the AC bullets from BUILD_ORDER and check them off. -->
+<!-- What must be true for this to be done? Check them off. -->
 
 - [ ] AC 1
 - [ ] AC 2
@@ -20,20 +17,15 @@
 
 <!-- What tests cover this change? Existing or new? -->
 
-## Memory updates
-
-- [ ] `memory/MEMORY.md` updated if this PR introduced project knowledge worth retaining
-- [ ] `memory/LESSONS_LEARNED.md` updated if this PR uncovered a permanent rule
-- [ ] `memory/PROMPT_LOG.md` already contains the user instruction that triggered this work
-
 ## Screenshots
 
 <!-- For UI changes, include before/after screenshots, mobile and desktop. -->
 
 ## Checklist
 
-- [ ] `pnpm lint` passes
-- [ ] `pnpm typecheck` passes
-- [ ] `pnpm test` passes
-- [ ] No secrets committed
+- [ ] The gate chain in [CONTRIBUTING.md](../CONTRIBUTING.md#before-pushing) passes — not just
+      `lint`/`typecheck`/`test`
+- [ ] Commit messages follow Conventional Commits (enforced by the `commit-msg` hook)
+- [ ] No secrets, real rosters, or personal data committed
 - [ ] No `any` types added without justification
+- [ ] `docs/ENGINEERING_LESSONS.md` updated if this uncovered a reusable rule

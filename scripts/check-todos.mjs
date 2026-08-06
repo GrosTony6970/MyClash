@@ -44,7 +44,6 @@ const allowedPathSuffixes = new Set([
   'docs/pre-production-review-plan.md',
   'docs/CODE_QUALITY_REVIEW.md',
   'docs/DOC_REVIEW_2026-07-01.md',
-  'memory/PROMPT_LOG.md',
   'scripts/check-todos.mjs',
 ]);
 const allowedMarkers = [
