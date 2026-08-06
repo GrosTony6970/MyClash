@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calendarGapBetweenDays,
   dayStartUtcIso,
+  formatCalendarGap,
   formatDate,
   formatDateRange,
+  formatDayCount,
   formatInZone,
   formatTime,
   localeToBcp47,
@@ -137,5 +140,130 @@ describe('locale-aware formatters', () => {
     expect(formatDateRange(startIso, null, 'en', undefined, PARIS)).toBe('21 Jun 2027');
     expect(formatDateRange(null, startIso, 'en', undefined, PARIS)).toBe('21 Jun 2027');
     expect(formatDateRange(null, null, 'en')).toBe('');
+  });
+});
+
+describe('calendarGapBetweenDays', () => {
+  it('splits a long gap into whole years/months/days', () => {
+    // 2026-08-06 + 26505 days — the unreadable day count that motivated this.
+    expect(calendarGapBetweenDays('2026-08-06', '2099-03-01')).toEqual({
+      direction: 1,
+      years: 72,
+      months: 6,
+      days: 23,
+    });
+  });
+
+  it('uses real month lengths, not a 30-day approximation', () => {
+    // One calendar month is 28 days here and 31 days there; both are "1 month".
+    expect(calendarGapBetweenDays('2026-02-01', '2026-03-01')).toMatchObject({
+      years: 0,
+      months: 1,
+      days: 0,
+    });
+    expect(calendarGapBetweenDays('2026-03-01', '2026-04-01')).toMatchObject({
+      years: 0,
+      months: 1,
+      days: 0,
+    });
+  });
+
+  it('counts the leap day in a leap year', () => {
+    expect(calendarGapBetweenDays('2028-02-28', '2028-02-29')).toMatchObject({
+      months: 0,
+      days: 1,
+    });
+    // 2027 has no 29 Feb, so the same wall-clock span is a day shorter.
+    expect(calendarGapBetweenDays('2027-02-28', '2027-03-01')).toMatchObject({
+      months: 0,
+      days: 1,
+    });
+  });
+
+  it('reports direction 0 for the same day', () => {
+    expect(calendarGapBetweenDays('2026-08-06', '2026-08-06')).toEqual({
+      direction: 0,
+      years: 0,
+      months: 0,
+      days: 0,
+    });
+  });
+
+  it('reports a past day as direction -1 with non-negative magnitudes', () => {
+    expect(calendarGapBetweenDays('2026-08-06', '2026-06-20')).toEqual({
+      direction: -1,
+      years: 0,
+      months: 1,
+      days: 17,
+    });
+  });
+
+  it('returns null on missing or malformed input', () => {
+    expect(calendarGapBetweenDays(null, '2026-08-06')).toBeNull();
+    expect(calendarGapBetweenDays('2026-08-06', undefined)).toBeNull();
+    expect(calendarGapBetweenDays('', '2026-08-06')).toBeNull();
+    expect(calendarGapBetweenDays('06/08/2026', '2026-08-06')).toBeNull();
+    expect(calendarGapBetweenDays('2026-13-01', '2026-08-06')).toBeNull();
+  });
+});
+
+/**
+ * CLDR separates a number from its unit with a no-break space in French, and
+ * does it inconsistently per unit ("3 ans" plain, "3 mois" NBSP). That's
+ * correct typography and renders as a space; pinning the exact codepoint would
+ * make these tests hostage to a CLDR bump, so compare on the wording instead.
+ */
+const spaces = (value: string) => value.replace(/[  ]/g, ' ');
+
+describe('formatCalendarGap', () => {
+  const gapTo = (day: string) => calendarGapBetweenDays('2026-08-06', day)!;
+
+  it('renders the two largest units of a multi-year gap', () => {
+    expect(spaces(formatCalendarGap(gapTo('2099-03-01'), 'en'))).toBe('72 years, 6 months');
+    expect(spaces(formatCalendarGap(gapTo('2099-03-01'), 'fr'))).toBe('72 ans et 6 mois');
+  });
+
+  it('truncates to two units, dropping the smallest', () => {
+    // 1 year, 1 month, 22 days → the days are noise at that scale.
+    expect(spaces(formatCalendarGap(gapTo('2027-09-28'), 'en'))).toBe('1 year, 1 month');
+  });
+
+  it('drops a trailing zero unit rather than printing "0 months"', () => {
+    expect(spaces(formatCalendarGap(gapTo('2027-08-11'), 'en'))).toBe('1 year');
+  });
+
+  it('falls to months and days under a year', () => {
+    expect(spaces(formatCalendarGap(gapTo('2026-09-22'), 'en'))).toBe('1 month, 16 days');
+    expect(spaces(formatCalendarGap(gapTo('2026-09-22'), 'fr'))).toBe('1 mois et 16 jours');
+  });
+
+  it('stays in plain days under a month', () => {
+    expect(spaces(formatCalendarGap(gapTo('2026-08-24'), 'en'))).toBe('18 days');
+    expect(spaces(formatCalendarGap(gapTo('2026-08-24'), 'fr'))).toBe('18 jours');
+  });
+
+  it('pluralizes per locale — the whole reason "day(s)" is gone', () => {
+    expect(spaces(formatCalendarGap(gapTo('2026-08-07'), 'en'))).toBe('1 day');
+    expect(spaces(formatCalendarGap(gapTo('2026-08-07'), 'fr'))).toBe('1 jour');
+  });
+
+  it('renders a zero gap as days rather than an empty string', () => {
+    expect(spaces(formatCalendarGap(gapTo('2026-08-06'), 'en'))).toBe('0 days');
+  });
+
+  it('ignores direction — the caller supplies the before/after wording', () => {
+    const future = gapTo('2026-09-22');
+    const past = calendarGapBetweenDays('2026-08-06', '2026-06-20')!;
+    expect(spaces(formatCalendarGap(future, 'en'))).toBe('1 month, 16 days');
+    expect(spaces(formatCalendarGap(past, 'en'))).toBe('1 month, 17 days');
+  });
+});
+
+describe('formatDayCount', () => {
+  it('uses the locale plural form', () => {
+    expect(spaces(formatDayCount(1, 'en'))).toBe('1 day');
+    expect(spaces(formatDayCount(3, 'en'))).toBe('3 days');
+    expect(spaces(formatDayCount(1, 'fr'))).toBe('1 jour');
+    expect(spaces(formatDayCount(3, 'fr'))).toBe('3 jours');
   });
 });

@@ -168,6 +168,102 @@ export function formatDateRange(
   return `${start} – ${end}`;
 }
 
+// --- Calendar gaps -------------------------------------------------------
+// A countdown expressed in days stops being readable somewhere around three
+// digits — nobody converts "26505 days" into "about 72 years" while scanning a
+// dashboard. These express a gap in calendar units instead, and leave the
+// wording to Intl: unit names and plural forms come from the platform, so no
+// translation key has to carry a "day(s)" fudge for a translator layer that
+// has no plural support.
+
+/** The two units of a gap that are worth reading. */
+const GAP_UNITS = ['year', 'month', 'day'] as const;
+
+/**
+ * A gap between two calendar days, split into calendar units. `direction` is
+ * the sign (1 = `toDay` is later, -1 = earlier, 0 = same day); the magnitudes
+ * are always non-negative, so callers never juggle `Math.abs`.
+ */
+export interface CalendarGap {
+  direction: 1 | 0 | -1;
+  years: number;
+  months: number;
+  days: number;
+}
+
+/**
+ * Split the distance between two wall-clock days (`YYYY-MM-DD`) into whole
+ * years/months/days. Luxon does the arithmetic, so month lengths and leap days
+ * are real rather than a `/30` approximation: 31 Jan → 28 Feb is 28 days, not
+ * "0.93 months". Returns null on malformed input.
+ */
+export function calendarGapBetweenDays(
+  fromDay: string | null | undefined,
+  toDay: string | null | undefined,
+): CalendarGap | null {
+  if (!fromDay || !toDay || !YMD.test(fromDay) || !YMD.test(toDay)) return null;
+  const from = DateTime.fromISO(fromDay, { zone: 'utc' });
+  const to = DateTime.fromISO(toDay, { zone: 'utc' });
+  if (!from.isValid || !to.isValid) return null;
+
+  if (+from === +to) return { direction: 0, years: 0, months: 0, days: 0 };
+
+  // Always diff larger-minus-smaller and carry the sign separately, so the
+  // parts stay positive whichever way the gap points.
+  const direction: 1 | -1 = to > from ? 1 : -1;
+  const [early, late] = direction === 1 ? [from, to] : [to, from];
+  const diff = late.diff(early, ['years', 'months', 'days']);
+  return {
+    direction,
+    years: Math.floor(diff.years),
+    months: Math.floor(diff.months),
+    days: Math.floor(diff.days),
+  };
+}
+
+/**
+ * A gap as its two largest non-zero units ("72 years, 7 months",
+ * "1 month, 16 days", "18 days", "1 day"). Truncated, not rounded — the same
+ * convention as stating an age. Never returns an empty string: a zero gap
+ * reads as "0 days".
+ */
+export function formatCalendarGap(gap: CalendarGap, locale: AppLocale): string {
+  const bcp47 = localeToBcp47(locale);
+  const counted = GAP_UNITS.map((unit, i) => ({
+    unit,
+    value: [gap.years, gap.months, gap.days][i] ?? 0,
+  }));
+
+  // Start at the largest unit that actually has a value, then keep the next one
+  // down. A trailing zero is dropped, so "1 year, 0 months" reads as "1 year";
+  // an all-zero gap falls back to days so the result is never empty.
+  const lead = counted.findIndex((part) => part.value > 0);
+  const kept =
+    lead === -1
+      ? [{ unit: 'day' as const, value: 0 }]
+      : counted.slice(lead, lead + 2).filter((part, i) => i === 0 || part.value > 0);
+
+  const parts = kept.map(({ unit, value }) =>
+    new Intl.NumberFormat(bcp47, { style: 'unit', unit, unitDisplay: 'long' }).format(value),
+  );
+  // 'short' rather than 'narrow': narrow joins with a bare space ("72 years
+  // 6 months"), short gives each locale its own connector — a comma in English,
+  // "et" in French.
+  return new Intl.ListFormat(bcp47, { style: 'short', type: 'unit' }).format(parts);
+}
+
+/**
+ * A bare count of days with the locale's own plural form ("1 day", "3 days",
+ * "1 jour"). For spans that are genuinely day-scaled, like an event's length.
+ */
+export function formatDayCount(count: number, locale: AppLocale): string {
+  return new Intl.NumberFormat(localeToBcp47(locale), {
+    style: 'unit',
+    unit: 'day',
+    unitDisplay: 'long',
+  }).format(count);
+}
+
 function formatLocalized(
   iso: string | null | undefined,
   locale: AppLocale,

@@ -14,7 +14,13 @@ import {
   statusPillTone,
   tournamentStatusSemantic,
 } from '@myclash/ui';
-import { localeToBcp47, type AppLocale } from '@myclash/time';
+import {
+  calendarGapBetweenDays,
+  formatCalendarGap,
+  formatDayCount,
+  localeToBcp47,
+  type AppLocale,
+} from '@myclash/time';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
@@ -102,10 +108,11 @@ function durationDays(start: string | null, end: string | null): number {
   return Math.max(1, diff + 1);
 }
 
-function daysUntil(start: string | null, now: number): number | null {
-  const startDate = parseDate(start);
-  if (!startDate) return null;
-  return Math.ceil((startDate.getTime() - now) / 86_400_000);
+/** The viewer's own calendar day as `YYYY-MM-DD`, to diff against a date-only start. */
+function localDay(now: number): string {
+  const d = new Date(now);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 // Common IANA timezones for the event settings picker. The current stored
@@ -397,8 +404,10 @@ export default function EventDetailPage() {
 
   const event = stats?.event;
   const vis = event ? eventVisibility(event.status) : null;
-  const startDelta = useMemo(
-    () => (now > 0 ? daysUntil(event?.startDate ?? null, now) : null),
+  // Both sides are calendar days, so the gap is diffed day-to-day rather than
+  // instant-to-midnight — which is what makes "starts today" exact all day.
+  const startGap = useMemo(
+    () => calendarGapBetweenDays(localDay(now), event?.startDate ?? null),
     [event, now],
   );
   const liveState =
@@ -406,13 +415,17 @@ export default function EventDetailPage() {
       ? t('organizer.eventHub.dashboard.completed')
       : event?.status === 'running'
         ? t('organizer.eventHub.dashboard.live')
-        : startDelta === null
+        : startGap === null
           ? '-'
-          : startDelta > 0
-            ? t('organizer.eventHub.dashboard.daysUntil', { count: startDelta })
-            : startDelta === 0
-              ? t('organizer.eventHub.dashboard.startsToday')
-              : t('organizer.eventHub.dashboard.startedAgo', { count: Math.abs(startDelta) });
+          : startGap.direction === 0
+            ? t('organizer.eventHub.dashboard.startsToday')
+            : startGap.direction > 0
+              ? t('organizer.eventHub.dashboard.daysUntil', {
+                  span: formatCalendarGap(startGap, locale),
+                })
+              : t('organizer.eventHub.dashboard.startedAgo', {
+                  span: formatCalendarGap(startGap, locale),
+                });
 
   return (
     <main className="mx-auto max-w-[110rem] p-6 lg:p-8">
@@ -572,9 +585,10 @@ export default function EventDetailPage() {
           <MetricCard
             label={t('organizer.eventHub.dashboard.startDate')}
             value={formatDate(event?.startDate ?? null, locale)}
-            detail={t('organizer.eventHub.dashboard.duration', {
-              count: durationDays(event?.startDate ?? null, event?.endDate ?? null),
-            })}
+            detail={formatDayCount(
+              durationDays(event?.startDate ?? null, event?.endDate ?? null),
+              locale,
+            )}
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.endDate')}
