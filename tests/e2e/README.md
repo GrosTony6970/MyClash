@@ -645,6 +645,52 @@ Between them these found four real bugs on their first runs:
 > cannot be hard-deleted afterwards. `24` and `25` build and tear down their own;
 > `23` writes into the shared throwaway event.
 
+## A league across several events (opt-in)
+
+`E2E_LEAGUE=1` also runs **`29-league-multi-event.spec.ts`** alongside `11`.
+
+`11` links two tournaments to a league, but both sit in the **same event**, with
+the **same roster** finishing in the **same order** — so every total doubles and
+no two fighters are ever tied. It proves placement → points. It cannot prove
+aggregation, because there is nothing to aggregate that is not a duplicate.
+
+Three events, eight fighters seeded differently in each, and the expected table
+is knowable in advance because the lower seed wins every match:
+
+| rung asserted         | how the pair is built                                                    |
+| --------------------- | ------------------------------------------------------------------------ |
+| `total_points`        | ordinary different sums                                                  |
+| `participation_count` | 100 from one event against 50 + 50 from two                              |
+| `medal_count`         | 3rd + 5th (30 + 20) against 4th + 4th (25 + 25) — one medal against none |
+| `double_hit_average`  | level on all of the above, separated by one deliberate double            |
+
+Three things worth knowing before touching it:
+
+- **Identity is name + club.** A contribution's `fighterId` is
+  `persons.global_person_id`, resolved by HEMA Ratings id, then name + club +
+  DOB. A club-less fighter mints a FRESH identity in every event, so a season
+  would silently split into one single-event row per person. Every fighter here
+  has a club, and the spec asserts the global ids really did match before it
+  asserts anything about points.
+- **The two recomputes are not interchangeable.** `admin/leagues/:id/recompute`
+  re-ranks from rows already in `league_tournament_results`; only the per-event
+  one reads tournaments and writes those rows. A spec calling just the first
+  watches an empty season forever.
+- **The table is asserted in TIERS, not one flat order.** `compareRankings` ends
+  in `fighterName.localeCompare`, but the path that builds standings sets
+  `fighterName: ''` on every contribution — so names are all equal and fully-tied
+  fighters are ordered by their global person **UUID**. Arbitrary, but stable;
+  the spec pins the tier boundaries and then that the order does not reshuffle
+  on a second recompute.
+
+> **It found a real defect on its first run.** `removeEventTournamentLinks`
+> marked links `removed` and nothing more — it never dropped that tournament's
+> `league_tournament_results`, and `recomputeForEvent` only walks `approved`
+> links, so the unlinked event could never clean up its own rows. Removing an
+> event from a season left every total still carrying its points, silently.
+> Fixed in `leagues.service.ts`; **that assertion is red until the API carrying
+> the fix is deployed.**
+
 ## The platform console, and who is refused (opt-in)
 
 `E2E_SUPER_ADMIN=1 pnpm test:e2e:prod tests/e2e/27-super-admin.spec.ts` runs
@@ -771,6 +817,7 @@ Two things worth knowing before touching it:
 | 26  | Print pack route builds its document  | `26-print-pack.spec.ts`             | always                                   |
 | 27  | Platform guard sweep + the console    | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
 | 28  | Live control room + its realtime      | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above   |
+| 29  | League across several events          | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above       |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them
