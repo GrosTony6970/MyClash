@@ -8,10 +8,16 @@ import { getLegalUrl } from '../../src/lib/legal-url';
 /**
  * The terms + privacy links, on every admin route except the projector.
  *
- * `/display/[matchId]` is the hall screen — chromeless by definition (see
- * `docs/design/display-kiosk.md`), so it takes no footer.
+ * `/display/[matchId]` is the hall screen and `/display/wall/[eventId]` is the
+ * control-room wall — both chromeless by definition (see
+ * `docs/design/display-kiosk.md`), so neither takes a footer.
+ *
+ * Kept narrow rather than a blanket `^/display/` prefix: a prefix would
+ * silently strip the footer off any future page that happens to live under
+ * /display but is not a hall screen. A new projector surface should have to
+ * name itself here.
  */
-const DISPLAY_ROUTE = /^\/display\/[^/]+\/?$/;
+const DISPLAY_ROUTE = /^\/display\/(?:wall\/)?[^/]+\/?$/;
 
 export function AppLegalFooter(): React.ReactElement | null {
   const path = usePathname();

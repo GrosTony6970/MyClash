@@ -1,16 +1,13 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useSecondsClock } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useLiveBoard } from '@/lib/live-board/useLiveBoard';
-import {
-  deriveHealthState,
-  partitionByHealth,
-  sortBoardRows,
-} from '@/lib/live-board/live-board-state';
-import type { HealthState } from '@/lib/live-board/live-board-state';
+import { groupBoardRows } from '@/lib/live-board/board-groups';
+import { partitionByHealth, sortBoardRows } from '@/lib/live-board/live-board-state';
+import { useBoardStates } from '@/lib/live-board/use-board-states';
 import { fallbackTiming } from '@/lib/live-board/live-board-timing';
 import { BoardRowView } from './BoardRowView';
 import { BoardCard } from './BoardCard';
@@ -68,25 +65,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
   const { nowMs } = useSecondsClock(getPublicApiUrl());
   const clock = timing ?? fallbackTiming(nowMs);
 
-  // One state per row per tick. deriveHealthState used to run three times per
-  // row per render (sort, partition, row); this makes it once, and guarantees
-  // the sort, the fold and the dot all agree on the same instant.
-  const stateByLice = useMemo(() => {
-    const map = new Map<string, HealthState>();
-    for (const row of rows ?? []) {
-      map.set(
-        row.lice.id,
-        deriveHealthState({
-          row,
-          nowMs,
-          matchDurationMinutes: clock.matchDurationMinutes,
-        }),
-      );
-    }
-    return map;
-  }, [rows, nowMs, clock.matchDurationMinutes]);
-
-  const stateOf = (row: BoardRow): HealthState => stateByLice.get(row.lice.id) ?? 'unknown';
+  const stateOf = useBoardStates(rows, nowMs, clock.matchDurationMinutes);
   const isExpanded = (row: BoardRow): boolean =>
     expanded?.liceId === row.lice.id && expanded.matchId === (row.currentMatch?.id ?? null);
   const toggle = (row: BoardRow) =>
@@ -124,25 +103,36 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
         t={t}
       />
 
-      {/* Wide table: every piste, all breakpoints ≥ md */}
-      <ul className="hidden divide-y divide-border md:block">
-        {sorted.map((row) => (
-          <BoardRowView
-            key={row.lice.id}
-            row={row}
-            state={stateOf(row)}
-            nowMs={nowMs}
-            matchDurationMinutes={clock.matchDurationMinutes}
-            expanded={isExpanded(row)}
-            onToggle={() => toggle(row)}
-            eventSlug={eventSlug}
-            slug={slug}
-            eventId={eventId}
-            onAck={(id) => void acknowledge(id)}
-            t={t}
-          />
+      {/* Wide table: every piste, all breakpoints ≥ md. Sectioned by venue and
+          area only when the event actually runs across more than one — a
+          header over the only section is chrome, not information. */}
+      <div className="hidden md:block">
+        {groupBoardRows(sorted).map((group) => (
+          <section key={group.key}>
+            {group.label && (
+              <h2 className="mt-3 text-xs uppercase tracking-wide text-muted">{group.label}</h2>
+            )}
+            <ul className="divide-y divide-border">
+              {group.rows.map((row) => (
+                <BoardRowView
+                  key={row.lice.id}
+                  row={row}
+                  state={stateOf(row)}
+                  nowMs={nowMs}
+                  matchDurationMinutes={clock.matchDurationMinutes}
+                  expanded={isExpanded(row)}
+                  onToggle={() => toggle(row)}
+                  eventSlug={eventSlug}
+                  slug={slug}
+                  eventId={eventId}
+                  onAck={(id) => void acknowledge(id)}
+                  t={t}
+                />
+              ))}
+            </ul>
+          </section>
         ))}
-      </ul>
+      </div>
 
       {/* Phone: problems first as stacked cards; healthy pistes folded away */}
       <div className="md:hidden">

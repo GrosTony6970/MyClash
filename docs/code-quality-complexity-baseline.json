@@ -507,7 +507,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/finalranking/page.tsx:60",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardCard.tsx:16",
     "apps/web-admin/app/org/[slug]/events/[eventId]/live/BoardRowView.tsx:17",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/live/LiveBoard.tsx:52",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/live/LiveBoard.tsx:49",
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx:161",
     "apps/web-admin/app/org/[slug]/events/[eventId]/notifications/page.tsx:37",
     "apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx:140",
