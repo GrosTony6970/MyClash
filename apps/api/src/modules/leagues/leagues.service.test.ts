@@ -278,6 +278,8 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
   function buildReviewService(opts: {
     /** Resolves the tournament's org id via the events embed. */
     tournamentOrgId?: string | null;
+    /** A finalized season keeps its frozen table: rows go, the re-rank does not. */
+    finalizedAt?: string | null;
   }) {
     const linkRow = {
       id: 'link-1',
@@ -293,6 +295,9 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
 
     const linksUpdates: unknown[] = [];
     const orgRoleUpserts: UpsertCapture[] = [];
+    /** Every `league_tournament_results` delete, as its filter pairs. */
+    const resultDeletes: Array<Record<string, unknown>> = [];
+    let rankingsRecomputed = 0;
     let lastUpdateStatus: string | null = null;
 
     const supabaseService = {
@@ -357,12 +362,45 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
           };
         }
 
-        // Fallback — any other table returns an empty chain.
+        // leagues: read by getLeagueById, which the freeze check goes through.
+        if (table === 'leagues') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'league-1', finalized_at: opts.finalizedAt ?? null, scoring_config: {} },
+              error: null,
+            }),
+          };
+        }
+
+        // league_tournament_results: capture the delete's filters, so a test can
+        // prove it targeted THIS league and THIS tournament and nothing wider.
+        if (table === 'league_tournament_results') {
+          const filters: Record<string, unknown> = {};
+          const chain = {
+            select: vi.fn(() => chain),
+            delete: vi.fn(() => {
+              resultDeletes.push(filters);
+              return chain;
+            }),
+            eq: vi.fn((column: string, value: unknown) => {
+              filters[column] = value;
+              return chain;
+            }),
+            then: (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
+          };
+          return chain;
+        }
+
+        // Fallback — any other table returns an empty, permissive chain.
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
           in: vi.fn().mockReturnThis(),
           is: vi.fn().mockReturnThis(),
+          delete: vi.fn().mockReturnThis(),
+          insert: vi.fn().mockResolvedValue({ data: null, error: null }),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           single: vi.fn().mockResolvedValue({ data: null, error: null }),
         };
@@ -372,10 +410,22 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
     const service = new LeaguesService(
       { service: supabaseService } as never,
       { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
-      {} as never,
+      {
+        resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: ['total_points'] }),
+        computeRankingsFromContributions: vi.fn(() => {
+          rankingsRecomputed += 1;
+          return [];
+        }),
+      } as never,
     );
 
-    return { service, linksUpdates, orgRoleUpserts };
+    return {
+      service,
+      linksUpdates,
+      orgRoleUpserts,
+      resultDeletes,
+      recomputedCount: () => rankingsRecomputed,
+    };
   }
 
   it('upserts the tournament org into league_organization_roles as member on approval', async () => {
@@ -427,6 +477,54 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
 
     // No membership write fired
     expect(orgRoleUpserts).toHaveLength(0);
+  });
+
+  /**
+   * Found by `29-league-multi-event.spec.ts` against a real database: removing an
+   * event from a season left every fighter still carrying its points.
+   *
+   * The link is only marked `removed`, and `recomputeForEvent` walks approved
+   * links ONLY — so once the status flips, that tournament can never again clean
+   * up its own `league_tournament_results`, and `recomputeLeagueRankings` keeps
+   * re-ranking from rows for a tournament the league no longer holds. No error,
+   * no warning, just totals that are quietly wrong.
+   */
+  it('drops the tournament results when a link leaves approved, and re-ranks', async () => {
+    const { service, resultDeletes, recomputedCount } = buildReviewService({
+      tournamentOrgId: 'org-x',
+    });
+
+    await service.reviewTournamentLink('link-1', { status: 'removed' }, 'reviewer-1');
+
+    expect(resultDeletes, 'the removed tournament must lose its stored results').toHaveLength(1);
+    // Scoped to one league AND one tournament — a delete keyed on either alone
+    // would take the whole season, or the tournament's results in other leagues.
+    expect(resultDeletes[0]).toEqual({ league_id: 'league-1', tournament_id: 't-1' });
+    expect(recomputedCount(), 'the table must be re-ranked without it').toBe(1);
+  });
+
+  it('still drops the results for a FINALIZED season, but leaves its frozen table alone', async () => {
+    const { service, resultDeletes, recomputedCount } = buildReviewService({
+      tournamentOrgId: 'org-x',
+      finalizedAt: '2099-01-01T00:00:00.000Z',
+    });
+
+    await service.reviewTournamentLink('link-1', { status: 'removed' }, 'reviewer-1');
+
+    // The rows go either way — otherwise reopening the season would resurrect a
+    // tournament that is no longer linked to it.
+    expect(resultDeletes).toHaveLength(1);
+    // …but a finalized season's published table must not move under it, and
+    // recomputeLeagueRankings would throw on one anyway.
+    expect(recomputedCount(), 'a frozen table must not be re-ranked').toBe(0);
+  });
+
+  it('leaves the results alone on approval — only a link LEAVING approved clears them', async () => {
+    const { service, resultDeletes } = buildReviewService({ tournamentOrgId: 'org-x' });
+
+    await service.reviewTournamentLink('link-1', { status: 'approved' }, 'reviewer-1');
+
+    expect(resultDeletes).toHaveLength(0);
   });
 });
 
@@ -915,6 +1013,217 @@ describe('LeaguesService.addTournamentLink', () => {
       requested_by_user_id: 'admin-user',
       reviewed_by_user_id: 'admin-user',
     });
+  });
+});
+
+/**
+ * A link's ranking key is the weapon plus the group NAME, and a missing group
+ * slugifies to `unknown` — a bucket of its own. Standings aggregate on
+ * `rankingGroupKey:fighterId`, so a league holding both grouped and ungrouped
+ * links splits every fighter who appears in both into two half-rows.
+ *
+ * The bulk event-link endpoint could only ever create ungrouped links, which is
+ * how a league acquired that mix without anyone choosing it.
+ */
+describe('LeaguesService.addTournamentLink — group resolution', () => {
+  function buildService(groupIds: string[]) {
+    const upsertPayloads: Array<Record<string, unknown>> = [];
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'platform_roles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+          };
+        }
+        // Serves BOTH reads: `listRows` awaits the chain for the whole list
+        // (defaultGroupIdFor), while assertGroupBelongsToLeague ends in
+        // maybeSingle for one row.
+        if (table === 'league_groups') {
+          const chain = {
+            select: vi.fn(() => chain),
+            eq: vi.fn(() => chain),
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: { league_id: 'league-1' }, error: null }),
+            then: (resolve: (value: unknown) => unknown) =>
+              resolve({ data: groupIds.map((id) => ({ id, league_id: 'league-1' })), error: null }),
+          };
+          return chain;
+        }
+        if (table === 'league_tournament_links') {
+          return {
+            upsert: vi.fn((payload: Record<string, unknown>) => {
+              upsertPayloads.push(payload);
+              return {
+                select: vi.fn().mockReturnThis(),
+                single: vi.fn().mockResolvedValue({ data: { id: 'link-new' }, error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'tournaments') {
+          const chain = {
+            select: vi.fn(() => chain),
+            eq: vi.fn(() => chain),
+            then: (resolve: (value: unknown) => unknown) =>
+              resolve({ data: [{ id: 't-1' }, { id: 't-2' }], error: null }),
+          };
+          return chain;
+        }
+        // league_groups membership check (assertGroupBelongsToLeague).
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { id: groupIds[0] ?? 'g-1', league_id: 'league-1' },
+            error: null,
+          }),
+        };
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      { assertOrgRole: vi.fn() } as never,
+      {} as never,
+    );
+    return { service, upsertPayloads };
+  }
+
+  it('puts a group-less link into the league’s only group rather than the unknown bucket', async () => {
+    const { service, upsertPayloads } = buildService(['g-only']);
+
+    await service.addTournamentLink('league-1', 't-1', 'admin-user', null);
+
+    expect(upsertPayloads[0]).toMatchObject({ group_id: 'g-only' });
+  });
+
+  it('leaves the group null when the league has no groups — nothing to split', async () => {
+    const { service, upsertPayloads } = buildService([]);
+
+    await service.addTournamentLink('league-1', 't-1', 'admin-user', null);
+
+    expect(upsertPayloads[0]).toMatchObject({ group_id: null });
+  });
+
+  it('refuses to guess when the league has several groups', async () => {
+    const { service } = buildService(['g-1', 'g-2']);
+
+    await expect(service.addTournamentLink('league-1', 't-1', 'admin-user', null)).rejects.toThrow(
+      /several groups/i,
+    );
+  });
+
+  it('never overrides an explicit group', async () => {
+    const { service, upsertPayloads } = buildService(['g-1', 'g-2']);
+
+    await service.addTournamentLink('league-1', 't-1', 'admin-user', 'g-2');
+
+    expect(upsertPayloads[0]).toMatchObject({ group_id: 'g-2' });
+  });
+
+  it('carries the group through the BULK event link, to every tournament of the event', async () => {
+    const { service, upsertPayloads } = buildService(['g-1', 'g-2']);
+
+    await service.addEventTournamentLinks('league-1', 'event-1', 'admin-user', 'g-2');
+
+    expect(upsertPayloads.map((payload) => payload['tournament_id'])).toEqual(['t-1', 't-2']);
+    expect(upsertPayloads.every((payload) => payload['group_id'] === 'g-2')).toBe(true);
+  });
+});
+
+/**
+ * `compareRankings` breaks a total tie on `fighterName.localeCompare`, falling
+ * through to the fighter id only when the names match. `recomputeLeagueRankings`
+ * is the ONLY path that writes `league_rankings`, and it used to pass '' for
+ * every name — so that comparison always returned 0 and tied fighters were
+ * ordered by their global-person UUID: stable in one database, arbitrary in the
+ * next, and reshuffled by any restore that recreates identities.
+ */
+describe('LeaguesService.recomputeLeagueRankings — fighter names reach the tie-break', () => {
+  it('passes the embedded display name into the ranker', async () => {
+    const contributionsSeen: Array<{ fighterId: string; fighterName: string }> = [];
+
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'leagues') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'league-1', finalized_at: null, scoring_config: {} },
+              error: null,
+            }),
+          };
+        }
+        if (table === 'league_tournament_results') {
+          const chain = {
+            select: vi.fn(() => chain),
+            eq: vi.fn(() => chain),
+            then: (resolve: (value: unknown) => unknown) =>
+              resolve({
+                data: [
+                  {
+                    tournament_id: 't-1',
+                    event_id: 'e-1',
+                    fighter_id: 'fighter-zulu',
+                    ranking_group_key: 'longsword::open',
+                    final_rank: 3,
+                    league_points: 30,
+                    medal: 'bronze',
+                    double_hits: 0,
+                    global_persons: { display_name: 'Zulu Fencer' },
+                  },
+                  {
+                    tournament_id: 't-1',
+                    event_id: 'e-1',
+                    fighter_id: 'fighter-alpha',
+                    ranking_group_key: 'longsword::open',
+                    final_rank: 4,
+                    league_points: 30,
+                    medal: null,
+                    double_hits: 0,
+                    global_persons: { display_name: 'Alpha Fencer' },
+                  },
+                ],
+                error: null,
+              }),
+          };
+          return chain;
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          delete: vi.fn().mockReturnThis(),
+          insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }),
+    };
+
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      { assertOrgRole: vi.fn() } as never,
+      {
+        resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: ['total_points'] }),
+        computeRankingsFromContributions: vi.fn(
+          (_config: unknown, contributions: Array<{ fighterId: string; fighterName: string }>) => {
+            contributionsSeen.push(...contributions);
+            return [];
+          },
+        ),
+      } as never,
+    );
+
+    await service.recomputeLeagueRankings('league-1');
+
+    // Without this the ranker sees two empty strings and orders these two by
+    // UUID; with it, the configured name tie-break has something to compare.
+    expect(
+      contributionsSeen.map((contribution) => contribution.fighterName).sort(),
+      'every contribution must carry the fighter’s real display name',
+    ).toEqual(['Alpha Fencer', 'Zulu Fencer']);
   });
 });
 

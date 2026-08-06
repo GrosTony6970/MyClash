@@ -328,10 +328,15 @@ export class LeaguesController {
   async addEventTournamentLinks(
     @Param('leagueId', ParseUUIDPipe) leagueId: string,
     @Param('eventId', ParseUUIDPipe) eventId: string,
+    // Takes the same optional group as the per-tournament link. Without it this
+    // endpoint could only ever create UNGROUPED links, which land in a ranking
+    // bucket of their own and split the season of anyone who also appears in a
+    // grouped one.
+    @Body() dto: LinkTournamentDto,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
-    return this.leagues.addEventTournamentLinks(leagueId, eventId, userId);
+    return this.leagues.addEventTournamentLinks(leagueId, eventId, userId, dto?.groupId ?? null);
   }
 
   @Post('admin/leagues/:leagueId/organization-roles')

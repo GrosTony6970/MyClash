@@ -996,6 +996,32 @@ export class LeaguesService {
       }
     }
 
+    // A link that LEAVES `approved` has to take its contributions with it.
+    //
+    // Nothing else can do it afterwards: `recomputeForEvent` only walks approved
+    // links, so the moment the status flips, that tournament can no longer clean
+    // up its own `league_tournament_results` rows — and `recomputeLeagueRankings`
+    // re-ranks from whatever those rows still hold. Without this, removing an
+    // event from a season left every fighter still carrying its points, with no
+    // error and nothing on screen to suggest the table had stopped being true.
+    //
+    // The rows go regardless of the freeze; only the RE-RANK is withheld from a
+    // finalized season, whose published table must not move under it. Reopening
+    // then recomputes without the removed tournament, which is the right answer.
+    if (update.status !== undefined && update.status !== 'approved') {
+      const tournamentId = String((link as Row)['tournament_id'] ?? '');
+      if (tournamentId) {
+        const { error: resultsError } = await this.supabase.service
+          .from('league_tournament_results')
+          .delete()
+          .eq('league_id', leagueId)
+          .eq('tournament_id', tournamentId);
+        if (resultsError) throw new BadRequestException(resultsError.message);
+        const league = await this.getLeagueById(leagueId);
+        if (!league['finalized_at']) await this.recomputeLeagueRankings(leagueId);
+      }
+    }
+
     return data;
   }
 
@@ -1212,7 +1238,8 @@ export class LeaguesService {
     groupId?: string | null,
   ) {
     await this.assertCanManageLeague(leagueId, userId);
-    if (groupId) await this.assertGroupBelongsToLeague(groupId, leagueId);
+    const resolvedGroupId = groupId ?? (await this.defaultGroupIdFor(leagueId));
+    if (resolvedGroupId) await this.assertGroupBelongsToLeague(resolvedGroupId, leagueId);
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
       .upsert(
@@ -1228,7 +1255,7 @@ export class LeaguesService {
           requested_by_user_id: userId,
           reviewed_by_user_id: userId,
           reviewed_at: new Date().toISOString(),
-          group_id: groupId ?? null,
+          group_id: resolvedGroupId,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'league_id,tournament_id' },
@@ -1239,7 +1266,36 @@ export class LeaguesService {
     return data;
   }
 
-  async addEventTournamentLinks(leagueId: string, eventId: string, userId: string) {
+  /**
+   * Which group a link with no explicit group belongs to.
+   *
+   * A link's ranking key is the weapon plus the group NAME, and a missing group
+   * slugifies to `unknown` — a bucket of its own. Standings aggregate on
+   * `rankingGroupKey:fighterId`, so a league holding both grouped and ungrouped
+   * links splits every fighter who appears in both into TWO rows, each carrying
+   * half their season, both on the table at different ranks. Nothing errors.
+   *
+   * So a group-less link resolves rather than defaulting to null:
+   *   - no groups at all  → null, and no split is possible;
+   *   - exactly one group → that group, which is the only answer that can be
+   *     meant, and is what the bulk event-link endpoint used to miss;
+   *   - several groups    → refuse, because the caller has to say which.
+   */
+  private async defaultGroupIdFor(leagueId: string): Promise<string | null> {
+    const groups = await this.listRows('league_groups', 'league_id', leagueId);
+    if (groups.length === 0) return null;
+    if (groups.length === 1) return String(groups[0]!['id']);
+    throw new BadRequestException(
+      'This league has several groups — say which one the tournament belongs to.',
+    );
+  }
+
+  async addEventTournamentLinks(
+    leagueId: string,
+    eventId: string,
+    userId: string,
+    groupId?: string | null,
+  ) {
     await this.assertCanManageLeague(leagueId, userId);
     const { data: tournaments, error } = await this.supabase.service
       .from('tournaments')
@@ -1247,7 +1303,9 @@ export class LeaguesService {
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
     for (const t of (tournaments ?? []) as Row[]) {
-      await this.addTournamentLink(leagueId, String(t['id']), userId);
+      // Passes the group through — omitting it is what made every bulk-linked
+      // tournament land in the `unknown` bucket beside the grouped ones.
+      await this.addTournamentLink(leagueId, String(t['id']), userId, groupId);
     }
   }
 
@@ -1322,13 +1380,36 @@ export class LeaguesService {
     const config = await this.scoring.resolveConfig(
       normalizeScoringConfig(league['scoring_config']),
     );
-    const rows = await this.listRows('league_tournament_results', 'league_id', leagueId);
+    // The display name is EMBEDDED rather than left empty, and that is
+    // load-bearing rather than cosmetic.
+    //
+    // `compareRankings` ends in `fighterName.localeCompare(...)`, falling back to
+    // the fighter id only when the names are equal. This is the one path that
+    // writes `league_rankings`, so passing '' for every name made that
+    // comparison always return 0 and handed the last word to
+    // `fighterId.localeCompare` — ordering fighters level on every configured
+    // rung by their global-person UUID. Stable within one database and arbitrary
+    // everywhere else: restore a season from an archive, where identities are
+    // recreated with new ids, and tied fighters reshuffle for no visible reason.
+    //
+    // `league_tournament_results` carries no name column (migration 0015), so the
+    // name is read through the same `global_persons` embed the standings query
+    // uses. Joined rather than denormalised on purpose — a stored copy would go
+    // stale the first time somebody corrects a spelling.
+    const { data: resultRows, error: resultsError } = await this.supabase.service
+      .from('league_tournament_results')
+      .select('*, global_persons(display_name)')
+      .eq('league_id', leagueId);
+    if (resultsError) throw new BadRequestException(resultsError.message);
+    const rows = (resultRows ?? []) as Row[];
     const contributions: LeagueTournamentContribution[] = rows.map((row) => ({
       leagueId,
       tournamentId: String(row['tournament_id']),
       eventId: String(row['event_id']),
       fighterId: String(row['fighter_id']),
-      fighterName: '',
+      fighterName: String(
+        (row['global_persons'] as { display_name?: string | null } | null)?.display_name ?? '',
+      ),
       clubName: null,
       clubCity: null,
       rankingGroupKey: String(row['ranking_group_key']),
