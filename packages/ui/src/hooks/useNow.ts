@@ -12,39 +12,69 @@ export interface ClockState {
   simulated: boolean;
 }
 
-// ── Shared minute clock ───────────────────────────────────────────────────────
-// One module-scoped tick store for the whole app: every consumer shares a single
-// timer and re-renders together. `useSyncExternalStore` rather than setState in
-// an effect, because web-public and web-admin both run
+// ── Shared tick stores ────────────────────────────────────────────────────────
+// One module-scoped tick store per cadence: every consumer of a cadence shares a
+// single timer and re-renders together, and the timer is torn down when the last
+// listener unsubscribes. `useSyncExternalStore` rather than setState in an
+// effect, because web-public and web-admin both run
 // `react-hooks/set-state-in-effect` at max-warnings 0.
 //
 // The server snapshot is 0 so SSR and the first client paint agree; callers that
 // server-render substitute their own seed (see `useClientClock`).
-const TICK_MS = 30_000;
 
-let clockMs = 0;
-const clockListeners = new Set<() => void>();
-let clockTimer: ReturnType<typeof setInterval> | null = null;
+interface TickStore {
+  subscribe: (cb: () => void) => () => void;
+  getSnapshot: () => number;
+}
 
-function subscribeClock(cb: () => void): () => void {
-  clockListeners.add(cb);
-  if (clockTimer === null) {
-    clockMs = Date.now();
-    clockTimer = setInterval(() => {
-      clockMs = Date.now();
-      clockListeners.forEach((l) => l());
-    }, TICK_MS);
-  }
-  return () => {
-    clockListeners.delete(cb);
-    if (clockListeners.size === 0 && clockTimer !== null) {
-      clearInterval(clockTimer);
-      clockTimer = null;
-    }
+/** Build a store that republishes `Date.now()` every `tickMs`. */
+function createTickStore(tickMs: number): TickStore {
+  let ms = 0;
+  const listeners = new Set<() => void>();
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  return {
+    subscribe(cb: () => void): () => void {
+      listeners.add(cb);
+      if (timer === null) {
+        ms = Date.now();
+        timer = setInterval(() => {
+          ms = Date.now();
+          listeners.forEach((l) => l());
+        }, tickMs);
+      }
+      return () => {
+        listeners.delete(cb);
+        if (listeners.size === 0 && timer !== null) {
+          clearInterval(timer);
+          timer = null;
+        }
+      };
+    },
+    getSnapshot: (): number => ms,
   };
 }
 
-const getClockMs = (): number => clockMs;
+/**
+ * The default cadence: enough for "starts in 12 min" and countdowns, cheap
+ * enough that every schedule and follow surface can subscribe.
+ *
+ * Do NOT lower this to get a ticking seconds readout — `useNow` has consumers
+ * across web-public, and they would all re-render 30x more often for a
+ * precision none of them display. Use the seconds store below instead.
+ */
+const TICK_MS = 30_000;
+
+/**
+ * One second, for elapsed-time readouts that must visibly advance (the live
+ * control room's bout timers). Deliberately a separate store: subscribing to it
+ * is an explicit opt-in to a 1 Hz re-render.
+ */
+const SECONDS_TICK_MS = 1_000;
+
+const minuteStore = createTickStore(TICK_MS);
+const secondsStore = createTickStore(SECONDS_TICK_MS);
+
 const getServerClockMs = (): number => 0;
 
 /** Offset + active flag from the shared runtime-flags snapshot. */
@@ -64,7 +94,11 @@ function useSimulation(apiUrl: string): { offset: number; simulated: boolean } {
  * (optionally simulated) clock once the store ticks in.
  */
 export function useClientClock(apiUrl: string): ClockState {
-  const base = useSyncExternalStore(subscribeClock, getClockMs, getServerClockMs);
+  const base = useSyncExternalStore(
+    minuteStore.subscribe,
+    minuteStore.getSnapshot,
+    getServerClockMs,
+  );
   const { offset, simulated } = useSimulation(apiUrl);
   return { nowMs: base === 0 ? 0 : base + offset, simulated };
 }
@@ -74,7 +108,11 @@ export function useClientClock(apiUrl: string): ClockState {
  * real time straight away instead of waiting for the store's first tick.
  */
 export function useClock(apiUrl: string): ClockState {
-  const base = useSyncExternalStore(subscribeClock, getClockMs, getServerClockMs);
+  const base = useSyncExternalStore(
+    minuteStore.subscribe,
+    minuteStore.getSnapshot,
+    getServerClockMs,
+  );
   const { offset, simulated } = useSimulation(apiUrl);
   return { nowMs: (base === 0 ? Date.now() : base) + offset, simulated };
 }
@@ -91,4 +129,30 @@ export function useClock(apiUrl: string): ClockState {
  */
 export function useNow(apiUrl: string): number {
   return useClock(apiUrl).nowMs;
+}
+
+/**
+ * Like `useClock`, but advancing every second instead of every 30.
+ *
+ * For readouts a human watches tick: elapsed time on a running bout, "late by
+ * 2:14". Subscribing re-renders the calling component at 1 Hz, so subscribe
+ * once high in the tree and pass `nowMs` down rather than calling this per row.
+ *
+ * Client-only, like `useClock` — it reads the real clock on the first paint
+ * instead of waiting for the store's first tick, so it must not be used by a
+ * component that server-renders.
+ */
+export function useSecondsClock(apiUrl: string): ClockState {
+  const base = useSyncExternalStore(
+    secondsStore.subscribe,
+    secondsStore.getSnapshot,
+    getServerClockMs,
+  );
+  const { offset, simulated } = useSimulation(apiUrl);
+  return { nowMs: (base === 0 ? Date.now() : base) + offset, simulated };
+}
+
+/** `useSecondsClock` when the caller does not need the `simulated` flag. */
+export function useNowSeconds(apiUrl: string): number {
+  return useSecondsClock(apiUrl).nowMs;
 }
