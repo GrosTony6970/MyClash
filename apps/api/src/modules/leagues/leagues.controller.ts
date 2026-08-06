@@ -332,8 +332,18 @@ export class LeaguesController {
     // endpoint could only ever create UNGROUPED links, which land in a ranking
     // bucket of their own and split the season of anyone who also appears in a
     // grouped one.
-    @Body() dto: LinkTournamentDto,
+    //
+    // Typed inline rather than as a Zod DTO class, the way programme.controller
+    // takes its optional body: a DTO class puts the validation pipe in front of
+    // the handler, and a pipe fed an ABSENT body fails it outright — which would
+    // turn "link everything from this event", a call that has never needed a
+    // body, into a 400 for every caller that does not send one. The group is
+    // still checked against the league downstream in `assertGroupBelongsToLeague`.
+    //
+    // Ordered after `@Req` because an optional parameter cannot precede a
+    // required one; the decorators do not care which order they appear in.
     @Req() req: FastifyRequest,
+    @Body() dto?: { groupId?: string | null },
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.leagues.addEventTournamentLinks(leagueId, eventId, userId, dto?.groupId ?? null);

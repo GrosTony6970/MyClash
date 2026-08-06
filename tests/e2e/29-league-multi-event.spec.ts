@@ -52,10 +52,12 @@ import { playTournamentToChampion, type FinishedTournament } from './_tournament
  * equal-rank branch of `computeRankingsFromContributions` is unreachable. The
  * alphabetical fallback is pinned instead.
  *
- * Three assertions here are RED until the API carrying the fixes this spec
- * prompted is deployed: the bulk unlink dropping its points, the within-tier
- * alphabetical order, and the bulk link carrying its group. Each says so where
- * it stands.
+ * The three defects this spec found — the bulk unlink leaving its points
+ * behind, the tie-break ordering by UUID, and the bulk link losing its group —
+ * are fixed and green. The last assertion, that the bulk link still accepts a
+ * request with NO body, is red until the deploy after them: giving that route a
+ * Zod DTO class to carry the group put a validation pipe in front of it, and a
+ * pipe fed an absent body rejects it before the handler runs.
  */
 
 const LEAGUE = ['1', 'true', 'yes'].includes((process.env.E2E_LEAGUE ?? '').toLowerCase());
@@ -413,8 +415,15 @@ test.describe('league across several events', () => {
     // the same table, and only one of them had ever been called by anything.
     // Neither carries a group — see GROUP_KEY for why mixing the two would split
     // a fighter's season in half.
+    // Sends `{}` rather than nothing, deliberately: this call is SETUP, and a
+    // setup call that is gated on a deployment blocks every assertion below it
+    // from ever running. The body-less form — which a Zod DTO class on this
+    // route would reject outright — is covered at the end, where being red
+    // costs only itself.
     await api.ok(
-      await api.post(`admin/leagues/${league.id}/events/${eventIdByKey.get('E1')}/link`),
+      await api.post(`admin/leagues/${league.id}/events/${eventIdByKey.get('E1')}/link`, {
+        data: {},
+      }),
     );
     for (const key of ['E2', 'E3']) {
       await api.ok(
@@ -722,6 +731,19 @@ test.describe('league across several events', () => {
       bulkLink?.group_id,
       'a bulk event link must land in the group it was given, not the unknown bucket',
     ).toBe(groupA.id);
+
+    // And the body stays OPTIONAL. "Link everything from this event" never
+    // needed one, so a caller that sends nothing must still be served — the
+    // regression that appears the moment this route is given a Zod DTO class,
+    // because the validation pipe rejects an absent body before the handler is
+    // reached. **Red until the API carrying that fix is deployed.**
+    const bodyless = await api.post(
+      `admin/leagues/${grouped.id}/events/${eventIdByKey.get('E2')}/link`,
+    );
+    expect(
+      bodyless.status(),
+      'the bulk link must accept a request with no body at all',
+    ).toBeLessThan(300);
   });
 
   test.afterAll(async () => {
