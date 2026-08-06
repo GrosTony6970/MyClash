@@ -53,6 +53,21 @@ const setStaffLicesSchema = z
   .strict();
 export class SetStaffLicesDto extends createZodDto(setStaffLicesSchema) {}
 
+const setLiceScorerSchema = z
+  .object({
+    /**
+     * The account to put on this piste, or null to leave it unmanned.
+     *
+     * Nullable rather than optional: "this piste has no scorer" is a state the
+     * organizer must be able to SET (a piste going dark over lunch), and it is
+     * the only way to undo a mis-assignment without inventing a DELETE verb.
+     * An omitted key is a client bug and should fail, so the key stays required.
+     */
+    staffAccountId: z.uuid().nullable(),
+  })
+  .strict();
+export class SetLiceScorerDto extends createZodDto(setLiceScorerSchema) {}
+
 const staffLoginSchema = z
   .object({
     eventSlugOrCode: z.string().min(1).max(160),

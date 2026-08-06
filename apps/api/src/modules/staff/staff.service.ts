@@ -44,6 +44,7 @@ import { normalizeTournamentLockConfig } from '../events/tournament-config';
 import type {
   CreateStaffAccountDto,
   ResetStaffPinDto,
+  SetLiceScorerDto,
   SetStaffLicesDto,
   StaffHeartbeatDto,
   StaffLoginDto,
@@ -206,6 +207,80 @@ export class StaffService {
     }
 
     return { staffAccountId: account.id, liceIds: dto.liceIds };
+  }
+
+  /**
+   * Put one scorer on one piste, from the Live board.
+   *
+   * The lice-centric counterpart to {@link setLices}, which is account-centric
+   * and cannot express this: setting "piste 3's scorer is Marie" through it
+   * means reading Marie's list, appending 3 and PUTting the union — a
+   * read-modify-write with a lost-update race between two organizers — and it
+   * still cannot remove the PREVIOUS scorer from piste 3 without a second call
+   * against a different account.
+   *
+   * REPLACES every assignment on the lice. The board renders exactly one scorer
+   * per piste (the most-recently-seen of those assigned), so leaving a second
+   * assignment in place lets the displayed primary flip back on the next
+   * heartbeat — display and DB have to agree. Co-scorers deliberately set from
+   * the staff page are therefore dropped, so the removed ids come back in the
+   * response for the caller to surface rather than swallow.
+   *
+   * The account is NOT removed from its other pistes: one scorer covering two
+   * adjacent strips is normal at a small event, and reaching across to unassign
+   * them elsewhere from a per-piste control is action at a distance.
+   *
+   * Gated on `scorekeeper`, matching getLiveBoard and acknowledgeAttention, NOT
+   * on `editor` like setLices. Deliberate: someone who can already clear a
+   * needs-attention flag and read every tablet's health is the person running
+   * the pistes, and requiring `editor` would make the control useless to the
+   * role the board exists for.
+   */
+  async setLiceScorer(
+    req: FastifyRequest,
+    eventId: string,
+    liceId: string,
+    dto: SetLiceScorerDto,
+  ): Promise<{ liceId: string; staffAccountId: string | null; removedAccountIds: string[] }> {
+    const userId = await this.getSupabaseUserId(req);
+    if (!userId) throw new UnauthorizedException('Organizer session required');
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
+    await this.assertLicesBelongToEvent(eventId, [liceId]);
+
+    const accountId = dto.staffAccountId;
+    if (accountId) {
+      const account = await this.getAccountForEvent(eventId, accountId);
+      if (account.status !== 'active') {
+        throw new BadRequestException('Staff account is disabled');
+      }
+    }
+
+    const { data: existing, error: readError } = await this.supabase.service
+      .from('event_staff_lice_assignments')
+      .select('staff_account_id')
+      .eq('event_id', eventId)
+      .eq('lice_id', liceId);
+    if (readError) throw new BadRequestException(readError.message);
+    const removedAccountIds = (existing ?? [])
+      .map((r) => (r as { staff_account_id: string }).staff_account_id)
+      .filter((id) => id !== accountId);
+
+    const { error: deleteError } = await this.supabase.service
+      .from('event_staff_lice_assignments')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('lice_id', liceId);
+    if (deleteError) throw new BadRequestException(deleteError.message);
+
+    if (accountId) {
+      const { error } = await this.supabase.service
+        .from('event_staff_lice_assignments')
+        .insert({ event_id: eventId, staff_account_id: accountId, lice_id: liceId });
+      if (error) throw new BadRequestException(error.message);
+    }
+
+    return { liceId, staffAccountId: accountId, removedAccountIds };
   }
 
   async login(dto: StaffLoginDto): Promise<{ token: string; expiresAt: Date; me: unknown }> {

@@ -12,7 +12,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
@@ -21,6 +21,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateStaffAccountDto,
   ResetStaffPinDto,
+  SetLiceScorerDto,
   SetStaffLicesDto,
   StaffHeartbeatDto,
   StaffLoginDto,
@@ -137,6 +138,27 @@ export class StaffController {
     @Req() req: FastifyRequest,
   ) {
     return this.staff.acknowledgeAttention(req, eventId, staffAccountId);
+  }
+
+  // No @Throttle: writes stay on the global limit, per the rule
+  // throttle-profiles.ts states for itself.
+  @Put('events/:eventId/live/lices/:liceId/scorer')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Set (or clear) the scorer on one piste from the Live board',
+    description:
+      'Replaces every assignment on the lice; returns the ids it removed so the caller can report them.',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })
+  @ApiBody({ type: SetLiceScorerDto })
+  async setLiceScorer(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('liceId', ParseUUIDPipe) liceId: string,
+    @Body() dto: SetLiceScorerDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.staff.setLiceScorer(req, eventId, liceId, dto);
   }
 
   @Public()

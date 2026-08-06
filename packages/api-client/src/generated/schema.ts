@@ -4606,6 +4606,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/live/lices/{liceId}/scorer': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Set (or clear) the scorer on one piste from the Live board
+     * @description Replaces every assignment on the lice; returns the ids it removed so the caller can report them.
+     */
+    put: operations['StaffController_setLiceScorer'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/staff-auth/login': {
     parameters: {
       query?: never;
@@ -9887,6 +9907,10 @@ export interface components {
     };
     SetStaffLicesDto: {
       liceIds: string[];
+    };
+    SetLiceScorerDto: {
+      /** Format: uuid */
+      staffAccountId: string | null;
     };
     StaffLoginDto: {
       eventSlugOrCode: string;
@@ -17649,6 +17673,30 @@ export interface operations {
     requestBody?: never;
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_setLiceScorer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        liceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetLiceScorerDto'];
+      };
+    };
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
