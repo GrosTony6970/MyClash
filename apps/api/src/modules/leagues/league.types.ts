@@ -1,4 +1,4 @@
-import type { FinalRankingResultKind } from '@myclash/types';
+import type { FinalRankingResultKind, LeagueRankingDimensions } from '@myclash/types';
 
 /**
  * Stored on `leagues.scoring_system`. The literals 'ffamhe_tf_2026' and
@@ -6,7 +6,12 @@ import type { FinalRankingResultKind } from '@myclash/types';
  * a reference into the `league_scoring_systems` registry (migration 0068).
  */
 export type LeagueScoringSystem = 'ffamhe_tf_2026' | 'custom' | (string & {});
-export type LeagueRankingDimensions = 'weapon' | 'weapon_category';
+/**
+ * Re-exported from `@myclash/types`, which owns it: the API and every admin
+ * screen have to agree on this union, and when each wrote it out as a literal
+ * they stopped agreeing. See that module for what the three values mean.
+ */
+export type { LeagueRankingDimensions };
 export type LeagueTieBreaker =
   | 'total_points'
   | 'participation_count'

@@ -17,6 +17,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import type { LeagueRankingDimensions } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface League {
@@ -33,7 +34,7 @@ interface League {
   finalized_at?: string | null;
   scoring_config: {
     scoringSystem?: 'ffamhe_tf_2026' | 'custom';
-    rankingDimensions?: 'weapon' | 'weapon_category';
+    rankingDimensions?: LeagueRankingDimensions;
   } | null;
   // Projected by the BE's listManageable enrichment (Slice 3).
   // The "Ranking" tab surfaces these as summary columns; the
@@ -60,9 +61,16 @@ function formatScoringSystem(value: string): string {
   return value;
 }
 
-function formatCategory(value: string | undefined): string {
-  if (value === 'weapon') return 'Weapon';
-  if (value === 'weapon_category') return 'Weapon + Group';
+/**
+ * The same three names the create and edit screens use. Hardcoded English here
+ * called `weapon_category` "Weapon + Group" while the create screen's i18n
+ * string called it "Weapon + Category" — one setting, two names, and the one a
+ * user met first pointed at a column dropped in migration 0049.
+ */
+function formatRankingDimension(value: string | undefined): string {
+  if (value === 'weapon') return t('admin.adminLeagues.rankingDimensionWeapon');
+  if (value === 'weapon_category') return t('admin.adminLeagues.rankingDimensionWeaponGroup');
+  if (value === 'group') return t('admin.adminLeagues.rankingDimensionGroup');
   return '—';
 }
 
@@ -485,7 +493,7 @@ export default function AdminLeaguesPage() {
                 </DataTableCell>
                 <DataTableCell>{league.season_year}</DataTableCell>
                 <DataTableCell>
-                  {formatCategory(league.scoring_config?.rankingDimensions)}
+                  {formatRankingDimension(league.scoring_config?.rankingDimensions)}
                 </DataTableCell>
                 <DataTableCell>{formatScoringSystem(league.scoring_system)}</DataTableCell>
                 <DataTableCell>

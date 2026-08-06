@@ -20,7 +20,7 @@ const customPointsByRankSchema = z.record(z.string().regex(/^\d+$/u), z.number()
 const leagueScoringConfigSchema = z.object({
   // Open string: 'ffamhe_tf_2026' | 'custom' | any registry code (mig 0068).
   scoringSystem: z.string(),
-  rankingDimensions: z.enum(['weapon', 'weapon_category']),
+  rankingDimensions: z.enum(['weapon', 'weapon_category', 'group']),
   customPointsByRank: customPointsByRankSchema.optional(),
   tieBreakers: z.array(leagueTieBreakerSchema),
 });
@@ -38,7 +38,7 @@ const createLeagueSchema = z
     logoUrl: z.string().optional(),
     ownerOrganizationId: z.uuid().optional(),
     scoringSystem: z.enum(['ffamhe_tf_2026', 'custom']).optional(),
-    rankingDimensions: z.enum(['weapon', 'weapon_category']).optional(),
+    rankingDimensions: z.enum(['weapon', 'weapon_category', 'group']).optional(),
     // Object keyed by rank → points (JSON keys are digit strings).
     customPointsByRank: customPointsByRankSchema.optional(),
     tieBreakers: z.array(leagueTieBreakerSchema).optional(),

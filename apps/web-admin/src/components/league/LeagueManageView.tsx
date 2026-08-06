@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
+import type { LeagueRankingDimensions } from '@myclash/types';
 import { useI18n } from '../../i18n/I18nProvider';
 import { LeagueRequestsPanel } from './LeagueRequestsPanel';
 import { ScoringSystemPreview } from './ScoringSystemPreview';
@@ -35,7 +36,7 @@ interface League {
   public_visibility: boolean;
   scoring_system: string;
   scoring_config: {
-    rankingDimensions?: 'weapon' | 'weapon_category';
+    rankingDimensions?: LeagueRankingDimensions;
     customPointsByRank?: Record<number, number>;
     tieBreakers?: string[];
   } | null;
@@ -127,9 +128,7 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
   const [status, setStatus] = useState('draft');
 
   // Ruleset form state
-  const [rankingDimensions, setRankingDimensions] = useState<'weapon' | 'weapon_category'>(
-    'weapon',
-  );
+  const [rankingDimensions, setRankingDimensions] = useState<LeagueRankingDimensions>('weapon');
   const [scoringSystem, setScoringSystem] = useState('ffamhe_tf_2026');
   const [scoringSystemVersion, setScoringSystemVersion] = useState<string | null>(null);
   const [customPoints, setCustomPoints] = useState<Record<number, number>>({});
@@ -673,16 +672,18 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
               </span>
               <select
                 value={rankingDimensions}
-                onChange={(e) =>
-                  setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')
-                }
+                onChange={(e) => setRankingDimensions(e.target.value as LeagueRankingDimensions)}
                 className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               >
                 <option value="weapon">{t('organizer.leagues.manage.ruleset.dimWeapon')}</option>
                 <option value="weapon_category">
-                  {t('organizer.leagues.manage.ruleset.dimWeaponCategory')}
+                  {t('organizer.leagues.manage.ruleset.dimWeaponGroup')}
                 </option>
+                <option value="group">{t('organizer.leagues.manage.ruleset.dimGroup')}</option>
               </select>
+              <span className="mt-1 block text-xs text-muted">
+                {t('organizer.leagues.manage.ruleset.dimHelp')}
+              </span>
             </label>
           </div>
 

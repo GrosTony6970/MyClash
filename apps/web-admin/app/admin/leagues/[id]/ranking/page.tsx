@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
+import type { LeagueRankingDimensions } from '@myclash/types';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -32,7 +33,7 @@ interface StandingsPayload {
     status: string;
     public_visibility: boolean;
     scoring_config: {
-      rankingDimensions?: 'weapon' | 'weapon_category';
+      rankingDimensions?: LeagueRankingDimensions;
     } | null;
   };
   columns: Array<{

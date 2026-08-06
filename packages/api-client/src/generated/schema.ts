@@ -9565,7 +9565,7 @@ export interface components {
       /** @enum {string} */
       scoringSystem?: 'ffamhe_tf_2026' | 'custom';
       /** @enum {string} */
-      rankingDimensions?: 'weapon' | 'weapon_category';
+      rankingDimensions?: 'weapon' | 'weapon_category' | 'group';
       customPointsByRank?: {
         [key: string]: number;
       };
@@ -9585,7 +9585,7 @@ export interface components {
       scoringConfig?: {
         scoringSystem: string;
         /** @enum {string} */
-        rankingDimensions: 'weapon' | 'weapon_category';
+        rankingDimensions: 'weapon' | 'weapon_category' | 'group';
         customPointsByRank?: {
           [key: string]: number;
         };

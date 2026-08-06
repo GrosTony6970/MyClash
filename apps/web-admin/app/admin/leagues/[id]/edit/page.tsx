@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
@@ -30,7 +31,7 @@ interface League {
   scoring_system: string;
   scoring_config: {
     scoringSystem?: 'ffamhe_tf_2026' | 'custom';
-    rankingDimensions?: 'weapon' | 'weapon_category';
+    rankingDimensions?: RankingDimensions;
     customPointsByRank?: Record<number, number>;
     tieBreakers?: string[];
   } | null;
@@ -178,9 +179,7 @@ export default function EditLeaguePage() {
   // Role applied when attaching an org below. Admin/Owner surface the league in
   // the org's Manage tab; Member is participation-only (Membership tab).
   const [orgAddRole, setOrgAddRole] = useState<'member' | 'admin' | 'owner'>('member');
-  const [rankingDimensions, setRankingDimensions] = useState<'weapon' | 'weapon_category'>(
-    'weapon',
-  );
+  const [rankingDimensions, setRankingDimensions] = useState<RankingDimensions>('weapon');
   // The scoring system is a free-form code: 'ffamhe_tf_2026', 'custom', or
   // any preset code from the `league_scoring_systems` registry (migration
   // 0068). The literal 'custom' branch shows the inline rank→points grid.
@@ -737,17 +736,25 @@ export default function EditLeaguePage() {
             />
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
-            {t('admin.leagues.editPage.basics.categoryLabel')}
+            {t('admin.leagues.editPage.basics.rankingDimensionLabel')}
             <select
               value={rankingDimensions}
-              onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
+              onChange={(e) => setRankingDimensions(e.target.value as RankingDimensions)}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
-              <option value="weapon">{t('admin.leagues.editPage.basics.categoryWeapon')}</option>
+              <option value="weapon">
+                {t('admin.leagues.editPage.basics.rankingDimensionWeapon')}
+              </option>
               <option value="weapon_category">
-                {t('admin.leagues.editPage.basics.categoryWeaponPlusCategory')}
+                {t('admin.leagues.editPage.basics.rankingDimensionWeaponGroup')}
+              </option>
+              <option value="group">
+                {t('admin.leagues.editPage.basics.rankingDimensionGroup')}
               </option>
             </select>
+            <span className="mt-1 block text-xs font-normal text-muted">
+              {t('admin.leagues.editPage.basics.rankingDimensionHelp')}
+            </span>
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.leagues.editPage.basics.scoringSystemLabel')}

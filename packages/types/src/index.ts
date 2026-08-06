@@ -9,6 +9,7 @@ export * from './date';
 export * from './event-kind';
 export * from './final-ranking';
 export * from './html';
+export * from './league-ranking';
 export * from './legal';
 export * from './match-clock';
 export * from './match-status';

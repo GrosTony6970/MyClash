@@ -22,7 +22,10 @@ function contribution(
     clubName: overrides.clubName ?? null,
     clubCity: overrides.clubCity ?? null,
     weapon: overrides.weapon ?? 'Longsword',
-    groupName: overrides.groupName ?? 'Open',
+    // `in` rather than `??`: an explicit `groupName: null` is a real case — a
+    // tournament linked with no group — and `??` would quietly hand it the
+    // default instead, making it impossible to test the one thing it is for.
+    groupName: 'groupName' in overrides ? (overrides.groupName ?? null) : 'Open',
     finalRank: rank,
     doubleHits: overrides.doubleHits ?? 0,
   };
@@ -49,7 +52,7 @@ describe('LeagueScoringService', () => {
     expect(service.pointsForRank(config, 3)).toBe(0);
   });
 
-  it('groups rankings by weapon or by weapon and league group', () => {
+  it('groups rankings by weapon, by weapon and league group, or by group alone', () => {
     expect(service.groupKey(baseConfig, contribution('f1', 1))).toBe('longsword');
     expect(
       service.groupKey(
@@ -57,6 +60,44 @@ describe('LeagueScoringService', () => {
         contribution('f1', 1),
       ),
     ).toBe('longsword::open');
+    // Group alone: the weapon must not appear at all, or two weapons in the same
+    // division would still be ranked apart — the thing this mode exists to stop.
+    expect(
+      service.groupKey({ ...baseConfig, rankingDimensions: 'group' }, contribution('f1', 1)),
+    ).toBe('open');
+  });
+
+  it('sends every ungrouped tournament to one table rather than dropping it', () => {
+    // A link with no group normalises to `unknown` in every mode, so an
+    // ungrouped league still ranks — it does not silently produce no key.
+    expect(
+      service.groupKey(
+        { ...baseConfig, rankingDimensions: 'group' },
+        contribution('f1', 1, { groupName: null }),
+      ),
+    ).toBe('unknown');
+    expect(
+      service.groupKey(
+        { ...baseConfig, rankingDimensions: 'weapon_category' },
+        contribution('f1', 1, { groupName: null }),
+      ),
+    ).toBe('longsword::unknown');
+  });
+
+  it('keeps two weapons in one division together under group, and apart otherwise', () => {
+    const groupOnly: LeagueScoringConfig = { ...baseConfig, rankingDimensions: 'group' };
+    const longsword = contribution('f1', 1, { weapon: 'Longsword' });
+    const sidesword = contribution('f2', 1, { weapon: 'Sidesword' });
+
+    expect(service.groupKey(groupOnly, longsword)).toBe(service.groupKey(groupOnly, sidesword));
+
+    const weaponGroup: LeagueScoringConfig = {
+      ...baseConfig,
+      rankingDimensions: 'weapon_category',
+    };
+    expect(service.groupKey(weaponGroup, longsword)).not.toBe(
+      service.groupKey(weaponGroup, sidesword),
+    );
   });
 
   it('aggregates duplicate fighter contributions and sorts by configured tie-breakers', () => {

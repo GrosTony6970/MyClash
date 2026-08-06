@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -46,9 +47,7 @@ export default function NewLeaguePage() {
   const [slug, setSlug] = useState('');
   const [slugDetached, setSlugDetached] = useState(false);
   const [seasonYear, setSeasonYear] = useState(String(new Date().getFullYear()));
-  const [rankingDimensions, setRankingDimensions] = useState<'weapon' | 'weapon_category'>(
-    'weapon',
-  );
+  const [rankingDimensions, setRankingDimensions] = useState<RankingDimensions>('weapon');
   const [scoringSystem, setScoringSystem] = useState<'ffamhe_tf_2026' | 'custom'>('ffamhe_tf_2026');
   const [customPoints, setCustomPoints] = useState<Record<number, number>>(FFAMHE_POINTS);
   const [description, setDescription] = useState('');
@@ -362,17 +361,21 @@ export default function NewLeaguePage() {
             </span>
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
-            {t('admin.adminLeagues.categoryLabel')}
+            {t('admin.adminLeagues.rankingDimensionLabel')}
             <select
               value={rankingDimensions}
-              onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
+              onChange={(e) => setRankingDimensions(e.target.value as RankingDimensions)}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
             >
-              <option value="weapon">{t('admin.adminLeagues.categoryWeapon')}</option>
+              <option value="weapon">{t('admin.adminLeagues.rankingDimensionWeapon')}</option>
               <option value="weapon_category">
-                {t('admin.adminLeagues.categoryWeaponCategory')}
+                {t('admin.adminLeagues.rankingDimensionWeaponGroup')}
               </option>
+              <option value="group">{t('admin.adminLeagues.rankingDimensionGroup')}</option>
             </select>
+            <span className="mt-1 block text-xs font-normal text-muted">
+              {t('admin.adminLeagues.rankingDimensionHelp')}
+            </span>
           </label>
           <label className="text-xs font-medium text-foreground-secondary">
             {t('admin.adminLeagues.scoringSystemLabel')}

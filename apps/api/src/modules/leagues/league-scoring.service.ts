@@ -112,10 +112,14 @@ export class LeagueScoringService {
 
   groupKey(config: LeagueScoringConfig, contribution: TournamentContributionInput): string {
     const weapon = normalizeDimension(contribution.weapon);
+    const group = normalizeDimension(contribution.groupName);
     if (config.rankingDimensions === 'weapon') return weapon;
+    // The group alone: for a league whose divisions are the thing being ranked,
+    // where a fighter's results across weapons belong in one table.
+    if (config.rankingDimensions === 'group') return group;
     // 'weapon_category' historically meant weapon + category; it now
     // means weapon + league group (replacing tournament.category).
-    return `${weapon}::${normalizeDimension(contribution.groupName)}`;
+    return `${weapon}::${group}`;
   }
 
   validateContributionIdentities(contributions: TournamentContributionInput[]): void {
