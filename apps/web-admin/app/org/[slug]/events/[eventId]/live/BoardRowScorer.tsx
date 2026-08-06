@@ -1,7 +1,7 @@
 'use client';
 import { formatMinuteSpan } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
-import type { BoardRow } from './types';
+import type { BoardRow } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
 

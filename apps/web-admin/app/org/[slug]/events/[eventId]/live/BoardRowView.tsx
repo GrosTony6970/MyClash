@@ -2,12 +2,12 @@
 import Link from 'next/link';
 import { useId } from 'react';
 import { useI18n } from '@/i18n/I18nProvider';
-import { DOT, isHealthy } from './live-board-state';
-import type { HealthState } from './live-board-state';
-import { timingReadout } from './board-timing-labels';
+import { DOT, isHealthy } from '@/lib/live-board/live-board-state';
+import type { HealthState } from '@/lib/live-board/live-board-state';
+import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { BoardRowDetail } from './BoardRowDetail';
-import { matchStatusLabel } from './match-status';
-import type { BoardRow } from './types';
+import { matchStatusLabel } from '@/lib/live-board/match-status';
+import type { BoardRow } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
 

@@ -4,9 +4,9 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { BoardRowActions } from './BoardRowActions';
 import { BoardRowScorer } from './BoardRowScorer';
 import { BoardRowTimeline } from './BoardRowTimeline';
-import { timingReadout } from './board-timing-labels';
-import { matchStatusLabel } from './match-status';
-import type { BoardReferee, BoardRow } from './types';
+import { timingReadout } from '@/lib/live-board/board-timing-labels';
+import { matchStatusLabel } from '@/lib/live-board/match-status';
+import type { BoardReferee, BoardRow } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
 

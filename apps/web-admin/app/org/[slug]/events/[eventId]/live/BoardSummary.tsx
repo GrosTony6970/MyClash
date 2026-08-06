@@ -1,9 +1,9 @@
 'use client';
 import { formatTime } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
-import type { HealthState } from './live-board-state';
-import { projectedFinishMs } from './live-board-timing';
-import type { BoardRow, LiveBoardProgress } from './types';
+import type { HealthState } from '@/lib/live-board/live-board-state';
+import { projectedFinishMs } from '@/lib/live-board/live-board-timing';
+import type { BoardRow, LiveBoardProgress } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
 

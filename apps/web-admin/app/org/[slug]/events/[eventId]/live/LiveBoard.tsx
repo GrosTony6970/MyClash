@@ -4,14 +4,18 @@ import { useSecondsClock } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useLiveBoard } from './useLiveBoard';
-import { deriveHealthState, partitionByHealth, sortBoardRows } from './live-board-state';
-import type { HealthState } from './live-board-state';
-import { fallbackTiming } from './live-board-timing';
+import { useLiveBoard } from '@/lib/live-board/useLiveBoard';
+import {
+  deriveHealthState,
+  partitionByHealth,
+  sortBoardRows,
+} from '@/lib/live-board/live-board-state';
+import type { HealthState } from '@/lib/live-board/live-board-state';
+import { fallbackTiming } from '@/lib/live-board/live-board-timing';
 import { BoardRowView } from './BoardRowView';
 import { BoardCard } from './BoardCard';
 import { BoardSummary } from './BoardSummary';
-import type { BoardRow, MatchChange } from './types';
+import type { BoardRow, MatchChange } from '@/lib/live-board/types';
 
 // One channel per lice (stable set). `matches` is scoped by lice_id (no
 // event_id column), so we subscribe per lice and patch that lice's current
