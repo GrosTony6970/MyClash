@@ -173,11 +173,16 @@ test.describe('live control room', () => {
     page.on('websocket', (ws) => socketUrls.push(ws.url()));
 
     await page.goto(`/org/${orgSlug}/events/${eventId}/live`);
+    // Rows carry data-testid="live-row" + data-lice-name. Selecting on those
+    // rather than on `li:visible` + text: the old selector matched any list
+    // item containing the name, so it was load-bearing on markup with no stable
+    // hook — and the expansion has since reshaped that markup.
+    const row = (liceName: string) =>
+      page.locator(`[data-testid="live-row"][data-lice-name="${liceName}"]:visible`);
+
     // The subscribers are rendered from the rows, so the channels only exist
     // once the first poll has landed and the pistes are on screen.
-    await expect(page.locator('li:visible').filter({ hasText: liceAName })).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(row(liceAName)).toBeVisible({ timeout: 30_000 });
 
     const connected = (liceId: string) =>
       realtimeLogs.filter((l) => l.includes(`connected: live-board-lice:${liceId}`));
@@ -205,10 +210,63 @@ test.describe('live control room', () => {
     // ── The merge: the piste that was scored, and only it ────────────────────
     await landCleanHits(api, matchA as string, 'red', 2);
 
-    const row = (liceName: string) => page.locator('li:visible').filter({ hasText: liceName });
     await expect(row(liceAName), 'the scored piste must show the new score').toContainText('2–0', {
       timeout: 30_000,
     });
     await expect(row(liceBName), 'a piste nobody touched must not move').toContainText('0–0');
+
+    // ── The expansion: opens in place, and does not navigate ─────────────────
+    const boardUrl = page.url();
+    const toggle = row(liceAName).getByRole('button', { expanded: false });
+    await toggle.click();
+
+    await expect(row(liceAName).getByRole('button', { expanded: true })).toBeVisible();
+    expect(page.url(), 'expanding a row must NOT navigate away from the board').toBe(boardUrl);
+
+    // The exchange feed is the reason to expand rather than read. Two clean
+    // hits landed above, so the timeline has something to show.
+    await expect(row(liceAName), 'the expansion shows the exchange feed').toContainText(
+      /Exchanges|Échanges/,
+      { timeout: 30_000 },
+    );
+
+    // Score ↗ carries a return leg back to the board — losing the board is the
+    // failure this whole design avoids. It must point at the MATCH route, never
+    // at /scoring/lices/{id}, which 401s an org admin into /login.
+    const scoreLink = row(liceAName).locator(`a[href*="/scoring/matches/${matchA}"]`);
+    await expect(scoreLink, 'the expansion offers Score ↗ for the running bout').toHaveCount(1);
+    const scoreHref = await scoreLink.getAttribute('href');
+    expect(scoreHref, 'Score ↗ must return to the board').toContain('return=');
+    expect(
+      await row(liceAName).locator('a[href*="/scoring/lices/"]').count(),
+      'the board must never link /scoring/lices — it is mc_staff-cookie only',
+    ).toBe(0);
+
+    // Collapsing is the same control.
+    await row(liceAName).getByRole('button', { expanded: true }).click();
+    await expect(row(liceAName).getByRole('button', { expanded: false })).toBeVisible();
+
+    // ── Timing: an overdue bout must say so ──────────────────────────────────
+    // Piste B's bout is still unstarted, so back-dating its slot past the late
+    // threshold (10 min) produces the "nobody has picked it up" case. Reusing
+    // this run's fixtures rather than building a second tournament: the shared
+    // event is already large, and the assertion needs one scheduled bout.
+    const overdue = new Date(Date.now() - 45 * 60_000).toISOString();
+    await api.ok(
+      await api.patch(`matches/${matchB}/schedule`, {
+        data: { liceId: liceB.id, scheduledAt: overdue },
+      }),
+    );
+
+    // Asserting the TIMING CELL, not the health dot. No scorer is assigned to
+    // these pistes, so deriveHealthState resolves them to `no_scorer` — which
+    // is correct and outranks `late`, because an unmanned piste is the cause of
+    // the missing signals rather than a symptom to report around it. The
+    // overdue readout is independent of that and is what this covers; the
+    // `late` state itself is pinned in live-board-state.test.ts.
+    await expect(
+      row(liceBName),
+      'an overdue, unstarted bout must show how long it has been due',
+    ).toContainText(/due .* ago|attendu il y a/, { timeout: 30_000 });
   });
 });
