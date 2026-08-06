@@ -71,6 +71,7 @@ test-results/
 .claude/
 .claude/settings.local.json
 .claude/hooks/node_modules/
+.claudeignore
 
 # BMad Method local runtime (config, scripts, help catalog) — dev tooling,
 # not product code. Keep out of this public repo. If your team wants to share
