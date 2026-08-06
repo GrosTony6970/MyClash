@@ -747,6 +747,52 @@ test.describe('league across several events', () => {
     // or any guard runs, and Playwright's request API always sets that header.
     // The endpoint itself is happy without a body (curl with no content-type
     // reaches the handler); the constraint belongs to the client, not the API.
+
+    // ── Ranking by group alone ───────────────────────────────────────────────
+    //
+    // The third dimension: for a league whose divisions are the thing being
+    // ranked, where a fighter's results across weapons belong in one table.
+    // Asserted on the KEY, because the key is the whole behaviour — the weapon
+    // has to be absent from it, not merely tie-broken away.
+    const byGroup = await api.json<LeagueRow>(
+      await api.post('admin/leagues', {
+        data: {
+          name: `E2E TEST (auto) group-only league — ${token}`,
+          slug: `multi-league-group-only-${token}`.slice(0, 100),
+          seasonYear: SEASON_YEAR,
+          ownerOrganizationId: orgId,
+          scoringSystem: 'custom',
+          rankingDimensions: 'group',
+          customPointsByRank: POINTS_BY_RANK,
+        },
+      }),
+    );
+    createdLeagueIds.push(byGroup.id);
+
+    const soloGroup = await api.json<{ id: string }>(
+      await api.post(`admin/leagues/${byGroup.id}/groups`, { data: { name: 'Open' } }),
+    );
+    await api.ok(
+      await api.post(`admin/leagues/${byGroup.id}/tournaments/${tournaments.get('E1')!.id}/link`, {
+        data: { groupId: soloGroup.id },
+      }),
+    );
+    await api.ok(
+      await api.post(`admin/events/${eventIdByKey.get('E1')}/leagues/recompute`, { data: {} }),
+    );
+
+    const groupOnlyRows = (
+      await api.json<StandingsPayload>(await api.get(`admin/leagues/${byGroup.id}/standings`))
+    ).rows;
+    expect(groupOnlyRows.length, 'the group-only league must have scored E1').toBeGreaterThan(0);
+    expect(
+      [...new Set(groupOnlyRows.map((row) => row.ranking_group_key))],
+      'ranking by group alone must key on the group, with no weapon in it',
+    ).toEqual(['open']);
+
+    // The same tournament, in a weapon+group league, keys the other way — so the
+    // difference above is the SETTING and not something about this event.
+    expect([...new Set(full.rows.map((row) => row.ranking_group_key))]).toEqual([GROUP_KEY]);
   });
 
   test.afterAll(async () => {
