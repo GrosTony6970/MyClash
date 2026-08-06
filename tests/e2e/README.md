@@ -785,6 +785,70 @@ Two things worth knowing before touching it:
 - It skips itself when `disable_realtime` is on for the environment — that is a
   decision, not a defect, and the spec says so rather than failing.
 
+## The AI stack: configuration for free, generation for money (opt-in)
+
+`E2E_AI=1 pnpm test:e2e:prod tests/e2e/30-ai-settings.spec.ts` runs the whole AI
+configuration surface. Adding `E2E_AI_PROVIDER` + `E2E_AI_KEY` also runs
+`31-ai-generation.spec.ts`, **the only spec in this suite that spends money.**
+
+Six API modules (`ai-providers`, `ai-usage`, `generated-content`,
+`organizer-ai-assistant`, `organizer-chat`, and the platform `admin/ai-*`
+controllers) and four admin pages had no E2E coverage at all. The only AI in the
+suite was three `admin/ai-*` rows in `27`'s guard sweep — whose header ruled AI
+keys and budgets out of scope as "handles real secrets". Right call for a sweep,
+wrong as a permanent state: the key store is the one place in this codebase that
+encrypts a user secret, and nothing checked that the secret stays in.
+
+**Why the split is by cost and not by feature.** `30` proves everything that can
+be proved without a provider, and creating a key is one of those things: `apiKey`
+is validated as `z.string().min(10)` and never sent anywhere on create, so the
+AES-256-GCM round-trip, the one-active-key invariant, masking, model validation,
+the two kill-switches and the no-key refusals all run on a fake string. `31` is
+the part that cannot be faked, and it is separated so that enabling AI coverage
+is never accidentally a decision to bill tokens.
+
+What `31` asserts, and deliberately does not:
+
+| asserted                                                       | not asserted                                  |
+| -------------------------------------------------------------- | --------------------------------------------- |
+| a row lands in the usage log — the call is METERED             | the wording, tone or length of the output     |
+| the facts pipeline had real data to narrate                    | that the champion's name appears in the prose |
+| content is stored as a **draft**                               | that the model chose a good draft             |
+| publish/unpublish moves it in and out of the public projection | how the public page renders it                |
+
+Model output is nondeterministic and the cheap models are cheap. An assertion
+that fails when a model paraphrases is testing the model, not MyClash.
+
+Three things worth knowing before touching these:
+
+- **Every key install is snapshot → install → run → restore.** Activating a key
+  goes through the scope's `set_active_*_ai_key` RPC, which deactivates every
+  other key in that scope. A spec that installs its own key and walks away
+  leaves the operator's real key switched off, and nothing reports it — the
+  settings page just quietly says the wrong thing. `_ai.ts` owns that dance for
+  all three scopes (org, fighter, platform); deleting the active key promotes
+  some _other_ key on its own, which is why restore deletes first and
+  re-activates second.
+- **The data-quality scan runs in `mode: 'deterministic'`.** The default `ai`
+  mode scans the entire real platform through an LLM at unbounded cost and
+  writes findings about real people on every run. The deterministic mode
+  exercises the same scan → findings → dismiss pipeline for nothing, which is
+  what it was added for.
+- **The kill-switch assertions check the STATUS only, on purpose.** The services
+  throw `ServiceUnavailableException` with a message that says which switch is
+  off, but `api-exception.filter.ts` replaces the message of every response with
+  a status `>= 500` with a flat `"Internal server error"`. So all four AI
+  kill-switch messages reach the client as a generic crash, and an organizer who
+  turned AI off for their own org is told the server broke. Right scrubbing for a
+  real 500, wrong for a 503 the product throws deliberately — worth fixing in the
+  filter, but it is a repo-wide change, not a test change. Don't re-add a message
+  assertion here; it will fail.
+- **The fighter-insight leg needs a claimed profile.** `E2E_ADMIN_EMAIL` must own
+  a `global_persons` row or the personal-space AI has no identity to work from.
+  The spec cannot claim one for itself — claiming goes through a
+  super-admin-reviewed request, and a test must not self-approve that — so it
+  skips with the reason until the account is claimed once by hand.
+
 ## Status
 
 | #   | Flow                                  | Spec                                | State                                    |
@@ -818,7 +882,13 @@ Two things worth knowing before touching it:
 | 27  | Platform guard sweep + the console    | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
 | 28  | Live control room + its realtime      | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above   |
 | 29  | League across several events          | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above       |
+| 30  | AI keys, budgets, kill-switches       | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above           |
+| 31  | AI generation against a real provider | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**    |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them
 except `07`.
+
+`31` is the one exception to "gated purely on their env flag": it also needs
+`E2E_AI_PROVIDER` + `E2E_AI_KEY`, which are opt-in by **secret** rather than by
+flag precisely because setting them means every nightly bills tokens.

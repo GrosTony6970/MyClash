@@ -25,9 +25,14 @@ import { apiFor, type Api } from './_bracket';
  * account silently drops that coverage and makes its 403 assertions vacuous.
  *
  * Out of scope, deliberately, and for the same reason `13-privacy` leaves them:
- * retention runs, person anonymisation, backups, AI keys and budgets, org
- * deletion, and HEMA Ratings submission. Every one is destructive well beyond a
- * throwaway event, or handles real secrets.
+ * retention runs, person anonymisation, backups, org deletion, and HEMA Ratings
+ * submission. Every one is destructive well beyond a throwaway event.
+ *
+ * AI keys and budgets used to be on that list as "handles real secrets".
+ * `30-ai-settings` now covers them, on the footing that made it safe: it never
+ * reads a secret back (there is no route that returns one), it creates its own
+ * fake key rather than touching the operator's, and it snapshots and restores
+ * the active key around everything it does.
  */
 
 const SUPER_ADMIN = ['1', 'true', 'yes'].includes(
