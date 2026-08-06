@@ -132,4 +132,11 @@ export interface LiveBoardPayload {
   timing: LiveBoardTiming;
   progress: LiveBoardProgress;
   accounts: LiveBoardAccount[];
+  /**
+   * The EVENT slug (not the org's). The board is addressed by event UUID, but
+   * the public piste-kiosk link it offers is `/e/{eventSlug}/lice/…` — and the
+   * slug is on the event row the authorization check already loaded, so
+   * shipping it here saves the client a round trip for one href.
+   */
+  eventSlug: string;
 }

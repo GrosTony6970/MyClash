@@ -28,6 +28,7 @@ export function useLiveBoard(eventId: string) {
   const [timing, setTiming] = useState<LiveBoardTiming | null>(null);
   const [progress, setProgress] = useState<LiveBoardProgress | null>(null);
   const [accounts, setAccounts] = useState<LiveBoardAccount[]>([]);
+  const [eventSlug, setEventSlug] = useState<string | null>(null);
   const [error, setError] = useState<'refresh' | 'forbidden' | null>(null);
 
   const refetch = useCallback(async () => {
@@ -51,6 +52,7 @@ export function useLiveBoard(eventId: string) {
       setTiming(data.timing ?? fallbackTiming(Date.now()));
       setProgress(data.progress ?? null);
       setAccounts(data.accounts ?? []);
+      setEventSlug(data.eventSlug ?? null);
       setError(null);
     } catch {
       setError('refresh'); // keep last-known rows, never blank
@@ -104,5 +106,15 @@ export function useLiveBoard(eventId: string) {
     [eventId, refetch],
   );
 
-  return { rows, timing, progress, accounts, error, refetch, acknowledge, applyMatchChange };
+  return {
+    rows,
+    timing,
+    progress,
+    accounts,
+    eventSlug,
+    error,
+    refetch,
+    acknowledge,
+    applyMatchChange,
+  };
 }

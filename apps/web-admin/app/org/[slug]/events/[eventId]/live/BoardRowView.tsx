@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
+import { useId } from 'react';
 import { useI18n } from '@/i18n/I18nProvider';
 import { DOT, isHealthy } from './live-board-state';
 import type { HealthState } from './live-board-state';
 import { timingReadout } from './board-timing-labels';
+import { BoardRowDetail } from './BoardRowDetail';
 import { matchStatusLabel } from './match-status';
 import type { BoardRow } from './types';
 
@@ -17,6 +19,9 @@ export function BoardRowView({
   state,
   nowMs,
   matchDurationMinutes,
+  expanded,
+  onToggle,
+  eventSlug,
   slug,
   eventId,
   onAck,
@@ -27,6 +32,9 @@ export function BoardRowView({
   state: HealthState;
   nowMs: number;
   matchDurationMinutes: number;
+  expanded: boolean;
+  onToggle: () => void;
+  eventSlug: string | null;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
@@ -36,90 +44,121 @@ export function BoardRowView({
   const dim = isHealthy(state) ? 'opacity-60' : '';
   const cm = row.currentMatch;
   const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
+  const detailId = useId();
   return (
-    <li
-      className={`flex items-center gap-3 py-2 text-sm ${dim}`}
-      data-testid="live-row"
-      data-lice-name={row.lice.name}
-    >
-      <span
-        role="img"
-        className={`h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
-        aria-label={t(`organizer.live.state.${state}`)}
-      />
-      <Link
-        href={`/org/${slug}/events/${eventId}/schedule`}
-        className="w-32 shrink-0 truncate font-semibold text-foreground hover:underline"
-        title={row.lice.name}
-      >
-        {row.lice.name}
-      </Link>
-      {cm ? (
+    <li className={`py-2 text-sm ${dim}`} data-testid="live-row" data-lice-name={row.lice.name}>
+      {/*
+        The expand affordance is an absolutely-positioned overlay button rather
+        than a wrapper, because the row still carries real links (the piste, the
+        bout, the scorer) and a <button> may not contain an <a>. The links sit
+        above it on z-10; everywhere else in the row toggles.
+      */}
+      <div className="relative flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={detailId}
+          aria-label={t('organizer.live.detail.toggle', { lice: row.lice.name })}
+          className="absolute inset-0 z-0 cursor-pointer rounded-sm hover:bg-surface-2/40"
+        />
+        <span
+          role="img"
+          className={`relative z-10 h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
+          aria-label={t(`organizer.live.state.${state}`)}
+        />
         <Link
-          href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}
-          className="min-w-0 flex-1 truncate text-foreground hover:underline"
+          href={`/org/${slug}/events/${eventId}/schedule`}
+          className="relative z-10 w-32 shrink-0 truncate font-semibold text-foreground hover:underline"
+          title={row.lice.name}
         >
-          {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
+          {row.lice.name}
         </Link>
-      ) : (
-        <span className="min-w-0 flex-1 truncate text-muted">{t('organizer.live.state.idle')}</span>
-      )}
-      <span className="w-24 shrink-0 truncate text-muted">
-        {cm ? `${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}` : ''}
-      </span>
-      <span className="w-28 shrink-0 truncate tabular-nums">
-        {timing.clock && <span className="text-foreground">{timing.clock}</span>}
-        {timing.behind && (
-          <span className={timing.warn ? 'text-warning' : 'text-muted'}>
-            {timing.clock ? ' · ' : ''}
-            {timing.behind}
+        {cm ? (
+          <Link
+            href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}
+            className="relative z-10 min-w-0 flex-1 truncate text-foreground hover:underline"
+          >
+            {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
+          </Link>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-muted">
+            {t('organizer.live.state.idle')}
           </span>
         )}
-      </span>
-      <span className="w-28 shrink-0 truncate text-muted">
-        {row.scorer ? (
-          <Link href={`/org/${slug}/events/${eventId}/staff`} className="hover:underline">
-            {row.scorer.name}
-          </Link>
-        ) : (
-          t('organizer.live.state.no_scorer')
-        )}
-      </span>
-      <span className="w-24 shrink-0 text-muted">
-        {row.health === null
-          ? t('organizer.live.unknown')
-          : row.health.rejectedCount > 0
-            ? `✖ ${row.health.outboxDepth}q·${row.health.rejectedCount}r`
-            : row.health.outboxDepth > 0
-              ? `▲ ${row.health.outboxDepth}q`
-              : t('organizer.live.state.synced')}
-      </span>
-      <span className="w-32 shrink-0">
-        {row.attention && row.scorer ? (
-          <button
-            type="button"
-            onClick={() => onAck(row.scorer!.accountId)}
-            className="rounded-md bg-danger/10 px-2 py-1 text-danger"
-          >
-            {t(`organizer.live.reason.${row.attention.reason}`)} · {t('organizer.live.ack')}
-          </button>
-        ) : (
-          '—'
-        )}
-      </span>
-      <span className="w-20 shrink-0 truncate text-right text-muted">
-        {row.nextUp ? (
-          <Link
-            href={`/org/${slug}/events/${eventId}/matches/${row.nextUp.matchId}`}
-            className="hover:underline"
-            title={t('organizer.live.nextLabel')}
-          >
-            {row.nextUp.label}
-          </Link>
-        ) : (
-          '—'
-        )}
-      </span>
+        <span className="w-24 shrink-0 truncate text-muted">
+          {cm ? `${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}` : ''}
+        </span>
+        <span className="w-28 shrink-0 truncate tabular-nums">
+          {timing.clock && <span className="text-foreground">{timing.clock}</span>}
+          {timing.behind && (
+            <span className={timing.warn ? 'text-warning' : 'text-muted'}>
+              {timing.clock ? ' · ' : ''}
+              {timing.behind}
+            </span>
+          )}
+        </span>
+        <span className="w-28 shrink-0 truncate text-muted">
+          {row.scorer ? (
+            <Link
+              href={`/org/${slug}/events/${eventId}/staff`}
+              className="relative z-10 hover:underline"
+            >
+              {row.scorer.name}
+            </Link>
+          ) : (
+            t('organizer.live.state.no_scorer')
+          )}
+        </span>
+        <span className="w-24 shrink-0 text-muted">
+          {row.health === null
+            ? t('organizer.live.unknown')
+            : row.health.rejectedCount > 0
+              ? `✖ ${row.health.outboxDepth}q·${row.health.rejectedCount}r`
+              : row.health.outboxDepth > 0
+                ? `▲ ${row.health.outboxDepth}q`
+                : t('organizer.live.state.synced')}
+        </span>
+        <span className="w-32 shrink-0">
+          {row.attention && row.scorer ? (
+            <button
+              type="button"
+              onClick={() => onAck(row.scorer!.accountId)}
+              className="relative z-10 rounded-md bg-danger/10 px-2 py-1 text-danger"
+            >
+              {t(`organizer.live.reason.${row.attention.reason}`)} · {t('organizer.live.ack')}
+            </button>
+          ) : (
+            '—'
+          )}
+        </span>
+        <span className="w-20 shrink-0 truncate text-right text-muted">
+          {row.nextUp ? (
+            <Link
+              href={`/org/${slug}/events/${eventId}/matches/${row.nextUp.matchId}`}
+              className="relative z-10 hover:underline"
+              title={t('organizer.live.nextLabel')}
+            >
+              {row.nextUp.label}
+            </Link>
+          ) : (
+            '—'
+          )}
+        </span>
+      </div>
+      {expanded && (
+        <div id={detailId}>
+          <BoardRowDetail
+            row={row}
+            nowMs={nowMs}
+            matchDurationMinutes={matchDurationMinutes}
+            eventSlug={eventSlug}
+            slug={slug}
+            eventId={eventId}
+            t={t}
+          />
+        </div>
+      )}
     </li>
   );
 }

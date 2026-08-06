@@ -119,6 +119,8 @@ export interface LiveBoardPayload {
   timing: LiveBoardTiming;
   progress: LiveBoardProgress;
   accounts: LiveBoardAccount[];
+  /** The EVENT slug, for the public piste-kiosk href. Not the org slug. */
+  eventSlug: string;
 }
 
 /** A realtime `matches` UPDATE, narrowed to the fields the board patches. */

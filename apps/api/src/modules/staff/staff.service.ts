@@ -316,6 +316,7 @@ export class StaffService {
       timing: input.timing,
       progress: input.progress,
       accounts: buildBoardAccounts(input.accounts, input.assignments),
+      eventSlug: event.slug,
     };
   }
 

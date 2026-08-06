@@ -47,9 +47,16 @@ function LiceRealtime({
 
 export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) {
   const { t } = useI18n();
-  const { rows, timing, progress, error, acknowledge, applyMatchChange } = useLiveBoard(eventId);
+  const { rows, timing, progress, eventSlug, error, acknowledge, applyMatchChange } =
+    useLiveBoard(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
   const [showHealthy, setShowHealthy] = useState(false);
+  // One row expanded at a time, keyed by BOTH lice and bout so the panel
+  // auto-collapses on rollover with no effect and no flicker: the moment the
+  // poll swaps that lice's currentMatch, `isExpanded` simply stops matching.
+  // A useEffect calling setExpanded(null) would violate set-state-in-effect
+  // AND paint one stale frame first.
+  const [expanded, setExpanded] = useState<{ liceId: string; matchId: string | null } | null>(null);
 
   // Subscribed once, at the root. The elapsed readouts tick at 1 Hz, so a
   // per-row subscription would re-render every row's subtree on every tick for
@@ -76,6 +83,14 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
   }, [rows, nowMs, clock.matchDurationMinutes]);
 
   const stateOf = (row: BoardRow): HealthState => stateByLice.get(row.lice.id) ?? 'unknown';
+  const isExpanded = (row: BoardRow): boolean =>
+    expanded?.liceId === row.lice.id && expanded.matchId === (row.currentMatch?.id ?? null);
+  const toggle = (row: BoardRow) =>
+    setExpanded((prev) =>
+      prev?.liceId === row.lice.id
+        ? null
+        : { liceId: row.lice.id, matchId: row.currentMatch?.id ?? null },
+    );
 
   if (error === 'forbidden')
     return <p className="p-6 text-muted">{t('organizer.live.forbidden')}</p>;
@@ -114,6 +129,9 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
             state={stateOf(row)}
             nowMs={nowMs}
             matchDurationMinutes={clock.matchDurationMinutes}
+            expanded={isExpanded(row)}
+            onToggle={() => toggle(row)}
+            eventSlug={eventSlug}
             slug={slug}
             eventId={eventId}
             onAck={(id) => void acknowledge(id)}
