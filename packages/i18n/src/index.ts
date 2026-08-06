@@ -5626,6 +5626,10 @@ export const en = {
         neverSeen: 'Never checked in',
         outbox: '{queued} queued · {rejected} rejected',
         alsoAssigned: 'Also on this piste: {names}',
+        timeline: 'Exchanges',
+        timelineEmpty: 'No exchanges scored yet',
+        timelineError: 'Could not load the exchange feed',
+        reconnecting: 'Reconnecting — this feed may lag',
       },
       state: {
         attention: 'Needs attention',
@@ -13043,6 +13047,10 @@ export const fr = {
         neverSeen: 'Jamais connecté',
         outbox: '{queued} en attente · {rejected} rejetés',
         alsoAssigned: 'Également sur cette piste : {names}',
+        timeline: 'Échanges',
+        timelineEmpty: 'Aucun échange marqué pour l’instant',
+        timelineError: 'Impossible de charger les échanges',
+        reconnecting: 'Reconnexion — ce flux peut être en retard',
       },
       state: {
         attention: 'À traiter',

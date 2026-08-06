@@ -3,6 +3,7 @@ import { asColorToken, tintBgClassFor, tintTextClassFor } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { BoardRowActions } from './BoardRowActions';
 import { BoardRowScorer } from './BoardRowScorer';
+import { BoardRowTimeline } from './BoardRowTimeline';
 import { timingReadout } from './board-timing-labels';
 import { matchStatusLabel } from './match-status';
 import type { BoardReferee, BoardRow } from './types';
@@ -53,6 +54,12 @@ export function BoardRowDetail({
           />
         )}
       </section>
+      {cm && (
+        <section className="flex flex-col gap-1 md:col-span-3">
+          <h3 className="text-xs uppercase text-muted">{t('organizer.live.detail.timeline')}</h3>
+          <BoardRowTimeline matchId={cm.id} t={t} />
+        </section>
+      )}
     </div>
   );
 }
