@@ -32,6 +32,23 @@ export function deriveHealthState(row: BoardRow, t: Thresholds = DEFAULT_THRESHO
   return 'synced';
 }
 
+/**
+ * Dot colour per state. Lives here rather than in a component because it is a
+ * total `Record<HealthState, …>`: widening the union fails to compile until
+ * every new member has a colour, and that compile error is the checklist.
+ * Three renderers need it (row, card, wall), so a module-local copy would
+ * scatter that checklist instead of concentrating it.
+ */
+export const DOT: Record<HealthState, string> = {
+  attention: 'bg-danger',
+  stuck: 'bg-danger',
+  stale: 'bg-warning',
+  synced: 'bg-success',
+  idle: 'bg-muted',
+  unknown: 'bg-muted',
+  no_scorer: 'bg-foreground',
+};
+
 // worst-first severity (lower = more urgent). no_scorer sits low: a setup gap,
 // not a live failure.
 const SEVERITY: Record<HealthState, number> = {
