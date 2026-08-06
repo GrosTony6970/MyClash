@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import type { useI18n } from '@/i18n/I18nProvider';
 import { deriveHealthState, DOT } from './live-board-state';
+import { matchStatusLabel } from './match-status';
 import type { BoardRow } from './types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -26,7 +27,11 @@ export function BoardCard({
   const state = deriveHealthState(row);
   const cm = row.currentMatch;
   return (
-    <li className="flex flex-col gap-1.5 py-3">
+    <li
+      className="flex flex-col gap-1.5 py-3"
+      data-testid="live-row"
+      data-lice-name={row.lice.name}
+    >
       <div className="flex items-center gap-2">
         <span
           role="img"
@@ -36,6 +41,7 @@ export function BoardCard({
         <Link
           href={`/org/${slug}/events/${eventId}/schedule`}
           className="min-w-0 flex-1 truncate font-semibold text-foreground hover:underline"
+          title={row.lice.name}
         >
           {row.lice.name}
         </Link>
@@ -60,7 +66,9 @@ export function BoardCard({
         <span className="text-muted">{t('organizer.live.state.idle')}</span>
       )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-        {cm && <span>{`${cm.round ? `R${cm.round} · ` : ''}${cm.status}`}</span>}
+        {cm && (
+          <span>{`${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}`}</span>
+        )}
         <span className="min-w-0 truncate">
           {row.scorer ? (
             <Link href={`/org/${slug}/events/${eventId}/staff`} className="hover:underline">

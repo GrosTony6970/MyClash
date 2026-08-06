@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import type { useI18n } from '@/i18n/I18nProvider';
 import { deriveHealthState, DOT } from './live-board-state';
+import { matchStatusLabel } from './match-status';
 import type { BoardRow } from './types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -26,7 +27,11 @@ export function BoardRowView({
   const dim = state === 'synced' || state === 'idle' ? 'opacity-60' : '';
   const cm = row.currentMatch;
   return (
-    <li className={`flex items-center gap-3 py-2 text-sm ${dim}`}>
+    <li
+      className={`flex items-center gap-3 py-2 text-sm ${dim}`}
+      data-testid="live-row"
+      data-lice-name={row.lice.name}
+    >
       <span
         role="img"
         className={`h-3 w-3 shrink-0 rounded-full ${DOT[state]}`}
@@ -34,22 +39,23 @@ export function BoardRowView({
       />
       <Link
         href={`/org/${slug}/events/${eventId}/schedule`}
-        className="w-16 shrink-0 font-semibold text-foreground hover:underline"
+        className="w-32 shrink-0 truncate font-semibold text-foreground hover:underline"
+        title={row.lice.name}
       >
         {row.lice.name}
       </Link>
       {cm ? (
         <Link
           href={`/org/${slug}/events/${eventId}/matches/${cm.id}`}
-          className="flex-1 truncate text-foreground hover:underline"
+          className="min-w-0 flex-1 truncate text-foreground hover:underline"
         >
           {`${cm.redFighterName ?? '—'} ${cm.redScore}–${cm.blueScore} ${cm.blueFighterName ?? '—'}`}
         </Link>
       ) : (
-        <span className="flex-1 truncate text-muted">{t('organizer.live.state.idle')}</span>
+        <span className="min-w-0 flex-1 truncate text-muted">{t('organizer.live.state.idle')}</span>
       )}
-      <span className="w-24 shrink-0 text-muted">
-        {cm ? `${cm.round ? `R${cm.round} · ` : ''}${cm.status}` : ''}
+      <span className="w-24 shrink-0 truncate text-muted">
+        {cm ? `${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}` : ''}
       </span>
       <span className="w-28 shrink-0 truncate text-muted">
         {row.scorer ? (

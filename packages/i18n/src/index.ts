@@ -5586,6 +5586,17 @@ export const en = {
       nextLabel: 'Next',
       ack: 'Ack',
       reason: { medic: 'Medic', head_ref: 'Head ref', dispute: 'Dispute' },
+      // The `matches.status` DB enum, rendered in the board's status cell.
+      // Covers every value the CHECK constraint allows, not only the three
+      // the board can currently show — `completed` arrives with the bout
+      // history, and `voided` can reach the cell through a realtime patch.
+      matchStatus: {
+        scheduled: 'Scheduled',
+        running: 'Running',
+        paused: 'Paused',
+        completed: 'Finished',
+        voided: 'Voided',
+      },
       state: {
         attention: 'Needs attention',
         no_scorer: 'No scorer',
@@ -12965,6 +12976,13 @@ export const fr = {
         medic: 'Médecin',
         head_ref: 'Arbitre principal',
         dispute: 'Litige',
+      },
+      matchStatus: {
+        scheduled: 'Prévu',
+        running: 'En cours',
+        paused: 'En pause',
+        completed: 'Terminé',
+        voided: 'Annulé',
       },
       state: {
         attention: 'À traiter',
