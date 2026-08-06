@@ -33,10 +33,11 @@ test('print pack renders and builds a document from real tournament data', async
 
   // Minimum viable tournament: a piste, four fighters, a pool phase. Event
   // scoped, so global-teardown's event delete takes it with everything else.
-  await ok(
+  const liceRes = await ok(
     await request.post(api(`events/${eventId}/lices`), { data: { name: 'E2E Print Piste' } }),
     'create lice',
   );
+  const liceId = ((await liceRes.json()) as { id: string }).id;
 
   const personIds: string[] = [];
   for (let i = 0; i < 4; i += 1) {
@@ -70,6 +71,19 @@ test('print pack renders and builds a document from real tournament data', async
     'generate pools',
   );
 
+  // The piste sheet groups on `matches.lice_id`, which pool generation leaves
+  // null — creating the lice is not what puts bouts on it. This is the endpoint
+  // the organiser's own "assign a piste to this pool" control uses, and it
+  // stamps every match in the pool, which is what the sheet reads back.
+  const poolRows = (await (
+    await ok(await request.get(api(`tournaments/${tournamentId}/pools-with-matches`)), 'read pools')
+  ).json()) as Array<{ poolId?: string; id?: string; pool_id?: string }>;
+  const poolId = poolRows[0]?.poolId ?? poolRows[0]?.id ?? poolRows[0]?.pool_id;
+  await ok(
+    await request.put(api(`pools/${poolId}/lice`), { data: { liceId } }),
+    'assign pool to lice',
+  );
+
   await page.goto(`/org/${orgSlug}/events/${eventId}/print`);
 
   // Capture the document instead of opening a real print window.
@@ -88,7 +102,22 @@ test('print pack renders and builds a document from real tournament data', async
       }) as unknown as Window;
   });
 
+  // The page defaults to the FIRST tournament the event returns, which in a full
+  // suite run is whatever `02` left behind — a wizard draft with no pools, so the
+  // button is (correctly) disabled and every assertion below would be about the
+  // wrong tournament. Pick this spec's own. The picker only renders when the
+  // event holds more than one, so a solo run has nothing to choose.
+  //
+  // While either fetch is in flight the button is labelled "loading", so this
+  // locator resolving at all IS the settle signal — before the select and again
+  // after it, once the per-tournament refetch has landed.
   const printButton = page.getByRole('button', { name: /print|imprimer/i });
+  await expect(printButton).toBeVisible({ timeout: 15_000 });
+  const tournamentPicker = page.locator('main select');
+  if ((await tournamentPicker.count()) > 0) {
+    await tournamentPicker.selectOption({ label: 'E2E Print Cup' });
+  }
+
   await expect(printButton).toBeEnabled({ timeout: 15_000 });
   await printButton.click();
 
