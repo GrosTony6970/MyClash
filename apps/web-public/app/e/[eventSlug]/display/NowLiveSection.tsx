@@ -15,11 +15,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { isLiveStatus } from '@myclash/types';
+import { isLiveStatus, placementLabel, type HubLice } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
-import { placementLabel, type HubLice } from './lice-placement';
 
 interface LiveMatch {
   id: string;

@@ -11,6 +11,7 @@ export * from './final-ranking';
 export * from './html';
 export * from './league-ranking';
 export * from './legal';
+export * from './lice-placement';
 export * from './match-clock';
 export * from './match-status';
 export * from './password';

@@ -28,7 +28,7 @@ import {
   placementLabel,
   type HubLice,
   type LiceGroup,
-} from './lice-placement';
+} from '@myclash/types';
 
 interface Props {
   params: Promise<{ eventSlug: string }>;

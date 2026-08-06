@@ -1,14 +1,20 @@
 /**
- * lice-placement.ts — where a piste physically stands, for the display hub.
+ * lice-placement.ts — where a piste physically stands.
  *
  * A tournament can run in parallel across several halls, and a hall can be
  * split into named areas. The screen operator standing in one of those halls
  * needs the picker to say which lice are in front of them; a flat list of
  * bare names makes it guesswork.
  *
- * One owner for the hub's lice shape and its grouping, imported by both the
- * server page and the client Now Live section, so the two cannot drift on
- * how a venue reads or how the list is ordered.
+ * One owner for the lice placement shape and its grouping, so no two surfaces
+ * can drift on how a venue reads or how the list is ordered. Shared because the
+ * organizer's live board and wall group pistes exactly the way the public
+ * display hub does — an operator moving between the two must not have to
+ * re-learn the sections.
+ *
+ * `mapHubLice` is the raw-PostgREST entry point (web-public reads lice rows
+ * directly); callers with an already-projected API payload feed
+ * `groupLicesByPlacement` a `HubLice`-shaped object and skip it.
  */
 
 export interface LicePlace {
