@@ -13,7 +13,9 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -109,7 +111,12 @@ export class StaffController {
     return this.staff.setLices(eventId, staffAccountId, dto, userId);
   }
 
+  // Polled every 7s by every open Live board tab, and an event is run from
+  // several at once (control desk, head ref, a phone in the hall). On the
+  // global 120/min bucket three tabs behind one venue IP already sit at the
+  // ceiling; ADMIN_READ_THROTTLE is the profile written for exactly this.
   @Get('events/:eventId/live-board')
+  @Throttle(ADMIN_READ_THROTTLE)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Live control-room board: per-lice score + scorer + tablet health' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
