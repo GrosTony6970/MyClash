@@ -52,12 +52,9 @@ import { playTournamentToChampion, type FinishedTournament } from './_tournament
  * equal-rank branch of `computeRankingsFromContributions` is unreachable. The
  * alphabetical fallback is pinned instead.
  *
- * The three defects this spec found — the bulk unlink leaving its points
- * behind, the tie-break ordering by UUID, and the bulk link losing its group —
- * are fixed and green. The last assertion, that the bulk link still accepts a
- * request with NO body, is red until the deploy after them: giving that route a
- * Zod DTO class to carry the group put a validation pipe in front of it, and a
- * pipe fed an absent body rejects it before the handler runs.
+ * The three defects this spec found are fixed and green: the bulk unlink
+ * leaving its points behind, the tie-break ordering fighters by UUID, and the
+ * bulk link losing its group.
  */
 
 const LEAGUE = ['1', 'true', 'yes'].includes((process.env.E2E_LEAGUE ?? '').toLowerCase());
@@ -732,18 +729,24 @@ test.describe('league across several events', () => {
       'a bulk event link must land in the group it was given, not the unknown bucket',
     ).toBe(groupA.id);
 
-    // And the body stays OPTIONAL. "Link everything from this event" never
-    // needed one, so a caller that sends nothing must still be served — the
-    // regression that appears the moment this route is given a Zod DTO class,
-    // because the validation pipe rejects an absent body before the handler is
-    // reached. **Red until the API carrying that fix is deployed.**
-    const bodyless = await api.post(
+    // A group-less link into a league with SEVERAL groups has no right answer,
+    // so it is refused rather than guessed. This is the other half of the same
+    // fix: passing the group through only helps a caller who remembers to, so a
+    // link that omits it resolves — to the only group when there is one, to null
+    // when there are none, and to an error here, where either would be a guess.
+    const ambiguous = await api.post(
       `admin/leagues/${grouped.id}/events/${eventIdByKey.get('E2')}/link`,
+      { data: {} },
     );
-    expect(
-      bodyless.status(),
-      'the bulk link must accept a request with no body at all',
-    ).toBeLessThan(300);
+    expect(ambiguous.status(), 'a group-less link into a multi-group league is refused').toBe(400);
+    expect(await ambiguous.text()).toMatch(/several groups/i);
+
+    // The literal no-body case is NOT asserted, and cannot usefully be: a POST
+    // that declares `content-type: application/json` and sends nothing is
+    // rejected by Fastify's body parser — "Body cannot be empty…" — before Nest
+    // or any guard runs, and Playwright's request API always sets that header.
+    // The endpoint itself is happy without a body (curl with no content-type
+    // reaches the handler); the constraint belongs to the client, not the API.
   });
 
   test.afterAll(async () => {
