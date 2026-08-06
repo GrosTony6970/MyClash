@@ -99,3 +99,26 @@ against the home install (don't assume `_bmad/` is in the repo):
 `resolve_customization.py` auto-discovers this by walking up from the skill dir until it finds
 `_bmad/` or `.git/`, so it lands on `C:\Users\Tony` on its own — but the home-dir location is
 non-obvious, so check here first.
+
+---
+
+## Subagent routing
+
+Delegate without being asked when the work matches a row below. Prefer a skill when one covers the
+area — skills load in context and know this repo's conventions; an agent starts cold and is worth it
+when the task needs an independent pass over many files.
+
+| Work                                                                         | Delegate to                                                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Reviewing a finished slice before commit                                     | `code-architecture-reviewer`                                                                            |
+| Reviewing a plan before implementation                                       | `plan-reviewer`                                                                                         |
+| Architecture or trade-off calls on a non-trivial change                      | `principal-engineer`                                                                                    |
+| Planning a multi-file refactor                                               | `refactor-planner`                                                                                      |
+| Advanced TypeScript type-system work (`packages/types`, generics, inference) | `voltagent-lang:typescript-pro`                                                                         |
+| App Router / RSC boundary work in `apps/web-*`                               | `voltagent-lang:nextjs-developer` — targets Next 14, this repo is 16; cross-check `next-best-practices` |
+| React render/perf work in `packages/ui`                                      | `voltagent-lang:react-specialist` — targets React 18, this repo is 19                                   |
+| Postgres query and index optimisation                                        | `sql-pro` skill first; `voltagent-lang:sql-pro` for a deep pass                                         |
+
+Not a fit here — don't route to an agent for these: the NestJS API (use the `nestjs-best-practices`
+skill; no NestJS agent exists), gate failures (`myclash-gates`), and the `voltagent-meta:*`
+orchestration agents.
