@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
 
@@ -66,12 +67,10 @@ export class LiveStateService {
         .order('sort_order', { ascending: true }),
     ]);
 
-    const startDate = new Date(
-      ((eventRes.data as Record<string, unknown> | null)?.['start_date'] as string) ?? '',
+    const dayIndex = dayIndexFor(
+      (eventRes.data as Record<string, unknown> | null)?.['start_date'] as string | null,
+      now.getTime(),
     );
-    const dayIndex = isNaN(startDate.getTime())
-      ? 0
-      : Math.max(0, Math.floor((now.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)));
 
     const lices = (licesRes.data ?? []) as { id: string; name: string; sort_order: number }[];
 
@@ -83,19 +82,7 @@ export class LiveStateService {
       .order('sort_order', { ascending: true });
 
     const blocks = (blocksData ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
-    const nowHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    let currentBlock: ProgrammeBlock | null = null;
-    let nextBlock: ProgrammeBlock | null = null;
-    for (const block of blocks) {
-      const start = block.startTime.slice(0, 5);
-      const end = block.endTime.slice(0, 5);
-      if (start <= nowHHMM && nowHHMM <= end) {
-        currentBlock = block;
-      } else if (start > nowHHMM && !nextBlock) {
-        nextBlock = block;
-      }
-    }
+    const { current: currentBlock, next: nextBlock } = selectProgrammeBlocks(blocks, toHHMM(now));
 
     const liceIds = lices.map((l) => l.id);
     let matchRows: Record<string, unknown>[] = [];

@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 import { fetchRefereeAssignmentIndex } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
+import type { ResolvedReferee } from '../matches/resolve-match-referees';
 import {
   LICE_MATCH_SELECT,
   LICE_MATCH_STATUSES,
@@ -29,10 +30,16 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { StaffJwtService } from './staff-jwt.service';
 import {
   assembleBoardRows,
+  buildBoardAccounts,
+  buildBoardTiming,
+  resolveBoardReferees,
   type BoardAccountInput,
-  type BoardRow,
+  type RawBoardLice,
   type RawBoardMatch,
+  type RawCompletedMatch,
 } from './live-board';
+import type { LiveBoardPayload, LiveBoardProgress, LiveBoardTiming } from './live-board-payload';
+import { dayIndexFor } from '../schedule/select-programme-block';
 import { normalizeTournamentLockConfig } from '../events/tournament-config';
 import type {
   CreateStaffAccountDto,
@@ -58,6 +65,8 @@ type EventRow = {
   slug: string;
   name: string;
   status: string;
+  /** Day 0 of the programme — the basis for which block is running now. */
+  start_date: string | null;
   end_date: string;
 };
 
@@ -271,56 +280,194 @@ export class StaffService {
    * scorer's needs-attention flag. Event-scoped (not match-scoped): resolve the
    * event's organization and require an org role, mirroring the scoring helpers.
    */
-  async getLiveBoard(req: FastifyRequest, eventId: string): Promise<{ rows: BoardRow[] }> {
+  async getLiveBoard(req: FastifyRequest, eventId: string): Promise<LiveBoardPayload> {
     const userId = await this.getSupabaseUserId(req);
     if (!userId) throw new UnauthorizedException('Organizer session required');
     const event = await this.getEventById(eventId);
     await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
 
+    const now = new Date();
     const { data: lices, error: liceErr } = await this.supabase.service
       .from('lices')
-      .select('id,name,sort_order')
+      // Inline literal, not a constant: the db-schema-conformance sweep only
+      // reads select strings it can see at the call site, so hoisting one into
+      // a named constant quietly drops every column in it from the gate. It is
+      // `color_hex` — there is no `lices.color` column.
+      .select('id,name,sort_order,location_label,color_hex,venues(id,name),venue_areas(id,name)')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     if (liceErr) throw new BadRequestException(liceErr.message);
-    const liceRows = (lices ?? []) as Array<{ id: string; name: string; sort_order: number }>;
+    const liceRows = (lices ?? []) as unknown as RawBoardLice[];
     const liceIds = liceRows.map((l) => l.id);
 
-    let matches: RawBoardMatch[] = [];
-    if (liceIds.length > 0) {
-      const { data, error } = await this.supabase.service
-        .from('matches')
-        .select(
-          'id,lice_id,status,red_score,blue_score,match_number_label,bracket_slots(round),swiss_rounds(round_number),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
-        )
-        .in('lice_id', liceIds)
-        .in('status', ['running', 'paused', 'scheduled'])
-        .order('status', { ascending: true })
-        .order('scheduled_at', { ascending: true, nullsFirst: false });
-      if (error) throw new BadRequestException(error.message);
-      matches = (data ?? []) as unknown as RawBoardMatch[];
-    }
-
-    const { data: accounts, error: accErr } = await this.supabase.service
-      .from('event_staff_accounts')
-      .select(
-        'id,display_name,last_seen_at,outbox_depth,oldest_pending_age_seconds,rejected_count,needs_attention,needs_attention_reason',
-      )
-      .eq('event_id', eventId);
-    if (accErr) throw new BadRequestException(accErr.message);
-
-    const assignments = await this.listAssignmentsForEvent(eventId);
+    const input = await this.loadLiveBoardInputs(eventId, event.start_date ?? null, liceIds, now);
 
     const rows = assembleBoardRows({
       lices: liceRows,
+      matches: input.matches,
+      recentCompleted: input.recentCompleted,
+      accounts: input.accounts,
+      assignments: input.assignments,
+      refereesByMatchId: input.refereesByMatchId,
+    });
+
+    return {
+      rows,
+      timing: input.timing,
+      progress: input.progress,
+      accounts: buildBoardAccounts(input.accounts, input.assignments),
+    };
+  }
+
+  /**
+   * Everything the board needs beyond the lices, in ONE round of parallel
+   * queries.
+   *
+   * The lices have to be awaited first (their ids scope five of these), but
+   * nothing below depends on anything else below. That turns the old four
+   * serial hops into two — more queries, less wall clock.
+   */
+  private async loadLiveBoardInputs(
+    eventId: string,
+    startDate: string | null,
+    liceIds: string[],
+    now: Date,
+  ): Promise<{
+    matches: RawBoardMatch[];
+    recentCompleted: RawCompletedMatch[];
+    accounts: BoardAccountInput[];
+    assignments: Array<{ staff_account_id: string; lice_id: string }>;
+    refereesByMatchId: Map<string, ResolvedReferee[]>;
+    timing: LiveBoardTiming;
+    progress: LiveBoardProgress;
+  }> {
+    const db = this.supabase.service;
+
+    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, blocksRes, progress] =
+      await Promise.all([
+        this.queryBoardMatches(liceIds),
+        this.queryCompletedTail(liceIds),
+        this.queryBoardAccounts(eventId),
+        this.listAssignmentsForEvent(eventId),
+        fetchRefereeAssignmentIndex(db, eventId),
+        this.queryProgrammeBlocks(eventId, dayIndexFor(startDate, now.getTime())),
+        this.countBoutProgress(eventId),
+      ]);
+
+    if (matchesRes?.error) throw new BadRequestException(matchesRes.error.message);
+    if (completedRes?.error) throw new BadRequestException(completedRes.error.message);
+    if (accountsRes.error) throw new BadRequestException(accountsRes.error.message);
+
+    const matches = (matchesRes?.data ?? []) as unknown as RawBoardMatch[];
+
+    return {
       matches,
-      accounts: (accounts ?? []) as unknown as BoardAccountInput[],
+      recentCompleted: (completedRes?.data ?? []) as unknown as RawCompletedMatch[],
+      accounts: (accountsRes.data ?? []) as unknown as BoardAccountInput[],
       assignments: assignments.map((a) => ({
         staff_account_id: a.staff_account_id,
         lice_id: a.lice_id,
       })),
-    });
-    return { rows };
+      refereesByMatchId: resolveBoardReferees(matches, liceIds, refereeRows),
+      timing: buildBoardTiming(blocksRes.data as Array<Record<string, unknown>> | null, now),
+      progress,
+    };
+  }
+
+  /** Every staff account on the event, with its tablet health metrics. */
+  private queryBoardAccounts(eventId: string) {
+    return this.supabase.service
+      .from('event_staff_accounts')
+      .select(
+        'id,display_name,username,status,last_seen_at,outbox_depth,oldest_pending_age_seconds,rejected_count,needs_attention,needs_attention_reason',
+      )
+      .eq('event_id', eventId);
+  }
+
+  /** The programme for the day now running, in sort order. */
+  private queryProgrammeBlocks(eventId: string, dayIndex: number) {
+    return this.supabase.service
+      .from('event_programme_blocks')
+      .select('id,label,start_time,end_time,match_duration_minutes,sort_order')
+      .eq('event_id', eventId)
+      .eq('day_index', dayIndex)
+      .order('sort_order', { ascending: true });
+  }
+
+  /** The bouts occupying or queued on each piste. */
+  private queryBoardMatches(liceIds: string[]) {
+    if (liceIds.length === 0) return null;
+    return (
+      this.supabase.service
+        .from('matches')
+        // `pools(name)` hangs off matches.pool_id — `pools` has no event_id, so
+        // the embed is the only route to a pool name here.
+        // `phases(type,tournaments(name))` mirrors live-state.service.ts.
+        .select(
+          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,bracket_slots(round),swiss_rounds(round_number),pools(name),phases(type,tournaments(name)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+        )
+        .in('lice_id', liceIds)
+        .in('status', ['running', 'paused', 'scheduled'])
+        // Single ORDER BY on purpose. The old query also ordered by `status`,
+        // which sorts ALPHABETICALLY — 'completed' before 'paused' before
+        // 'running' — so it was never the precedence it looked like. All status
+        // precedence now lives in the pure, unit-tested assembleBoardRows.
+        .order('scheduled_at', { ascending: true, nullsFirst: false })
+    );
+  }
+
+  /**
+   * The finished tail, bounded regardless of event size.
+   *
+   * Two per piste is ample to guarantee a `lastCompleted` for each, where
+   * widening the main filter to `completed` would ship the whole day's card
+   * every 7 seconds to every open tab.
+   */
+  private queryCompletedTail(liceIds: string[]) {
+    if (liceIds.length === 0) return null;
+    return (
+      this.supabase.service
+        .from('matches')
+        // Only pickLastCompleted reads these, so the tail stays narrow — no
+        // fighter embeds or round joins for bouts nobody is watching.
+        .select('id,lice_id,match_number_label,scheduled_at,ended_at')
+        .in('lice_id', liceIds)
+        .eq('status', 'completed')
+        .order('ended_at', { ascending: false, nullsFirst: false })
+        .limit(liceIds.length * 2)
+    );
+  }
+
+  /**
+   * Bouts done vs bouts that count, event-wide.
+   *
+   * Two head-only counts: no rows cross the wire, and the answer stays exact on
+   * an 800-bout event. Voided bouts are excluded from both sides — a cancelled
+   * bout is not work remaining, so counting it would leave the board stuck
+   * short of 100% all day.
+   *
+   * `matches` has NO event_id column. The only route from a match to its event
+   * is phase_id → phases.tournament_id → tournaments.event_id, so the filter
+   * goes through `!inner` embeds; a direct .eq('event_id') 400s on the unknown
+   * column and takes the whole query with it. Same constraint, same shape as
+   * deletion-requests.service.ts.
+   */
+  private async countBoutProgress(eventId: string): Promise<LiveBoardProgress> {
+    const db = this.supabase.service;
+    const scoped = 'id, phases!inner(tournaments!inner(event_id))';
+    const [done, total] = await Promise.all([
+      db
+        .from('matches')
+        .select(scoped, { count: 'exact', head: true })
+        .eq('phases.tournaments.event_id', eventId)
+        .eq('status', 'completed'),
+      db
+        .from('matches')
+        .select(scoped, { count: 'exact', head: true })
+        .eq('phases.tournaments.event_id', eventId)
+        .neq('status', 'voided'),
+    ]);
+    return { completed: done.count ?? 0, total: total.count ?? 0 };
   }
 
   /**
@@ -884,7 +1031,7 @@ export class StaffService {
   private async getEventById(eventId: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id,organization_id,slug,name,status,end_date')
+      .select('id,organization_id,slug,name,status,start_date,end_date')
       .eq('id', eventId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -895,7 +1042,7 @@ export class StaffService {
   private async findEventBySlug(slug: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id,organization_id,slug,name,status,end_date')
+      .select('id,organization_id,slug,name,status,start_date,end_date')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
