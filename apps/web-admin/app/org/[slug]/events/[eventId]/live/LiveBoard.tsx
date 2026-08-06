@@ -1,13 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSecondsClock } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { useLiveBoard } from './useLiveBoard';
-import { partitionByHealth, sortBoardRows } from './live-board-state';
+import { deriveHealthState, partitionByHealth, sortBoardRows } from './live-board-state';
+import type { HealthState } from './live-board-state';
+import { fallbackTiming } from './live-board-timing';
 import { BoardRowView } from './BoardRowView';
 import { BoardCard } from './BoardCard';
 import { BoardSummary } from './BoardSummary';
-import type { MatchChange } from './types';
+import type { BoardRow, MatchChange } from './types';
 
 // One channel per lice (stable set). `matches` is scoped by lice_id (no
 // event_id column), so we subscribe per lice and patch that lice's current
@@ -43,16 +47,42 @@ function LiceRealtime({
 
 export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) {
   const { t } = useI18n();
-  const { rows, error, acknowledge, applyMatchChange } = useLiveBoard(eventId);
+  const { rows, timing, progress, error, acknowledge, applyMatchChange } = useLiveBoard(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
   const [showHealthy, setShowHealthy] = useState(false);
+
+  // Subscribed once, at the root. The elapsed readouts tick at 1 Hz, so a
+  // per-row subscription would re-render every row's subtree on every tick for
+  // a value the row is handed anyway.
+  const { nowMs } = useSecondsClock(getPublicApiUrl());
+  const clock = timing ?? fallbackTiming(nowMs);
+
+  // One state per row per tick. deriveHealthState used to run three times per
+  // row per render (sort, partition, row); this makes it once, and guarantees
+  // the sort, the fold and the dot all agree on the same instant.
+  const stateByLice = useMemo(() => {
+    const map = new Map<string, HealthState>();
+    for (const row of rows ?? []) {
+      map.set(
+        row.lice.id,
+        deriveHealthState({
+          row,
+          nowMs,
+          matchDurationMinutes: clock.matchDurationMinutes,
+        }),
+      );
+    }
+    return map;
+  }, [rows, nowMs, clock.matchDurationMinutes]);
+
+  const stateOf = (row: BoardRow): HealthState => stateByLice.get(row.lice.id) ?? 'unknown';
 
   if (error === 'forbidden')
     return <p className="p-6 text-muted">{t('organizer.live.forbidden')}</p>;
   if (!rows) return <p className="p-6 text-muted">{t('common.loading')}</p>;
 
-  const sorted = sortBoardRows(rows, mode);
-  const { problems, healthy } = partitionByHealth(sorted);
+  const sorted = sortBoardRows(rows, mode, stateOf);
+  const { problems, healthy } = partitionByHealth(sorted, stateOf);
   const attentionCount = rows.filter((r) => r.attention).length;
 
   return (
@@ -63,8 +93,12 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
       ))}
 
       <BoardSummary
-        pistes={rows.length}
+        rows={rows}
+        stateOf={stateOf}
         attention={attentionCount}
+        progress={progress}
+        nowMs={nowMs}
+        matchDurationMinutes={clock.matchDurationMinutes}
         mode={mode}
         onModeChange={setMode}
         stale={error === 'refresh'}
@@ -77,6 +111,9 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
           <BoardRowView
             key={row.lice.id}
             row={row}
+            state={stateOf(row)}
+            nowMs={nowMs}
+            matchDurationMinutes={clock.matchDurationMinutes}
             slug={slug}
             eventId={eventId}
             onAck={(id) => void acknowledge(id)}
@@ -92,6 +129,9 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
             <BoardCard
               key={row.lice.id}
               row={row}
+              state={stateOf(row)}
+              nowMs={nowMs}
+              matchDurationMinutes={clock.matchDurationMinutes}
               slug={slug}
               eventId={eventId}
               onAck={(id) => void acknowledge(id)}
@@ -117,6 +157,9 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                   <BoardCard
                     key={row.lice.id}
                     row={row}
+                    state={stateOf(row)}
+                    nowMs={nowMs}
+                    matchDurationMinutes={clock.matchDurationMinutes}
                     slug={slug}
                     eventId={eventId}
                     onAck={(id) => void acknowledge(id)}

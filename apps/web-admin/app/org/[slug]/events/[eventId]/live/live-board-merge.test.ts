@@ -1,26 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { mergeRealtimePatch } from './live-board-merge';
+import { mkMatch, mkRow } from './live-board.fixtures';
 import type { BoardRow } from './types';
 
 function row(matchId: string | null): BoardRow {
-  return {
-    lice: { id: 'L1', name: 'P1', sortOrder: 0 },
-    currentMatch: matchId
-      ? {
-          id: matchId,
-          redFighterName: 'A',
-          blueFighterName: 'B',
-          redScore: 0,
-          blueScore: 0,
-          status: 'running',
-          round: 1,
-        }
-      : null,
+  return mkRow({
+    currentMatch: matchId ? mkMatch({ id: matchId, round: 1 }) : null,
     scorer: null,
     health: null,
-    attention: null,
-    nextUp: null,
-  };
+  });
 }
 
 describe('mergeRealtimePatch', () => {
@@ -46,6 +34,13 @@ describe('mergeRealtimePatch', () => {
 
   it('flags shouldRefetch when the current match completes (rollover)', () => {
     const res = mergeRealtimePatch([row('m1')], { id: 'm1', status: 'completed' });
+    expect(res.shouldRefetch).toBe(true);
+  });
+
+  it('flags shouldRefetch when the current match is voided', () => {
+    // The other rollover trigger, and the one the board silently stopped
+    // refetching on would leave a voided bout on screen until the next poll.
+    const res = mergeRealtimePatch([row('m1')], { id: 'm1', status: 'void' });
     expect(res.shouldRefetch).toBe(true);
   });
 });

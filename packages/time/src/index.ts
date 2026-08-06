@@ -264,6 +264,24 @@ export function formatDayCount(count: number, locale: AppLocale): string {
   }).format(count);
 }
 
+/**
+ * A span in whole minutes with the locale's own plural form ("1 min", "12 min",
+ * "12 minutes"). For operational lateness — "started 6 min late", "over by
+ * 3 min" — where the interesting resolution is minutes, not seconds.
+ *
+ * `short` rather than `long`: these sit inline in a dense board row, and a
+ * sub-minute span rounds up to 1 rather than reading "0 min", because a piste
+ * reported as late is late by something.
+ */
+export function formatMinuteSpan(ms: number, locale: AppLocale): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  return new Intl.NumberFormat(localeToBcp47(locale), {
+    style: 'unit',
+    unit: 'minute',
+    unitDisplay: 'short',
+  }).format(minutes);
+}
+
 function formatLocalized(
   iso: string | null | undefined,
   locale: AppLocale,

@@ -5597,6 +5597,17 @@ export const en = {
         completed: 'Finished',
         voided: 'Voided',
       },
+      counts: '{running} running · {idle} idle',
+      behind: '{count} behind',
+      progress: '{done}/{total} bouts',
+      projectedFinish: 'Ends ~{time}',
+      // Spans arrive pre-formatted from @myclash/time (Intl unit), so these
+      // keys carry only {span} — t() has no plural forms of its own.
+      timing: {
+        over: 'over by {span}',
+        startedLate: 'started {span} late',
+        due: 'due {span} ago',
+      },
       state: {
         attention: 'Needs attention',
         no_scorer: 'No scorer',
@@ -5605,6 +5616,8 @@ export const en = {
         unknown: 'Health unknown',
         synced: 'Synced',
         idle: 'Idle',
+        idle_stalled: 'Piste stalled',
+        late: 'Behind schedule',
       },
     },
     eventStats: {
@@ -12984,6 +12997,15 @@ export const fr = {
         completed: 'Terminé',
         voided: 'Annulé',
       },
+      counts: '{running} en cours · {idle} inactives',
+      behind: '{count} en retard',
+      progress: '{done}/{total} assauts',
+      projectedFinish: 'Fin ~{time}',
+      timing: {
+        over: 'dépasse de {span}',
+        startedLate: 'commencé avec {span} de retard',
+        due: 'attendu il y a {span}',
+      },
       state: {
         attention: 'À traiter',
         no_scorer: 'Aucun marqueur',
@@ -12992,6 +13014,8 @@ export const fr = {
         unknown: 'État inconnu',
         synced: 'Synchronisé',
         idle: 'Inactif',
+        idle_stalled: 'Piste à l’arrêt',
+        late: 'En retard',
       },
     },
     eventStats: {

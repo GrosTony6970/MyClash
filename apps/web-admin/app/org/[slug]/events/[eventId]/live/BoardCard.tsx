@@ -1,7 +1,9 @@
 'use client';
 import Link from 'next/link';
-import type { useI18n } from '@/i18n/I18nProvider';
-import { deriveHealthState, DOT } from './live-board-state';
+import { useI18n } from '@/i18n/I18nProvider';
+import { DOT } from './live-board-state';
+import type { HealthState } from './live-board-state';
+import { timingReadout } from './board-timing-labels';
 import { matchStatusLabel } from './match-status';
 import type { BoardRow } from './types';
 
@@ -13,19 +15,26 @@ type T = ReturnType<typeof useI18n>['t'];
 // so a card never forces horizontal scroll.
 export function BoardCard({
   row,
+  state,
+  nowMs,
+  matchDurationMinutes,
   slug,
   eventId,
   onAck,
   t,
 }: {
   row: BoardRow;
+  state: HealthState;
+  nowMs: number;
+  matchDurationMinutes: number;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
   t: T;
 }) {
-  const state = deriveHealthState(row);
+  const { locale } = useI18n();
   const cm = row.currentMatch;
+  const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
   return (
     <li
       className="flex flex-col gap-1.5 py-3"
@@ -68,6 +77,10 @@ export function BoardCard({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
         {cm && (
           <span>{`${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}`}</span>
+        )}
+        {timing.clock && <span className="tabular-nums text-foreground">{timing.clock}</span>}
+        {timing.behind && (
+          <span className={timing.warn ? 'text-warning' : undefined}>{timing.behind}</span>
         )}
         <span className="min-w-0 truncate">
           {row.scorer ? (

@@ -1,7 +1,15 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { mergeRealtimePatch } from './live-board-merge';
-import type { BoardRow, MatchChange } from './types';
+import { fallbackTiming } from './live-board-timing';
+import type {
+  BoardRow,
+  LiveBoardAccount,
+  LiveBoardPayload,
+  LiveBoardProgress,
+  LiveBoardTiming,
+  MatchChange,
+} from './types';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const API = getPublicApiUrl();
@@ -17,6 +25,9 @@ const API = getPublicApiUrl();
  */
 export function useLiveBoard(eventId: string) {
   const [rows, setRows] = useState<BoardRow[] | null>(null);
+  const [timing, setTiming] = useState<LiveBoardTiming | null>(null);
+  const [progress, setProgress] = useState<LiveBoardProgress | null>(null);
+  const [accounts, setAccounts] = useState<LiveBoardAccount[]>([]);
   const [error, setError] = useState<'refresh' | 'forbidden' | null>(null);
 
   const refetch = useCallback(async () => {
@@ -32,8 +43,14 @@ export function useLiveBoard(eventId: string) {
         setError('refresh');
         return;
       }
-      const data = (await res.json()) as { rows: BoardRow[] };
-      setRows(data.rows);
+      const data = (await res.json()) as Partial<LiveBoardPayload>;
+      setRows(data.rows ?? []);
+      // `timing` is defaulted rather than required: a web-admin container can
+      // deploy ahead of the API, and a board that renders no clock at all is a
+      // worse failure than one measuring against a 5-minute default.
+      setTiming(data.timing ?? fallbackTiming(Date.now()));
+      setProgress(data.progress ?? null);
+      setAccounts(data.accounts ?? []);
       setError(null);
     } catch {
       setError('refresh'); // keep last-known rows, never blank
@@ -87,5 +104,5 @@ export function useLiveBoard(eventId: string) {
     [eventId, refetch],
   );
 
-  return { rows, error, refetch, acknowledge, applyMatchChange };
+  return { rows, timing, progress, accounts, error, refetch, acknowledge, applyMatchChange };
 }

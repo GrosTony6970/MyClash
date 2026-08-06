@@ -1,7 +1,9 @@
 'use client';
 import Link from 'next/link';
-import type { useI18n } from '@/i18n/I18nProvider';
-import { deriveHealthState, DOT } from './live-board-state';
+import { useI18n } from '@/i18n/I18nProvider';
+import { DOT, isHealthy } from './live-board-state';
+import type { HealthState } from './live-board-state';
+import { timingReadout } from './board-timing-labels';
 import { matchStatusLabel } from './match-status';
 import type { BoardRow } from './types';
 
@@ -12,20 +14,28 @@ type T = ReturnType<typeof useI18n>['t'];
 // table would, without the markup cost of one.
 export function BoardRowView({
   row,
+  state,
+  nowMs,
+  matchDurationMinutes,
   slug,
   eventId,
   onAck,
   t,
 }: {
   row: BoardRow;
+  /** Derived once per tick by the board, so every surface agrees on the instant. */
+  state: HealthState;
+  nowMs: number;
+  matchDurationMinutes: number;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
   t: T;
 }) {
-  const state = deriveHealthState(row);
-  const dim = state === 'synced' || state === 'idle' ? 'opacity-60' : '';
+  const { locale } = useI18n();
+  const dim = isHealthy(state) ? 'opacity-60' : '';
   const cm = row.currentMatch;
+  const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
   return (
     <li
       className={`flex items-center gap-3 py-2 text-sm ${dim}`}
@@ -56,6 +66,15 @@ export function BoardRowView({
       )}
       <span className="w-24 shrink-0 truncate text-muted">
         {cm ? `${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}` : ''}
+      </span>
+      <span className="w-28 shrink-0 truncate tabular-nums">
+        {timing.clock && <span className="text-foreground">{timing.clock}</span>}
+        {timing.behind && (
+          <span className={timing.warn ? 'text-warning' : 'text-muted'}>
+            {timing.clock ? ' · ' : ''}
+            {timing.behind}
+          </span>
+        )}
       </span>
       <span className="w-28 shrink-0 truncate text-muted">
         {row.scorer ? (
