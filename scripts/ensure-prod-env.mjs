@@ -13,6 +13,9 @@ const SAMPLE_VALUES = new Map([
   ['DOMAIN', new Set(['yourdomain.com'])],
   ['LETSENCRYPT_EMAIL', new Set(['webmaster@example.com'])],
   ['TRAEFIK_DASHBOARD_AUTH', new Set(['admin:$$2y$$05$$changeme'])],
+  // No sample value — the example ships it empty. Present only so the pair below
+  // is declared in one place with its hash.
+  ['TRAEFIK_DASHBOARD_PASSWORD', new Set([''])],
   ['COOKIE_SECRET', new Set(['change-me-cookie-secret'])],
   ['SUPABASE_URL', new Set(['http://localhost:8000'])],
   ['POSTGRES_PASSWORD', new Set(['change-me-strong-password', 'dev-password'])],
@@ -193,6 +196,32 @@ async function ensureEnvFile(envPath, examplePath) {
   return true;
 }
 
+/**
+ * The htpasswd hash is derived from the plaintext, so the two keys are one
+ * value in two forms and must be written in the same pass. Regenerating when
+ * EITHER is sample-or-missing is what keeps them from drifting into a dashboard
+ * nobody can open: an .env carrying a real hash but no plaintext (every .env
+ * written before this key existed) gets one rotation, printed by deploy.sh's
+ * Deployment secrets section like any other new credential.
+ *
+ * Stored rather than only printed because the hash is one-way — the edge probe
+ * (`pnpm infra:plugins -- --deep`) reads the Traefik API through the
+ * basic-auth-gated dashboard router, and an operator who lost the one-time
+ * printout could never open the dashboard again either. Same reasoning as
+ * SEED_ADMIN_PASSWORD.
+ */
+function applyTraefikDashboardPair(state) {
+  const stale =
+    isSampleOrMissing('TRAEFIK_DASHBOARD_AUTH', state.values.get('TRAEFIK_DASHBOARD_AUTH')) ||
+    isSampleOrMissing('TRAEFIK_DASHBOARD_PASSWORD', state.values.get('TRAEFIK_DASHBOARD_PASSWORD'));
+  if (!stale) return;
+
+  const dashboardAuth = generateTraefikDashboardAuth();
+  applyValue(state, 'TRAEFIK_DASHBOARD_AUTH', dashboardAuth.envValue);
+  applyValue(state, 'TRAEFIK_DASHBOARD_PASSWORD', dashboardAuth.credential.password);
+  state.generatedCredentials.push(dashboardAuth.credential);
+}
+
 export async function ensureProdEnv(envPath = '.env', options = {}) {
   const examplePath = options.examplePath ?? '.env.example';
   const created = await ensureEnvFile(envPath, examplePath);
@@ -207,11 +236,7 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
   };
   state.values = parseEnv(state.content);
 
-  if (isSampleOrMissing('TRAEFIK_DASHBOARD_AUTH', state.values.get('TRAEFIK_DASHBOARD_AUTH'))) {
-    const dashboardAuth = generateTraefikDashboardAuth();
-    applyValue(state, 'TRAEFIK_DASHBOARD_AUTH', dashboardAuth.envValue);
-    state.generatedCredentials.push(dashboardAuth.credential);
-  }
+  applyTraefikDashboardPair(state);
 
   for (const [key, generate] of Object.entries(SECRET_GENERATORS)) {
     if (isSampleOrMissing(key, state.values.get(key))) {

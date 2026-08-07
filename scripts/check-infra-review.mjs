@@ -802,17 +802,19 @@ for (const expected of [
   'VAPID_PRIVATE_KEY',
   'SEED_ADMIN_PASSWORD',
   'TRAEFIK_DASHBOARD_AUTH',
-  'Generated plaintext credentials (not stored in .env):',
+  'TRAEFIK_DASHBOARD_PASSWORD',
+  'Generated plaintext credentials (also saved to .env on this server):',
   '${service}_PASSWORD',
 ]) {
   if (!deployText.includes(expected)) {
     errors.push(`deploy.sh final Deployment secrets section is missing ${expected}.`);
   }
 }
-if (!deployText.includes('Existing Traefik dashboard plaintext password cannot be recovered')) {
-  errors.push(
-    'deploy.sh must explain that existing Traefik plaintext passwords cannot be recovered.',
-  );
+// The hash in TRAEFIK_DASHBOARD_AUTH is one-way, so the plaintext is stored
+// beside it and deploy.sh must say where — an operator who cannot find the
+// dashboard password has no way to derive it.
+if (!deployText.includes('is in .env as TRAEFIK_DASHBOARD_PASSWORD')) {
+  errors.push('deploy.sh must say where the current Traefik dashboard password is stored.');
 }
 for (const expected of [
   'PGPASSWORD="$POSTGRES_PASSWORD"',

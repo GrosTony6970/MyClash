@@ -113,6 +113,17 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
     ),
     true,
   );
+  // The plaintext is persisted, not only printed — and it is the SAME value the
+  // hash was derived from. Asserting the round-trip against .env (not against
+  // the returned credential) is what catches the two keys drifting apart.
+  assert.equal(values.get('TRAEFIK_DASHBOARD_PASSWORD'), result.generatedCredentials[0]?.password);
+  assert.equal(
+    verifyHtpasswdSha(
+      values.get('TRAEFIK_DASHBOARD_AUTH'),
+      values.get('TRAEFIK_DASHBOARD_PASSWORD'),
+    ),
+    true,
+  );
   assert.notEqual(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'change-me-realtime-db-enc-key');
   assertRealtimeDbEncKey(values.get('SUPABASE_REALTIME_DB_ENC_KEY'));
   assert.notEqual(values.get('OPS_RUNNER_SECRET'), 'change-me-ops-runner-secret');
@@ -175,6 +186,7 @@ test('preserves real existing values', async () => {
       'DOMAIN=existing.example',
       'LETSENCRYPT_EMAIL=ops@existing.example',
       'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'TRAEFIK_DASHBOARD_PASSWORD=real-dashboard-password',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
@@ -204,6 +216,7 @@ test('preserves real existing values', async () => {
 
   assert.equal(values.get('POSTGRES_PASSWORD'), 'real-db-password');
   assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
+  assert.equal(values.get('TRAEFIK_DASHBOARD_PASSWORD'), 'real-dashboard-password');
   assert.equal(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'validrealtimekey');
   assert.equal(values.get('SUPABASE_ANON_KEY'), 'real-anon-token');
   assert.equal(values.get('VAPID_PUBLIC_KEY'), 'real-vapid-public');
@@ -220,6 +233,7 @@ test('appends generated realtime DB encryption key to existing old env files', a
       'DOMAIN=existing.example',
       'LETSENCRYPT_EMAIL=ops@existing.example',
       'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'TRAEFIK_DASHBOARD_PASSWORD=real-dashboard-password',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
@@ -249,6 +263,61 @@ test('appends generated realtime DB encryption key to existing old env files', a
   assert.ok(result.generated.includes('SUPABASE_REALTIME_DB_ENC_KEY'));
   assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
   assert.deepEqual(result.generatedCredentials, []);
+});
+
+// Every .env written before TRAEFIK_DASHBOARD_PASSWORD existed carries a real
+// hash and no plaintext. The hash is one-way, so the pair cannot be repaired —
+// only regenerated, together. Half a pair would leave a dashboard nobody can
+// open, which is why the guard triggers on EITHER key.
+test('rotates the dashboard pair when the hash is real but the plaintext is missing', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'myclash-prod-env-'));
+  const envPath = path.join(dir, '.env');
+  await writeFile(
+    envPath,
+    [
+      'DOMAIN=existing.example',
+      'LETSENCRYPT_EMAIL=ops@existing.example',
+      'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'POSTGRES_PASSWORD=real-db-password',
+      'COOKIE_SECRET=real-cookie-secret',
+      'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
+      'SUPABASE_REALTIME_SECRET=real-realtime-secret-with-more-than-64-characters-xxxxxxxxxxxxxxxx',
+      'SUPABASE_REALTIME_DB_ENC_KEY=validrealtimekey',
+      'SUPABASE_ANON_KEY=real-anon-token',
+      'SUPABASE_SERVICE_ROLE_KEY=real-service-token',
+      'MYCLASH_GUEST_JWT_SECRET=real-guest-secret',
+      'MYCLASH_STAFF_JWT_SECRET=real-staff-secret',
+      'RESEND_API_KEY=re_real_key',
+      'MAIL_FROM=noreply@existing.example',
+      'SMTP_PASS=re_real_key',
+      'SEED_ADMIN_EMAIL=admin@existing.example',
+      'BACKUP_SCW_ACCESS_KEY=scw_access',
+      'BACKUP_SCW_SECRET_KEY=scw_secret',
+      'BACKUP_SCW_BUCKET=myclash-backups',
+      'GOOGLE_OAUTH_ENABLED=false',
+      'VAPID_PUBLIC_KEY=real-vapid-public',
+      'VAPID_PRIVATE_KEY=real-vapid-private',
+      'VAPID_SUBJECT=mailto:push@existing.example',
+      '',
+    ].join('\n'),
+  );
+
+  const result = await ensureProdEnv(envPath, { nonInteractive: true });
+  const values = parseEnv(await readFile(envPath, 'utf8'));
+
+  assert.notEqual(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
+  assert.ok(values.get('TRAEFIK_DASHBOARD_PASSWORD'));
+  assert.equal(
+    verifyHtpasswdSha(
+      values.get('TRAEFIK_DASHBOARD_AUTH'),
+      values.get('TRAEFIK_DASHBOARD_PASSWORD'),
+    ),
+    true,
+  );
+  // Rotating silently would lock the operator out: the new password has to reach
+  // the Deployment secrets section.
+  assert.equal(result.generatedCredentials.length, 1);
+  assert.equal(result.generatedCredentials[0]?.password, values.get('TRAEFIK_DASHBOARD_PASSWORD'));
 });
 
 test('fails non-interactive mode when human-owned values are missing', async () => {

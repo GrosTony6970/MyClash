@@ -211,7 +211,7 @@ print_secret_key() {
 print_generated_credentials() {
   [[ -n "${GENERATED_CREDENTIALS:-}" ]] || return 0
 
-  warn "Generated plaintext credentials (not stored in .env):"
+  warn "Generated plaintext credentials (also saved to .env on this server):"
   while IFS=$'\t' read -r service username password; do
     [[ -n "$service" ]] || continue
     printf "    %-40s %s\n" "${service}_USERNAME" "$username"
@@ -270,6 +270,7 @@ print_deployment_secrets() {
 
   local secret_keys=(
     TRAEFIK_DASHBOARD_AUTH
+    TRAEFIK_DASHBOARD_PASSWORD
     POSTGRES_PASSWORD
     COOKIE_SECRET
     SUPABASE_JWT_SECRET
@@ -301,8 +302,8 @@ print_deployment_secrets() {
     print_generated_credentials
   else
     echo
-    info "No new plaintext-only credentials were generated in this deploy."
-    info "Existing Traefik dashboard plaintext password cannot be recovered from TRAEFIK_DASHBOARD_AUTH."
+    info "No new credentials were generated in this deploy."
+    info "The current Traefik dashboard password is in .env as TRAEFIK_DASHBOARD_PASSWORD."
   fi
 
   echo
@@ -364,6 +365,9 @@ set +a
 : "${DOMAIN:?Missing DOMAIN in .env}"
 : "${LETSENCRYPT_EMAIL:?Missing LETSENCRYPT_EMAIL in .env}"
 : "${TRAEFIK_DASHBOARD_AUTH:?Missing TRAEFIK_DASHBOARD_AUTH in .env}"
+# Written by ensure-prod-env above, in the same pass as the hash — if this is
+# empty the two have been edited apart and the dashboard password is lost.
+: "${TRAEFIK_DASHBOARD_PASSWORD:?Missing TRAEFIK_DASHBOARD_PASSWORD in .env}"
 : "${POSTGRES_PASSWORD:?Missing POSTGRES_PASSWORD in .env}"
 : "${SUPABASE_JWT_SECRET:?Missing SUPABASE_JWT_SECRET in .env}"
 : "${SUPABASE_REALTIME_SECRET:?Missing SUPABASE_REALTIME_SECRET in .env}"
