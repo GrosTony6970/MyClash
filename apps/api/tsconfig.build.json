@@ -1,0 +1,49 @@
+{
+  // EMIT surface — what `nest build` compiles into dist/, and therefore what
+  // apps/api/Dockerfile copies into the production image.
+  //
+  // Without this, all 267 colocated *.test.ts compiled straight into dist:
+  // 2.5 MiB of the 11 MiB image, every one of them emitting `require("vitest")`
+  // against a devDependency the runner's `--prod` install does not have.
+  // Nothing resolves them today, so it was dead weight rather than a live
+  // crash — but it is a crash the moment anything does.
+  //
+  // tsconfig.json stays the TYPECHECK surface and still covers the tests. That
+  // moves the owner of API test typechecking from `nest build` to the
+  // `typecheck` script, which is a real change: `nest build` no longer sees
+  // them at all.
+  //
+  // `extends` REPLACES include/exclude rather than merging, so both arrays are
+  // restated in full — dropping one silently inherits the typecheck surface and
+  // puts the tests straight back into dist.
+  //
+  // nest-cli.json names this file in compilerOptions.tsConfigPath rather than
+  // leaving it to discovery. @nestjs/cli's getTscConfigPath falls back to a
+  // filename probe that picks up tsconfig.build.json whenever it merely exists,
+  // so creating this file would have rerouted the build silently. Naming it
+  // makes TsConfigProvider throw MISSING_TYPESCRIPT if it ever disappears —
+  // a loud failure instead of a quiet wrong-config build. (nest-cli.json is
+  // read with strict JSON.parse and cannot carry comments of its own.)
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // Its OWN buildinfo. Two configs with different root sets writing one file
+    // is how `tsc --noEmit` came to stale-pass here: nest build wrote the
+    // buildinfo, then typecheck read it and reported everything up to date.
+    "tsBuildInfoFile": ".turbo/tsconfig.build.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "src/**/*.test.ts",
+    // Test-only, but not named *.test.ts, so no glob catches them — three
+    // different conventions across four files, which is exactly why these are
+    // listed by path and scripts/check-test-code-leak.mjs proves the list is
+    // complete rather than trusting a name.
+    "src/common/testing/**/*.ts",
+    "src/modules/exports/hema-ratings.fixtures.ts",
+    "src/modules/staff/live-board.fixtures.ts"
+  ]
+}

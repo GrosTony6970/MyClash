@@ -19,6 +19,12 @@
     // dependency explicit instead of accidental.
     "types": ["node"],
     "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo",
+    // TYPECHECK surface: this config covers the 267 colocated tests and the
+    // test-only helpers, and emits nothing. tsconfig.build.json is the emit
+    // surface and flips this back off — see the comment there. Keeping noEmit
+    // here means a stray `tsc -p tsconfig.json` cannot repopulate dist with
+    // compiled tests behind the build's back.
+    "noEmit": true,
     // NestJS requires these two — override the bundler defaults from tsconfig.base.json
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true
