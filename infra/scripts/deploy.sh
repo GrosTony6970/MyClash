@@ -572,6 +572,9 @@ ok "Stack started"
 # false on purpose), so nothing else would tell the operator the edge lost
 # GeoBlock/Fail2Ban. Report loudly; don't abort a deploy over it.
 mc_warn_if_plugins_failed || true
+# A plugin that downloads and then rejects its config logs nothing, so the grep
+# above cannot see it. Probe the routers to prove the middlewares built.
+mc_verify_edge_plugins || true
 
 # ── Wait for healthchecks ────────────────────────────────────────
 hdr "Waiting for services to become healthy"

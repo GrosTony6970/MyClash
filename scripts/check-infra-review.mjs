@@ -2067,6 +2067,29 @@ if (!traefikEnvLibText.includes('mc_warn_if_plugins_failed')) {
       'plugin failure, so nothing else tells the operator the edge lost its security middlewares.',
   );
 }
+// The log grep only sees a failed DOWNLOAD. A plugin that downloads and then
+// rejects its config leaves its routers serving 404 with nothing in the log, so
+// the probe is the only check that covers that failure — and it is worthless if
+// an entrypoint stops calling it.
+if (!traefikEnvLibText.includes('mc_verify_edge_plugins')) {
+  errors.push(
+    'infra/scripts/lib/traefik-env.sh must define mc_verify_edge_plugins — the log grep cannot ' +
+      'see a plugin that downloaded and then failed to configure.',
+  );
+}
+for (const name of ['deploy.sh', 'redeploy.sh', 'start.sh']) {
+  const text = await readFile(path.join(scriptsDir, name), 'utf8');
+  if (!text.includes('mc_verify_edge_plugins')) {
+    errors.push(
+      `infra/scripts/${name} must call mc_verify_edge_plugins after bringing the stack up — ` +
+        'otherwise a misconfigured plugin 404s the site with every other check green.',
+    );
+  }
+}
+const rootPackageJson = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
+if (rootPackageJson.scripts?.['infra:plugins'] !== 'node scripts/check-edge-plugins.mjs') {
+  errors.push('package.json must expose pnpm infra:plugins → node scripts/check-edge-plugins.mjs.');
+}
 
 // Dev must declare the same plugins at the same versions, or the config is first
 // exercised in front of the live site.

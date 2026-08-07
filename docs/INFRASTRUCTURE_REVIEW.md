@@ -95,6 +95,39 @@ scripts print a warning (`mc_warn_if_plugins_failed`) and recovery is one flag:
 TRAEFIK_PLUGINS=off ./infra/scripts/start.sh   # detaches both plugins; site serves unprotected
 ```
 
+**Verifying the plugins are actually live.** There are two distinct failure modes and
+only one of them writes to the log. `mc_warn_if_plugins_failed` greps for
+`Plugins are disabled because an error has occurred`, which Traefik logs when the
+GitHub **fetch** fails. A plugin that fetches and then rejects its own **config** is
+silent: the middleware reports `status=disabled`, every router referencing it fails to
+build and serves 404, and `docker compose config`, `pnpm infra:review` and Traefik's own
+`--ping` all stay green. A missing `api` field on GeoBlock did exactly this in dev on
+2026-07-29.
+
+`mc_verify_edge_plugins` (same lib, called by `deploy.sh` / `redeploy.sh` / `start.sh`
+right after `up`) closes that gap by probing the routers themselves. Run it by hand with:
+
+```bash
+pnpm infra:plugins                       # prod, over loopback+SNI — no credentials needed
+pnpm infra:plugins -- --mode=dev         # dev stack, via the insecure dashboard on :8080
+pnpm infra:plugins -- --deep             # per-middleware status/error from the Traefik API
+```
+
+The default pass condition is not the status code alone: Traefik's fallback 404 runs no
+middleware at all, so the probe asserts the `Strict-Transport-Security` header that
+`myclash-security-headers@file` adds — which distinguishes "the chain is gone" from
+"the backend itself answered 404". The `traefik.${DOMAIN}` router carries no
+security-headers, so it is judged on 401/403 versus 404 instead. `--deep` needs
+`TRAEFIK_DASHBOARD_PASSWORD` from `.env`; deploy writes it there beside its hash.
+
+Manual fallback, weakest to strongest, when the probe itself cannot run:
+
+```bash
+ls data/traefik/plugins/sources/github.com/     # 1. plugin source on disk
+docker logs myclash-traefik 2>&1 | grep -i plugin   # 2. fetch succeeded at boot
+pnpm infra:plugins -- --deep                    # 3. middlewares built and attached
+```
+
 **Two plugins, on purpose.** Every Yaegi plugin is interpreted on the request path of each
 router that references it, inside a container capped at `mem_limit: 256m` / `cpus: 0.5`, and
 a plugin that fails to load 404s its routers rather than degrading. A third one therefore
@@ -136,5 +169,6 @@ stack is probed successfully.
 ```bash
 pnpm infra:review
 pnpm infra:edge -- --domain myclash.fr
+pnpm infra:plugins -- --domain myclash.fr
 docker compose --env-file .env -f infra/docker-compose.prod.yml config
 ```

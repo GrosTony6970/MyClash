@@ -1,6 +1,6 @@
-import http from 'node:http';
-import https from 'node:https';
 import tls from 'node:tls';
+
+import { parseArgs, request } from './edge-probe.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const domain = args.domain ?? 'myclash.fr';
@@ -194,57 +194,6 @@ if (errors.length > 0) {
 console.log(
   `Edge/TLS review passed for ${domain}. Checked ${hosts.length} host(s): ${hostKeys.join(', ')}.`,
 );
-
-function parseArgs(rawArgs) {
-  const parsed = {};
-  for (let i = 0; i < rawArgs.length; i += 1) {
-    const arg = rawArgs[i];
-    if (!arg.startsWith('--')) continue;
-    const [key, inlineValue] = arg.slice(2).split('=', 2);
-    if (inlineValue !== undefined) {
-      parsed[key] = inlineValue;
-      continue;
-    }
-    // Bare flag: only swallow the next argv when it is a VALUE. Without this
-    // `--allow-staging-cert --domain x` eats `--domain` and silently drops it.
-    const next = rawArgs[i + 1];
-    if (next !== undefined && !next.startsWith('--')) {
-      parsed[key] = next;
-      i += 1;
-    } else {
-      parsed[key] = '';
-    }
-  }
-  return parsed;
-}
-
-function request({ protocol, host, path, method, timeoutMs, headers, rejectUnauthorized }) {
-  const client = protocol === 'https:' ? https : http;
-  return new Promise((resolve) => {
-    const req = client.request(
-      {
-        protocol,
-        host,
-        path,
-        method,
-        headers,
-        timeout: timeoutMs,
-        rejectUnauthorized: rejectUnauthorized ?? true,
-      },
-      (res) => {
-        res.resume();
-        res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers }));
-      },
-    );
-    req.on('timeout', () => {
-      req.destroy(new Error('timeout'));
-    });
-    req.on('error', (error) => {
-      resolve({ statusCode: null, headers: {}, error });
-    });
-    req.end();
-  });
-}
 
 /** True when the chain was issued by Let's Encrypt's STAGING CA, whose roots
  *  ship in no trust store. Their issuer CN is prefixed "(STAGING) ". */

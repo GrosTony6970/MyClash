@@ -205,6 +205,7 @@ ok "Recreate command issued"
 # Only meaningful when traefik was among the recreated services; harmless
 # otherwise (it just re-reads the existing container's log tail). See deploy.sh.
 mc_warn_if_plugins_failed || true
+mc_verify_edge_plugins || true
 
 # ── Wait for health ──────────────────────────────────────────────
 hdr "Waiting for services to become healthy"

@@ -38,6 +38,9 @@ ok "Stack started"
 # Traefik boots even when its plugins fail to fetch, so nothing else would tell
 # the operator the edge lost GeoBlock/Fail2Ban. Non-fatal: report, don't block.
 mc_warn_if_plugins_failed || true
+# ...and the log grep only catches a failed download. This proves the plugin
+# middlewares actually BUILT and are attached to their routers.
+mc_verify_edge_plugins || true
 
 echo
 "${COMPOSE[@]}" ps

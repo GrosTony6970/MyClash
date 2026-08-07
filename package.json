@@ -40,6 +40,7 @@
     "db:perf:explain": "node scripts/db-explain-report.mjs",
     "infra:review": "node scripts/check-infra-review.mjs",
     "infra:edge": "node scripts/check-edge-tls.mjs",
+    "infra:plugins": "node scripts/check-edge-plugins.mjs",
     "observability:review": "node scripts/check-observability-review.mjs",
     "perf:review": "node scripts/check-performance-review.mjs",
     "perf:bundle": "node scripts/check-bundle-budgets.mjs",

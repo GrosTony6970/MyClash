@@ -81,3 +81,54 @@ mc_warn_if_plugins_failed() {
   fi
   return 0
 }
+
+# --- Post-start verification ------------------------------------------------
+# The log grep above only fires when the plugin DOWNLOAD failed. A plugin that
+# downloads and then rejects its own config logs nothing of the sort: the
+# middleware reports status=disabled, every router referencing it fails to build
+# and serves 404, and Traefik's --ping health stays 200 throughout. That is a
+# live-site outage no existing check could see, so probe the routers themselves.
+#
+# Non-fatal by the same logic as AbortOnPluginFailure=false: this must report,
+# never abort a deploy. It prints its own recovery command.
+mc_verify_edge_plugins() {
+  # Traefik rebuilds its router set asynchronously after `up`, so a single shot
+  # right after the container starts can read a configuration that is merely
+  # not-yet-built. Poll rather than race.
+  local attempts="${1:-5}"
+  local delay="${2:-2}"
+
+  if ! command -v node >/dev/null 2>&1; then
+    warn "node not found — skipped the edge plugin verification."
+    return 0
+  fi
+
+  # Compose gets .env via --env-file, so the invoking shell has no DOMAIN.
+  # Targeted read for the same reason as the whitelist above: no secrets in this
+  # script's environment.
+  local domain
+  domain="$(sed -n 's/^DOMAIN=//p' "$ROOT_DIR/.env" | tr -d '"'\''' | tr -d '[:space:]')"
+  if [[ -z "$domain" ]]; then
+    warn "DOMAIN missing from .env — skipped the edge plugin verification."
+    return 0
+  fi
+
+  # Earlier attempts run silent: a not-yet-built router set is expected right
+  # after `up`, and printing its diagnosis four times would bury the one verdict
+  # that matters. The final attempt runs visibly, whatever it finds.
+  local i
+  for ((i = 1; i < attempts; i++)); do
+    if node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$domain" >/dev/null 2>&1; then
+      ok "Edge plugin middlewares are built and attached."
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  if node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$domain"; then
+    return 0
+  fi
+
+  warn "Edge plugin verification failed after $attempts attempts (see above)."
+  return 1
+}
