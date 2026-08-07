@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { sumAndCount } from '../../common/pg-aggregate';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { AIProvider } from './adapters/provider-adapter.interface';
 import { decryptAiKey, encryptAiKey } from './ai-key-crypto';
@@ -282,29 +283,51 @@ export class AiKeyStore {
     };
   }
 
-  /** Sum of a single key's cost for the current UTC calendar month. */
+  /**
+   * Sum of a single key's cost for the current UTC calendar month.
+   *
+   * Summed in JS — PostgREST rejects `cost_eur.sum()` with aggregates disabled,
+   * which is the default and what this stack runs. See `common/pg-aggregate.ts`.
+   */
   async keyMonthlySpend(keyId: string): Promise<number> {
-    const { data } = await this.supabase.service
-      .from(this.cfg.usageTable)
-      .select('sum:cost_eur.sum()')
-      .eq(this.cfg.usageKeyColumn, keyId)
-      .gte(this.cfg.usageTimeColumn, currentMonthStartIso())
-      .single();
-    return parseFloat((data as { sum: string | null } | null)?.sum ?? '0');
+    const { total } = await sumAndCount(
+      (from, to) =>
+        this.supabase.service
+          .from(this.cfg.usageTable)
+          .select('cost_eur')
+          .eq(this.cfg.usageKeyColumn, keyId)
+          .gte(this.cfg.usageTimeColumn, currentMonthStartIso())
+          .range(from, to),
+      'cost_eur',
+    );
+    return total;
   }
 
   /** Per-key month-to-date spend for a set of key ids (for the list view). */
   private async keySpendThisMonth(ids: string[]): Promise<Map<string, number>> {
     if (ids.length === 0) return new Map();
-    const { data } = await this.supabase.service
-      .from(this.cfg.usageTable)
-      .select(`${this.cfg.usageKeyColumn}, total:cost_eur.sum()`)
-      .in(this.cfg.usageKeyColumn, ids)
-      .gte(this.cfg.usageTimeColumn, currentMonthStartIso());
     const map = new Map<string, number>();
-    for (const r of (data ?? []) as Record<string, unknown>[]) {
-      const key = r[this.cfg.usageKeyColumn] as string | null;
-      if (key) map.set(key, parseFloat((r['total'] as string | null) ?? '0'));
+    // One paged pass over the month's rows for these keys, bucketed in JS. The
+    // grouped form (`key, total:cost_eur.sum()`) is a server-side aggregate and
+    // is rejected the same way the plain sum is.
+    const PAGE = 1000;
+    for (let offset = 0; offset < 100_000; offset += PAGE) {
+      const { data, error } = await this.supabase.service
+        .from(this.cfg.usageTable)
+        .select(`${this.cfg.usageKeyColumn}, cost_eur`)
+        .in(this.cfg.usageKeyColumn, ids)
+        .gte(this.cfg.usageTimeColumn, currentMonthStartIso())
+        .range(offset, offset + PAGE - 1);
+      if (error) throw new BadRequestException(error.message);
+      const batch = (data ?? []) as Record<string, unknown>[];
+      for (const r of batch) {
+        const key = r[this.cfg.usageKeyColumn] as string | null;
+        if (!key) continue;
+        const cost = r['cost_eur'];
+        const n = typeof cost === 'number' ? cost : parseFloat(String(cost ?? '0'));
+        map.set(key, (map.get(key) ?? 0) + (Number.isFinite(n) ? n : 0));
+      }
+      if (batch.length < PAGE) break;
     }
     return map;
   }

@@ -61,17 +61,25 @@ test.describe('AI generation', () => {
       '(this is the only flag combination in the suite that spends money)',
   );
 
-  // One org key for every org-scoped leg, installed once and restored once.
-  // `workers: 1` means no other spec can race the active-key flip.
-  let orgKey: InstalledKey;
+  /**
+   * The live org key, installed per TEST rather than once per file.
+   *
+   * The first live run used `beforeAll`/`afterAll` and leaked five real
+   * provider keys into the org. Playwright refuses to let the `request` fixture
+   * cross out of `beforeAll` ("Fixture { request } from beforeAll cannot be
+   * reused in a test"), so every restore threw while every install survived —
+   * and because a leaked key is also an ACTIVE key, the org was left pointing
+   * at a key the suite had no record of.
+   *
+   * `beforeEach`/`afterEach` take `request` at test scope, which is legal, and
+   * scoping the install to one test means a failure can strand at most one key.
+   * The installs are free: creating a key never contacts the provider.
+   */
+  let orgKey: InstalledKey | null = null;
 
-  test.beforeAll(async ({ request }) => {
-    // Belt and braces: the describe-level skips above already stop the tests,
-    // but a hook that ran anyway would install a key nothing then removes.
-    if (!AI || !live) return;
-    const api = apiFor(request);
+  test.beforeEach(async ({ request }) => {
     const { orgId } = runContext();
-    orgKey = await installKey(api, orgKeysPath(orgId), {
+    orgKey = await installKey(apiFor(request), orgKeysPath(orgId), {
       label: label('org key'),
       provider: live!.provider,
       apiKey: live!.apiKey,
@@ -80,8 +88,9 @@ test.describe('AI generation', () => {
     });
   });
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await orgKey?.restore();
+    orgKey = null;
   });
 
   test('organizer content: generated, metered, and never publishable', async ({ request }) => {

@@ -13,20 +13,29 @@ const mockFlags = { isEnabled: mockIsEnabled };
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
 
-function makeChain(result: unknown) {
+/**
+ * @param result what `.single()`/`.maybeSingle()` resolve to
+ * @param rows   what `.range()` resolves to — the spend/count paths sum rows in
+ *               JS now, because PostgREST rejects `cost_eur.sum()` with
+ *               aggregates disabled (see `common/pg-aggregate.ts`)
+ */
+function makeChain(result: unknown, rows: unknown[] = []) {
   const chain = {
     select: vi.fn(),
     eq: vi.fn(),
+    in: vi.fn(),
     gte: vi.fn(),
     lte: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     insert: vi.fn(),
+    range: vi.fn().mockResolvedValue({ data: rows, error: null }),
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
   chain.gte.mockReturnValue(chain);
   chain.lte.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
@@ -34,6 +43,10 @@ function makeChain(result: unknown) {
   chain.insert.mockReturnValue(chain);
   return chain;
 }
+
+/** `n` usage rows totalling `total` EUR — the shape the JS sum now reads. */
+const spendRows = (total: number, n = 1) =>
+  Array.from({ length: n }, () => ({ cost_eur: String(total / n) }));
 
 const fakeResult = { text: 'ok', inputTokens: 10, outputTokens: 5, costEur: 0.001 };
 const baseRequest = { system: 's', user: 'u', model: 'm', maxTokens: 100, temperature: 0 };
@@ -66,11 +79,7 @@ describe('AIUsageService.generateWithCap', () => {
   it('passes when spend is under cap', async () => {
     fromMock.mockImplementation((table: string) => {
       if (table === 'events') return makeChain({ data: { ai_spend_cap_eur: 5.0 }, error: null });
-      if (table === 'ai_usage_log') {
-        const chain = makeChain(null);
-        chain.single.mockResolvedValue({ data: { sum: '2.50' }, error: null });
-        return chain;
-      }
+      if (table === 'ai_usage_log') return makeChain(null, spendRows(2.5));
       return makeChain({ data: null, error: null });
     });
     mockProviderGenerate.mockResolvedValue(fakeResult);
@@ -82,11 +91,7 @@ describe('AIUsageService.generateWithCap', () => {
   it('throws SpendCapExceededException when at or over cap', async () => {
     fromMock.mockImplementation((table: string) => {
       if (table === 'events') return makeChain({ data: { ai_spend_cap_eur: 5.0 }, error: null });
-      if (table === 'ai_usage_log') {
-        const chain = makeChain(null);
-        chain.single.mockResolvedValue({ data: { sum: '5.00' }, error: null });
-        return chain;
-      }
+      if (table === 'ai_usage_log') return makeChain(null, spendRows(5));
       return makeChain({ data: null, error: null });
     });
 
@@ -134,11 +139,7 @@ describe('AIUsageService.generateWithCap', () => {
         return makeChain({ data: { monthly_budget_eur: null }, error: null });
       if (table === 'organization_ai_settings')
         return makeChain({ data: { monthly_budget_eur: 5.0 }, error: null });
-      if (table === 'ai_usage_log') {
-        const chain = makeChain(null);
-        chain.single.mockResolvedValue({ data: { sum: '5.00' }, error: null });
-        return chain;
-      }
+      if (table === 'ai_usage_log') return makeChain(null, spendRows(5));
       if (table === 'events') return makeChain({ data: { ai_spend_cap_eur: null }, error: null });
       return makeChain({ data: null, error: null });
     });
@@ -182,14 +183,7 @@ describe('AIUsageService.getUsageSummary', () => {
   it('returns totalSpendEur, cap, remainingEur, callCount', async () => {
     fromMock.mockImplementation((table: string) => {
       if (table === 'events') return makeChain({ data: { ai_spend_cap_eur: 10.0 }, error: null });
-      if (table === 'ai_usage_log') {
-        const chain = makeChain(null);
-        chain.single.mockResolvedValue({
-          data: { total: '3.50', calls: 7 },
-          error: null,
-        });
-        return chain;
-      }
+      if (table === 'ai_usage_log') return makeChain(null, spendRows(3.5, 7));
       return makeChain({ data: null, error: null });
     });
 

@@ -175,6 +175,7 @@
     "tests/e2e/17-archive-restore.spec.ts",
     "tests/e2e/18-staff-pad.spec.ts",
     "tests/e2e/29-league-multi-event.spec.ts",
+    "tests/e2e/30-ai-settings.spec.ts",
     "tests/e2e/_bracket.ts"
   ],
   "functions": [
@@ -213,7 +214,7 @@
     "apps/api/src/modules/ai-providers/adapters/google.adapter.ts:97",
     "apps/api/src/modules/ai-providers/adapters/mistral.adapter.ts:90",
     "apps/api/src/modules/ai-providers/adapters/openai.adapter.ts:64",
-    "apps/api/src/modules/ai-usage/ai-usage.service.ts:20",
+    "apps/api/src/modules/ai-usage/ai-usage.service.ts:21",
     "apps/api/src/modules/auth/auth.service.ts:1172",
     "apps/api/src/modules/auth/auth.service.ts:1455",
     "apps/api/src/modules/auth/auth.service.ts:1517",
@@ -406,7 +407,7 @@
     "apps/api/src/modules/staff/staff.service.ts:1264",
     "apps/api/src/modules/staff/staff.service.ts:923",
     "apps/api/src/modules/tournament-placement/tournament-placement.service.ts:68",
-    "apps/api/src/modules/tournament-query/tournament-query.service.ts:70",
+    "apps/api/src/modules/tournament-query/tournament-query.service.ts:71",
     "apps/api/src/modules/tournament-query/tournament-query.tools.service.ts:600",
     "apps/api/src/modules/tournament-query/tournament-query.tools.ts:136",
     "apps/api/src/modules/tournament-query/tournament-query.tools.ts:57",

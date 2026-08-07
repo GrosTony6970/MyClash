@@ -21,6 +21,11 @@ function makeSupabase() {
       gte: vi.fn(() => chain),
       order: vi.fn(() => chain),
       limit: vi.fn(() => chain),
+      // The hourly rate limit counts rows in JS: PostgREST rejects
+      // `id.count()` with aggregates disabled, and unlike the AI budget call
+      // sites this one surfaced the error — so every NL query 400'd here before
+      // reaching the model. Empty page = no queries this hour.
+      range: vi.fn(async () => ({ data: [], error: null })),
       maybeSingle: vi.fn(async () => {
         if (table === 'tournaments') {
           return {

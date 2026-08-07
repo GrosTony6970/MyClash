@@ -6,6 +6,7 @@ import type {
   GenerationRequest,
   GenerationResult,
 } from '../ai-providers/adapters/provider-adapter.interface';
+import { sumAndCount } from '../../common/pg-aggregate';
 import { BudgetExceededException } from './budget-exceeded.exception';
 import { SpendCapExceededException } from './spend-cap.exception';
 
@@ -64,13 +65,15 @@ export class AIUsageService {
     const cap = (eventData as { ai_spend_cap_eur: number | null } | null)?.ai_spend_cap_eur ?? null;
 
     if (cap !== null) {
-      const { data: sumData } = await this.supabase.service
-        .from('ai_usage_log')
-        .select('sum:cost_eur.sum()')
-        .eq('event_id', eventId)
-        .single();
-
-      const spent = parseFloat((sumData as { sum: string | null } | null)?.sum ?? '0');
+      const { total: spent } = await sumAndCount(
+        (from, to) =>
+          this.supabase.service
+            .from('ai_usage_log')
+            .select('cost_eur')
+            .eq('event_id', eventId)
+            .range(from, to),
+        'cost_eur',
+      );
       if (spent >= cap) {
         throw new SpendCapExceededException(eventId, cap, spent);
       }
@@ -122,13 +125,14 @@ export class AIUsageService {
   }
 
   private async monthlySpend(monthStartIso: string, orgId: string | null): Promise<number> {
-    const base = this.supabase.service
-      .from('ai_usage_log')
-      .select('sum:cost_eur.sum()')
-      .gte('called_at', monthStartIso);
-    const query = orgId ? base.eq('organization_id', orgId) : base;
-    const { data } = await query.single();
-    return parseFloat((data as { sum: string | null } | null)?.sum ?? '0');
+    const { total } = await sumAndCount((from, to) => {
+      const base = this.supabase.service
+        .from('ai_usage_log')
+        .select('cost_eur')
+        .gte('called_at', monthStartIso);
+      return (orgId ? base.eq('organization_id', orgId) : base).range(from, to);
+    }, 'cost_eur');
+    return total;
   }
 
   async getUsageSummary(eventId: string): Promise<{
@@ -137,24 +141,27 @@ export class AIUsageService {
     remainingEur: number | null;
     callCount: number;
   }> {
-    const [eventRes, usageRes] = await Promise.all([
+    const [eventRes, usage] = await Promise.all([
       this.supabase.service
         .from('events')
         .select('ai_spend_cap_eur')
         .eq('id', eventId)
         .maybeSingle(),
-      this.supabase.service
-        .from('ai_usage_log')
-        .select('total:cost_eur.sum(), calls:id.count()')
-        .eq('event_id', eventId)
-        .single(),
+      sumAndCount(
+        (from, to) =>
+          this.supabase.service
+            .from('ai_usage_log')
+            .select('cost_eur')
+            .eq('event_id', eventId)
+            .range(from, to),
+        'cost_eur',
+      ),
     ]);
 
     const cap =
       (eventRes.data as { ai_spend_cap_eur: number | null } | null)?.ai_spend_cap_eur ?? null;
-    const usageRow = usageRes.data as { total: string | null; calls: number } | null;
-    const totalSpendEur = parseFloat(usageRow?.total ?? '0');
-    const callCount = usageRow?.calls ?? 0;
+    const totalSpendEur = usage.total;
+    const callCount = usage.count;
     const remainingEur = cap !== null ? Math.max(0, cap - totalSpendEur) : null;
 
     return { totalSpendEur, cap, remainingEur, callCount };

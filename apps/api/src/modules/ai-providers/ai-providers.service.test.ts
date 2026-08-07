@@ -31,6 +31,9 @@ function chain(result: unknown) {
     'gte',
     'order',
     'limit',
+    // The spend paths page and sum in JS now — PostgREST rejects
+    // `cost_eur.sum()` (see `common/pg-aggregate.ts`).
+    'range',
     'insert',
     'update',
     'upsert',
@@ -150,7 +153,8 @@ describe('AIProvidersService', () => {
     fromMock.mockImplementation((table: string) => {
       if (table === 'organization_ai_keys')
         return chain({ data: activeKeyRow('sk-key', { budget: 5 }), error: null });
-      if (table === 'ai_usage_log') return chain({ data: { sum: '10' }, error: null });
+      // Rows, not an aggregate: the per-key spend is summed in JS now.
+      if (table === 'ai_usage_log') return chain({ data: [{ cost_eur: '10' }], error: null });
       return chain({ data: null, error: null });
     });
     await expect(

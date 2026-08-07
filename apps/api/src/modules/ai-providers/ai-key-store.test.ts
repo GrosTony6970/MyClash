@@ -30,7 +30,9 @@ function setQueue(map: Record<string, unknown[]>) {
 
 function chain(table: string, result: unknown) {
   const c: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'in', 'gte', 'order', 'limit']) c[m] = vi.fn(() => c);
+  // `range` is chainable like the rest: the spend paths page and sum in JS now,
+  // because PostgREST rejects `cost_eur.sum()` (see `common/pg-aggregate.ts`).
+  for (const m of ['select', 'eq', 'in', 'gte', 'order', 'limit', 'range']) c[m] = vi.fn(() => c);
   for (const m of ['insert', 'update', 'upsert', 'delete']) {
     c[m] = vi.fn((arg: unknown) => {
       ops.push({ table, op: m, arg });
@@ -172,9 +174,22 @@ describe('AiKeyStore', () => {
     expect(patch['key_last4']).toBe('5678');
   });
 
-  it('keyMonthlySpend parses the aggregate sum', async () => {
-    setQueue({ ai_usage_log: [{ data: { sum: '4.25' }, error: null }] });
+  it('keyMonthlySpend sums the month rows in JS', async () => {
+    // Rows, not a server-side aggregate: PostgREST rejects `cost_eur.sum()`
+    // unless `db-aggregates-enabled` is on, and it is off by default. NUMERIC
+    // arrives as a string, so the parse is part of what is under test.
+    setQueue({
+      ai_usage_log: [{ data: [{ cost_eur: '4.00' }, { cost_eur: '0.25' }], error: null }],
+    });
     await expect(store().keyMonthlySpend('k1')).resolves.toBe(4.25);
+  });
+
+  it('keyMonthlySpend surfaces a query error instead of reporting zero spend', async () => {
+    // The regression this whole change exists for. Every one of these call
+    // sites used to drop `error` and return 0, so a rejected aggregate query
+    // read as "nothing spent" and every budget and cap silently never fired.
+    setQueue({ ai_usage_log: [{ data: null, error: { message: 'aggregates not enabled' } }] });
+    await expect(store().keyMonthlySpend('k1')).rejects.toThrow('aggregates not enabled');
   });
 
   it('activate calls the scope set-active function', async () => {

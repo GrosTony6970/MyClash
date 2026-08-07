@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { countRows } from '../../common/pg-aggregate';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -304,15 +305,20 @@ export class TournamentQueryService {
 
   private async assertRateLimit(tournamentId: string, userId: string, limit: number) {
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data, error } = await this.supabase.service
-      .from('tournament_query_history')
-      .select('count:id.count()')
-      .eq('tournament_id', tournamentId)
-      .eq('user_id', userId)
-      .gte('created_at', since)
-      .single();
-    if (error) throw new BadRequestException(error.message);
-    const count = Number((data as { count?: number | string } | null)?.count ?? 0);
+    // Counted in JS: `id.count()` is a server-side aggregate, which PostgREST
+    // rejects with aggregates disabled (the default, and what this stack runs).
+    // Unlike the AI budget call sites this one DID surface the error — so with
+    // aggregates off, every natural-language query 400'd here before reaching
+    // the model. See `common/pg-aggregate.ts`.
+    const count = await countRows((from, to) =>
+      this.supabase.service
+        .from('tournament_query_history')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+        .eq('user_id', userId)
+        .gte('created_at', since)
+        .range(from, to),
+    );
     if (count >= limit) {
       throw new BadRequestException('Natural-language query rate limit reached');
     }
