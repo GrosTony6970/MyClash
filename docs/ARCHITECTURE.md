@@ -2616,22 +2616,24 @@ routing, same plugins. The deltas:
 
 The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share a single internal `myclash` network; only Traefik publishes ports 80/443.
 
-| Service             | Container                   | Image / Build                              | Role                                                                                                 |
-| ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.              |
-| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.             |
-| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                              |
-| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                               |
-| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                        |
-| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.               |
-| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                              |
-| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                     |
-| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                      |
-| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                       |
-| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                         |
-| `web-scoring`       | `myclash-web-scoring`       | Built from `apps/web-scoring/Dockerfile`   | Next.js 16 on internal port 3000. Routed at `scoring.${DOMAIN}`.                                     |
-| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on Caddy, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).            |
-| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4. |
+| Service             | Container                   | Image / Build                              | Role                                                                                                  |
+| ------------------- | --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.               |
+| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.              |
+| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                               |
+| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                |
+| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                         |
+| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.                |
+| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                               |
+| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted** — docker-network only, reachable solely by `supabase-studio`. |
+| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                  |
+| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                      |
+| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                       |
+| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                        |
+| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                          |
+| `web-scoring`       | `myclash-web-scoring`       | Built from `apps/web-scoring/Dockerfile`   | Next.js 16 on internal port 3000. Routed at `scoring.${DOMAIN}`.                                      |
+| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on Caddy, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).             |
+| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.  |
 
 Traefik routes by Host header. Key mappings:
 
@@ -2643,6 +2645,7 @@ Traefik routes by Host header. Key mappings:
 | `scoring.${DOMAIN}` | `web-scoring`           | Scorekeeper tablet PWA.                                                                                                                                                 |
 | `api.${DOMAIN}`     | `api`                   | NestJS REST endpoint (used by web-scoring + dev tools).                                                                                                                 |
 | `traefik.${DOMAIN}` | `traefik`               | Dashboard, basic-auth gated via `TRAEFIK_DASHBOARD_AUTH`.                                                                                                               |
+| `studio.${DOMAIN}`  | `supabase-studio`       | Operator DB console. IP allowlist **and** basic auth, both mandatory. See §17.5.                                                                                        |
 
 ### 17.2 Environments
 
@@ -2689,6 +2692,37 @@ The lifecycle endpoint accepts only the **10-service restartable allowlist** (mi
 - `ops-runner` — lose the channel that would restart anything else.
 
 Both the API controller and the ops-runner re-validate the action and the service against this list, so a tampered request cannot escalate into restarting Postgres or stopping Traefik.
+
+### 17.5 Supabase Studio — the operator DB console
+
+`studio.${DOMAIN}` gives the operator a web console over the production database: table editor, SQL editor, schema browser. It exists because the `db` service publishes no host ports, and reading production data previously meant `docker exec … psql` over SSH.
+
+**It bypasses RLS.** Studio reaches Postgres through `supabase-meta`, which connects as `POSTGRES_USER`. Every query it runs — read or write — ignores the row-level security policies that are otherwise this system's only data boundary (§9). Hard rule #4 is unchanged everywhere else; this is the single deliberate exception, granted to one human on one hostname, and it is the reason the router is gated twice rather than once.
+
+**Studio has no authentication of its own.** Upstream's self-host stack delegates that to Kong, which this deployment removed when Traefik took over Supabase routing. Nothing inside the container checks who you are. The edge is the entire access control:
+
+| Gate                     | Mechanism                                | Source                                                                    |
+| ------------------------ | ---------------------------------------- | ------------------------------------------------------------------------- |
+| `myclash-studio-ipallow` | Traefik `ipAllowList`                    | `TRAEFIK_STUDIO_ALLOWLIST`, derived in `infra/scripts/lib/traefik-env.sh` |
+| `myclash-studio-auth`    | Traefik `basicauth`                      | `STUDIO_BASIC_AUTH`, auto-generated by `deploy.sh`                        |
+| `myclash-geoblock-admin` | GeoBlock plugin, allow-list, fail closed | Attached via `${MW_GEO_ADMIN}`                                            |
+| `myclash-fail2ban-auth`  | Fail2Ban plugin                          | Attached via `${MW_F2B_AUTH}`                                             |
+
+The first two are **built-in** Traefik middlewares, written into the router chain in full. That is load-bearing, not stylistic. `TRAEFIK_PLUGINS=off` empties the `${MW_*}` prefixes so a failed plugin download cannot take the public site down (§17.1) — and the last two gates disappear with it. If Studio's protection lived behind those prefixes, one GitHub outage at container start would publish an unauthenticated superuser SQL editor. `check-infra-review.mjs` asserts the literal middleware names for exactly this reason; do not fold them into a variable.
+
+**The IP allowlist fails closed.** `TRAEFIK_STUDIO_ALLOWLIST` derives from `THROTTLE_IP_WHITELIST` — the same single source as the Fail2Ban allowlist, so trusted addresses are never hand-kept in two places. It is deliberately _not_ the same value as `TRAEFIK_BAN_ALLOWLIST`: that one carries `10/8`, `172.16/12` and `192.168/16` because "don't ban the local network" is correct, whereas "let the whole local network open a SQL console" is not. Studio gets loopback plus the operator's explicit addresses and nothing else, so an empty `THROTTLE_IP_WHITELIST` leaves Studio unreachable rather than open.
+
+The cost of that choice is a dynamic operator IP locking you out. Recovery is one edit and a restart:
+
+```bash
+# .env
+THROTTLE_IP_WHITELIST=<new address>
+./infra/scripts/start.sh
+```
+
+**Credentials.** `STUDIO_BASIC_AUTH` (hash) and `STUDIO_PASSWORD` (plaintext) are generated together by `scripts/ensure-prod-env.mjs` from the `BASIC_AUTH_PAIRS` table it shares with the Traefik dashboard, and printed by the deploy's Deployment secrets section. The hash is `{SHA}`, not bcrypt: Compose interpolates docker labels, so a bcrypt hash would need every `$` doubled, while base64 SHA-1 reaches Traefik untouched. The plaintext is stored rather than only printed because the hash is one-way and Studio is the only DB console — losing it would otherwise mean blanking the key and redeploying.
+
+`supabase-meta` itself is **unrouted**: no Traefik labels, no published ports. It answers unauthenticated on the compose network and speaks to Postgres as the superuser, so `supabase-studio` is the only thing that may reach it. `check-infra-review.mjs` asserts it never grows a router.
 
 ---
 
