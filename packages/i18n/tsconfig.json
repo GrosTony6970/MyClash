@@ -3,6 +3,25 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
+    // TypeScript 6 changed the DEFAULT of `types` from "every package found
+    // under every typeRoot" to effectively []. Nothing is included ambiently
+    // any more — not even an @types package sitting in node_modules/@types next
+    // to this tsconfig. typeRoots still resolves names, but only ones listed
+    // here. So the Node globals and node: imports these compiled tests rely on
+    // (assert, fs, path, Buffer, process) have to be named explicitly.
+    //
+    // Scoped to this package rather than tsconfig.lib.json for dependency
+    // hygiene, NOT because a missing type package would error: with no
+    // typeRoots configured, the root node_modules/@types is a default typeRoot
+    // for every workspace, so `types: ["node"]` in the shared config would
+    // compile clean everywhere while making each packages/* silently rely on a
+    // hoisted package it never declared — a phantom dependency that a stricter
+    // layout or a per-package Docker install would break.
+    //
+    // Do not add this to packages/rulesets, schedule-core or time: they ship
+    // into browser bundles, and granting them Node globals would let
+    // process.env/Buffer compile in offline scoring code.
+    "types": ["node"],
     "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],

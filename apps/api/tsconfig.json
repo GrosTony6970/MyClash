@@ -10,6 +10,14 @@
     "declaration": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    // TS 6 stopped including @types/* ambiently (see packages/i18n/tsconfig.json).
+    // Without this, the ~70 process.env uses here compile only because a
+    // transitive .d.ts happens to carry `/// <reference types="node" />`:
+    // @nestjs/config -> dotenv-expand -> lib/main.d.ts. If either drops that,
+    // this app takes 70+ TS2591 at once. @types/node is already a declared
+    // devDependency, so naming it here is a verified no-op that makes the
+    // dependency explicit instead of accidental.
+    "types": ["node"],
     "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo",
     // NestJS requires these two — override the bundler defaults from tsconfig.base.json
     "esModuleInterop": true,

@@ -15,6 +15,13 @@
       "@/*": ["./src/*"]
     },
     "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo",
+    // TS 6 no longer includes @types/* ambiently (see packages/i18n/tsconfig.json).
+
+    // @types/node is a declared devDependency here; naming it explicitly stops
+
+    // Node globals from depending on a third-party /// <reference types="node" />.
+
+    "types": ["node"],
     "allowJs": true,
     "noEmit": true
   },

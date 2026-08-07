@@ -12,7 +12,18 @@
     "exactOptionalPropertyTypes": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    // LOAD-BEARING, not just a speed knob. Each web app's generated
+    // next-env.d.ts side-effect-imports ./.next/types/*.d.ts, which is
+    // gitignored and absent on a clean checkout — exactly the CI Typecheck
+    // job's shape, since `typecheck` never runs `next build`. Turning this off
+    // (a plausible hardening move) fails all three web apps with TS2882.
+    // It reproduces only on a clean tree: locally, once `next build` has run,
+    // the import resolves and nothing looks wrong.
     "skipLibCheck": true,
+    // TypeScript 6 flipped this default false -> true, so the check is already
+    // live. Set explicitly so it is visible rather than an invisible default:
+    // a new unresolvable side-effect import in a .ts/.tsx now hard-errors.
+    "noUncheckedSideEffectImports": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
     "incremental": true

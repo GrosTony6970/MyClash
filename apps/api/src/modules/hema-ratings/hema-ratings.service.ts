@@ -491,7 +491,7 @@ export class HemaRatingsService {
     if (!latest) return;
 
     const row = latest as { id: string; fighters?: unknown };
-    const fighters = ((row.fighters ?? []) as SnapshotFighter[]) ?? [];
+    const fighters = (row.fighters ?? []) as SnapshotFighter[];
     const idx = fighters.findIndex((f) => String(f.id) === profile.id);
     const numericId = Number.parseInt(profile.id, 10);
     const enriched: SnapshotFighter = {
@@ -814,7 +814,7 @@ export class HemaRatingsService {
 
     const row = data as { fighters?: unknown; synced_at?: string };
     return {
-      fighters: ((row.fighters ?? []) as SnapshotFighter[]) ?? [],
+      fighters: (row.fighters ?? []) as SnapshotFighter[],
       syncedAt: row.synced_at ?? '',
     };
   }
