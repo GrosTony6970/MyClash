@@ -695,13 +695,16 @@ Three things worth knowing before touching it:
 
 `E2E_SUPER_ADMIN=1 pnpm test:e2e:prod tests/e2e/27-super-admin.spec.ts` runs
 `27-super-admin.spec.ts`. 42 pages under `apps/web-admin/app/admin` and ~30
-`SuperAdminGuard` controllers had **no coverage at all** — `13` proves an org
+`PlatformRoleGuard` controllers had **no coverage at all** — `13` proves an org
 owner is refused on three destructive privacy routes and nothing else.
 
-Two halves, and they need **different accounts**:
+**Four halves, and each needs its own account.** One per platform tier plus the
+ordinary organizer, because a tier system is only proven by accounts that
+actually hold the tiers:
 
-**Half A** sweeps every guarded controller as the ordinary organizer and asserts
-each refuses with **403 specifically**. Not "some 4xx": a 404 means the route
+**Half A** sweeps every guarded controller as the ordinary organizer — an
+account with **no platform role at all** — and asserts each refuses with **403
+specifically**. Not "some 4xx": a 404 means the route
 moved, which is a different bug wearing the same colour, and a sweep that
 accepted it would go green the day a controller is renamed. It asserts the
 account is _not_ a super admin first, because otherwise the whole half is
@@ -717,6 +720,12 @@ vacuous.
 >
 > **Adding an admin controller means adding a row to `GUARDED_ROUTES`.** The
 > sweep can only catch what it names.
+>
+> Note what the list means now the guard has tiers: every row refuses an
+> account holding **no** platform role. It says nothing about which tier
+> passes — that is Halves C and D, and
+> `apps/api/src/modules/admin/guards/platform-role-coverage.test.ts` pins it
+> per route offline.
 
 **Half B** drives the console — the reads, one inert write, and the audit row
 that write must leave. It needs a **dedicated platform account**
@@ -725,9 +734,35 @@ and runs in its own browser context, because `playwright.e2e.config.ts` applies
 the organizer's `storageState` everywhere. Without those vars it **skips**.
 
 > **Never promote the shared E2E account to super admin to save a login.**
-> `13-privacy` refuses to invoke retention/anonymise for real when `isSuperAdmin`
-> is true — promoting the organizer silently disarms that interlock and empties
-> its refusal assertions.
+> `13-privacy` refuses to invoke retention/anonymise for real when the caller is
+> a super admin — promoting the organizer silently disarms that interlock and
+> empties its refusal assertions.
+
+**Half C** is the platform admin
+(`E2E_PLATFORM_ADMIN_EMAIL` / `E2E_PLATFORM_ADMIN_PASSWORD`, a `platform_roles`
+row with `role='platform_admin'`). It asserts **both** directions: the
+super-admin reserve refuses it (AI keys, AI settings, backups, feature flags,
+audit-log export, data retention — plus one reserved _write_), and its own
+domain admits it (review queue, organisations, rulesets, ratings, weapons,
+dashboard, logs, versions, runtime health, AI usage, audit log, users). Asserting
+only one direction is how a tier that is secretly a super-admin — or secretly
+nothing — still goes green.
+
+> Half C is **reads only**, deliberately. Every write in the admin domain is
+> genuinely destructive here (approve a claim, sync ratings, delete a club), and
+> Half B's inert write-back target is a feature flag, which is now reserved. A
+> probe that has to break something to prove a tier is not worth the tier.
+
+**Half D** is read-only
+(`E2E_PLATFORM_VIEWER_EMAIL` / `E2E_PLATFORM_VIEWER_PASSWORD`,
+`role='platform_viewer'`). The tier is defined by what it cannot do, so the
+write probes are the point: `POST admin/weapons` with an empty body, and a
+`PATCH .../disable`. The empty body is chosen for the same reason as Half A's
+league-scoring-systems probe — if the guard ever vanished, validation would
+answer **400**, the assertion fails loudly, and nothing is created.
+
+Each half **skips** without its own credentials, so running the spec with only
+`E2E_SUPERADMIN_*` set still behaves exactly as it did before.
 
 The write is `disable_hema_sync` set to the value it already has, then re-read to
 prove it did not move. Every registry flag is behavioural, so the choice is about
@@ -892,7 +927,7 @@ has to parse and validate first.
 | 24  | Swiss admin route + public tab render | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above        |
 | 25  | Swiss archive + HEMA Ratings labels   | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above        |
 | 26  | Print pack route builds its document  | `26-print-pack.spec.ts`             | always                                   |
-| 27  | Platform guard sweep + the console    | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
+| 27  | Platform tier sweep + the console     | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
 | 28  | Live control room + its realtime      | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above   |
 | 29  | League across several events          | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above       |
 | 30  | AI keys, budgets, kill-switches       | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above           |

@@ -42,10 +42,11 @@ const SUPER_EMAIL = process.env.E2E_SUPERADMIN_EMAIL ?? '';
 const SUPER_PASSWORD = process.env.E2E_SUPERADMIN_PASSWORD ?? '';
 
 /**
- * One route per `SuperAdminGuard` controller — and the method matters, because
- * the guard is not always on the class. A GET is enough wherever the controller
- * guards itself wholesale; where it guards per method, the probe has to be one
- * of the methods that is actually guarded (see league-scoring-systems below).
+ * One route per `PlatformRoleGuard` controller — and the method matters,
+ * because the guard is not always on the class. A GET is enough wherever the
+ * controller guards itself wholesale; where it guards per method, the probe
+ * has to be one of the methods that is actually guarded (see
+ * league-scoring-systems below).
  *
  * The assertion is **403 specifically**, never "some 4xx": a 404 would mean the
  * route is missing, which is a different bug wearing the same colour, and a
@@ -56,7 +57,12 @@ const SUPER_PASSWORD = process.env.E2E_SUPERADMIN_PASSWORD ?? '';
  *
  * **Adding an admin controller means adding a row here.** That is the point of
  * the sweep: the failure it exists to catch is a new controller that forgot
- * `@UseGuards(SuperAdminGuard)`, and it can only catch what it names.
+ * `@UseGuards(PlatformRoleGuard)`, and it can only catch what it names.
+ *
+ * Note what this list means now that the guard has tiers: every row refuses an
+ * account with NO platform role. It says nothing about which tier passes —
+ * that is what the platform-admin and read-only halves below are for, and what
+ * `platform-role-coverage.test.ts` pins per route.
  */
 const GUARDED_ROUTES = [
   { method: 'GET', path: 'admin/ai-keys' },
@@ -117,8 +123,40 @@ const WRITE_BACK_FLAG = 'disable_hema_sync';
 
 interface MeResponse {
   user: { id: string; email: string };
-  admin: { isSuperAdmin: boolean };
+  admin: { platformRole: 'super_admin' | 'platform_admin' | 'platform_viewer' | null };
 }
+
+/** Reserved to super-admin: secrets, destructive infra, GDPR, account minting. */
+const RESERVED_ROUTES = [
+  { method: 'GET', path: 'admin/ai-keys' },
+  { method: 'GET', path: 'admin/ai-settings' },
+  { method: 'GET', path: 'admin/backups/status' },
+  { method: 'GET', path: 'admin/feature-flags' },
+  { method: 'GET', path: 'admin/audit-log/export.csv' },
+  { method: 'GET', path: 'admin/data-retention' },
+] as const;
+
+/** The platform-admin domain: moderation, catalogues, org lifecycle. */
+const ADMIN_DOMAIN_READS: readonly string[] = [
+  'admin/review-queue',
+  'admin/organizations',
+  'admin/custom-rulesets',
+  'admin/hema-ratings/health',
+  'admin/weapons',
+  'admin/dashboard-stats',
+  'admin/platform-log',
+  'admin/notifications/summary',
+  'admin/system-versions',
+  'admin/system/runtime-health',
+  'admin/ai-usage/summary',
+  'admin/audit-log',
+  'admin/users',
+];
+
+const PLATFORM_ADMIN_EMAIL = process.env.E2E_PLATFORM_ADMIN_EMAIL ?? '';
+const PLATFORM_ADMIN_PASSWORD = process.env.E2E_PLATFORM_ADMIN_PASSWORD ?? '';
+const PLATFORM_VIEWER_EMAIL = process.env.E2E_PLATFORM_VIEWER_EMAIL ?? '';
+const PLATFORM_VIEWER_PASSWORD = process.env.E2E_PLATFORM_VIEWER_PASSWORD ?? '';
 
 interface RegistryFlag {
   key: string;
@@ -143,9 +181,9 @@ test.describe('super admin', () => {
     // mean nothing if the account being refused could in fact pass.
     const identity = await me(api);
     expect(
-      identity.admin.isSuperAdmin,
-      'the shared E2E account must NOT be a super admin — see the header note on 13-privacy',
-    ).toBe(false);
+      identity.admin.platformRole,
+      'the shared E2E account must hold NO platform role — see the header note on 13-privacy',
+    ).toBeNull();
 
     for (const route of GUARDED_ROUTES) {
       const response =
@@ -188,9 +226,9 @@ test.describe('super admin', () => {
       // against a 403 if the platform_roles row were missing.
       const identity = await me(api);
       expect(
-        identity.admin.isSuperAdmin,
+        identity.admin.platformRole,
         `${SUPER_EMAIL} is not a super admin — it needs a platform_roles row with role='super_admin'`,
-      ).toBe(true);
+      ).toBe('super_admin');
 
       // ── The console reads ────────────────────────────────────────────────
       for (const path of CONSOLE_READS) {
@@ -242,6 +280,142 @@ test.describe('super admin', () => {
       ).toBe(true);
     } finally {
       await platform.close();
+    }
+  });
+
+  /**
+   * Half C — the platform admin.
+   *
+   * The tier only exists if BOTH halves of it hold: the reserve refuses it and
+   * its own domain admits it. Asserting one without the other is how a tier
+   * that is secretly a super-admin, or secretly nothing, still goes green.
+   *
+   * Reads only, deliberately. Every write in the admin domain is genuinely
+   * destructive at this point — approve a claim, sync ratings, delete a club —
+   * and Half B's inert write-back target is a feature flag, which is now
+   * reserved. A probe that had to break something to prove a tier is not worth
+   * the tier.
+   */
+  test('a platform admin is refused the reserve and admitted to its own domain', async ({
+    browser,
+  }) => {
+    test.skip(
+      !PLATFORM_ADMIN_EMAIL || !PLATFORM_ADMIN_PASSWORD,
+      'set E2E_PLATFORM_ADMIN_EMAIL / _PASSWORD (a platform_roles row with role=platform_admin)',
+    );
+    test.setTimeout(180_000);
+    const { baseURL } = runContext();
+
+    const context = await browser.newContext({
+      baseURL,
+      storageState: undefined,
+      ignoreHTTPSErrors: true,
+    });
+
+    try {
+      const api = apiFor(context.request);
+      await api.ok(
+        await api.post('auth/password-login', {
+          data: { email: PLATFORM_ADMIN_EMAIL, password: PLATFORM_ADMIN_PASSWORD },
+        }),
+      );
+
+      // Loud, and first: every 403 below passes vacuously if the account in
+      // fact holds no platform role at all.
+      const identity = await me(api);
+      expect(
+        identity.admin.platformRole,
+        `${PLATFORM_ADMIN_EMAIL} needs a platform_roles row with role='platform_admin'`,
+      ).toBe('platform_admin');
+
+      for (const route of RESERVED_ROUTES) {
+        const response = await api.get(route.path);
+        expect(
+          response.status(),
+          `${route.path} is super-admin reserve — a platform admin must be refused (403). ` +
+            `A 200 means the tier reads secrets or destructive surfaces it should not.`,
+        ).toBe(403);
+      }
+
+      // A reserved WRITE, to prove the verb default is doing its job too.
+      const flagWrite = await api.put(`admin/feature-flags/${WRITE_BACK_FLAG}`, {
+        data: { enabled: false },
+      });
+      expect(flagWrite.status(), 'the kill switches stay super-admin only').toBe(403);
+
+      for (const path of ADMIN_DOMAIN_READS) {
+        const response = await api.get(path);
+        expect(response.status(), `${path} is the platform-admin domain — it must answer`).toBe(
+          200,
+        );
+      }
+    } finally {
+      await context.close();
+    }
+  });
+
+  /**
+   * Half D — read-only.
+   *
+   * The tier is defined by what it CANNOT do, so the write probe is the point.
+   * `POST admin/weapons` with an empty body is chosen for the same reason
+   * Half A probes league-scoring-systems that way: the body is invalid, so if
+   * the guard ever vanished validation would answer 400 and this assertion
+   * would fail loudly — without a row being created.
+   */
+  test('a read-only account can read the console and write nothing', async ({ browser }) => {
+    test.skip(
+      !PLATFORM_VIEWER_EMAIL || !PLATFORM_VIEWER_PASSWORD,
+      'set E2E_PLATFORM_VIEWER_EMAIL / _PASSWORD (a platform_roles row with role=platform_viewer)',
+    );
+    test.setTimeout(180_000);
+    const { baseURL } = runContext();
+
+    const context = await browser.newContext({
+      baseURL,
+      storageState: undefined,
+      ignoreHTTPSErrors: true,
+    });
+
+    try {
+      const api = apiFor(context.request);
+      await api.ok(
+        await api.post('auth/password-login', {
+          data: { email: PLATFORM_VIEWER_EMAIL, password: PLATFORM_VIEWER_PASSWORD },
+        }),
+      );
+
+      const identity = await me(api);
+      expect(
+        identity.admin.platformRole,
+        `${PLATFORM_VIEWER_EMAIL} needs a platform_roles row with role='platform_viewer'`,
+      ).toBe('platform_viewer');
+
+      for (const path of ADMIN_DOMAIN_READS) {
+        const response = await api.get(path);
+        expect(response.status(), `${path} must be readable by a read-only account`).toBe(200);
+      }
+
+      for (const route of RESERVED_ROUTES) {
+        const response = await api.get(route.path);
+        expect(response.status(), `${route.path} is reserved — read-only must be refused`).toBe(
+          403,
+        );
+      }
+
+      // Writes: refused wherever they are, including in the admin domain the
+      // reads above just proved this account can see.
+      const weaponWrite = await api.post('admin/weapons', { data: {} });
+      expect(
+        weaponWrite.status(),
+        'a read-only account must never pass a write — a 400 here means the guard let it through ' +
+          'and only validation stopped it',
+      ).toBe(403);
+
+      const disableWrite = await api.patch(`admin/users/${identity.user.id}/disable`, { data: {} });
+      expect(disableWrite.status(), 'nor a write in the account domain').toBe(403);
+    } finally {
+      await context.close();
     }
   });
 });
