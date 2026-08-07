@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
-import { mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -20,6 +20,8 @@ import {
   shouldRunScheduledBackup,
   writeBackupSchedule,
 } from './backup-core.mjs';
+import { parseDfOutput } from './disk.mjs';
+import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
 
 const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
 const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
@@ -29,6 +31,19 @@ const MAX_BODY_BYTES = Number(process.env.OPS_RUNNER_MAX_BODY_BYTES ?? 1024 * 10
 // report whether the most recent backup actually succeeded (the artifact
 // list alone can't tell success from a stale older set).
 const BACKUP_HISTORY_LIMIT = 50;
+/**
+ * Artifact shapes a batched `aws s3 rm --recursive` is allowed to touch. Kept
+ * in lockstep with BACKUP_FILENAME_PATTERN / expectedBackupArtifactFilenames:
+ * `.gpg` needs its own glob because a trailing-anchored pattern cannot match it.
+ */
+const CLOUD_ARTIFACT_INCLUDE_GLOBS = [
+  'db-*.sql.gz',
+  'db-*.sql.gz.gpg',
+  'storage-*.tar.gz',
+  'storage-*.tar.gz.gpg',
+];
+/** Keep propagated aws stderr readable in a UI banner. */
+const AWS_ERROR_MAX_CHARS = 400;
 const operations = new Map();
 let backupSchedule = await readBackupSchedule(ROOT_DIR);
 let lastScheduledRunKey = null;
@@ -147,7 +162,10 @@ const server = createServer(async (req, res) => {
     }
     sendJson(res, 404, { error: 'not_found' });
   } catch (error) {
-    sendJson(res, 500, { error: sanitizeError(error) });
+    // Honour a status an operation deliberately chose (lock contention is a
+    // 409, not a server fault) so the API can relay it as the same class
+    // instead of flattening everything into a 503.
+    sendJson(res, error?.statusCode ?? 500, { error: sanitizeError(error) });
   }
 });
 
@@ -169,26 +187,6 @@ async function statusResponse() {
     cloudConfigured: s3Configured(),
     lastBackup: deriveLastBackup(history, backups[0] ?? null),
     runningOperation,
-  };
-}
-
-/**
- * Parse `df -P -B1 <dir>` output (POSIX format, sizes in bytes). The data row
- * may wrap if the filesystem name is long, but `-P` guarantees a single row.
- */
-export function parseDfOutput(stdout) {
-  const lines = String(stdout).trim().split(/\r?\n/);
-  const dataLine = lines[lines.length - 1];
-  const cols = dataLine.trim().split(/\s+/);
-  // Filesystem 1B-blocks Used Available Capacity% Mounted-on
-  const [filesystem, size, used, avail, capacity, ...mount] = cols;
-  return {
-    filesystem,
-    sizeBytes: Number(size),
-    usedBytes: Number(used),
-    availBytes: Number(avail),
-    usePercent: Number(String(capacity).replace('%', '')),
-    mountpoint: mount.join(' '),
   };
 }
 
@@ -268,7 +266,14 @@ async function maybeRunScheduledBackup(now = new Date()) {
   });
 }
 
-async function listCloudArtifacts() {
+/**
+ * @param throwOnFailure callers that are about to DELETE must not read an
+ *   unreachable bucket as an empty one — "0 cloud sets deleted, success" is a
+ *   lie the operator cannot distinguish from a real wipe. Listing callers keep
+ *   the lenient default so a cloud outage degrades the inventory view instead
+ *   of breaking it.
+ */
+async function listCloudArtifacts({ throwOnFailure = false } = {}) {
   if (!s3Configured()) return [];
   const result = await spawnCapture('aws', [
     's3',
@@ -277,7 +282,12 @@ async function listCloudArtifacts() {
     '--endpoint-url',
     process.env.BACKUP_SCW_ENDPOINT,
   ]);
-  if (result.code !== 0) return [];
+  if (result.code !== 0) {
+    if (throwOnFailure) {
+      throw new Error(trimAwsError(result.stderr) || 'Could not list cloud backups.');
+    }
+    return [];
+  }
   return parseAwsS3List(result.stdout)
     .map((entry) => {
       const parsed = parseBackupFilename(entry.key);
@@ -308,15 +318,29 @@ function startOperation(kind, createCommand, body = {}) {
   return { operation };
 }
 
+/**
+ * Announce a reclaimed lock in the container log. A wedged runner used to need
+ * an operator to SSH in and delete the file; now it heals itself, so the only
+ * trace left is this line — keep it loud enough to correlate with a crash.
+ */
+function logReclaimedLock(state) {
+  console.warn(
+    `[ops-lock] reclaimed a stale lock (${state.reason}); previous holder: ` +
+      `${state.holder?.kind ?? 'unknown'} ${state.holder?.operationId ?? ''} started ${state.holder?.startedAt ?? 'unknown'}`,
+  );
+}
+
 async function runLocked(operation, createCommand) {
-  const lockPath = path.join(ROOT_DIR, 'backups', '.ops.lock');
-  await mkdir(path.dirname(lockPath), { recursive: true });
-  let lock;
+  let handle;
   try {
-    lock = await open(lockPath, 'wx');
-  } catch {
+    handle = await acquireOpsLock(ROOT_DIR, {
+      kind: operation.kind,
+      operationId: operation.id,
+      onReclaim: logReclaimedLock,
+    });
+  } catch (error) {
     operation.status = 'failed';
-    operation.error = 'Another backup operation is already running.';
+    operation.error = sanitizeError(error);
     operation.finishedAt = new Date().toISOString();
     return;
   }
@@ -339,8 +363,7 @@ async function runLocked(operation, createCommand) {
   } finally {
     operation.finishedAt = new Date().toISOString();
     await appendBackupHistory(operation).catch(() => undefined);
-    await lock.close().catch(() => undefined);
-    await rm(lockPath, { force: true }).catch(() => undefined);
+    await releaseOpsLock(handle);
   }
 }
 
@@ -418,42 +441,77 @@ async function deleteAllBackups(body) {
     throw new Error('Invalid confirmation.');
   }
 
-  const localArtifacts = await listLocalBackupArtifacts(ROOT_DIR);
-  const deletedFiles = [];
-  const localTimestamps = new Set();
-  for (const artifact of localArtifacts) {
+  // Mutual exclusion with backup/restore. Without it a wipe can delete
+  // artifacts while backup.sh is still writing them, or strip away the
+  // safety-net backup a restore just took. Stays synchronous: the batched S3
+  // delete below keeps this inside the API's request budget.
+  return withOpsLock(ROOT_DIR, { kind: 'delete-all', onReclaim: logReclaimedLock }, async () => {
+    const local = await deleteAllLocalBackups();
+    const cloud = s3Configured() ? await deleteAllCloudBackups() : emptyWipe();
+
+    return {
+      deleted: true,
+      deletedLocalSets: local.timestamps.size,
+      deletedCloudSets: cloud.timestamps.size,
+      deletedFiles: [...local.deletedFiles, ...cloud.deletedFiles],
+      failedFiles: local.failedFiles,
+    };
+  });
+}
+
+function emptyWipe() {
+  return { deletedFiles: [], failedFiles: [], timestamps: new Set() };
+}
+
+async function deleteAllLocalBackups() {
+  const artifacts = await listLocalBackupArtifacts(ROOT_DIR);
+  const wipe = emptyWipe();
+  for (const artifact of artifacts) {
     try {
       await rm(path.join(ROOT_DIR, 'backups', 'nightly', artifact.filename), { force: true });
-      deletedFiles.push(artifact.filename);
-      localTimestamps.add(artifact.timestamp);
+      wipe.deletedFiles.push(artifact.filename);
+      wipe.timestamps.add(artifact.timestamp);
     } catch {
-      // Best-effort, continue with the remaining files.
+      // Best-effort per file, but reported rather than discarded — a wipe that
+      // silently left files behind is worse than one that says so.
+      wipe.failedFiles.push(artifact.filename);
     }
   }
+  return wipe;
+}
 
-  const cloudTimestamps = new Set();
-  if (s3Configured()) {
-    const cloudArtifacts = await listCloudArtifacts();
-    for (const artifact of cloudArtifacts) {
-      const result = await spawnCapture('aws', [
-        's3',
-        'rm',
-        `s3://${process.env.BACKUP_SCW_BUCKET}/myclash/${artifact.filename}`,
-        '--endpoint-url',
-        process.env.BACKUP_SCW_ENDPOINT,
-      ]);
-      if (result.code === 0) {
-        deletedFiles.push(artifact.filename);
-        cloudTimestamps.add(artifact.timestamp);
-      }
-    }
+/**
+ * ONE batched delete, not one `aws` process per object: the CLI costs ~1-2s of
+ * cold start each, and at 60 retained sets the per-object loop needed ~120
+ * spawns — minutes past the API's 15s timeout, which is why this endpoint
+ * appeared to fail while quietly succeeding underneath.
+ */
+async function deleteAllCloudBackups() {
+  const artifacts = await listCloudArtifacts({ throwOnFailure: true });
+  if (artifacts.length === 0) return emptyWipe();
+
+  const result = await spawnCapture('aws', [
+    's3',
+    'rm',
+    `s3://${process.env.BACKUP_SCW_BUCKET}/myclash/`,
+    '--recursive',
+    // Filters apply in order: deny everything, then re-admit only the backup
+    // artifact shapes, so --recursive can never reach a key this subsystem
+    // does not own.
+    '--exclude',
+    '*',
+    ...CLOUD_ARTIFACT_INCLUDE_GLOBS.flatMap((glob) => ['--include', glob]),
+    '--endpoint-url',
+    process.env.BACKUP_SCW_ENDPOINT,
+  ]);
+  if (result.code !== 0) {
+    throw new Error(trimAwsError(result.stderr) || 'Could not delete cloud backups.');
   }
 
   return {
-    deleted: true,
-    deletedLocalSets: localTimestamps.size,
-    deletedCloudSets: cloudTimestamps.size,
-    deletedFiles,
+    deletedFiles: artifacts.map((artifact) => artifact.filename),
+    failedFiles: [],
+    timestamps: new Set(artifacts.map((artifact) => artifact.timestamp)),
   };
 }
 
@@ -826,4 +884,18 @@ async function fileExists(filePath) {
 
 function sanitizeError(error) {
   return error instanceof Error ? error.message : 'Unknown operation error.';
+}
+
+/**
+ * Collapse aws-cli stderr into one bounded line. These messages reach a
+ * super-admin-only UI, so operational detail (endpoint, bucket) is acceptable
+ * — a wall of retry noise is not.
+ */
+function trimAwsError(stderr) {
+  const text = String(stderr ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' ');
+  return text.length > AWS_ERROR_MAX_CHARS ? `${text.slice(0, AWS_ERROR_MAX_CHARS)}…` : text;
 }

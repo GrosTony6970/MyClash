@@ -109,7 +109,15 @@ hdr "Postgres dump"
 
 PG_FILE="$BACKUP_DIR/db-${TIMESTAMP}.sql.gz"
 
-if "${COMPOSE[@]}" ps --status running db 2>/dev/null | grep -q db; then
+# Probe the tool before probing the container. `docker compose ps` under
+# 2>/dev/null cannot tell "db is stopped" from "compose is not installed here",
+# and the runner image ships the Docker CLI without the Compose v2 plugin — so
+# a missing plugin used to be reported as a stopped database, producing a
+# storage-only backup that still exited 1 with a misleading reason.
+if ! "${COMPOSE[@]}" version >/dev/null 2>&1; then
+  log_err "docker compose unavailable in this environment — cannot dump Postgres"
+  BACKUP_OK=0
+elif "${COMPOSE[@]}" ps --status running db 2>/dev/null | grep -q db; then
   # pg_dump takes a consistent MVCC snapshot by default; its stderr is
   # kept (not silenced) so failures surface in the ops-runner log tail.
   if "${COMPOSE[@]}" exec -T db \
@@ -159,7 +167,10 @@ if docker volume inspect "$STORAGE_VOLUME" &>/dev/null; then
     BACKUP_OK=0
   fi
 else
-  log_warn "Storage volume '$STORAGE_VOLUME' not found — skipping storage backup"
+  # Fail the run: a DB-only backup is not a backup. This used to warn and leave
+  # BACKUP_OK=1, so a half backup exited 0 and was recorded as a success.
+  log_err "Storage volume '$STORAGE_VOLUME' not found — backup is incomplete"
+  BACKUP_OK=0
 fi
 
 # ── 3. Optional GPG encryption ───────────────────────────────────
