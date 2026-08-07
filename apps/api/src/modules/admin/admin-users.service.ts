@@ -15,6 +15,7 @@ import {
 } from './dto/admin-users.dto';
 import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 
 export interface ListUsersQuery {
   page?: number;
@@ -882,13 +883,7 @@ export class AdminUsersService {
 
   /** Throws if `userId` holds the platform-level super-admin role. */
   private async assertNotSuperAdmin(userId: string): Promise<void> {
-    const { data } = await this.supabase.service
-      .from('platform_roles')
-      .select('user_id')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    if (data) {
+    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) {
       throw new ForbiddenException(
         'Cannot add a super-admin to an organization. Revoke super-admin status first.',
       );

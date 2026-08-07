@@ -10,6 +10,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
+import { hasPlatformTier } from '../auth/platform-role';
 
 const ALLOWLIST = ['/api/v1/auth/', '/api/v1/health', '/api/v1/public/'];
 
@@ -69,17 +70,14 @@ export class ReadOnlyInterceptor implements NestInterceptor {
     }
   }
 
+  /**
+   * `super_admin`-EXACT, and it stays that way. `read_only_mode` exists to stop
+   * every write on the platform; letting a `platform_admin` through would
+   * re-open exactly what the switch is for. Note also that the tier named
+   * `platform_viewer` is an unrelated concept to this flag despite the
+   * proximity of the words — do not "unify" them.
+   */
   private async isSuperAdmin(userId: string): Promise<boolean> {
-    try {
-      const { data } = await this.supabase.service
-        .from('platform_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-      return !!data;
-    } catch {
-      return false;
-    }
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 }

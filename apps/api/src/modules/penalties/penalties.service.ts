@@ -21,6 +21,7 @@ import {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveOrganizationNames } from '../../common/organization-names';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import {
   buildRulesetExport,
   penaltyRulesetExportDefinitionSchema,
@@ -1288,19 +1289,9 @@ export class PenaltiesService {
     if (this.orgs) await this.orgs.assertOrgRole(orgId, userId, 'admin');
   }
 
-  /**
-   * Resolve whether `userId` carries the platform `super_admin` role. Matches
-   * the lookup pattern used by leagues.service.ts:isSuperAdmin().
-   */
+  /** Resolve whether `userId` carries the platform `super_admin` role. */
   private async isSuperAdmin(userId: string): Promise<boolean> {
-    if (!userId || userId === 'anonymous') return false;
-    const { data } = await this.supabase.service
-      .from('platform_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    return Boolean(data);
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 
   private async assertUserCanScoreOrg(orgId: string, userId?: string): Promise<void> {

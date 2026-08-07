@@ -10,6 +10,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
+import { hasPlatformTier } from '../auth/platform-role';
 
 const PROTECTED_PREFIXES = [
   '/api/v1/admin/',
@@ -88,16 +89,6 @@ export class LockdownInterceptor implements NestInterceptor {
   }
 
   private async isSuperAdmin(userId: string): Promise<boolean> {
-    try {
-      const { data } = await this.supabase.service
-        .from('platform_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-      return !!data;
-    } catch {
-      return false;
-    }
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 }

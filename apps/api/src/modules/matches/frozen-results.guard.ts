@@ -7,6 +7,7 @@ import {
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 
 export type ExchangeEditRequestType = 'void_exchange' | 'revert_void_exchange';
 export type ExchangeEditRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -213,15 +214,14 @@ export class FrozenResultsGuard {
     return { eventId, status: (event as { status: string }).status };
   }
 
+  /**
+   * `super_admin`-EXACT. Bypassing the frozen-results interlock writes into a
+   * completed event; a `platform_admin` has a sanctioned path for the same
+   * outcome — approving an exchange-edit request — and does not get the
+   * override.
+   */
   private async isSuperAdmin(userId?: string): Promise<boolean> {
-    if (!userId) return false;
-    const { data } = await this.supabase.service
-      .from('platform_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    return Boolean(data);
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 
   private async findPendingRequest(

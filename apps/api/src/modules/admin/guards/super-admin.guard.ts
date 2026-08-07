@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyRequest } from 'fastify';
+import { hasPlatformTier } from '../../../common/auth/platform-role';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 type GoTrueAuthUser = {
@@ -46,21 +47,10 @@ export class SuperAdminGuard implements CanActivate {
     const user = await this.requestAuthUser(token);
     if (!user) throw new UnauthorizedException('Invalid or expired token');
 
-    // Check platform_roles table (graceful fallback pre-T-101)
-    try {
-      const { data } = await this.supabase.service
-        .from('platform_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-
-      if (data) {
-        (request as FastifyRequest & { actorUserId?: string }).actorUserId = user.id;
-        return true;
-      }
-    } catch {
-      // Table not yet created — fall through to JWT claim check
+    // Check platform_roles (resolvePlatformRole fails closed on a missing table)
+    if (await hasPlatformTier(this.supabase, user.id, 'super_admin')) {
+      (request as FastifyRequest & { actorUserId?: string }).actorUserId = user.id;
+      return true;
     }
 
     // Fallback: check JWT app_metadata.role claim (set during bootstrap)

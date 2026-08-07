@@ -8,6 +8,7 @@ import {
 import { asEventKind, countsTowardStats, toCsvCell } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import {
   DEFAULT_LEAGUE_SCORING_CONFIG,
   type LeagueRankingRow,
@@ -1967,14 +1968,7 @@ export class LeaguesService {
   }
 
   private async isSuperAdmin(userId: string): Promise<boolean> {
-    if (!userId || userId === 'anonymous') return false;
-    const { data } = await this.supabase.service
-      .from('platform_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    return Boolean(data);
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 
   private async listMatchesForTournament(tournamentId: string): Promise<Row[]> {

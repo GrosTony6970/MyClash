@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import { OrganizationsService } from '../organizations/organizations.service';
 
 /**
@@ -276,13 +277,7 @@ export class LeagueMembershipRequestsService {
   private async assertCanReview(leagueId: string, userId: string): Promise<void> {
     if (!userId) throw new ForbiddenException('Authentication required.');
 
-    const { data: platform } = await this.supabase.service
-      .from('platform_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    if (platform) return;
+    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) return;
 
     const { data: userRole } = await this.supabase.service
       .from('league_user_roles')

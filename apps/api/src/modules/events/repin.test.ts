@@ -81,7 +81,11 @@ function harness(opts: HarnessOpts) {
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'tournaments') return tournamentsChain(opts.current, cap);
     if (table === 'events') return readChain(EVENT_ROW);
-    if (table === 'platform_roles') return readChain(opts.isSuperAdmin ? { user_id: 'u1' } : null);
+    // The row must carry `role`: resolvePlatformRole no longer filters on it in
+    // the query, it reads and parses it. A row without one holds no tier.
+    if (table === 'platform_roles') {
+      return readChain(opts.isSuperAdmin ? { user_id: 'u1', role: 'super_admin' } : null);
+    }
     if (table === 'custom_rulesets') return readChain(null);
     if (table === 'tournament_ruleset_repins') return insertChain((p) => (cap.repinInsert = p));
     if (table === 'audit_log') return insertChain((p) => (cap.auditLogInsert = p));

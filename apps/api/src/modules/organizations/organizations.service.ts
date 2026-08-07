@@ -7,6 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see matches/di-wiring.regression.test.ts).
@@ -516,13 +517,7 @@ export class OrganizationsService {
 
   /** Throws if `userId` holds the platform-level super-admin role. */
   private async assertNotSuperAdmin(userId: string) {
-    const { data } = await this.supabase.service
-      .from('platform_roles')
-      .select('user_id')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    if (data) {
+    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) {
       throw new ForbiddenException(
         'Cannot add a super-admin to an organization. Revoke super-admin status first.',
       );

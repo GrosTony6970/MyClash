@@ -1,13 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { insertAuditLog } from '../../../common/audit-log';
+import { assertPlatformTier } from '../../../common/auth/platform-role';
 
 /**
  * Registry of reusable named league scoring systems.
@@ -379,15 +379,7 @@ export class LeagueScoringSystemsService {
   }
 
   private async assertSuperAdmin(userId: string): Promise<void> {
-    if (!userId) throw new ForbiddenException('Super admin access required');
-    const { data, error } = await this.supabase.service
-      .from('platform_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new ForbiddenException('Super admin access required');
+    await assertPlatformTier(this.supabase, userId, 'super_admin', 'Super admin access required');
   }
 
   private async allocateCloneCode(sourceCode: string): Promise<string> {

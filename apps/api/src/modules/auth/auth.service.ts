@@ -14,6 +14,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { validatePassword } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
@@ -270,17 +271,8 @@ export class AuthService {
     const lockdownOn = await this.isAdminLockdownEnabled();
     if (!lockdownOn) return;
 
-    try {
-      const { data } = await this.supabase.service
-        .from('platform_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-      if (data) return; // super admin bypasses lockdown
-    } catch {
-      // platform_roles missing in early bootstrap — fall through to block
-    }
+    // super admin bypasses lockdown
+    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) return;
 
     throw new ServiceUnavailableException(
       'MyClash admin is temporarily restricted to super admins. Please try again later.',
@@ -1684,18 +1676,7 @@ export class AuthService {
   }
 
   private async hasAdminAccess(userId: string): Promise<boolean> {
-    try {
-      const { data: platformRole } = await this.supabase.service
-        .from('platform_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-
-      if (platformRole) return true;
-    } catch {
-      // Table may not exist during early bootstrap.
-    }
+    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) return true;
 
     try {
       // .limit(1), not .maybeSingle(): PostgREST nulls `data` and returns
@@ -1745,21 +1726,9 @@ export class AuthService {
   }
 
   private async getAdminLandingContext(userId: string): Promise<AdminLandingContext> {
-    let isSuperAdmin = false;
     let organizations: AdminLandingContext['organizations'] = [];
 
-    try {
-      const { data: platformRole } = await this.supabase.service
-        .from('platform_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'super_admin')
-        .maybeSingle();
-
-      isSuperAdmin = Boolean(platformRole);
-    } catch {
-      // Table may not exist during early bootstrap.
-    }
+    const isSuperAdmin = await hasPlatformTier(this.supabase, userId, 'super_admin');
 
     try {
       const { data: membershipRows } = await this.supabase.service

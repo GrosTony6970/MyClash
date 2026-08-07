@@ -16,6 +16,7 @@ import {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
@@ -3401,14 +3402,13 @@ export class EventsService {
     await this.orgs.assertOrgRole(orgId, userId, 'owner');
   }
 
+  /**
+   * `super_admin`-EXACT. Re-pinning rewrites how a live or completed
+   * tournament's results are computed, overriding the org's own owner — a
+   * data-integrity override, not moderation, so it stays in the reserve.
+   */
   private async isSuperAdmin(userId: string): Promise<boolean> {
-    const { data } = await this.supabase.service
-      .from('platform_roles')
-      .select('user_id')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin')
-      .maybeSingle();
-    return Boolean(data);
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 
   /**
