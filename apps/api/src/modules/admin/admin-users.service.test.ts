@@ -395,6 +395,93 @@ describe('AdminUsersService', () => {
     expect(deleteAuthAdminUser).toHaveBeenCalledWith('user-linked');
   });
 
+  /**
+   * The production bug, as reported: a freshly created account attached to
+   * nothing still failed to delete. Referee tables carry no user_id since
+   * migration 0063, and PostgREST rejects an unknown column at PLAN time — so
+   * the blocker sweep threw before it ever looked at a row, for every account.
+   */
+  it('deletes an account that references nothing without ever naming a referee user_id', async () => {
+    const refereeQualifications = chain({ data: [], error: null });
+    deleteAuthAdminUser.mockResolvedValue({ ok: true, status: 200, data: null });
+    fromMock.mockImplementation((table: string) =>
+      table === 'referee_qualifications' ? refereeQualifications : chain({ data: [], error: null }),
+    );
+
+    const result = await service.deletePlatformUser('user-fresh', 'actor-user', 'safe');
+
+    expect(result).toEqual({ deleted: true, mode: 'safe', cleanupApplied: false });
+    // No claimed global person ⇒ nothing can reference it, so the table is not
+    // queried at all. It must certainly never be filtered on `user_id`.
+    expect(refereeQualifications.eq).not.toHaveBeenCalled();
+    expect(refereeQualifications.in).not.toHaveBeenCalled();
+  });
+
+  it('counts referee qualifications through the claimed global person, not the uid', async () => {
+    const globalPersons = chain({ data: [{ id: 'gp-1' }], error: null });
+    const refereeQualifications = chain({ data: [{ person_id: 'gp-1' }], error: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'global_persons') return globalPersons;
+      if (table === 'referee_qualifications') return refereeQualifications;
+      return chain({ data: [], error: null });
+    });
+
+    await expect(service.deletePlatformUser('user-ref', 'actor-user', 'safe')).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(refereeQualifications.select).toHaveBeenCalledWith('person_id');
+    expect(refereeQualifications.in).toHaveBeenCalledWith('person_id', ['gp-1']);
+    expect(deleteAuthAdminUser).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `workshop_enrollments.user_id` holds an event-scoped persons.id, not a uid.
+   * Compared against the uid it matched nothing, silently — enrollments never
+   * blocked a delete and were never reported.
+   */
+  it('counts workshop enrollments through claimed persons, not the uid', async () => {
+    const persons = chain({ data: [{ id: 'person-1' }], error: null });
+    const enrollments = chain({ data: [{ user_id: 'person-1' }], error: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'persons') return persons;
+      if (table === 'workshop_enrollments') return enrollments;
+      return chain({ data: [], error: null });
+    });
+
+    await expect(service.deletePlatformUser('user-ws', 'actor-user', 'safe')).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(enrollments.in).toHaveBeenCalledWith('user_id', ['person-1']);
+    expect(enrollments.eq).not.toHaveBeenCalledWith('user_id', 'user-ws');
+  });
+
+  /**
+   * "Historical event facts remain" is the button's own promise. Cleanup clears
+   * private links and unlinks the identity; it must not delete event records.
+   */
+  it('cleanup never deletes historical event facts', async () => {
+    const refereeQualifications = chain({ data: [], error: null });
+    const enrollments = chain({ data: [], error: null });
+    const platformRoles = chain({ data: [], error: null });
+    deleteAuthAdminUser.mockResolvedValue({ ok: true, status: 200, data: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'referee_qualifications') return refereeQualifications;
+      if (table === 'workshop_enrollments') return enrollments;
+      if (table === 'platform_roles') return platformRoles;
+      return chain({ data: [], error: null });
+    });
+
+    await service.deletePlatformUser('user-linked', 'actor-user', 'cleanup');
+
+    expect(refereeQualifications.delete).not.toHaveBeenCalled();
+    expect(enrollments.delete).not.toHaveBeenCalled();
+    // The private links still go.
+    expect(platformRoles.delete).toHaveBeenCalled();
+    expect(deleteAuthAdminUser).toHaveBeenCalledWith('user-linked');
+  });
+
   // ── Temp-password vault ────────────────────────────────────────────────────
 
   it('vaults the temp password on create so super-admin can reveal it later', async () => {

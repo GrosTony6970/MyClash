@@ -2668,6 +2668,7 @@ export const en = {
           'Safe delete removes the Auth account only if no MyClash references exist. Continue for {account}?',
         confirmCleanupDelete:
           'Force cleanup delete removes account access and private links before deleting Auth. Historical event facts remain. Continue for {account}?',
+        blockers: 'Blocked by',
         failed: 'Action failed. Please try again.',
       },
       edit: {
@@ -10088,6 +10089,7 @@ export const fr = {
           'La suppression sure retire le compte Auth seulement si aucune reference MyClash n existe. Continuer pour {account} ?',
         confirmCleanupDelete:
           'La suppression avec nettoyage retire les acces et liens prives avant de supprimer Auth. Les faits historiques restent conserves. Continuer pour {account} ?',
+        blockers: 'Bloque par',
         failed: 'Action impossible. Veuillez reessayer.',
       },
       edit: {

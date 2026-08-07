@@ -36,6 +36,158 @@ interface UserDeletionBlockers {
   soleOwnerOrganizationIds: string[];
 }
 
+/**
+ * How a table's rows are reached from the account being deleted.
+ *
+ * These are NOT interchangeable, and conflating them is the whole reason this
+ * type exists. Both of the bugs it was introduced to fix were a column whose
+ * NAME implied one reach while it held another:
+ *
+ *  - `uid`           column holds an auth.users id.
+ *  - `person`        column holds a persons.id (the EVENT-SCOPED roster row).
+ *  - `global_person` column holds a global_persons.id (cross-event identity).
+ *
+ * The trap: `workshop_enrollments.user_id` is named like a uid but holds a
+ * persons.id — guests carry a persons.id with no account at all. Comparing it
+ * to a uid matches nothing, silently, so enrollments never blocked a delete and
+ * were never cleaned. Same vocabulary as `SubjectReach` in
+ * ../privacy/subject-export.tables.ts, which learned this on the same tables.
+ */
+export type ReferenceReach = 'uid' | 'person' | 'global_person';
+
+export interface ReferenceCheck {
+  /** Key in the `blockers.references` response. Stable; the UI prints it. */
+  key: string;
+  table: string;
+  column: string;
+  reach: ReferenceReach;
+  /**
+   * Cleanup DELETES these rows. Only ever true for `reach: 'uid'` — see the
+   * invariant on CLEANUP_DELETIONS below. Pinned by admin-users.schema.test.ts.
+   */
+  cleanup: boolean;
+}
+
+/**
+ * Every way MyClash still points at a platform account, and how to reach it.
+ *
+ * ONE list with TWO consumers (the safe-delete blocker count and the cleanup
+ * delete), because the two hand-maintained lists this replaces had drifted from
+ * the schema AND from each other. Neither drift was visible: `.from(table)` with
+ * a variable is invisible to common/db-schema-conformance.test.ts, whose scanner
+ * only matches literal table names, and the service tests mock Supabase, which
+ * returns rows for a dropped column exactly as happily as for a live one.
+ *
+ * Migration 0063 dropped `referee_qualifications.user_id` (referee tables are
+ * keyed on person_id now, reaching a login only through
+ * global_persons.claimed_by_user_id). The stale entry made PostgREST 400 the
+ * whole query — so EVERY platform account delete failed, in both modes, for
+ * every account, including brand-new ones with nothing attached: an unknown
+ * column fails at plan time, before any row is examined.
+ *
+ * MAINTENANCE: admin-users.schema.test.ts replays all migrations and fails if
+ * any (table, column) below stops existing. Add entries there, not from memory.
+ */
+const REFERENCE_CHECKS: readonly ReferenceCheck[] = [
+  // ── Owned outright by the login: access, devices, comms, outbound social ────
+  {
+    key: 'platform_roles',
+    table: 'platform_roles',
+    column: 'user_id',
+    reach: 'uid',
+    cleanup: true,
+  },
+  {
+    key: 'organization_members',
+    table: 'organization_members',
+    column: 'user_id',
+    reach: 'uid',
+    cleanup: true,
+  },
+  {
+    key: 'push_subscriptions',
+    table: 'push_subscriptions',
+    column: 'user_id',
+    reach: 'uid',
+    cleanup: true,
+  },
+  {
+    key: 'notification_preferences',
+    table: 'notification_preferences',
+    column: 'user_id',
+    reach: 'uid',
+    cleanup: true,
+  },
+  { key: 'follows', table: 'follows', column: 'follower_user_id', reach: 'uid', cleanup: true },
+  {
+    key: 'event_broadcast_recipients',
+    table: 'event_broadcast_recipients',
+    column: 'user_id',
+    reach: 'uid',
+    cleanup: true,
+  },
+
+  // ── Identity rows: cleanup UNLINKS these (claim nulled), never deletes ──────
+  // Deleting them would erase the competitor along with the login.
+  {
+    key: 'persons',
+    table: 'persons',
+    column: 'claimed_by_user_id',
+    reach: 'uid',
+    cleanup: false,
+  },
+  {
+    key: 'global_persons',
+    table: 'global_persons',
+    column: 'claimed_by_user_id',
+    reach: 'uid',
+    cleanup: false,
+  },
+
+  // ── Historical event facts: counted, reported, NEVER deleted ────────────────
+  // The button promises "keeping historical facts" / "Historical event facts
+  // remain" (admin.users.actions.cleanupDeleteHelp). A workshop attendance and a
+  // referee qualification are event records, not private links — ErasureService,
+  // the owner of "what deleting a user means", excludes both from its OWNED
+  // delete list for the same reason. Removing the claim above already unlinks
+  // them from the person.
+  //
+  // Neither entry can be the SOLE blocker: workshop_enrollments is reached
+  // through persons and referee_qualifications through global_persons, so the
+  // identity blocker above always fires alongside. They exist to tell the admin
+  // WHAT is there.
+  {
+    key: 'workshop_enrollments',
+    table: 'workshop_enrollments',
+    // NOT a uid. See the trap in the ReferenceReach docblock.
+    column: 'user_id',
+    reach: 'person',
+    cleanup: false,
+  },
+  {
+    key: 'referee_qualifications',
+    table: 'referee_qualifications',
+    // 0063 dropped user_id; person_id holds a global_persons.id.
+    column: 'person_id',
+    reach: 'global_person',
+    cleanup: false,
+  },
+];
+
+/** Derived, so the delete set can never drift from the checked set again. */
+const CLEANUP_DELETIONS: readonly ReferenceCheck[] = REFERENCE_CHECKS.filter(
+  (check) => check.cleanup,
+);
+
+export const DELETION_REFERENCE_CHECKS = REFERENCE_CHECKS;
+
+/** PostgREST puts `.in()` values in the URL; keep each request well under any limit. */
+const IN_CHUNK = 200;
+
+function* chunked(values: readonly string[]): Generator<readonly string[]> {
+  for (let i = 0; i < values.length; i += IN_CHUNK) yield values.slice(i, i + IN_CHUNK);
+}
+
 export interface UserOrgMembership {
   id: string;
   name: string;
@@ -483,22 +635,11 @@ export class AdminUsersService {
   }
 
   private async collectDeletionBlockers(userId: string): Promise<UserDeletionBlockers> {
-    const referenceChecks: Array<{ key: string; table: string; column: string }> = [
-      { key: 'platform_roles', table: 'platform_roles', column: 'user_id' },
-      { key: 'organization_members', table: 'organization_members', column: 'user_id' },
-      { key: 'push_subscriptions', table: 'push_subscriptions', column: 'user_id' },
-      { key: 'notification_preferences', table: 'notification_preferences', column: 'user_id' },
-      { key: 'follows', table: 'follows', column: 'follower_user_id' },
-      { key: 'persons', table: 'persons', column: 'claimed_by_user_id' },
-      { key: 'global_persons', table: 'global_persons', column: 'claimed_by_user_id' },
-      { key: 'workshop_enrollments', table: 'workshop_enrollments', column: 'user_id' },
-      { key: 'referee_qualifications', table: 'referee_qualifications', column: 'user_id' },
-      { key: 'event_broadcast_recipients', table: 'event_broadcast_recipients', column: 'user_id' },
-    ];
+    const anchors = await this.resolveAnchors(userId);
 
     const references: Record<string, number> = {};
-    for (const check of referenceChecks) {
-      references[check.key] = await this.countReferences(check.table, check.column, userId);
+    for (const check of REFERENCE_CHECKS) {
+      references[check.key] = await this.countReferences(check, anchors);
     }
 
     return {
@@ -507,13 +648,52 @@ export class AdminUsersService {
     };
   }
 
-  private async countReferences(table: string, column: string, userId: string): Promise<number> {
+  /**
+   * The ids a non-`uid` reach compares against, resolved once per delete.
+   *
+   * `global_persons.claimed_by_user_id` carries a partial UNIQUE index (0063),
+   * so that set holds at most one id. `persons.claimed_by_user_id` does not —
+   * an account can claim a roster row per event.
+   */
+  private async resolveAnchors(userId: string): Promise<Record<ReferenceReach, string[]>> {
+    return {
+      uid: [userId],
+      person: await this.idsClaimedBy('persons', userId),
+      global_person: await this.idsClaimedBy('global_persons', userId),
+    };
+  }
+
+  private async idsClaimedBy(
+    table: 'persons' | 'global_persons',
+    userId: string,
+  ): Promise<string[]> {
     const { data, error } = await this.supabase.service
       .from(table)
-      .select(column)
-      .eq(column, userId);
+      .select('id')
+      .eq('claimed_by_user_id', userId);
     if (error) throw new BadRequestException(`Could not inspect ${table} references`);
-    return Array.isArray(data) ? data.length : 0;
+    return ((data ?? []) as { id: string }[]).map((row) => row.id);
+  }
+
+  private async countReferences(
+    check: ReferenceCheck,
+    anchors: Record<ReferenceReach, string[]>,
+  ): Promise<number> {
+    const ids = anchors[check.reach];
+    // No identity to compare against ⇒ nothing can reference it. Skipping here
+    // also avoids a pointless `.in(col, [])` round-trip.
+    if (ids.length === 0) return 0;
+
+    let count = 0;
+    for (const chunk of chunked(ids)) {
+      const { data, error } = await this.supabase.service
+        .from(check.table)
+        .select(check.column)
+        .in(check.column, chunk as string[]);
+      if (error) throw new BadRequestException(`Could not inspect ${check.table} references`);
+      count += Array.isArray(data) ? data.length : 0;
+    }
+    return count;
   }
 
   private async findSoleOwnerOrganizationIds(userId: string): Promise<string[]> {
@@ -539,19 +719,16 @@ export class AdminUsersService {
     return soleOwnerOrganizationIds;
   }
 
+  /**
+   * Remove the private links, keep the historical facts — the contract the
+   * button's own copy states ("Historical event facts remain").
+   *
+   * Every row deleted here is keyed by the auth uid and owned outright by the
+   * login. Event-scoped rows are NOT deleted; the claim-nulling below unlinks
+   * them from the account while leaving the event record standing.
+   */
   private async cleanupUserReferences(userId: string): Promise<void> {
-    const deletions: Array<{ table: string; column: string }> = [
-      { table: 'platform_roles', column: 'user_id' },
-      { table: 'organization_members', column: 'user_id' },
-      { table: 'push_subscriptions', column: 'user_id' },
-      { table: 'notification_preferences', column: 'user_id' },
-      { table: 'follows', column: 'follower_user_id' },
-      { table: 'workshop_enrollments', column: 'user_id' },
-      { table: 'referee_qualifications', column: 'user_id' },
-      { table: 'event_broadcast_recipients', column: 'user_id' },
-    ];
-
-    for (const deletion of deletions) {
+    for (const deletion of CLEANUP_DELETIONS) {
       const { error } = await this.supabase.service
         .from(deletion.table)
         .delete()
