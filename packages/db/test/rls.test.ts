@@ -11,6 +11,9 @@
  * The tests below cover the 10+ cross-tenant leak scenarios required by T-102 AC.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
 // ── RLS policy logic (extracted for unit testing) ─────────────────────────────
@@ -95,6 +98,17 @@ function isSuperAdmin(
 ): boolean {
   if (!userId) return false;
   return platformRoles.some((r) => r.userId === userId && r.role === 'super_admin');
+}
+
+// Simulates is_platform_staff() SQL function (0170).
+// Note the absent role filter — that is the whole difference from
+// is_super_admin(), and it is why the two must never be collapsed.
+function isPlatformStaff(
+  userId: string | null,
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  if (!userId) return false;
+  return platformRoles.some((r) => r.userId === userId);
 }
 
 // Simulates is_org_member() SQL function
@@ -266,8 +280,18 @@ const USER_EDITOR_A = 'user-editor-org-a';
 const USER_MEMBER_B = 'user-member-org-b';
 const USER_FIGHTER = 'user-claimed-fighter';
 const USER_ANON = null; // unauthenticated
+const USER_PLATFORM_ADMIN = 'user-platform-admin';
+const USER_PLATFORM_VIEWER = 'user-platform-viewer';
 
-const PLATFORM_ROLES = [{ userId: USER_SUPER, role: 'super_admin' }];
+// The two lower tiers sit in the SAME fixture as the super admin on purpose:
+// every existing is_super_admin() assertion below is then checked against a
+// table that really does contain other platform roles, which is what would
+// catch a future widening of the function.
+const PLATFORM_ROLES = [
+  { userId: USER_SUPER, role: 'super_admin' },
+  { userId: USER_PLATFORM_ADMIN, role: 'platform_admin' },
+  { userId: USER_PLATFORM_VIEWER, role: 'platform_viewer' },
+];
 
 const ORG_MEMBERS: OrgMember[] = [
   { organizationId: ORG_A, userId: USER_ADMIN_A, role: 'admin' },
@@ -622,5 +646,66 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     for (const policy of RECENT_INTERNAL_TABLE_POLICIES) {
       expect(policy.authenticatedWritePolicy, policy.tableName).toBe(false);
     }
+  });
+
+  // ── Platform role tiers (0170) ────────────────────────────────────────────
+  //
+  // The load-bearing assertion is the negative one: adding tiers must not have
+  // widened is_super_admin(), because that function guards writes in ~80
+  // policies across 0002 and 24 later migrations.
+
+  it('31. is_super_admin stays exact — the lower tiers are NOT super admins', () => {
+    expect(isSuperAdmin(USER_PLATFORM_ADMIN, PLATFORM_ROLES)).toBe(false);
+    expect(isSuperAdmin(USER_PLATFORM_VIEWER, PLATFORM_ROLES)).toBe(false);
+    expect(isSuperAdmin(USER_SUPER, PLATFORM_ROLES)).toBe(true);
+  });
+
+  it('32. is_super_admin does not grant the lower tiers a cross-tenant bypass', () => {
+    expect(canSelectEvent(USER_PLATFORM_ADMIN, EVENT_B_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+      false,
+    );
+    expect(canUpdateEvent(USER_PLATFORM_ADMIN, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+      false,
+    );
+    expect(canUpdateEvent(USER_PLATFORM_VIEWER, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+      false,
+    );
+  });
+
+  it('33. is_platform_staff covers every tier, and nobody else', () => {
+    expect(isPlatformStaff(USER_SUPER, PLATFORM_ROLES)).toBe(true);
+    expect(isPlatformStaff(USER_PLATFORM_ADMIN, PLATFORM_ROLES)).toBe(true);
+    expect(isPlatformStaff(USER_PLATFORM_VIEWER, PLATFORM_ROLES)).toBe(true);
+    expect(isPlatformStaff(USER_ADMIN_A, PLATFORM_ROLES)).toBe(false);
+    expect(isPlatformStaff(USER_ANON, PLATFORM_ROLES)).toBe(false);
+  });
+
+  it('34. the 0170 CHECK constraint and PLATFORM_ROLES name the same tiers', () => {
+    // Read both as TEXT rather than importing @myclash/types: this package has
+    // no dependency on it, and adding one to satisfy a test would put a build
+    // edge between them. Text comparison also catches the case the import
+    // could not — a TS constant edited without the migration.
+    const here = dirname(fileURLToPath(import.meta.url));
+    const sql = readFileSync(
+      join(here, '..', 'migrations', '0170_platform_role_tiers.sql'),
+      'utf8',
+    );
+    const ts = readFileSync(join(here, '..', '..', 'types', 'src', 'platform-role.ts'), 'utf8');
+
+    const check = /CHECK \(role IN \(([^)]*)\)\)/u.exec(sql);
+    expect(check, '0170 must contain a CHECK (role IN (...)) on platform_roles').not.toBeNull();
+    const fromSql = new Set(check![1].split(',').map((part) => part.trim().replace(/^'|'$/gu, '')));
+
+    const declaration = /PLATFORM_ROLES = \[([^\]]*)\]/u.exec(ts);
+    expect(declaration, 'platform-role.ts must declare PLATFORM_ROLES').not.toBeNull();
+    const fromTs = new Set(
+      declaration![1].split(',').map((part) => part.trim().replace(/^'|'$/gu, '')),
+    );
+
+    expect([...fromSql].sort()).toEqual([...fromTs].sort());
+    expect(fromSql.has('super_admin')).toBe(true);
+    // The stored identifier is deliberately NOT `read_only` — that value is
+    // already an organization_members.role and means something else entirely.
+    expect(fromSql.has('read_only')).toBe(false);
   });
 });

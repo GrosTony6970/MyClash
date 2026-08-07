@@ -8,10 +8,17 @@ import { events } from './events';
 import { persons } from './persons';
 
 // ── Platform roles ────────────────────────────────────────────────────────────
-// Super-admin override. A user with role='super_admin' bypasses all org checks.
+// Authority over the platform itself, above and outside any organisation.
+// Three tiers since 0170 — 'super_admin' | 'platform_admin' | 'platform_viewer',
+// CHECK-constrained in SQL and mirrored by PLATFORM_ROLES in
+// packages/types/src/platform-role.ts. A super_admin bypasses all org checks.
+//
+// user_id is the PRIMARY KEY, so the tiers are mutually exclusive by shape, not
+// by convention. `role` has NO default on purpose: 0170 dropped it because an
+// insert that forgot the column would otherwise mint a super-admin.
 export const platformRoles = pgTable('platform_roles', {
   userId: uuid('user_id').primaryKey().notNull(),
-  role: text('role').notNull().default('super_admin'),
+  role: text('role').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
