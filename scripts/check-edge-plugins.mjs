@@ -40,7 +40,7 @@ const DASHBOARD_STATUSES = [401, 403];
  * it is judged on 401/403 (auth or geo denial, both proving the chain built)
  * versus 404.
  */
-const PROD_PROBES = [
+export const PROD_PROBES = [
   {
     host: (domain) => `traefik.${domain}`,
     path: '/dashboard/',
@@ -48,18 +48,24 @@ const PROD_PROBES = [
     expect: 'auth-challenge',
   },
   {
+    // Stripped to GoTrue's own /health by supabase-auth-strip, not a Nest route.
     host: (domain) => `app.${domain}`,
     path: '/auth/v1/health',
     middlewares: 'myclash-geoblock-public + myclash-fail2ban-auth',
     expect: 'hsts',
   },
   {
+    // /api/v1/version, NOT /api/v1/health: `health` is in
+    // API_GLOBAL_PREFIX_EXCLUDE, so it answers only on the api. host that
+    // Traefik routes wholesale, and 404s on the three PathPrefix(/api/v1)
+    // hosts. /version was deliberately put under the prefix for this reason.
     host: (domain) => `scoring.${domain}`,
-    path: '/api/v1/health',
+    path: '/api/v1/version',
     middlewares: 'myclash-geoblock-public + myclash-fail2ban-staff',
     expect: 'hsts',
   },
   {
+    // Unprefixed here on purpose — see above; api.${DOMAIN} routes wholesale.
     host: (domain) => `api.${domain}`,
     path: '/health',
     middlewares: 'myclash-geoblock-public',
@@ -104,16 +110,11 @@ export function verdictFor(probe, response) {
       reason: `no response (${response.error?.message ?? 'unknown error'})`,
     };
   }
-  if (response.statusCode === 404) {
-    return {
-      ok: false,
-      reason:
-        `404 — the router did not build. A middleware it references does not ` +
-        `exist, which is what a failed or misconfigured plugin looks like ` +
-        `(${probe.middlewares}).`,
-    };
-  }
+
   if (probe.expect === 'auth-challenge') {
+    // The dashboard chain carries no security-headers, so there is no header to
+    // read: 401 (basic auth) or 403 (geo denial) both prove it built, 404 is
+    // Traefik's middleware-free fallback.
     return DASHBOARD_STATUSES.includes(response.statusCode)
       ? { ok: true }
       : {
@@ -121,17 +122,29 @@ export function verdictFor(probe, response) {
           reason: `expected 401 or 403 from the basic-auth chain, got ${response.statusCode}`,
         };
   }
+
+  // The header IS the verdict, and it is checked BEFORE the status code on
+  // purpose. Traefik's fallback 404 — what you get when a router fails to build
+  // — runs no middleware, so it has no HSTS. A 404 that DOES carry HSTS came
+  // through myclash-security-headers@file, which means the whole chain built
+  // and the backend simply answered 404. Testing the status first inverts the
+  // diagnosis: it reports a healthy edge with a moved route as a plugin
+  // outage, and the recovery it prints (TRAEFIK_PLUGINS=off) would then detach
+  // GeoBlock and Fail2Ban from a stack that never had a problem.
   const hsts = String(response.headers?.['strict-transport-security'] ?? '');
-  if (!hsts) {
-    return {
-      ok: false,
-      reason:
-        `no Strict-Transport-Security header on a ${response.statusCode} — ` +
-        `myclash-security-headers@file did not run, so the router chain ` +
-        `(${probe.middlewares}) did not build.`,
-    };
-  }
-  return { ok: true };
+  if (hsts) return { ok: true };
+
+  return {
+    ok: false,
+    reason:
+      response.statusCode === 404
+        ? `404 with no Strict-Transport-Security — Traefik's fallback, i.e. the router did ` +
+          `not build. A middleware it references does not exist, which is what a failed or ` +
+          `misconfigured plugin looks like (${probe.middlewares}).`
+        : `no Strict-Transport-Security header on a ${response.statusCode} — ` +
+          `myclash-security-headers@file did not run, so the router chain ` +
+          `(${probe.middlewares}) did not build.`,
+  };
 }
 
 /**

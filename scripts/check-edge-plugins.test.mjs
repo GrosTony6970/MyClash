@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
   EXPECTED_MIDDLEWARES,
+  PROD_PROBES,
   checkEdgePlugins,
   dashboardAuthHeader,
   deepVerdicts,
@@ -28,8 +31,18 @@ test('a chain that built carries the security-headers output', () => {
   assert.equal(verdictFor(HSTS_PROBE, { statusCode: 200, headers: OK_HEADERS }).ok, true);
 });
 
-test('404 fails even before the header check, and says why', () => {
-  const verdict = verdictFor(HSTS_PROBE, { statusCode: 404, headers: OK_HEADERS });
+// The header is checked BEFORE the status code, and this is the case that
+// proves why. Traefik's fallback 404 runs no middleware, so a 404 that carries
+// HSTS came through myclash-security-headers@file: the chain built and the
+// backend simply answered 404. Judging on the status instead would report a
+// healthy edge with a moved route as a plugin outage — and the recovery it
+// prints detaches GeoBlock and Fail2Ban from a stack that was never broken.
+test('a 404 that carries HSTS passes — the chain built, the backend answered', () => {
+  assert.equal(verdictFor(HSTS_PROBE, { statusCode: 404, headers: OK_HEADERS }).ok, true);
+});
+
+test('a 404 with no HSTS fails — that is Traefik s middleware-free fallback', () => {
+  const verdict = verdictFor(HSTS_PROBE, { statusCode: 404, headers: {} });
   assert.equal(verdict.ok, false);
   assert.match(verdict.reason, /router did not build/);
 });
@@ -164,6 +177,29 @@ test('an unknown --mode fails instead of falling back to prod', async () => {
   const result = await checkEdgePlugins({ mode: 'staging' }, {});
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0], /Unknown --mode/);
+});
+
+// A probe aimed at a route the API does not serve is the worst failure this
+// script has: it reports a healthy edge as a plugin outage on every single
+// deploy, and the recovery it prints detaches GeoBlock and Fail2Ban. It shipped
+// once — /api/v1/health, which does not exist because `health` is in
+// API_GLOBAL_PREFIX_EXCLUDE and so answers only on the api. host that Traefik
+// routes wholesale. openapi.json is the emitted contract, so pin against it.
+test('every Nest-served probe path exists in the emitted OpenAPI spec', () => {
+  const spec = JSON.parse(
+    readFileSync(path.join(import.meta.dirname, '..', 'openapi.json'), 'utf8'),
+  );
+  const served = new Set(Object.keys(spec.paths ?? {}));
+
+  // Only rows that reach Nest. /dashboard/ is Traefik's own api@internal and
+  // /auth/v1/* is stripped to GoTrue, so neither appears in this spec.
+  const nestPaths = PROD_PROBES.map((p) => p.path).filter(
+    (p) => p === '/health' || p.startsWith('/api/v1/'),
+  );
+  assert.ok(nestPaths.length >= 2, 'expected at least the api and scoring rows');
+  for (const probePath of nestPaths) {
+    assert.ok(served.has(probePath), `probe path ${probePath} is not a route the API serves`);
+  }
 });
 
 test('parses inline and spaced flags without swallowing the next flag', () => {

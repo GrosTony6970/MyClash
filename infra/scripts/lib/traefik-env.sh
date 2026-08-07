@@ -103,6 +103,25 @@ mc_verify_edge_plugins() {
     return 0
   fi
 
+  # The kill-switch is checked HERE, not left to the probe. The probe skips and
+  # exits 0, which this function would otherwise announce as
+  # "built and attached" — a green tick over a deliberately unprotected edge,
+  # printed after the DETACHED warning and therefore the last word on screen.
+  #
+  # Read .env too, not just the shell: the callers source this lib before they
+  # source .env, so TRAEFIK_PLUGINS=off written into .env leaves the MW_*
+  # prefixes attached above and never prints that warning at all — but it does
+  # reach node's environment by the time this runs. .env.example documents it as
+  # an .env key, so that path is supported and must not read as a pass.
+  local env_plugins=""
+  [[ -f "$ROOT_DIR/.env" ]] &&
+    env_plugins="$(sed -n 's/^TRAEFIK_PLUGINS=//p' "$ROOT_DIR/.env" | tr -d '"'\''' | tr -d '[:space:]')"
+  if [[ "${TRAEFIK_PLUGINS:-${env_plugins:-on}}" == "off" ]]; then
+    warn "TRAEFIK_PLUGINS=off — nothing to verify; the edge is running WITHOUT"
+    warn "GeoBlock and Fail2Ban. Re-run without the kill-switch once fixed."
+    return 0
+  fi
+
   # Compose gets .env via --env-file, so the invoking shell has no DOMAIN.
   # Targeted read for the same reason as the whitelist above: no secrets in this
   # script's environment.

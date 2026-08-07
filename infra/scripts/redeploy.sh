@@ -205,7 +205,6 @@ ok "Recreate command issued"
 # Only meaningful when traefik was among the recreated services; harmless
 # otherwise (it just re-reads the existing container's log tail). See deploy.sh.
 mc_warn_if_plugins_failed || true
-mc_verify_edge_plugins || true
 
 # ── Wait for health ──────────────────────────────────────────────
 hdr "Waiting for services to become healthy"
@@ -232,6 +231,12 @@ for svc in "${SERVICES[@]}"; do
     sleep "$DELAY"
   done
 done
+
+# After the health wait, not before: the probe reads real responses through the
+# edge, and a backend with no healthy server answers 502 with no
+# security-headers — indistinguishable from a chain that failed to build. See
+# deploy.sh.
+mc_verify_edge_plugins || true
 
 # ── Smoke test (if api was redeployed) ───────────────────────────
 for svc in "${SERVICES[@]}"; do
