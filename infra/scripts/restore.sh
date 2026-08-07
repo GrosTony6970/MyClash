@@ -240,14 +240,20 @@ fi
 
 # ── Stop every service holding a DB connection ───────────────────
 # DROP DATABASE fails while ANY session is connected. The Supabase
-# sidecars (auth/rest/realtime/storage) keep persistent pools to
+# sidecars (auth/rest/realtime/storage/meta) keep persistent pools to
 # ${POSTGRES_DB}, so they must be stopped too — not just the app tier.
 # `docker compose stop` overrides restart:unless-stopped; the final
 # `up -d` brings everything back.
+#
+# supabase-meta holds a pool like the others. supabase-studio does not talk
+# to Postgres directly, but it is stopped alongside meta: left running it
+# would spend the restore hammering a dead upstream and showing the operator
+# a broken console at the exact moment they are watching one.
 hdr "Stopping services connected to the database"
 "${COMPOSE[@]}" stop \
   api web-public web-scoring web-admin worker \
-  supabase-auth supabase-rest supabase-realtime supabase-storage
+  supabase-auth supabase-rest supabase-realtime supabase-storage \
+  supabase-meta supabase-studio
 ok "Services stopped"
 
 # ── Restore Postgres ─────────────────────────────────────────────

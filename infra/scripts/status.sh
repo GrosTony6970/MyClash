@@ -125,6 +125,8 @@ HEALTH_SERVICES=(
   supabase-realtime
   supabase-rest
   supabase-storage
+  supabase-meta
+  supabase-studio
 )
 
 print_health_details() {

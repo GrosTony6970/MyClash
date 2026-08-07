@@ -85,13 +85,16 @@ COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod
 
 # ── Stop every service holding a DB connection (keep db running) ──
 # DROP DATABASE fails while ANY session is connected. The Supabase sidecars
-# (auth/rest/realtime/storage) keep persistent pools to ${POSTGRES_DB}, so they
-# must be stopped too — not just the app tier. The final `up -d` brings them back.
+# (auth/rest/realtime/storage/meta) keep persistent pools to ${POSTGRES_DB}, so
+# they must be stopped too — not just the app tier. The final `up -d` brings
+# them back. supabase-studio reaches Postgres only through meta, but is stopped
+# with it so the console is not left hammering a dead upstream mid-rollback.
 hdr "Stopping services connected to the database"
 
 "${COMPOSE[@]}" stop \
   api web-public web-scoring web-admin worker \
-  supabase-auth supabase-rest supabase-realtime supabase-storage
+  supabase-auth supabase-rest supabase-realtime supabase-storage \
+  supabase-meta supabase-studio
 ok "Services stopped"
 
 # ── Restore database ─────────────────────────────────────────────

@@ -7,6 +7,8 @@ const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
 const redeployPath = path.join(rootDir, 'infra', 'scripts', 'redeploy.sh');
 const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
+const restorePath = path.join(rootDir, 'infra', 'scripts', 'restore.sh');
+const rollbackPath = path.join(rootDir, 'infra', 'scripts', 'rollback.sh');
 const startPath = path.join(rootDir, 'infra', 'scripts', 'start.sh');
 const traefikEnvLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'traefik-env.sh');
 const devTraefikStaticPath = path.join(rootDir, 'infra', 'traefik', 'traefik.dev.yml');
@@ -449,6 +451,8 @@ const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
 const redeployText = await readFile(redeployPath, 'utf8');
 const statusText = await readFile(statusPath, 'utf8');
+const restoreText = await readFile(restorePath, 'utf8');
+const rollbackText = await readFile(rollbackPath, 'utf8');
 const vpsBootstrapText = await readFile(vpsBootstrapPath, 'utf8');
 const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
 const publicLoginPageText = await readFile(publicLoginPagePath, 'utf8');
@@ -852,9 +856,42 @@ for (const serviceName of [
   'supabase-realtime',
   'supabase-rest',
   'supabase-storage',
+  'supabase-meta',
+  'supabase-studio',
 ]) {
   if (!statusText.includes(serviceName)) {
     errors.push(`status.sh Container health must include ${serviceName}.`);
+  }
+}
+
+// DROP DATABASE fails while ANY session is connected, so restore.sh and
+// rollback.sh stop every service holding a pool before recreating the database.
+// A new Postgres-connected service that misses these lists does not fail
+// loudly — it makes the drop flaky, which is far worse to debug than a red gate.
+//
+// Matched against the `stop` COMMAND, not the file: every one of these service
+// names also appears in the surrounding comments, so a whole-file includes()
+// would be satisfied by prose and could never fail.
+for (const [name, text] of [
+  ['restore.sh', restoreText],
+  ['rollback.sh', rollbackText],
+]) {
+  // `"${COMPOSE[@]}" stop \` plus its backslash-continued argument lines.
+  const stopCommand = /"\$\{COMPOSE\[@\]\}"\s+stop\s+((?:[^\n]*\\\n)*[^\n]*)/u.exec(text)?.[1];
+  if (!stopCommand) {
+    errors.push(`${name} must stop the database-connected services before dropping the database.`);
+    continue;
+  }
+  for (const serviceName of [
+    'supabase-auth',
+    'supabase-rest',
+    'supabase-realtime',
+    'supabase-storage',
+    'supabase-meta',
+  ]) {
+    if (!new RegExp(`(?:^|\\s)${escapeRegExp(serviceName)}(?:\\s|\\\\|$)`, 'u').test(stopCommand)) {
+      errors.push(`${name} must stop ${serviceName} before dropping the database.`);
+    }
   }
 }
 for (const expected of [
