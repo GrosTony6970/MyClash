@@ -546,6 +546,8 @@ const requiredServices = [
   'web-marketing',
   'web-scoring',
   'web-admin',
+  'supabase-meta',
+  'supabase-studio',
 ];
 
 for (const serviceName of requiredServices) {
@@ -573,6 +575,13 @@ for (const serviceName of requiredServices) {
       errors.push('ops-runner must remain internal-only and must not define Traefik routers.');
     }
     requireContains(service, serviceName, '/var/run/docker.sock:/var/run/docker.sock');
+  }
+
+  // postgres-meta answers unauthenticated and speaks to Postgres as the
+  // superuser. Studio reaching it over the compose network is the only intended
+  // path; a router here would publish an unauthenticated DDL API.
+  if (serviceName === 'supabase-meta' && /traefik\.http\.routers\./.test(service)) {
+    errors.push('supabase-meta must remain internal-only and must not define Traefik routers.');
   }
 }
 
@@ -803,6 +812,8 @@ for (const expected of [
   'SEED_ADMIN_PASSWORD',
   'TRAEFIK_DASHBOARD_AUTH',
   'TRAEFIK_DASHBOARD_PASSWORD',
+  'STUDIO_BASIC_AUTH',
+  'STUDIO_PASSWORD',
   'Generated plaintext credentials (also saved to .env on this server):',
   '${service}_PASSWORD',
 ]) {
@@ -1927,6 +1938,59 @@ for (const router of publicRouters) {
   if (!pattern.test(composeText)) {
     errors.push(`Router ${router} must use myclash-security-headers@file.`);
   }
+}
+
+// ── Supabase Studio gates ───────────────────────────────────────────────────
+// Studio has no authentication of its own (upstream delegates that to Kong,
+// which this stack dropped) and queries Postgres as the superuser, bypassing
+// RLS. The edge is the entire access control, so both gates are pinned here.
+//
+// The literal @docker names are the point of the assertion. TRAEFIK_PLUGINS=off
+// empties the ${MW_*} prefixes so the public site keeps serving through a plugin
+// outage; folding Studio's gates into one of those prefixes would make the same
+// kill-switch publish an unauthenticated SQL editor. Written out in full, they
+// survive it — and this check fails the moment someone "tidies" them into a
+// variable.
+const studioMiddlewaresMatch = composeText.match(
+  /traefik\.http\.routers\.myclash-studio\.middlewares=(?<chain>.*)/u,
+);
+if (!studioMiddlewaresMatch?.groups?.['chain']) {
+  errors.push('docker-compose.prod.yml must define the myclash-studio router middleware chain.');
+} else {
+  const chain = studioMiddlewaresMatch.groups['chain'];
+  for (const gate of ['myclash-studio-ipallow@docker', 'myclash-studio-auth@docker']) {
+    if (!chain.includes(gate)) {
+      errors.push(
+        `myclash-studio router must attach ${gate} literally, never through a \${MW_*} prefix ` +
+          'that TRAEFIK_PLUGINS=off would empty.',
+      );
+    }
+  }
+}
+
+for (const expected of [
+  // Derived in traefik-env.sh, loopback-only when THROTTLE_IP_WHITELIST is empty.
+  'traefik.http.middlewares.myclash-studio-ipallow.ipallowlist.sourcerange=${TRAEFIK_STUDIO_ALLOWLIST}',
+  'traefik.http.middlewares.myclash-studio-auth.basicauth.users=${STUDIO_BASIC_AUTH}',
+]) {
+  if (!composeText.includes(expected)) {
+    errors.push(`Missing Supabase Studio gate: ${expected}`);
+  }
+}
+
+// The ban allowlist carries the RFC1918 ranges so the edge never bans the local
+// network. Granting that same range a superuser SQL console is a different
+// decision entirely — these two lists must not be conflated.
+if (
+  /myclash-studio-ipallow\.ipallowlist\.sourcerange=\$\{TRAEFIK_BAN_ALLOWLIST\}/u.test(composeText)
+) {
+  errors.push(
+    'Studio must not reuse TRAEFIK_BAN_ALLOWLIST — it includes the private ranges by design.',
+  );
+}
+
+if (!traefikEnvLibText.includes('TRAEFIK_STUDIO_ALLOWLIST')) {
+  errors.push('infra/scripts/lib/traefik-env.sh must export TRAEFIK_STUDIO_ALLOWLIST.');
 }
 
 // ── Traefik edge plugins (GeoBlock + Fail2Ban) ──────────────────────────────
