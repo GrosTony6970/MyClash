@@ -12,22 +12,19 @@ import {
   ORG_ROLES,
   UpdatePlatformUserDto,
   type OrgRole,
+  type UserListScope,
 } from './dto/admin-users.dto';
 import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { hasPlatformTier } from '../../common/auth/platform-role';
+import { parsePlatformRole, type PlatformRole } from '@myclash/types';
 
 export interface ListUsersQuery {
   page?: number;
   perPage?: number;
   q?: string;
-  /**
-   * `'staff'` (default) restricts the listing to real platform accounts —
-   * super-admins or members of any organization. `'all'` returns every
-   * `auth.users` row, including public self-signups (e.g. Google logins that
-   * hold no role or organization).
-   */
-  scope?: 'staff' | 'all';
+  /** See USER_LIST_SCOPES — predicates, not a partition. */
+  scope?: UserListScope;
 }
 
 export type DeletePlatformUserMode = 'safe' | 'cleanup';
@@ -196,10 +193,23 @@ export interface UserOrgMembership {
   role: OrgRole;
 }
 
+export interface ListPlatformUsersResult {
+  users: ListedPlatformUser[];
+  /**
+   * Matches for THIS scope before paging. The three scopes are predicates, not
+   * a partition, so their totals overlap and do not sum to the account count.
+   */
+  total: number;
+  page: number;
+  perPage: number;
+  /** Set when the GoTrue enumeration hit its ceiling and the page is partial. */
+  truncated?: boolean;
+}
+
 type ListedPlatformUser = SupabaseAdminUser & {
   display_name: string | null;
   organizations: UserOrgMembership[];
-  is_super_admin: boolean;
+  platform_role: PlatformRole | null;
 };
 
 @Injectable()
@@ -208,34 +218,164 @@ export class AdminUsersService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  async listUsers(query: ListUsersQuery = {}) {
-    const page = query.page ?? 1;
-    const perPage = query.perPage ?? 50;
-    const search = query.q?.trim();
-    const scope: 'staff' | 'all' = query.scope === 'all' ? 'all' : 'staff';
+  /**
+   * List accounts in one scope, paged and searched SERVER-side.
+   *
+   * ## Why this cannot be one query
+   *
+   * There is no `auth.users` mirror in the `public` schema, so PostgREST cannot
+   * see the account table at all. Nothing can join an account to
+   * `platform_roles` or `organization_members` in the database; every scope
+   * filter is an in-app merge over data fetched from two different places.
+   *
+   * GoTrue's own `?filter=` is not usable either: it matches `email` or
+   * `raw_user_meta_data->>'full_name'`, and this app writes `display_name`.
+   * Searching through it would silently miss every admin-set name.
+   *
+   * ## Consequences, stated rather than discovered later
+   *
+   * `scope=platform` never enumerates: the ids come straight from
+   * `platform_roles`, which holds tens of rows. The other two scopes must
+   * enumerate, and stop at ten pages of a thousand — about ten thousand
+   * accounts. That ceiling used to truncate in SILENCE; it now sets
+   * `truncated` on the response. The real fix is a `public.user_directory`
+   * mirror fed from GoTrue, which collapses all of this into one indexed query
+   * with `ilike` and an exact count. Out of scope here.
+   */
+  async listUsers(query: ListUsersQuery = {}): Promise<ListPlatformUsersResult> {
+    const page = Math.max(query.page ?? 1, 1);
+    const perPage = Math.min(Math.max(query.perPage ?? 50, 1), 100);
+    const raw = query.q?.trim();
+    const search = raw ? normalizeSearch(raw) : null;
+    const scope: UserListScope = query.scope ?? 'platform';
 
-    // Fast path — show every login unfiltered: a single GoTrue admin page,
-    // matching the historical behaviour before scopes existed.
-    if (scope === 'all' && !search) {
-      const response = await this.supabase.listAuthAdminUsers(page, perPage);
+    const platformRoleByUser = await this.fetchPlatformRoles();
+
+    const { matched, truncated } =
+      scope === 'platform'
+        ? await this.collectPlatformScope(platformRoleByUser, search)
+        : await this.collectEnumeratedScope(scope, platformRoleByUser, search);
+
+    matched.sort((a, b) => this.compareListed(a, b, search));
+
+    const start = (page - 1) * perPage;
+    const slice = matched.slice(start, start + perPage);
+    // Org detail is fetched for the PAGE only — the scope predicate above runs
+    // on an id set, so a big listing never fans out into per-row org queries.
+    const orgsByUser = await this.fetchOrgMembershipsByUser(slice.map((u) => u.id));
+
+    return {
+      users: slice.map((u) => ({ ...u, organizations: orgsByUser.get(u.id) ?? [] })),
+      total: matched.length,
+      page,
+      perPage,
+      ...(truncated ? { truncated: true } : {}),
+    };
+  }
+
+  /**
+   * `scope=platform` — every account holding a platform_roles row.
+   *
+   * Hydrated one id at a time rather than by enumerating GoTrue: the table has
+   * tens of rows, and enumerating ten thousand accounts to find twelve of them
+   * would be the most wasteful thing this service does.
+   */
+  private async collectPlatformScope(
+    platformRoleByUser: Map<string, PlatformRole>,
+    search: string | null,
+  ): Promise<{ matched: ListedPlatformUser[]; truncated: boolean }> {
+    const matched: ListedPlatformUser[] = [];
+    for (const [userId, role] of platformRoleByUser) {
+      const response = await this.supabase.getAuthAdminUser(userId);
+      if (!response.ok || !response.data?.id) {
+        // A platform_roles row whose account is gone. Not fatal: the row is
+        // orphaned data, and refusing the whole listing over it would break the
+        // console exactly when someone needs it to clean that up.
+        this.logger.warn(`platform_roles references a missing auth user ${userId}`);
+        continue;
+      }
+      const listed = this.toListedUser(response.data, undefined, role);
+      if (search && !this.userMatchesSearch(listed, search)) continue;
+      matched.push(listed);
+    }
+    return { matched, truncated: false };
+  }
+
+  /** `scope=organizer` / `scope=user` — the enumerating path. */
+  private async collectEnumeratedScope(
+    scope: Exclude<UserListScope, 'platform'>,
+    platformRoleByUser: Map<string, PlatformRole>,
+    search: string | null,
+  ): Promise<{ matched: ListedPlatformUser[]; truncated: boolean }> {
+    const orgMemberIds = await this.fetchAllOrgMemberUserIds();
+    const matched: ListedPlatformUser[] = [];
+    const authPageSize = 1000;
+    const maxPages = 10;
+    let truncated = false;
+    let currentPage = 1;
+
+    while (currentPage <= maxPages) {
+      const response = await this.supabase.listAuthAdminUsers(currentPage, authPageSize);
       if (!response.ok || !response.data) {
         this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
         throw new BadRequestException('Could not inspect platform accounts');
       }
-      const ids = response.data.users.map((u) => u.id);
-      const [orgsByUser, superAdminIds] = await Promise.all([
-        this.fetchOrgMembershipsByUser(ids),
-        this.fetchSuperAdminIds(),
-      ]);
-      return {
-        users: response.data.users.map((user) =>
-          this.toListedUser(user, orgsByUser.get(user.id), superAdminIds.has(user.id)),
-        ),
-      };
+
+      for (const user of response.data.users) {
+        const isOrganizer = orgMemberIds.has(user.id);
+        const holdsPlatformRole = platformRoleByUser.has(user.id);
+        // Predicates, not a partition: an account can be both an organiser and
+        // platform staff, and shows on both tabs. Only `user` is defined by
+        // absence — it is the tab for everyone else.
+        const inScope = scope === 'organizer' ? isOrganizer : !isOrganizer && !holdsPlatformRole;
+        if (!inScope) continue;
+
+        const listed = this.toListedUser(user, undefined, platformRoleByUser.get(user.id) ?? null);
+        if (search && !this.userMatchesSearch(listed, search)) continue;
+        matched.push(listed);
+      }
+
+      if (response.data.users.length < authPageSize) break;
+      currentPage += 1;
+      if (currentPage > maxPages) {
+        this.logger.warn(
+          `Auth enumeration hit its ${maxPages}-page ceiling; the accounts listing is incomplete.`,
+        );
+        truncated = true;
+      }
     }
 
-    // Staff scope (any) or a search: enumerate auth users and filter in-app.
-    return this.listMaterialized({ scope, search, page, perPage });
+    return { matched, truncated };
+  }
+
+  /** Best match first when searching, then stable by email. */
+  private compareListed(
+    a: ListedPlatformUser,
+    b: ListedPlatformUser,
+    search: string | null,
+  ): number {
+    if (search) {
+      const diff = this.userSearchScore(b, search) - this.userSearchScore(a, search);
+      if (diff !== 0) return diff;
+    }
+    return (a.email ?? a.id).localeCompare(b.email ?? b.id);
+  }
+
+  /** Every platform role, by user id. One query; the table holds tens of rows. */
+  private async fetchPlatformRoles(): Promise<Map<string, PlatformRole>> {
+    const { data, error } = await this.supabase.service
+      .from('platform_roles')
+      .select('user_id, role');
+    if (error) {
+      this.logger.warn(`Could not fetch platform roles: ${error.message}`);
+      return new Map();
+    }
+    const map = new Map<string, PlatformRole>();
+    for (const row of (data ?? []) as Array<{ user_id?: string; role?: string }>) {
+      const role = parsePlatformRole(row.role);
+      if (row.user_id && role) map.set(row.user_id, role);
+    }
+    return map;
   }
 
   async getUser(userId: string) {
@@ -243,12 +383,16 @@ export class AdminUsersService {
     if (!response.ok || !response.data?.id) {
       throw new NotFoundException(`User ${userId} not found`);
     }
-    const [orgsByUser, superAdminIds] = await Promise.all([
+    const [orgsByUser, platformRoleByUser] = await Promise.all([
       this.fetchOrgMembershipsByUser([userId]),
-      this.fetchSuperAdminIds(),
+      this.fetchPlatformRoles(),
     ]);
     return {
-      user: this.toListedUser(response.data, orgsByUser.get(userId), superAdminIds.has(userId)),
+      user: this.toListedUser(
+        response.data,
+        orgsByUser.get(userId),
+        platformRoleByUser.get(userId) ?? null,
+      ),
     };
   }
 
@@ -775,110 +919,45 @@ export class AdminUsersService {
   }
 
   /**
-   * Enumerate `auth.users` (paged) and apply the scope + search filters
-   * in-app, then paginate. Used for the staff scope and for any search.
+   * All distinct `auth.users` ids holding at least one organization membership
+   * — the organiser-scope predicate.
    *
-   * The staff predicate is evaluated from two id-only sets (super-admins and
-   * org members) so we never build a huge PostgREST `.in(...)` over every
-   * auth user. Detailed org membership (names/roles) is fetched only for the
-   * final page slice.
-   */
-  private async listMaterialized(opts: {
-    scope: 'staff' | 'all';
-    search?: string;
-    page: number;
-    perPage: number;
-  }) {
-    const normalizedSearch = opts.search ? normalizeSearch(opts.search) : null;
-    const [superAdminIds, orgMemberIds] = await Promise.all([
-      this.fetchSuperAdminIds(),
-      opts.scope === 'staff' ? this.fetchAllOrgMemberUserIds() : Promise.resolve(new Set<string>()),
-    ]);
-
-    const matched: ListedPlatformUser[] = [];
-    let currentPage = 1;
-    const authPageSize = 1000;
-
-    while (currentPage <= 10) {
-      const response = await this.supabase.listAuthAdminUsers(currentPage, authPageSize);
-      if (!response.ok || !response.data) {
-        this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
-        throw new BadRequestException('Could not inspect platform accounts');
-      }
-
-      for (const user of response.data.users) {
-        const isSuperAdmin = superAdminIds.has(user.id);
-        if (opts.scope === 'staff' && !isSuperAdmin && !orgMemberIds.has(user.id)) continue;
-        // Org membership details are annotated on the final slice below.
-        const listedUser = this.toListedUser(user, undefined, isSuperAdmin);
-        if (normalizedSearch && !this.userMatchesSearch(listedUser, normalizedSearch)) continue;
-        matched.push(listedUser);
-      }
-
-      if (response.data.users.length < authPageSize) break;
-      currentPage += 1;
-    }
-
-    if (normalizedSearch) {
-      matched.sort((a, b) => {
-        const aScore = this.userSearchScore(a, normalizedSearch);
-        const bScore = this.userSearchScore(b, normalizedSearch);
-        if (aScore !== bScore) return bScore - aScore;
-        return (a.email ?? a.id).localeCompare(b.email ?? b.id);
-      });
-    } else {
-      matched.sort((a, b) => (a.email ?? a.id).localeCompare(b.email ?? b.id));
-    }
-
-    const start = Math.max(opts.page - 1, 0) * opts.perPage;
-    const slice = matched.slice(start, start + opts.perPage);
-    const orgsByUser = await this.fetchOrgMembershipsByUser(slice.map((u) => u.id));
-    return {
-      users: slice.map((u) => ({
-        ...u,
-        organizations: orgsByUser.get(u.id) ?? [],
-      })),
-    };
-  }
-
-  /**
-   * All distinct `auth.users` ids that hold at least one organization
-   * membership. Used as the staff-scope predicate.
-   *
-   * NOTE: relies on PostgREST's default 1000-row cap. Fine at current scale;
-   * switch to a `.range()` loop if org membership ever exceeds 1000 rows.
+   * Pages explicitly with `.range()`. The previous version issued a bare
+   * `select('user_id')` and relied on PostgREST's default 1000-row cap, which
+   * meant that past a thousand memberships it silently dropped organisers from
+   * the listing: they simply were not there, with no error and no warning.
    */
   private async fetchAllOrgMemberUserIds(): Promise<Set<string>> {
-    const { data, error } = await this.supabase.service
-      .from('organization_members')
-      .select('user_id');
-    if (error) {
-      this.logger.warn(`Could not fetch org member ids: ${error.message}`);
-      return new Set();
+    const ids = new Set<string>();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await this.supabase.service
+        .from('organization_members')
+        .select('user_id')
+        .range(offset, offset + pageSize - 1);
+      if (error) {
+        this.logger.warn(`Could not fetch org member ids: ${error.message}`);
+        return ids;
+      }
+      const rows = (data ?? []) as Array<{ user_id?: string }>;
+      for (const row of rows) {
+        if (typeof row.user_id === 'string') ids.add(row.user_id);
+      }
+      if (rows.length < pageSize) return ids;
     }
-    return new Set(
-      (data ?? [])
-        .map((row) => (row as { user_id?: string }).user_id)
-        .filter((id): id is string => typeof id === 'string'),
-    );
   }
 
   private toListedUser(
     user: SupabaseAdminUser,
     organizations: UserOrgMembership[] = [],
-    isSuperAdmin = false,
+    platformRole: PlatformRole | null = null,
   ): ListedPlatformUser {
     return {
       ...user,
       display_name: this.normalizeDisplayName(user),
       organizations,
-      is_super_admin: isSuperAdmin,
+      platform_role: platformRole,
     };
-  }
-
-  private async fetchSuperAdminIds(): Promise<Set<string>> {
-    const admins = await this.listSuperAdmins();
-    return new Set(admins.map((admin) => admin.userId));
   }
 
   /**

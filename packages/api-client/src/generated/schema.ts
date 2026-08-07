@@ -852,7 +852,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List users (super admin) */
+    /** List platform accounts in one scope (platform staff) */
     get: operations['UsersAdminController_list'];
     put?: never;
     /** Create user (super admin) */
@@ -870,7 +870,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get user with org memberships (super admin) */
+    /** Get user with org memberships (platform staff) */
     get: operations['UsersAdminController_getOne'];
     put?: never;
     post?: never;
@@ -9166,11 +9166,42 @@ export interface components {
       /** Format: uuid */
       newOwnerUserId?: string;
     };
+    PlatformUserOrgMembershipDto: {
+      id: string;
+      name: string;
+      slug: string;
+      role: string;
+    };
+    ListedPlatformUserDto: {
+      id: string;
+      email?: string;
+      user_metadata?: Record<string, never>;
+      app_metadata?: Record<string, never>;
+      created_at?: string;
+      last_sign_in_at?: Record<string, never> | null;
+      banned_until?: Record<string, never> | null;
+      email_confirmed_at?: Record<string, never> | null;
+      updated_at?: Record<string, never> | null;
+      display_name: Record<string, never> | null;
+      organizations: components['schemas']['PlatformUserOrgMembershipDto'][];
+      /** @enum {string|null} */
+      platform_role: 'platform_viewer' | 'platform_admin' | 'super_admin' | null;
+    };
+    ListPlatformUsersResponseDto: {
+      users: components['schemas']['ListedPlatformUserDto'][];
+      total: number;
+      page: number;
+      perPage: number;
+      truncated?: boolean;
+    };
     CreatePlatformUserDto: {
       /** Format: email */
       email: string;
       displayName?: string;
       makeSuperAdmin?: boolean;
+    };
+    GetPlatformUserResponseDto: {
+      user: components['schemas']['ListedPlatformUserDto'];
     };
     UpdatePlatformUserDto: {
       /** Format: email */
@@ -12180,11 +12211,11 @@ export interface operations {
   };
   UsersAdminController_list: {
     parameters: {
-      query: {
-        page: number;
-        perPage: number;
-        q: string;
-        scope: string;
+      query?: {
+        page?: number;
+        perPage?: number;
+        q?: string;
+        scope?: 'platform' | 'organizer' | 'user';
       };
       header?: never;
       path?: never;
@@ -12196,7 +12227,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          'application/json': components['schemas']['ListPlatformUsersResponseDto'];
+        };
       };
     };
   };
@@ -12236,7 +12269,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          'application/json': components['schemas']['GetPlatformUserResponseDto'];
+        };
       };
     };
   };

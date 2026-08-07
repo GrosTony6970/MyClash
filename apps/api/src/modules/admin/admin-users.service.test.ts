@@ -25,6 +25,9 @@ function chain(result: unknown = { data: [], error: null }) {
     select: vi.fn(() => state),
     eq: vi.fn(() => state),
     in: vi.fn(() => state),
+    // fetchAllOrgMemberUserIds pages explicitly now. The fake returns the whole
+    // set on the first range and the loop stops because it is a short page.
+    range: vi.fn(() => state),
     maybeSingle: vi.fn().mockResolvedValue(result),
     upsert: vi.fn().mockResolvedValue(result),
     insert: vi.fn().mockResolvedValue(result),
@@ -53,242 +56,280 @@ describe('AdminUsersService', () => {
     service = new AdminUsersService(mockSupabase as never);
   });
 
-  it('lists users through internal GoTrue admin API', async () => {
-    listAuthAdminUsers.mockResolvedValue({
+  // ── Listing ───────────────────────────────────────────────────────────────
+  //
+  // The three scopes are PREDICATES, not a partition: an account holding both a
+  // platform role and an org membership appears under `platform` AND
+  // `organizer`. Only `user` is defined by absence.
+
+  function authUsers(users: Array<Record<string, unknown>>) {
+    listAuthAdminUsers.mockResolvedValue({ ok: true, status: 200, detail: {}, data: { users } });
+  }
+
+  /** platform_roles rows + organization_members rows, keyed by table. */
+  function db(opts: {
+    platformRoles?: Array<{ user_id: string; role: string }>;
+    orgMembers?: Array<Record<string, unknown>>;
+  }) {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'platform_roles') return chain({ data: opts.platformRoles ?? [], error: null });
+      if (table === 'organization_members')
+        return chain({ data: opts.orgMembers ?? [], error: null });
+      if (table === 'audit_log') return chain({ data: null, error: null });
+      return chain({ data: [], error: null });
+    });
+  }
+
+  it('lists the platform scope from platform_roles, without enumerating Auth', async () => {
+    // The whole point of the platform short-circuit: twelve platform accounts
+    // must not cost an enumeration of ten thousand logins.
+    db({ platformRoles: [{ user_id: 'user-super', role: 'super_admin' }] });
+    getAuthAdminUser.mockResolvedValue({
       ok: true,
       status: 200,
-      data: { users: [{ id: 'user-1' }] },
       detail: {},
+      data: { id: 'user-super', email: 'super@example.com' },
     });
 
-    const result = await service.listUsers({ page: 2, perPage: 25, scope: 'all' });
+    const result = await service.listUsers({ scope: 'platform' });
 
-    expect(listAuthAdminUsers).toHaveBeenCalledWith(2, 25);
+    expect(listAuthAdminUsers).not.toHaveBeenCalled();
     expect(result.users).toEqual([
-      { id: 'user-1', display_name: null, organizations: [], is_super_admin: false },
+      expect.objectContaining({ id: 'user-super', platform_role: 'super_admin' }),
+    ]);
+    expect(result.total).toBe(1);
+  });
+
+  it('reports each tier verbatim on the platform scope', async () => {
+    db({
+      platformRoles: [
+        { user_id: 'u-super', role: 'super_admin' },
+        { user_id: 'u-admin', role: 'platform_admin' },
+        { user_id: 'u-view', role: 'platform_viewer' },
+      ],
+    });
+    getAuthAdminUser.mockImplementation((id: string) =>
+      Promise.resolve({ ok: true, status: 200, detail: {}, data: { id, email: `${id}@e.com` } }),
+    );
+
+    const result = await service.listUsers({ scope: 'platform' });
+
+    expect(Object.fromEntries(result.users.map((u) => [u.id, u.platform_role]))).toEqual({
+      'u-super': 'super_admin',
+      'u-admin': 'platform_admin',
+      'u-view': 'platform_viewer',
+    });
+  });
+
+  it('skips a platform_roles row whose auth user is gone rather than failing the listing', async () => {
+    // Orphaned rows are exactly what an operator opens this console to clean
+    // up; refusing the whole page over one would be the worst possible moment.
+    db({
+      platformRoles: [
+        { user_id: 'u-live', role: 'platform_admin' },
+        { user_id: 'u-ghost', role: 'platform_viewer' },
+      ],
+    });
+    getAuthAdminUser.mockImplementation((id: string) =>
+      Promise.resolve(
+        id === 'u-live'
+          ? { ok: true, status: 200, detail: {}, data: { id, email: 'live@e.com' } }
+          : { ok: false, status: 404, detail: {}, data: null },
+      ),
+    );
+
+    const result = await service.listUsers({ scope: 'platform' });
+
+    expect(result.users.map((u) => u.id)).toEqual(['u-live']);
+    expect(result.total).toBe(1);
+  });
+
+  it('lists the organizer scope from org memberships', async () => {
+    db({
+      platformRoles: [],
+      orgMembers: [
+        {
+          user_id: 'user-org',
+          role: 'owner',
+          organizations: { id: 'org-1', name: 'Org A', slug: 'org-a' },
+        },
+      ],
+    });
+    authUsers([
+      { id: 'user-org', email: 'org@example.com' },
+      { id: 'user-plain', email: 'plain@example.com' },
+    ]);
+
+    const result = await service.listUsers({ scope: 'organizer' });
+
+    expect(result.users.map((u) => u.id)).toEqual(['user-org']);
+    expect(result.users[0]?.organizations).toEqual([
+      { id: 'org-1', name: 'Org A', slug: 'org-a', role: 'owner' },
     ]);
   });
 
-  it('normalizes display names from Auth user metadata when listing accounts', async () => {
-    listAuthAdminUsers.mockResolvedValue({
-      ok: true,
-      status: 200,
-      data: {
-        users: [
-          {
-            id: 'user-1',
-            email: 'owner@example.com',
-            user_metadata: { display_name: 'Owner One' },
-          },
-          {
-            id: 'user-2',
-            email: 'empty@example.com',
-            user_metadata: { display_name: '   ' },
-          },
-        ],
-      },
-      detail: {},
+  it('defines the user scope by absence — neither an organiser nor platform staff', async () => {
+    db({
+      platformRoles: [{ user_id: 'user-super', role: 'super_admin' }],
+      orgMembers: [{ user_id: 'user-org', role: 'owner', organizations: { id: 'o', slug: 'o' } }],
     });
-
-    const result = await service.listUsers({ scope: 'all' });
-
-    expect(result.users).toEqual([
-      expect.objectContaining({ id: 'user-1', display_name: 'Owner One' }),
-      expect.objectContaining({ id: 'user-2', display_name: null }),
+    authUsers([
+      { id: 'user-super', email: 'super@example.com' },
+      { id: 'user-org', email: 'org@example.com' },
+      { id: 'user-plain', email: 'plain@example.com' },
     ]);
+
+    const result = await service.listUsers({ scope: 'user' });
+
+    expect(result.users.map((u) => u.id)).toEqual(['user-plain']);
+    expect(result.users[0]?.platform_role).toBeNull();
   });
 
-  it('searches platform accounts by display name, email, and user ID', async () => {
-    listAuthAdminUsers.mockResolvedValueOnce({
+  it('shows a dual account under BOTH the platform and organizer scopes', async () => {
+    // The owner is a platform super-admin AND runs their own club. The scopes
+    // overlap on purpose; a partition would put this account in no tab at all.
+    const dual = { user_id: 'user-dual', role: 'super_admin' };
+    const membership = {
+      user_id: 'user-dual',
+      role: 'owner',
+      organizations: { id: 'org-1', name: 'Lyon AMHE', slug: 'lyon-amhe' },
+    };
+    db({ platformRoles: [dual], orgMembers: [membership] });
+    getAuthAdminUser.mockResolvedValue({
       ok: true,
       status: 200,
-      data: {
-        users: [
-          {
-            id: 'user-owner',
-            email: 'owner@example.com',
-            user_metadata: { display_name: 'Owner One' },
-          },
-          {
-            id: 'user-ref',
-            email: 'referee@example.com',
-            user_metadata: { display_name: 'Referee Two' },
-          },
-          {
-            id: 'user-other',
-            email: 'other@example.com',
-            user_metadata: { display_name: 'Other User' },
-          },
-        ],
-      },
       detail: {},
+      data: { id: 'user-dual', email: 'dual@example.com' },
     });
+    authUsers([{ id: 'user-dual', email: 'dual@example.com' }]);
 
-    const displayNameResult = await service.listUsers({ q: 'owner', perPage: 20, scope: 'all' });
-    expect(displayNameResult.users).toEqual([
-      expect.objectContaining({
+    const platform = await service.listUsers({ scope: 'platform' });
+    const organizer = await service.listUsers({ scope: 'organizer' });
+    const user = await service.listUsers({ scope: 'user' });
+
+    expect(platform.users.map((u) => u.id)).toEqual(['user-dual']);
+    expect(organizer.users.map((u) => u.id)).toEqual(['user-dual']);
+    // ...and NOT under `user`, which is the everyone-else tab.
+    expect(user.users).toEqual([]);
+  });
+
+  it('reports the pre-paging total, not the page length', async () => {
+    db({ platformRoles: [], orgMembers: [] });
+    authUsers(Array.from({ length: 7 }, (_, i) => ({ id: `u-${i}`, email: `u${i}@example.com` })));
+
+    const result = await service.listUsers({ scope: 'user', page: 2, perPage: 3 });
+
+    expect(result.total).toBe(7);
+    expect(result.page).toBe(2);
+    expect(result.perPage).toBe(3);
+    expect(result.users.map((u) => u.id)).toEqual(['u-3', 'u-4', 'u-5']);
+  });
+
+  it('clamps perPage — the page hydrates org rows, so it cannot be unbounded', async () => {
+    db({ platformRoles: [], orgMembers: [] });
+    authUsers(Array.from({ length: 150 }, (_, i) => ({ id: `u-${i}`, email: `u${i}@e.com` })));
+
+    const result = await service.listUsers({ scope: 'user', perPage: 5000 });
+
+    expect(result.perPage).toBe(100);
+    expect(result.users).toHaveLength(100);
+  });
+
+  it('pages org memberships past the PostgREST 1000-row cap', async () => {
+    // The previous implementation issued a bare select() and relied on the
+    // default cap, so past a thousand memberships organisers silently vanished
+    // from the listing — no error, no warning, just absent rows.
+    const firstPage = Array.from({ length: 1000 }, (_, i) => ({ user_id: `org-${i}` }));
+    const secondPage = [{ user_id: 'org-1000' }];
+    let call = 0;
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'platform_roles') return chain({ data: [], error: null });
+      if (table === 'organization_members') {
+        call += 1;
+        if (call === 1) return chain({ data: firstPage, error: null });
+        if (call === 2) return chain({ data: secondPage, error: null });
+        return chain({ data: [], error: null });
+      }
+      if (table === 'audit_log') return chain({ data: null, error: null });
+      return chain({ data: [], error: null });
+    });
+    authUsers([{ id: 'org-1000', email: 'late@example.com' }]);
+
+    const result = await service.listUsers({ scope: 'organizer' });
+
+    // Reachable only if the second range() page was fetched.
+    expect(result.users.map((u) => u.id)).toEqual(['org-1000']);
+  });
+
+  it('searches by display name, email and user id within a scope', async () => {
+    db({ platformRoles: [], orgMembers: [] });
+    authUsers([
+      {
         id: 'user-owner',
         email: 'owner@example.com',
-        display_name: 'Owner One',
-      }),
+        user_metadata: { display_name: 'Owner One' },
+      },
+      { id: 'user-ref', email: 'referee@example.com', user_metadata: { display_name: 'Ref Two' } },
+      { id: 'user-target-id', email: 'other@example.com', user_metadata: {} },
     ]);
-    expect(listAuthAdminUsers).toHaveBeenCalledWith(1, 1000);
 
-    listAuthAdminUsers.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      data: {
-        users: [
-          { id: 'user-ref', email: 'referee@example.com', user_metadata: {} },
-          { id: 'user-other', email: 'other@example.com', user_metadata: {} },
-        ],
-      },
-      detail: {},
-    });
-
-    const emailResult = await service.listUsers({
-      q: 'referee@example',
-      perPage: 20,
-      scope: 'all',
-    });
-    expect(emailResult.users).toEqual([expect.objectContaining({ id: 'user-ref' })]);
-
-    listAuthAdminUsers.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      data: {
-        users: [
-          { id: 'user-target-id', email: 'target@example.com', user_metadata: {} },
-          { id: 'user-other', email: 'other@example.com', user_metadata: {} },
-        ],
-      },
-      detail: {},
-    });
-
-    const idResult = await service.listUsers({ q: 'target-id', perPage: 20, scope: 'all' });
-    expect(idResult.users).toEqual([expect.objectContaining({ id: 'user-target-id' })]);
-  });
-
-  it('restricts the staff scope to super-admins and org members', async () => {
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'platform_roles')
-        return chain({ data: [{ user_id: 'user-super', created_at: '2026-01-01' }], error: null });
-      if (table === 'organization_members')
-        return chain({
-          data: [
-            {
-              user_id: 'user-org',
-              role: 'owner',
-              organizations: { id: 'org-1', name: 'Org A', slug: 'org-a' },
-            },
-          ],
-          error: null,
-        });
-      if (table === 'audit_log') return chain({ data: null, error: null });
-      return chain({ data: [], error: null });
-    });
-    listAuthAdminUsers.mockResolvedValue({
-      ok: true,
-      status: 200,
-      detail: {},
-      data: {
-        users: [
-          { id: 'user-super', email: 'super@example.com' },
-          { id: 'user-org', email: 'org@example.com' },
-          { id: 'user-plain', email: 'plain@example.com' },
-        ],
-      },
-    });
-
-    const result = await service.listUsers({ scope: 'staff', perPage: 50 });
-
-    const ids = result.users.map((u) => u.id);
-    expect(ids).toContain('user-super');
-    expect(ids).toContain('user-org');
-    expect(ids).not.toContain('user-plain');
-    expect(result.users).toHaveLength(2);
+    expect((await service.listUsers({ scope: 'user', q: 'owner' })).users.map((u) => u.id)).toEqual(
+      ['user-owner'],
+    );
+    expect(
+      (await service.listUsers({ scope: 'user', q: 'referee@example' })).users.map((u) => u.id),
+    ).toEqual(['user-ref']);
+    expect(
+      (await service.listUsers({ scope: 'user', q: 'target-id' })).users.map((u) => u.id),
+    ).toEqual(['user-target-id']);
+    // Enumerates in 1000-row pages, never at the caller's perPage.
     expect(listAuthAdminUsers).toHaveBeenCalledWith(1, 1000);
   });
 
-  it('returns every login under the all scope', async () => {
-    listAuthAdminUsers.mockResolvedValue({
-      ok: true,
-      status: 200,
-      detail: {},
-      data: {
-        users: [
-          { id: 'user-super', email: 'super@example.com' },
-          { id: 'user-org', email: 'org@example.com' },
-          { id: 'user-plain', email: 'plain@example.com' },
-        ],
+  it('narrows the search to the scope, not the whole account table', async () => {
+    db({
+      platformRoles: [],
+      orgMembers: [
+        { user_id: 'staff-owner', role: 'owner', organizations: { id: 'o', slug: 'o' } },
+      ],
+    });
+    authUsers([
+      {
+        id: 'staff-owner',
+        email: 'owner@example.com',
+        user_metadata: { display_name: 'Owner Staff' },
       },
-    });
-
-    const result = await service.listUsers({ scope: 'all', perPage: 50 });
-
-    expect(result.users.map((u) => u.id).sort()).toEqual(['user-org', 'user-plain', 'user-super']);
-  });
-
-  it('applies the search filter within the staff scope', async () => {
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'platform_roles')
-        return chain({ data: [{ user_id: 'staff-owner', created_at: '2026-01-01' }], error: null });
-      if (table === 'audit_log') return chain({ data: null, error: null });
-      return chain({ data: [], error: null });
-    });
-    listAuthAdminUsers.mockResolvedValue({
-      ok: true,
-      status: 200,
-      detail: {},
-      data: {
-        users: [
-          {
-            id: 'staff-owner',
-            email: 'owner@example.com',
-            user_metadata: { display_name: 'Owner Staff' },
-          },
-          {
-            id: 'public-owner',
-            email: 'owner2@example.com',
-            user_metadata: { display_name: 'Owner Public' },
-          },
-        ],
+      {
+        id: 'public-owner',
+        email: 'owner2@example.com',
+        user_metadata: { display_name: 'Owner Public' },
       },
-    });
+    ]);
 
-    const result = await service.listUsers({ scope: 'staff', q: 'owner', perPage: 20 });
+    const result = await service.listUsers({ scope: 'organizer', q: 'owner' });
 
     expect(result.users.map((u) => u.id)).toEqual(['staff-owner']);
   });
 
   it('derives the display name from OAuth metadata when display_name is unset', async () => {
-    listAuthAdminUsers.mockResolvedValue({
-      ok: true,
-      status: 200,
-      detail: {},
-      data: {
-        users: [
-          {
-            id: 'u-display',
-            user_metadata: { display_name: 'Explicit Name', full_name: 'Ignored Name' },
-          },
-          { id: 'u-full', user_metadata: { full_name: 'Full Name' } },
-          { id: 'u-name', user_metadata: { name: 'Name Only' } },
-          { id: 'u-parts', user_metadata: { given_name: 'Jane', family_name: 'Doe' } },
-          { id: 'u-none', user_metadata: {} },
-        ],
-      },
-    });
-
-    const result = await service.listUsers({ scope: 'all' });
-
-    expect(result.users).toEqual([
-      expect.objectContaining({ id: 'u-display', display_name: 'Explicit Name' }),
-      expect.objectContaining({ id: 'u-full', display_name: 'Full Name' }),
-      expect.objectContaining({ id: 'u-name', display_name: 'Name Only' }),
-      expect.objectContaining({ id: 'u-parts', display_name: 'Jane Doe' }),
-      expect.objectContaining({ id: 'u-none', display_name: null }),
+    db({ platformRoles: [], orgMembers: [] });
+    authUsers([
+      { id: 'u-display', user_metadata: { display_name: 'Explicit Name', full_name: 'Ignored' } },
+      { id: 'u-full', user_metadata: { full_name: 'Full Name' } },
+      { id: 'u-name', user_metadata: { name: 'Name Only' } },
+      { id: 'u-parts', user_metadata: { given_name: 'Jane', family_name: 'Doe' } },
+      { id: 'u-none', user_metadata: {} },
     ]);
+
+    const result = await service.listUsers({ scope: 'user' });
+
+    expect(Object.fromEntries(result.users.map((u) => [u.id, u.display_name]))).toEqual({
+      'u-display': 'Explicit Name',
+      'u-full': 'Full Name',
+      'u-name': 'Name Only',
+      'u-parts': 'Jane Doe',
+      'u-none': null,
+    });
   });
 
   it('creates confirmed users and returns a one-time temporary password', async () => {

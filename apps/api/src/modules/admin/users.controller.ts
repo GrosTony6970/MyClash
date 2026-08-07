@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -15,7 +14,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
 import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
@@ -23,9 +22,14 @@ import { AdminUsersService, type DeletePlatformUserMode } from './admin-users.se
 import {
   AddOrgMembershipDto,
   CreatePlatformUserDto,
+  ListPlatformUsersQueryDto,
   UpdateOrgMembershipRoleDto,
   UpdatePlatformUserDto,
 } from './dto/admin-users.dto';
+import {
+  GetPlatformUserResponseDto,
+  ListPlatformUsersResponseDto,
+} from './dto/admin-users-response.dto';
 import { PlatformRoleGuard } from './guards/platform-role.guard';
 import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
@@ -39,19 +43,13 @@ export class UsersAdminController {
 
   @Get()
   @Throttle(ADMIN_READ_THROTTLE)
-  @ApiOperation({ summary: 'List users (super admin)' })
-  async list(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('perPage', new DefaultValuePipe(50), ParseIntPipe) perPage: number,
-    @Query('q') q?: string,
-    @Query('scope', new DefaultValuePipe('staff')) scope?: string,
-  ) {
-    return this.service.listUsers({
-      page,
-      perPage,
-      q,
-      scope: scope === 'all' ? 'all' : 'staff',
-    });
+  @ApiOperation({ summary: 'List platform accounts in one scope (platform staff)' })
+  @ApiOkResponse({ type: ListPlatformUsersResponseDto })
+  async list(@Query() query: ListPlatformUsersQueryDto) {
+    // A validated DTO rather than loose @Query pipes: `scope` used to fall
+    // back silently to a default when it was misspelled, so a typo in a link
+    // quietly listed the wrong population instead of failing.
+    return this.service.listUsers(query);
   }
 
   @Post()
@@ -61,7 +59,8 @@ export class UsersAdminController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get user with org memberships (super admin)' })
+  @ApiOperation({ summary: 'Get user with org memberships (platform staff)' })
+  @ApiOkResponse({ type: GetPlatformUserResponseDto })
   async getOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.getUser(id);
   }

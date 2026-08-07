@@ -56,7 +56,7 @@ interface PlatformAccount {
   id: string;
   email?: string;
   display_name?: string | null;
-  is_super_admin?: boolean;
+  platform_role?: string | null;
 }
 
 interface PlatformAccountListResponse {
@@ -222,17 +222,29 @@ export default function AdminOrgDetailPage({ params }: Props) {
   async function loadPlatformAccounts(search: string) {
     setPlatformLoading(true);
     setPlatformError(null);
-    const params = new URLSearchParams();
-    params.set('perPage', '20');
-    if (search.trim()) params.set('q', search.trim());
-
-    try {
+    // Candidates for org membership are ordinary accounts and organisers of
+    // OTHER orgs — two scopes, because the listing scopes are predicates rather
+    // than a partition and neither one alone covers both. Platform staff are
+    // deliberately not fetched: a super-admin may not hold a membership at all,
+    // and the lower tiers reach this picker through their own org anyway.
+    async function fetchScope(scope: 'user' | 'organizer') {
+      const params = new URLSearchParams();
+      params.set('perPage', '20');
+      params.set('scope', scope);
+      if (search.trim()) params.set('q', search.trim());
       const res = await fetch(`${apiUrl}/api/v1/admin/users?${params}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error(t('admin.organizations.detail.accountSearchFailed'));
       const data = (await res.json()) as PlatformAccountListResponse;
-      setPlatformAccounts(data.users ?? []);
+      return data.users ?? [];
+    }
+
+    try {
+      const [plain, organisers] = await Promise.all([fetchScope('user'), fetchScope('organizer')]);
+      const byId = new Map<string, PlatformAccount>();
+      for (const account of [...plain, ...organisers]) byId.set(account.id, account);
+      setPlatformAccounts([...byId.values()]);
     } catch (err) {
       setPlatformError(
         err instanceof Error ? err.message : t('admin.organizations.detail.accountSearchFailed'),
@@ -790,7 +802,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   ? platformAccounts
                       .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
                       .map((account) => {
-                        const isSuperAdmin = account.is_super_admin === true;
+                        const isSuperAdmin = account.platform_role === 'super_admin';
                         return (
                           <button
                             key={account.id}
