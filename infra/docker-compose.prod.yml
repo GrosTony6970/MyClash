@@ -19,7 +19,7 @@
 services:
   # ── Reverse proxy ────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.7.1
+    image: traefik:v3.7.10
     container_name: myclash-traefik
     restart: unless-stopped
     command:
@@ -136,7 +136,7 @@ services:
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
-    image: supabase/postgres:17.6.1.121-mg-1
+    image: supabase/postgres:17.6.1.160
     container_name: myclash-db
     restart: unless-stopped
     environment:
@@ -187,7 +187,7 @@ services:
 
   # ── Supabase Auth (GoTrue) ────────────────────────────────────────
   supabase-auth:
-    image: supabase/gotrue:v2.189.0
+    image: supabase/gotrue:v2.195.0
     container_name: myclash-supabase-auth
     restart: unless-stopped
     environment:
@@ -311,7 +311,7 @@ services:
 
   # ── Supabase Storage ──────────────────────────────────────────────
   supabase-storage:
-    image: supabase/storage-api:v1.58.19
+    image: supabase/storage-api:v1.68.9
     container_name: myclash-supabase-storage
     restart: unless-stopped
     environment:

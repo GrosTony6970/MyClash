@@ -105,18 +105,18 @@ The production deployment is a 14-service Docker Compose stack on a single VPS, 
 
 **Reverse proxy & TLS**
 
-- `traefik` (`traefik:v3.7.1`) — terminates HTTPS via Let's Encrypt, routes by hostname to every public-facing service. Hosts: `myclash.fr` → web-marketing · `app.myclash.fr` → web-public · `admin.myclash.fr` → web-admin + API · `scoring.myclash.fr` → web-scoring · `api.myclash.fr` → API · `traefik.myclash.fr` → dashboard at `/dashboard/` (basic-auth gated; the bare root 302s there, since Traefik's `api@internal` serves nothing at `/`).
+- `traefik` (`traefik:v3.7.10`) — terminates HTTPS via Let's Encrypt, routes by hostname to every public-facing service. Hosts: `myclash.fr` → web-marketing · `app.myclash.fr` → web-public · `admin.myclash.fr` → web-admin + API · `scoring.myclash.fr` → web-scoring · `api.myclash.fr` → API · `traefik.myclash.fr` → dashboard at `/dashboard/` (basic-auth gated; the bare root 302s there, since Traefik's `api@internal` serves nothing at `/`).
 
 **Data**
 
-- `db` (`supabase/postgres:17.6.1.121`) — primary Postgres with the Supabase init scripts (auth, realtime, postgrest roles).
+- `db` (`supabase/postgres:17.6.1.160`) — primary Postgres with the Supabase init scripts (auth, realtime, postgrest roles).
 - `redis` (`redis:8-alpine3.23`) — cache + BullMQ queue + pub/sub. 512 MB max, appendonly.
 
 **Supabase surface** — each fronted directly by Traefik, in both dev and prod (no gateway in between)
 
-- `supabase-auth` (`supabase/gotrue:v2.189.0`) — email magic link + Google OAuth.
+- `supabase-auth` (`supabase/gotrue:v2.195.0`) — email magic link + Google OAuth.
 - `supabase-realtime` (`supabase/realtime:v2.94.1`) — Phoenix Channels broadcasting Postgres row changes.
-- `supabase-storage` (`supabase/storage-api:v1.58.19`) — S3-compatible object storage (photos, club logos).
+- `supabase-storage` (`supabase/storage-api:v1.68.9`) — S3-compatible object storage (photos, club logos).
 - `supabase-rest` (`postgrest/postgrest:v12.2.3`) — PostgREST over the public schema, served at `/rest/v1`.
 
 **MyClash apps**

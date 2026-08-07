@@ -38,7 +38,7 @@
 services:
   # ── Reverse proxy ────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.7.1
+    image: traefik:v3.7.10
     container_name: myclash-dev-traefik
     restart: unless-stopped
     ports:
@@ -78,7 +78,7 @@ services:
   #   docker compose -f infra/docker-compose.dev.yml down -v
   # then re-run migrations + seed.
   db:
-    image: supabase/postgres:17.6.1.121-mg-1
+    image: supabase/postgres:17.6.1.160
     container_name: myclash-dev-db
     restart: unless-stopped
     environment:
@@ -130,7 +130,7 @@ services:
 
   # ── Supabase Auth (GoTrue) ────────────────────────────────────────
   supabase-auth:
-    image: supabase/gotrue:v2.189.0
+    image: supabase/gotrue:v2.195.0
     container_name: myclash-dev-supabase-auth
     restart: unless-stopped
     environment:
@@ -260,7 +260,7 @@ services:
 
   # ── Supabase Storage ──────────────────────────────────────────────
   supabase-storage:
-    image: supabase/storage-api:v1.58.19
+    image: supabase/storage-api:v1.68.9
     container_name: myclash-dev-supabase-storage
     restart: unless-stopped
     environment:
