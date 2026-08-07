@@ -1986,6 +1986,15 @@ export const en = {
       deleteAction: 'Delete',
       deleteDialogTitle: 'Delete league',
       backToLeagues: 'Back to leagues',
+      rankingEyebrow: 'League ranking',
+      rankingTitleFallback: 'League ranking',
+      // Assembled in the page so the translator owns the order of the three
+      // parts, not just their wording.
+      rankingSubtitle: '{season} · {tournaments} · {fighters}',
+      rankingTournamentsSingular: '{count} tournament',
+      rankingTournamentsPlural: '{count} tournaments',
+      rankingFightersSingular: '{count} fighter',
+      rankingFightersPlural: '{count} fighters',
       emptyRankingsBefore: 'No rankings computed yet. The standings engine writes',
       emptyRankingsAfter:
         'on tournament completion — once a linked tournament finishes, the standings appear here.',
@@ -9432,6 +9441,13 @@ export const fr = {
       deleteAction: 'Supprimer',
       deleteDialogTitle: 'Supprimer la ligue',
       backToLeagues: 'Retour aux ligues',
+      rankingEyebrow: 'Classement de ligue',
+      rankingTitleFallback: 'Classement de ligue',
+      rankingSubtitle: '{season} · {tournaments} · {fighters}',
+      rankingTournamentsSingular: '{count} tournoi',
+      rankingTournamentsPlural: '{count} tournois',
+      rankingFightersSingular: '{count} tireur',
+      rankingFightersPlural: '{count} tireurs',
       emptyRankingsBefore: "Aucun classement calculé pour l'instant. Le moteur de classement écrit",
       emptyRankingsAfter:
         "à la clôture d'un tournoi — dès qu'un tournoi lié se termine, le classement apparaît ici.",

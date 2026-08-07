@@ -148,13 +148,25 @@ export default function AdminLeagueRankingPage() {
         className="mb-3"
       />
       <AdminPageHeader
-        eyebrow="League ranking"
-        title={data?.league.name ?? 'League ranking'}
+        eyebrow={t('admin.adminLeagues.rankingEyebrow')}
+        title={data?.league.name ?? t('admin.adminLeagues.rankingTitleFallback')}
         subtitle={
           data
-            ? `${data.league.season_year} · ${data.columns.length} tournament${
-                data.columns.length === 1 ? '' : 's'
-              } · ${data.rows.length} fighter${data.rows.length === 1 ? '' : 's'}`
+            ? t('admin.adminLeagues.rankingSubtitle', {
+                season: data.league.season_year,
+                tournaments: t(
+                  data.columns.length === 1
+                    ? 'admin.adminLeagues.rankingTournamentsSingular'
+                    : 'admin.adminLeagues.rankingTournamentsPlural',
+                  { count: data.columns.length },
+                ),
+                fighters: t(
+                  data.rows.length === 1
+                    ? 'admin.adminLeagues.rankingFightersSingular'
+                    : 'admin.adminLeagues.rankingFightersPlural',
+                  { count: data.rows.length },
+                ),
+              })
             : null
         }
       />
