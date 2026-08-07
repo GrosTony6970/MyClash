@@ -14,7 +14,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { validatePassword } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
-import { hasPlatformTier, isPlatformStaff } from '../../common/auth/platform-role';
+import { isPlatformStaff, resolvePlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
@@ -1737,7 +1737,7 @@ export class AuthService {
   private async getAdminLandingContext(userId: string): Promise<AdminLandingContext> {
     let organizations: AdminLandingContext['organizations'] = [];
 
-    const isSuperAdmin = await hasPlatformTier(this.supabase, userId, 'super_admin');
+    const platformRole = await resolvePlatformRole(this.supabase, userId);
 
     try {
       const { data: membershipRows } = await this.supabase.service
@@ -1754,7 +1754,7 @@ export class AuthService {
       organizations = [];
     }
 
-    return { isSuperAdmin, organizations };
+    return { platformRole, organizations };
   }
 
   private validateRedirect(redirectTo: string | undefined): string {

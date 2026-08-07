@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { PlatformRole } from '@myclash/types';
 
 export class MeResponseDto {
   @ApiProperty({ enum: ['claimed', 'guest', 'anonymous'] })
@@ -24,7 +25,18 @@ export class MeResponseDto {
 
   @ApiProperty({ required: false })
   admin?: {
-    isSuperAdmin: boolean;
+    /**
+     * The caller's platform tier, or null for an account with no platform role.
+     *
+     * REPLACED the `isSuperAdmin` boolean rather than joining it: a boolean
+     * cannot express three states, and keeping a derived one alongside would
+     * guarantee somebody kept reading it and silently treated a platform_admin
+     * as an ordinary organiser. Every consumer had to be visited anyway.
+     *
+     * Note the null case is reachable — an org owner or a personal league admin
+     * gets an `admin` block with `platformRole: null`.
+     */
+    platformRole: PlatformRole | null;
     organizations: Array<{
       id: string;
       slug: string;

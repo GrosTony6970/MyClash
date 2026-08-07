@@ -294,7 +294,7 @@ describe('AuthService', () => {
       expect(result.type).toBe('claimed');
       expect(result.user?.email).toBe('organizer@example.com');
       expect(result.admin).toEqual({
-        isSuperAdmin: false,
+        platformRole: null,
         organizations: [],
         hasLeagueRoles: false,
       });
@@ -343,7 +343,29 @@ describe('AuthService', () => {
 
       expect(result.type).toBe('claimed');
       expect(result.admin).toEqual({
-        isSuperAdmin: true,
+        platformRole: 'super_admin',
+        organizations: [],
+        hasLeagueRoles: false,
+      });
+    });
+
+    // The tier is reported verbatim, not collapsed to a boolean. This is what
+    // lets the console gate its nav per tier instead of all-or-nothing.
+    it.each(['platform_admin', 'platform_viewer'])('reports the %s tier verbatim', async (role) => {
+      mockAuthUser({ id: `${role}-1`, email: `${role}@example.com` });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: { role }, error: null }))
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer t' },
+        cookies: {},
+      } as never);
+
+      expect(result.admin).toEqual({
+        platformRole: role,
         organizations: [],
         hasLeagueRoles: false,
       });
@@ -382,7 +404,7 @@ describe('AuthService', () => {
 
       expect(result.type).toBe('claimed');
       expect(result.admin).toEqual({
-        isSuperAdmin: false,
+        platformRole: null,
         organizations: [
           { id: 'org-1', slug: 'lyon-amhe', role: 'owner' },
           { id: 'org-2', slug: 'paris-hema', role: 'admin' },
@@ -409,7 +431,7 @@ describe('AuthService', () => {
       } as never);
 
       expect(result.admin).toEqual({
-        isSuperAdmin: false,
+        platformRole: null,
         organizations: [],
         hasLeagueRoles: true,
       });
