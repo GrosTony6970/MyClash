@@ -1165,7 +1165,7 @@ export class PhasesService {
       .eq('type', 'pool')
       .maybeSingle();
 
-    let rankings: RankedRegistration[] = [];
+    let rankings: RankedRegistration[];
     let source: R1RankingSource = 'pool-standings';
     let warnings: SeedingWarning[] = [];
     let usedRandomSeed: number | undefined;

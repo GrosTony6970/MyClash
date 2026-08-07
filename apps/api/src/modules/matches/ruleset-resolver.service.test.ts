@@ -40,7 +40,7 @@ function makeResolver(rows: { parent?: unknown; snapshot?: unknown; row?: unknow
   const selects: string[] = [];
   const from = vi.fn().mockImplementation(() => {
     call += 1;
-    let data: unknown = null;
+    let data: unknown;
     if (call === 1) data = rows.parent ?? null;
     else if (rows.parent) data = rows.snapshot ?? null;
     else data = rows.row ?? null;

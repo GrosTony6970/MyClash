@@ -125,7 +125,7 @@ export class RulesetResolver {
     // 3. Fall back to the parent custom_rulesets row. This handles rows
     //    created before the versions table existed and the "current draft"
     //    case where nothing has been published yet.
-    let ruleset: Ruleset | null = null;
+    let ruleset: Ruleset | null;
     try {
       ruleset = await this.resolveFromParentRow(code, version);
     } catch (err) {

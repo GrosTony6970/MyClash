@@ -91,7 +91,7 @@ export class OpenAIAdapter implements ProviderAdapter {
     for (const entry of choice?.message?.tool_calls ?? []) {
       if ('function' in entry) {
         const fn = (entry as ChatCompletionMessageFunctionToolCall).function;
-        let args: Record<string, unknown> = {};
+        let args: Record<string, unknown>;
         try {
           args = JSON.parse(fn.arguments) as Record<string, unknown>;
         } catch {

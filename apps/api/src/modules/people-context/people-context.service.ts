@@ -547,7 +547,7 @@ export class PeopleContextService {
     >();
     await Promise.all(
       tournamentIds.map(async (tId) => {
-        let rows: StandingsRow[] = [];
+        let rows: StandingsRow[];
         try {
           const standings = await this.poolStandings.getPoolStandings(tId, 'overall');
           rows = 'rows' in standings ? standings.rows : [];

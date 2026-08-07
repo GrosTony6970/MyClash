@@ -63,7 +63,6 @@ export class EntityLabelService {
 
   async resolve(refs: Map<EntityKind, Set<string>>): Promise<EntityLabelResult> {
     const labels = new Map<string, string>();
-    let users = new Map<string, ResolvedUser>();
 
     const userIds = Array.from(refs.get('user') ?? []).slice(0, MAX_USER_IDS);
     const entityKinds = Array.from(refs.entries()).filter(([kind]) => kind !== 'user');
@@ -75,7 +74,7 @@ export class EntityLabelService {
       ),
     ]);
 
-    users = userResult;
+    const users = userResult;
     for (const [id, user] of users) {
       const label = user.name ?? user.email;
       if (label) labels.set(labelKey('user', id), label);

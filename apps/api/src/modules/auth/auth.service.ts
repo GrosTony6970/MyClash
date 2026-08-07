@@ -1737,7 +1737,7 @@ export class AuthService {
   }
 
   private async getAdminLandingContext(userId: string): Promise<AdminLandingContext> {
-    let organizations: AdminLandingContext['organizations'] = [];
+    let organizations: AdminLandingContext['organizations'];
 
     const platformRole = await resolvePlatformRole(this.supabase, userId);
 

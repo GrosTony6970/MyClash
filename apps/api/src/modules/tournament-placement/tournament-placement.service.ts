@@ -66,7 +66,7 @@ export class TournamentPlacementService {
    * than throwing, matching the career-dashboard contract.
    */
   async getTournamentPlacements(tournamentId: string): Promise<TournamentPlacements> {
-    let rows: StandingsRow[] = [];
+    let rows: StandingsRow[];
     try {
       const standings = (await this.poolStandings.getPoolStandings(tournamentId, 'overall')) as {
         rows?: StandingsRow[];
