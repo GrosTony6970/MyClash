@@ -115,7 +115,7 @@ The production deployment is a 14-service Docker Compose stack on a single VPS, 
 **Supabase surface** — each fronted directly by Traefik, in both dev and prod (no gateway in between)
 
 - `supabase-auth` (`supabase/gotrue:v2.195.0`) — email magic link + Google OAuth.
-- `supabase-realtime` (`supabase/realtime:v2.94.1`) — Phoenix Channels broadcasting Postgres row changes.
+- `supabase-realtime` (`supabase/realtime:v2.124.1`) — Phoenix Channels broadcasting Postgres row changes.
 - `supabase-storage` (`supabase/storage-api:v1.68.9`) — S3-compatible object storage (photos, club logos).
 - `supabase-rest` (`postgrest/postgrest:v14.16`) — PostgREST over the public schema, served at `/rest/v1`.
 

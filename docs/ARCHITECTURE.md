@@ -2622,7 +2622,7 @@ The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/do
 | `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.             |
 | `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                              |
 | `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                               |
-| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.94.1`                | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                        |
+| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                        |
 | `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.               |
 | `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                              |
 | `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                     |

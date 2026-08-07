@@ -244,7 +244,7 @@ services:
 
   # ── Supabase Realtime ─────────────────────────────────────────────
   supabase-realtime:
-    image: supabase/realtime:v2.94.1
+    image: supabase/realtime:v2.124.1
     container_name: myclash-supabase-realtime
     restart: unless-stopped
     environment:
