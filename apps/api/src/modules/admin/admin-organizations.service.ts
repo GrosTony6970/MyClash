@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'node:crypto';
 import { MailService } from '../mail/mail.service';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -17,6 +16,7 @@ import type {
   ListOrgsQueryDto,
   ReassignOwnerDto,
 } from './dto/admin-organizations.dto';
+import { generateTemporaryPassword } from '../../common/temp-password';
 
 const PROTECTED_ORG_SLUG = 'myclash-hq';
 
@@ -636,7 +636,7 @@ export class AdminOrganizationsService {
       };
     }
 
-    const temporaryPassword = this.generateTemporaryPassword();
+    const temporaryPassword = generateTemporaryPassword();
     const response = await this.supabase.createAuthAdminUser({
       email: ownerEmail,
       password: temporaryPassword,
@@ -843,10 +843,6 @@ export class AdminOrganizationsService {
     }
 
     return result;
-  }
-
-  private generateTemporaryPassword(): string {
-    return randomBytes(18).toString('base64url');
   }
 
   private async trySendOwnerMagicLink(

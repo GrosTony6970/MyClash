@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { PLATFORM_ROLES } from '@myclash/types';
 
 /**
  * Which population of accounts to list.
@@ -41,7 +42,8 @@ const createPlatformUserSchema = z
   .object({
     email: z.email(),
     displayName: z.string().min(1).max(120).optional(),
-    makeSuperAdmin: z.boolean().optional(),
+    /** Omitted = a plain account with no platform authority. */
+    platformRole: z.enum(PLATFORM_ROLES).optional(),
   })
   .strict();
 export class CreatePlatformUserDto extends createZodDto(createPlatformUserSchema) {}
@@ -68,3 +70,10 @@ const updateOrgMembershipRoleSchema = z
   })
   .strict();
 export class UpdateOrgMembershipRoleDto extends createZodDto(updateOrgMembershipRoleSchema) {}
+
+const setPlatformRoleSchema = z
+  .object({
+    role: z.enum(PLATFORM_ROLES),
+  })
+  .strict();
+export class SetPlatformRoleDto extends createZodDto(setPlatformRoleSchema) {}

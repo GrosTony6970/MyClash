@@ -9,6 +9,11 @@ const updateAuthAdminUser = vi.fn();
 const deleteAuthAdminUser = vi.fn();
 const fromMock = vi.fn();
 
+const sendMagicLink = vi.fn().mockResolvedValue(undefined);
+const generateLink = vi.fn();
+const mockMail = { sendMagicLink };
+const mockConfig = { get: vi.fn(() => 'myclash.test') };
+
 const mockSupabase = {
   listAuthAdminUsers,
   createAuthAdminUser,
@@ -17,6 +22,7 @@ const mockSupabase = {
   deleteAuthAdminUser,
   service: {
     from: fromMock,
+    auth: { admin: { generateLink } },
   },
 };
 
@@ -53,7 +59,7 @@ describe('AdminUsersService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupDefaultDb();
-    service = new AdminUsersService(mockSupabase as never);
+    service = new AdminUsersService(mockSupabase as never, mockMail as never, mockConfig as never);
   });
 
   // ── Listing ───────────────────────────────────────────────────────────────
@@ -357,7 +363,34 @@ describe('AdminUsersService', () => {
     expect(result.temporaryPassword.length).toBeGreaterThan(20);
   });
 
-  it('grants super-admin role when requested during account creation', async () => {
+  it.each(['super_admin', 'platform_admin', 'platform_viewer'] as const)(
+    'grants the %s tier when requested during account creation',
+    async (role) => {
+      const platformRoles = chain({ data: null, error: null });
+      fromMock.mockImplementation((table: string) =>
+        table === 'platform_roles' ? platformRoles : chain({ data: null, error: null }),
+      );
+      createAuthAdminUser.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { id: 'user-new', email: 'new@example.com' },
+        detail: {},
+      });
+
+      const result = await service.createPlatformUser(
+        { email: 'new@example.com', platformRole: role },
+        'actor-user',
+      );
+
+      expect(platformRoles.upsert).toHaveBeenCalledWith(
+        { user_id: 'user-new', role },
+        { onConflict: 'user_id' },
+      );
+      expect(result.platformRole).toBe(role);
+    },
+  );
+
+  it('creates a plain account when no tier is requested', async () => {
     const platformRoles = chain({ data: null, error: null });
     fromMock.mockImplementation((table: string) =>
       table === 'platform_roles' ? platformRoles : chain({ data: null, error: null }),
@@ -369,16 +402,10 @@ describe('AdminUsersService', () => {
       detail: {},
     });
 
-    const result = await service.createPlatformUser(
-      { email: 'new@example.com', makeSuperAdmin: true },
-      'actor-user',
-    );
+    const result = await service.createPlatformUser({ email: 'new@example.com' }, 'actor-user');
 
-    expect(platformRoles.upsert).toHaveBeenCalledWith(
-      { user_id: 'user-new', role: 'super_admin' },
-      { onConflict: 'user_id' },
-    );
-    expect(result.superAdminGranted).toBe(true);
+    expect(platformRoles.upsert).not.toHaveBeenCalled();
+    expect(result.platformRole).toBeNull();
   });
 
   it('disables and enables users through internal GoTrue update helpers', async () => {

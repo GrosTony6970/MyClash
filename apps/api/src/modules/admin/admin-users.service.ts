@@ -6,7 +6,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
 import {
   CreatePlatformUserDto,
   ORG_ROLES,
@@ -15,7 +14,10 @@ import {
   type UserListScope,
 } from './dto/admin-users.dto';
 import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
+import { ConfigService } from '@nestjs/config';
+import { MailService } from '../mail/mail.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { generateTemporaryPassword } from '../../common/temp-password';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { parsePlatformRole, type PlatformRole } from '@myclash/types';
 
@@ -216,7 +218,11 @@ type ListedPlatformUser = SupabaseAdminUser & {
 export class AdminUsersService {
   private readonly logger = new Logger(AdminUsersService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * List accounts in one scope, paged and searched SERVER-side.
@@ -537,7 +543,7 @@ export class AdminUsersService {
   }
 
   async createPlatformUser(input: CreatePlatformUserDto, actorUserId: string) {
-    const temporaryPassword = randomBytes(18).toString('base64url');
+    const temporaryPassword = generateTemporaryPassword();
     const email = input.email.trim().toLowerCase();
     const displayName = input.displayName?.trim();
 
@@ -552,8 +558,8 @@ export class AdminUsersService {
       throw new BadRequestException('Could not create platform account');
     }
 
-    if (input.makeSuperAdmin === true) {
-      await this.grantSuperAdmin(response.data.id);
+    if (input.platformRole) {
+      await this.writePlatformRole(response.data.id, input.platformRole);
     }
 
     // Vault the temp password so a super-admin can re-reveal it on the
@@ -572,7 +578,7 @@ export class AdminUsersService {
 
     await this.writeAuditLog(actorUserId, 'user.create', 'user', response.data.id, {
       target_email: email,
-      super_admin_granted: input.makeSuperAdmin === true,
+      platform_role_granted: input.platformRole ?? null,
     });
 
     return {
@@ -582,7 +588,7 @@ export class AdminUsersService {
         created: true,
       },
       temporaryPassword,
-      superAdminGranted: input.makeSuperAdmin === true,
+      platformRole: input.platformRole ?? null,
     };
   }
 
@@ -703,32 +709,62 @@ export class AdminUsersService {
     return { deleted: true, mode, cleanupApplied: mode === 'cleanup' };
   }
 
-  async promoteSuperAdmin(userId: string, actorUserId: string): Promise<void> {
+  /**
+   * Set the account's platform tier.
+   *
+   * One method for all three tiers rather than promote/demote pairs, because
+   * `platform_roles.user_id` is the PRIMARY KEY: the tiers are mutually
+   * exclusive by the table's shape, and a transition is one upsert.
+   */
+  async setPlatformRole(
+    userId: string,
+    role: PlatformRole,
+    actorUserId: string,
+  ): Promise<{ platformRole: PlatformRole }> {
     const response = await this.supabase.getAuthAdminUser(userId);
     if (!response.ok || !response.data?.id) throw new BadRequestException('User not found');
 
-    await this.grantSuperAdmin(userId);
-    await this.writeAuditLog(actorUserId, 'user.promote_super_admin', 'user', userId, {
+    if (userId === actorUserId && role !== 'super_admin') {
+      throw new BadRequestException('You cannot demote yourself');
+    }
+    // DEMOTING the last super-admin locks everyone out just as thoroughly as
+    // deleting them, so the guard has to run on a change of tier and not only
+    // on a clear.
+    if (role !== 'super_admin') await this.ensureNotLastSuperAdmin(userId);
+
+    await this.writePlatformRole(userId, role);
+    await this.writeAuditLog(actorUserId, 'user.platform_role.set', 'user', userId, {
       target_email: response.data.email,
+      platform_role: role,
     });
+    return { platformRole: role };
   }
 
-  async revokeSuperAdmin(userId: string, actorUserId: string): Promise<void> {
+  /** Remove the account's platform role entirely. */
+  async clearPlatformRole(userId: string, actorUserId: string): Promise<{ platformRole: null }> {
     if (userId === actorUserId) {
-      throw new BadRequestException('You cannot revoke your own super admin role');
+      throw new BadRequestException('You cannot remove your own platform role');
     }
-
     await this.ensureNotLastSuperAdmin(userId);
+
     const { error } = await this.supabase.service
       .from('platform_roles')
       .delete()
-      .eq('user_id', userId)
-      .eq('role', 'super_admin');
+      .eq('user_id', userId);
     if (error) throw new BadRequestException(error.message);
 
-    await this.writeAuditLog(actorUserId, 'user.revoke_super_admin', 'user', userId, {});
+    await this.writeAuditLog(actorUserId, 'user.platform_role.clear', 'user', userId, {});
+    return { platformRole: null };
   }
 
+  /**
+   * Every account holding `super_admin` exactly.
+   *
+   * Deliberately NOT every platform role: its only caller is the
+   * last-super-admin guard, and counting admins or viewers there would let the
+   * final super-admin be demoted as long as somebody, anybody, held a lesser
+   * tier — locking the reserve out of its own platform.
+   */
   async listSuperAdmins(): Promise<Array<{ userId: string; createdAt: string }>> {
     const { data, error } = await this.supabase.service
       .from('platform_roles')
@@ -741,11 +777,90 @@ export class AdminUsersService {
     }));
   }
 
-  private async grantSuperAdmin(userId: string): Promise<void> {
+  /** Upsert on the PK — the tiers are mutually exclusive by table shape. */
+  private async writePlatformRole(userId: string, role: PlatformRole): Promise<void> {
     const { error } = await this.supabase.service
       .from('platform_roles')
-      .upsert({ user_id: userId, role: 'super_admin' }, { onConflict: 'user_id' });
+      .upsert({ user_id: userId, role }, { onConflict: 'user_id' });
     if (error) throw new BadRequestException(error.message);
+  }
+
+  /**
+   * Set a NEW one-time password and vault it, replacing whatever was there.
+   *
+   * The subtle part is step three. `revealTempPassword` decides "the user has
+   * since set their own password" by comparing GoTrue's live `updated_at`
+   * against the baseline stored here — so the baseline must be read back AFTER
+   * the write. The create path gets this free because GoTrue's POST response
+   * already carries the post-write timestamp; a PUT does not, and storing the
+   * pre-change value would make the very first reveal report `password_changed`
+   * and wipe the row the operator just generated.
+   */
+  async regenerateTempPassword(
+    userId: string,
+    actorUserId: string,
+  ): Promise<{ status: 'active'; temporaryPassword: string }> {
+    const temporaryPassword = generateTemporaryPassword();
+
+    const updated = await this.supabase.updateAuthAdminUser(userId, {
+      password: temporaryPassword,
+    });
+    if (!updated.ok) throw new BadRequestException('Could not reset the account password');
+
+    const fresh = await this.supabase.getAuthAdminUser(userId);
+    const supabaseUpdatedAt =
+      fresh.data?.updated_at ?? updated.data?.updated_at ?? new Date().toISOString();
+
+    const { error } = await this.supabase.service
+      .from('admin_user_temp_passwords')
+      .upsert(
+        { user_id: userId, password: temporaryPassword, supabase_updated_at: supabaseUpdatedAt },
+        { onConflict: 'user_id' },
+      );
+    if (error) throw new BadRequestException(error.message);
+
+    // NEVER put the password in the payload: maskAuditPayload masks by key
+    // suffix (email/phone/dob/ip/user_agent) and has no masker for it, so it
+    // would land in audit_log in plaintext.
+    await this.writeAuditLog(actorUserId, 'user.temp_password.regenerate', 'user', userId, {});
+    return { status: 'active', temporaryPassword };
+  }
+
+  /**
+   * Email the account a password-recovery link, so they choose their own.
+   *
+   * Same machinery as the public forgot-password flow. No email-enumeration
+   * concern here, unlike that flow: the caller already knows the account
+   * exists — they are looking at it.
+   */
+  async sendPasswordReset(userId: string, actorUserId: string): Promise<{ sent: true }> {
+    const response = await this.supabase.getAuthAdminUser(userId);
+    const email = response.data?.email;
+    if (!response.ok || !email) throw new BadRequestException('User not found');
+
+    const domain = this.config.get<string>('DOMAIN') ?? 'myclash.fr';
+    const { data, error } = await this.supabase.service.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      // web-public owns the only /reset-password page. The account lands there,
+      // sets a password, and signs in wherever they were headed.
+      options: { redirectTo: `https://app.${domain}/reset-password` },
+    });
+    if (error || !data?.properties?.action_link) {
+      throw new BadRequestException('Could not generate a password reset link');
+    }
+
+    await this.mail.sendMagicLink({
+      to: email,
+      magicLink: data.properties.action_link,
+      type: 'login',
+    });
+
+    // `target_email` is masked for free — maskAuditPayload keys off the suffix.
+    await this.writeAuditLog(actorUserId, 'user.password_reset.send', 'user', userId, {
+      target_email: email,
+    });
+    return { sent: true };
   }
 
   private async updateBan(

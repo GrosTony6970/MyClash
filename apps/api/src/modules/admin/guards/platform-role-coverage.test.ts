@@ -109,8 +109,8 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['DELETE /admin/organizations/:id', 'super_admin'],
   ['DELETE /admin/users/:id', 'super_admin'],
   ['DELETE /admin/users/:id/organizations/:orgId', 'super_admin'],
-  ['DELETE /admin/users/:id/super-admin', 'super_admin'],
   ['DELETE /admin/users/:id/temp-password', 'super_admin'],
+  ['DELETE /admin/users/:id/platform-role', 'super_admin'],
   ['DELETE /admin/weapons/:id', 'platform_admin'],
   ['DELETE /clubs/:id', 'platform_admin'],
   ['DELETE /clubs/:id/logo', 'platform_admin'],
@@ -206,8 +206,9 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['POST /admin/system-versions/components/:key/:action', 'super_admin'],
   ['POST /admin/system/tls-status/renew', 'super_admin'],
   ['POST /admin/users', 'super_admin'],
+  ['POST /admin/users/:id/regenerate-temp-password', 'super_admin'],
+  ['POST /admin/users/:id/send-password-reset', 'super_admin'],
   ['POST /admin/users/:id/organizations', 'super_admin'],
-  ['POST /admin/users/:id/promote-super-admin', 'super_admin'],
   ['POST /admin/weapons', 'platform_admin'],
   ['POST /clubs/:id/logo', 'platform_admin'],
   ['POST /clubs/bulk-archive', 'platform_admin'],
@@ -225,6 +226,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['POST /global-persons/import/preview', 'platform_admin'],
   ['PUT /admin/backups/schedule', 'super_admin'],
   ['PUT /admin/feature-flags/:key', 'super_admin'],
+  ['PUT /admin/users/:id/platform-role', 'super_admin'],
   ['PUT /admin/system/runtime-health/alert-settings', 'super_admin'],
   ['POST /admin/league-scoring-systems/:id/versions/:versionId/rollback', 'platform_admin'],
 ]);
@@ -322,7 +324,9 @@ describe('platform tier coverage', () => {
       'GET /admin/data-retention', // GDPR configuration
       'POST /admin/users', // mints an account
       'DELETE /admin/users/:id', // destroys one
-      'POST /admin/users/:id/promote-super-admin', // hands out the reserve itself
+      'PUT /admin/users/:id/platform-role', // hands out the reserve itself
+      'POST /admin/users/:id/regenerate-temp-password', // mints a credential
+      'POST /admin/users/:id/send-password-reset', // takes over an account's login
       'DELETE /admin/organizations/:id', // irreversible
       'POST /admin/backups/restore', // overwrites the database
       'POST /admin/global-persons/:id/anonymise', // irreversible erasure

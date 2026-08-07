@@ -18,6 +18,7 @@ import {
   type RowActionVariant,
 } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
+import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -43,6 +44,13 @@ interface UserListResponse {
   users: AdminUser[];
 }
 
+/** Names a tier for display. Same keys the table column and detail page use. */
+function createRoleLabelKey(role: PlatformRole): string {
+  if (role === 'super_admin') return 'admin.users.role.superAdmin';
+  if (role === 'platform_admin') return 'admin.users.role.platformAdmin';
+  return 'admin.users.role.platformViewer';
+}
+
 interface CreateUserResponse {
   user: {
     id: string;
@@ -50,7 +58,7 @@ interface CreateUserResponse {
     created: boolean;
   };
   temporaryPassword: string;
-  superAdminGranted: boolean;
+  platformRole: PlatformRole | null;
 }
 
 function isDisabled(user: AdminUser): boolean {
@@ -147,7 +155,7 @@ export default function AdminUsersPage() {
   const [showAll, setShowAll] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
   const [createDisplayName, setCreateDisplayName] = useState('');
-  const [createSuperAdmin, setCreateSuperAdmin] = useState(false);
+  const [createRole, setCreateRole] = useState<PlatformRole | ''>('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createResult, setCreateResult] = useState<CreateUserResponse | null>(null);
@@ -204,7 +212,7 @@ export default function AdminUsersPage() {
       body: JSON.stringify({
         email: createEmail,
         displayName: createDisplayName || undefined,
-        makeSuperAdmin: createSuperAdmin,
+        platformRole: createRole || undefined,
       }),
     });
 
@@ -223,10 +231,7 @@ export default function AdminUsersPage() {
     setCreateResult(data);
     setCreateEmail('');
     setCreateDisplayName('');
-    setCreateSuperAdmin(false);
-    // A freshly created account has no org yet and is only "staff" if made a
-    // super-admin, so reveal all logins to keep the new row visible.
-    setShowAll(true);
+    setCreateRole('');
     refresh();
   }
 
@@ -386,14 +391,23 @@ export default function AdminUsersPage() {
           >
             {creating ? t('admin.users.create.submitting') : t('admin.users.create.submit')}
           </button>
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground-secondary lg:col-span-3">
-            <input
-              type="checkbox"
-              checked={createSuperAdmin}
-              onChange={(event) => setCreateSuperAdmin(event.target.checked)}
-              className="h-4 w-4 rounded border-border"
-            />
-            {t('admin.users.create.makeSuperAdmin')}
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground-secondary lg:col-span-3">
+            {t('admin.users.create.platformRole')}
+            {/*
+              A four-way selector, not a super-admin checkbox: the tiers are
+              mutually exclusive, so a set of checkboxes could express states
+              the platform_roles primary key cannot store.
+            */}
+            <select
+              value={createRole}
+              onChange={(event) => setCreateRole(event.target.value as PlatformRole | '')}
+              className="max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">{t('admin.users.role.none')}</option>
+              <option value="platform_viewer">{t('admin.users.role.platformViewer')}</option>
+              <option value="platform_admin">{t('admin.users.role.platformAdmin')}</option>
+              <option value="super_admin">{t('admin.users.role.superAdmin')}</option>
+            </select>
           </label>
         </form>
 
@@ -412,7 +426,14 @@ export default function AdminUsersPage() {
             <p className="font-mono">
               {t('admin.users.create.temporaryPassword')}: {createResult.temporaryPassword}
             </p>
-            {createResult.superAdminGranted && <p>{t('admin.users.create.superAdminGranted')}</p>}
+            {createResult.platformRole && (
+              <p>
+                {t('admin.users.create.roleGranted').replace(
+                  '{role}',
+                  t(createRoleLabelKey(createResult.platformRole)),
+                )}
+              </p>
+            )}
           </div>
         )}
       </section>

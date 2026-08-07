@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -23,6 +24,7 @@ import {
   AddOrgMembershipDto,
   CreatePlatformUserDto,
   ListPlatformUsersQueryDto,
+  SetPlatformRoleDto,
   UpdateOrgMembershipRoleDto,
   UpdatePlatformUserDto,
 } from './dto/admin-users.dto';
@@ -158,20 +160,52 @@ export class UsersAdminController {
     );
   }
 
-  // ── Super admin role management ───────────────────────────────────────────
-  // (`GET super-admins` was removed — no UI consumed the listing.)
+  // ── Credentials ───────────────────────────────────────────────────────────
+  // Both reserved by the verb default: handing out or resetting a credential
+  // is account management, which is the super-admin reserve.
 
-  @Post(':id/promote-super-admin')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Promote user to super admin (super admin)' })
-  async promoteSuperAdmin(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.service.promoteSuperAdmin(id, getActorId(req));
+  @Post(':id/regenerate-temp-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Set a fresh one-time password and vault it (super admin)',
+    description:
+      'Replaces the account password with a new random one and returns it once. The vault row is reset, so the reveal endpoint works again until the user changes it themselves.',
+  })
+  async regenerateTempPassword(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.regenerateTempPassword(id, getActorId(req));
   }
 
-  @Delete(':id/super-admin')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Revoke super admin role from user (super admin)' })
-  async revokeSuperAdmin(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.service.revokeSuperAdmin(id, getActorId(req));
+  @Post(':id/send-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Email the account a password-recovery link (super admin)',
+    description:
+      'Sends the standard recovery link so the account chooses its own password. Unlike the public flow this does not hide whether the account exists — the caller is looking at it.',
+  })
+  async sendPasswordReset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.sendPasswordReset(id, getActorId(req));
+  }
+
+  // ── Platform role ─────────────────────────────────────────────────────────
+  // One PUT for all three tiers, replacing promote-super-admin / super-admin:
+  // platform_roles.user_id is the PK, so the tiers are mutually exclusive by
+  // the table's shape and a change of tier is a single upsert.
+
+  @Put(':id/platform-role')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Set an account's platform role (super admin)" })
+  async setPlatformRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SetPlatformRoleDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.setPlatformRole(id, body.role, getActorId(req));
+  }
+
+  @Delete(':id/platform-role')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Remove an account's platform role (super admin)" })
+  async clearPlatformRole(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.clearPlatformRole(id, getActorId(req));
   }
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm } from '@myclash/ui';
+import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -19,6 +20,14 @@ const ORG_ROLES = [
 
 type OrgRole = (typeof ORG_ROLES)[number];
 
+/** Names the tier held, including the "none" case. */
+function platformRoleLabelKey(role: PlatformRole | null): string {
+  if (role === 'super_admin') return 'admin.users.role.superAdmin';
+  if (role === 'platform_admin') return 'admin.users.role.platformAdmin';
+  if (role === 'platform_viewer') return 'admin.users.role.platformViewer';
+  return 'admin.users.role.none';
+}
+
 interface UserOrgMembership {
   id: string;
   name: string;
@@ -31,7 +40,7 @@ interface AdminUser {
   email?: string;
   display_name?: string | null;
   organizations: UserOrgMembership[];
-  is_super_admin?: boolean;
+  platform_role?: PlatformRole | null;
 }
 
 interface OrgRow {
@@ -73,13 +82,18 @@ export default function AdminUserEditPage() {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [tempPasswordRevealed, setTempPasswordRevealed] = useState(false);
   const [tempPasswordCopied, setTempPasswordCopied] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch(`${apiUrl}/api/v1/auth/me`, { credentials: 'include' })
-      .then(async (res) => (res.ok ? ((await res.json()) as { id?: string }) : null))
+      // MeResponseDto NESTS the account: the id is at `user.id`, not at the top
+      // level. This read said `data.id`, so currentUserId was permanently null
+      // and the "you cannot change your own platform role" guard below it had
+      // never once fired.
+      .then(async (res) => (res.ok ? ((await res.json()) as { user?: { id?: string } }) : null))
       .then((data) => {
-        if (!cancelled) setCurrentUserId(data?.id ?? null);
+        if (!cancelled) setCurrentUserId(data?.user?.id ?? null);
       })
       .catch(() => undefined);
     return () => {
@@ -264,31 +278,94 @@ export default function AdminUserEditPage() {
     }
   }
 
-  async function toggleSuperAdmin() {
+  async function regeneratePassword() {
     if (!user) return;
-    const isCurrentlySuperAdmin = user.is_super_admin === true;
-    const confirmMsg = isCurrentlySuperAdmin
-      ? t('admin.users.edit.superAdminRevokeConfirm')
-      : t('admin.users.edit.superAdminGrantConfirm');
-    if (!(await confirm({ title: confirmMsg, danger: true }))) return;
+    if (
+      !(await confirm({ title: t('admin.users.edit.regeneratePasswordConfirm'), danger: true }))
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/regenerate-temp-password`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        temporaryPassword?: string;
+        message?: string;
+      };
+      if (!res.ok || !body.temporaryPassword) {
+        throw new Error(body.message ?? t('admin.users.edit.regeneratePasswordFailed'));
+      }
+      // Re-reads the vault rather than trusting the response: this is the same
+      // path the operator will use tomorrow, so exercising it now is what
+      // proves the new baseline actually took.
+      await fetchTempPassword();
+      setTempPasswordRevealed(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.users.edit.regeneratePasswordFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendResetEmail() {
+    if (!user) return;
+    if (!(await confirm({ title: t('admin.users.edit.sendResetEmailConfirm') }))) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/send-password-reset`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.users.edit.sendResetEmailFailed'));
+      }
+      setResetEmailSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.users.edit.sendResetEmailFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Set or clear the account's platform tier.
+   *
+   * One PUT for all three tiers and a DELETE for none, matching the API: the
+   * tiers are mutually exclusive by the primary key on platform_roles, so
+   * there is no grant/revoke pair to keep in step.
+   */
+  async function savePlatformRole(next: PlatformRole | '') {
+    if (!user) return;
+    if (!(await confirm({ title: t('admin.users.edit.platformRoleConfirm'), danger: true }))) {
+      return;
+    }
 
     setBusy(true);
     setError(null);
     try {
-      const url = isCurrentlySuperAdmin
-        ? `${apiUrl}/api/v1/admin/users/${userId}/super-admin`
-        : `${apiUrl}/api/v1/admin/users/${userId}/promote-super-admin`;
-      const res = await fetch(url, {
-        method: isCurrentlySuperAdmin ? 'DELETE' : 'POST',
+      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/platform-role`, {
+        method: next ? 'PUT' : 'DELETE',
         credentials: 'include',
+        ...(next
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: next }),
+            }
+          : {}),
       });
-      if (!res.ok && res.status !== 204) {
+      if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.superAdminFailed'));
+        throw new Error(body.message ?? t('admin.users.edit.platformRoleFailed'));
       }
       await fetchUser();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.users.edit.superAdminFailed'));
+      setError(err instanceof Error ? err.message : t('admin.users.edit.platformRoleFailed'));
     } finally {
       setBusy(false);
     }
@@ -430,33 +507,65 @@ export default function AdminUserEditPage() {
 
       <section className="mb-8 rounded-lg border border-border bg-surface p-5 shadow-sm">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
-          {t('admin.users.edit.superAdminSection')}
+          {t('admin.users.edit.passwordSection')}
         </h2>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="max-w-md text-sm text-foreground-secondary">
+              {t('admin.users.edit.regeneratePasswordHelp')}
+            </p>
+            <button
+              type="button"
+              onClick={() => void regeneratePassword()}
+              disabled={busy || !user}
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+            >
+              {t('admin.users.edit.regeneratePassword')}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-border pt-4">
+            <p className="max-w-md text-sm text-foreground-secondary">
+              {t('admin.users.edit.sendResetEmailHelp')}
+            </p>
+            <button
+              type="button"
+              onClick={() => void sendResetEmail()}
+              disabled={busy || !user}
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+            >
+              {resetEmailSent
+                ? t('admin.users.edit.sendResetEmailSent')
+                : t('admin.users.edit.sendResetEmail')}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8 rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted">
+          {t('admin.users.edit.platformRoleSection')}
+        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-foreground-secondary">
-            {user?.is_super_admin
-              ? t('admin.users.edit.superAdminCurrent')
-              : t('admin.users.edit.superAdminNotGranted')}
+            {t(platformRoleLabelKey(user?.platform_role ?? null))}
           </p>
           {currentUserId === userId ? (
             <span className="text-xs italic text-muted">
-              {t('admin.users.edit.superAdminSelfDisabled')}
+              {t('admin.users.edit.platformRoleSelfDisabled')}
             </span>
           ) : (
-            <button
-              type="button"
-              onClick={() => void toggleSuperAdmin()}
+            <select
+              value={user?.platform_role ?? ''}
               disabled={busy || !user}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
-                user?.is_super_admin
-                  ? 'border border-danger/30 bg-danger/10 text-danger hover:bg-danger/20'
-                  : 'bg-purple-700 text-white hover:bg-purple-800'
-              }`}
+              onChange={(event) => void savePlatformRole(event.target.value as PlatformRole | '')}
+              aria-label={t('admin.users.edit.platformRoleSection')}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground disabled:opacity-50"
             >
-              {user?.is_super_admin
-                ? t('admin.users.edit.superAdminRevoke')
-                : t('admin.users.edit.superAdminGrant')}
-            </button>
+              <option value="">{t('admin.users.role.none')}</option>
+              <option value="platform_viewer">{t('admin.users.role.platformViewer')}</option>
+              <option value="platform_admin">{t('admin.users.role.platformAdmin')}</option>
+              <option value="super_admin">{t('admin.users.role.superAdmin')}</option>
+            </select>
           )}
         </div>
       </section>

@@ -972,7 +972,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/admin/users/{id}/promote-super-admin': {
+  '/api/v1/admin/users/{id}/regenerate-temp-password': {
     parameters: {
       query?: never;
       header?: never;
@@ -981,15 +981,18 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Promote user to super admin (super admin) */
-    post: operations['UsersAdminController_promoteSuperAdmin'];
+    /**
+     * Set a fresh one-time password and vault it (super admin)
+     * @description Replaces the account password with a new random one and returns it once. The vault row is reset, so the reveal endpoint works again until the user changes it themselves.
+     */
+    post: operations['UsersAdminController_regenerateTempPassword'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  '/api/v1/admin/users/{id}/super-admin': {
+  '/api/v1/admin/users/{id}/send-password-reset': {
     parameters: {
       query?: never;
       header?: never;
@@ -998,9 +1001,30 @@ export interface paths {
     };
     get?: never;
     put?: never;
+    /**
+     * Email the account a password-recovery link (super admin)
+     * @description Sends the standard recovery link so the account chooses its own password. Unlike the public flow this does not hide whether the account exists — the caller is looking at it.
+     */
+    post: operations['UsersAdminController_sendPasswordReset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/users/{id}/platform-role': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Set an account's platform role (super admin) */
+    put: operations['UsersAdminController_setPlatformRole'];
     post?: never;
-    /** Revoke super admin role from user (super admin) */
-    delete: operations['UsersAdminController_revokeSuperAdmin'];
+    /** Remove an account's platform role (super admin) */
+    delete: operations['UsersAdminController_clearPlatformRole'];
     options?: never;
     head?: never;
     patch?: never;
@@ -9198,7 +9222,8 @@ export interface components {
       /** Format: email */
       email: string;
       displayName?: string;
-      makeSuperAdmin?: boolean;
+      /** @enum {string} */
+      platformRole?: 'platform_viewer' | 'platform_admin' | 'super_admin';
     };
     GetPlatformUserResponseDto: {
       user: components['schemas']['ListedPlatformUserDto'];
@@ -9231,6 +9256,10 @@ export interface components {
         | 'referee'
         | 'workshop_lead'
         | 'read_only';
+    };
+    SetPlatformRoleDto: {
+      /** @enum {string} */
+      role: 'platform_viewer' | 'platform_admin' | 'super_admin';
     };
     CreateCustomRulesetDto: {
       name: string;
@@ -12462,7 +12491,7 @@ export interface operations {
       };
     };
   };
-  UsersAdminController_promoteSuperAdmin: {
+  UsersAdminController_regenerateTempPassword: {
     parameters: {
       query?: never;
       header?: never;
@@ -12473,7 +12502,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      204: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -12481,7 +12510,7 @@ export interface operations {
       };
     };
   };
-  UsersAdminController_revokeSuperAdmin: {
+  UsersAdminController_sendPasswordReset: {
     parameters: {
       query?: never;
       header?: never;
@@ -12492,7 +12521,49 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      204: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  UsersAdminController_setPlatformRole: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetPlatformRoleDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  UsersAdminController_clearPlatformRole: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
