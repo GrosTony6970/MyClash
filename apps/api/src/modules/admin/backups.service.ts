@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
+// `Readable.fromWeb` takes the stream/web ReadableStream, which is a distinct
+// declaration from the global (DOM) one of the same name — only the former's
+// async iterator carries [Symbol.asyncDispose]. Node exposes the stream/web
+// class as the global at runtime, so this import just disambiguates the type.
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import path from 'node:path';
 import { Injectable, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
 import type {
@@ -201,7 +206,7 @@ export class AdminBackupsService {
     return {
       filename: filenameFromDisposition(disposition) ?? `myclash-backup-${backupId}.bin`,
       contentType: response.headers.get('content-type') ?? 'application/octet-stream',
-      stream: Readable.fromWeb(response.body as ReadableStream<Uint8Array>),
+      stream: Readable.fromWeb(response.body as WebReadableStream<Uint8Array>),
     };
   }
 
