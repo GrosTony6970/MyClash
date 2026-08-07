@@ -50,6 +50,8 @@ const RESTARTABLE_SERVICES = new Set([
   'supabase-realtime',
   'supabase-storage',
   'supabase-rest',
+  'supabase-meta',
+  'supabase-studio',
 ]);
 const COMPOSE_FLAGS = [
   '--env-file',

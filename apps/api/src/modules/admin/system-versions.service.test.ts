@@ -21,10 +21,6 @@ describe('AdminSystemVersionsService', () => {
         deployedBy: 'deploy-user',
       },
       app: { version: 'v1.2.3' },
-      workspaces: {
-        '@myclash/api': { version: '0.5.0' },
-        '@myclash/web-admin': { version: '0.4.0' },
-      },
       framework: {
         react: '^19.1.0',
         reactDom: '^19.1.0',
@@ -176,9 +172,10 @@ describe('AdminSystemVersionsService', () => {
     expect(result.groups.find((group) => group.key === 'app')?.components).toContainEqual(
       expect.objectContaining({ key: 'myclash', version: 'v8.8.8' }),
     );
-    expect(result.groups.find((group) => group.key === 'workspaces')?.components).toContainEqual(
-      expect.objectContaining({ key: '@myclash/web-admin', version: '0.7.0' }),
-    );
+    // The Workspaces group was removed: it listed package.json versions for the
+    // same apps whose real deployed version and commit appear under App
+    // containers, so it duplicated that group while saying less.
+    expect(result.groups.find((group) => group.key === 'workspaces')).toBeUndefined();
     expect(result.groups.find((group) => group.key === 'framework')?.components).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'next', version: '15.5.0' }),

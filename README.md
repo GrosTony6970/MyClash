@@ -130,7 +130,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 
 **Ops sidecar**
 
-- `ops-runner` — a bearer-authed Node service ([`infra/ops-runner/server.mjs`](./infra/ops-runner/server.mjs)) that mounts `/var/run/docker.sock` and exposes a small HTTP surface (port 4075, docker-network only). It owns backups, schedule, restore, and `POST /containers/:service/(start|stop|restart)` lifecycle controls for the 10 allowlisted services. **The docker socket lives here, not in the API container** — so a compromise of any API code path doesn't grant Docker root. See [`docs/ARCHITECTURE.md` §17.4](./docs/ARCHITECTURE.md) for the full endpoint table + allowlist.
+- `ops-runner` — a bearer-authed Node service ([`infra/ops-runner/server.mjs`](./infra/ops-runner/server.mjs)) that mounts `/var/run/docker.sock` and exposes a small HTTP surface (port 4075, docker-network only). It owns backups, schedule, restore, and `POST /containers/:service/(start|stop|restart)` lifecycle controls for the 12 allowlisted services. **The docker socket lives here, not in the API container** — so a compromise of any API code path doesn't grant Docker root. See [`docs/ARCHITECTURE.md` §17.4](./docs/ARCHITECTURE.md) for the full endpoint table + allowlist.
 
 External services: Scaleway Object Storage (S3-compatible, for the nightly backup mirror), Resend (transactional email), Sentry (errors + APM), Web Push (VAPID, optional), Google OAuth (optional).
 

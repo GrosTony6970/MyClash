@@ -31,6 +31,8 @@ const RESTARTABLE_COMPONENTS: Record<string, string> = {
   supabaseRealtime: 'supabase-realtime',
   supabaseStorage: 'supabase-storage',
   postgrest: 'supabase-rest',
+  supabaseMeta: 'supabase-meta',
+  supabaseStudio: 'supabase-studio',
 };
 
 export type ComponentAction = 'start' | 'stop' | 'restart';

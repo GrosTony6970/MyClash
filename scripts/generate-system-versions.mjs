@@ -5,14 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 const UNKNOWN = 'unknown';
 
-const workspacePackagePaths = [
-  ['@myclash/api', 'apps/api/package.json'],
-  ['@myclash/web-admin', 'apps/web-admin/package.json'],
-  ['@myclash/web-public', 'apps/web-public/package.json'],
-  ['@myclash/web-scoring', 'apps/web-scoring/package.json'],
-  ['@myclash/web-marketing', 'apps/web-marketing/package.json'],
-];
-
 const infrastructureServiceKeys = {
   traefik: 'traefik',
   db: 'postgres',
@@ -22,6 +14,8 @@ const infrastructureServiceKeys = {
   'supabase-storage': 'supabaseStorage',
   kong: 'kong',
   'supabase-rest': 'postgrest',
+  'supabase-meta': 'supabaseMeta',
+  'supabase-studio': 'supabaseStudio',
 };
 
 const appContainerServices = [
@@ -45,14 +39,6 @@ export async function generateSystemVersions({
     path.join(rootDir, 'infra', 'docker-compose.prod.yml'),
   );
   const composeImages = parseComposeImages(composeText);
-
-  const workspaces = {};
-  for (const [name, relativePath] of workspacePackagePaths) {
-    const manifest = await readJsonIfExists(path.join(rootDir, relativePath));
-    workspaces[name] = {
-      version: stringOrUnknown(manifest?.version),
-    };
-  }
 
   const apiPackage = await readJsonIfExists(path.join(rootDir, 'apps', 'api', 'package.json'));
   const webAdminPackage = await readJsonIfExists(
@@ -89,7 +75,6 @@ export async function generateSystemVersions({
     app: {
       version: appVersion,
     },
-    workspaces,
     framework: {
       react: dependencyVersion(webAdminPackage, 'react'),
       reactDom: dependencyVersion(webAdminPackage, 'react-dom'),

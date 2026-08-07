@@ -18,7 +18,6 @@ interface RawSystemVersionsManifest {
   generatedAt?: string;
   deploy?: Partial<SystemVersionsResponseDto['deploy']>;
   app?: { version?: string };
-  workspaces?: Record<string, { version?: string }>;
   framework?: Partial<
     Record<'react' | 'reactDom' | 'next' | 'nestjs' | 'node' | 'pnpm' | 'typescript', string>
   >;
@@ -40,14 +39,6 @@ export interface AdminSystemVersionsServiceOptions {
   runtimeNodeVersion?: string;
 }
 
-const workspaceLabels: Record<string, string> = {
-  '@myclash/api': 'API workspace',
-  '@myclash/web-admin': 'Admin app workspace',
-  '@myclash/web-public': 'Public app workspace',
-  '@myclash/web-scoring': 'Scoring app workspace',
-  '@myclash/web-marketing': 'Marketing site workspace',
-};
-
 const infrastructureLabels: Record<string, string> = {
   traefik: 'Traefik',
   postgres: 'Supabase Postgres',
@@ -56,6 +47,8 @@ const infrastructureLabels: Record<string, string> = {
   supabaseRealtime: 'Supabase Realtime',
   supabaseStorage: 'Supabase Storage',
   postgrest: 'PostgREST',
+  supabaseMeta: 'Supabase Meta',
+  supabaseStudio: 'Supabase Studio',
 };
 
 const appContainerLabels: Record<string, string> = {
@@ -75,6 +68,8 @@ const infrastructureServiceKeys: Record<string, string> = {
   'supabase-realtime': 'supabaseRealtime',
   'supabase-storage': 'supabaseStorage',
   'supabase-rest': 'postgrest',
+  'supabase-meta': 'supabaseMeta',
+  'supabase-studio': 'supabaseStudio',
 };
 
 /**
@@ -94,6 +89,8 @@ const restartableKeys: ReadonlySet<string> = new Set([
   'supabaseRealtime',
   'supabaseStorage',
   'postgrest',
+  'supabaseMeta',
+  'supabaseStudio',
 ]);
 
 @Injectable()
@@ -139,13 +136,6 @@ export class AdminSystemVersionsService {
             component('deployedBy', 'Deployed by', deploy.deployedBy, 'deploy'),
             component('backupFile', 'Backup file', deploy.backupFile, 'deploy'),
           ],
-        },
-        {
-          key: 'workspaces',
-          label: 'Workspaces',
-          components: Object.entries(workspaceLabels).map(([key, label]) =>
-            component(key, label, manifest.workspaces?.[key]?.version, 'package.json'),
-          ),
         },
         {
           key: 'framework',
@@ -249,7 +239,6 @@ export class AdminSystemVersionsService {
         deployedCommit,
       },
       app: { version: appVersion || UNKNOWN },
-      workspaces: await this.readWorkspaceVersions(),
       framework: {
         react: dependencyVersion(webAdminPackage, 'react'),
         reactDom: dependencyVersion(webAdminPackage, 'react-dom'),
@@ -281,24 +270,6 @@ export class AdminSystemVersionsService {
         ]),
       ),
     };
-  }
-
-  private async readWorkspaceVersions(): Promise<Record<string, { version: string }>> {
-    const result: Record<string, { version: string }> = {};
-    const paths: Record<string, string> = {
-      '@myclash/api': 'apps/api/package.json',
-      '@myclash/web-admin': 'apps/web-admin/package.json',
-      '@myclash/web-public': 'apps/web-public/package.json',
-      '@myclash/web-scoring': 'apps/web-scoring/package.json',
-      '@myclash/web-marketing': 'apps/web-marketing/package.json',
-    };
-    for (const [key, relativePath] of Object.entries(paths)) {
-      const manifest = await readJsonIfExists<PackageManifest>(
-        path.join(this.rootDir, relativePath),
-      );
-      result[key] = { version: manifest?.version ?? UNKNOWN };
-    }
-    return result;
   }
 }
 

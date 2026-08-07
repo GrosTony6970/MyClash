@@ -2684,7 +2684,7 @@ The HTTP surface is exposed on the internal `myclash` network at port `4075`, ne
 | `GET`    | `/download/{backupId}?...`         | Stream a backup artifact back to the admin UI.                                         |
 | `POST`   | `/containers/{service}/{action}`   | Start / stop / restart an allowlisted service (`action` ∈ `start`, `stop`, `restart`). |
 
-The lifecycle endpoint accepts only the **10-service restartable allowlist** (mirrored server-side as `RESTARTABLE_COMPONENTS` in `system-actions.service.ts` and as `RESTARTABLE_SERVICES` in `server.mjs`): `worker`, `web-admin`, `web-public`, `web-scoring`, `web-marketing`, `redis`, `supabase-auth`, `supabase-realtime`, `supabase-storage`, `supabase-rest`. Catastrophic / self-referential services are intentionally excluded:
+The lifecycle endpoint accepts only the **12-service restartable allowlist** (mirrored server-side as `RESTARTABLE_COMPONENTS` in `system-actions.service.ts` and as `RESTARTABLE_SERVICES` in `server.mjs`): `worker`, `web-admin`, `web-public`, `web-scoring`, `web-marketing`, `redis`, `supabase-auth`, `supabase-realtime`, `supabase-storage`, `supabase-rest`, `supabase-meta`, `supabase-studio`. Catastrophic / self-referential services are intentionally excluded:
 
 - `api` — would kill the calling request mid-flight.
 - `postgres` (`db`) — full data outage.

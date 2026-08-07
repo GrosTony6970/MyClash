@@ -70,7 +70,8 @@ test('generates system version metadata from app manifests and production compos
   assert.equal(result.generatedAt, '2026-05-05T09:00:00.000Z');
   assert.equal(result.deploy.deployedCommit, 'abcdef123456');
   assert.equal(result.app.version, 'v1.2.3');
-  assert.equal(result.workspaces['@myclash/api'].version, '0.5.0');
+  // `workspaces` was dropped: the admin page group it fed duplicated App containers.
+  assert.equal(result.workspaces, undefined);
   assert.equal(result.framework.react, '^19.1.0');
   assert.equal(result.framework.next, '15.3.2');
   assert.equal(result.framework.nestjs, '^10.4.0');
