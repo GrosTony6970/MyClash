@@ -843,6 +843,19 @@ Three things worth knowing before touching these:
   real 500, wrong for a 503 the product throws deliberately — worth fixing in the
   filter, but it is a repo-wide change, not a test change. Don't re-add a message
   assertion here; it will fail.
+  `32-ai-organiser-tools` covers the organiser tools that _do_ something rather
+  than write prose: applying a reviewed setup draft, confirming or dismissing an
+  action the chatbot proposed, the natural-language tournament query, and the two
+  organiser AI pages. Two of those had never worked in production — apply was
+  unreachable because no draft could parse, and the NL query 400'd on every
+  request — so this spec is the first thing that has ever asserted them.
+
+**Its apply test edits the draft before applying, on purpose.** It creates a real
+AI draft, then PATCHes `proposedActions` to a known action. That is the product's
+own flow ("organizers review or edit drafts before applying") and the only way to
+assert the _apply_ path rather than the model's choice of slug. The AI half still
+has to parse and validate first.
+
 - **The fighter-insight leg needs a claimed profile.** `E2E_ADMIN_EMAIL` must own
   a `global_persons` row or the personal-space AI has no identity to work from.
   The spec cannot claim one for itself — claiming goes through a
@@ -884,6 +897,7 @@ Three things worth knowing before touching these:
 | 29  | League across several events          | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above       |
 | 30  | AI keys, budgets, kill-switches       | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above           |
 | 31  | AI generation against a real provider | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**    |
+| 32  | Organiser AI tools + their pages      | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**    |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

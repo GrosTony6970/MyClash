@@ -5,6 +5,7 @@ import type {
   GenerationRequest,
   GenerationResult,
 } from '../ai-providers/adapters/provider-adapter.interface';
+import { parseModelJson } from '../../common/model-json';
 import { getCheapestModel } from '../ai-providers/model-registry';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
@@ -785,7 +786,12 @@ export class AIDataQualityService {
 
   private parseAIRanking(text: string, candidate: Candidate): AIRanking {
     try {
-      const parsed = JSON.parse(text) as Partial<AIRanking>;
+      // Tolerant of a markdown code fence: a bare JSON.parse degraded every
+      // fenced reply to the deterministic fallback below, so the scan silently
+      // reported "AI summary unavailable." for findings the model HAD ranked.
+      const result = parseModelJson<Partial<AIRanking>>(text);
+      if (!result.ok) throw new Error(result.error);
+      const parsed = result.value;
       if (typeof parsed.explanation !== 'string' || typeof parsed.recommendedAction !== 'string') {
         throw new Error('Missing AI explanation');
       }

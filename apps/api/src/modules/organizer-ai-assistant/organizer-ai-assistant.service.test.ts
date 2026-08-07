@@ -177,6 +177,62 @@ describe('OrganizerAIAssistantService', () => {
     expect(mockSupabaseFrom).not.toHaveBeenCalledWith('platform_ai_settings');
   });
 
+  it('accepts a draft whose JSON arrives inside a markdown code fence', async () => {
+    // The production defect this guards. The prompt says "strict JSON only" and
+    // the model fenced it anyway, so a bare JSON.parse threw
+    // `Unexpected token '`'` and EVERY draft landed `failed` with no actions —
+    // the whole draft→review→apply feature produced nothing appliable. Caught
+    // by inspecting a real draft from `31-ai-generation`, not by a unit test,
+    // because a mock only ever returns the shape its author imagined.
+    const inserted: Record<string, unknown>[] = [];
+    mockGenerateWithCap.mockResolvedValueOnce({
+      text:
+        '```json\n' +
+        JSON.stringify({
+          summary: 'Four pools of eight',
+          actions: [{ kind: 'generate_pools', tournamentId: 't-1', targetSize: 8 }],
+          warnings: [],
+        }) +
+        '\n```',
+      inputTokens: 5,
+      outputTokens: 2,
+      costEur: 0.001,
+    });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'events') {
+        return chain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null });
+      }
+      if (table === 'organization_ai_settings') {
+        return chain({ data: { provider: 'openai' }, error: null });
+      }
+      if (table === 'organization_ai_keys') return chain({ data: { id: 'k1' }, error: null });
+      if (table === 'organizer_ai_assistant_drafts') {
+        const c = chain({
+          data: { id: 'draft-1', status: 'ready', validation_state: { ok: true, warnings: [] } },
+          error: null,
+        });
+        c.insert.mockImplementation(((row: Record<string, unknown>) => {
+          inserted.push(row);
+          return c;
+        }) as never);
+        return c;
+      }
+      return chain();
+    });
+
+    const draft = await service().createDraft('event-1', 'user-1', {
+      draftType: 'pool_plan',
+      prompt: 'Make good pools',
+      tournamentId: 't-1',
+    });
+
+    expect(draft.status).toBe('ready');
+    expect(inserted[0]?.['status']).toBe('ready');
+    expect(inserted[0]?.['proposed_actions_json']).toEqual([
+      { kind: 'generate_pools', tournamentId: 't-1', targetSize: 8 },
+    ]);
+  });
+
   it('applies a tournament_config draft through EventsService', async () => {
     mockCreateTournament.mockResolvedValue({ id: 't-created' });
     mockSupabaseFrom.mockImplementation((table: string) => {

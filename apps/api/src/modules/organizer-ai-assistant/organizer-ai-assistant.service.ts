@@ -5,6 +5,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { parseModelJson } from '../../common/model-json';
 import type {
   CreateOrganizerAIDraftDto,
   OrganizerAIDraftType,
@@ -477,25 +478,26 @@ export class OrganizerAIAssistantService {
   private parseAIResult(
     text: string,
   ): { ok: true; value: ParsedAIDraft } | { ok: false; error: string } {
-    try {
-      const parsed = JSON.parse(text) as Partial<ParsedAIDraft>;
-      if (!Array.isArray(parsed.actions)) throw new Error('Missing actions array');
-      return {
-        ok: true,
-        value: {
-          summary: typeof parsed.summary === 'string' ? parsed.summary : '',
-          actions: parsed.actions,
-          warnings: Array.isArray(parsed.warnings)
-            ? parsed.warnings.filter((warning): warning is string => typeof warning === 'string')
-            : [],
-        },
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : 'AI returned invalid JSON',
-      };
+    // Tolerant of the code fence models add even when told not to. A bare
+    // JSON.parse here meant every draft landed `failed` with no actions — see
+    // `common/model-json.ts`.
+    const parsed = parseModelJson<Partial<ParsedAIDraft>>(text);
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    if (!Array.isArray(parsed.value.actions)) {
+      return { ok: false, error: 'Missing actions array' };
     }
+    return {
+      ok: true,
+      value: {
+        summary: typeof parsed.value.summary === 'string' ? parsed.value.summary : '',
+        actions: parsed.value.actions,
+        warnings: Array.isArray(parsed.value.warnings)
+          ? parsed.value.warnings.filter(
+              (warning): warning is string => typeof warning === 'string',
+            )
+          : [],
+      },
+    };
   }
 
   private async getEvent(eventId: string): Promise<EventRow> {
@@ -594,6 +596,9 @@ export class OrganizerAIAssistantService {
     return [
       'You are the MyClash organizer tournament setup assistant.',
       'Return strict JSON only with keys: summary, actions, warnings.',
+      // Belt to the parser's braces: `parseModelJson` strips a fence anyway,
+      // but asking lowers the rate rather than relying wholly on recovery.
+      'Output the raw JSON object only — no markdown code fence, no prose around it.',
       'Never invent IDs. Use IDs present in the organizer context.',
       `Draft type: ${draftType}.`,
     ].join('\n');

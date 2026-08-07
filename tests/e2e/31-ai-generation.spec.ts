@@ -289,14 +289,26 @@ test.describe('AI generation', () => {
     );
 
     expect(draft.draftType).toBe('tournament_config');
-    // 'failed' is a legitimate outcome: a cheap model can return unparseable
-    // JSON, and the service records that verbatim rather than throwing. What
-    // must NEVER happen is 'applied' — V1 is draft-and-review only, and an
-    // assistant that writes to the tournament without a human is the one
-    // failure this whole surface is shaped to prevent.
-    expect(['draft', 'ready', 'failed']).toContain(draft.status);
+
+    // `failed` was tolerated here once, on the reasoning that a cheap model may
+    // return unparseable JSON. That allowance hid a real defect for the entire
+    // life of the feature: the model fenced its JSON in ```json, the service
+    // did a bare `JSON.parse`, and EVERY draft ever produced landed `failed`
+    // with no actions. The tolerance made the test green over a feature that
+    // had never once worked. It is now an assertion.
+    expect(
+      draft.status,
+      'the draft must parse — a `failed` draft means the model output could not be read, ' +
+        'which is how the ```json code-fence defect went unnoticed',
+    ).not.toBe('failed');
+    expect(draft.validationState.ok, 'a parsed draft must also validate').toBe(true);
+    expect(
+      draft.proposedActions.length,
+      'a ready draft must carry the actions an organizer would apply',
+    ).toBeGreaterThan(0);
+    // V1 is draft-and-review only: an assistant that writes without a human is
+    // the one failure this whole surface is shaped to prevent.
     expect(draft.status, 'a fresh draft must never be applied').not.toBe('applied');
-    expect(Array.isArray(draft.proposedActions), 'actions are structured, not prose').toBe(true);
 
     const listed = await api.json<{ id: string }[]>(
       await api.get(`events/${eventId}/ai-assistant/drafts`),
