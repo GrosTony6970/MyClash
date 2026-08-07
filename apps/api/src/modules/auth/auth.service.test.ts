@@ -672,6 +672,32 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
+    // The lower platform tiers exist ONLY as platform_roles rows — no org, no
+    // league grant. If this login gate stayed super-admin-exact they could not
+    // reach the console at all and the whole feature would be invisible.
+    it.each(['platform_admin', 'platform_viewer'])(
+      'sets cookies for a %s whose only grant is the platform role',
+      async (role) => {
+        mockAuthUser({ id: `${role}-1`, email: `${role}@example.com` });
+        fromMock
+          .mockReturnValueOnce(makeQueryChain({ data: { role }, error: null })) // platform_roles
+          .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
+          .mockReturnValueOnce(makeQueryChain({ data: [], error: null })); // league_user_roles
+
+        const reply = makeReply();
+        await service.acceptOAuthSession(
+          { accessToken: 'access-token', refreshToken: 'refresh-token', mode: 'admin_login' },
+          reply as never,
+        );
+
+        expect(reply.setCookie).toHaveBeenCalledWith(
+          'sb-access-token',
+          'access-token',
+          expect.objectContaining({ httpOnly: true }),
+        );
+      },
+    );
+
     // A league can be administered by an account that belongs to no org.
     // assertCanManageLeague already authorizes these users on every
     // /admin/leagues/* endpoint, so login must not be what blocks them.

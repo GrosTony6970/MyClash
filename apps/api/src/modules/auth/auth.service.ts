@@ -14,7 +14,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { validatePassword } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
-import { hasPlatformTier } from '../../common/auth/platform-role';
+import { hasPlatformTier, isPlatformStaff } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
@@ -271,8 +271,9 @@ export class AuthService {
     const lockdownOn = await this.isAdminLockdownEnabled();
     if (!lockdownOn) return;
 
-    // super admin bypasses lockdown
-    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) return;
+    // Platform staff of any tier bypass lockdown — mirrors LockdownInterceptor.
+    // A locked-out platform admin could not even sign in to help.
+    if (await isPlatformStaff(this.supabase, userId)) return;
 
     throw new ServiceUnavailableException(
       'MyClash admin is temporarily restricted to super admins. Please try again later.',
@@ -1675,8 +1676,16 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
+  /**
+   * Whether the user may enter the admin app at all.
+   *
+   * ANY platform tier, not just super-admin. This is a LOGIN gate: leaving it
+   * super-admin-exact would refuse a platform_viewer with no org membership
+   * outright, making the whole tier unreachable — the feature would exist and
+   * be invisible.
+   */
   private async hasAdminAccess(userId: string): Promise<boolean> {
-    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) return true;
+    if (await isPlatformStaff(this.supabase, userId)) return true;
 
     try {
       // .limit(1), not .maybeSingle(): PostgREST nulls `data` and returns

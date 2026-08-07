@@ -881,7 +881,21 @@ export class AdminUsersService {
     return new Set(admins.map((admin) => admin.userId));
   }
 
-  /** Throws if `userId` holds the platform-level super-admin role. */
+  /**
+   * Throws if `userId` holds the platform-level super-admin role.
+   *
+   * `super_admin`-EXACT, and deliberately NOT widened to the other tiers.
+   * A super-admin bypasses every org check, so an org membership on top of it
+   * means nothing and only muddies who actually has authority over an org.
+   * A platform_admin or platform_viewer gets no such bypass from
+   * `assertOrgRole`, so they can legitimately also be an organiser of their own
+   * club — which is the normal case for a HEMA practitioner who also moderates
+   * the platform, and is exactly the overlap the accounts console is built to
+   * show on both its Platform and Organiser tabs.
+   *
+   * Forward-only, as before: it blocks ADDING a membership, and says nothing
+   * about accounts that already hold one.
+   */
   private async assertNotSuperAdmin(userId: string): Promise<void> {
     if (await hasPlatformTier(this.supabase, userId, 'super_admin')) {
       throw new ForbiddenException(

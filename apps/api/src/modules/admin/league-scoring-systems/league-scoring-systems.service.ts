@@ -103,7 +103,7 @@ export class LeagueScoringSystemsService {
   }
 
   async create(dto: CreateLeagueScoringSystemDto, userId: string): Promise<LeagueScoringSystemRow> {
-    await this.assertSuperAdmin(userId);
+    await this.assertPlatformAdmin(userId);
     const pointsByRank = this.validatePointsByRank(dto.pointsByRank);
     const tieBreakers = this.validateTieBreakers(dto.tieBreakers ?? DEFAULT_TIE_BREAKERS);
     const code = this.validateCode(dto.code);
@@ -141,7 +141,7 @@ export class LeagueScoringSystemsService {
     dto: UpdateLeagueScoringSystemDto,
     userId: string,
   ): Promise<LeagueScoringSystemRow> {
-    await this.assertSuperAdmin(userId);
+    await this.assertPlatformAdmin(userId);
     const existing = await this.getById(id);
 
     const nextVersion = bumpPatch(existing.version);
@@ -190,7 +190,7 @@ export class LeagueScoringSystemsService {
   }
 
   async rollback(id: string, versionId: string, userId: string): Promise<LeagueScoringSystemRow> {
-    await this.assertSuperAdmin(userId);
+    await this.assertPlatformAdmin(userId);
     const existing = await this.getById(id);
 
     const { data: targetData, error: targetError } = await this.supabase.service
@@ -268,7 +268,7 @@ export class LeagueScoringSystemsService {
   }
 
   async clone(id: string, userId: string): Promise<LeagueScoringSystemRow> {
-    await this.assertSuperAdmin(userId);
+    await this.assertPlatformAdmin(userId);
     const source = await this.getById(id);
     const code = await this.allocateCloneCode(source.code);
     const { data, error } = await this.supabase.service
@@ -297,7 +297,7 @@ export class LeagueScoringSystemsService {
   }
 
   async delete(id: string, userId: string): Promise<void> {
-    await this.assertSuperAdmin(userId);
+    await this.assertPlatformAdmin(userId);
     const existing = await this.getById(id);
 
     // Refuse if any league still references this code. After migration
@@ -336,7 +336,7 @@ export class LeagueScoringSystemsService {
    * the read-prior-clear-prior-set-new sequence.
    */
   async setDefault(id: string, userId: string): Promise<LeagueScoringSystemRow> {
-    await this.assertSuperAdmin(userId);
+    await this.assertPlatformAdmin(userId);
     const existing = await this.getById(id);
 
     // UPDATE every row: target → is_default=true, others → is_default=false.
@@ -378,8 +378,18 @@ export class LeagueScoringSystemsService {
     return data as LeagueScoringSystemRow;
   }
 
-  private async assertSuperAdmin(userId: string): Promise<void> {
-    await assertPlatformTier(this.supabase, userId, 'super_admin', 'Super admin access required');
+  /**
+   * Must stay in lockstep with @PlatformRole('platform_admin') on the
+   * controller: if this stayed super-admin-exact, an admin would pass the
+   * guard and then be refused from inside the service — admitted, then 403'd.
+   */
+  private async assertPlatformAdmin(userId: string): Promise<void> {
+    await assertPlatformTier(
+      this.supabase,
+      userId,
+      'platform_admin',
+      'Platform admin access required',
+    );
   }
 
   private async allocateCloneCode(sourceCode: string): Promise<string> {

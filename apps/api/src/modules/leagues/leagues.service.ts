@@ -184,7 +184,7 @@ export class LeaguesService {
   }
 
   async listManageable(userId: string) {
-    if (await this.isSuperAdmin(userId)) {
+    if (await this.isPlatformStaffAdmin(userId)) {
       const { data, error } = await this.supabase.service
         .from('leagues')
         .select('*')
@@ -430,7 +430,7 @@ export class LeaguesService {
   }
 
   async create(dto: CreateLeagueDto, userId: string) {
-    const isSuperAdmin = await this.isSuperAdmin(userId);
+    const isSuperAdmin = await this.isPlatformStaffAdmin(userId);
     if (dto.ownerOrganizationId) {
       if (!isSuperAdmin) {
         await this.orgs.assertOrgRole(dto.ownerOrganizationId, userId, 'admin');
@@ -725,7 +725,7 @@ export class LeaguesService {
     // UI: dropping your own last route in, and draining the league's managers.
     if (
       targetUserId === userId &&
-      !(await this.isSuperAdmin(userId)) &&
+      !(await this.isPlatformStaffAdmin(userId)) &&
       !(await this.hasOrgManagePath(leagueId, userId))
     ) {
       throw new BadRequestException(
@@ -1900,7 +1900,7 @@ export class LeaguesService {
   }
 
   private async assertCanManageLeague(leagueId: string, userId: string) {
-    if (await this.isSuperAdmin(userId)) return;
+    if (await this.isPlatformStaffAdmin(userId)) return;
     const { data: directRole } = await this.supabase.service
       .from('league_user_roles')
       .select('role')
@@ -1967,8 +1967,17 @@ export class LeaguesService {
     return Array.isArray(orgRoles) && orgRoles.length > 0;
   }
 
-  private async isSuperAdmin(userId: string): Promise<boolean> {
-    return hasPlatformTier(this.supabase, userId, 'super_admin');
+  /**
+   * Platform admins and above.
+   *
+   * League management is squarely the platform-admin domain, and the widening
+   * matters here more than anywhere else: `/admin/leagues/*` carries NO route
+   * guard, so `assertCanManageLeague` is the only gate on it. Named for the
+   * tier rather than "isSuperAdmin" so the next reader is not misled about
+   * what passes.
+   */
+  private async isPlatformStaffAdmin(userId: string): Promise<boolean> {
+    return hasPlatformTier(this.supabase, userId, 'platform_admin');
   }
 
   private async listMatchesForTournament(tournamentId: string): Promise<Row[]> {

@@ -277,7 +277,8 @@ export class LeagueMembershipRequestsService {
   private async assertCanReview(leagueId: string, userId: string): Promise<void> {
     if (!userId) throw new ForbiddenException('Authentication required.');
 
-    if (await hasPlatformTier(this.supabase, userId, 'super_admin')) return;
+    // A review queue, so platform admins may work it.
+    if (await hasPlatformTier(this.supabase, userId, 'platform_admin')) return;
 
     const { data: userRole } = await this.supabase.service
       .from('league_user_roles')

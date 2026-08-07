@@ -10,7 +10,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
-import { hasPlatformTier } from '../auth/platform-role';
+import { isPlatformStaff } from '../auth/platform-role';
 
 const PROTECTED_PREFIXES = [
   '/api/v1/admin/',
@@ -63,7 +63,7 @@ export class LockdownInterceptor implements NestInterceptor {
     const userId = await this.resolveUserId(token);
     if (!userId) return next.handle();
 
-    const isSuperAdmin = await this.isSuperAdmin(userId);
+    const isSuperAdmin = await this.isPlatformStaff(userId);
     if (isSuperAdmin) return next.handle();
 
     throw new ServiceUnavailableException(
@@ -88,7 +88,16 @@ export class LockdownInterceptor implements NestInterceptor {
     }
   }
 
-  private async isSuperAdmin(userId: string): Promise<boolean> {
-    return hasPlatformTier(this.supabase, userId, 'super_admin');
+  /**
+   * ANY platform tier, not just super-admin.
+   *
+   * `admin_lockdown` means "only platform staff touch admin surfaces while we
+   * sort this out". Locking out the platform admins too would leave nobody but
+   * one account able to help during the incident the switch was flipped for.
+   * Safe to widen because this interceptor only decides whether the request
+   * continues — PlatformRoleGuard still applies the route's own tier on top.
+   */
+  private async isPlatformStaff(userId: string): Promise<boolean> {
+    return isPlatformStaff(this.supabase, userId);
   }
 }

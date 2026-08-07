@@ -432,8 +432,10 @@ export class PenaltiesService {
    *   - built_in rows are editable only by super-admin (mirrors the TF v1
    *     scoring-ruleset pattern). The RLS update policy blocks built_in
    *     edits at the row level, but we write via service-role so the gate
-   *     is the in-service `isSuperAdmin` check below.
-   *   - Custom rows: org-admin of the owning org (or super-admin).
+   *     is the in-service `isSuperAdmin` check below. Note this is the EXACT
+   *     tier, not `isPlatformStaffAdmin` — a platform admin moderates, it does
+   *     not rewrite the rules every running event scores by.
+   *   - Custom rows: org-admin of the owning org (or platform staff).
    *
    * Entries are replaced wholesale when `dto.entries` is provided: delete
    * existing rows, then bulk-insert the new set. Skip when omitted.
@@ -585,15 +587,18 @@ export class PenaltiesService {
   }
 
   /**
-   * Super-admin action — approve a pending sharing request. Flips
+   * Platform-staff action — approve a pending sharing request. Flips
    * public_visibility=true so the row appears in every org's
    * listRulesetsForOrg result + every tournament's penalty-ruleset
    * dropdown.
+   *
+   * A review queue, so platform admins may work it; only editing the built-in
+   * ruleset itself stays reserved.
    */
   async approveRulesetSharing(id: string, userId?: string) {
     if (!userId) throw new UnauthorizedException('Authentication required');
-    if (!(await this.isSuperAdmin(userId))) {
-      throw new ForbiddenException('Only super-admin can approve sharing');
+    if (!(await this.isPlatformStaffAdmin(userId))) {
+      throw new ForbiddenException('Platform admin access required to approve sharing');
     }
     const existing = await this.loadRulesetForSharing(id);
     if (existing.public_visibility_request_status !== 'pending') {
@@ -617,13 +622,13 @@ export class PenaltiesService {
   }
 
   /**
-   * Super-admin action — reject the sharing request with a reason. The
+   * Platform-staff action — reject the sharing request with a reason. The
    * row remains org-private; the org can fix the issue and resubmit.
    */
   async rejectRulesetSharing(id: string, reason: string, userId?: string) {
     if (!userId) throw new UnauthorizedException('Authentication required');
-    if (!(await this.isSuperAdmin(userId))) {
-      throw new ForbiddenException('Only super-admin can reject sharing');
+    if (!(await this.isPlatformStaffAdmin(userId))) {
+      throw new ForbiddenException('Platform admin access required to reject sharing');
     }
     const trimmed = reason.trim();
     if (!trimmed) throw new BadRequestException('A rejection reason is required');
@@ -1285,11 +1290,25 @@ export class PenaltiesService {
 
   private async assertUserCanManageOrg(orgId: string, userId?: string): Promise<void> {
     if (!userId) throw new UnauthorizedException('Authentication required');
-    if (await this.isSuperAdmin(userId)) return;
+    if (await this.isPlatformStaffAdmin(userId)) return;
     if (this.orgs) await this.orgs.assertOrgRole(orgId, userId, 'admin');
   }
 
-  /** Resolve whether `userId` carries the platform `super_admin` role. */
+  /**
+   * Platform admins and above. Gates acting ON BEHALF of an organisation —
+   * moderation work, which is squarely the platform-admin domain.
+   */
+  private async isPlatformStaffAdmin(userId: string): Promise<boolean> {
+    return hasPlatformTier(this.supabase, userId, 'platform_admin');
+  }
+
+  /**
+   * `super_admin`-EXACT, and deliberately NOT the same predicate as
+   * {@link isPlatformStaffAdmin}. Editing the built-in ruleset changes how
+   * cards escalate and cost for every event on the platform, including ones
+   * already running — that is not moderation, it is changing the rules of the
+   * game, and it stays in the reserve.
+   */
   private async isSuperAdmin(userId: string): Promise<boolean> {
     return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
