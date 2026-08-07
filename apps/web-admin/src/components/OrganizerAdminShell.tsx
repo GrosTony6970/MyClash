@@ -12,6 +12,8 @@ import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
 import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
 import { getPublicApiUrl } from '../lib/api-url';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { resolveWorkspaceOptions, type WorkspaceMePayload } from './workspace-options';
 
 const orgNavItems = [
   // `exact` so the org Overview (root) doesn't prefix-match and stay
@@ -87,10 +89,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // this org's own Leagues entry, so offering /leagues for those would just be
   // a second door to the same room.
   const [hasLeagueRoles, setHasLeagueRoles] = useState(false);
-  // Platform staff of ANY tier are allowed into any org (see
-  // organizer-auth-decision) — surface a link back to /admin so the dual-role
-  // operator can jump between their club and the console.
-  const [isPlatformStaff, setIsPlatformStaff] = useState(false);
+  // Raw /me payload. Feeds the workspace switcher under the logo, which is the
+  // only way out of this org — to the console (platform staff of ANY tier are
+  // allowed into any org, see organizer-auth-decision) or to another club the
+  // same account belongs to.
+  const [me, setMe] = useState<WorkspaceMePayload | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const switcherRef = useRef<HTMLDivElement>(null);
 
@@ -150,11 +153,14 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           window.location.replace('/login');
           return;
         }
-        const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1] & {
-          user?: { email?: string };
-        };
+        // Intersected with WorkspaceMePayload so the org NAMES the switcher
+        // lists are visible to the type checker, not just present at runtime.
+        const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1] &
+          WorkspaceMePayload & {
+            user?: { email?: string };
+          };
         setHasLeagueRoles(Boolean(data?.admin?.hasLeagueRoles));
-        setIsPlatformStaff(Boolean(data?.admin?.platformRole));
+        setMe(data);
         setEmail(data?.user?.email ?? null);
         const decision = resolveAuthDecision(slug, data);
         if (decision.kind === 'unauthenticated') {
@@ -228,6 +234,8 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     [eventBase, selectedEventId, orgBase, t],
   );
 
+  const workspaces = resolveWorkspaceOptions(me, { kind: 'org', slug });
+
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -275,6 +283,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-6">
+      <WorkspaceSwitcher
+        {...workspaces}
+        fallbackLabelKey="admin.workspaceSwitcher.organiser"
+        onNavigate={() => setOpen(false)}
+      />
       {navSections.map((section, idx) => {
         const activeHref = pickActiveHref(pathname, section.items);
         const isEventSection = section.key === 'event';
@@ -423,27 +436,6 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             {renderNavItem(
               { href: '/leagues', labelKey: 'organizer.shell.nav.myLeagues', icon: 'leagues' },
               pickActiveHref(pathname, [{ href: '/leagues' }]),
-            )}
-          </div>
-        </div>
-      )}
-
-      {/*
-        Same rationale as the /leagues entry above: an absolute '/admin' href
-        kept OUTSIDE orgNavItems so joinPath can't rewrite it into
-        '/org/{slug}/admin'. Only shown to platform staff, the workspace switch
-        back to the platform console.
-      */}
-      {isPlatformStaff && (
-        <div className="border-t border-border pt-5">
-          <div className="flex flex-col gap-1">
-            {renderNavItem(
-              {
-                href: '/admin',
-                labelKey: 'organizer.shell.nav.platformAdmin',
-                icon: 'switchWorkspace',
-              },
-              pickActiveHref(pathname, [{ href: '/admin' }]),
             )}
           </div>
         </div>

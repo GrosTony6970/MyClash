@@ -386,11 +386,11 @@ describe('AuthService', () => {
             data: [
               {
                 role: 'owner',
-                organizations: { id: 'org-1', slug: 'lyon-amhe' },
+                organizations: { id: 'org-1', slug: 'lyon-amhe', name: 'Lyon AMHE' },
               },
               {
                 role: 'admin',
-                organizations: [{ id: 'org-2', slug: 'paris-hema' }],
+                organizations: [{ id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA' }],
               },
             ],
             error: null,
@@ -403,14 +403,54 @@ describe('AuthService', () => {
       } as never);
 
       expect(result.type).toBe('claimed');
+      // `name` rides along for the sidebar workspace switcher, which lists a
+      // multi-org account's workspaces by name. Both embed shapes are covered
+      // above on purpose: PostgREST returns an object for a to-one embed and an
+      // array when it can't prove the relationship is unique.
       expect(result.admin).toEqual({
         platformRole: null,
         organizations: [
-          { id: 'org-1', slug: 'lyon-amhe', role: 'owner' },
-          { id: 'org-2', slug: 'paris-hema', role: 'admin' },
+          { id: 'org-1', slug: 'lyon-amhe', name: 'Lyon AMHE', role: 'owner' },
+          { id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA', role: 'admin' },
         ],
         hasLeagueRoles: false,
       });
+    });
+
+    // The normalizer drops a membership row whose org projection is incomplete
+    // rather than emitting a workspace entry with an undefined name — an
+    // unnamed row in the switcher menu is unpickable.
+    it('drops a membership row whose organization has no name', async () => {
+      mockAuthUser({
+        id: 'organizer-123',
+        email: 'organizer@example.com',
+        user_metadata: { display_name: 'Org Admin' },
+      });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(
+          makeAwaitableQueryChain({
+            data: [
+              { role: 'owner', organizations: { id: 'org-1', slug: 'lyon-amhe' } },
+              {
+                role: 'admin',
+                organizations: { id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA' },
+              },
+            ],
+            error: null,
+          }),
+        );
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer organizer-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.admin?.organizations).toEqual([
+        { id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA', role: 'admin' },
+      ]);
     });
 
     // Drives the "My leagues" nav entry and the /dashboard league branch, so it

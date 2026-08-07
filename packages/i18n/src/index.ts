@@ -2343,9 +2343,10 @@ export const en = {
     },
     shell: {
       brand: 'MyClash',
-      // Per-tier badge under the wordmark. `role` was a single 'Super admin'
-      // literal, which told a read-only operator they were a super admin —
-      // exactly how someone concludes the app is broken when a button 403s.
+      // Per-tier label on the platform row of the workspace switcher popover.
+      // `role` was a single 'Super admin' literal, which told a read-only
+      // operator they were a super admin — exactly how someone concludes the
+      // app is broken when a button 403s.
       roleLabel: {
         superAdmin: 'Super admin',
         platformAdmin: 'Platform admin',
@@ -2362,7 +2363,6 @@ export const en = {
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of super-admin',
       loggedAs: 'Logged in as',
-      sectionWorkspace: 'Workspace',
       sectionOverview: 'Overview',
       sectionContent: 'Content',
       sectionOperations: 'Operations',
@@ -2392,8 +2392,16 @@ export const en = {
         aiModels: 'Model Catalog',
         dataQuality: 'Data Quality',
         hemaRatings: 'HEMA Ratings',
-        switchToOrganizer: 'Event organiser',
       },
+    },
+    // The gold line under the sidebar logo in BOTH admin shells, so it lives
+    // outside `shell` (which is the platform console's own namespace) and
+    // outside `organizer.shell`. One component, one namespace.
+    workspaceSwitcher: {
+      platform: 'Platform Admin workspace',
+      organiser: 'Organiser workspace',
+      switchLabel: 'Switch workspace',
+      current: 'Current',
     },
     hemaRatings: {
       title: 'HEMA Ratings',
@@ -4975,7 +4983,6 @@ export const en = {
         eventOverview: 'Event overview',
         tournaments: 'Tournaments',
         clubs: 'Clubs',
-        platformAdmin: 'Platform admin',
       },
     },
     penaltyReviews: {
@@ -9821,7 +9828,6 @@ export const fr = {
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: 'Se deconnecter du super-admin',
       loggedAs: 'Connecté en tant que',
-      sectionWorkspace: 'Espace de travail',
       sectionOverview: 'Vue generale',
       sectionContent: 'Contenu',
       sectionOperations: 'Operations',
@@ -9851,8 +9857,13 @@ export const fr = {
         aiModels: 'Catalogue de modeles',
         dataQuality: 'Qualite des donnees',
         hemaRatings: 'HEMA Ratings',
-        switchToOrganizer: 'Organisateur',
       },
+    },
+    workspaceSwitcher: {
+      platform: 'Espace admin plateforme',
+      organiser: 'Espace organisateur',
+      switchLabel: "Changer d'espace de travail",
+      current: 'Actuel',
     },
     hemaRatings: {
       title: 'HEMA Ratings',
@@ -12440,7 +12451,6 @@ export const fr = {
         eventOverview: 'Vue evenement',
         tournaments: 'Tournois',
         clubs: 'Clubs',
-        platformAdmin: 'Super admin',
       },
     },
     penaltyReviews: {

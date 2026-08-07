@@ -77,8 +77,9 @@ import {
  * client components; the directive keeps that true for the next caller.
  *
  * A slug may be reused across sidebars for the same concept (`leagues` covers
- * Leagues, My leagues and /me Leagues; `switchWorkspace` covers all three
- * workspace-switch links) — but never twice inside one sidebar.
+ * Leagues, My leagues and /me Leagues; `switchWorkspace` marks both the
+ * web-admin `WorkspaceSwitcher` and web-public's link into it) — but never
+ * twice inside one sidebar.
  *
  * BUNDLE COST — the named imports below are NOT tree-shaken. This package
  * compiles to CommonJS (`module: Node16`, tsconfig.lib.json), so webpack sees a

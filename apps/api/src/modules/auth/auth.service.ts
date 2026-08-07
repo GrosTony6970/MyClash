@@ -106,11 +106,12 @@ function normalizeOrganizationMembership(
 
   if (!organization || typeof organization !== 'object') return null;
 
-  const orgRecord = organization as { id?: unknown; slug?: unknown };
+  const orgRecord = organization as { id?: unknown; slug?: unknown; name?: unknown };
   if (
     typeof record.role !== 'string' ||
     typeof orgRecord.id !== 'string' ||
-    typeof orgRecord.slug !== 'string'
+    typeof orgRecord.slug !== 'string' ||
+    typeof orgRecord.name !== 'string'
   ) {
     return null;
   }
@@ -118,6 +119,7 @@ function normalizeOrganizationMembership(
   return {
     id: orgRecord.id,
     slug: orgRecord.slug,
+    name: orgRecord.name,
     role: record.role,
   };
 }
@@ -1742,7 +1744,7 @@ export class AuthService {
     try {
       const { data: membershipRows } = await this.supabase.service
         .from('organization_members')
-        .select('role, organizations(id, slug)')
+        .select('role, organizations(id, slug, name)')
         .eq('user_id', userId);
 
       organizations = Array.isArray(membershipRows)

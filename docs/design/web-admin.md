@@ -34,6 +34,8 @@ Admin never sets `data-accent`. **The accent here is always red** — blue is th
 
 The `/leagues` and `/display` layouts carry comments saying they sit outside the others intentionally. They do. Don't "unify" them.
 
+**One cross-workspace affordance, not three.** `WorkspaceSwitcher` is the gold line directly under the logo in both sidebar shells, mounted as the first child of the shared `sidebar` node so the mobile drawer gets it too. It names the workspace you are in — "Platform Admin workspace" / "Organiser workspace" — and grows a `switchWorkspace` icon plus a popover only when the account can reach somewhere else. The platform tier lives on that popover's platform row; it is not a badge under the wordmark any more. Don't reintroduce a per-shell switch link.
+
 ## What differs
 
 - **The admin eyebrow is tighter than the public one.** `text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500` — smaller and more letter-spaced than the root's `text-xs tracking-wider`. This is the tournament-programme entry look, and it's why an admin form doesn't read like an admin panel.

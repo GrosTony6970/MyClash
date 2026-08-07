@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavIcon, useFocusTrap, type NavIconName } from '@myclash/ui';
-import { atLeastPlatformRole, type PlatformRole } from '@myclash/types';
+import { atLeastPlatformRole, parsePlatformRole, type PlatformRole } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import {
@@ -13,6 +13,8 @@ import {
   type NotificationsSummary,
 } from '../hooks/useNotificationsSummary';
 import { getPublicApiUrl } from '../lib/api-url';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { resolveWorkspaceOptions, type WorkspaceMePayload } from './workspace-options';
 
 interface NavItem {
   href: string;
@@ -166,18 +168,6 @@ const navSections: readonly NavSection[] = [
   },
 ];
 
-/**
- * The badge under the wordmark. Named per tier rather than a single "Super
- * admin" literal, because an operator who is only a read-only account should
- * not be told they are a super admin — that is how someone concludes the app
- * is broken when a button 403s.
- */
-function roleLabelKey(role: PlatformRole | null): string {
-  if (role === 'super_admin') return 'admin.shell.roleLabel.superAdmin';
-  if (role === 'platform_admin') return 'admin.shell.roleLabel.platformAdmin';
-  return 'admin.shell.roleLabel.platformViewer';
-}
-
 function isActive(pathname: string, href: string) {
   // /admin and /admin/ai are landing pages whose deeper paths belong to
   // distinct sibling entries — exact-match them so the parent doesn't stay
@@ -193,10 +183,11 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [platformRole, setPlatformRole] = useState<PlatformRole | null>(null);
   const [email, setEmail] = useState<string | null>(null);
-  // First org this super-admin also belongs to (if any). Drives the "switch to
-  // event organiser" workspace link — the escape hatch for the sole operator
-  // who is both platform super-admin and a tournament organiser.
-  const [organizerSlug, setOrganizerSlug] = useState<string | null>(null);
+  // Raw /me payload, kept whole so the workspace switcher can list EVERY org
+  // this account belongs to. The previous shape stored one arbitrary slug —
+  // the membership query has no ORDER BY, so a dual-role operator in two clubs
+  // could reach exactly one of them, unpredictably.
+  const [me, setMe] = useState<WorkspaceMePayload | null>(null);
   const apiUrl = getPublicApiUrl();
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -231,10 +222,9 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           return;
         }
 
-        const data = (await res.json()) as {
+        const data = (await res.json()) as WorkspaceMePayload & {
           type?: string;
           user?: { email?: string };
-          admin?: { platformRole?: PlatformRole | null; organizations?: Array<{ slug?: string }> };
         };
         // ANY platform tier may enter the console; what differs is what the
         // sidebar shows and what the API lets through once inside.
@@ -242,10 +232,9 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           window.location.replace('/login');
           return;
         }
-        setPlatformRole(data.admin.platformRole);
+        setPlatformRole(parsePlatformRole(data.admin.platformRole));
         setEmail(data.user?.email ?? null);
-        const firstOrg = data.admin?.organizations?.find((org) => Boolean(org.slug));
-        setOrganizerSlug(firstOrg?.slug ?? null);
+        setMe(data);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -274,6 +263,8 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
     }))
     .filter((section) => section.items.length > 0);
 
+  const workspaces = resolveWorkspaceOptions(me, { kind: 'platform' });
+
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -290,23 +281,11 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <nav aria-label={t('admin.shell.navigationLabel')} className="flex flex-col gap-6">
-      {organizerSlug && (
-        <div className="border-b border-border pb-5">
-          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
-            {t('admin.shell.sectionWorkspace')}
-          </p>
-          <div className="flex flex-col gap-1">
-            <Link
-              href={`/org/${organizerSlug}`}
-              onClick={() => setOpen(false)}
-              className="group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
-            >
-              <NavIcon name="switchWorkspace" />
-              <span>{t('admin.shell.nav.switchToOrganizer')}</span>
-            </Link>
-          </div>
-        </div>
-      )}
+      <WorkspaceSwitcher
+        {...workspaces}
+        fallbackLabelKey="admin.workspaceSwitcher.platform"
+        onNavigate={() => setOpen(false)}
+      />
       {visibleSections.map((section, idx) => (
         <div key={section.headingKey} className={idx === 0 ? '' : 'border-t border-border pt-5'}>
           {idx > 0 && (
@@ -405,14 +384,11 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
             className="h-11 w-11"
             priority
           />
-          <div>
-            <p className="font-display text-lg font-medium tracking-wide">
-              {t('admin.shell.brand')}
-            </p>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gold">
-              {t(roleLabelKey(platformRole))}
-            </p>
-          </div>
+          {/* Wordmark only — the gold line under it is now the workspace
+              label, rendered by WorkspaceSwitcher at the top of `sidebar` so
+              the mobile drawer gets it too. The tier moved into that
+              component's popover, alongside the platform workspace row. */}
+          <p className="font-display text-lg font-medium tracking-wide">{t('admin.shell.brand')}</p>
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">

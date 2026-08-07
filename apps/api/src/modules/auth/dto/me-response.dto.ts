@@ -37,9 +37,15 @@ export class MeResponseDto {
      * gets an `admin` block with `platformRole: null`.
      */
     platformRole: PlatformRole | null;
+    /**
+     * Every org this account is a member of. `name` is here so the sidebar
+     * workspace switcher can list them by name — a slug or an id in that menu
+     * is not something an operator recognises as their own club.
+     */
     organizations: Array<{
       id: string;
       slug: string;
+      name: string;
       role: string;
     }>;
     /**
