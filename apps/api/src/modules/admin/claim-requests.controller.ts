@@ -16,13 +16,10 @@ import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { ClaimRequestsService } from './claim-requests.service';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { getActorId } from '../../common/auth/actor';
 
 const rejectClaimRequestSchema = z.object({ reason: z.string().min(2).max(500) }).strict();
 class RejectClaimRequestDto extends createZodDto(rejectClaimRequestSchema) {}
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
 
 @ApiTags('super-admin')
 @ApiBearerAuth()

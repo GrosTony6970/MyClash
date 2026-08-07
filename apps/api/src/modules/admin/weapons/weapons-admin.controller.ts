@@ -17,10 +17,7 @@ import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../guards/super-admin.guard';
 import { CreateWeaponDto, UpdateWeaponDto } from './dto/weapons-admin.dto';
 import { WeaponsAdminService } from './weapons-admin.service';
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()

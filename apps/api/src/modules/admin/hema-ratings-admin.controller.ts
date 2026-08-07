@@ -14,6 +14,7 @@ import { ApiCookieAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import type { FastifyRequest } from 'fastify';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { getActorId } from '../../common/auth/actor';
 
 /**
  * Super-admin surface for the HEMA Ratings sync system.
@@ -52,9 +53,7 @@ export class HemaRatingsAdminController {
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Enqueue an immediate HEMA Ratings sync job' })
   enqueueSync(@Req() req: FastifyRequest) {
-    const actorUserId =
-      (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'super-admin';
-    return this.hemaRatings.enqueueSync(actorUserId);
+    return this.hemaRatings.enqueueSync(getActorId(req));
   }
 
   @Post('fighters/:globalPersonId/refresh')

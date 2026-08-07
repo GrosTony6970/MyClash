@@ -48,6 +48,7 @@ import {
   UpdateFighterDto,
   UpdateGlobalPersonDto,
 } from './dto/fighters.dto';
+import { getActorId } from '../../common/auth/actor';
 
 /** Extract claimed user ID from Supabase JWT in request. */
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -261,7 +262,7 @@ export class FightersController {
   @UseGuards(SuperAdminGuard)
   @ApiOperation({ summary: 'Merge two fighter profiles (super admin)' })
   async merge(@Body() dto: MergeFightersDto, @Req() req: FastifyRequest) {
-    const actorUserId = (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
+    const actorUserId = getActorId(req);
     return this.fighterMerge.merge(dto, actorUserId);
   }
 
@@ -274,7 +275,7 @@ export class FightersController {
     @Param('auditLogId', ParseUUIDPipe) auditLogId: string,
     @Req() req: FastifyRequest,
   ) {
-    const actorUserId = (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
+    const actorUserId = getActorId(req);
     await this.fighterMerge.revertMerge(auditLogId, actorUserId);
   }
 }

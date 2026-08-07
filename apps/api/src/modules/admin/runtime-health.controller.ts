@@ -10,10 +10,7 @@ import { UpdateAlertSettingsDto } from './dto/runtime-health.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { AdminRuntimeHealthService } from './runtime-health.service';
 import { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
-
-function getActorId(req: FastifyRequest): string | null {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? null;
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')

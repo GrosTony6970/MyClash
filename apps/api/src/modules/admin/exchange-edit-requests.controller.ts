@@ -17,10 +17,7 @@ import {
 } from './dto/exchange-edit-requests.dto';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { SuperAdminGuard } from './guards/super-admin.guard';
-
-function actorUserId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
@@ -39,7 +36,7 @@ export class ExchangeEditRequestsAdminController {
   @ApiOperation({ summary: 'Approve a frozen-result exchange edit request (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async approve(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    return this.service.approve(id, actorUserId(req));
+    return this.service.approve(id, getActorId(req));
   }
 
   @Post(':id/reject')
@@ -50,6 +47,6 @@ export class ExchangeEditRequestsAdminController {
     @Body() dto: RejectExchangeEditRequestDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.service.reject(id, actorUserId(req), dto.reason);
+    return this.service.reject(id, getActorId(req), dto.reason);
   }
 }

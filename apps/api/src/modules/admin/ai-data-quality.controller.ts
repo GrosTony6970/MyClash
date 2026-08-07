@@ -4,12 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { AIDataQualityService } from './ai-data-quality.service';
 import { StartDataQualityScanDto, UpdateDataQualityFindingDto } from './dto/data-quality.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
-
-type ActorRequest = FastifyRequest & { actorUserId?: string };
-
-function getActorId(req: FastifyRequest): string {
-  return (req as ActorRequest).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()

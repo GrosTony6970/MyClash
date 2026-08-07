@@ -17,6 +17,7 @@ import type { FastifyRequest } from 'fastify';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { ReviewQueueService } from './review-queue.service';
+import { getActorId } from '../../common/auth/actor';
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,6 @@ const rejectQueueItemSchema = z.object({ rejectionReason: z.string().min(10).max
 export class RejectQueueItemDto extends createZodDto(rejectQueueItemSchema) {}
 
 // ── Helper ────────────────────────────────────────────────────────────────────
-
-function actorUserId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
@@ -72,7 +69,7 @@ export class ReviewQueueController {
     @Body() body: ApproveQueueItemDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.service.approve(type, id, actorUserId(req), body);
+    await this.service.approve(type, id, getActorId(req), body);
   }
 
   @Post(':type/:id/reject')
@@ -87,6 +84,6 @@ export class ReviewQueueController {
     @Body() body: RejectQueueItemDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.service.reject(type, id, actorUserId(req), body.rejectionReason);
+    await this.service.reject(type, id, getActorId(req), body.rejectionReason);
   }
 }

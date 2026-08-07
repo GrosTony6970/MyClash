@@ -27,6 +27,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { ErasureService } from './erasure.service';
 import { RetentionService } from './retention.service';
+import { getActorId } from '../../common/auth/actor';
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
@@ -53,13 +54,6 @@ const anonymiseSchema = z
   .strict();
 export class AnonymiseDto extends createZodDto(anonymiseSchema) {}
 
-function actorOf(req: FastifyRequest): string {
-  // SuperAdminGuard stamps this after verifying the platform role.
-  const actor = (req as FastifyRequest & { actorUserId?: string }).actorUserId;
-  if (!actor) throw new Error('SuperAdminGuard did not set actorUserId');
-  return actor;
-}
-
 // ── Controller ────────────────────────────────────────────────────────────────
 
 @ApiTags('super-admin')
@@ -82,7 +76,7 @@ export class PrivacyAdminController {
   @Patch('data-retention')
   @ApiOperation({ summary: 'Update data retention horizons (super admin)' })
   async updateRetention(@Body() dto: UpdateRetentionDto, @Req() req: FastifyRequest) {
-    return this.retention.updateSettings(dto, actorOf(req));
+    return this.retention.updateSettings(dto, getActorId(req));
   }
 
   @Post('data-retention/run')
@@ -102,7 +96,7 @@ export class PrivacyAdminController {
     @Body() dto: AnonymiseDto,
     @Req() req: FastifyRequest,
   ) {
-    const actorUserId = actorOf(req);
+    const actorUserId = getActorId(req);
     const { counts, previousSlugHash } = await this.erasure.anonymiseGlobalPerson(id);
     await this.erasure.recordErasure(id, 'admin_anonymisation', counts, previousSlugHash);
 

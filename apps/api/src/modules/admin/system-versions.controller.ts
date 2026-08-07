@@ -9,12 +9,9 @@ import {
   type ComponentActionResult,
 } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
+import { getActorId } from '../../common/auth/actor';
 
 const VALID_ACTIONS: ReadonlySet<ComponentAction> = new Set(['start', 'stop', 'restart']);
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
 
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')

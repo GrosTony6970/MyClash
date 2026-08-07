@@ -27,10 +27,7 @@ import {
   UpdatePlatformUserDto,
 } from './dto/admin-users.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()

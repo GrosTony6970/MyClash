@@ -23,12 +23,9 @@ import {
   UpdateOrganizationDto,
 } from './dto/admin-organizations.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { getActorId } from '../../common/auth/actor';
 
 /** Extract the authenticated user ID from the request (set by SuperAdminGuard). */
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
-
 @ApiTags('super-admin')
 @ApiBearerAuth()
 @UseGuards(SuperAdminGuard)

@@ -17,12 +17,7 @@ import { CreateAiKeyDto, UpdateAiKeyDto } from '../ai-providers/dto/ai-key.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { ModelSyncService } from './model-sync.service';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
-
-type ActorRequest = FastifyRequest & { actorUserId?: string };
-
-function getActorId(req: FastifyRequest): string {
-  return (req as ActorRequest).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 /** Multi-key management for the shared super-admin AI keys. */
 @ApiTags('super-admin')

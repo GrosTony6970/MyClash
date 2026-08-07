@@ -38,10 +38,7 @@ import {
   RejectClubReviewRequestDto,
   UpdateClubDto,
 } from './dto/clubs.dto';
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('clubs')
 @Controller('clubs')

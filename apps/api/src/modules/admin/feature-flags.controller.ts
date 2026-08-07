@@ -14,10 +14,7 @@ import type { FastifyRequest } from 'fastify';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import { UpsertFeatureFlagDto } from './dto/admin-feature-flags.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()

@@ -20,10 +20,7 @@ import {
   UpdateLeagueScoringSystemDto,
 } from './dto/league-scoring-systems.dto';
 import { LeagueScoringSystemsService } from './league-scoring-systems.service';
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()

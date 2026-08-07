@@ -5,10 +5,7 @@ import type { TlsStatusResponseDto } from './dto/tls-status.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { AdminSystemActionsService, type CertRenewalResult } from './system-actions.service';
 import { AdminTlsStatusService } from './tls-status.service';
-
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
-}
+import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')
