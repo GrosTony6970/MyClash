@@ -171,6 +171,11 @@ hdr "Last deploy"
 
 if [[ -f .last-deploy.json ]] && command -v jq &>/dev/null; then
   jq -r '"  Commit:     \(.deployedCommit[0:8])\n  Deployed:   \(.deployedAt)\n  By:         \(.deployedBy)\n  Backup:     \(.backupFile)\n  Rollback?:  \(.isRollback // false)"' .last-deploy.json
+  # Absent on rollback-written metadata, which rollback.sh does not time.
+  LAST_DEPLOY_DURATION=$(jq -r '.durationSeconds // empty' .last-deploy.json)
+  if [[ "$LAST_DEPLOY_DURATION" =~ ^[0-9]+$ ]]; then
+    info "Duration:   $(fmt_duration "$LAST_DEPLOY_DURATION")"
+  fi
 else
   warn "No deploy metadata"
 fi

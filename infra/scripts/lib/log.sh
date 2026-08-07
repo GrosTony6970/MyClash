@@ -26,6 +26,23 @@ warn() { echo "${YELLOW}!${RESET} $*"; }
 hdr()  { echo; echo "${CYAN}${BOLD}── $* ──${RESET}"; }
 info() { echo "  $*"; }
 
+# Format a duration in seconds as a human string, with no trailing newline so
+# callers can embed it: "47s", "6m 41s", "1h 06m 41s".
+# Usage: echo "Total time: $(fmt_duration 401)"
+fmt_duration() {
+  local total="${1:-0}"
+  local h=$((total / 3600))
+  local m=$(((total % 3600) / 60))
+  local s=$((total % 60))
+  if ((h > 0)); then
+    printf '%dh %02dm %02ds' "$h" "$m" "$s"
+  elif ((m > 0)); then
+    printf '%dm %02ds' "$m" "$s"
+  else
+    printf '%ds' "$s"
+  fi
+}
+
 # Confirm prompt; returns 0 on yes, 1 on anything else.
 # Usage: confirm "Proceed?" || exit 1
 confirm() {

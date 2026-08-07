@@ -29,6 +29,10 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# Wall clock for the whole run — prerequisites, lock, build, migrations, health
+# waits. Reported in the final summary and persisted to .last-deploy.json.
+DEPLOY_STARTED_AT=$(date +%s)
+
 # Exports TRAEFIK_BAN_ALLOWLIST + the MW_* middleware prefixes that
 # docker-compose.prod.yml interpolates. Compose reads these from this shell,
 # not from --env-file, so every entrypoint that runs `up` must source it.
@@ -39,6 +43,10 @@ USE_DEV_CERTS=0
 SKIP_BACKUP=0
 SKIP_MIGRATIONS=0
 CREATE_DEMO_ORG=0
+
+# Outcome of the super admin bootstrap step, rendered in the credentials box at
+# the very end: created | synced | existing | failed | unknown.
+SUPER_ADMIN_STATE=unknown
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -211,6 +219,51 @@ print_generated_credentials() {
   done <<< "$GENERATED_CREDENTIALS"
 }
 
+# Boxed super admin credentials, printed at the end of the Deployment secrets
+# section so the operator saves them with the rest of the vault material.
+#
+# Every line is derived from WIDTH — no hand-counted padding — and the padded
+# text stays pure ASCII on purpose: printf's %-*s pads by bytes under a C
+# locale, so a multi-byte dash in a padded string silently shifts the border.
+# Box-drawing characters only ever appear in literal format strings.
+print_super_admin_credentials() {
+  local email="${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}"
+  local password="${SEED_ADMIN_PASSWORD:-}"
+  local title="SUPER ADMIN CREDENTIALS - SAVE THESE NOW"
+  local stored="Stored in .env on this server."
+  local state
+
+  case "$SUPER_ADMIN_STATE" in
+    created)  state="Account created this deploy - change the password now." ;;
+    synced)   state="Password synced from .env and verified." ;;
+    existing) state="Account already existed; roles verified." ;;
+    *)        state="Bootstrap reported an issue - these values may not work." ;;
+  esac
+
+  local rows=("$title" "Email:    $email" "Password: $password" "$stored" "$state")
+
+  # Widen the box rather than burst it when a generated password is long.
+  local width=62
+  local row
+  for row in "${rows[@]}"; do
+    (( ${#row} + 4 > width )) && width=$(( ${#row} + 4 ))
+  done
+
+  local rule='' i
+  for ((i = 0; i < width; i++)); do rule+='═'; done
+
+  local inner=$((width - 2))
+  printf '╔%s╗\n' "$rule"
+  printf '║  %-*s║\n' "$inner" "$title"
+  printf '╠%s╣\n' "$rule"
+  printf '║  %-*s║\n' "$inner" "Email:    $email"
+  printf '║  %-*s║\n' "$inner" "Password: $password"
+  printf '╠%s╣\n' "$rule"
+  printf '║  %-*s║\n' "$inner" "$stored"
+  printf '║  %-*s║\n' "$inner" "$state"
+  printf '╚%s╝\n' "$rule"
+}
+
 print_deployment_secrets() {
   hdr "Deployment secrets"
   warn "This output contains secrets. Save it to your vault and treat terminal logs as sensitive."
@@ -235,9 +288,9 @@ print_deployment_secrets() {
     BACKUP_SCW_ACCESS_KEY
     BACKUP_SCW_SECRET_KEY
     GOOGLE_OAUTH_CLIENT_SECRET
-    SEED_ADMIN_EMAIL
-    SEED_ADMIN_PASSWORD
   )
+  # SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD are deliberately absent: they print
+  # in the credentials box below instead of as two anonymous rows here.
 
   for key in "${secret_keys[@]}"; do
     print_secret_key "$key"
@@ -251,6 +304,9 @@ print_deployment_secrets() {
     info "No new plaintext-only credentials were generated in this deploy."
     info "Existing Traefik dashboard plaintext password cannot be recovered from TRAEFIK_DASHBOARD_AUTH."
   fi
+
+  echo
+  print_super_admin_credentials
 }
 
 print_service_health_diagnostics() {
@@ -554,28 +610,23 @@ BOOTSTRAP_PASSWORD_VERIFIED=$(node -e "try{const r=JSON.parse(process.argv[1]);c
 BOOTSTRAP_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$BOOTSTRAP_RESULT")
 BOOTSTRAP_DETAIL=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.detail?JSON.stringify(r.detail):'')}catch{console.log('')}" "$BOOTSTRAP_RESULT")
 
+# The credentials themselves are not printed here — they would scroll away
+# under the seeder, smoke test and `compose ps` table. The final Deployment
+# secrets section prints them, using SUPER_ADMIN_STATE for the footer.
 if [[ -n "$BOOTSTRAP_ERROR" ]]; then
+  SUPER_ADMIN_STATE=failed
   warn "Super admin bootstrap reported an issue: $BOOTSTRAP_ERROR"
   [[ -n "$BOOTSTRAP_DETAIL" ]] && warn "Bootstrap detail: $BOOTSTRAP_DETAIL"
   [[ "$BOOTSTRAP_ERROR" == "Failed to verify synced admin user password" ]] && warn "SEED_ADMIN_PASSWORD was not accepted by GoTrue."
   warn "You can run it manually: docker compose run --rm api node /app/scripts/bootstrap-super-admin.mjs"
 elif [[ "$BOOTSTRAP_CREATED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
-  # ── Display credentials — operator MUST save these ──────────────
-  echo
-  echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║          SUPER ADMIN CREDENTIALS — SAVE THESE NOW           ║"
-  echo "╠══════════════════════════════════════════════════════════════╣"
-  printf "║  Email:    %-50s ║\n" "${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}"
-  printf "║  Password: %-50s ║\n" "${SEED_ADMIN_PASSWORD}"
-  echo "╠══════════════════════════════════════════════════════════════╣"
-  echo "║  These are also stored in .env on this server.               ║"
-  echo "║  Change the password after first login.                      ║"
-  echo "╚══════════════════════════════════════════════════════════════╝"
-  echo
-  ok "Super admin account created"
+  SUPER_ADMIN_STATE=created
+  ok "Super admin account created — credentials print in the final Deployment secrets section"
 elif [[ "$BOOTSTRAP_PASSWORD_SYNCED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
+  SUPER_ADMIN_STATE=synced
   ok "Super admin account already exists — password synced and verified from SEED_ADMIN_PASSWORD"
 else
+  SUPER_ADMIN_STATE=existing
   ok "Super admin account already exists — bootstrap roles verified"
 fi
 
@@ -631,12 +682,17 @@ fi
 # ── Record deploy metadata ───────────────────────────────────────
 hdr "Recording deploy metadata"
 
+# Single owner of the elapsed time: the summary below prints this same value, so
+# what the operator reads on screen matches what status.sh reports later.
+DEPLOY_DURATION=$(( $(date +%s) - DEPLOY_STARTED_AT ))
+
 cat > .last-deploy.json <<EOF
 {
   "previousCommit": "$CURRENT_COMMIT",
   "deployedCommit": "$NEW_COMMIT",
   "deployedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "deployedBy": "${SUDO_USER:-${USER:-unknown}}",
+  "durationSeconds": $DEPLOY_DURATION,
   "backupFile": "${BACKUP_FILE:-none}"
 }
 EOF
@@ -649,6 +705,7 @@ hdr "Deploy complete"
 
 echo
 ok "Deployed commit ${NEW_COMMIT:0:8} to https://${DOMAIN}"
+echo "  Total time:          $(fmt_duration "$DEPLOY_DURATION")"
 echo "  Rollback if needed:  infra/scripts/rollback.sh"
 echo "  Status:              infra/scripts/status.sh"
 
