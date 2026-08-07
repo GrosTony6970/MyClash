@@ -7,7 +7,9 @@ import { Readable } from 'node:stream';
 // class as the global at runtime, so this import just disambiguates the type.
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import path from 'node:path';
-import { Injectable, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { OperationalUnavailableException } from '../../common/operational-exception';
+import { opsRunnerException, readOpsRunnerError } from './ops-runner-error';
 import type {
   BackupActionResponseDto,
   BackupArtifactDto,
@@ -186,7 +188,7 @@ export class AdminBackupsService {
       throw new BadRequestException('Invalid backup artifact.');
     }
     if (!this.hasOpsRunner()) {
-      throw new ServiceUnavailableException('Backup downloads require the ops runner.');
+      throw new OperationalUnavailableException('Backup downloads require the ops runner.');
     }
 
     const url = new URL(`${this.opsRunnerUrl}/download/${encodeURIComponent(backupId)}`);
@@ -197,10 +199,12 @@ export class AdminBackupsService {
       signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
     });
     if (!response.ok) {
-      throw new ServiceUnavailableException(`Ops runner download failed with ${response.status}.`);
+      throw new OperationalUnavailableException(
+        `Ops runner download failed with ${response.status}.`,
+      );
     }
     if (!response.body) {
-      throw new ServiceUnavailableException('Ops runner returned an empty download response.');
+      throw new OperationalUnavailableException('Ops runner returned an empty download response.');
     }
     const disposition = response.headers.get('content-disposition') ?? '';
     return {
@@ -240,18 +244,31 @@ export class AdminBackupsService {
 
   private async opsRequest<T>(route: string, init: RequestInit): Promise<T> {
     if (!this.hasOpsRunner()) {
-      throw new ServiceUnavailableException('Backup operations require the ops runner.');
+      throw new OperationalUnavailableException('Backup operations require the ops runner.');
     }
-    const response = await this.fetchImpl(`${this.opsRunnerUrl}${route}`, {
-      ...init,
-      headers: { ...this.opsHeaders(), ...(init.headers ?? {}) },
-      signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      const message = await response.text().catch(() => '');
-      throw new ServiceUnavailableException(
-        message || `Ops runner request failed with ${response.status}.`,
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.opsRunnerUrl}${route}`, {
+        ...init,
+        headers: { ...this.opsHeaders(), ...(init.headers ?? {}) },
+        signal: AbortSignal.timeout(DEFAULT_OPS_TIMEOUT_MS),
+      });
+    } catch (error) {
+      // AbortSignal.timeout raises a plain TimeoutError, not an HttpException,
+      // so this used to surface as an anonymous scrubbed 500 while the runner
+      // carried on working in the background — the exact shape of the
+      // "Could not delete backups" report that had no cause attached.
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      throw new OperationalUnavailableException(
+        timedOut
+          ? `The ops runner did not respond within ${DEFAULT_OPS_TIMEOUT_MS / 1000}s. It may still be working — reload before retrying.`
+          : 'Could not reach the ops runner.',
       );
+    }
+
+    if (!response.ok) {
+      throw opsRunnerException(response.status, await readOpsRunnerError(response));
     }
     return (await response.json()) as T;
   }

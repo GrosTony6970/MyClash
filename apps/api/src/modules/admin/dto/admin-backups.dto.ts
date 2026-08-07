@@ -99,6 +99,8 @@ export interface DeleteAllBackupsResponseDto {
   deletedLocalSets: number;
   deletedCloudSets: number;
   deletedFiles: string[];
+  /** Local artifacts the wipe could not remove. Reported, never swallowed. */
+  failedFiles: string[];
 }
 
 export interface BackupActionResponseDto {

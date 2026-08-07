@@ -5,7 +5,9 @@ import {
   HttpStatus,
   InternalServerErrorException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { OperationalUnavailableException } from './operational-exception';
 import type { ArgumentsHost } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -168,6 +170,50 @@ describe('ApiExceptionFilter', () => {
       method: 'GET',
       requestId: 'req-500',
     });
+  });
+
+  it('keeps the message of a deliberately operator-facing 5xx', () => {
+    // The blanket 5xx scrub also ate the messages we author on purpose, which
+    // is how "Could not delete backups." became the only thing the admin UI
+    // could ever say about a failed ops-runner call.
+    const { host, send } = makeHost();
+    const report = vi.fn();
+    const exception = new OperationalUnavailableException(
+      'The ops runner did not respond within 15s.',
+    );
+
+    new ApiExceptionFilter(report).catch(exception, host);
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 503,
+        statusCode: 503,
+        message: 'The ops runner did not respond within 15s.',
+        detail: 'The ops runner did not respond within 15s.',
+      }),
+    );
+    // Still worth a Sentry report — surfacing it to the operator does not make
+    // it expected.
+    expect(report).toHaveBeenCalledWith(exception, expect.objectContaining({ statusCode: 503 }));
+  });
+
+  it('still scrubs a plain 503, so the exemption cannot widen by accident', () => {
+    // The opt-in is the marker class, NOT the 503 status: new code throwing a
+    // generic ServiceUnavailableException must not start leaking its message.
+    const { host, send } = makeHost();
+
+    new ApiExceptionFilter().catch(
+      new ServiceUnavailableException('postgres://user:pw@db:5432 unreachable'),
+      host,
+    );
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 503,
+        message: 'Internal server error',
+        detail: 'Internal server error',
+      }),
+    );
   });
 
   it('maps spend-cap style error labels to stable codes', () => {

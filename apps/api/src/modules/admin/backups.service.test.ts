@@ -1,8 +1,13 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import { AdminBackupsService } from './backups.service';
 
 async function writeBackup(rootDir: string, filename: string, content = 'backup') {
@@ -213,6 +218,68 @@ describe('AdminBackupsService', () => {
         body: JSON.stringify({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
       }),
     );
+  });
+
+  it("relays the ops runner's own failure text instead of a generic 503", async () => {
+    // The runner answers {"error": "..."}; reading it as raw text used to put
+    // the JSON envelope itself in front of the operator.
+    // A fresh Response per call: a body is single-use, so a shared mock value
+    // would read as empty on the second assertion.
+    const fetchImpl = vi.fn().mockImplementation(
+      () =>
+        new Response(JSON.stringify({ error: 'fatal error: Unable to locate credentials' }), {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.deleteAllBackups({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
+    ).rejects.toBeInstanceOf(OperationalUnavailableException);
+    await expect(
+      service.deleteAllBackups({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
+    ).rejects.toThrow('fatal error: Unable to locate credentials');
+  });
+
+  it('relays ops-runner lock contention as a 409, not a server fault', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Another backup operation is already running.' }), {
+        status: 409,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.deleteAllBackups({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('names the timeout instead of dying as an anonymous 500', async () => {
+    // AbortSignal.timeout throws a bare TimeoutError. Uncaught, it fell through
+    // the filter as a scrubbed 500 — while the runner kept working. That is the
+    // failure the operator saw as "Could not delete backups."
+    const timeout = Object.assign(new Error('The operation was aborted'), {
+      name: 'TimeoutError',
+    });
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: vi.fn().mockRejectedValue(timeout) as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.deleteAllBackups({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
+    ).rejects.toThrow(/did not respond within 15s/);
   });
 
   it('rejects delete-all when the confirmation token is wrong', async () => {

@@ -1,4 +1,5 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import { OperationalUnavailableException } from './operational-exception';
 
 /**
  * RFC 9457 (Problem Details for HTTP APIs) error envelope.
@@ -105,7 +106,12 @@ function normalizeException(
   }
 
   const body = exception.getResponse();
-  if (statusCode >= 500) {
+  // A >=500 message can carry a stack, a query or a connection string, so it is
+  // scrubbed by default. `OperationalUnavailableException` is the one opt-out:
+  // its message is authored for the operator and safe to render. Keeping the
+  // exemption tied to a marker class — rather than to the 503 status — means
+  // new code throwing a generic 5xx cannot start leaking by accident.
+  if (statusCode >= 500 && !(exception instanceof OperationalUnavailableException)) {
     return {
       code: httpStatusCodeToCode(statusCode),
       message: 'Internal server error',
