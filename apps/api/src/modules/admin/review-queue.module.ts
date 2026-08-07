@@ -3,7 +3,7 @@ import { MatchesModule } from '../matches/matches.module';
 import { EventsModule } from '../events/events.module';
 import { LeaguesModule } from '../leagues/leagues.module';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import { NotificationsSummaryController } from './notifications-summary.controller';
 import { NotificationsSummaryService } from './notifications-summary.service';
 import { ReviewQueueController } from './review-queue.controller';
@@ -16,7 +16,7 @@ import { ReviewQueueService } from './review-queue.service';
     ReviewQueueService,
     NotificationsSummaryService,
     ExchangeEditRequestsAdminService,
-    SuperAdminGuard,
+    PlatformRoleGuard,
   ],
 })
 export class ReviewQueueModule {}

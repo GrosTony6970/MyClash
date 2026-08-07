@@ -15,7 +15,8 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { ReviewQueueService } from './review-queue.service';
 import { getActorId } from '../../common/auth/actor';
 
@@ -35,7 +36,8 @@ export class RejectQueueItemDto extends createZodDto(rejectQueueItemSchema) {}
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/review-queue')
 export class ReviewQueueController {
   constructor(private readonly service: ReviewQueueService) {}

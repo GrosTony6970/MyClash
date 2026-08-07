@@ -26,7 +26,8 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
 import { CATALOG_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
+import { PlatformRole } from '../admin/guards/platform-role.decorator';
 import { ClubsService, type DeleteClubMode } from './clubs.service';
 import {
   BulkClubIdsDto,
@@ -56,7 +57,7 @@ export class ClubsController {
   /** GET /api/v1/clubs/review-requests?status=pending */
   @Get('review-requests')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
   @ApiOperation({ summary: 'List organizer-submitted club review requests' })
   async listReviewRequests(@Query() query: ClubReviewRequestQueryDto) {
     return this.clubs.listReviewRequests(query.status ?? 'pending');
@@ -66,7 +67,8 @@ export class ClubsController {
   @Post('review-requests/:id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Approve a proposed club as verified' })
   async approveReviewRequest(@Param('id', ParseUUIDPipe) id: string) {
     return this.clubs.approveReviewRequest(id);
@@ -76,7 +78,8 @@ export class ClubsController {
   @Post('review-requests/:id/link')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Link a proposed club request to an existing club' })
   async linkReviewRequest(
     @Param('id', ParseUUIDPipe) id: string,
@@ -89,7 +92,8 @@ export class ClubsController {
   @Post('review-requests/:id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Reject a proposed club review request' })
   async rejectReviewRequest(
     @Param('id', ParseUUIDPipe) id: string,
@@ -105,7 +109,8 @@ export class ClubsController {
   /** POST /api/v1/clubs/bulk-verify */
   @Post('bulk-verify')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Mark a batch of clubs as verified (super admin)' })
   async bulkVerify(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
     return this.clubs.bulkSetVerified(dto.ids, true, getActorId(req));
@@ -114,7 +119,8 @@ export class ClubsController {
   /** POST /api/v1/clubs/bulk-unverify */
   @Post('bulk-unverify')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Mark a batch of clubs as unverified (super admin)' })
   async bulkUnverify(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
     return this.clubs.bulkSetVerified(dto.ids, false, getActorId(req));
@@ -123,7 +129,8 @@ export class ClubsController {
   /** POST /api/v1/clubs/bulk-archive */
   @Post('bulk-archive')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Archive a batch of clubs (super admin)' })
   async bulkArchive(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
     return this.clubs.bulkArchive(dto.ids, getActorId(req));
@@ -132,7 +139,8 @@ export class ClubsController {
   /** POST /api/v1/clubs/bulk-delete */
   @Post('bulk-delete')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({
     summary: 'Safe-delete a batch of clubs; referenced rows surface as per-row errors',
   })
@@ -143,7 +151,8 @@ export class ClubsController {
   /** POST /api/v1/clubs/bulk-cleanup-delete */
   @Post('bulk-cleanup-delete')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({
     summary: 'Cleanup-delete a batch of clubs (clears supported references first; super admin)',
   })
@@ -154,7 +163,8 @@ export class ClubsController {
   /** POST /api/v1/clubs/bulk-update */
   @Post('bulk-update')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({
     summary: 'Apply city / countryCode across a batch of clubs (super admin)',
   })
@@ -182,7 +192,8 @@ export class ClubsController {
   /** PATCH /api/v1/clubs/:id/verify */
   @Patch(':id/verify')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Mark a club as verified (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async verify(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
@@ -192,7 +203,8 @@ export class ClubsController {
   /** PATCH /api/v1/clubs/:id/unverify */
   @Patch(':id/unverify')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Mark a club as unverified (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async unverify(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
@@ -212,7 +224,8 @@ export class ClubsController {
   @Post(':id/logo')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
@@ -244,7 +257,8 @@ export class ClubsController {
   @Delete(':id/logo')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Remove a club logo (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async deleteLogo(@Param('id', ParseUUIDPipe) id: string) {
@@ -254,7 +268,8 @@ export class ClubsController {
   /** DELETE /api/v1/clubs/:id?mode=safe|archive|cleanup */
   @Delete(':id')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Delete or archive a club (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async delete(

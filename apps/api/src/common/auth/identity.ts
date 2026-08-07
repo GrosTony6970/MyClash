@@ -5,7 +5,7 @@ import type { FastifyRequest } from 'fastify';
  *
  * Four kinds, matching the four identity mechanisms the API actually accepts.
  * `super_admin` is deliberately NOT a kind: it is a claimed user plus a
- * platform_roles lookup, and that lookup stays where it is (SuperAdminGuard).
+ * platform_roles lookup, and that lookup stays where it is (PlatformRoleGuard).
  * Authentication here; authorization stays in the service layer.
  */
 export type Identity =

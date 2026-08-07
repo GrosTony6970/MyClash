@@ -1,7 +1,7 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
 import { AIDataQualityController } from './ai-data-quality.controller';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import { PlatformAISettingsController } from './platform-ai-settings.controller';
 
 function guardsFor(controller: object): unknown[] {
@@ -9,11 +9,11 @@ function guardsFor(controller: object): unknown[] {
 }
 
 describe('AI super-admin controller guards', () => {
-  it('protects platform AI settings with SuperAdminGuard', () => {
-    expect(guardsFor(PlatformAISettingsController)).toContain(SuperAdminGuard);
+  it('protects platform AI settings with PlatformRoleGuard', () => {
+    expect(guardsFor(PlatformAISettingsController)).toContain(PlatformRoleGuard);
   });
 
-  it('protects data quality routes with SuperAdminGuard', () => {
-    expect(guardsFor(AIDataQualityController)).toContain(SuperAdminGuard);
+  it('protects data quality routes with PlatformRoleGuard', () => {
+    expect(guardsFor(AIDataQualityController)).toContain(PlatformRoleGuard);
   });
 });

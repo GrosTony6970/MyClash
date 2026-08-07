@@ -1,11 +1,11 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminDashboardStatsService } from './admin-dashboard-stats.service';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
 @Controller('admin/dashboard-stats')
 export class AdminDashboardStatsController {
   constructor(private readonly service: AdminDashboardStatsService) {}

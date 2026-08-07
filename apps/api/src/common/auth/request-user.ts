@@ -4,7 +4,7 @@
  * Resolve the caller's user id from their Supabase JWT (cookie or Bearer).
  *
  * We deliberately do NOT read `req.actorUserId` here — that property is only
- * populated by `SuperAdminGuard`, and organizer-facing controllers
+ * populated by `PlatformRoleGuard`, and organizer-facing controllers
  * intentionally don't use that guard (organizers aren't super-admins).
  * Reading it there would leave every `assertOrgRole(orgId, 'unknown', …)`
  * throwing 403 for real org admins. See LESSONS_LEARNED.md > Identity & auth.

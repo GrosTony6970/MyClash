@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { SuperAdminGuard } from '../guards/super-admin.guard';
+import { PlatformRoleGuard } from '../guards/platform-role.guard';
+import { PlatformRole } from '../guards/platform-role.decorator';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import {
   CreateCustomRulesetDto,
@@ -25,7 +26,8 @@ import { getActorId } from '../../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/custom-rulesets')
 export class CustomRulesetsAdminController {
   constructor(private readonly service: CustomRulesetsService) {}

@@ -27,10 +27,14 @@
  * do NOT use the platform guard, resolve the caller with `resolveRequestUserId`
  * instead — never reach for this one.
  */
+import type { PlatformRole } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 
 /** Shape the platform guard stamps onto the request after verifying the tier. */
-export type ActorRequest = FastifyRequest & { actorUserId?: string };
+export type ActorRequest = FastifyRequest & {
+  actorUserId?: string;
+  platformRole?: PlatformRole;
+};
 
 /**
  * The verified caller's user id.
@@ -47,4 +51,16 @@ export function getActorId(req: FastifyRequest): string {
     );
   }
   return actor;
+}
+
+/**
+ * The tier the caller holds, for controllers and services that need to branch
+ * BELOW the guard — shaping a response rather than deciding access. Access
+ * decisions belong in the guard, not here.
+ *
+ * Returns `null` rather than throwing, because unlike an actor id this is
+ * legitimately absent on any route the platform guard did not run on.
+ */
+export function getPlatformRole(req: FastifyRequest): PlatformRole | null {
+  return (req as ActorRequest).platformRole ?? null;
 }

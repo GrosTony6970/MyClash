@@ -26,7 +26,7 @@ import { AdminDashboardStatsController } from './dashboard-stats.controller';
 import { ExchangeEditRequestsAdminController } from './exchange-edit-requests.controller';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { FeatureFlagsAdminController } from './feature-flags.controller';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import { LeagueScoringSystemsController } from './league-scoring-systems/league-scoring-systems.controller';
 import { LeagueScoringSystemsService } from './league-scoring-systems/league-scoring-systems.service';
 import { ModelSyncService } from './model-sync.service';
@@ -107,7 +107,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AIDataQualityService,
     LeagueScoringSystemsService,
     WeaponsAdminService,
-    SuperAdminGuard,
+    PlatformRoleGuard,
     RuntimeHealthAlertSettingsService,
     {
       provide: AdminRuntimeHealthService,
@@ -134,7 +134,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     },
   ],
   exports: [
-    SuperAdminGuard,
+    PlatformRoleGuard,
     AdminFeatureFlagsService,
     AIDataQualityService,
     LeagueScoringSystemsService,

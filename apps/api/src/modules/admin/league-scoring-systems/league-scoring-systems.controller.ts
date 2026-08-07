@@ -14,7 +14,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { SuperAdminGuard } from '../guards/super-admin.guard';
+import { PlatformRoleGuard } from '../guards/platform-role.guard';
+import { PlatformRole } from '../guards/platform-role.decorator';
 import {
   CreateLeagueScoringSystemDto,
   UpdateLeagueScoringSystemDto,
@@ -28,7 +29,7 @@ import { getActorId } from '../../../common/auth/actor';
 export class LeagueScoringSystemsController {
   constructor(private readonly service: LeagueScoringSystemsService) {}
 
-  // List endpoint is intentionally NOT guarded by SuperAdminGuard so that
+  // List endpoint is intentionally NOT guarded by PlatformRoleGuard so that
   // the league editor (used by org/league admins, not only super admins)
   // can populate the scoring-system dropdown. Writes remain super-admin only.
   @Get()
@@ -38,14 +39,16 @@ export class LeagueScoringSystemsController {
   }
 
   @Post()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Create a league scoring system preset (super admin)' })
   async create(@Body() dto: CreateLeagueScoringSystemDto, @Req() req: FastifyRequest) {
     return this.service.create(dto, getActorId(req));
   }
 
   @Patch(':id')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Update a league scoring system preset (super admin)' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -56,7 +59,8 @@ export class LeagueScoringSystemsController {
   }
 
   @Delete(':id')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a league scoring system preset (super admin)' })
   async delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
@@ -64,14 +68,16 @@ export class LeagueScoringSystemsController {
   }
 
   @Post(':id/clone')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Clone a league scoring system preset (super admin)' })
   async clone(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     return this.service.clone(id, getActorId(req));
   }
 
   @Patch(':id/set-default')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({
     summary:
       'Mark a league scoring system as the catalogue default (auto-clears the prior default).',
@@ -87,7 +93,8 @@ export class LeagueScoringSystemsController {
   }
 
   @Post(':id/versions/:versionId/rollback')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Rollback to a prior version (super admin)' })
   async rollback(
     @Param('id', ParseUUIDPipe) id: string,

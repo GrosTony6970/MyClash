@@ -15,7 +15,8 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { ClaimRequestsService } from './claim-requests.service';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
 const rejectClaimRequestSchema = z.object({ reason: z.string().min(2).max(500) }).strict();
@@ -23,7 +24,8 @@ class RejectClaimRequestDto extends createZodDto(rejectClaimRequestSchema) {}
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/global-person-claim-requests')
 export class ClaimRequestsAdminController {
   constructor(private readonly service: ClaimRequestsService) {}

@@ -13,7 +13,8 @@ import {
 import { ApiCookieAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
 /**
@@ -26,12 +27,13 @@ import { getActorId } from '../../common/auth/actor';
  *   POST   /fighters/:globalPersonId/refresh      Refresh one profile in place
  *   GET    /health                                Probe hemaratings.com (latency + status)
  *
- * All routes gated by `SuperAdminGuard`. Inline edit of `hema_ratings_id`
+ * All routes gated by `PlatformRoleGuard`. Inline edit of `hema_ratings_id`
  * goes through the existing global_persons PATCH endpoint — no new route here.
  */
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/hema-ratings')
 export class HemaRatingsAdminController {
   constructor(private readonly hemaRatings: HemaRatingsService) {}

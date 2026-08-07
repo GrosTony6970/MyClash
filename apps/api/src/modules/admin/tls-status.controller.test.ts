@@ -1,7 +1,7 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import type { AdminSystemActionsService } from './system-actions.service';
 import type { AdminTlsStatusService } from './tls-status.service';
 import { TlsStatusAdminController } from './tls-status.controller';
@@ -11,8 +11,8 @@ function controllerGuards(): unknown[] {
 }
 
 describe('TlsStatusAdminController', () => {
-  it('protects the TLS status routes with SuperAdminGuard', () => {
-    expect(controllerGuards()).toContain(SuperAdminGuard);
+  it('protects the TLS status routes with PlatformRoleGuard', () => {
+    expect(controllerGuards()).toContain(PlatformRoleGuard);
   });
 
   it('delegates GET to the probe service', async () => {

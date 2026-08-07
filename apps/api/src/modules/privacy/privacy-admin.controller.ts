@@ -22,7 +22,8 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
+import { PlatformRole } from '../admin/guards/platform-role.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { ErasureService } from './erasure.service';
@@ -58,7 +59,8 @@ export class AnonymiseDto extends createZodDto(anonymiseSchema) {}
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('super_admin')
 @Controller('admin')
 export class PrivacyAdminController {
   constructor(

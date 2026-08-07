@@ -1,15 +1,15 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminDashboardStatsController } from './dashboard-stats.controller';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 
 function controllerGuards(): unknown[] {
   return Reflect.getMetadata(GUARDS_METADATA, AdminDashboardStatsController) ?? [];
 }
 
 describe('AdminDashboardStatsController', () => {
-  it('protects dashboard stats with SuperAdminGuard', () => {
-    expect(controllerGuards()).toContain(SuperAdminGuard);
+  it('protects dashboard stats with PlatformRoleGuard', () => {
+    expect(controllerGuards()).toContain(PlatformRoleGuard);
   });
 
   it('returns service dashboard stats', async () => {

@@ -7,7 +7,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * rationale on VersionController. Adding a field is a decision to publish it,
  * not a formatting change: the deploy manifest this is built from also holds
  * `deployedBy`, `backupFile` and the version of every piece of infrastructure,
- * all of which stay behind SuperAdminGuard on /admin/system-versions.
+ * all of which stay behind PlatformRoleGuard on /admin/system-versions.
  */
 export class VersionResponseDto {
   @ApiProperty({

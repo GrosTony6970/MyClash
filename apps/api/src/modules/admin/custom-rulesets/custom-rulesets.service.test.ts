@@ -68,7 +68,7 @@ describe('CustomRulesetsService', () => {
 
   it('allows super-admin to edit a system ruleset (controller-level guard enforces the role)', async () => {
     // Round 7: the in-service is_system guard for update() is lifted because
-    // the controller already requires SuperAdminGuard. The service must
+    // the controller already requires PlatformRoleGuard. The service must
     // accept the patch and write the updates without throwing Forbidden.
     fromMock.mockReturnValue(
       makeChain({

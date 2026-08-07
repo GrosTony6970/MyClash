@@ -14,7 +14,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { CreateAiKeyDto, UpdateAiKeyDto } from '../ai-providers/dto/ai-key.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { ModelSyncService } from './model-sync.service';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 import { getActorId } from '../../common/auth/actor';
@@ -22,7 +23,8 @@ import { getActorId } from '../../common/auth/actor';
 /** Multi-key management for the shared super-admin AI keys. */
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('super_admin')
 @Controller('admin/ai-keys')
 export class PlatformAIKeysController {
   constructor(

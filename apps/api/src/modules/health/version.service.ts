@@ -17,7 +17,7 @@ const START_TIME = Date.now();
  *
  * Deliberately narrow. The manifest also carries `deployedBy`, `backupFile`,
  * `previousCommit` and every infrastructure image tag — that is why the full
- * board sits behind SuperAdminGuard. Typing only these three fields means a
+ * board sits behind PlatformRoleGuard. Typing only these three fields means a
  * later `return { ...manifest }` cannot compile, so the private fields cannot
  * leak into a public response by accident.
  */

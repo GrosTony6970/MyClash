@@ -7,7 +7,7 @@
  *     the correction requests filed against it. It never exposes the platform-wide
  *     log.
  *  2. LABEL SCOPE. The shared EntityLabelService runs on the service role with no
- *     org filtering, which is right under SuperAdminGuard and wrong here: the
+ *     org filtering, which is right under PlatformRoleGuard and wrong here: the
  *     `exchange_edit_request.approve` payload embeds the whole request row,
  *     including `reviewed_by_user_id` — and the reviewer is by definition a
  *     platform super-admin. Resolving that naively would hand an org editor a

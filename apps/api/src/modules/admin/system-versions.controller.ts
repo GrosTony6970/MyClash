@@ -2,7 +2,7 @@ import { BadRequestException, Controller, Get, Param, Post, Req, UseGuards } fro
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import type { SystemVersionsResponseDto } from './dto/system-versions.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import {
   AdminSystemActionsService,
   type ComponentAction,
@@ -15,7 +15,7 @@ const VALID_ACTIONS: ReadonlySet<ComponentAction> = new Set(['start', 'stop', 'r
 
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
 @Controller('admin/system-versions')
 export class SystemVersionsAdminController {
   constructor(

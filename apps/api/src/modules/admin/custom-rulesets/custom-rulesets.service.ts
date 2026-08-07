@@ -907,7 +907,7 @@ export class CustomRulesetsService {
    * No-op for super-admins (they should use `list()` for the unscoped view).
    */
   async listForOrg(orgId: string, _actorUserId: string): Promise<CustomRulesetRowHydrated[]> {
-    void _actorUserId; // role check happens at the controller via SuperAdminGuard or org-role assertion
+    void _actorUserId; // role check happens at the controller via PlatformRoleGuard or org-role assertion
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select('*')

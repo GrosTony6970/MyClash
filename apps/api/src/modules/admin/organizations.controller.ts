@@ -22,13 +22,15 @@ import {
   ReassignOwnerDto,
   UpdateOrganizationDto,
 } from './dto/admin-organizations.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
-/** Extract the authenticated user ID from the request (set by SuperAdminGuard). */
+/** Extract the authenticated user ID from the request (set by PlatformRoleGuard). */
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/organizations')
 export class OrganizationsAdminController {
   constructor(private readonly service: AdminOrganizationsService) {}
@@ -118,6 +120,7 @@ export class OrganizationsAdminController {
    * Hard delete. Cascades to events; preserves global Fighter profiles.
    */
   @Delete(':id')
+  @PlatformRole('super_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Hard delete organization (super admin)' })
   async delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {

@@ -2,7 +2,8 @@ import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UpdateBudgetDto } from '../ai-providers/dto/update-budget.dto';
 import { ModelSyncDto } from './dto/model-sync.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { ModelSyncService } from './model-sync.service';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 
@@ -12,7 +13,8 @@ import { PlatformAISettingsService } from './platform-ai-settings.service';
  */
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('super_admin')
 @Controller('admin/ai-settings')
 export class PlatformAISettingsController {
   constructor(

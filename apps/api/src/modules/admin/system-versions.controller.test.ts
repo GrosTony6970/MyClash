@@ -1,6 +1,6 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import { SystemVersionsAdminController } from './system-versions.controller';
 
 function controllerGuards(): unknown[] {
@@ -8,7 +8,7 @@ function controllerGuards(): unknown[] {
 }
 
 describe('SystemVersionsAdminController guards', () => {
-  it('protects system version routes with SuperAdminGuard', () => {
-    expect(controllerGuards()).toContain(SuperAdminGuard);
+  it('protects system version routes with PlatformRoleGuard', () => {
+    expect(controllerGuards()).toContain(PlatformRoleGuard);
   });
 });

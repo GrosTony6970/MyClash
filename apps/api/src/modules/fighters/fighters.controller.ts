@@ -30,7 +30,8 @@ import {
   ADMIN_READ_THROTTLE,
   CATALOG_READ_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
+import { PlatformRole } from '../admin/guards/platform-role.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FightersService, type FighterPhotoUpload } from './fighters.service';
 import { FighterMergeService } from './merge.service';
@@ -156,7 +157,7 @@ export class FightersController {
   @Get('merge/audit-log')
   @Throttle(ADMIN_READ_THROTTLE)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
   @ApiOperation({ summary: 'List recent fighter merge audit entries (super admin)' })
   async mergeAuditLog() {
     return this.fighterMerge.listMergeAudits();
@@ -259,7 +260,8 @@ export class FightersController {
   @Post('merge')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Merge two fighter profiles (super admin)' })
   async merge(@Body() dto: MergeFightersDto, @Req() req: FastifyRequest) {
     const actorUserId = getActorId(req);
@@ -269,7 +271,8 @@ export class FightersController {
   @Post('merge/:auditLogId/revert')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Revert a fighter merge within 30 days (super admin)' })
   async revertMerge(
     @Param('auditLogId', ParseUUIDPipe) auditLogId: string,
@@ -325,7 +328,8 @@ export class GlobalPersonsController {
   /** PATCH /api/v1/global-persons/:id */
   @Patch(':id')
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Update a global person profile (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateGlobalPersonDto) {
@@ -341,7 +345,8 @@ export class GlobalPersonsController {
   @Post('import/preview')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -380,7 +385,8 @@ export class GlobalPersonsController {
   @Post('import')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
   @ApiOperation({ summary: 'Commit a Global Profiles CSV import (super admin)' })
   async commitGlobalPersonsImport(@Body() dto: ImportCommitDto) {
     return this.fighters.commitGlobalPersonsImport(dto.decisions);

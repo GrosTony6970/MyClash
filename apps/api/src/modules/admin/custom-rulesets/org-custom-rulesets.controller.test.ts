@@ -18,7 +18,7 @@ function makeRequest(token?: string) {
 
 describe('OrgCustomRulesetsController authorization', () => {
   // Regression lock: previously this controller read `req.actorUserId`
-  // (a property only set by SuperAdminGuard), which on this guard-less
+  // (a property only set by PlatformRoleGuard), which on this guard-less
   // organizer route was always undefined. That made every assertOrgRole
   // call check `user_id = 'unknown'`, so even real org admins got 403.
   // The fix resolves the user id from the JWT cookie/Bearer token.

@@ -3,12 +3,14 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AIDataQualityService } from './ai-data-quality.service';
 import { StartDataQualityScanDto, UpdateDataQualityFindingDto } from './dto/data-quality.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/data-quality')
 export class AIDataQualityController {
   constructor(private readonly service: AIDataQualityService) {}

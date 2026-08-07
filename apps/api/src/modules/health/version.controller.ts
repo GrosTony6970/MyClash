@@ -30,7 +30,7 @@ export class VersionController {
    * @Public() is deliberate: an uptime monitor and a post-deploy check both
    * need this without a session. The payload is a narrow, hand-picked
    * projection — the full manifest (deployedBy, backup filenames, infra image
-   * versions) stays behind SuperAdminGuard on /admin/system-versions.
+   * versions) stays behind PlatformRoleGuard on /admin/system-versions.
    *
    * No @SkipThrottle here, unlike /health: nothing in the infrastructure
    * depends on this endpoint answering, so it keeps the global rate limit.

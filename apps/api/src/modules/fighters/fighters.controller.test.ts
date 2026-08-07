@@ -1,6 +1,6 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { FightersController, GlobalPersonsController } from './fighters.controller';
 
 function guardsFor(methodName: keyof FightersController): unknown[] {
@@ -23,10 +23,10 @@ function globalPersonThrottleLimit(methodName: keyof GlobalPersonsController): u
 }
 
 describe('FightersController merge guards', () => {
-  it('protects fighter merge endpoints with SuperAdminGuard', () => {
-    expect(guardsFor('merge')).toContain(SuperAdminGuard);
-    expect(guardsFor('revertMerge')).toContain(SuperAdminGuard);
-    expect(guardsFor('mergeAuditLog')).toContain(SuperAdminGuard);
+  it('protects fighter merge endpoints with PlatformRoleGuard', () => {
+    expect(guardsFor('merge')).toContain(PlatformRoleGuard);
+    expect(guardsFor('revertMerge')).toContain(PlatformRoleGuard);
+    expect(guardsFor('mergeAuditLog')).toContain(PlatformRoleGuard);
   });
 
   it('uses a higher read limit for the merge audit grid', () => {
@@ -35,8 +35,8 @@ describe('FightersController merge guards', () => {
 });
 
 describe('GlobalPersonsController guards', () => {
-  it('protects global profile edits with SuperAdminGuard', () => {
-    expect(globalPersonGuardsFor('update')).toContain(SuperAdminGuard);
+  it('protects global profile edits with PlatformRoleGuard', () => {
+    expect(globalPersonGuardsFor('update')).toContain(PlatformRoleGuard);
   });
 
   it('uses a catalog read limit for global profile searches', () => {

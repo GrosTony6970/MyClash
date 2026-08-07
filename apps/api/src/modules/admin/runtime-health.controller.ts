@@ -7,14 +7,14 @@ import type {
   RuntimeHealthAlertSettings,
 } from './dto/runtime-health.dto';
 import { UpdateAlertSettingsDto } from './dto/runtime-health.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 import { AdminRuntimeHealthService } from './runtime-health.service';
 import { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
 import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
 @Controller('admin/system/runtime-health')
 export class RuntimeHealthAdminController {
   constructor(

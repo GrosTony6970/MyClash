@@ -13,12 +13,14 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import { UpsertFeatureFlagDto } from './dto/admin-feature-flags.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('super_admin')
 @Controller('admin/feature-flags')
 export class FeatureFlagsAdminController {
   constructor(private readonly service: AdminFeatureFlagsService) {}

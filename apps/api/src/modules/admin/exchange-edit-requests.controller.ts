@@ -16,12 +16,14 @@ import {
   RejectExchangeEditRequestDto,
 } from './dto/exchange-edit-requests.dto';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('platform_admin')
 @Controller('admin/exchange-edit-requests')
 export class ExchangeEditRequestsAdminController {
   constructor(private readonly service: ExchangeEditRequestsAdminService) {}

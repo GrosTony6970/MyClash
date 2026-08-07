@@ -41,11 +41,13 @@ import {
   RestoreBackupDto,
   UpdateBackupScheduleDto,
 } from './dto/admin-backups.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 
 @ApiTags('admin')
 @ApiCookieAuth('sb-access-token')
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
+@PlatformRole('super_admin')
 @Controller('admin/backups')
 export class BackupsAdminController {
   constructor(private readonly backups: AdminBackupsService) {}

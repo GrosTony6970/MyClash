@@ -1,15 +1,15 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
 import { BackupsAdminController } from './backups.controller';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 
 function controllerGuards(): unknown[] {
   return Reflect.getMetadata(GUARDS_METADATA, BackupsAdminController) ?? [];
 }
 
 describe('BackupsAdminController guards', () => {
-  it('protects backup management routes with SuperAdminGuard', () => {
-    expect(controllerGuards()).toContain(SuperAdminGuard);
+  it('protects backup management routes with PlatformRoleGuard', () => {
+    expect(controllerGuards()).toContain(PlatformRoleGuard);
   });
 
   it('exposes backup deletion, restore, and schedule handlers', () => {

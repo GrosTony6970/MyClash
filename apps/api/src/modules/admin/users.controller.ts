@@ -26,12 +26,13 @@ import {
   UpdateOrgMembershipRoleDto,
   UpdatePlatformUserDto,
 } from './dto/admin-users.dto';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
+import { PlatformRole } from './guards/platform-role.decorator';
 import { getActorId } from '../../common/auth/actor';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
 @Controller('admin/users')
 export class UsersAdminController {
   constructor(private readonly service: AdminUsersService) {}
@@ -110,6 +111,7 @@ export class UsersAdminController {
   }
 
   @Patch(':id/disable')
+  @PlatformRole('platform_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Disable user (super admin)' })
   async disable(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
@@ -117,6 +119,7 @@ export class UsersAdminController {
   }
 
   @Patch(':id/enable')
+  @PlatformRole('platform_admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Enable user (super admin)' })
   async enable(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
@@ -124,6 +127,7 @@ export class UsersAdminController {
   }
 
   @Get(':id/temp-password')
+  @PlatformRole('super_admin')
   @ApiOperation({
     summary: 'Reveal the temp password set at user-create (super admin)',
     description:

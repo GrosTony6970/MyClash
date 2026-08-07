@@ -23,7 +23,7 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../../common/auth/public.decorator';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   AddMemberDto,
@@ -55,7 +55,7 @@ export class OrganizationsController {
 
   /** GET /api/v1/organizations — super admin only */
   @Get()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(PlatformRoleGuard)
   @ApiOperation({ summary: 'List all organizations (super admin)' })
   async list() {
     return this.orgs.list();

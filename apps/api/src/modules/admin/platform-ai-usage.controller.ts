@@ -1,12 +1,12 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformRoleGuard } from './guards/platform-role.guard';
 
 /** Platform-wide AI consumption rollup for the super-admin dashboard. */
 @ApiTags('super-admin')
 @ApiBearerAuth()
-@UseGuards(SuperAdminGuard)
+@UseGuards(PlatformRoleGuard)
 @Controller('admin/ai-usage')
 export class PlatformAIUsageController {
   constructor(private readonly usage: AIUsageService) {}
