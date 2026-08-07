@@ -98,6 +98,14 @@ const superAdminUsersPagePath = path.join(
   'users',
   'page.tsx',
 );
+const usersConsoleDir = [rootDir, 'apps', 'web-admin', 'app', 'admin', 'users'];
+const accountsPanelPath = path.join(...usersConsoleDir, 'AccountsPanel.tsx');
+const accountsTablePath = path.join(...usersConsoleDir, 'AccountsTable.tsx');
+const createPlatformAccountFormPath = path.join(
+  ...usersConsoleDir,
+  'CreatePlatformAccountForm.tsx',
+);
+const useAdminUsersPath = path.join(...usersConsoleDir, 'useAdminUsers.ts');
 const superAdminFightersPagePath = path.join(
   rootDir,
   'apps',
@@ -347,7 +355,7 @@ const adminBackupsServicePath = path.join(
 );
 const opsRunnerServerPath = path.join(rootDir, 'infra', 'ops-runner', 'server.mjs');
 const opsRunnerBackupCorePath = path.join(rootDir, 'infra', 'ops-runner', 'backup-core.mjs');
-const superAdminGuardPath = path.join(
+const platformRoleGuardPath = path.join(
   rootDir,
   'apps',
   'api',
@@ -355,7 +363,7 @@ const superAdminGuardPath = path.join(
   'modules',
   'admin',
   'guards',
-  'super-admin.guard.ts',
+  'platform-role.guard.ts',
 );
 const adminDashboardStatsControllerPath = path.join(
   rootDir,
@@ -461,6 +469,10 @@ const superAdminOrganizationDetailPageText = await readFile(
   'utf8',
 );
 const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
+const accountsPanelText = await readFile(accountsPanelPath, 'utf8');
+const accountsTableText = await readFile(accountsTablePath, 'utf8');
+const createPlatformAccountFormText = await readFile(createPlatformAccountFormPath, 'utf8');
+const useAdminUsersText = await readFile(useAdminUsersPath, 'utf8');
 const superAdminFightersPageText = await readFile(superAdminFightersPagePath, 'utf8');
 const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
 const superAdminBackupsPageText = await readFile(superAdminBackupsPagePath, 'utf8');
@@ -491,7 +503,7 @@ const adminBackupsControllerText = await readFile(adminBackupsControllerPath, 'u
 const adminBackupsServiceText = await readFile(adminBackupsServicePath, 'utf8');
 const opsRunnerServerText = await readFile(opsRunnerServerPath, 'utf8');
 const opsRunnerBackupCoreText = await readFile(opsRunnerBackupCorePath, 'utf8');
-const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
+const platformRoleGuardText = await readFile(platformRoleGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
 const adminOrganizationsServiceText = await readFile(adminOrganizationsServicePath, 'utf8');
@@ -970,7 +982,7 @@ requireContains(
 requireContains(
   adminDashboardPageText,
   'apps/web-admin/app/dashboard/page.tsx',
-  'data.admin?.isSuperAdmin',
+  'data.admin?.platformRole',
 );
 requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "href: '/admin'");
 requireContains(
@@ -1013,25 +1025,31 @@ requireContains(
   'apps/api/src/modules/auth/auth.service.ts',
   'getAdminLandingContext',
 );
-requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'platform_roles');
+// The table name no longer appears here: every platform-role lookup goes
+// through common/auth/platform-role.ts, which is the point of that module.
+requireContains(
+  authServiceText,
+  'apps/api/src/modules/auth/auth.service.ts',
+  'common/auth/platform-role',
+);
 requireContains(
   authServiceText,
   'apps/api/src/modules/auth/auth.service.ts',
   'organization_members',
 );
 requireContains(
-  superAdminGuardText,
-  'apps/api/src/modules/admin/guards/super-admin.guard.ts',
+  platformRoleGuardText,
+  'apps/api/src/modules/admin/guards/platform-role.guard.ts',
   'SUPABASE_AUTH_INTERNAL_URL',
 );
 requireContains(
-  superAdminGuardText,
-  'apps/api/src/modules/admin/guards/super-admin.guard.ts',
+  platformRoleGuardText,
+  'apps/api/src/modules/admin/guards/platform-role.guard.ts',
   '/user',
 );
-if (superAdminGuardText.includes('supabase.anon.auth.getUser')) {
+if (platformRoleGuardText.includes('supabase.anon.auth.getUser')) {
   errors.push(
-    'SuperAdminGuard must validate server-side admin tokens with internal GoTrue, not supabase.anon.auth.getUser.',
+    'PlatformRoleGuard must validate server-side admin tokens with internal GoTrue, not supabase.anon.auth.getUser.',
   );
 }
 requireContains(superAdminLayoutText, 'apps/web-admin/app/admin/layout.tsx', 'SuperAdminShell');
@@ -1259,7 +1277,7 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'service_role', 'SEED_ADMI
 requireContains(
   adminOrganizationsControllerText,
   'apps/api/src/modules/admin/organizations.controller.ts',
-  '@UseGuards(SuperAdminGuard)',
+  '@UseGuards(PlatformRoleGuard)',
 );
 requireContains(
   adminOrganizationsControllerText,
@@ -1373,7 +1391,7 @@ for (const expected of ['listAuthAdminUsers', 'createAuthAdminUser', 'deleteAuth
 requireContains(
   adminUsersControllerText,
   'apps/api/src/modules/admin/users.controller.ts',
-  '@UseGuards(SuperAdminGuard)',
+  '@UseGuards(PlatformRoleGuard)',
 );
 for (const expected of ['@Post()', "@Delete(':id')", 'CreatePlatformUserDto', 'mode']) {
   requireContains(
@@ -1420,13 +1438,16 @@ for (const expected of [
     expected,
   );
 }
+// The console is a shell plus components, so each assertion is checked against
+// the file that now owns it. The page itself only owns the tab split.
+for (const expected of ['SegmentedTabs', 'admin.users.tabs.platform', 'AccountsPanel']) {
+  requireContains(superAdminUsersPageText, 'apps/web-admin/app/admin/users/page.tsx', expected);
+}
+for (const expected of ['/api/v1/admin/users', 'common.tooManyRequests', 'actions.retry']) {
+  requireContains(accountsPanelText, 'apps/web-admin/app/admin/users/AccountsPanel.tsx', expected);
+}
 for (const expected of [
-  '/api/v1/admin/users',
-  'temporaryPassword',
-  "{ kind: 'delete', user, mode: 'safe' }",
-  "{ kind: 'delete', user, mode: 'cleanup' }",
   'admin.users.table.displayName',
-  'admin.users.create',
   'admin.users.actions.enableHelp',
   'admin.users.actions.disableHelp',
   'admin.users.actions.safeDelete',
@@ -1435,10 +1456,19 @@ for (const expected of [
   'admin.users.actions.cleanupDeleteHelp',
   'title={description}',
   'aria-label={`${label}: ${description}`}',
-  'common.tooManyRequests',
-  'actions.retry',
+  // Both delete modes must stay reachable from a row; safe-only would quietly
+  // remove the operator's escape hatch for an account with references.
+  "onDelete(user, 'safe')",
+  "onDelete(user, 'cleanup')",
 ]) {
-  requireContains(superAdminUsersPageText, 'apps/web-admin/app/admin/users/page.tsx', expected);
+  requireContains(accountsTableText, 'apps/web-admin/app/admin/users/AccountsTable.tsx', expected);
+}
+for (const expected of ['/api/v1/admin/users', 'temporaryPassword', 'admin.users.create']) {
+  requireContains(
+    createPlatformAccountFormText,
+    'apps/web-admin/app/admin/users/CreatePlatformAccountForm.tsx',
+    expected,
+  );
 }
 for (const expected of [
   'Platform accounts',
@@ -1451,13 +1481,21 @@ for (const expected of [
   requireContains(i18nText, 'packages/i18n/src/index.ts', expected);
 }
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMIN_PASSWORD']) {
-  if (superAdminUsersPageText.includes(forbidden)) {
-    errors.push(`apps/web-admin/app/admin/users/page.tsx must not expose ${forbidden}.`);
+  for (const [label, text] of [
+    ['apps/web-admin/app/admin/users/page.tsx', superAdminUsersPageText],
+    ['apps/web-admin/app/admin/users/AccountsPanel.tsx', accountsPanelText],
+    ['apps/web-admin/app/admin/users/AccountsTable.tsx', accountsTableText],
+    ['apps/web-admin/app/admin/users/CreatePlatformAccountForm.tsx', createPlatformAccountFormText],
+    ['apps/web-admin/app/admin/users/useAdminUsers.ts', useAdminUsersText],
+  ]) {
+    if (text.includes(forbidden)) {
+      errors.push(`${label} must not expose ${forbidden}.`);
+    }
   }
 }
 for (const expected of [
   "@Patch(':id')",
-  '@UseGuards(SuperAdminGuard)',
+  '@UseGuards(PlatformRoleGuard)',
   'updateGlobalPerson',
   'ADMIN_READ_THROTTLE',
   'CATALOG_READ_THROTTLE',
@@ -1530,7 +1568,7 @@ for (const expected of [
   "@Post('review-requests/:id/approve')",
   "@Post('review-requests/:id/link')",
   "@Post('review-requests/:id/reject')",
-  '@UseGuards(SuperAdminGuard)',
+  '@UseGuards(PlatformRoleGuard)',
   'CATALOG_READ_THROTTLE',
   '@Throttle(CATALOG_READ_THROTTLE)',
   'uploadLogo',
@@ -1711,7 +1749,7 @@ for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
 requireContains(
   adminDashboardStatsControllerText,
   'apps/api/src/modules/admin/dashboard-stats.controller.ts',
-  '@UseGuards(SuperAdminGuard)',
+  '@UseGuards(PlatformRoleGuard)',
 );
 requireContains(
   adminDashboardStatsControllerText,

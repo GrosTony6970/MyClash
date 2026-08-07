@@ -173,6 +173,7 @@
     "tests/e2e/16-pad-ui.spec.ts",
     "tests/e2e/17-archive-restore.spec.ts",
     "tests/e2e/18-staff-pad.spec.ts",
+    "tests/e2e/27-super-admin.spec.ts",
     "tests/e2e/29-league-multi-event.spec.ts",
     "tests/e2e/30-ai-settings.spec.ts",
     "tests/e2e/_bracket.ts"
