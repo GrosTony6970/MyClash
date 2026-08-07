@@ -13,9 +13,20 @@ describe('resolveLeagueWorkspaceDecision', () => {
   it('allows super-admins, who manage every league', () => {
     const decision = resolveLeagueWorkspaceDecision({
       type: 'claimed',
-      admin: { isSuperAdmin: true, organizations: [] },
+      admin: { platformRole: 'super_admin', organizations: [] },
     });
     expect(decision).toEqual({ kind: 'allow' });
+  });
+
+  // Matches the API: assertCanManageLeague widened to platform_admin, and a
+  // viewer still reaches the workspace because reading it is a read.
+  it.each(['platform_admin', 'platform_viewer'])('allows a %s', (role) => {
+    expect(
+      resolveLeagueWorkspaceDecision({
+        type: 'claimed',
+        admin: { platformRole: role, organizations: [] },
+      }),
+    ).toEqual({ kind: 'allow' });
   });
 
   it.each(['owner', 'admin'])(

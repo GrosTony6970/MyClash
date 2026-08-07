@@ -87,9 +87,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // this org's own Leagues entry, so offering /leagues for those would just be
   // a second door to the same room.
   const [hasLeagueRoles, setHasLeagueRoles] = useState(false);
-  // Super-admins are allowed into any org (see organizer-auth-decision) — surface
-  // a "Platform admin" link so the dual-role operator can jump back to /admin.
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  // Platform staff of ANY tier are allowed into any org (see
+  // organizer-auth-decision) — surface a link back to /admin so the dual-role
+  // operator can jump between their club and the console.
+  const [isPlatformStaff, setIsPlatformStaff] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const switcherRef = useRef<HTMLDivElement>(null);
 
@@ -153,7 +154,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           user?: { email?: string };
         };
         setHasLeagueRoles(Boolean(data?.admin?.hasLeagueRoles));
-        setIsSuperAdmin(Boolean(data?.admin?.isSuperAdmin));
+        setIsPlatformStaff(Boolean(data?.admin?.platformRole));
         setEmail(data?.user?.email ?? null);
         const decision = resolveAuthDecision(slug, data);
         if (decision.kind === 'unauthenticated') {
@@ -430,10 +431,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
       {/*
         Same rationale as the /leagues entry above: an absolute '/admin' href
         kept OUTSIDE orgNavItems so joinPath can't rewrite it into
-        '/org/{slug}/admin'. Only shown to super-admins, the workspace switch
+        '/org/{slug}/admin'. Only shown to platform staff, the workspace switch
         back to the platform console.
       */}
-      {isSuperAdmin && (
+      {isPlatformStaff && (
         <div className="border-t border-border pt-5">
           <div className="flex flex-col gap-1">
             {renderNavItem(

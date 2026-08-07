@@ -17,7 +17,7 @@
 export type LeagueWorkspaceMePayload = {
   type?: string;
   admin?: {
-    isSuperAdmin?: boolean;
+    platformRole?: string | null;
     organizations?: Array<{ slug: string; role?: string }>;
     hasLeagueRoles?: boolean;
   };
@@ -32,7 +32,7 @@ export function resolveLeagueWorkspaceDecision(
   me: LeagueWorkspaceMePayload | null,
 ): LeagueWorkspaceDecision {
   if (!me || me.type !== 'claimed') return { kind: 'unauthenticated' };
-  if (me.admin?.isSuperAdmin) return { kind: 'allow' };
+  if (me.admin?.platformRole) return { kind: 'allow' };
   if (me.admin?.hasLeagueRoles) return { kind: 'allow' };
 
   const orgs = me.admin?.organizations ?? [];

@@ -2331,7 +2331,14 @@ export const en = {
     },
     shell: {
       brand: 'MyClash',
-      role: 'Super admin',
+      // Per-tier badge under the wordmark. `role` was a single 'Super admin'
+      // literal, which told a read-only operator they were a super admin —
+      // exactly how someone concludes the app is broken when a button 403s.
+      roleLabel: {
+        superAdmin: 'Super admin',
+        platformAdmin: 'Platform admin',
+        platformViewer: 'Read-only',
+      },
       eyebrow: 'Operations console',
       title: 'Platform command center',
       status: 'Protected session',
@@ -9746,7 +9753,11 @@ export const fr = {
     },
     shell: {
       brand: 'MyClash',
-      role: 'Super admin',
+      roleLabel: {
+        superAdmin: 'Super admin',
+        platformAdmin: 'Admin plateforme',
+        platformViewer: 'Lecture seule',
+      },
       eyebrow: 'Console operations',
       title: 'Centre de commande plateforme',
       status: 'Session protegee',

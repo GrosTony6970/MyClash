@@ -17,7 +17,8 @@
 export type OrganizerMePayload = {
   type?: string;
   admin?: {
-    isSuperAdmin?: boolean;
+    /** Any platform tier enters any org workspace; null is an ordinary user. */
+    platformRole?: string | null;
     organizations?: Array<{ slug: string }>;
     /** Read by the shell to decide whether to offer the /leagues entry. */
     hasLeagueRoles?: boolean;
@@ -34,13 +35,13 @@ export function resolveAuthDecision(
   me: OrganizerMePayload | null,
 ): OrganizerAuthDecision {
   if (!me || me.type !== 'claimed') return { kind: 'unauthenticated' };
-  if (me.admin?.isSuperAdmin) return { kind: 'allow' };
+  if (me.admin?.platformRole) return { kind: 'allow' };
 
   const orgs = me.admin?.organizations ?? [];
   if (orgs.some((o) => o.slug === slug)) return { kind: 'allow' };
 
-  // Auto-redirect target on no_access: super-admins go to /admin (the
-  // earlier isSuperAdmin branch already covered that, kept for
+  // Auto-redirect target on no_access: platform staff go to /admin (the
+  // earlier platformRole branch already covered that, kept for
   // completeness); members go to their first known org; if a user
   // somehow has zero orgs, fall back to /login so they see an explicit
   // sign-in flow instead of a blank shell.

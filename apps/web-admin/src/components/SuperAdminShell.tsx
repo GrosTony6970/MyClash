@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavIcon, useFocusTrap, type NavIconName } from '@myclash/ui';
+import { atLeastPlatformRole, type PlatformRole } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 import {
@@ -17,6 +18,16 @@ interface NavItem {
   href: string;
   labelKey: string;
   icon: NavIconName;
+  /**
+   * Lowest tier that may see this entry. Defaults to `platform_viewer` —
+   * every console page has a readable GET, so hiding one is the exception.
+   *
+   * Set it only where the PAGE itself is reserved (the API refuses even the
+   * read): backups, feature flags, data retention, AI keys, AI budget. This
+   * mirrors the route tiers in platform-role-coverage.test.ts; a nav entry
+   * left visible for a page whose GET 403s is a dead end, not a leak.
+   */
+  minRole?: PlatformRole;
 }
 
 interface NavSection {
@@ -103,7 +114,12 @@ const navSections: readonly NavSection[] = [
         labelKey: 'admin.shell.nav.systemVersions',
         icon: 'system',
       },
-      { href: '/admin/backups', labelKey: 'admin.shell.nav.backups', icon: 'backups' },
+      {
+        href: '/admin/backups',
+        minRole: 'super_admin' as const,
+        labelKey: 'admin.shell.nav.backups',
+        icon: 'backups',
+      },
       { href: '/admin/audit-log', labelKey: 'admin.shell.nav.auditLog', icon: 'auditLog' },
     ],
   },
@@ -114,10 +130,20 @@ const navSections: readonly NavSection[] = [
     headingKey: 'admin.shell.sectionAI',
     items: [
       { href: '/admin/ai', labelKey: 'admin.shell.nav.aiDashboard', icon: 'ai' },
-      { href: '/admin/ai/keys', labelKey: 'admin.shell.nav.aiKeys', icon: 'aiKeys' },
+      {
+        href: '/admin/ai/keys',
+        minRole: 'super_admin' as const,
+        labelKey: 'admin.shell.nav.aiKeys',
+        icon: 'aiKeys',
+      },
       // Model catalog directly under the keys it is configured with.
       { href: '/admin/ai/models', labelKey: 'admin.shell.nav.aiModels', icon: 'aiModels' },
-      { href: '/admin/ai/budget', labelKey: 'admin.shell.nav.aiBudget', icon: 'aiBudget' },
+      {
+        href: '/admin/ai/budget',
+        minRole: 'super_admin' as const,
+        labelKey: 'admin.shell.nav.aiBudget',
+        icon: 'aiBudget',
+      },
       { href: '/admin/data-quality', labelKey: 'admin.shell.nav.dataQuality', icon: 'dataQuality' },
     ],
   },
@@ -126,17 +152,31 @@ const navSections: readonly NavSection[] = [
     items: [
       {
         href: '/admin/feature-flags',
+        minRole: 'super_admin' as const,
         labelKey: 'admin.shell.nav.featureFlags',
         icon: 'featureFlags',
       },
       {
         href: '/admin/data-retention',
+        minRole: 'super_admin' as const,
         labelKey: 'admin.shell.nav.dataRetention',
         icon: 'dataRetention',
       },
     ],
   },
 ];
+
+/**
+ * The badge under the wordmark. Named per tier rather than a single "Super
+ * admin" literal, because an operator who is only a read-only account should
+ * not be told they are a super admin — that is how someone concludes the app
+ * is broken when a button 403s.
+ */
+function roleLabelKey(role: PlatformRole | null): string {
+  if (role === 'super_admin') return 'admin.shell.roleLabel.superAdmin';
+  if (role === 'platform_admin') return 'admin.shell.roleLabel.platformAdmin';
+  return 'admin.shell.roleLabel.platformViewer';
+}
 
 function isActive(pathname: string, href: string) {
   // /admin and /admin/ai are landing pages whose deeper paths belong to
@@ -151,7 +191,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [platformRole, setPlatformRole] = useState<PlatformRole | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   // First org this super-admin also belongs to (if any). Drives the "switch to
   // event organiser" workspace link — the escape hatch for the sole operator
@@ -162,9 +202,11 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
 
   useFocusTrap(open, drawerRef);
 
-  // Polls /admin/notifications/summary every 60 s once super-admin is
+  // Polls /admin/notifications/summary every 60 s once a platform tier is
   // confirmed. Drives the sidebar Review-Queue badge + the header bell.
-  const notifications = useNotificationsSummary(apiUrl, isSuperAdmin);
+  // Open to every tier: the summary is a read, and a viewer watching the queue
+  // is exactly what a read-only account is for.
+  const notifications = useNotificationsSummary(apiUrl, platformRole !== null);
 
   // Escape closes the mobile drawer.
   useEffect(() => {
@@ -192,13 +234,15 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         const data = (await res.json()) as {
           type?: string;
           user?: { email?: string };
-          admin?: { isSuperAdmin?: boolean; organizations?: Array<{ slug?: string }> };
+          admin?: { platformRole?: PlatformRole | null; organizations?: Array<{ slug?: string }> };
         };
-        if (data.type !== 'claimed' || !data.admin?.isSuperAdmin) {
+        // ANY platform tier may enter the console; what differs is what the
+        // sidebar shows and what the API lets through once inside.
+        if (data.type !== 'claimed' || !data.admin?.platformRole) {
           window.location.replace('/login');
           return;
         }
-        setIsSuperAdmin(true);
+        setPlatformRole(data.admin.platformRole);
         setEmail(data.user?.email ?? null);
         const firstOrg = data.admin?.organizations?.find((org) => Boolean(org.slug));
         setOrganizerSlug(firstOrg?.slug ?? null);
@@ -211,6 +255,24 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
 
     return () => controller.abort();
   }, [apiUrl]);
+
+  /**
+   * Sections with their entries filtered to the caller's tier, and any section
+   * left with NOTHING dropped entirely.
+   *
+   * Dropping empty sections is the load-bearing half: `Settings` holds only
+   * super-admin entries, so for the two lower tiers it would otherwise render
+   * as a bare heading above a gap. `idx` is taken from the FILTERED list too,
+   * so the first visible section keeps its no-top-border treatment.
+   */
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        atLeastPlatformRole(platformRole, item.minRole ?? 'platform_viewer'),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -245,7 +307,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
-      {navSections.map((section, idx) => (
+      {visibleSections.map((section, idx) => (
         <div key={section.headingKey} className={idx === 0 ? '' : 'border-t border-border pt-5'}>
           {idx > 0 && (
             <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted">
@@ -348,7 +410,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
               {t('admin.shell.brand')}
             </p>
             <p className="text-xs font-semibold uppercase tracking-wider text-gold">
-              {t('admin.shell.role')}
+              {t(roleLabelKey(platformRole))}
             </p>
           </div>
         </Link>

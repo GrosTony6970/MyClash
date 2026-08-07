@@ -23,7 +23,8 @@ type OrgRole = 'owner' | 'admin' | 'scorekeeper' | 'viewer' | string;
 interface MeResponse {
   type?: string;
   admin?: {
-    isSuperAdmin?: boolean;
+    // No platform-tier field here on purpose: this resolver only ever reads
+    // `organizations`. The old `isSuperAdmin` was declared and never read.
     organizations?: Array<{ id: string; slug: string; role: OrgRole }>;
   };
 }

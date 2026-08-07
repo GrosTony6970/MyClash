@@ -72,7 +72,7 @@ export function SiteHeader() {
         if (!res.ok) return;
         const data = (await res.json()) as {
           admin?: {
-            isSuperAdmin?: boolean;
+            platformRole?: string | null;
             organizations?: Array<{ slug: string }>;
             hasLeagueRoles?: boolean;
           };
@@ -80,7 +80,7 @@ export function SiteHeader() {
         setHasAdminAccess(
           Boolean(
             data.admin &&
-            (data.admin.isSuperAdmin ||
+            (data.admin.platformRole ||
               (data.admin.organizations?.length ?? 0) > 0 ||
               data.admin.hasLeagueRoles),
           ),

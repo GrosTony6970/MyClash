@@ -8,7 +8,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 type MeResponse = {
   type: 'claimed' | 'guest' | 'anonymous';
   admin?: {
-    isSuperAdmin: boolean;
+    platformRole: string | null;
     organizations: Array<{ slug: string }>;
     hasLeagueRoles?: boolean;
   };
@@ -26,11 +26,14 @@ const apiUrl = getPublicApiUrl();
 /**
  * Resolve where a freshly-authenticated admin session should go, from /me.
  *
- * Dual-role exception: a user who is BOTH the platform super-admin AND a member
+ * Dual-role exception: a user who holds BOTH a platform role AND a membership
  * of at least one organization gets a `chooser` (not an automatic /admin
  * redirect). Forcing /admin used to strand the "sole operator" — an organiser
- * who is also the super-admin — on the platform console with no path to their
- * tournaments. Pure super-admins (no org) still go straight to /admin.
+ * who also works the platform — on the console with no path to their
+ * tournaments. Platform-only accounts still go straight to /admin.
+ *
+ * Applies to every tier, not just super-admin: a platform admin who also runs
+ * their own club has exactly the same problem.
  */
 async function resolveLanding(): Promise<Landing> {
   const res = await fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' });
@@ -42,7 +45,7 @@ async function resolveLanding(): Promise<Landing> {
   const organizations = data.admin?.organizations ?? [];
   const firstOrg = organizations.find((organization) => Boolean(organization.slug));
 
-  if (data.admin?.isSuperAdmin) {
+  if (data.admin?.platformRole) {
     return firstOrg
       ? { kind: 'chooser', organizerSlug: firstOrg.slug }
       : { kind: 'redirect', href: '/admin' };

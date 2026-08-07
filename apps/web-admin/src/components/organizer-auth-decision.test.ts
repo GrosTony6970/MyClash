@@ -13,9 +13,28 @@ describe('resolveAuthDecision', () => {
   it('allows super-admins regardless of the URL slug', () => {
     const decision = resolveAuthDecision('any-org-they-don-not-own', {
       type: 'claimed',
-      admin: { isSuperAdmin: true, organizations: [] },
+      admin: { platformRole: 'super_admin', organizations: [] },
     });
     expect(decision).toEqual({ kind: 'allow' });
+  });
+
+  // Every platform tier gets in, including read-only: entering the workspace
+  // is a read, and the API refuses their writes on its own.
+  it.each(['platform_admin', 'platform_viewer'])('allows a %s into any org', (role) => {
+    expect(
+      resolveAuthDecision('some-other-org', {
+        type: 'claimed',
+        admin: { platformRole: role, organizations: [] },
+      }),
+    ).toEqual({ kind: 'allow' });
+  });
+
+  it('does NOT treat a null platform role as access', () => {
+    const decision = resolveAuthDecision('some-other-org', {
+      type: 'claimed',
+      admin: { platformRole: null, organizations: [{ slug: 'their-own-org' }] },
+    });
+    expect(decision.kind).toBe('no_access');
   });
 
   it('returns no_access (NOT unauthenticated) when the URL slug is the literal "undefined"', () => {

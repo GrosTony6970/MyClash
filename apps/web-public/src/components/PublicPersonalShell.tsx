@@ -71,7 +71,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
           user?: { email?: string; display_name?: string; photo_url?: string };
           person?: { given_name?: string; family_name?: string };
           admin?: {
-            isSuperAdmin?: boolean;
+            platformRole?: string | null;
             organizations?: Array<{ slug: string }>;
             hasLeagueRoles?: boolean;
           };
@@ -90,7 +90,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         setHasAdminAccess(
           Boolean(
             data.admin &&
-            (data.admin.isSuperAdmin ||
+            (data.admin.platformRole ||
               (data.admin.organizations?.length ?? 0) > 0 ||
               data.admin.hasLeagueRoles),
           ),
