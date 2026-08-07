@@ -26,9 +26,7 @@ export type OrganizerMePayload = {
 };
 
 export type OrganizerAuthDecision =
-  | { kind: 'allow' }
-  | { kind: 'unauthenticated' }
-  | { kind: 'no_access'; redirectTo: string };
+  { kind: 'allow' } | { kind: 'unauthenticated' } | { kind: 'no_access'; redirectTo: string };
 
 export function resolveAuthDecision(
   slug: string,

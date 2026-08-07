@@ -647,8 +647,7 @@ export interface ClubSuggestion {
 }
 
 export type ClubPickerRow =
-  | { kind: 'existing'; club: ClubSuggestion }
-  | { kind: 'create'; name: string };
+  { kind: 'existing'; club: ClubSuggestion } | { kind: 'create'; name: string };
 
 export function computeClubPickerRows(
   typedText: string,

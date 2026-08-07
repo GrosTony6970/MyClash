@@ -16,8 +16,7 @@ describe('api-url', () => {
 
   beforeEach(() => {
     originalWindow = (globalThis as { window?: unknown }).window as
-      | typeof globalThis.window
-      | undefined;
+      typeof globalThis.window | undefined;
     vi.stubEnv('API_URL_INTERNAL', '');
     vi.stubEnv('NEXT_PUBLIC_API_URL', '');
   });

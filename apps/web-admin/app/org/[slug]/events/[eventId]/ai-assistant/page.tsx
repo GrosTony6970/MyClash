@@ -8,11 +8,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
 type DraftType =
-  | 'tournament_config'
-  | 'pool_plan'
-  | 'bracket_plan'
-  | 'schedule_grid'
-  | 'referee_assignments';
+  'tournament_config' | 'pool_plan' | 'bracket_plan' | 'schedule_grid' | 'referee_assignments';
 
 interface Tournament {
   id: string;

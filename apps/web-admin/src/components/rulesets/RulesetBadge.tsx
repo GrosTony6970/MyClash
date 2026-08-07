@@ -19,13 +19,7 @@ import { rulesetSemantic, StatusBadge, StatusHelp } from '@myclash/ui';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export type RulesetBadgeVariant =
-  | 'builtin'
-  | 'custom'
-  | 'default'
-  | 'published'
-  | 'draft'
-  | 'archived'
-  | 'pendingReview';
+  'builtin' | 'custom' | 'default' | 'published' | 'draft' | 'archived' | 'pendingReview';
 
 export function RulesetBadge({ variant, label }: { variant: RulesetBadgeVariant; label: string }) {
   const { t } = useI18n();

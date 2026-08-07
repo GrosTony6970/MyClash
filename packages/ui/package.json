@@ -21,12 +21,12 @@
     "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
     "@myclash/types": "workspace:^",
-    "lucide-react": "^1.27.0"
+    "lucide-react": "^1.29.0"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.0.0",
-    "@types/react": "^19.1.4",
-    "@types/react-dom": "^19.1.2",
+    "@supabase/supabase-js": "^2.112.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

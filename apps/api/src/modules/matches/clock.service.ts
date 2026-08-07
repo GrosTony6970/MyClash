@@ -22,14 +22,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { MatchCompletionService } from '../phases/match-completion.service';
 
 export type ClockAction =
-  | 'start'
-  | 'halt'
-  | 'resume'
-  | 'end'
-  | 'reopen'
-  | 'reset_clock'
-  | 'adjust_time'
-  | 'reset_match';
+  'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock' | 'adjust_time' | 'reset_match';
 
 export interface ClockState {
   matchId: string;

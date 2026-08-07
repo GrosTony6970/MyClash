@@ -1322,8 +1322,7 @@ export class StaffService {
     const weapon = phases?.tournaments?.weapon ?? null;
     const phaseCfg = phases?.config_json ?? null;
     const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
-      | number
-      | undefined;
+      number | undefined;
     const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
     const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;

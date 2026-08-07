@@ -7,11 +7,7 @@ import type { SendBroadcastNotificationDto } from './dto/notifications.dto';
 
 export type BroadcastSeverity = 'info' | 'warning' | 'alert';
 export type BroadcastTargetType =
-  | 'all'
-  | 'fighters'
-  | 'referees'
-  | 'fighters_and_referees'
-  | 'specific_persons';
+  'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 
 interface EventRow {
   id: string;

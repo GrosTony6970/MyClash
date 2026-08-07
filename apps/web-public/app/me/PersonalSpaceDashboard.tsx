@@ -337,8 +337,7 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
         return;
       }
       const body = (await res.json()) as
-        | { status: 'confirmation_sent'; redactedEmail: string }
-        | { status: 'pending_approval' };
+        { status: 'confirmation_sent'; redactedEmail: string } | { status: 'pending_approval' };
       if (body.status === 'pending_approval') {
         setClaim({ kind: 'pending' });
       } else {

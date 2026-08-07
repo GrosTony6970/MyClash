@@ -13,10 +13,7 @@ export type LeagueScoringSystem = 'ffamhe_tf_2026' | 'custom' | (string & {});
  */
 export type { LeagueRankingDimensions };
 export type LeagueTieBreaker =
-  | 'total_points'
-  | 'participation_count'
-  | 'medal_count'
-  | 'double_hit_average';
+  'total_points' | 'participation_count' | 'medal_count' | 'double_hit_average';
 
 export interface LeagueScoringConfig {
   scoringSystem: LeagueScoringSystem;

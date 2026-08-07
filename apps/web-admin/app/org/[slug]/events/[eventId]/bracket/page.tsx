@@ -243,11 +243,7 @@ export default function BracketPage() {
   // Posts to /matches/:id/forfeit so the operator doesn't have to leave
   // the bracket page for the common "Red couldn't make it" case.
   type ForfeitReason =
-    | 'voluntary'
-    | 'injury'
-    | 'black_card_1'
-    | 'black_card_2'
-    | 'conduct_violation';
+    'voluntary' | 'injury' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
   // Forfeit draft — lives inside the ✎ edit modal (no separate forfeit modal).
   const [forfeitSide, setForfeitSide] = useState<'red' | 'blue' | null>(null);
   const [forfeitReason, setForfeitReason] = useState<ForfeitReason>('voluntary');

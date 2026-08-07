@@ -330,10 +330,16 @@ const mutation = useMutation({
 
 ```typescript
 // List queries
-['posts'][('posts', { status: 'published' })][ // All posts // Filtered posts
+['posts'][
+  ('posts', { status: 'published' })
+] // All posts // Filtered posts
+[
   // Detail queries
   ('posts', postId)
-][('posts', postId, 'comments')][ // Single post // Post comments
+][
+  ('posts', postId, 'comments')
+] // Single post // Post comments
+[
   // Nested resources
   ('users', userId, 'posts')
 ][('users', userId, 'posts', postId)]; // User's posts // Specific user post

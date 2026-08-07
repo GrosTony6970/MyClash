@@ -104,8 +104,7 @@ export function roundCodeFromMatchRow(row: Record<string, unknown>): string {
   const swissRoundEmbed = row['swiss_rounds'] as { round_number?: number } | null;
   const phaseCfg = phase?.config_json ?? null;
   const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
-    | number
-    | undefined;
+    number | undefined;
   const { wbRounds, lbRounds } = bracketCodeConfig(phaseCfg);
   return buildRoundCode({
     weapon: phase?.tournaments?.weapon ?? null,

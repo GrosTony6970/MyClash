@@ -9238,24 +9238,12 @@ export interface components {
       organizationId: string;
       /** @enum {string} */
       role:
-        | 'owner'
-        | 'admin'
-        | 'editor'
-        | 'scorekeeper'
-        | 'referee'
-        | 'workshop_lead'
-        | 'read_only';
+        'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only';
     };
     UpdateOrgMembershipRoleDto: {
       /** @enum {string} */
       role:
-        | 'owner'
-        | 'admin'
-        | 'editor'
-        | 'scorekeeper'
-        | 'referee'
-        | 'workshop_lead'
-        | 'read_only';
+        'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only';
     };
     SetPlatformRoleDto: {
       /** @enum {string} */
@@ -9650,10 +9638,7 @@ export interface components {
         [key: string]: number;
       };
       tieBreakers?: (
-        | 'total_points'
-        | 'participation_count'
-        | 'medal_count'
-        | 'double_hit_average'
+        'total_points' | 'participation_count' | 'medal_count' | 'double_hit_average'
       )[];
     };
     UpdateLeagueDto: {
@@ -9670,10 +9655,7 @@ export interface components {
           [key: string]: number;
         };
         tieBreakers: (
-          | 'total_points'
-          | 'participation_count'
-          | 'medal_count'
-          | 'double_hit_average'
+          'total_points' | 'participation_count' | 'medal_count' | 'double_hit_average'
         )[];
       };
     };

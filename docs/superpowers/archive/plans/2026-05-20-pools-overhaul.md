@@ -1066,14 +1066,7 @@ Expected: FAIL with "Cannot find module './color-token'".
 
 ```ts
 export type ColorToken =
-  | 'red'
-  | 'blue'
-  | 'green'
-  | 'yellow'
-  | 'purple'
-  | 'orange'
-  | 'black'
-  | 'white';
+  'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange' | 'black' | 'white';
 
 const MAP: Record<ColorToken, string> = {
   red: 'bg-red-700',

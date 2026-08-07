@@ -41,10 +41,12 @@ allowBuilds:
 # An override forces its version on EVERY transitive consumer, so prefer
 # deleting a pin that is no longer needed over raising it to a new major.
 overrides:
-  fastify: ^5.8.5
-  fast-uri: ^3.1.2
+  fastify: ^5.11.2
+  # >=3.1.4 clears GHSA-4c8g-83qw-93j6; the previous ^3.1.2 pin resolved to
+  # exactly 3.1.2 and held the tree inside the advisory range.
+  fast-uri: ^3.1.5
   cross-spawn: ^7.0.6
   glob: ^10.5.0
   minimatch: ^9.0.9
-  picomatch: ^4.0.4
+  picomatch: ^4.0.5
   import-in-the-middle: ^3.0.1

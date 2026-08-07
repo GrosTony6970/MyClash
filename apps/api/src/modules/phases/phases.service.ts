@@ -68,11 +68,7 @@ import { SwissStandingsService } from '../swiss/swiss-standings.service';
  * that was actually shuffled.
  */
 type R1RankingSource =
-  | 'pool-standings'
-  | 'swiss-standings'
-  | 'registration-seed'
-  | 'rating'
-  | 'random';
+  'pool-standings' | 'swiss-standings' | 'registration-seed' | 'rating' | 'random';
 
 /**
  * Something the organiser should know about a draw that still succeeded.

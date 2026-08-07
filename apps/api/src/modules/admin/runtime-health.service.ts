@@ -131,9 +131,7 @@ export class AdminRuntimeHealthService {
     // worstStatus() returns the 4-value MetricStatus (incl. 'unavailable'), but both inputs here
     // are always 3-value, so the result is safely narrowable to QueueMetricOk['status'].
     const status = (v.totalFailed > 0 ? worstStatus(backlogStatus, 'warning') : backlogStatus) as
-      | 'healthy'
-      | 'warning'
-      | 'critical';
+      'healthy' | 'warning' | 'critical';
     return { status, totalWaiting: v.totalWaiting, totalFailed: v.totalFailed, queues: v.queues };
   }
 

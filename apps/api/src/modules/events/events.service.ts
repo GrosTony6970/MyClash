@@ -1355,9 +1355,7 @@ export class EventsService {
             // and 'single_elim' here would rank a Swiss field off an empty slot
             // tree and return nothing at all.
             phaseType: (swiss.swissPhaseId ? 'swiss' : 'single_elim') as
-              | 'single_elim'
-              | 'double_elim'
-              | 'swiss',
+              'single_elim' | 'double_elim' | 'swiss',
             wbRounds: null,
             lbRounds: null,
             secondChanceTarget: 'gold' as const,
@@ -1789,8 +1787,7 @@ export class EventsService {
         (p) => p['type'] === 'single_elim' || p['type'] === 'double_elim',
       );
       const bracketSizeRaw = ((bracketPhase?.['config_json'] as
-        | Record<string, unknown>
-        | undefined) ?? {})['bracketSize'];
+        Record<string, unknown> | undefined) ?? {})['bracketSize'];
       const bracketSize = typeof bracketSizeRaw === 'number' ? bracketSizeRaw : 0;
       return {
         ...t,

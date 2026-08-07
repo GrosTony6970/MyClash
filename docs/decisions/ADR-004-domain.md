@@ -16,13 +16,14 @@ The platform needs a canonical domain. Requirements:
 **`myclash.fr`** as the apex domain.
 
 Subdomain structure:
-| Subdomain | Service |
-|-----------|---------|
-| `myclash.fr` / `www.myclash.fr` | Marketing landing page |
-| `app.myclash.fr` | Public/spectator PWA + competitor portal |
-| `admin.myclash.fr` | Organiser admin + super-admin |
-| `scoring.myclash.fr` | Scorekeeper PWA |
-| `api.myclash.fr` | NestJS REST API + Supabase services |
+
+| Subdomain                       | Service                                  |
+| ------------------------------- | ---------------------------------------- |
+| `myclash.fr` / `www.myclash.fr` | Marketing landing page                   |
+| `app.myclash.fr`                | Public/spectator PWA + competitor portal |
+| `admin.myclash.fr`              | Organiser admin + super-admin            |
+| `scoring.myclash.fr`            | Scorekeeper PWA                          |
+| `api.myclash.fr`                | NestJS REST API + Supabase services      |
 
 ## Consequences
 

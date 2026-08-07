@@ -20,13 +20,7 @@ import { describe, it, expect } from 'vitest';
 // These mirror the SQL functions in 0002_rls.sql
 
 type Role =
-  | 'owner'
-  | 'admin'
-  | 'editor'
-  | 'scorekeeper'
-  | 'referee'
-  | 'workshop_lead'
-  | 'read_only';
+  'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only';
 
 interface OrgMember {
   organizationId: string;

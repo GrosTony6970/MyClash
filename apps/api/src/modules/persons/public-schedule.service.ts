@@ -418,29 +418,27 @@ export class PublicScheduleService {
     };
     raw.sort((a, b) => startMs(a) - startMs(b));
 
-    return raw.map(
-      (s): RefereeSlot => ({
-        id: s.id,
-        matchId: s.matchId,
-        matchNumberLabel: s.matchNumberLabel,
-        scheduledAt: s.scheduledAt,
-        startsAt: s.startsAt,
-        endsAt: s.endsAt,
-        role: s.role,
-        poolName: s.poolName,
-        poolId: s.poolId,
-        tournamentName: s.tournamentName,
-        tournamentSlug: s.tournamentSlug,
-        liceName: s.liceName,
-        matchKind: s.matchKind,
-        roundOfCount: s.roundOfCount,
-        swissRound: s.swissRound,
-        bracketSlotId: s.bracketSlotId,
-        skillName: s.skillName,
-        skillColor: s.skillColor,
-        poolMatchCount: s.poolMatchCount,
-      }),
-    );
+    return raw.map((s): RefereeSlot => ({
+      id: s.id,
+      matchId: s.matchId,
+      matchNumberLabel: s.matchNumberLabel,
+      scheduledAt: s.scheduledAt,
+      startsAt: s.startsAt,
+      endsAt: s.endsAt,
+      role: s.role,
+      poolName: s.poolName,
+      poolId: s.poolId,
+      tournamentName: s.tournamentName,
+      tournamentSlug: s.tournamentSlug,
+      liceName: s.liceName,
+      matchKind: s.matchKind,
+      roundOfCount: s.roundOfCount,
+      swissRound: s.swissRound,
+      bracketSlotId: s.bracketSlotId,
+      skillName: s.skillName,
+      skillColor: s.skillColor,
+      poolMatchCount: s.poolMatchCount,
+    }));
   }
 
   private async fetchWorkshops(_eventId: string, personId: string): Promise<WorkshopEnrollment[]> {

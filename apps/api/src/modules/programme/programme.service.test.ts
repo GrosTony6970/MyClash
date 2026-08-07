@@ -1138,8 +1138,7 @@ describe('ProgrammeService', () => {
         chain.eq = vi.fn((column: string, value: string) => {
           if (column === 'id') {
             const payload = (chain as unknown as Record<string, unknown>)['__pendingUpdate'] as
-              | { scheduled_at?: string }
-              | undefined;
+              { scheduled_at?: string } | undefined;
             if (payload && typeof payload.scheduled_at === 'string') {
               updates.push({ id: value, scheduled_at: payload.scheduled_at });
             }

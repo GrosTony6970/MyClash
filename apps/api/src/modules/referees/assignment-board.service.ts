@@ -1476,9 +1476,7 @@ export class AssignmentBoardService {
       person_id: string;
       tournament_id: string;
       persons?:
-        | { global_person_id: string | null }
-        | Array<{ global_person_id: string | null }>
-        | null;
+        { global_person_id: string | null } | Array<{ global_person_id: string | null }> | null;
     };
     return ((data ?? []) as Raw[]).map((row) => {
       const person = this.firstRelation(row.persons);

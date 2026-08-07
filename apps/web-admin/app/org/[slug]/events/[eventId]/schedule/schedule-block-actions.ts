@@ -9,8 +9,7 @@
  */
 
 export type BlockDeleteAction =
-  | { kind: 'unschedule'; matchIds: string[] }
-  | { kind: 'delete-block'; blockId: string };
+  { kind: 'unschedule'; matchIds: string[] } | { kind: 'delete-block'; blockId: string };
 
 /** Grid block kinds that hold scheduled matches (a "run"), not a programme bar. */
 const UNSCHEDULE_KINDS = new Set<string>(['pool', 'bracket', 'other']);

@@ -100,8 +100,7 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
  *  segments (break-free spans of commitments). A weapon that straddles a break
  *  therefore lands in a segment on either side of the bar. */
 export type DaySlice<TItem, TBar> =
-  | { type: 'bar'; bar: TBar }
-  | { type: 'segment'; index: number; items: TItem[] };
+  { type: 'bar'; bar: TBar } | { type: 'segment'; index: number; items: TItem[] };
 
 /** Interleave timed items with programme bars by start time, then split the item
  *  stream into segments wherever a bar falls. Bars sort before items at an equal
@@ -111,8 +110,7 @@ export function partitionAtBars<TItem, TBar>(
   bars: Array<{ bar: TBar; sort: number }>,
 ): DaySlice<TItem, TBar>[] {
   type Entry =
-    | { kind: 'bar'; sort: number; bar: TBar }
-    | { kind: 'item'; sort: number; item: TItem };
+    { kind: 'bar'; sort: number; bar: TBar } | { kind: 'item'; sort: number; item: TItem };
   const entries: Entry[] = [
     ...bars.map((b): Entry => ({ kind: 'bar', sort: b.sort, bar: b.bar })),
     ...items.map((it): Entry => ({ kind: 'item', sort: it.sort, item: it.item })),

@@ -220,27 +220,21 @@ export default function MySchedulePage() {
 
   // Build unified item list
   const allItems: ScheduleItem[] = [
-    ...schedule.matches.map(
-      (m): ScheduleItem => ({
-        kind: 'match',
-        data: m,
-        time: m.scheduledAt,
-      }),
-    ),
-    ...schedule.refereeSlots.map(
-      (r): ScheduleItem => ({
-        kind: 'referee',
-        data: r,
-        time: r.scheduledAt,
-      }),
-    ),
-    ...(schedule.workshops ?? []).map(
-      (w): ScheduleItem => ({
-        kind: 'workshop',
-        data: w,
-        time: w.sessionStart,
-      }),
-    ),
+    ...schedule.matches.map((m): ScheduleItem => ({
+      kind: 'match',
+      data: m,
+      time: m.scheduledAt,
+    })),
+    ...schedule.refereeSlots.map((r): ScheduleItem => ({
+      kind: 'referee',
+      data: r,
+      time: r.scheduledAt,
+    })),
+    ...(schedule.workshops ?? []).map((w): ScheduleItem => ({
+      kind: 'workshop',
+      data: w,
+      time: w.sessionStart,
+    })),
   ];
 
   // Day filter

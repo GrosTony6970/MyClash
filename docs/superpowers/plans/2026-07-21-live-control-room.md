@@ -1116,13 +1116,7 @@ Expected: FAIL — module not found.
 import type { BoardRow } from './types';
 
 export type HealthState =
-  | 'attention'
-  | 'no_scorer'
-  | 'stuck'
-  | 'stale'
-  | 'unknown'
-  | 'synced'
-  | 'idle';
+  'attention' | 'no_scorer' | 'stuck' | 'stale' | 'unknown' | 'synced' | 'idle';
 
 export interface Thresholds {
   staleAgeSec: number;

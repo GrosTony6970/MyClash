@@ -121,8 +121,7 @@ export function PenaltyLineagePanel({ base, status }: { base: string; status: Bu
  * rendered with the other's semantics.
  */
 export type RulesetLineagePayload =
-  | { base: string; diff: BucketDiff }
-  | { base: string; status: BucketStatus };
+  { base: string; diff: BucketDiff } | { base: string; status: BucketStatus };
 
 /**
  * Render whichever lineage the payload carries. Lets a browse surface (a

@@ -33,9 +33,7 @@ export interface SupabaseTokenResponse {
  *                    logging the user out over a transient blip.
  */
 type GoTrueValidation =
-  | { status: 'ok'; user: SupabaseAuthUser }
-  | { status: 'invalid' }
-  | { status: 'unavailable' };
+  { status: 'ok'; user: SupabaseAuthUser } | { status: 'invalid' } | { status: 'unavailable' };
 
 /**
  * Verify a Supabase access token locally (HS256, shared JWT secret). Returns the

@@ -24,9 +24,7 @@ export type LeagueWorkspaceMePayload = {
 };
 
 export type LeagueWorkspaceDecision =
-  | { kind: 'allow' }
-  | { kind: 'unauthenticated' }
-  | { kind: 'no_access'; redirectTo: string };
+  { kind: 'allow' } | { kind: 'unauthenticated' } | { kind: 'no_access'; redirectTo: string };
 
 export function resolveLeagueWorkspaceDecision(
   me: LeagueWorkspaceMePayload | null,

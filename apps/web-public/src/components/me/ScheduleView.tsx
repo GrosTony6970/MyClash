@@ -139,20 +139,24 @@ export function ScheduleView({
   const conflicts = detectConflicts(timed);
 
   const items: DisplayItem[] = [
-    ...schedule.matches.map(
-      (m): DisplayItem => ({ kind: 'fight', key: `fight-${m.id}`, time: m.scheduledAt, data: m }),
-    ),
-    ...referees.map(
-      (r): DisplayItem => ({ kind: 'referee', key: r.key, time: r.startIso, data: r }),
-    ),
-    ...(schedule.workshops ?? []).map(
-      (w): DisplayItem => ({
-        kind: 'workshop',
-        key: `ws-${w.workshopId}`,
-        time: w.sessionStart,
-        data: w,
-      }),
-    ),
+    ...schedule.matches.map((m): DisplayItem => ({
+      kind: 'fight',
+      key: `fight-${m.id}`,
+      time: m.scheduledAt,
+      data: m,
+    })),
+    ...referees.map((r): DisplayItem => ({
+      kind: 'referee',
+      key: r.key,
+      time: r.startIso,
+      data: r,
+    })),
+    ...(schedule.workshops ?? []).map((w): DisplayItem => ({
+      kind: 'workshop',
+      key: `ws-${w.workshopId}`,
+      time: w.sessionStart,
+      data: w,
+    })),
   ].sort(
     (a, b) =>
       (a.time ? new Date(a.time).getTime() : Infinity) -
@@ -310,8 +314,7 @@ export function ScheduleView({
   // segments (break-free spans of commitments grouped by weapon). A weapon that
   // straddles a break therefore appears as a section on either side of the bar.
   type DayRow =
-    | { type: 'bar'; bar: ProgrammeContextRow }
-    | { type: 'segment'; index: number; groups: Group[] };
+    { type: 'bar'; bar: ProgrammeContextRow } | { type: 'segment'; index: number; groups: Group[] };
 
   function rowsForDay(day: string, dayItems: DisplayItem[]): DayRow[] {
     const slices = partitionAtBars(
@@ -321,11 +324,10 @@ export function ScheduleView({
       })),
       (programmeByDay.get(day) ?? []).map((bar) => ({ bar, sort: new Date(bar.start).getTime() })),
     );
-    return slices.map(
-      (slice): DayRow =>
-        slice.type === 'bar'
-          ? { type: 'bar', bar: slice.bar }
-          : { type: 'segment', index: slice.index, groups: groupsFor(slice.items) },
+    return slices.map((slice): DayRow =>
+      slice.type === 'bar'
+        ? { type: 'bar', bar: slice.bar }
+        : { type: 'segment', index: slice.index, groups: groupsFor(slice.items) },
     );
   }
 

@@ -544,13 +544,7 @@ export class OrganizationsService {
     orgId: string,
     userId: string,
     minRole:
-      | 'owner'
-      | 'admin'
-      | 'editor'
-      | 'scorekeeper'
-      | 'referee'
-      | 'workshop_lead'
-      | 'read_only',
+      'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only',
   ) {
     const { data } = await this.supabase.service
       .from('organization_members')

@@ -31,14 +31,10 @@ export type ImmediateNotificationKind =
   | 'swiss_round_published';
 
 export type FollowNotificationKind =
-  | 'follow_match_starting'
-  | 'follow_referee_starting'
-  | 'follow_workshop_starting';
+  'follow_match_starting' | 'follow_referee_starting' | 'follow_workshop_starting';
 
 export type NotificationKind =
-  | ScheduledNotificationKind
-  | ImmediateNotificationKind
-  | FollowNotificationKind;
+  ScheduledNotificationKind | ImmediateNotificationKind | FollowNotificationKind;
 
 /**
  * The per-kind opt-outs, as column names.

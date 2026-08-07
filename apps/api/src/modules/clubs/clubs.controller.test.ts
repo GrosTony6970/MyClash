@@ -10,16 +10,14 @@ describe('ClubsController', () => {
 
   it('guards club deletion with PlatformRoleGuard', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, ClubsController.prototype.delete) as
-      | unknown[]
-      | undefined;
+      unknown[] | undefined;
 
     expect(guards).toContain(PlatformRoleGuard);
   });
 
   it('guards club logo upload with PlatformRoleGuard', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, ClubsController.prototype.uploadLogo) as
-      | unknown[]
-      | undefined;
+      unknown[] | undefined;
 
     expect(guards).toContain(PlatformRoleGuard);
   });

@@ -55,13 +55,7 @@
  */
 
 export type StatusSemantic =
-  | 'pending'
-  | 'ready'
-  | 'live'
-  | 'paused'
-  | 'done'
-  | 'archived'
-  | 'danger';
+  'pending' | 'ready' | 'live' | 'paused' | 'done' | 'archived' | 'danger';
 
 export type StatusSurface = 'light' | 'dark';
 
@@ -229,12 +223,7 @@ export function workshopStatusSemantic(status: string): StatusSemantic {
 }
 
 export type ReviewStatus =
-  | 'pending'
-  | 'requested'
-  | 'approved'
-  | 'linked'
-  | 'rejected'
-  | 'cancelled';
+  'pending' | 'requested' | 'approved' | 'linked' | 'rejected' | 'cancelled';
 
 // Review / request lifecycles (admin review queue, league join requests):
 // awaiting action → amber, approved → emerald, linked → blue, rejected → red,
@@ -280,13 +269,7 @@ export function clockStatusSemantic(status: string): StatusSemantic {
 }
 
 export type RulesetVariant =
-  | 'builtin'
-  | 'custom'
-  | 'default'
-  | 'published'
-  | 'draft'
-  | 'archived'
-  | 'pendingReview';
+  'builtin' | 'custom' | 'default' | 'published' | 'draft' | 'archived' | 'pendingReview';
 
 export function rulesetSemantic(variant: string): StatusSemantic {
   switch (variant) {

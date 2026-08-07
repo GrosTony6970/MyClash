@@ -22,7 +22,7 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
-    "luxon": "^3.5.0",
-    "@types/luxon": "^3.4.2"
+    "@types/luxon": "^3.7.3",
+    "luxon": "^3.5.0"
   }
 }

@@ -124,8 +124,7 @@ export default function AdminUserEditPage() {
     });
     if (!res.ok) return;
     const body = (await res.json()) as
-      | { status: 'active'; password: string }
-      | { status: 'password_changed' | 'expired' };
+      { status: 'active'; password: string } | { status: 'password_changed' | 'expired' };
     setTempPasswordStatus(body.status);
     setTempPassword(body.status === 'active' ? body.password : null);
     setTempPasswordRevealed(false);

@@ -17,20 +17,20 @@
     "@myclash/i18n": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
-    "@sentry/nextjs": "^10.53.1",
-    "dexie": "^4.4.2",
+    "@sentry/nextjs": "^10.69.0",
+    "dexie": "^4.4.4",
     "next": "16.2.6",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.6",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.15.18",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "fake-indexeddb": "^6.2.5",
-    "tailwindcss": "^4.1.6",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

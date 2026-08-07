@@ -235,8 +235,7 @@ export class ExportsService {
       } | null;
       const phaseConfig = (phase?.['config_json'] ?? null) as Record<string, unknown> | null;
       const sizeRaw = (phaseConfig?.['bracketSize'] ?? phaseConfig?.['mainBracketSize']) as
-        | number
-        | undefined;
+        number | undefined;
       const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
       const pool = match?.['pools'] as { sort_order?: number } | null;
       const bracketSlot = match?.['bracket_slots'] as { round?: number } | null;
