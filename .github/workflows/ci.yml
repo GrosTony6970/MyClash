@@ -193,6 +193,14 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:complexity
 
+      # Reads each workspace's tsconfig.build.json through the TypeScript API,
+      # so it checks the real emit PROGRAM rather than a filename glob —
+      # `exclude` prunes only the root set, and an imported helper re-enters
+      # looking perfectly excluded.
+      - name: Check test code is out of the emit surface
+        if: '!cancelled()'
+        run: pnpm quality:test-code-leak
+
       # Needs the COMPILED api: the OpenAPI document is built by booting
       # dist/app.module, not by reading source. No other job produces it, so
       # this step builds it itself.
