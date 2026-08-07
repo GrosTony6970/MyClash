@@ -348,7 +348,7 @@ services:
 
   # ── PostgREST (Supabase REST API) ────────────────────────────────
   supabase-rest:
-    image: postgrest/postgrest:v12.2.3
+    image: postgrest/postgrest:v14.16
     container_name: myclash-supabase-rest
     restart: unless-stopped
     environment:
@@ -356,7 +356,9 @@ services:
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
-      PGRST_DB_USE_LEGACY_GUCS: 'false'
+      # db-use-legacy-gucs was REMOVED in PostgREST v13 — every supported
+      # Postgres now uses the JSON-format GUCs this used to opt into, so the
+      # setting has no meaning on v14. Deleted rather than left as a stale key.
       PGRST_APP_SETTINGS_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       PGRST_APP_SETTINGS_JWT_EXP: '3600'
       TZ: ${TZ}

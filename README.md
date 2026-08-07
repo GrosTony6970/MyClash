@@ -117,7 +117,7 @@ The production deployment is a 14-service Docker Compose stack on a single VPS, 
 - `supabase-auth` (`supabase/gotrue:v2.195.0`) — email magic link + Google OAuth.
 - `supabase-realtime` (`supabase/realtime:v2.94.1`) — Phoenix Channels broadcasting Postgres row changes.
 - `supabase-storage` (`supabase/storage-api:v1.68.9`) — S3-compatible object storage (photos, club logos).
-- `supabase-rest` (`postgrest/postgrest:v12.2.3`) — PostgREST over the public schema, served at `/rest/v1`.
+- `supabase-rest` (`postgrest/postgrest:v14.16`) — PostgREST over the public schema, served at `/rest/v1`.
 
 **MyClash apps**
 

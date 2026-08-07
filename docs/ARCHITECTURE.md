@@ -2624,7 +2624,7 @@ The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/do
 | `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                               |
 | `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.94.1`                | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                        |
 | `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.               |
-| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v12.2.3`              | PostgREST over the public schema. Served at `/rest/v1`.                                              |
+| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                              |
 | `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                     |
 | `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                      |
 | `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                       |

@@ -171,7 +171,7 @@ services:
 
   # ── Supabase REST (PostgREST) ─────────────────────────────────────
   supabase-rest:
-    image: postgrest/postgrest:v12.2.3
+    image: postgrest/postgrest:v14.16
     container_name: myclash-dev-supabase-rest
     restart: unless-stopped
     environment:
@@ -179,7 +179,7 @@ services:
       PGRST_DB_SCHEMAS: public,storage,graphql_public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
-      PGRST_DB_USE_LEGACY_GUCS: 'false'
+      # db-use-legacy-gucs was REMOVED in PostgREST v13 (see prod compose).
       PGRST_APP_SETTINGS_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       PGRST_APP_SETTINGS_JWT_EXP: 3600
     depends_on:

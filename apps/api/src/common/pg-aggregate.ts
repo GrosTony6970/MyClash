@@ -7,7 +7,7 @@ import { BadRequestException } from '@nestjs/common';
  *
  * PostgREST rejects server-side aggregate functions (`cost_eur.sum()`,
  * `id.count()`) unless `db-aggregates-enabled` is turned on, and it has
- * defaulted to OFF since PostgREST 12 — which this stack pins (`v12.2.3` in
+ * defaulted to OFF since PostgREST 12 — which this stack pins (`v14.16` in
  * both `infra/docker-compose.prod.yml` and `.dev.yml`) without setting the
  * flag. The flag is deliberately left off: web-public talks to PostgREST
  * directly as `anon`, and enabling aggregates would let an anonymous caller run
