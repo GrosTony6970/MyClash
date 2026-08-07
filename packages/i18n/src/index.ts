@@ -1722,6 +1722,9 @@ export const en = {
       signingIn: 'Signing in...',
       sendLoginLink: 'Send login link',
       sending: 'Sending...',
+      forgotPassword: 'Forgot your password?',
+      resetSending: 'Sending reset link...',
+      resetCheckEmail: 'If this email is registered, a reset link has been sent.',
       signupPrompt: "Don't have an account?",
       signupLink: 'Sign up as an organizer',
       errors: {
@@ -9165,6 +9168,9 @@ export const fr = {
       signingIn: 'Connexion...',
       sendLoginLink: 'Envoyer le lien de connexion',
       sending: 'Envoi...',
+      forgotPassword: 'Mot de passe oublie ?',
+      resetSending: 'Envoi du lien...',
+      resetCheckEmail: 'Si cet email est enregistre, un lien de reinitialisation a ete envoye.',
       signupPrompt: "Vous n'avez pas de compte ?",
       signupLink: 'Inscrivez-vous comme organisateur',
       errors: {

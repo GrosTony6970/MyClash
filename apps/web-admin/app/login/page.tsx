@@ -9,7 +9,7 @@ import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
 import { getPublicApiUrl } from '@/lib/api-url';
 
-type LoadingAction = 'password' | 'magic_link' | 'google' | null;
+type LoadingAction = 'password' | 'magic_link' | 'google' | 'reset' | null;
 type LoginResponse = { next?: string };
 
 export default function LoginPage() {
@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   const apiUrl = getPublicApiUrl();
   const loading = loadingAction !== null;
@@ -89,6 +90,36 @@ export default function LoginPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.login.errors.magicLinkFailed'));
     } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  /**
+   * Request a password-recovery email.
+   *
+   * The admin login offered only password and magic link, so an operator who
+   * had forgotten their password and could not find a magic link had no
+   * self-service path at all — they needed another super-admin to reset it.
+   *
+   * Reuses the PUBLIC endpoint unchanged, including its no-enumeration
+   * behaviour: it answers the same way whether or not the address exists. So
+   * does this, which is why the notice is shown even when the request fails.
+   */
+  async function handlePasswordReset() {
+    if (!email.trim() || loading) return;
+    setLoadingAction('reset');
+    setError(null);
+    try {
+      await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch {
+      // Deliberately swallowed — see above.
+    } finally {
+      setResetNotice(t('auth.login.resetCheckEmail'));
       setLoadingAction(null);
     }
   }
@@ -167,6 +198,25 @@ export default function LoginPage() {
               className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void handlePasswordReset();
+            }}
+            disabled={loading || !email}
+            className="text-left text-xs font-semibold text-accent underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
+          >
+            {loadingAction === 'reset'
+              ? t('auth.login.resetSending')
+              : t('auth.login.forgotPassword')}
+          </button>
+
+          {resetNotice && (
+            <p className="text-sm text-foreground-secondary" role="status">
+              {resetNotice}
+            </p>
+          )}
 
           {error && (
             <p className="text-sm text-danger" role="alert">
