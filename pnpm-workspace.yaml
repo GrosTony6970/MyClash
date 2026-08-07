@@ -1,3 +1,50 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# Dependency install/postinstall scripts, allowlisted one by one. pnpm 11 blocks
+# every one of these by default (pnpm 10 only warned), so an unlisted package is
+# denied, not silently run. A build script is arbitrary code executing at install
+# time — decide each on what the script actually does, never by pasting whatever
+# `pnpm approve-builds` offers.
+allowBuilds:
+  # Installs the platform-native binary. Vite, Vitest and tsx cannot run without it.
+  esbuild: true
+  # Native image pipeline behind next/image optimisation in the standalone runtime.
+  sharp: true
+  # Downloads the sentry-cli binary, used to upload source maps during `next build`
+  # in each app's Docker builder stage.
+  '@sentry/cli': true
+  # Prebuilt native accelerator for msgpackr, which backs Next's build cache.
+  msgpackr-extract: true
+  # Library setup; arrives transitively via the Google GenAI / Sentry trees.
+  protobufjs: true
+  # DENIED — `preinstall` is a literal no-op echo and `prepare` only runs for git
+  # or local installs, never for a registry tarball. Nothing to gain.
+  '@google/genai': false
+  # DENIED — `opencollective || exit 0`, a donation banner.
+  '@nestjs/core': false
+  # DENIED — install-time analytics that reports home. Precisely what this
+  # allowlist exists to stop.
+  '@scarf/scarf': false
+  # DENIED — the root `prepare: simple-git-hooks` script already installs the
+  # hooks. Letting the dependency write them too is a second, unowned writer.
+  simple-git-hooks: false
+
+# Transitive-version pins. Moved here verbatim from `package.json#pnpm.overrides`
+# when the repo went to pnpm 11 — v11 no longer reads the `pnpm` field in
+# package.json, and does so SILENTLY: leaving them there means every pin below
+# quietly stops applying behind a green `pnpm install`. Several are security
+# pins, so verify with `pnpm why <name>` + `pnpm security:audit` after any
+# change, never by trusting a clean install.
+#
+# An override forces its version on EVERY transitive consumer, so prefer
+# deleting a pin that is no longer needed over raising it to a new major.
+overrides:
+  fastify: ^5.8.5
+  fast-uri: ^3.1.2
+  cross-spawn: ^7.0.6
+  glob: ^10.5.0
+  minimatch: ^9.0.9
+  picomatch: ^4.0.4
+  import-in-the-middle: ^3.0.1

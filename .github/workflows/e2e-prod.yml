@@ -14,7 +14,7 @@ concurrency:
 
 env:
   NODE_VERSION: '26'
-  PNPM_VERSION: '10.27.0'
+  PNPM_VERSION: '11.20.0'
 
 jobs:
   # Edge review of the PUBLIC app host only.

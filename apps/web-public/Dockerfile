@@ -4,7 +4,7 @@
 # Requires next.config.ts to have output: 'standalone'.
 
 ARG NODE_VERSION=26
-ARG PNPM_VERSION=10.27.0
+ARG PNPM_VERSION=11.20.0
 
 # ── base ─────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS base
