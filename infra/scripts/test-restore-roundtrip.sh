@@ -24,7 +24,7 @@
 
 set -Eeuo pipefail
 
-IMAGE="${TEST_PG_IMAGE:-supabase/postgres:17.6.1.121-mg-1}"
+IMAGE="${TEST_PG_IMAGE:-supabase/postgres:17.6.1.160}"
 CID="myclash-restore-test-$$"
 DB="myclash_test"
 PGUSER="postgres"

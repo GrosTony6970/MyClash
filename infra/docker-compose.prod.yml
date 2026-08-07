@@ -136,7 +136,7 @@ services:
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
-    image: supabase/postgres:17.6.1.160-multigres
+    image: supabase/postgres:17.6.1.160
     container_name: myclash-db
     restart: unless-stopped
     environment:

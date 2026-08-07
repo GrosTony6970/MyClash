@@ -78,7 +78,7 @@ services:
   #   docker compose -f infra/docker-compose.dev.yml down -v
   # then re-run migrations + seed.
   db:
-    image: supabase/postgres:17.6.1.160-multigres
+    image: supabase/postgres:17.6.1.160
     container_name: myclash-dev-db
     restart: unless-stopped
     environment:

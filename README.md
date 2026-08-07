@@ -109,7 +109,7 @@ The production deployment is a 14-service Docker Compose stack on a single VPS, 
 
 **Data**
 
-- `db` (`supabase/postgres:17.6.1.160-multigres`) — primary Postgres with the Supabase init scripts (auth, realtime, postgrest roles).
+- `db` (`supabase/postgres:17.6.1.160`) — primary Postgres with the Supabase init scripts (auth, realtime, postgrest roles).
 - `redis` (`redis:8-alpine3.23`) — cache + BullMQ queue + pub/sub. 512 MB max, appendonly.
 
 **Supabase surface** — each fronted directly by Traefik, in both dev and prod (no gateway in between)
