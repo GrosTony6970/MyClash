@@ -2617,7 +2617,7 @@ export const en = {
     users: {
       title: 'Platform accounts',
       description: 'Create, disable, restore, and remove platform accounts.',
-      accessDenied: 'Access denied. Super admin required.',
+      accessDenied: 'Access denied. Platform access required.',
       loadError: 'Failed to load platform accounts',
       genericError: 'Something went wrong',
       loading: 'Loading...',
@@ -2632,6 +2632,7 @@ export const en = {
         organizations: 'Organizations',
         created: 'Created',
         lastSignIn: 'Last sign-in',
+        role: 'Role',
         status: 'Status',
         actions: 'Actions',
       },
@@ -2648,10 +2649,22 @@ export const en = {
         platformViewer: 'Read-only',
         none: 'None',
       },
-      filter: {
-        showAll: 'Show all logins',
-        showAllHelp:
-          'Includes public users who signed in (e.g. with Google) but hold no role or organization.',
+      tabsLabel: 'Account population',
+      tabs: {
+        platform: 'Platform',
+        organiser: 'Organisers',
+        user: 'Users',
+      },
+      pagination: {
+        // "in this tab" on purpose: the tabs are predicates, not a partition,
+        // so an account can be counted under two of them and the three totals
+        // do not add up to the number of accounts.
+        summary: '{total} accounts in this tab · page {page} of {pages}',
+        previous: 'Previous',
+        next: 'Next',
+        perPage: 'Per page',
+        truncated:
+          'Too many accounts to list in full — the results below are incomplete. Narrow the search.',
       },
       create: {
         title: 'Create platform account',
@@ -10058,7 +10071,7 @@ export const fr = {
     users: {
       title: 'Comptes plateforme',
       description: 'Creer, desactiver, restaurer et supprimer les comptes plateforme.',
-      accessDenied: 'Acces refuse. Super-admin requis.',
+      accessDenied: 'Acces refuse. Acces plateforme requis.',
       loadError: 'Impossible de charger les comptes plateforme',
       genericError: 'Une erreur est survenue',
       loading: 'Chargement...',
@@ -10073,6 +10086,7 @@ export const fr = {
         organizations: 'Organisations',
         created: 'Cree',
         lastSignIn: 'Derniere connexion',
+        role: 'Role',
         status: 'Statut',
         actions: 'Actions',
       },
@@ -10086,10 +10100,19 @@ export const fr = {
         platformViewer: 'Lecture seule',
         none: 'Aucun',
       },
-      filter: {
-        showAll: 'Afficher toutes les connexions',
-        showAllHelp:
-          'Inclut les utilisateurs publics connectes (par ex. via Google) sans role ni organisation.',
+      tabsLabel: 'Population de comptes',
+      tabs: {
+        platform: 'Plateforme',
+        organiser: 'Organisateurs',
+        user: 'Utilisateurs',
+      },
+      pagination: {
+        summary: '{total} comptes dans cet onglet - page {page} sur {pages}',
+        previous: 'Precedent',
+        next: 'Suivant',
+        perPage: 'Par page',
+        truncated:
+          'Trop de comptes pour tout afficher - les resultats ci-dessous sont incomplets. Affinez la recherche.',
       },
       create: {
         title: 'Creer un compte plateforme',
