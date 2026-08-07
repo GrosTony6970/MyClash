@@ -1,0 +1,58 @@
+# Build context exclusions for every image built from the REPO ROOT.
+#
+# There was no root .dockerignore until now, and the four apps/*/.dockerignore
+# files were dead: BuildKit reads <context>/.dockerignore, or a
+# <dockerfile-path>.dockerignore sibling — never <dockerfile-dir>/.dockerignore.
+# Every compose service that builds an app uses `context: ../` with
+# `dockerfile: apps/X/Dockerfile`, so apps/api/.dockerignore was never once
+# consulted. This file is the one that is.
+#
+# Patterns are **/-prefixed deliberately. A bare `dist` anchors at the context
+# root and matches only /dist — it would look right and do nothing, since every
+# dist in this repo is nested (packages/*/dist, apps/api/dist).
+#
+# Why it matters beyond context size: the Dockerfiles COPY whole workspace
+# directories (`COPY packages/rulesets/ ./packages/rulesets/`), and CI builds
+# from a clean checkout but PRODUCTION builds run `docker compose build` on the
+# server against a working tree. tsc overwrites dist but never deletes from it,
+# so a host dist carrying artifacts from before an exclusion landed would be
+# copied into the builder and survive into the image.
+#
+# apps/web-marketing is NOT covered: it builds with `context: ../apps/web-marketing`,
+# so a root ignore file never applies to it. infra/ops-runner IS covered
+# (`context: ../`) even though it sits outside the Trivy image matrix.
+
+# ── Build artifacts ──────────────────────────────────────────────────────────
+# Each image compiles its own; a host copy is stale by definition.
+**/node_modules
+**/dist
+**/build
+**/.next
+**/.turbo
+**/coverage
+
+# ── Test and tooling output ──────────────────────────────────────────────────
+playwright-report
+test-results
+**/*.log
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+# Without this, `COPY apps/api/ ./apps/api/` pulls a developer's .env into a
+# builder layer. It does not reach the final image, but it does reach the
+# daemon's layer cache.
+**/.env
+**/.env.*
+!**/.env.example
+
+# ── VCS and local scratch ────────────────────────────────────────────────────
+# GIT_COMMIT arrives as a build ARG, so .git is never read during a build.
+.git
+.gitignore
+.github
+**/.DS_Store
+
+# NOTE: test SOURCES are deliberately NOT ignored here. Keeping test code out of
+# the compiled output is owned by each workspace's tsconfig.build.json and
+# proven by `pnpm quality:test-code-leak`. Excluding them here as well would
+# mask a regression in that split — the image would look clean while the build
+# config had silently stopped excluding anything.
