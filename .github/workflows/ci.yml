@@ -175,6 +175,15 @@ jobs:
       # in CI for six weeks — they were skipped, not passing.
       #
       # `!cancelled()` rather than `always()`: a cancelled run should stop.
+      # Phantom dependencies twice in one sweep: web-public ran vitest without
+      # declaring it, and @vitest/coverage-v8 was undeclared in all three
+      # workspaces that invoke it. Both would have been named install-time
+      # failures here. --lockfile-only so it does not depend on this job's
+      # cache restore, which has no fail-on-cache-miss.
+      - name: Check peer dependencies
+        if: '!cancelled()'
+        run: pnpm quality:peers
+
       - name: Check frontend secret boundaries
         if: '!cancelled()'
         run: pnpm security:client-secrets

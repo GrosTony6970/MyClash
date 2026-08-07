@@ -51,6 +51,42 @@ minimumReleaseAgeExclude:
   - '@nestjs/bull-shared@11.0.5'
   - '@nestjs/bullmq@11.0.5'
 
+# Peer-range carve-outs, read by `pnpm peers check` (the `quality:peers` gate)
+# as well as by install. Both entries below are upstream version lag, not
+# breakage — neither package has a release that accepts our version.
+#
+# Getting the shape wrong here fails SILENTLY, in three different ways:
+#   - the key must be camelCase. addSettingsFromWorkspaceManifestToConfig copies
+#     top-level keys matching /^[a-z][a-zA-Z0-9]*$/ and DROPS the rest with no
+#     warning, so `peer-dependency-rules:` reads as clean and does nothing.
+#   - the value must be QUOTED. parseAllowedVersions2 calls .split("||") outside
+#     its try/catch, so a bare `10` arrives as a YAML integer and crashes with a
+#     raw TypeError rather than a PnpmError.
+#   - the selector is `parent>target`, the same grammar as `overrides` below.
+#     Spaces around `>` degrade it to a match-all selector that silences the peer
+#     for EVERY parent.
+#
+# Scoped to a major so the carve-out expires on its own: eslint 11 or TypeScript
+# 7 will fall outside the range and redden the gate. It does NOT catch the other
+# direction — a future jsx-a11y that narrows within eslint 10 stays silenced.
+#
+# Only `bad` issues are filtered, never `missing`; there are no missing peers
+# today because the lockfile carries autoInstallPeers: true.
+peerDependencyRules:
+  allowedVersions:
+    # No ESLint 10 release exists — 6.10.2 is latest and untouched since
+    # 2024-10. Verified compatible rather than assumed: the plugin references
+    # none of the removed ESLint 9 context APIs, and all 34 recommended rules
+    # run clean in-process against eslint@10.8.0. Declared by packages/ui and
+    # all three web apps.
+    eslint-plugin-jsx-a11y>eslint: '10'
+    # openapi-typescript@7.13.0 peers typescript ^5.x; ours is pinned ^6.0.3
+    # deliberately (TS 7 has no programmatic compiler API until 7.1, which
+    # `nest build` needs, and typescript-eslint peers <6.1.0). It drives the
+    # compiler directly via `import ts from 'typescript'` and the OpenAPI drift
+    # gate passes on 6.0.3.
+    openapi-typescript>typescript: '6'
+
 # Transitive-version pins. Moved here verbatim from `package.json#pnpm.overrides`
 # when the repo went to pnpm 11 — v11 no longer reads the `pnpm` field in
 # package.json, and does so SILENTLY: leaving them there means every pin below
