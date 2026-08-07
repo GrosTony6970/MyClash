@@ -60,6 +60,12 @@ minimumReleaseAgeExclude:
 #
 # An override forces its version on EVERY transitive consumer, so prefer
 # deleting a pin that is no longer needed over raising it to a new major.
+#
+# Audited 2026-08-07 with `pnpm why` on each: none is vestigial. What each one
+# dedupes has drifted over time (glob now serves @nestjs/cli and
+# @sentry/bundler-plugin-core, minimatch serves eslint 10's config-array), so
+# re-check the consumer before assuming a pin is dead — the reason it was added
+# is rarely the reason it is still load-bearing.
 overrides:
   fastify: ^5.11.2
   # >=3.1.4 clears GHSA-4c8g-83qw-93j6; the previous ^3.1.2 pin resolved to
@@ -70,3 +76,9 @@ overrides:
   minimatch: ^9.0.9
   picomatch: ^4.0.5
   import-in-the-middle: ^3.0.1
+  # Transitive advisory floors. js-yaml is in the tree on two major lines at
+  # once, so it needs a key per major — a bare `js-yaml` override would drag
+  # the 5.x consumers back to 4.x.
+  'js-yaml@4': ^4.3.1
+  'js-yaml@5': ^5.2.3
+  find-my-way: ^9.7.0
