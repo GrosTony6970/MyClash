@@ -5,6 +5,7 @@ import { useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { RuntimeHealthTrend } from './RuntimeHealthTrend';
 
 type MetricStatus = 'healthy' | 'warning' | 'critical' | 'unavailable';
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -368,6 +369,7 @@ export function RuntimeHealthCard() {
               }
             />
           </div>
+          <RuntimeHealthTrend />
           <div className="px-4 py-2 text-xs text-muted border-t border-border">
             {t('admin.systemVersions.runtimeHealth.checkedAt')}:{' '}
             {formatCheckedAt(health.checkedAt, locale)}

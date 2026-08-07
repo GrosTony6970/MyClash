@@ -4403,6 +4403,13 @@ export const en = {
           used: 'Used',
           free: 'Free',
         },
+        trend: {
+          title: 'Trend',
+          window: 'Last 24 h',
+          samples: 'Samples',
+          empty: 'Not enough history yet. The monitor keeps a sample every few minutes.',
+          loadError: 'Could not load the trend history.',
+        },
         settings: {
           title: 'Alert settings',
           enabled: 'Alerts enabled',
@@ -11880,6 +11887,14 @@ export const fr = {
           title: 'Disque',
           used: 'Utilise',
           free: 'Libre',
+        },
+        trend: {
+          title: 'Tendance',
+          window: 'Dernières 24 h',
+          samples: 'Échantillons',
+          empty:
+            "Pas encore assez d'historique. Le moniteur conserve un échantillon toutes les quelques minutes.",
+          loadError: "Impossible de charger l'historique des tendances.",
         },
         settings: {
           title: "Parametres d'alerte",
