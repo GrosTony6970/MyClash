@@ -16,6 +16,8 @@ const SAMPLE_VALUES = new Map([
   // No sample value — the example ships it empty. Present only so the pair below
   // is declared in one place with its hash.
   ['TRAEFIK_DASHBOARD_PASSWORD', new Set([''])],
+  ['STUDIO_BASIC_AUTH', new Set(['admin:$$2y$$05$$changeme'])],
+  ['STUDIO_PASSWORD', new Set([''])],
   ['COOKIE_SECRET', new Set(['change-me-cookie-secret'])],
   ['SUPABASE_URL', new Set(['http://localhost:8000'])],
   ['POSTGRES_PASSWORD', new Set(['change-me-strong-password', 'dev-password'])],
@@ -93,7 +95,29 @@ const HUMAN_REQUIRED = [
   'BACKUP_SCW_BUCKET',
 ];
 
-const TRAEFIK_DASHBOARD_USERNAME = 'admin';
+// Every basic-auth surface the edge gates. Each is a HASH + PLAINTEXT pair in
+// .env: Traefik reads the hash, the operator (and, for the dashboard, the edge
+// probe) reads the plaintext. Adding a surface here is the whole wiring —
+// generation, staleness and regeneration all iterate this list.
+//
+// {SHA} rather than bcrypt on purpose: Compose interpolates docker labels, so a
+// bcrypt hash would need every `$` doubled. Base64 SHA-1 contains no `$` and
+// reaches Traefik byte-for-byte. The htpasswd `$$2y$$` sample values below are
+// only ever placeholders — nothing generates bcrypt.
+const BASIC_AUTH_PAIRS = [
+  {
+    service: 'TRAEFIK_DASHBOARD',
+    username: 'admin',
+    authKey: 'TRAEFIK_DASHBOARD_AUTH',
+    passwordKey: 'TRAEFIK_DASHBOARD_PASSWORD',
+  },
+  {
+    service: 'STUDIO',
+    username: 'admin',
+    authKey: 'STUDIO_BASIC_AUTH',
+    passwordKey: 'STUDIO_PASSWORD',
+  },
+];
 
 function base64urlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -107,16 +131,12 @@ function signSupabaseJwt(role, secret) {
   return `${data}.${signature}`;
 }
 
-function generateTraefikDashboardAuth() {
+function generateBasicAuth({ service, username }) {
   const password = randomBytes(18).toString('base64url');
   const hash = createHash('sha1').update(password).digest('base64');
   return {
-    envValue: `${TRAEFIK_DASHBOARD_USERNAME}:{SHA}${hash}`,
-    credential: {
-      service: 'TRAEFIK_DASHBOARD',
-      username: TRAEFIK_DASHBOARD_USERNAME,
-      password,
-    },
+    envValue: `${username}:{SHA}${hash}`,
+    credential: { service, username, password },
   };
 }
 
@@ -209,17 +229,21 @@ async function ensureEnvFile(envPath, examplePath) {
  * basic-auth-gated dashboard router, and an operator who lost the one-time
  * printout could never open the dashboard again either. Same reasoning as
  * SEED_ADMIN_PASSWORD.
+ *
+ * Studio is gated the same way and stores its plaintext for the same reason:
+ * losing it would mean losing the only DB console, recoverable solely by
+ * blanking the key and redeploying.
  */
-function applyTraefikDashboardPair(state) {
+function applyBasicAuthPair(state, pair) {
   const stale =
-    isSampleOrMissing('TRAEFIK_DASHBOARD_AUTH', state.values.get('TRAEFIK_DASHBOARD_AUTH')) ||
-    isSampleOrMissing('TRAEFIK_DASHBOARD_PASSWORD', state.values.get('TRAEFIK_DASHBOARD_PASSWORD'));
+    isSampleOrMissing(pair.authKey, state.values.get(pair.authKey)) ||
+    isSampleOrMissing(pair.passwordKey, state.values.get(pair.passwordKey));
   if (!stale) return;
 
-  const dashboardAuth = generateTraefikDashboardAuth();
-  applyValue(state, 'TRAEFIK_DASHBOARD_AUTH', dashboardAuth.envValue);
-  applyValue(state, 'TRAEFIK_DASHBOARD_PASSWORD', dashboardAuth.credential.password);
-  state.generatedCredentials.push(dashboardAuth.credential);
+  const generated = generateBasicAuth(pair);
+  applyValue(state, pair.authKey, generated.envValue);
+  applyValue(state, pair.passwordKey, generated.credential.password);
+  state.generatedCredentials.push(generated.credential);
 }
 
 export async function ensureProdEnv(envPath = '.env', options = {}) {
@@ -236,7 +260,7 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
   };
   state.values = parseEnv(state.content);
 
-  applyTraefikDashboardPair(state);
+  for (const pair of BASIC_AUTH_PAIRS) applyBasicAuthPair(state, pair);
 
   for (const [key, generate] of Object.entries(SECRET_GENERATORS)) {
     if (isSampleOrMissing(key, state.values.get(key))) {

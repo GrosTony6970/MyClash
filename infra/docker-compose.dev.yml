@@ -292,6 +292,53 @@ services:
       - traefik.http.routers.dev-storage.middlewares=myclash-geoblock-public@file,dev-supabase-storage-strip
       - traefik.http.services.dev-storage.loadbalancer.server.port=5000
 
+  # ── Postgres meta API (Studio's only route to the database) ───────
+  supabase-meta:
+    image: supabase/postgres-meta:v0.96.8
+    container_name: myclash-dev-supabase-meta
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB:-myclash}
+      PG_META_DB_USER: ${POSTGRES_USER:-supabase_admin}
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash-dev]
+
+  # ── Supabase Studio (operator DB console) ─────────────────────────
+  #
+  # Loopback-published rather than routed through Traefik: the prod router's two
+  # gates (IP allowlist + basic auth) are what make Studio safe to expose, and
+  # reproducing a toothless copy of that chain here would teach the wrong shape.
+  # Dev already publishes 5432 for desktop clients; this is the same trade.
+  #
+  # Studio bypasses RLS — see the prod compose header for why that is deliberate.
+  supabase-studio:
+    image: supabase/studio:2026.08.03-sha-022b374
+    container_name: myclash-dev-supabase-studio
+    restart: unless-stopped
+    environment:
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
+      DEFAULT_ORGANIZATION_NAME: MyClash
+      DEFAULT_PROJECT_NAME: ${POSTGRES_DB:-myclash}
+      SUPABASE_URL: https://api.myclash.localhost
+      SUPABASE_PUBLIC_URL: https://api.myclash.localhost
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      AUTH_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      NEXT_PUBLIC_ENABLE_LOGS: 'false'
+      TZ: ${TZ:-Europe/Paris}
+    ports:
+      - '127.0.0.1:3010:3000' # loopback only — never 0.0.0.0
+    depends_on:
+      supabase-meta: { condition: service_started }
+    networks: [myclash-dev]
+
   # ── NestJS API ────────────────────────────────────────────────────
   api:
     build:

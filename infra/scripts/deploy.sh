@@ -271,6 +271,8 @@ print_deployment_secrets() {
   local secret_keys=(
     TRAEFIK_DASHBOARD_AUTH
     TRAEFIK_DASHBOARD_PASSWORD
+    STUDIO_BASIC_AUTH
+    STUDIO_PASSWORD
     POSTGRES_PASSWORD
     COOKIE_SECRET
     SUPABASE_JWT_SECRET
@@ -304,6 +306,7 @@ print_deployment_secrets() {
     echo
     info "No new credentials were generated in this deploy."
     info "The current Traefik dashboard password is in .env as TRAEFIK_DASHBOARD_PASSWORD."
+    info "The current Supabase Studio password is in .env as STUDIO_PASSWORD."
   fi
 
   echo
@@ -368,6 +371,8 @@ set +a
 # Written by ensure-prod-env above, in the same pass as the hash — if this is
 # empty the two have been edited apart and the dashboard password is lost.
 : "${TRAEFIK_DASHBOARD_PASSWORD:?Missing TRAEFIK_DASHBOARD_PASSWORD in .env}"
+: "${STUDIO_BASIC_AUTH:?Missing STUDIO_BASIC_AUTH in .env}"
+: "${STUDIO_PASSWORD:?Missing STUDIO_PASSWORD in .env}"
 : "${POSTGRES_PASSWORD:?Missing POSTGRES_PASSWORD in .env}"
 : "${SUPABASE_JWT_SECRET:?Missing SUPABASE_JWT_SECRET in .env}"
 : "${SUPABASE_REALTIME_SECRET:?Missing SUPABASE_REALTIME_SECRET in .env}"

@@ -383,6 +383,113 @@ services:
       - traefik.http.routers.myclash-rest.priority=20
       - traefik.http.services.myclash-rest.loadbalancer.server.port=3000
 
+  # ── Postgres meta API (Studio's only route to the database) ───────
+  supabase-meta:
+    image: supabase/postgres-meta:v0.96.8
+    container_name: myclash-supabase-meta
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB:-myclash}
+      PG_META_DB_USER: ${POSTGRES_USER:-supabase_admin}
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ}
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:8080/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1));",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Deliberately unrouted: no traefik labels, no published ports. This speaks
+    # to Postgres as POSTGRES_USER and answers unauthenticated on the docker
+    # network, so the ONLY thing that may reach it is supabase-studio.
+    networks: [myclash]
+    mem_limit: 128m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  # ── Supabase Studio (operator DB console) ─────────────────────────
+  #
+  # RLS EXCEPTION — read before touching this service. Studio reaches Postgres
+  # through supabase-meta as POSTGRES_USER, so every query it runs BYPASSES the
+  # row-level security policies that are otherwise this system's only data
+  # boundary. Hard rule #4 still holds everywhere else; this is the one
+  # deliberate, operator-only hole, and that is exactly why the router below is
+  # gated twice.
+  #
+  # Self-hosted Studio ships with NO authentication of its own — upstream relies
+  # on Kong for that and this stack dropped Kong. The edge is therefore the only
+  # access control, which is why myclash-studio-ipallow and myclash-studio-auth
+  # are BUILT-IN Traefik middlewares written out in full rather than hidden
+  # behind the ${MW_*} prefixes: traefik-env.sh empties those when
+  # TRAEFIK_PLUGINS=off, and a plugin outage must never be able to publish an
+  # unauthenticated superuser SQL console.
+  supabase-studio:
+    image: supabase/studio:2026.08.03-sha-022b374
+    container_name: myclash-supabase-studio
+    restart: unless-stopped
+    environment:
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DEFAULT_ORGANIZATION_NAME: MyClash
+      DEFAULT_PROJECT_NAME: ${POSTGRES_DB:-myclash}
+      # Reaches the gateway through the app.${DOMAIN} network alias declared on
+      # the traefik service, so this resolves inside the compose network and
+      # still presents the real Let's Encrypt certificate.
+      SUPABASE_URL: https://app.${DOMAIN}
+      SUPABASE_PUBLIC_URL: https://app.${DOMAIN}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      AUTH_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      NEXT_PUBLIC_ENABLE_LOGS: 'false'
+      TZ: ${TZ}
+    depends_on:
+      supabase-meta: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/api/platform/profile').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1));",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [myclash]
+    mem_limit: 512m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-studio.rule=Host(`studio.${DOMAIN}`)
+      - traefik.http.routers.myclash-studio.entrypoints=websecure
+      - traefik.http.routers.myclash-studio.tls=true
+      - traefik.http.routers.myclash-studio.tls.certresolver=letsencrypt
+      # Order matters: the IP allowlist rejects before the password prompt is
+      # ever shown, so a wrong-network client never learns a login exists.
+      # The two @docker middlewares below are NOT optional and NOT prefixed —
+      # see the header comment.
+      - traefik.http.routers.myclash-studio.middlewares=${MW_GEO_ADMIN}${MW_F2B_AUTH}myclash-studio-ipallow@docker,myclash-studio-auth@docker,myclash-security-headers@file
+      - traefik.http.middlewares.myclash-studio-ipallow.ipallowlist.sourcerange=${TRAEFIK_STUDIO_ALLOWLIST}
+      - traefik.http.middlewares.myclash-studio-auth.basicauth.users=${STUDIO_BASIC_AUTH}
+      - traefik.http.services.myclash-studio.loadbalancer.server.port=3000
+
   # ── NestJS API ────────────────────────────────────────────────────
   api:
     build:

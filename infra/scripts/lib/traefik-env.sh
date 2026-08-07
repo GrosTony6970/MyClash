@@ -30,6 +30,26 @@ fi
 # but not :+, so the join happens here where the syntax is certain. An empty
 # whitelist yields the local ranges with no trailing comma.
 export TRAEFIK_BAN_ALLOWLIST="127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16${_mc_throttle_whitelist:+,$_mc_throttle_whitelist}"
+
+# --- Studio allowlist -------------------------------------------------------
+# Same source, opposite semantics — so NOT the same value. The ban allowlist
+# carries the RFC1918 ranges because "don't ban the local network" is right;
+# "let the whole local network open a superuser SQL console" is not. Studio gets
+# loopback plus the operator's explicitly trusted addresses, nothing else.
+#
+# Fails CLOSED: an empty THROTTLE_IP_WHITELIST leaves loopback only, and Studio
+# is unreachable from anywhere. That is the correct failure mode for a console
+# whose only other gate is a password — an empty sourcerange in Traefik would
+# otherwise be indistinguishable from "no restriction" at a glance.
+#
+# A dynamic home IP therefore locks the operator out. Recovery is one edit:
+#   THROTTLE_IP_WHITELIST=<new ip> in .env, then ./infra/scripts/start.sh
+export TRAEFIK_STUDIO_ALLOWLIST="127.0.0.1,::1${_mc_throttle_whitelist:+,$_mc_throttle_whitelist}"
+if [[ -z "$_mc_throttle_whitelist" ]]; then
+  warn "THROTTLE_IP_WHITELIST is empty — Supabase Studio is reachable from loopback only."
+  warn "Set it in .env and re-run this script to reach studio.\${DOMAIN}."
+fi
+
 unset _mc_throttle_whitelist
 
 # --- Plugin middleware kill-switch ------------------------------------------

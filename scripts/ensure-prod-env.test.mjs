@@ -41,6 +41,8 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
       'TZ=Europe/Paris',
       'COMPOSE_PROJECT_NAME=myclash',
       'TRAEFIK_DASHBOARD_AUTH=admin:$$2y$$05$$changeme',
+      'STUDIO_BASIC_AUTH=admin:$$2y$$05$$changeme',
+      'STUDIO_PASSWORD=',
       'COOKIE_SECRET=change-me-cookie-secret',
       'SUPABASE_URL=http://localhost:8000',
       'POSTGRES_USER=postgres',
@@ -103,8 +105,13 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
   assert.match(values.get('TRAEFIK_DASHBOARD_AUTH'), /^admin:\{SHA\}.+/);
-  assert.equal(result.generatedCredentials.length, 1);
-  assert.deepEqual(result.generatedCredentials[0]?.service, 'TRAEFIK_DASHBOARD');
+  // Every basic-auth surface in BASIC_AUTH_PAIRS generates from one sample .env:
+  // the Traefik dashboard and Supabase Studio.
+  assert.equal(result.generatedCredentials.length, 2);
+  assert.deepEqual(
+    result.generatedCredentials.map((c) => c.service),
+    ['TRAEFIK_DASHBOARD', 'STUDIO'],
+  );
   assert.deepEqual(result.generatedCredentials[0]?.username, 'admin');
   assert.equal(
     verifyHtpasswdSha(
@@ -124,6 +131,16 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
     ),
     true,
   );
+  // Studio is gated the same way and stores the same hash/plaintext round-trip.
+  // It is the only DB console, so a drifted pair means no way in at all.
+  assert.match(values.get('STUDIO_BASIC_AUTH'), /^admin:\{SHA\}.+/);
+  assert.equal(values.get('STUDIO_PASSWORD'), result.generatedCredentials[1]?.password);
+  assert.equal(
+    verifyHtpasswdSha(values.get('STUDIO_BASIC_AUTH'), values.get('STUDIO_PASSWORD')),
+    true,
+  );
+  // The two surfaces must never share a password.
+  assert.notEqual(values.get('STUDIO_PASSWORD'), values.get('TRAEFIK_DASHBOARD_PASSWORD'));
   assert.notEqual(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'change-me-realtime-db-enc-key');
   assertRealtimeDbEncKey(values.get('SUPABASE_REALTIME_DB_ENC_KEY'));
   assert.notEqual(values.get('OPS_RUNNER_SECRET'), 'change-me-ops-runner-secret');
@@ -187,6 +204,8 @@ test('preserves real existing values', async () => {
       'LETSENCRYPT_EMAIL=ops@existing.example',
       'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
       'TRAEFIK_DASHBOARD_PASSWORD=real-dashboard-password',
+      'STUDIO_BASIC_AUTH=admin:{SHA}realstudiohash',
+      'STUDIO_PASSWORD=real-studio-password',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
@@ -217,6 +236,8 @@ test('preserves real existing values', async () => {
   assert.equal(values.get('POSTGRES_PASSWORD'), 'real-db-password');
   assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
   assert.equal(values.get('TRAEFIK_DASHBOARD_PASSWORD'), 'real-dashboard-password');
+  assert.equal(values.get('STUDIO_BASIC_AUTH'), 'admin:{SHA}realstudiohash');
+  assert.equal(values.get('STUDIO_PASSWORD'), 'real-studio-password');
   assert.equal(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'validrealtimekey');
   assert.equal(values.get('SUPABASE_ANON_KEY'), 'real-anon-token');
   assert.equal(values.get('VAPID_PUBLIC_KEY'), 'real-vapid-public');
@@ -234,6 +255,8 @@ test('appends generated realtime DB encryption key to existing old env files', a
       'LETSENCRYPT_EMAIL=ops@existing.example',
       'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
       'TRAEFIK_DASHBOARD_PASSWORD=real-dashboard-password',
+      'STUDIO_BASIC_AUTH=admin:{SHA}realstudiohash',
+      'STUDIO_PASSWORD=real-studio-password',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
@@ -278,6 +301,8 @@ test('rotates the dashboard pair when the hash is real but the plaintext is miss
       'DOMAIN=existing.example',
       'LETSENCRYPT_EMAIL=ops@existing.example',
       'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'STUDIO_BASIC_AUTH=admin:{SHA}realstudiohash',
+      'STUDIO_PASSWORD=real-studio-password',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
@@ -318,6 +343,64 @@ test('rotates the dashboard pair when the hash is real but the plaintext is miss
   // the Deployment secrets section.
   assert.equal(result.generatedCredentials.length, 1);
   assert.equal(result.generatedCredentials[0]?.password, values.get('TRAEFIK_DASHBOARD_PASSWORD'));
+  // Studio arrived with a whole pair and must be left alone — rotating a
+  // surface the operator did not ask about is how a working login disappears.
+  assert.equal(values.get('STUDIO_BASIC_AUTH'), 'admin:{SHA}realstudiohash');
+});
+
+// Same one-way-hash reasoning as the dashboard, one surface further: every .env
+// written before Studio existed has neither key, and any .env that grew only the
+// hash cannot have its plaintext recovered.
+test('rotates the studio pair independently of the dashboard pair', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'myclash-prod-env-'));
+  const envPath = path.join(dir, '.env');
+  await writeFile(
+    envPath,
+    [
+      'DOMAIN=existing.example',
+      'LETSENCRYPT_EMAIL=ops@existing.example',
+      'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'TRAEFIK_DASHBOARD_PASSWORD=real-dashboard-password',
+      'STUDIO_BASIC_AUTH=admin:{SHA}realstudiohash',
+      'POSTGRES_PASSWORD=real-db-password',
+      'COOKIE_SECRET=real-cookie-secret',
+      'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
+      'SUPABASE_REALTIME_SECRET=real-realtime-secret-with-more-than-64-characters-xxxxxxxxxxxxxxxx',
+      'SUPABASE_REALTIME_DB_ENC_KEY=validrealtimekey',
+      'SUPABASE_ANON_KEY=real-anon-token',
+      'SUPABASE_SERVICE_ROLE_KEY=real-service-token',
+      'MYCLASH_GUEST_JWT_SECRET=real-guest-secret',
+      'MYCLASH_STAFF_JWT_SECRET=real-staff-secret',
+      'RESEND_API_KEY=re_real_key',
+      'MAIL_FROM=noreply@existing.example',
+      'SMTP_PASS=re_real_key',
+      'SEED_ADMIN_EMAIL=admin@existing.example',
+      'BACKUP_SCW_ACCESS_KEY=scw_access',
+      'BACKUP_SCW_SECRET_KEY=scw_secret',
+      'BACKUP_SCW_BUCKET=myclash-backups',
+      'GOOGLE_OAUTH_ENABLED=false',
+      'VAPID_PUBLIC_KEY=real-vapid-public',
+      'VAPID_PRIVATE_KEY=real-vapid-private',
+      'VAPID_SUBJECT=mailto:push@existing.example',
+      '',
+    ].join('\n'),
+  );
+
+  const result = await ensureProdEnv(envPath, { nonInteractive: true });
+  const values = parseEnv(await readFile(envPath, 'utf8'));
+
+  assert.notEqual(values.get('STUDIO_BASIC_AUTH'), 'admin:{SHA}realstudiohash');
+  assert.ok(values.get('STUDIO_PASSWORD'));
+  assert.equal(
+    verifyHtpasswdSha(values.get('STUDIO_BASIC_AUTH'), values.get('STUDIO_PASSWORD')),
+    true,
+  );
+  // The dashboard pair was intact, so only Studio rotates — one surface's
+  // repair must not invalidate the other's credential.
+  assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
+  assert.equal(values.get('TRAEFIK_DASHBOARD_PASSWORD'), 'real-dashboard-password');
+  assert.equal(result.generatedCredentials.length, 1);
+  assert.equal(result.generatedCredentials[0]?.service, 'STUDIO');
 });
 
 test('fails non-interactive mode when human-owned values are missing', async () => {
@@ -360,6 +443,8 @@ test('regenerates invalid realtime DB encryption key lengths', async () => {
       'DOMAIN=existing.example',
       'LETSENCRYPT_EMAIL=ops@existing.example',
       'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'STUDIO_BASIC_AUTH=admin:{SHA}realstudiohash',
+      'STUDIO_PASSWORD=real-studio-password',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
