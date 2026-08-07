@@ -409,7 +409,15 @@ describe('bracketToken', () => {
 
   it('returns null when the match has no bracket round at all', () => {
     expect(bracketToken({ bracketRound: null, bracketSize: 32 })).toBeNull();
-    expect(bracketToken({ bracketRound: undefined, bracketSize: 32 })).toBeNull();
+    // RoundCodeInput declares `bracketRound: number | null`, so the undefined
+    // arm is unreachable by type — but bracketToken guards it anyway, because a
+    // partial Supabase select delivers an unselected column as undefined rather
+    // than null. The cast is what lets the test reach that branch; widening the
+    // shared interface is a separate decision with a repo-wide blast radius.
+    const unselected = { bracketRound: undefined, bracketSize: 32 } as unknown as Parameters<
+      typeof bracketToken
+    >[0];
+    expect(bracketToken(unselected)).toBeNull();
   });
 });
 

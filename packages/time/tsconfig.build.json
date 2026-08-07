@@ -1,0 +1,11 @@
+{
+  // EMIT surface — see packages/rulesets/tsconfig.build.json. This package's
+  // dist is copied into the API production image, so its one colocated test was
+  // shipping a `require("vitest")` to prod.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

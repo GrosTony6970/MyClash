@@ -8,6 +8,21 @@
     "module": "Node16",
     "moduleResolution": "node16",
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
+    // Overrides tsconfig.base.json's `incremental: true` for packages/* only —
+    // apps/* extend the base directly and keep it.
+    //
+    // A .tsbuildinfo and its dist/ can disagree, and when they do tsc trusts the
+    // buildinfo: `rm -rf dist && tsc` emits NOTHING and exits 0. That is not
+    // hypothetical — it is how this line came to exist. Every package build now
+    // clears dist first, which is precisely the out-of-band deletion that
+    // desyncs them.
+    //
+    // Free to turn off: turbo already caches these tasks at `dist/**`, a coarser
+    // and safer grain, and CI never restores a per-package .turbo/*.tsbuildinfo
+    // (the build-packages job caches the ROOT .turbo and uploads packages/*/dist
+    // as an artifact). So this costs a few seconds locally and buys the
+    // guarantee that a green build actually emitted something.
+    "incremental": false
   }
 }

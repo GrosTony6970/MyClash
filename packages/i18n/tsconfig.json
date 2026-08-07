@@ -1,4 +1,14 @@
 {
+  // The ONE package with no tsconfig.build.json, deliberately. Every other
+  // packages/* splits typecheck from emit so test code stays out of dist (see
+  // packages/rulesets/tsconfig.json) — this one cannot: its `test` script is
+  // `pnpm build && node dist/index.test.js && …`, so the compiled tests in dist
+  // ARE the test runner. It has no vitest config at all.
+  //
+  // Safe to leave: packages/i18n/dist is copied into no production image — the
+  // web apps ship Next standalone output, which traces from entry points.
+  // scripts/check-test-code-leak.mjs carries this as a named exemption; if this
+  // package ever gains a vitest config, delete the exemption and split it.
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "dist",
@@ -21,8 +31,7 @@
     // Do not add this to packages/rulesets, schedule-core or time: they ship
     // into browser bundles, and granting them Node globals would let
     // process.env/Buffer compile in offline scoring code.
-    "types": ["node"],
-    "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

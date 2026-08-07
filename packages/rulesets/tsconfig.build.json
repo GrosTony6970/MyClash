@@ -1,0 +1,32 @@
+{
+  // EMIT surface — what `pnpm build` compiles into dist/, and therefore what
+  // apps/api/Dockerfile copies into the production image.
+  //
+  // Test code must not be in here. `double-elim-test-helpers.ts` imports
+  // `vitest`, which is a devDependency absent from the runner's `--prod`
+  // install, so its emitted `require("vitest")` is a crash waiting for a caller.
+  // The 29 colocated *.test.ts files were shipping too.
+  //
+  // `extends` REPLACES include/exclude rather than merging them, so both arrays
+  // are restated in full — dropping one silently inherits the typecheck surface
+  // and puts the tests straight back into dist.
+  //
+  // An explicit `false` does survive `extends`, which is what lets noEmit flip
+  // back on here.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "src/**/*.test.ts",
+    // Test-only, but not named *.test.ts, so no glob catches it. Listed by path
+    // on purpose: scripts/check-test-code-leak.mjs proves the list is complete
+    // rather than trusting a naming convention.
+    "src/scheduling/double-elim-test-helpers.ts"
+  ]
+}

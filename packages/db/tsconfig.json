@@ -1,10 +1,23 @@
 {
+  // TYPECHECK surface — see packages/rulesets/tsconfig.json. `test/` joins it
+  // here for the first time: test/rls.test.ts is the only thing standing behind
+  // the RLS invariant (CLAUDE.md hard rule 4) and it had never been typechecked.
+  //
+  // That pulls in node:fs / node:path / node:url, and TS 6 defaults `types` to
+  // effectively [] — so node types have to be named, and @types/node has to be a
+  // real devDependency here rather than a hoisted accident (same reasoning as
+  // packages/i18n/tsconfig.json). Safe in this package because it is
+  // server-only; do NOT copy it to rulesets, schedule-core or time, which ship
+  // into browser bundles.
+  //
+  // `rootDir` is deliberately absent — test/ sits outside src/. It belongs to
+  // the build config, which is the only one that emits.
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
+    "noEmit": true,
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

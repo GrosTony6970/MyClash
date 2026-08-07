@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --project tsconfig.build.json",
     "lint": "echo 'lint: no sources yet'",
     "typecheck": "tsc --noEmit",
     "test": "echo 'no tests'"

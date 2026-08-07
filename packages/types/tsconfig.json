@@ -1,10 +1,14 @@
 {
+  // TYPECHECK surface — see packages/rulesets/tsconfig.json for the full
+  // rationale of the typecheck/emit split. This package previously excluded
+  // src/**/*.test.ts here, which kept the tests out of dist but also meant its
+  // 16 test files were typechecked by nothing (vitest is transpile-only).
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
+    "noEmit": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist"]
 }

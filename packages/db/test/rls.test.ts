@@ -12,8 +12,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
 // ── RLS policy logic (extracted for unit testing) ─────────────────────────────
@@ -679,7 +678,11 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     // no dependency on it, and adding one to satisfy a test would put a build
     // edge between them. Text comparison also catches the case the import
     // could not — a TS constant edited without the migration.
-    const here = dirname(fileURLToPath(import.meta.url));
+    // `__dirname`, not `import.meta.url`: this package has no `"type": "module"`,
+    // so TypeScript's node16 resolution classifies these files as CommonJS and
+    // rejects import.meta (TS1470). Same idiom as
+    // packages/ui/src/theme-scope-parity.test.ts.
+    const here = __dirname;
     const sql = readFileSync(
       join(here, '..', 'migrations', '0170_platform_role_tiers.sql'),
       'utf8',
@@ -688,12 +691,14 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
 
     const check = /CHECK \(role IN \(([^)]*)\)\)/u.exec(sql);
     expect(check, '0170 must contain a CHECK (role IN (...)) on platform_roles').not.toBeNull();
-    const fromSql = new Set(check![1].split(',').map((part) => part.trim().replace(/^'|'$/gu, '')));
+    const fromSql = new Set(
+      check![1]!.split(',').map((part) => part.trim().replace(/^'|'$/gu, '')),
+    );
 
     const declaration = /PLATFORM_ROLES = \[([^\]]*)\]/u.exec(ts);
     expect(declaration, 'platform-role.ts must declare PLATFORM_ROLES').not.toBeNull();
     const fromTs = new Set(
-      declaration![1].split(',').map((part) => part.trim().replace(/^'|'$/gu, '')),
+      declaration![1]!.split(',').map((part) => part.trim().replace(/^'|'$/gu, '')),
     );
 
     expect([...fromSql].sort()).toEqual([...fromTs].sort());

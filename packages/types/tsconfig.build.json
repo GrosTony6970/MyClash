@@ -1,0 +1,18 @@
+{
+  // EMIT surface — see packages/rulesets/tsconfig.build.json. `extends`
+  // replaces include/exclude, so both are restated in full.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    // Test-only fixtures, not named *.test.ts. Unlike the rulesets helper this
+    // one imports no vitest, so it was inert rather than dangerous — same class
+    // regardless.
+    "src/final-ranking-test-helpers.ts"
+  ]
+}

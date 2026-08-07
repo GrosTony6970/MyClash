@@ -1,11 +1,25 @@
 {
+  // TYPECHECK surface — see packages/rulesets/tsconfig.json. This package
+  // excluded its tests here, so its 19 test files were typechecked by nothing.
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "jsx": "react-jsx",
     "outDir": "dist",
     "rootDir": "src",
-    "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
+    "noEmit": true,
+    // Node globals, for the TYPECHECK surface only — tsconfig.build.json sets
+    // this back to [] so they can never reach emitted code. theme-scope-parity
+    // reads theme.css off disk to prove the light scope restores every token the
+    // dark scope sets; that is a source-parity assertion, and it has to run
+    // where the file is.
+    //
+    // TS 6 defaults `types` to effectively [], so this has to be named. The
+    // narrow scoping is what makes it safe here despite the warning in
+    // packages/i18n/tsconfig.json: this package ships into browser bundles, and
+    // a `process.env` or `Buffer` in a component would now typecheck — but it
+    // fails the build, which runs first in CI.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["node_modules", "dist"]
 }

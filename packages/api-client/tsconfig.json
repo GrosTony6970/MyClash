@@ -1,9 +1,12 @@
 {
+  // TYPECHECK surface — see packages/rulesets/tsconfig.json. No tests today; the
+  // split is carried anyway so a missing tsconfig.build.json is always a gate
+  // failure rather than sometimes legitimate.
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
+    "noEmit": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

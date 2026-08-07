@@ -1,10 +1,18 @@
 {
+  // TYPECHECK surface. Covers everything a human writes, tests included — and
+  // `test/`, where the TF_v1 golden suite lives, which this config excluded (and
+  // therefore never typechecked) until the emit surface moved out to
+  // tsconfig.build.json.
+  //
+  // `noEmit` is what keeps the two apart: a stray `tsc -p tsconfig.json` cannot
+  // repopulate dist with compiled tests. `rootDir` is deliberately absent —
+  // test/ sits outside src/, so pinning it here would be TS6059. It belongs to
+  // the build config, which is the only one that emits.
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
+    "noEmit": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

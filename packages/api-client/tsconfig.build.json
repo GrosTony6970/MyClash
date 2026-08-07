@@ -1,0 +1,10 @@
+{
+  // EMIT surface — see packages/rulesets/tsconfig.build.json. `extends`
+  // replaces include/exclude, so both are restated in full.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

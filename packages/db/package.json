@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --project tsconfig.build.json",
     "lint": "echo 'lint: no sources yet'",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
@@ -29,6 +29,7 @@
     "postgres": "^3.4.5"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
     "drizzle-kit": "^0.31.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
