@@ -6,11 +6,11 @@
  * to the §3 magic-link confirm path).
  */
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 interface GlobalPersonPreview {
   id: string;
@@ -121,9 +121,10 @@ export default function PendingClaimsPage() {
             {t('admin.pendingClaims.subtitleSuffix')}
           </p>
         </div>
-        <Link href="/admin/global-persons/import" className="text-sm text-info hover:underline">
-          {t('admin.pendingClaims.backToGlobalPersons')}
-        </Link>
+        <BackLink
+          href="/admin/global-persons/import"
+          label={t('admin.pendingClaims.backToGlobalPersons')}
+        />
       </div>
 
       {error && (

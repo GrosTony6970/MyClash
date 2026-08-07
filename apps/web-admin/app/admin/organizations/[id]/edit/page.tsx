@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const apiUrl = getPublicApiUrl();
 
@@ -87,11 +88,11 @@ export default function AdminOrgEditPage() {
 
   return (
     <main className="max-w-2xl p-8">
-      <div className="mb-2 text-sm">
-        <Link href="/admin/organizations" className="text-muted hover:underline">
-          {t('admin.organizations.detail.back')}
-        </Link>
-      </div>
+      <BackLink
+        href="/admin/organizations"
+        label={t('admin.organizations.detail.back')}
+        className="mb-2"
+      />
       <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.organizations.edit.title')}
       </h1>

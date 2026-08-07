@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Button, useConfirm } from '@myclash/ui';
+import { useConfirm } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 function PencilIcon() {
   return (
@@ -288,11 +289,11 @@ export default function EventChatPage() {
 
   return (
     <main className="mx-auto max-w-6xl p-8">
-      <div className="mb-6">
-        <Button variant="back" size="sm" asChild>
-          <Link href={`/org/${slug}/events/${eventId}`}>← {t('organizer.chat.backToEvent')}</Link>
-        </Button>
-      </div>
+      <BackLink
+        href={`/org/${slug}/events/${eventId}`}
+        label={t('organizer.chat.backToEvent')}
+        className="mb-6"
+      />
 
       <div className="mb-6">
         <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">

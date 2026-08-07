@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -13,6 +12,7 @@ import {
 } from '../../../../../../src/components/rulesets/PenaltyRulesetForm';
 import { PenaltyVersionHistory } from '../../../../../../src/components/rulesets/PenaltyVersionHistory';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const apiUrl = getPublicApiUrl();
 
@@ -111,11 +111,11 @@ export default function EditPenaltyRulesetPage() {
 
   return (
     <main className="max-w-[110rem] p-8">
-      <div className="mb-2 text-sm">
-        <Link href="/admin/rulesets/penalty" className="text-muted hover:underline">
-          {t('admin.rulesets.backToList')}
-        </Link>
-      </div>
+      <BackLink
+        href="/admin/rulesets/penalty"
+        label={t('admin.rulesets.backToList')}
+        className="mb-2"
+      />
       <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.penaltyRulesets.editTitle')}
       </h1>

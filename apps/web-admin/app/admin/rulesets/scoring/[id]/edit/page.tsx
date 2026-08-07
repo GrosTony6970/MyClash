@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useConfirm, usePrompt } from '@myclash/ui';
@@ -27,6 +26,7 @@ import {
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
 import { codedRulesetTfConfig } from '../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 type TfConfigOverride = NonNullable<RulesetRowLike['tf_config']>;
 
@@ -219,11 +219,7 @@ export default function EditRulesetPage() {
   return (
     <main className="grid max-w-6xl gap-6 p-8 lg:grid-cols-[1fr_280px]">
       <div>
-        <div className="mb-2 text-sm">
-          <Link href="/admin/rulesets" className="text-muted hover:underline">
-            {t('admin.rulesets.backToList')}
-          </Link>
-        </div>
+        <BackLink href="/admin/rulesets" label={t('admin.rulesets.backToList')} className="mb-2" />
         <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
           {t('admin.rulesets.editTitle')}
         </h1>

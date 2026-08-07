@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 type ArchiveScope = 'event' | 'tournament';
 type ArchiveInclude = 'structure' | 'scoring';
@@ -151,13 +151,11 @@ export default function OrganizerArchivePage() {
 
   return (
     <main className="mx-auto p-8 max-w-2xl">
-      <div className="mb-2">
-        <Button variant="back" size="sm" asChild>
-          <Link href={`/org/${slug}/events/${eventId}`}>
-            ← {t('organizer.archive.backToEvent')}
-          </Link>
-        </Button>
-      </div>
+      <BackLink
+        href={`/org/${slug}/events/${eventId}`}
+        label={t('organizer.archive.backToEvent')}
+        className="mb-2"
+      />
 
       <header className="mb-6">
         <h1 className="font-display font-bold text-2xl sm:text-3xl">

@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
 import type { LeagueRankingDimensions } from '@myclash/types';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 interface RankingRow {
   league_id: string;
@@ -142,12 +142,11 @@ export default function AdminLeagueRankingPage() {
 
   return (
     <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
-      <Link
+      <BackLink
         href="/admin/leagues"
-        className="mb-3 inline-flex items-center gap-1 rounded text-sm font-medium text-foreground-secondary hover:text-foreground"
-      >
-        {t('admin.adminLeagues.backToLeagues')}
-      </Link>
+        label={t('admin.adminLeagues.backToLeagues')}
+        className="mb-3"
+      />
       <AdminPageHeader
         eyebrow="League ranking"
         title={data?.league.name ?? 'League ranking'}

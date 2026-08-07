@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Button, usePrompt } from '@myclash/ui';
+import { usePrompt } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 import { StaffAccountCard } from './StaffAccountCard';
 import { StaffLoginLink } from './StaffLoginLink';
 import type { EventInfo, Lice, StaffAccount } from './types';
@@ -143,9 +143,7 @@ export default function EventStaffPage() {
 
   return (
     <main className="mx-auto max-w-[110rem] p-8">
-      <Button variant="back" size="sm" asChild>
-        <Link href={`/org/${slug}/events/${eventId}`}>← {t('organizer.staff.backToEvent')}</Link>
-      </Button>
+      <BackLink href={`/org/${slug}/events/${eventId}`} label={t('organizer.staff.backToEvent')} />
       <h1 className="mt-3 font-display font-bold text-2xl sm:text-3xl">
         {t('organizer.staff.title')}
       </h1>

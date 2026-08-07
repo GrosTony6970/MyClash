@@ -1,11 +1,10 @@
 'use client';
 
-import Link from 'next/link';
-import { Button } from '@myclash/ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 type Severity = 'info' | 'warning' | 'alert';
@@ -159,11 +158,10 @@ export default function EventNotificationsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-muted">
-        <Button variant="back" size="sm" asChild>
-          <Link href={`/org/${slug}/events/${eventId}`}>
-            ← {t('organizer.broadcast.backToEvent')}
-          </Link>
-        </Button>
+        <BackLink
+          href={`/org/${slug}/events/${eventId}`}
+          label={t('organizer.broadcast.backToEvent')}
+        />
         <span>/</span>
         <span className="font-medium text-foreground">{t('organizer.broadcast.navLabel')}</span>
       </div>

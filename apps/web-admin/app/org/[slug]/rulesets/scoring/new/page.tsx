@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
@@ -31,6 +30,7 @@ import {
 import { codedRulesetTfConfig } from '../../../../../../src/components/rulesets/coded-ruleset-body';
 import { ForkLineagePanel } from '../../../../../../src/components/rulesets/LineageLamps';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const apiUrl = getPublicApiUrl();
 
@@ -177,11 +177,11 @@ export default function OrgNewScoringRulesetPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl p-8">
-      <div className="mb-2 text-sm">
-        <Link href={`/org/${slugForLink}/rulesets/scoring`} className="text-muted hover:underline">
-          {t('admin.rulesets.backToList')}
-        </Link>
-      </div>
+      <BackLink
+        href={`/org/${slugForLink}/rulesets/scoring`}
+        label={t('admin.rulesets.backToList')}
+        className="mb-2"
+      />
       <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.rulesets.createTitle')}
       </h1>

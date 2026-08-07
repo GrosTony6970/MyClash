@@ -7,6 +7,7 @@ import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/type
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 import {
   ACCOUNT_SEARCH_MIN_LENGTH,
   useAccountSearch,
@@ -309,11 +310,11 @@ export default function NewLeaguePage() {
 
   return (
     <main className="p-8 max-w-4xl">
-      <div className="mb-2 text-sm">
-        <Link href="/admin/leagues" className="text-muted hover:underline">
-          {t('admin.adminLeagues.backToLeagues')}
-        </Link>
-      </div>
+      <BackLink
+        href="/admin/leagues"
+        label={t('admin.adminLeagues.backToLeagues')}
+        className="mb-2"
+      />
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
         {t('admin.adminLeagues.newPageTitle')}
       </h1>

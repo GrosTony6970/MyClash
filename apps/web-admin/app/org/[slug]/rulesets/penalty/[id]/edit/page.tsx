@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { BucketStatus } from '@myclash/rulesets';
@@ -15,6 +14,7 @@ import {
 import { PenaltyVersionHistory } from '../../../../../../../src/components/rulesets/PenaltyVersionHistory';
 import { PenaltyLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const apiUrl = getPublicApiUrl();
 
@@ -45,7 +45,7 @@ interface PenaltyRulesetDetail {
 
 export default function OrgEditPenaltyRulesetPage() {
   const params = useParams<{ slug: string; id: string }>();
-  // Avoid `undefined` ever being stringified into a `<Link>` / router target.
+  // Avoid `undefined` ever being stringified into a link href / router target.
   const slugForLink = params.slug ?? '';
   const router = useRouter();
   const { t } = useI18n();
@@ -132,11 +132,11 @@ export default function OrgEditPenaltyRulesetPage() {
 
   return (
     <main className="mx-auto w-full max-w-[110rem] p-8">
-      <div className="mb-2 text-sm">
-        <Link href={`/org/${slugForLink}/rulesets/penalty`} className="text-muted hover:underline">
-          {t('admin.rulesets.backToList')}
-        </Link>
-      </div>
+      <BackLink
+        href={`/org/${slugForLink}/rulesets/penalty`}
+        label={t('admin.rulesets.backToList')}
+        className="mb-2"
+      />
       <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.penaltyRulesets.editTitle')}
       </h1>

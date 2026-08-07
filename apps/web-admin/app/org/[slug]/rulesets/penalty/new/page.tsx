@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -12,6 +11,7 @@ import {
   type PenaltyRulesetFormValue,
 } from '../../../../../../src/components/rulesets/PenaltyRulesetForm';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const apiUrl = getPublicApiUrl();
 
@@ -80,7 +80,7 @@ function cloneInitial(data: PenaltyRulesetDetail): PenaltyRulesetFormValue {
 export default function OrgNewPenaltyRulesetPage() {
   const params = useParams<{ slug: string }>();
   // See organizer-auth-decision.ts — guard against `undefined` getting
-  // stringified into the slug segment of `<Link>` / router.push targets.
+  // stringified into the slug segment of link hrefs / router.push targets.
   const slugForLink = params.slug ?? '';
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -135,11 +135,11 @@ export default function OrgNewPenaltyRulesetPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl p-8">
-      <div className="mb-2 text-sm">
-        <Link href={`/org/${slugForLink}/rulesets/penalty`} className="text-muted hover:underline">
-          {t('admin.rulesets.backToList')}
-        </Link>
-      </div>
+      <BackLink
+        href={`/org/${slugForLink}/rulesets/penalty`}
+        label={t('admin.rulesets.backToList')}
+        className="mb-2"
+      />
       <h1 className="mb-1 font-display font-bold text-2xl sm:text-3xl text-foreground">
         {t('admin.penaltyRulesets.createTitle')}
       </h1>

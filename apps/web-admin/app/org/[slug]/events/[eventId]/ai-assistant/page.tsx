@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@myclash/ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 type DraftType =
   | 'tournament_config'
@@ -228,13 +228,11 @@ export default function EventAIAssistantPage() {
 
   return (
     <main className="mx-auto max-w-[110rem] p-8">
-      <div className="mb-6">
-        <Button variant="back" size="sm" asChild>
-          <Link href={`/org/${slug}/events/${eventId}`}>
-            ← {t('organizer.aiAssistant.backToEvent')}
-          </Link>
-        </Button>
-      </div>
+      <BackLink
+        href={`/org/${slug}/events/${eventId}`}
+        label={t('organizer.aiAssistant.backToEvent')}
+        className="mb-6"
+      />
 
       <div className="mb-6">
         <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">

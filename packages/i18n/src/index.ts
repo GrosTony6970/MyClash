@@ -1888,7 +1888,7 @@ export const en = {
       subtitlePrefix:
         'Public users asking to claim a global profile that has no email on file. Approve to set',
       subtitleSuffix: '+ backfill the email; reject with a reason to leave the profile unclaimed.',
-      backToGlobalPersons: '← Global persons',
+      backToGlobalPersons: 'Global persons',
       loading: 'Loading…',
       empty: 'No pending requests.',
       colRequester: 'Requester',
@@ -1985,7 +1985,7 @@ export const en = {
       editAction: 'Edit',
       deleteAction: 'Delete',
       deleteDialogTitle: 'Delete league',
-      backToLeagues: '← Back to leagues',
+      backToLeagues: 'Back to leagues',
       emptyRankingsBefore: 'No rankings computed yet. The standings engine writes',
       emptyRankingsAfter:
         'on tournament completion — once a linked tournament finishes, the standings appear here.',
@@ -4859,7 +4859,7 @@ export const en = {
         listCounts: '{tournaments} tournaments · {groups} groups',
         manageLink: 'Manage →',
         eyebrow: 'League management',
-        backToList: '← Back to leagues',
+        backToList: 'Back to leagues',
         loadingState: 'Loading…',
         loadError: 'Could not load this league',
         notFound: 'League not found, or you do not manage it.',
@@ -9333,7 +9333,7 @@ export const fr = {
         'Utilisateurs publics demandant à revendiquer un profil global sans e-mail enregistré. Approuver définit',
       subtitleSuffix:
         "+ renseigne l'e-mail ; rejeter avec un motif laisse le profil non revendiqué.",
-      backToGlobalPersons: '← Profils globaux',
+      backToGlobalPersons: 'Profils globaux',
       loading: 'Chargement…',
       empty: 'Aucune demande en attente.',
       colRequester: 'Demandeur',
@@ -9431,7 +9431,7 @@ export const fr = {
       editAction: 'Modifier',
       deleteAction: 'Supprimer',
       deleteDialogTitle: 'Supprimer la ligue',
-      backToLeagues: '← Retour aux ligues',
+      backToLeagues: 'Retour aux ligues',
       emptyRankingsBefore: "Aucun classement calculé pour l'instant. Le moteur de classement écrit",
       emptyRankingsAfter:
         "à la clôture d'un tournoi — dès qu'un tournoi lié se termine, le classement apparaît ici.",
@@ -12318,7 +12318,7 @@ export const fr = {
         listCounts: '{tournaments} tournois · {groups} groupes',
         manageLink: 'Gerer →',
         eyebrow: 'Gestion de ligue',
-        backToList: '← Retour aux ligues',
+        backToList: 'Retour aux ligues',
         loadingState: 'Chargement…',
         loadError: 'Impossible de charger cette ligue',
         notFound: 'Ligue introuvable, ou vous ne la gerez pas.',

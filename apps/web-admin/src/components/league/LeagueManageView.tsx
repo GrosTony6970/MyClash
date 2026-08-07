@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
@@ -9,6 +8,7 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { LeagueRequestsPanel } from './LeagueRequestsPanel';
 import { ScoringSystemPreview } from './ScoringSystemPreview';
 import { getPublicApiUrl } from '../../lib/api-url';
+import { BackLink } from '../BackLink';
 
 const apiUrl = getPublicApiUrl();
 
@@ -521,9 +521,7 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
   if (!league) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
-        <Link href={backHref} className="text-sm text-muted hover:underline">
-          {t('organizer.leagues.manage.backToList')}
-        </Link>
+        <BackLink href={backHref} label={t('organizer.leagues.manage.backToList')} />
         <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error ?? t('organizer.leagues.manage.notFound')}
         </div>
@@ -534,11 +532,7 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
       {confirmDialog}
-      <div className="mb-2 text-sm">
-        <Link href={backHref} className="text-muted hover:underline">
-          {t('organizer.leagues.manage.backToList')}
-        </Link>
-      </div>
+      <BackLink href={backHref} label={t('organizer.leagues.manage.backToList')} className="mb-2" />
       <header className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.leagues.manage.eyebrow')}

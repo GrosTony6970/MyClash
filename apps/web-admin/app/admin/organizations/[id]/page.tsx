@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   DataTable,
@@ -15,6 +14,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 interface Member {
   user_id: string;
@@ -383,11 +383,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
 
   return (
     <main className="max-w-4xl p-8">
-      <div className="mb-2">
-        <Link href="/admin/organizations" className="text-sm text-muted hover:underline">
-          {t('admin.organizations.detail.back')}
-        </Link>
-      </div>
+      <BackLink
+        href="/admin/organizations"
+        label={t('admin.organizations.detail.back')}
+        className="mb-2"
+      />
 
       <div className="mb-6 flex items-start justify-between">
         <div>

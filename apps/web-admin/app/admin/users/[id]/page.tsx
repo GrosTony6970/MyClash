@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm } from '@myclash/ui';
 import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const ORG_ROLES = [
   'owner',
@@ -396,11 +396,7 @@ export default function AdminUserEditPage() {
 
   return (
     <main className="p-8 max-w-2xl">
-      <div className="mb-2 text-sm">
-        <Link href="/admin/users" className="text-muted hover:underline">
-          {t('admin.users.edit.backToList')}
-        </Link>
-      </div>
+      <BackLink href="/admin/users" label={t('admin.users.edit.backToList')} className="mb-2" />
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
         {t('admin.users.edit.title')}
       </h1>

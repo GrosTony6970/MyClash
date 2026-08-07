@@ -14,10 +14,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 
 const PORTAL_URL = 'https://hemaratings.com/submit/';
 const FIGHTER_FINDER_URL = 'https://hemaratings.com/organizertools/fighterfinder/';
@@ -103,13 +102,11 @@ export default function HemaRatingsSubmissionPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-8">
-      <div className="mb-2">
-        <Button variant="back" size="sm" asChild>
-          <Link href={`/org/${slug}/events/${eventId}`}>
-            ← {t('organizer.hemaRatings.backToEvent')}
-          </Link>
-        </Button>
-      </div>
+      <BackLink
+        href={`/org/${slug}/events/${eventId}`}
+        label={t('organizer.hemaRatings.backToEvent')}
+        className="mb-2"
+      />
 
       <header className="mb-6">
         <h1 className="font-display font-bold text-2xl sm:text-3xl">

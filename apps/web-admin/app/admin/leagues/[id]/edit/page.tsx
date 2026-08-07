@@ -11,6 +11,7 @@ import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 import {
   ACCOUNT_SEARCH_MIN_LENGTH,
   useAccountSearch,
@@ -680,11 +681,11 @@ export default function EditLeaguePage() {
 
   return (
     <main className="p-8 max-w-4xl">
-      <div className="mb-2 text-sm">
-        <Link href="/admin/leagues" className="text-muted hover:underline">
-          {t('admin.leagues.editPage.backLink')}
-        </Link>
-      </div>
+      <BackLink
+        href="/admin/leagues"
+        label={t('admin.leagues.editPage.backLink')}
+        className="mb-2"
+      />
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
         {t('admin.leagues.editPage.pageTitle')}
       </h1>

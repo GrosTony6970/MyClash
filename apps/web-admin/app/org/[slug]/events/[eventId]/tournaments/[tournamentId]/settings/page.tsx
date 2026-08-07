@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { AdminPageHeader, Button } from '@myclash/ui';
+import { AdminPageHeader } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { BasicsTab } from './_components/BasicsTab';
 import { MatchFormatTab } from './_components/MatchFormatTab';
@@ -13,6 +12,7 @@ import { LocksTab } from './_components/LocksTab';
 import { RecapTab } from './_components/RecapTab';
 import { RulesetDriftBanner } from './_components/RulesetDriftBanner';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
+import { BackLink } from '@/components/BackLink';
 
 type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks' | 'recap';
 
@@ -53,11 +53,10 @@ export default function TournamentSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
-      <Button variant="back" size="sm" asChild>
-        <Link href={`/org/${params.slug}/events/${params.eventId}/tournaments`}>
-          ← {t('organizer.tournaments.settings.backToList')}
-        </Link>
-      </Button>
+      <BackLink
+        href={`/org/${params.slug}/events/${params.eventId}/tournaments`}
+        label={t('organizer.tournaments.settings.backToList')}
+      />
       <div className="mt-4">
         <AdminPageHeader
           eyebrow="Tournament"
