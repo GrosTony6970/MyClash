@@ -445,6 +445,44 @@ export class OrganizerAIAssistantService {
     return { ok: errors.length === 0, warnings, errors };
   }
 
+  /**
+   * The action contract, in the words the model actually sees.
+   *
+   * Deliberately adjacent to `validateActionShape` below: that method is the
+   * enforcement, this is the ONLY description the model ever gets, and when the
+   * two disagree the model cannot win — it emits what it was told and the draft
+   * fails validation.
+   *
+   * Which is exactly what happened. Until this existed the prompt said only
+   * "return JSON with keys: summary, actions, warnings" and never mentioned
+   * `kind` or any field, so the model had to guess a schema it had never been
+   * shown. Every `tournament_config` draft came back
+   * `Unsupported draft action: undefined`. The code-fence defect had been
+   * masking this one: fix the parser and the drafts merely failed one step
+   * later.
+   *
+   * Keep in step with `validateActionShape` and `applyAction`.
+   */
+  private static readonly ACTION_CONTRACT: Record<OrganizerAIDraftType, string> = {
+    tournament_config:
+      '{"kind":"create_tournament","name":<string>,"slug":<lowercase-hyphenated string>,' +
+      '"weapon":<string, optional>,"rulesetCode":<string, optional, default "TF_v1">}',
+    pool_plan:
+      '{"kind":"generate_pools","tournamentId":<string>, plus at least one of ' +
+      '"poolCount":<number> or "targetSize":<number>; optional ' +
+      '"enforceSchoolSeparation":<boolean>,"enforceSkillBalance":<boolean>,"seed":<number>}',
+    bracket_plan:
+      '{"kind":"generate_bracket","tournamentId":<string>; optional ' +
+      '"phaseType":"single_elim"|"double_elim","qualifyCount":<number>,' +
+      '"bracketSize":<number>,"poolPhaseId":<string>}',
+    schedule_grid:
+      '{"kind":"schedule_match","matchId":<string>,"liceId":<string>,' +
+      '"scheduledAt":<ISO-8601 timestamp>}',
+    referee_assignments:
+      '{"kind":"assign_referee","userId":<person id>,"role":<string>, plus exactly one of ' +
+      '"poolId":<string> or "matchId":<string>}',
+  };
+
   private validateActionShape(action: Record<string, unknown>, errors: string[]) {
     const kind = action['kind'];
     if (kind === 'create_tournament') {
@@ -601,6 +639,12 @@ export class OrganizerAIAssistantService {
       'Output the raw JSON object only — no markdown code fence, no prose around it.',
       'Never invent IDs. Use IDs present in the organizer context.',
       `Draft type: ${draftType}.`,
+      // Without this the model has to guess a schema it has never been shown,
+      // and every draft failed validation on `kind`. See ACTION_CONTRACT.
+      `Every entry of "actions" must match exactly this shape for this draft type: ${
+        OrganizerAIAssistantService.ACTION_CONTRACT[draftType]
+      }`,
+      'Emit no other action kind — a draft containing anything else is rejected whole.',
     ].join('\n');
   }
 

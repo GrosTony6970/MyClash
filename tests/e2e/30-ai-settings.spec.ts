@@ -300,11 +300,18 @@ test.describe('AI settings', () => {
           data: { email: SUPER_EMAIL, password: SUPER_PASSWORD },
         }),
       );
-      const identity = await api.json<{ admin: { isSuperAdmin: boolean } }>(await api.get('me'));
+      // `/me` reports a TIER, not a boolean: the platform guard grew
+      // super_admin / platform_admin / platform_viewer, and `isSuperAdmin` went
+      // away with it. Asserted on the exact tier rather than "any role",
+      // because AI keys are reserved to super_admin — a platform_admin passing
+      // here would mean the reservation had quietly widened.
+      const identity = await api.json<{ admin: { platformRole: string | null } }>(
+        await api.get('me'),
+      );
       expect(
-        identity.admin.isSuperAdmin,
+        identity.admin.platformRole,
         `${SUPER_EMAIL} is not a super admin — it needs a platform_roles row with role='super_admin'`,
-      ).toBe(true);
+      ).toBe('super_admin');
 
       for (const path of ['admin/ai-keys', 'admin/ai-settings', 'admin/ai-usage/summary']) {
         expect((await api.get(path)).status(), `${path} must answer a super admin`).toBe(200);
