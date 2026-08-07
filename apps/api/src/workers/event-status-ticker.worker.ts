@@ -47,14 +47,11 @@ export class EventStatusTickerWorker extends SentryReportingWorkerHost implement
   }
 
   async onModuleInit(): Promise<void> {
-    // BullMQ repeatable jobs are idempotent by jobId — safe to call on every boot.
-    await this.queue.add(
-      EVENT_STATUS_TICK_JOB,
-      {},
-      {
-        repeat: { pattern: '5 * * * *' },
-        jobId: 'event-status-tick-hourly',
-      },
+    // Job schedulers are upserted by scheduler id — safe to call on every boot.
+    await this.queue.upsertJobScheduler(
+      'event-status-tick-hourly',
+      { pattern: '5 * * * *' },
+      { name: EVENT_STATUS_TICK_JOB, data: {} },
     );
     this.logger.log('Event status ticker scheduled (hourly, :05 UTC)');
   }

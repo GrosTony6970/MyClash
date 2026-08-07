@@ -46,15 +46,13 @@ export class DataQualityDeterministicWorker
   }
 
   async onModuleInit(): Promise<void> {
-    // BullMQ repeatable jobs are idempotent by `jobId` — safe to call
-    // on every API container boot.
-    await this.queue.add(
-      DATA_QUALITY_DETERMINISTIC_JOB,
-      {},
-      {
-        repeat: { pattern: '0 4 * * *' }, // 04:00 UTC every day
-        jobId: 'data-quality-deterministic-daily',
-      },
+    // Job schedulers are upserted by scheduler id — safe to call on every API
+    // container boot. (BullMQ 6 dropped `repeat` from JobsOptions; this is the
+    // replacement for what was `queue.add(..., { repeat, jobId })`.)
+    await this.queue.upsertJobScheduler(
+      'data-quality-deterministic-daily',
+      { pattern: '0 4 * * *' }, // 04:00 UTC every day
+      { name: DATA_QUALITY_DETERMINISTIC_JOB, data: {} },
     );
     this.logger.log('Data quality deterministic scan scheduled (04:00 UTC)');
   }

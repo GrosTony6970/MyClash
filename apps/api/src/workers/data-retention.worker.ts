@@ -40,14 +40,11 @@ export class DataRetentionWorker extends SentryReportingWorkerHost implements On
   }
 
   async onModuleInit(): Promise<void> {
-    // BullMQ repeatable jobs are idempotent by jobId — safe to call on every boot.
-    await this.queue.add(
-      DATA_RETENTION_JOB,
-      {},
-      {
-        repeat: { pattern: '0 5 * * *' },
-        jobId: 'data-retention-daily',
-      },
+    // Job schedulers are upserted by scheduler id — safe to call on every boot.
+    await this.queue.upsertJobScheduler(
+      'data-retention-daily',
+      { pattern: '0 5 * * *' },
+      { name: DATA_RETENTION_JOB, data: {} },
     );
     this.logger.log('Data retention sweep scheduled (daily, 05:00 UTC)');
   }

@@ -65,17 +65,12 @@ export class HemaRatingsSyncWorker extends SentryReportingWorkerHost implements 
 
   async onModuleInit(): Promise<void> {
     // Schedule the daily cron job if it doesn't already exist.
-    // BullMQ repeatable jobs are idempotent by key — safe to call on every start.
-    await this.queue.add(
-      HEMA_RATINGS_JOB,
-      {},
-      {
-        repeat: {
-          // Daily at 03:30 UTC
-          pattern: '30 3 * * *',
-        },
-        jobId: 'hema-ratings-daily-sync',
-      },
+    // Job schedulers are upserted by scheduler id — safe to call on every start.
+    await this.queue.upsertJobScheduler(
+      'hema-ratings-daily-sync',
+      // Daily at 03:30 UTC
+      { pattern: '30 3 * * *' },
+      { name: HEMA_RATINGS_JOB, data: {} },
     );
     this.logger.log('HEMA Ratings daily sync job scheduled (03:30 UTC)');
   }

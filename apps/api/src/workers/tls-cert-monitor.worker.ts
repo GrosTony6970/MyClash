@@ -48,14 +48,11 @@ export class TlsCertMonitorWorker extends SentryReportingWorkerHost implements O
   }
 
   async onModuleInit(): Promise<void> {
-    // BullMQ repeatable jobs are idempotent by jobId — safe to call on every boot.
-    await this.queue.add(
-      TLS_CERT_MONITOR_JOB,
-      {},
-      {
-        repeat: { pattern: '17 6 * * *' },
-        jobId: 'tls-cert-monitor-daily',
-      },
+    // Job schedulers are upserted by scheduler id — safe to call on every boot.
+    await this.queue.upsertJobScheduler(
+      'tls-cert-monitor-daily',
+      { pattern: '17 6 * * *' },
+      { name: TLS_CERT_MONITOR_JOB, data: {} },
     );
     this.logger.log('TLS certificate monitor scheduled (daily, 06:17 UTC)');
   }

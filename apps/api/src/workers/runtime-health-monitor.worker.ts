@@ -57,10 +57,10 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
   }
 
   async onModuleInit(): Promise<void> {
-    await this.queue.add(
-      RUNTIME_HEALTH_MONITOR_JOB,
-      {},
-      { repeat: { pattern: '*/5 * * * *' }, jobId: 'runtime-health-monitor-tick' },
+    await this.queue.upsertJobScheduler(
+      'runtime-health-monitor-tick',
+      { pattern: '*/5 * * * *' },
+      { name: RUNTIME_HEALTH_MONITOR_JOB, data: {} },
     );
     this.logger.log('Runtime health monitor scheduled (every 5 min)');
   }

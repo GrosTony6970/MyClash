@@ -42,13 +42,10 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
   }
 
   async onModuleInit(): Promise<void> {
-    await this.queue.add(
-      EVENT_ARCHIVE_JOB,
-      {},
-      {
-        repeat: { pattern: '30 * * * *' },
-        jobId: 'event-archive-hourly',
-      },
+    await this.queue.upsertJobScheduler(
+      'event-archive-hourly',
+      { pattern: '30 * * * *' },
+      { name: EVENT_ARCHIVE_JOB, data: {} },
     );
     this.logger.log('Event archive cron scheduled (hourly, :30 UTC)');
   }
