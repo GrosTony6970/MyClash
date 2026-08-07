@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { apiErrorMessage } from '@/lib/api-error';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
@@ -176,8 +177,9 @@ export default function AdminBackupsPage() {
         if (statusRes.status === 401 || statusRes.status === 403) {
           throw new Error(t('admin.backups.accessDenied'));
         }
-        if (!statusRes.ok || !scheduleRes.ok || !backupsRes.ok) {
-          throw new Error(t('admin.backups.loadError'));
+        const failed = [statusRes, scheduleRes, backupsRes].find((res) => !res.ok);
+        if (failed) {
+          throw new Error(await apiErrorMessage(failed, t('admin.backups.loadError')));
         }
         const nextStatus = (await statusRes.json()) as BackupStatus;
         const nextSchedule = (await scheduleRes.json()) as BackupSchedule;
@@ -208,7 +210,8 @@ export default function AdminBackupsPage() {
         credentials: 'include',
       })
         .then(async (res) => {
-          if (!res.ok) throw new Error(t('admin.backups.operationLoadError'));
+          if (!res.ok)
+            throw new Error(await apiErrorMessage(res, t('admin.backups.operationLoadError')));
           const next = (await res.json()) as BackupOperation;
           setPollFailed(false);
           setOperation(next);
@@ -236,7 +239,7 @@ export default function AdminBackupsPage() {
       credentials: 'include',
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.backups.runError'));
+        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.runError')));
         const data = (await res.json()) as { operation: BackupOperation };
         setOperation(data.operation);
         setNotice(t('admin.backups.runStarted'));
@@ -275,7 +278,7 @@ export default function AdminBackupsPage() {
       body: formData,
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.backups.uploadError'));
+        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.uploadError')));
         const data = (await res.json()) as { backup: BackupSet };
         setBackups((current) => [data.backup, ...current]);
         setSelectedFilename(null);
@@ -306,7 +309,7 @@ export default function AdminBackupsPage() {
       }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.backups.restoreError'));
+        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.restoreError')));
         const data = (await res.json()) as { operation: BackupOperation };
         setOperation(data.operation);
         setNotice(t('admin.backups.restoreStarted'));
@@ -327,7 +330,7 @@ export default function AdminBackupsPage() {
       credentials: 'include',
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.backups.deleteError'));
+        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.deleteError')));
         await res.json();
         setNotice(
           t('admin.backups.deleteSuccess', {
@@ -354,7 +357,8 @@ export default function AdminBackupsPage() {
       body: JSON.stringify(scheduleForm),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.backups.scheduleSaveError'));
+        if (!res.ok)
+          throw new Error(await apiErrorMessage(res, t('admin.backups.scheduleSaveError')));
         const nextSchedule = (await res.json()) as BackupSchedule;
         setSchedule(nextSchedule);
         setScheduleForm(scheduleToForm(nextSchedule));
@@ -377,15 +381,20 @@ export default function AdminBackupsPage() {
       body: JSON.stringify({ confirmation: DELETE_ALL_TOKEN }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.backups.deleteAllError'));
+        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.deleteAllError')));
         const result = (await res.json()) as {
           deletedLocalSets: number;
           deletedCloudSets: number;
+          failedFiles?: string[];
         };
+        const failed = result.failedFiles?.length ?? 0;
+        // A wipe that quietly left files behind is worse than one that says so
+        // — the operator's next move (rotate keys, start fresh) assumes empty.
         setNotice(
-          t('admin.backups.deleteAllSuccess', {
+          t(failed > 0 ? 'admin.backups.deleteAllPartial' : 'admin.backups.deleteAllSuccess', {
             local: result.deletedLocalSets,
             cloud: result.deletedCloudSets,
+            failed,
           }),
         );
         setPendingDeleteAll(false);

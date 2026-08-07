@@ -4180,6 +4180,8 @@ export const en = {
       deleteAllConfirmTokenLabel: 'Confirmation',
       deleteAllConfirmTokenPlaceholder: 'DELETE ALL MYCLASH BACKUPS',
       deleteAllSuccess: 'Deleted {local} local + {cloud} cloud sets.',
+      deleteAllPartial:
+        'Deleted {local} local + {cloud} cloud sets, but {failed} file(s) could not be removed.',
       deleteAllError: 'Could not delete backups.',
       uploadTitle: 'Restore from desktop upload',
       uploadFile: 'Backup file',
@@ -11664,6 +11666,8 @@ export const fr = {
       deleteAllConfirmTokenLabel: 'Confirmation',
       deleteAllConfirmTokenPlaceholder: 'DELETE ALL MYCLASH BACKUPS',
       deleteAllSuccess: '{local} sauvegardes locales + {cloud} cloud supprimees.',
+      deleteAllPartial:
+        '{local} sauvegardes locales + {cloud} cloud supprimees, mais {failed} fichier(s) non supprimes.',
       deleteAllError: 'Impossible de supprimer les sauvegardes.',
       uploadTitle: 'Restaurer depuis un fichier local',
       uploadFile: 'Fichier de sauvegarde',
