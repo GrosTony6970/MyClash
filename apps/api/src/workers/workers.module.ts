@@ -12,6 +12,7 @@ import { Queue } from 'bullmq';
 import { AdminModule } from '../modules/admin/admin.module';
 import { AdminRuntimeHealthService } from '../modules/admin/runtime-health.service';
 import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-health-alert-settings.service';
+import { RuntimeHealthSamplesService } from '../modules/admin/runtime-health-samples.service';
 import { createRuntimeHealthRedis } from '../modules/admin/runtime-health/redis-connection';
 import { LeaguesModule } from '../modules/leagues/leagues.module';
 import { MailService } from '../modules/mail/mail.service';
@@ -126,6 +127,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
         queue: Queue,
         runtimeHealth: AdminRuntimeHealthService,
         settings: RuntimeHealthAlertSettingsService,
+        samples: RuntimeHealthSamplesService,
         mail: MailService,
         config: ConfigService,
       ) =>
@@ -133,6 +135,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
           queue,
           runtimeHealth,
           settings,
+          samples,
           mail,
           createRuntimeHealthRedis(config),
         ),
@@ -140,6 +143,7 @@ import { TLS_CERT_MONITOR_QUEUE, TlsCertMonitorWorker } from './tls-cert-monitor
         getQueueToken(RUNTIME_HEALTH_MONITOR_QUEUE),
         AdminRuntimeHealthService,
         RuntimeHealthAlertSettingsService,
+        RuntimeHealthSamplesService,
         MailService,
         ConfigService,
       ],

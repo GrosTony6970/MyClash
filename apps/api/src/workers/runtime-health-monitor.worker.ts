@@ -23,6 +23,7 @@ import { Job, Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { AdminRuntimeHealthService } from '../modules/admin/runtime-health.service';
 import { RuntimeHealthAlertSettingsService } from '../modules/admin/runtime-health-alert-settings.service';
+import { RuntimeHealthSamplesService } from '../modules/admin/runtime-health-samples.service';
 import { MailService } from '../modules/mail/mail.service';
 import type {
   MetricStatus,
@@ -50,6 +51,7 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     @InjectQueue(RUNTIME_HEALTH_MONITOR_QUEUE) private readonly queue: Queue,
     private readonly runtimeHealth: AdminRuntimeHealthService,
     private readonly settingsService: RuntimeHealthAlertSettingsService,
+    private readonly samples: RuntimeHealthSamplesService,
     private readonly mail: MailService,
     @Optional() private readonly redis?: Redis,
   ) {
@@ -85,6 +87,22 @@ export class RuntimeHealthMonitorWorker extends WorkerHost implements OnModuleIn
     }
 
     const snapshot = await this.runtimeHealth.collect();
+
+    // Retain the tick before anything that can short-circuit, so the trend keeps
+    // its densest data exactly when things are going wrong.
+    //
+    // Guarded here rather than trusting the service to stay non-throwing:
+    // history is worth strictly less than the alert email this tick exists to
+    // send, and that must hold however the persistence layer fails later.
+    try {
+      await this.samples.record(snapshot);
+      await this.samples.prune(new Date(now));
+    } catch (err) {
+      this.logger.warn(
+        `Runtime health sample not retained: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     const criticalKeys = this.keysAtLeast(snapshot, 'critical');
     const warningKeys = this.keysAtLeast(snapshot, 'warning');
 

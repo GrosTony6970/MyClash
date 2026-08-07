@@ -16,6 +16,7 @@ function makeDeps(opts: {
     del: async (k: string) => void store.delete(k),
   };
   const mail = { sendNotification: vi.fn(async () => undefined) };
+  const samples = { record: vi.fn(async () => true), prune: vi.fn(async () => 0) };
   const worker = new RuntimeHealthMonitorWorker(
     { add: async () => undefined } as never, // queue (onModuleInit not exercised here)
     { collect: async () => ({ checkedAt: 'now', overall: 'healthy', ...opts.snapshot }) } as never,
@@ -26,10 +27,11 @@ function makeDeps(opts: {
         ...opts.settings,
       }),
     } as never,
+    samples as never,
     mail as never,
     redis as never,
   );
-  return { worker, mail, store };
+  return { worker, mail, store, samples };
 }
 
 const healthy = {
@@ -124,11 +126,40 @@ describe('RuntimeHealthMonitorWorker.tick', () => {
           recipientEmails: ['ops@x.io'],
         }),
       } as never,
+      { record: async () => true, prune: async () => 0 } as never,
       mail as never,
       redis as never,
     );
     const result = await worker.tick(Date.now());
     expect(result.emailed).toBe(false);
     expect(mail.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('records and prunes a sample on every tick that collects', async () => {
+    const { worker, samples } = makeDeps({ snapshot: healthy });
+    await worker.tick(Date.now());
+    expect(samples.record).toHaveBeenCalledOnce();
+    expect(samples.prune).toHaveBeenCalledOnce();
+  });
+
+  it('does not record when the tick is throttled before collecting', async () => {
+    // A throttled tick never calls collect(), so recording one would write a
+    // duplicate of the previous sample and flatten the trend.
+    const now = Date.now();
+    const { worker, samples } = makeDeps({
+      snapshot: healthy,
+      state: { lastCriticalKeys: [], lastEmailedAt: 0, lastCheckedAt: now - 60_000 },
+    });
+    const result = await worker.tick(now);
+    expect(result.ran).toBe(false);
+    expect(samples.record).not.toHaveBeenCalled();
+  });
+
+  it('still alerts when recording the sample fails', async () => {
+    // History is worth less than the email this tick exists to send.
+    const { worker, mail, samples } = makeDeps({ snapshot: dbCritical });
+    samples.record.mockRejectedValueOnce(new Error('insert failed'));
+    await expect(worker.tick(Date.now())).resolves.toMatchObject({ emailed: true });
+    expect(mail.sendNotification).toHaveBeenCalledOnce();
   });
 });

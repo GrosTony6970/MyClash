@@ -40,6 +40,7 @@ import { PublicFeatureFlagsController } from './public-feature-flags.controller'
 import { RuntimeHealthAdminController } from './runtime-health.controller';
 import { AdminRuntimeHealthService } from './runtime-health.service';
 import { RuntimeHealthAlertSettingsService } from './runtime-health-alert-settings.service';
+import { RuntimeHealthSamplesService } from './runtime-health-samples.service';
 import { createRuntimeHealthRedis } from './runtime-health/redis-connection';
 import { collectDb } from './runtime-health/db-collector';
 import { collectRedis } from './runtime-health/redis-collector';
@@ -109,6 +110,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     WeaponsAdminService,
     PlatformRoleGuard,
     RuntimeHealthAlertSettingsService,
+    RuntimeHealthSamplesService,
     {
       provide: AdminRuntimeHealthService,
       useFactory: (
@@ -141,6 +143,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     AdminTlsStatusService,
     AdminRuntimeHealthService,
     RuntimeHealthAlertSettingsService,
+    RuntimeHealthSamplesService,
   ],
 })
 export class AdminModule {}

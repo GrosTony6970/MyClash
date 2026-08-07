@@ -65,6 +65,32 @@ export interface RuntimeHealthResponseDto {
   disk: DiskMetric;
 }
 
+/**
+ * One retained tick of the monitor. Every metric is nullable because the
+ * collectors run under Promise.allSettled — a Redis outage still records the
+ * database and disk readings, and the nulls mark the gap rather than hiding it.
+ */
+export interface RuntimeHealthSample {
+  sampledAt: string;
+  overall: MetricStatus;
+  connInUse: number | null;
+  connMax: number | null;
+  dbSizeBytes: number | null;
+  longestQuerySeconds: number | null;
+  /** Fraction in 0..1, as stored — the UI multiplies by 100. */
+  cacheHitRatio: number | null;
+  redisUsedBytes: number | null;
+  redisMaxBytes: number | null;
+  queueWaiting: number | null;
+  queueFailed: number | null;
+  diskUsePct: number | null;
+}
+
+export interface RuntimeHealthSeriesResponseDto {
+  since: string;
+  samples: RuntimeHealthSample[];
+}
+
 export interface RuntimeHealthAlertSettings {
   enabled: boolean;
   recipientEmails: string[];

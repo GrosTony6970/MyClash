@@ -144,6 +144,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['GET /admin/review-queue', 'platform_viewer'],
   ['GET /admin/system-versions', 'platform_viewer'],
   ['GET /admin/system/runtime-health', 'platform_viewer'],
+  ['GET /admin/system/runtime-health/series', 'platform_viewer'],
   ['GET /admin/system/runtime-health/alert-settings', 'platform_viewer'],
   ['GET /admin/system/tls-status', 'platform_viewer'],
   ['GET /admin/users', 'platform_viewer'],
