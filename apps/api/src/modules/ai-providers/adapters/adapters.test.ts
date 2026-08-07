@@ -3,34 +3,42 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ── Anthropic mock ─────────────────────────────────────────────────────────
 const mockCreate = vi.fn();
 vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
-  })),
+  default: vi.fn(function () {
+    return {
+      messages: { create: mockCreate },
+    };
+  }),
 }));
 
 // ── OpenAI mock ────────────────────────────────────────────────────────────
 const mockOpenAICreate = vi.fn();
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    chat: { completions: { create: mockOpenAICreate } },
-  })),
+  default: vi.fn(function () {
+    return {
+      chat: { completions: { create: mockOpenAICreate } },
+    };
+  }),
 }));
 
 // ── Mistral mock ───────────────────────────────────────────────────────────
 const mockMistralComplete = vi.fn();
 vi.mock('@mistralai/mistralai', () => ({
-  Mistral: vi.fn().mockImplementation(() => ({
-    chat: { complete: mockMistralComplete },
-  })),
+  Mistral: vi.fn(function () {
+    return {
+      chat: { complete: mockMistralComplete },
+    };
+  }),
 }));
 
 // ── Google (Gemini) mock ───────────────────────────────────────────────────
 const mockGenerateContent = vi.fn();
 const mockGoogleList = vi.fn();
 vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
-    models: { generateContent: mockGenerateContent, list: mockGoogleList },
-  })),
+  GoogleGenAI: vi.fn(function () {
+    return {
+      models: { generateContent: mockGenerateContent, list: mockGoogleList },
+    };
+  }),
 }));
 
 import { AnthropicAdapter } from './anthropic.adapter';

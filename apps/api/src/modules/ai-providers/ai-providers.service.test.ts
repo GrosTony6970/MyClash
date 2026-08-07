@@ -5,16 +5,24 @@ import { encryptAiKey } from './ai-key-crypto';
 // ── Adapter mocks ──────────────────────────────────────────────────────────
 const mockGenerate = vi.fn();
 vi.mock('./adapters/anthropic.adapter', () => ({
-  AnthropicAdapter: vi.fn().mockImplementation(() => ({ generate: mockGenerate })),
+  AnthropicAdapter: vi.fn(function () {
+    return { generate: mockGenerate };
+  }),
 }));
 vi.mock('./adapters/openai.adapter', () => ({
-  OpenAIAdapter: vi.fn().mockImplementation(() => ({ generate: mockGenerate })),
+  OpenAIAdapter: vi.fn(function () {
+    return { generate: mockGenerate };
+  }),
 }));
 vi.mock('./adapters/mistral.adapter', () => ({
-  MistralAdapter: vi.fn().mockImplementation(() => ({ generate: mockGenerate })),
+  MistralAdapter: vi.fn(function () {
+    return { generate: mockGenerate };
+  }),
 }));
 vi.mock('./adapters/google.adapter', () => ({
-  GoogleAdapter: vi.fn().mockImplementation(() => ({ generate: mockGenerate })),
+  GoogleAdapter: vi.fn(function () {
+    return { generate: mockGenerate };
+  }),
 }));
 
 // ── Supabase mock ──────────────────────────────────────────────────────────

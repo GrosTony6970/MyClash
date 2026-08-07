@@ -57,7 +57,8 @@
     "@nestjs/testing": "^11.1.28",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.2",
+    "@vitest/coverage-v8": "^4.1.10",
     "typescript": "^6.0.3",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.10"
   }
 }

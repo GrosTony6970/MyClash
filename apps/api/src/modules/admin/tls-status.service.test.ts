@@ -65,6 +65,12 @@ describe('deriveHealth', () => {
   });
 });
 
+// `fetchPeerCertificate` is protected, so it has to be reached through a cast to
+// spy on it. Naming the shape rather than casting the whole service to `never`:
+// Vitest 4 resolves a spy on a `never`-typed object to `never` too, so
+// `.mockImplementation` stops existing on it.
+type TlsProbeSurface = { fetchPeerCertificate: (host: string) => Promise<PeerCertLike> };
+
 describe('AdminTlsStatusService.probeAll', () => {
   let service: AdminTlsStatusService;
 
@@ -73,12 +79,14 @@ describe('AdminTlsStatusService.probeAll', () => {
   });
 
   it('probes every deployed subdomain and classifies each certificate', async () => {
-    vi.spyOn(service as never, 'fetchPeerCertificate').mockImplementation((async (host: string) => {
-      if (host === 'api.myclash.fr') return certExpiringIn(90, "(STAGING) Let's Encrypt");
-      if (host === 'app.myclash.fr') return certExpiringIn(10);
-      if (host === 'admin.myclash.fr') throw new Error('ECONNREFUSED');
-      return certExpiringIn(90);
-    }) as never);
+    vi.spyOn(service as unknown as TlsProbeSurface, 'fetchPeerCertificate').mockImplementation(
+      async (host: string) => {
+        if (host === 'api.myclash.fr') return certExpiringIn(90, "(STAGING) Let's Encrypt");
+        if (host === 'app.myclash.fr') return certExpiringIn(10);
+        if (host === 'admin.myclash.fr') throw new Error('ECONNREFUSED');
+        return certExpiringIn(90);
+      },
+    );
 
     const result = await service.probeAll();
 
@@ -108,8 +116,9 @@ describe('AdminTlsStatusService.probeAll', () => {
     const svc = new AdminTlsStatusService(
       makeConfig({ DOMAIN: 'myclash.fr', TLS_CERT_MIN_DAYS: '45' }),
     );
-    vi.spyOn(svc as never, 'fetchPeerCertificate').mockImplementation((async () =>
-      certExpiringIn(30)) as never);
+    vi.spyOn(svc as unknown as TlsProbeSurface, 'fetchPeerCertificate').mockImplementation(
+      async () => certExpiringIn(30),
+    );
 
     const result = await svc.probeAll();
 
