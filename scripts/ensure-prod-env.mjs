@@ -338,7 +338,10 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['BACKUP_UPLOAD_MAX_BYTES', state.values.get('BACKUP_UPLOAD_MAX_BYTES') || '1073741824'],
     ['MULTIPART_MAX_BYTES', state.values.get('MULTIPART_MAX_BYTES') || '1073741824'],
     ['SENTRY_ENVIRONMENT', state.values.get('SENTRY_ENVIRONMENT') || 'production'],
-    ['SENTRY_TRACES_SAMPLE_RATE', state.values.get('SENTRY_TRACES_SAMPLE_RATE') || '0'],
+    // Fresh deploys start with tracing on at 1-in-20. This only fills an ABSENT
+    // key: isSampleOrMissing treats an explicit 0 as a real value, so an .env
+    // that already reads 0 is left alone and must be changed by hand.
+    ['SENTRY_TRACES_SAMPLE_RATE', state.values.get('SENTRY_TRACES_SAMPLE_RATE') || '0.05'],
     [
       'NEXT_PUBLIC_SENTRY_ENVIRONMENT',
       state.values.get('NEXT_PUBLIC_SENTRY_ENVIRONMENT') ||
@@ -349,7 +352,7 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
       'NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE',
       state.values.get('NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE') ||
         state.values.get('SENTRY_TRACES_SAMPLE_RATE') ||
-        '0',
+        '0.05',
     ],
   ]) {
     if (isSampleOrMissing(key, state.values.get(key))) {

@@ -18,7 +18,22 @@ Shared metadata:
 
 - `SENTRY_ENVIRONMENT`, default `production`
 - `SENTRY_RELEASE`, falling back to `GIT_COMMIT` where supported
-- `SENTRY_TRACES_SAMPLE_RATE`, default `0`
+- `SENTRY_TRACES_SAMPLE_RATE`, default `0.05`
+
+Tracing is on at 1-in-20 rather than off. With Prometheus deliberately not
+adopted (below), Sentry performance is the only source of per-route latency,
+slow-query spans and frontend web-vitals — the Runtime Health card samples the
+machine every 5 minutes, not individual requests. 5% keeps event-day volume and
+Sentry quota modest while still surfacing a route that regresses.
+
+Two notes for anyone changing it:
+
+- `ensure-prod-env.mjs` fills these keys only when **absent**. An explicit `0`
+  is a real value, not a sample, so an existing production `.env` keeps its `0`
+  until someone edits it by hand. Changing `.env.example` alone changes nothing.
+- The `docker-compose.prod.yml` fallbacks stay `:-0`. They fire only when the
+  key is missing entirely, and defaulting an outbound-data setting to _off_ when
+  unconfigured is the right fail-safe. `.env` is the single owner of the rate.
 
 Empty DSNs disable capture safely. API 5xx responses, unhandled rejections, and uncaught exceptions are sent to Sentry when configured. Next.js apps initialize the Sentry SDK for browser and server runtime capture.
 
