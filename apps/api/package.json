@@ -14,11 +14,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.95.1",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "^10.1.0",
-    "@google/genai": "^2.10.0",
-    "@mistralai/mistralai": "^2.2.1",
+    "@google/genai": "^2.16.0",
+    "@mistralai/mistralai": "^2.6.1",
     "@myclash/feature-flags": "workspace:^",
     "@myclash/rulesets": "workspace:^",
     "@myclash/time": "workspace:^",
@@ -44,7 +44,7 @@
     "ioredis": "6.0.0",
     "jsonwebtoken": "^9.0.3",
     "nestjs-zod": "^5.5.0",
-    "openai": "^6.37.0",
+    "openai": "^7.4.0",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.18.1",
