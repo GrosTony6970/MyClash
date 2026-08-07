@@ -227,22 +227,22 @@ Three distinct mechanisms, each addressing a different concern:
 
 ### 4.1 Service responsibilities
 
-| Service             | Responsibility                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `web-public`        | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`).                                  |
-| `web-scoring`       | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                      |
-| `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                           |
-| `web-marketing`     | Static HTML on Caddy — `myclash.fr` apex landing page.                                                       |
-| `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                            |
-| `worker`            | NestJS in worker mode (`--worker`) — BullMQ consumer (stats, exports, Ratings sync, notifications).          |
-| `db`                | Postgres 17 from the Supabase image (`supabase/postgres:17.6.1.160`), with the Supabase init scripts.        |
-| `redis`             | Redis 8 — cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                            |
-| `supabase-auth`     | GoTrue — email magic link + Google OAuth, JWT-based session.                                                 |
-| `supabase-realtime` | Phoenix Channels broadcasting Postgres row changes to subscribers.                                           |
-| `supabase-storage`  | S3-compatible object storage for fighter photos, club logos.                                                 |
-| `supabase-rest`     | PostgREST over the public schema, served at `/rest/v1`.                                                      |
-| `traefik`           | Reverse proxy + TLS termination (Let's Encrypt). Routes by hostname to every public-facing service.          |
-| `ops-runner`        | Bearer-authed sidecar with `/var/run/docker.sock` mounted. Backups, restore, container lifecycle. See §17.4. |
+| Service             | Responsibility                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `web-public`        | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`).                                     |
+| `web-scoring`       | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                         |
+| `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                              |
+| `web-marketing`     | Static HTML on Caddy — `myclash.fr` apex landing page.                                                          |
+| `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                               |
+| `worker`            | NestJS in worker mode (`--worker`) — BullMQ consumer (stats, exports, Ratings sync, notifications).             |
+| `db`                | Postgres 17 from the Supabase image (`supabase/postgres:17.6.1.160-multigres`), with the Supabase init scripts. |
+| `redis`             | Redis 8 — cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                               |
+| `supabase-auth`     | GoTrue — email magic link + Google OAuth, JWT-based session.                                                    |
+| `supabase-realtime` | Phoenix Channels broadcasting Postgres row changes to subscribers.                                              |
+| `supabase-storage`  | S3-compatible object storage for fighter photos, club logos.                                                    |
+| `supabase-rest`     | PostgREST over the public schema, served at `/rest/v1`.                                                         |
+| `traefik`           | Reverse proxy + TLS termination (Let's Encrypt). Routes by hostname to every public-facing service.             |
+| `ops-runner`        | Bearer-authed sidecar with `/var/run/docker.sock` mounted. Backups, restore, container lifecycle. See §17.4.    |
 
 > The three frontends could be a single Next.js app with route-based feature flags. **Decision: keep them as three apps in the monorepo**, sharing UI components via a `packages/ui` workspace. This isolates the scoring app (offline-first, very different UX) and the admin app (heavier, desktop-first) from the lean public PWA.
 >
@@ -2619,7 +2619,7 @@ The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/do
 | Service             | Container                   | Image / Build                              | Role                                                                                                 |
 | ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.              |
-| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.             |
+| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160-multigres`   | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.             |
 | `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                              |
 | `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                               |
 | `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                        |
