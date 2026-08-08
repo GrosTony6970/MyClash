@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
 import type { MarkArrivalDto } from './dto';
+import { queryEventRoster, ROSTER_LIMIT } from './roster-query';
 import {
   mapRosterRow,
   orderMissingByUrgency,
@@ -15,13 +15,6 @@ import {
 
 /** Roles allowed to work the desk. See `SCORING_ROLES` in staff.service.ts. */
 const DESK_ROLES = ['checkin'] as const;
-
-/**
- * The desk types three letters and expects to see the name. 40 is generous for
- * a name search and small enough that an empty query — which the first paint
- * and the missing-at-risk view both send — stays one screen.
- */
-const ROSTER_LIMIT = 40;
 
 /**
  * Everything the check-in desk reads and writes.
@@ -164,33 +157,12 @@ export class CheckinService {
 
   // ── queries ───────────────────────────────────────────────────────────────
 
-  private async queryPeople(
+  private queryPeople(
     eventId: string,
     q: string | undefined,
     limit = ROSTER_LIMIT,
   ): Promise<RosterPersonRow[]> {
-    let query = this.supabase.service
-      .from('persons')
-      .select(
-        'id,given_name,family_name,club_id,global_person_id,clubs(name,logo_url),global_persons(photo_url)',
-      )
-      .eq('event_id', eventId)
-      .order('family_name', { ascending: true })
-      .limit(limit);
-
-    const safe = q ? sanitizePostgrestFilterValue(q) : '';
-    // Commas and parens would break out of the `or` grammar, so the sanitizer
-    // strips them; an all-punctuation query sanitizes to '' and is treated as
-    // no filter rather than as a match-nothing.
-    if (safe.length >= 2) {
-      query = query.or(
-        `given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`,
-      ) as unknown as typeof query;
-    }
-
-    const { data, error } = await query;
-    if (error) throw new BadRequestException(error.message);
-    return (data ?? []) as unknown as RosterPersonRow[];
+    return queryEventRoster(this.supabase, eventId, q, limit);
   }
 
   private async arrivalsFor(

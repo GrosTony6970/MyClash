@@ -12,10 +12,8 @@ describe('landingPathForRole', () => {
     expect(landingPathForRole('scoring')).toBe('/lices');
   });
 
-  it('sends a gear account to the piste list until the gear surface exists', () => {
-    // An empty-but-working screen, not a 404. One line to change when the gear
-    // check ships.
-    expect(landingPathForRole('gear')).toBe('/lices');
+  it('sends a gear account to the gear table', () => {
+    expect(landingPathForRole('gear')).toBe('/gear');
   });
 
   it('falls back to the piste list for an unknown or missing role', () => {

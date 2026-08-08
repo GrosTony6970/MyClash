@@ -19,47 +19,11 @@
  * in the export even when that is inconvenient.
  */
 
-/**
- * How a table's rows are reached from a data subject.
- *
- * The three reaches are NOT interchangeable and conflating them is the main
- * correctness risk in this module:
- *  - `uid`           column holds an auth.users id.
- *  - `global_person` column holds a global_persons.id (cross-event identity).
- *  - `person`        column holds a persons.id (the EVENT-SCOPED roster row).
- *
- * The trap: `workshop_enrollments.user_id` is named like a uid but holds a
- * persons.id — guests carry a persons.id with no account at all. Reading it as
- * a uid exports nothing; reading some other table's persons.id as a uid exports
- * A DIFFERENT PERSON'S ROWS. Both failures are silent, which is why the reach is
- * declared per column here rather than inferred from the column name.
- *
- * `registration` is the fourth: a `registrations.id`, resolved from the
- * subject's person ids. It exists because a phase roster row (swiss_entrants)
- * names the subject only through their registration, and the coverage guard —
- * which scans for `*user_id` / `*person_id` names and foreign keys to persons —
- * cannot see that at all. Art. 15 is about what we hold, not what a regex
- * notices.
- */
-export type SubjectReach = 'uid' | 'global_person' | 'person' | 'registration';
-
-export interface SubjectReachSpec {
-  column: string;
-  reach: SubjectReach;
-}
-
-export interface SubjectTableSpec {
-  /** Every way a row in this table can point directly at the subject. */
-  reaches: readonly SubjectReachSpec[];
-  /** Bundle entry these rows land in. */
-  file: string;
-  /**
-   * Set when rows ALSO reach the subject indirectly (through a match,
-   * registration, …). The guard does not check this; the service implements it
-   * and its tests pin it. Recorded here so the two stay legible together.
-   */
-  note?: string;
-}
+// The `reach` vocabulary this map is written in — and the trap that makes it
+// necessary — lives in ./subject-export.reach.ts. Re-exported so the many
+// existing importers of this module keep working unchanged.
+export type { SubjectReach, SubjectReachSpec, SubjectTableSpec } from './subject-export.reach';
+import type { SubjectTableSpec } from './subject-export.reach';
 
 /**
  * Inbound social edges — who follows the subject — are deliberately NOT a reach.
@@ -123,6 +87,14 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
 
   // ── Competition participation ───────────────────────────────────────────────
   registrations: {
+    reaches: [{ column: 'person_id', reach: 'person' }],
+    file: 'events.csv',
+  },
+  event_gear_checks: {
+    // A judgement recorded about the subject's own equipment, including a
+    // free-text reason someone else wrote about them. Art. 15 covers opinions
+    // held about a person, not only facts, so a "conditional - gorget too
+    // loose" note is exactly the kind of record they are entitled to see.
     reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'events.csv',
   },

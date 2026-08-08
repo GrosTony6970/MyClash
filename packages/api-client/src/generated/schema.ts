@@ -8796,6 +8796,66 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/gear/roster': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search this event roster, each person expanded per entered weapon
+     * @description A pass is per weapon, so a fighter entered in longsword and rapier has two lines with independent results.
+     */
+    get: operations['GearController_roster'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/gear/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Fully-checked / total for this event
+     * @description A fighter counts as checked only when EVERY weapon they are entered in has a result — a longsword pass says nothing about the rapier they fight with after lunch.
+     */
+    get: operations['GearController_summary'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff/gear/{personId}/{weaponId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a pass / fail / conditional for one person and weapon
+     * @description Appends rather than overwriting, so a re-check after a failure keeps the history. A conditional without a reason is refused by both the DTO and a table CHECK.
+     */
+    post: operations['GearController_record'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/tournaments/{id}/stats/overview': {
     parameters: {
       query?: never;
@@ -10988,6 +11048,11 @@ export interface components {
        * @enum {string}
        */
       via: 'search' | 'qr';
+    };
+    RecordGearCheckDto: {
+      /** @enum {string} */
+      result: 'pass' | 'fail' | 'conditional';
+      reason?: string;
     };
   };
   responses: never;
@@ -24094,6 +24159,66 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GearController_roster: {
+    parameters: {
+      query?: {
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GearController_summary: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GearController_record: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        personId: string;
+        weaponId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RecordGearCheckDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

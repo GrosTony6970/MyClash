@@ -11,14 +11,14 @@ import { parseStaffRole, type StaffRole } from '@myclash/types';
  * mc_staff token, which carries none. See `staff-role.ts` for why that is
  * deliberate.
  *
- * `gear` currently lands on the piste list because the gear-check surface does
- * not exist yet. That is an empty-but-working screen rather than a 404, and it
- * is one line to change when the surface ships. Unknown or missing role falls
- * back the same way, matching `parseStaffRole`: a bare staff account has always
- * meant a scoring account.
+ * Unknown or missing role falls back to the piste list, matching
+ * `parseStaffRole`: a bare staff account has always meant a scoring account, so
+ * a row written before 0173's CHECK constraint must not strand its holder on a
+ * blank page.
  */
 export function landingPathForRole(role: unknown): string {
   const parsed: StaffRole = parseStaffRole(role);
   if (parsed === 'checkin') return '/desk';
+  if (parsed === 'gear') return '/gear';
   return '/lices';
 }

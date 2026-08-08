@@ -31,3 +31,33 @@ const rosterQuerySchema = z
   })
   .strict();
 export class RosterQueryDto extends createZodDto(rosterQuerySchema) {}
+
+/**
+ * A gear result, mirroring the `event_gear_checks_result_allowed` CHECK.
+ */
+const gearResultSchema = z.enum(['pass', 'fail', 'conditional']);
+
+/**
+ * Record one equipment check.
+ *
+ * The refinement mirrors `event_gear_checks_conditional_needs_reason`. Both
+ * exist on purpose: the CHECK is what makes the rule true of the DATA, and this
+ * is what turns a violation into a 400 the volunteer can read instead of a 500
+ * from Postgres. A conditional carrying no text is indistinguishable from a
+ * pass by the time it reaches the piste, which is the whole reason the state
+ * exists.
+ *
+ * A reason on `fail` stays optional — "no gorget" is often self-evident and the
+ * fighter is standing right there.
+ */
+const recordGearCheckSchema = z
+  .object({
+    result: gearResultSchema,
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((value) => value.result !== 'conditional' || Boolean(value.reason?.trim()), {
+    message: 'A conditional pass needs a reason',
+    path: ['reason'],
+  });
+export class RecordGearCheckDto extends createZodDto(recordGearCheckSchema) {}

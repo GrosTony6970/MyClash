@@ -185,6 +185,11 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   // subject-export.service.ts); excluded here means "not part of an event
   // archive", never "not reachable by its subject".
   'event_arrivals',
+  // Per-weapon equipment checks. Same reasoning as event_arrivals directly
+  // above: event-day operations rather than the competitive record, and its
+  // checker column references event_staff_accounts, which is excluded. Also in
+  // the GDPR subject export, for the same reason arrivals are.
+  'event_gear_checks',
   'event_broadcast_notifications',
   'event_broadcast_recipients',
   'tournament_query_settings',
