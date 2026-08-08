@@ -34,6 +34,11 @@ cd "$ROOT_DIR"
 # See deploy.sh — Compose reads these from the invoking shell, not --env-file.
 source "$SCRIPT_DIR/lib/traefik-env.sh"
 
+# See deploy.sh — one owner for data/system-versions.json. Sourced before the
+# optional `git reset --hard` below so the function in memory is the one this
+# script was invoked with, not whatever the new checkout happens to ship.
+source "$SCRIPT_DIR/lib/system-versions.sh"
+
 usage() {
   cat <<'EOF'
 Usage: infra/scripts/redeploy.sh [service...] [options]
@@ -237,6 +242,22 @@ done
 # security-headers — indistinguishable from a chain that failed to build. See
 # deploy.sh.
 mc_verify_edge_plugins || true
+
+# ── Record what is now running ───────────────────────────────────
+# After the health wait, so the manifest describes containers that actually came
+# up. previousCommit comes from the manifest we are about to overwrite: without
+# --pull this redeploy did not move the checkout, so the commit is unchanged and
+# only the date and kind shift — which is exactly what the board should say.
+# Non-fatal: the images are already live, and failing here would report a
+# successful redeploy as a failure.
+mc_write_system_versions_manifest \
+  redeploy \
+  "$(mc_manifest_deployed_commit)" \
+  "$(git rev-parse HEAD)" \
+  "$(mc_now_utc)" \
+  "${SUDO_USER:-${USER:-unknown}}" \
+  none ||
+  warn "Could not refresh data/system-versions.json — the admin board will show the previous deploy."
 
 # ── Smoke test (if api was redeployed) ───────────────────────────
 for svc in "${SERVICES[@]}"; do

@@ -7,16 +7,23 @@ import {
   resolveSystemVersionsRootDir,
 } from '../../common/system-version-paths';
 import type {
+  SystemDeployKind,
   SystemVersionComponentDto,
   SystemVersionsResponseDto,
   SystemVersionSource,
 } from './dto/system-versions.dto';
 
 const UNKNOWN = 'unknown';
+const DEPLOY_KINDS: readonly string[] = ['deploy', 'redeploy', 'rollback', UNKNOWN];
 
 interface RawSystemVersionsManifest {
   generatedAt?: string;
-  deploy?: Partial<SystemVersionsResponseDto['deploy']>;
+  /**
+   * Every field is `string | undefined`, not the response's narrowed types: this
+   * comes from a JSON file written by shell scripts, so it is untrusted input
+   * that happens to be shaped like the DTO.
+   */
+  deploy?: Partial<Record<keyof SystemVersionsResponseDto['deploy'], string>>;
   app?: { version?: string };
   framework?: Partial<
     Record<'react' | 'reactDom' | 'next' | 'nestjs' | 'node' | 'pnpm' | 'typescript', string>
@@ -111,6 +118,7 @@ export class AdminSystemVersionsService {
     const manifest = manifestFromFile ?? (await this.buildFallbackManifest());
     const appSource = manifestFromFile ? 'manifest' : 'package.json';
     const deploy = {
+      kind: deployKind(manifest.deploy?.kind),
       previousCommit: valueOrUnknown(manifest.deploy?.previousCommit),
       deployedCommit: valueOrUnknown(manifest.deploy?.deployedCommit),
       deployedAt: valueOrUnknown(manifest.deploy?.deployedAt),
@@ -133,6 +141,9 @@ export class AdminSystemVersionsService {
           components: [
             component('deployedCommit', 'Deployed commit', deploy.deployedCommit, 'deploy'),
             component('deployedAt', 'Deploy date', deploy.deployedAt, 'deploy'),
+            // Directly under the date it qualifies: a refreshed date means
+            // something very different after a rollback than after a deploy.
+            component('deployKind', 'Deploy kind', deploy.kind, 'deploy'),
             component('deployedBy', 'Deployed by', deploy.deployedBy, 'deploy'),
             component('backupFile', 'Backup file', deploy.backupFile, 'deploy'),
           ],
@@ -313,6 +324,17 @@ function parseComposeImages(composeText: string): Record<string, string> {
 
 function valueOrUnknown(value: string | undefined): string {
   return typeof value === 'string' && value.trim() ? value.trim() : UNKNOWN;
+}
+
+/**
+ * Narrow the manifest's free-form string to the closed set the UI can translate.
+ * A manifest written by an older deploy has no `kind` at all, and one written by
+ * a future script could carry a value this build has no label for — both must
+ * land on `unknown` rather than reach the board as a raw i18n key.
+ */
+function deployKind(value: string | undefined): SystemDeployKind {
+  const kind = valueOrUnknown(value);
+  return (DEPLOY_KINDS.includes(kind) ? kind : UNKNOWN) as SystemDeployKind;
 }
 
 function stripSemverPrefix(value: string | undefined): string | undefined {

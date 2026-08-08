@@ -45,6 +45,7 @@ interface VersionGroup {
 interface SystemVersionsResponse {
   generatedAt: string;
   deploy: {
+    kind: 'deploy' | 'redeploy' | 'rollback' | 'unknown';
     previousCommit: string;
     deployedCommit: string;
     deployedAt: string;
@@ -263,9 +264,19 @@ export default function AdminSystemVersionsPage() {
                             // date instead of the raw ISO string from the manifest.
                             const isDeployDate =
                               group.key === 'deploy' && component.key === 'deployedAt';
+                            // `deployKind` carries an enum value, not a version — the
+                            // server sends `rollback`, the operator reads a sentence.
+                            const isDeployKind =
+                              group.key === 'deploy' && component.key === 'deployKind';
                             const displayValue = isDeployDate
                               ? formatDeployDate(component.version, locale)
-                              : formatValue(component.version, t('admin.systemVersions.unknown'));
+                              : isDeployKind
+                                ? translateWithFallback(
+                                    t,
+                                    `admin.systemVersions.deployKinds.${component.version}`,
+                                    component.version,
+                                  )
+                                : formatValue(component.version, t('admin.systemVersions.unknown'));
                             const componentLabel = translateWithFallback(
                               t,
                               `admin.systemVersions.components.${component.key}`,
@@ -282,7 +293,7 @@ export default function AdminSystemVersionsPage() {
                                 </td>
                                 <td
                                   className={
-                                    isDeployDate
+                                    isDeployDate || isDeployKind
                                       ? 'py-2 px-4 text-xs text-foreground-secondary'
                                       : 'py-2 px-4 font-mono text-xs text-foreground-secondary'
                                   }

@@ -38,6 +38,11 @@ DEPLOY_STARTED_AT=$(date +%s)
 # not from --env-file, so every entrypoint that runs `up` must source it.
 source "$SCRIPT_DIR/lib/traefik-env.sh"
 
+# ONE owner for data/system-versions.json, the manifest the api container mounts
+# and the admin board reads. Sourced by every entrypoint that changes what is
+# running, so none of them can leave the board describing a previous deploy.
+source "$SCRIPT_DIR/lib/system-versions.sh"
+
 # ── Arguments ────────────────────────────────────────────────────
 USE_DEV_CERTS=0
 SKIP_BACKUP=0
@@ -500,26 +505,13 @@ fi
 export GIT_COMMIT="$NEW_COMMIT"
 
 # ── System version manifest ──────────────────────────────────────
-hdr "Generating system version manifest"
-
-mkdir -p data
-if [[ -d data/system-versions.json ]]; then
-  warn "Replacing accidental directory at data/system-versions.json with a manifest file"
-  rm -rf -- data/system-versions.json
-fi
-
-node scripts/generate-system-versions.mjs \
-  --output data/system-versions.json \
-  --previous-commit "$CURRENT_COMMIT" \
-  --deployed-commit "$NEW_COMMIT" \
-  --deployed-at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-  --deployed-by "${SUDO_USER:-${USER:-unknown}}" \
-  --backup-file "${BACKUP_FILE:-none}"
-if [[ ! -f data/system-versions.json || ! -s data/system-versions.json ]]; then
-  err "System version manifest was not generated as a non-empty file"
-  exit 1
-fi
-ok "System version manifest written to data/system-versions.json"
+mc_write_system_versions_manifest \
+  deploy \
+  "$CURRENT_COMMIT" \
+  "$NEW_COMMIT" \
+  "$(mc_now_utc)" \
+  "${SUDO_USER:-${USER:-unknown}}" \
+  "${BACKUP_FILE:-none}"
 
 # ── Build ────────────────────────────────────────────────────────
 hdr "Building images"

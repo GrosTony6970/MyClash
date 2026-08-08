@@ -16,6 +16,7 @@ describe('AdminSystemVersionsService', () => {
     await writeJson(manifestPath, {
       generatedAt: '2026-05-05T09:00:00.000Z',
       deploy: {
+        kind: 'rollback',
         deployedCommit: 'abcdef123456',
         deployedAt: '2026-05-05T08:59:00Z',
         deployedBy: 'deploy-user',
@@ -85,6 +86,13 @@ describe('AdminSystemVersionsService', () => {
       expect.objectContaining({ key: 'deployedAt', label: 'Deploy date' }),
     );
 
+    // What moved the stack, alongside when. A rollback refreshes deployedAt just
+    // like a deploy does, so the date on its own reads as reassuring news.
+    expect(result.deploy.kind).toBe('rollback');
+    expect(result.groups.find((group) => group.key === 'deploy')?.components).toContainEqual(
+      expect.objectContaining({ key: 'deployKind', version: 'rollback', source: 'deploy' }),
+    );
+
     // Framework versions are stripped of leading semver prefixes (^, ~).
     expect(result.groups.find((group) => group.key === 'framework')?.components).toEqual(
       expect.arrayContaining([
@@ -126,6 +134,56 @@ describe('AdminSystemVersionsService', () => {
         status: 'unknown',
       }),
     );
+    expect(result.deploy.kind).toBe('unknown');
+  });
+
+  it('clamps an unrecognised deploy kind to unknown', async () => {
+    // The manifest is written by shell scripts, so its `kind` is untrusted: a
+    // manifest from an older deploy has no kind at all, and one from a newer
+    // script could carry a value this build has no label for. Either must land on
+    // `unknown` — the board translates this through an i18n key, and anything
+    // outside the closed set would render as a raw bracketed key to the operator.
+    const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
+    const manifestPath = path.join(dir, 'system-versions.json');
+    await writeJson(manifestPath, {
+      generatedAt: '2026-05-05T09:00:00.000Z',
+      deploy: { kind: 'hotpatch', deployedCommit: 'abcdef123456' },
+      app: { version: 'v1.2.3' },
+    });
+
+    const service = new AdminSystemVersionsService({
+      manifestPath,
+      runtimeNodeVersion: 'v22.1.0',
+    });
+
+    const result = await service.getSystemVersions();
+
+    expect(result.deploy.kind).toBe('unknown');
+    expect(result.groups.find((group) => group.key === 'deploy')?.components).toContainEqual(
+      expect.objectContaining({ key: 'deployKind', version: 'unknown' }),
+    );
+  });
+
+  it('reads a manifest written before deploy kinds existed as unknown', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
+    const manifestPath = path.join(dir, 'system-versions.json');
+    await writeJson(manifestPath, {
+      generatedAt: '2026-05-05T09:00:00.000Z',
+      deploy: { deployedCommit: 'abcdef123456', deployedBy: 'deploy-user' },
+      app: { version: 'v1.2.3' },
+    });
+
+    const service = new AdminSystemVersionsService({
+      manifestPath,
+      runtimeNodeVersion: 'v22.1.0',
+    });
+
+    const result = await service.getSystemVersions();
+
+    // Everything else in the manifest is still trusted — only the missing field
+    // degrades, so an in-flight upgrade never blanks the rest of the board.
+    expect(result.deploy.kind).toBe('unknown');
+    expect(result.deploy.deployedBy).toBe('deploy-user');
   });
 
   it('uses packaged container metadata when the manifest is unavailable', async () => {

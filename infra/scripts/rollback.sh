@@ -27,6 +27,12 @@ cd "$ROOT_DIR"
 # bring the stack up, silently detaches the GeoBlock/Fail2Ban middlewares.
 source "$SCRIPT_DIR/lib/traefik-env.sh"
 
+# One owner for data/system-versions.json — see deploy.sh. Sourced HERE, at the
+# top, so the function survives the `git reset --hard` further down: after the
+# reset this checkout may predate the lib entirely, and a rollback that cannot
+# update the board is precisely the case where the board lies loudest.
+source "$SCRIPT_DIR/lib/system-versions.sh"
+
 case "${1:-}" in
   -h|--help)
     cat <<'EOF'
@@ -146,6 +152,12 @@ ok "Code reset"
 # ── Rebuild ──────────────────────────────────────────────────────
 hdr "Rebuilding images"
 
+# Compose interpolates GIT_COMMIT from the invoking shell into every image's
+# build args and Sentry release. deploy.sh and redeploy.sh both export it; this
+# script did not, so rolled-back images were stamped `unknown` and the API's
+# fallback commit — the one shown when the manifest is unreadable — was blank.
+export GIT_COMMIT="$PREV_COMMIT"
+
 "${COMPOSE[@]}" build
 ok "Images built"
 
@@ -166,18 +178,33 @@ else
 fi
 
 # ── Record rollback metadata ─────────────────────────────────────
+ROLLED_BACK_AT="$(mc_now_utc)"
+
 mv .last-deploy.json ".last-deploy.json.rolled-back-$(date -u +"%Y%m%dT%H%M%SZ")"
 
 cat > .last-deploy.json <<EOF
 {
   "previousCommit": "$DEPLOYED_COMMIT",
   "deployedCommit": "$PREV_COMMIT",
-  "deployedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "deployedAt": "$ROLLED_BACK_AT",
   "deployedBy": "${SUDO_USER:-${USER:-unknown}}",
   "backupFile": "none",
   "isRollback": true
 }
 EOF
+
+# The admin board reads the manifest, not this file. Without the line below a
+# rollback left it naming the commit we just rolled back FROM — the one answer to
+# "what is running?" that is worse than "unknown". Non-fatal: the rollback itself
+# has already succeeded and must not be reported as failed over its own bookkeeping.
+mc_write_system_versions_manifest \
+  rollback \
+  "$DEPLOYED_COMMIT" \
+  "$PREV_COMMIT" \
+  "$ROLLED_BACK_AT" \
+  "${SUDO_USER:-${USER:-unknown}}" \
+  none ||
+  warn "Could not refresh data/system-versions.json — the admin board will still name ${DEPLOYED_COMMIT:0:8}."
 
 hdr "Rollback complete"
 echo

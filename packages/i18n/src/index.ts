@@ -4397,6 +4397,12 @@ export const en = {
         ok: 'ok',
         unknown: 'unknown',
       },
+      deployKinds: {
+        deploy: 'Full deploy',
+        redeploy: 'Service redeploy',
+        rollback: 'Rollback',
+        unknown: 'unknown',
+      },
       groups: {
         app: 'Application',
         deploy: 'Deploy',
@@ -4409,6 +4415,7 @@ export const en = {
         myclash: 'MyClash app',
         deployedCommit: 'Deployed commit',
         deployedAt: 'Deploy date',
+        deployKind: 'Deploy kind',
         deployedBy: 'Deployed by',
         backupFile: 'Backup file',
         '@myclash/api': 'API workspace',
@@ -12093,6 +12100,12 @@ export const fr = {
         ok: 'ok',
         unknown: 'inconnu',
       },
+      deployKinds: {
+        deploy: 'Déploiement complet',
+        redeploy: 'Redéploiement de service',
+        rollback: 'Retour arrière',
+        unknown: 'inconnu',
+      },
       groups: {
         app: 'Application',
         deploy: 'Déploiement',
@@ -12105,6 +12118,7 @@ export const fr = {
         myclash: 'App MyClash',
         deployedCommit: 'Commit déployé',
         deployedAt: 'Date de déploiement',
+        deployKind: 'Type de déploiement',
         deployedBy: 'Déployé par',
         backupFile: 'Fichier de sauvegarde',
         '@myclash/api': 'Workspace API',

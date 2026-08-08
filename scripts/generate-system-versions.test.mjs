@@ -61,6 +61,7 @@ test('generates system version metadata from app manifests and production compos
     outputPath,
     now: () => new Date('2026-05-05T09:00:00.000Z'),
     deploy: {
+      kind: 'redeploy',
       deployedCommit: 'abcdef123456',
       deployedAt: '2026-05-05T08:59:00Z',
       deployedBy: 'deploy-user',
@@ -69,6 +70,7 @@ test('generates system version metadata from app manifests and production compos
 
   assert.equal(result.generatedAt, '2026-05-05T09:00:00.000Z');
   assert.equal(result.deploy.deployedCommit, 'abcdef123456');
+  assert.equal(result.deploy.kind, 'redeploy');
   assert.equal(result.app.version, 'v1.2.3');
   // `workspaces` was dropped: the admin page group it fed duplicated App containers.
   assert.equal(result.workspaces, undefined);
@@ -82,6 +84,31 @@ test('generates system version metadata from app manifests and production compos
 
   const written = JSON.parse(await readFile(outputPath, 'utf8'));
   assert.deepEqual(written, result);
+});
+
+test('clamps an unrecognised or absent deploy kind to unknown', async () => {
+  // The board translates this value through an i18n key, so anything outside the
+  // closed set would reach the operator as a raw bracketed key. Callers are shell
+  // scripts passing "$1" — a typo must degrade, not leak through.
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-kind-'));
+  const outputPath = path.join(rootDir, 'data', 'system-versions.json');
+
+  for (const [given, expected] of [
+    ['deploy', 'deploy'],
+    ['redeploy', 'redeploy'],
+    ['rollback', 'rollback'],
+    ['hotpatch', 'unknown'],
+    ['', 'unknown'],
+    [undefined, 'unknown'],
+  ]) {
+    const result = await generateSystemVersions({
+      rootDir,
+      outputPath,
+      now: () => new Date('2026-05-05T09:00:00.000Z'),
+      deploy: { kind: given },
+    });
+    assert.equal(result.deploy.kind, expected, `kind ${JSON.stringify(given)}`);
+  }
 });
 
 test('rewrites the manifest in place so an already-open handle sees the update', async () => {

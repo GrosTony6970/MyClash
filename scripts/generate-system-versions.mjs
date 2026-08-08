@@ -4,6 +4,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const UNKNOWN = 'unknown';
+const DEPLOY_KINDS = ['deploy', 'redeploy', 'rollback', UNKNOWN];
 
 const infrastructureServiceKeys = {
   traefik: 'traefik',
@@ -66,6 +67,10 @@ export async function generateSystemVersions({
   const result = {
     generatedAt: now().toISOString(),
     deploy: {
+      // What moved the stack, not just when. A redeploy of one app and a
+      // rollback both refresh deployedAt, and "deployed 3 minutes ago" is more
+      // misleading than a stale date when it was actually a rollback.
+      kind: deployKind(deploy.kind),
       previousCommit: stringOrUnknown(deploy.previousCommit),
       deployedCommit,
       deployedAt: stringOrUnknown(deploy.deployedAt),
@@ -136,6 +141,16 @@ function stringOrUnknown(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : UNKNOWN;
 }
 
+/**
+ * Closed set — the admin board translates this value through an i18n key, so an
+ * unrecognised kind would render as a raw bracketed key rather than a label.
+ * Anything unexpected collapses to `unknown`, which has a translation.
+ */
+function deployKind(value) {
+  const kind = stringOrUnknown(value);
+  return DEPLOY_KINDS.includes(kind) ? kind : UNKNOWN;
+}
+
 function parseCliArgs(argv) {
   const options = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -156,6 +171,9 @@ function parseCliArgs(argv) {
     }
     if (arg === '--backup-file') {
       options.deploy = { ...(options.deploy ?? {}), backupFile: argv[++i] };
+    }
+    if (arg === '--kind') {
+      options.deploy = { ...(options.deploy ?? {}), kind: argv[++i] };
     }
   }
   return options;

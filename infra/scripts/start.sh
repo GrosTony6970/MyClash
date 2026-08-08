@@ -12,6 +12,12 @@ cd "$ROOT_DIR"
 #   TRAEFIK_PLUGINS=off ./infra/scripts/start.sh
 source "$SCRIPT_DIR/lib/traefik-env.sh"
 
+# This script creates containers without deploying, and Compose binds the deploy
+# manifest by path at create time — a missing path becomes a directory the api
+# container then reads for its whole life. refresh.sh does not need this: it only
+# `restart`s existing containers and never binds a fresh mount source.
+source "$SCRIPT_DIR/lib/system-versions.sh"
+
 usage() {
   cat <<'EOF'
 Usage: infra/scripts/start.sh
@@ -30,6 +36,8 @@ COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod
 hdr "Validating configuration"
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 ok ".env found"
+
+mc_ensure_system_versions_manifest
 
 hdr "Starting containers"
 "${COMPOSE[@]}" up -d

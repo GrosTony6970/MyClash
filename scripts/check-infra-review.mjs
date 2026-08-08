@@ -11,6 +11,7 @@ const restorePath = path.join(rootDir, 'infra', 'scripts', 'restore.sh');
 const rollbackPath = path.join(rootDir, 'infra', 'scripts', 'rollback.sh');
 const startPath = path.join(rootDir, 'infra', 'scripts', 'start.sh');
 const traefikEnvLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'traefik-env.sh');
+const systemVersionsLibPath = path.join(rootDir, 'infra', 'scripts', 'lib', 'system-versions.sh');
 const devTraefikStaticPath = path.join(rootDir, 'infra', 'traefik', 'traefik.dev.yml');
 const devTraefikDynamicPath = path.join(rootDir, 'infra', 'traefik', 'dynamic.dev.yml');
 const vpsBootstrapPath = path.join(rootDir, 'infra', 'scripts', 'vps-bootstrap.sh');
@@ -538,6 +539,7 @@ const adminUsersServiceText = await readFile(adminUsersServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const startText = await readFile(startPath, 'utf8');
+const systemVersionsLibText = await readFile(systemVersionsLibPath, 'utf8');
 const traefikEnvLibText = await readFile(traefikEnvLibPath, 'utf8');
 const devTraefikStaticText = await readFile(devTraefikStaticPath, 'utf8');
 const devTraefikDynamicText = await readFile(devTraefikDynamicPath, 'utf8');
@@ -976,10 +978,35 @@ for (const expected of [
   'rm -rf -- data/system-versions.json',
   '[[ ! -f data/system-versions.json || ! -s data/system-versions.json ]]',
 ]) {
-  if (!deployText.includes(expected)) {
-    errors.push(`deploy.sh system version manifest generation must include ${expected}.`);
+  if (!systemVersionsLibText.includes(expected)) {
+    errors.push(
+      `infra/scripts/lib/system-versions.sh manifest generation must include ${expected}.`,
+    );
   }
 }
+// The manifest has ONE writer, and every entrypoint that changes what is running
+// must go through it. It used to be written only by deploy.sh, so a redeploy left
+// the admin board describing the previous deploy and a rollback left it naming
+// the commit that had just been rolled back — stale in a way nothing surfaced.
+for (const [label, text] of [
+  ['infra/scripts/deploy.sh', deployText],
+  ['infra/scripts/redeploy.sh', redeployText],
+  ['infra/scripts/rollback.sh', rollbackText],
+  ['infra/scripts/start.sh', startText],
+]) {
+  requireContains(text, label, 'source "$SCRIPT_DIR/lib/system-versions.sh"');
+}
+for (const [label, text] of [
+  ['infra/scripts/deploy.sh', deployText],
+  ['infra/scripts/redeploy.sh', redeployText],
+  ['infra/scripts/rollback.sh', rollbackText],
+]) {
+  requireContains(text, label, 'mc_write_system_versions_manifest');
+}
+requireContains(startText, 'infra/scripts/start.sh', 'mc_ensure_system_versions_manifest');
+// Rolled-back images used to bake GIT_COMMIT=unknown: deploy.sh and redeploy.sh
+// both export it for Compose to interpolate, rollback.sh did not.
+requireContains(rollbackText, 'infra/scripts/rollback.sh', 'export GIT_COMMIT="$PREV_COMMIT"');
 for (const expected of ['stat.isFile()', 'Source: ${source}', 'Manifest path type: ${type}']) {
   if (!statusText.includes(expected)) {
     errors.push(`status.sh API version diagnostics must tolerate bad manifests with ${expected}.`);
@@ -1923,7 +1950,7 @@ for (const expected of [
 ]) {
   requireContains(composeText, 'infra/docker-compose.prod.yml', expected);
 }
-assertManifestMountMatchesGenerator(deployText, 'infra/scripts/deploy.sh');
+assertManifestMountMatchesGenerator(systemVersionsLibText, 'infra/scripts/lib/system-versions.sh');
 for (const expected of [
   'parseComposeImages',
   "process.env['GIT_COMMIT']",
