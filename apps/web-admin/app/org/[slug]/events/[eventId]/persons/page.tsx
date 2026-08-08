@@ -22,6 +22,7 @@ import {
   type ClubSuggestion as ClubPickerSuggestion,
 } from './_components/club-picker-rows';
 import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
+import { MailPassesButton } from './_components/MailPassesButton';
 import { WaitingListPanel } from './_components/WaitingListPanel';
 import { addToWaitingList, tryRegisterInTournament } from './_components/registration-helpers';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -1019,6 +1020,7 @@ export default function ParticipantsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <MailPassesButton eventId={eventId} disabled={isReadOnly} />
           <Link
             href={`/org/${slug}/events/${eventId}/persons/import`}
             data-testid="persons-import-link"

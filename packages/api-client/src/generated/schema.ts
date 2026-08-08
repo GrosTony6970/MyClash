@@ -8893,6 +8893,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/passes/mail': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mail an event pass to unclaimed roster entries (org editor+)
+     * @description Skips anyone who already holds a pass unless resend is set — issuing replaces the previous token.
+     */
+    post: operations['PassController_mailPasses'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/event-passes/{token}': {
     parameters: {
       query?: never;
@@ -11113,6 +11133,10 @@ export interface components {
       /** @enum {string} */
       result: 'pass' | 'fail' | 'conditional';
       reason?: string;
+    };
+    MailPassesDto: {
+      /** @default false */
+      resend: boolean;
     };
   };
   responses: never;
@@ -24319,6 +24343,30 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PassController_mailPasses: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Event UUID or slug */
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MailPassesDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

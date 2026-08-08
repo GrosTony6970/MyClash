@@ -1,10 +1,13 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { resolveEventId } from '../../common/event-ref';
 import { Public } from '../../common/auth/public.decorator';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import { ParticipantIdentityService } from '../auth/participant-identity.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { MailPassesDto } from './dto';
+import { PassEmailService } from './pass-email.service';
 import { PassService } from './pass.service';
 
 /**
@@ -20,6 +23,7 @@ import { PassService } from './pass.service';
 export class PassController {
   constructor(
     private readonly pass: PassService,
+    private readonly passEmail: PassEmailService,
     private readonly identity: ParticipantIdentityService,
     private readonly supabase: SupabaseService,
   ) {}
@@ -64,6 +68,36 @@ export class PassController {
    * A wrong token is indistinguishable from an expired one, so this cannot be
    * used to enumerate which tokens exist.
    */
+  /**
+   * Mail a pass to every unclaimed roster entry that has an address.
+   *
+   * The organiser's counterpart to the self-service pass: an entry imported from
+   * a CSV and never claimed has no account and no guest session, so it cannot
+   * issue its own. Editor role — the same bar as editing the roster this
+   * targets.
+   *
+   * `resend` defaults to false so a second mail-out after adding three fighters
+   * does not retire the link Thursday's recipients are already holding.
+   */
+  @Post('events/:eventId/passes/mail')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Mail an event pass to unclaimed roster entries (org editor+)',
+    description:
+      'Skips anyone who already holds a pass unless resend is set — issuing replaces the previous token.',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
+  async mailPasses(
+    @Param('eventId') eventRef: string,
+    @Body() dto: MailPassesDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const eventId = await resolveEventId(this.supabase, eventRef);
+    const userId = await resolveRequestUserId(req, this.supabase);
+    return this.passEmail.mailPasses(eventId, userId, dto.resend);
+  }
+
   @Public()
   @Get('event-passes/:token')
   @ApiOperation({

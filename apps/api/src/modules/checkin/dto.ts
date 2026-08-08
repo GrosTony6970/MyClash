@@ -33,6 +33,21 @@ const scanPassSchema = z
   .strict();
 export class ScanPassDto extends createZodDto(scanPassSchema) {}
 
+/**
+ * Mail event passes to the roster.
+ *
+ * `resend` defaults to FALSE and that default is load-bearing: issuing replaces
+ * the previous token, so a second mail-out after adding three fighters on the
+ * Friday would otherwise kill the link every one of Thursday's recipients is
+ * already holding. Sending again to everyone has to be asked for explicitly.
+ */
+const mailPassesSchema = z
+  .object({
+    resend: z.boolean().default(false),
+  })
+  .strict();
+export class MailPassesDto extends createZodDto(mailPassesSchema) {}
+
 const rosterQuerySchema = z
   .object({
     /**

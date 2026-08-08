@@ -2200,6 +2200,20 @@ export const en = {
       breadcrumbParticipants: 'Participants',
       pageTitle: 'Participants',
       csvImport: 'CSV import',
+      passes: {
+        send: 'Email passes',
+        sending: 'Sending...',
+        resend: 'Send again to everyone',
+        confirmSendTitle: 'Email event passes?',
+        confirmSendBody:
+          'Every roster entry without a MyClash account, and with an email on file, gets a personal pass link. Anyone who already has one is skipped.',
+        confirmResendTitle: 'Send again to everyone?',
+        confirmResendBody:
+          'This issues a NEW pass for everyone, which stops the links already sent from working. Only do this if the old links must be retired.',
+        result: '{sent} sent, {skipped} already had one, {withoutEmail} with no email address.',
+        failed: 'Could not send to: {addresses}',
+        error: 'The mail-out failed. Nothing was sent.',
+      },
       addParticipantButton: '+ Add participant',
       modePersons: 'Persons',
       modeWaitingList: 'Waiting list',
@@ -9792,6 +9806,20 @@ export const fr = {
       breadcrumbParticipants: 'Participants',
       pageTitle: 'Participants',
       csvImport: 'Import CSV',
+      passes: {
+        send: 'Envoyer les pass',
+        sending: 'Envoi...',
+        resend: 'Renvoyer a tout le monde',
+        confirmSendTitle: 'Envoyer les pass par email ?',
+        confirmResendTitle: 'Renvoyer a tout le monde ?',
+        confirmSendBody:
+          'Chaque inscrit sans compte MyClash, et dont l adresse email est connue, recoit un lien de pass personnel. Ceux qui en ont deja un sont ignores.',
+        confirmResendBody:
+          'Cela genere un NOUVEAU pass pour tout le monde et rend inutilisables les liens deja envoyes. A ne faire que si les anciens liens doivent etre annules.',
+        result: '{sent} envoyes, {skipped} en avaient deja un, {withoutEmail} sans adresse email.',
+        failed: 'Envoi impossible vers : {addresses}',
+        error: "L'envoi a echoue. Rien n'a ete envoye.",
+      },
       addParticipantButton: '+ Ajouter un participant',
       modePersons: 'Personnes',
       modeWaitingList: "Liste d'attente",
