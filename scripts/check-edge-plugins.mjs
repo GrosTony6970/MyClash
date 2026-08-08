@@ -71,6 +71,29 @@ export const PROD_PROBES = [
     middlewares: 'myclash-geoblock-public',
     expect: 'hsts',
   },
+  {
+    // myclash-staff-auth: host-less PathPrefix at priority 40, so it wins on
+    // EVERY host reaching Traefik. Probed on api. precisely because that host
+    // used to serve this path unjailed — the three PathPrefix(/api/v1) routers
+    // are not the only way in, which is the hole this router closes.
+    //
+    // GET on a POST-only route, so the router answering at all is the signal:
+    // 404-with-HSTS proves the chain built, 404-without proves it did not.
+    host: (domain) => `api.${domain}`,
+    path: '/api/v1/staff-auth/login',
+    middlewares: 'myclash-geoblock-public + myclash-fail2ban-staff',
+    expect: 'hsts',
+  },
+  {
+    // myclash-staff-auth-admin: the admin-host twin, which exists so this path
+    // keeps MW_GEO_ADMIN instead of inheriting the host-less router's public
+    // allow-list. Judged on auth-challenge because the admin geoblock answers
+    // 403 from anywhere outside the allow-list, including CI.
+    host: (domain) => `admin.${domain}`,
+    path: '/api/v1/staff-auth/login',
+    middlewares: 'myclash-geoblock-admin + myclash-fail2ban-staff',
+    expect: 'auth-challenge',
+  },
 ];
 
 /** The four instances declared across middlewares.yml and the traefik labels. */

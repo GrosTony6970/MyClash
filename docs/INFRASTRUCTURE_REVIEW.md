@@ -72,15 +72,35 @@ site outage, so `allowUnknownCountries: true` there is load-bearing and pinned b
 **Fail2Ban** guards only the surfaces the application does not already rate-limit
 (see `ARCHITECTURE.md` §14.3 for the app-level throttler):
 
-| Instance                 | Routers                   | Threshold                       | Why                                                                          |
-| ------------------------ | ------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
-| `myclash-fail2ban-auth`  | `myclash-auth`, dashboard | 20 × (401\|429) / 10m → 30m ban | `/auth/v1/*` proxies straight to GoTrue, bypassing `ThrottlerGuard` entirely |
-| `myclash-fail2ban-staff` | `myclash-staff-api`       | 60 × (401\|429) / 10m → 15m ban | Staff PIN login has no `@Throttle` override; a venue shares one NAT'd IP     |
+| Instance                 | Routers                                                               | Threshold                            | Why                                                                          |
+| ------------------------ | --------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------- |
+| `myclash-fail2ban-auth`  | `myclash-auth`, `myclash-studio`, dashboard                           | 20 × (401\|403\|429) / 10m → 30m ban | `/auth/v1/*` proxies straight to GoTrue, bypassing `ThrottlerGuard` entirely |
+| `myclash-fail2ban-staff` | `myclash-staff-api`, `myclash-staff-auth`, `myclash-staff-auth-admin` | 60 × (401\|403\|429) / 10m → 15m ban | A venue shares one NAT'd IP, so this is volumetric only                      |
+
+`403` is in the list because a **disabled** staff account answers 403, not 401 —
+without it, probing for which usernames exist and which have been switched off is
+free. The router list and the status codes are both pinned by
+`check-infra-review.mjs`.
+
+**Four routers reach the API, and only one used to carry the jail.**
+`myclash-api`, `myclash-admin-api`, `myclash-public-api` and `myclash-staff-api`
+all resolve to the same container, so `POST /api/v1/staff-auth/login` answered
+unjailed on `api.`, `app.` and `admin.`. `myclash-staff-auth` closes that with a
+**host-less** `PathPrefix` rule at priority 40 — host-less on purpose, so a fifth
+host added to the API later cannot silently reopen it. `myclash-staff-auth-admin`
+is its twin at priority 50, and exists only to keep that path behind
+`MW_GEO_ADMIN` on the admin host rather than inheriting the public allow-list.
+
+The primary control on staff login is now `@ThrottleByStaffAccount` in the API
+(10/h per event + username, never keyed on `req.ip`); the jail is the volumetric
+backstop behind it.
 
 Thresholds are set by **how many humans sit behind one public IP**, not by how
 strict they could be — this is a volumetric backstop, not the primary auth
 control. `myclash-admin-api` is excluded on purpose: expired sliding sessions emit
 parallel 401 bursts indistinguishable from an attack by status code alone.
+(`myclash-staff-auth-admin` does jail a path on the admin host, but only
+`/api/v1/staff-auth` — not a sliding-session surface, so no 401 bursts.)
 
 The ban allowlist is derived from `THROTTLE_IP_WHITELIST` by
 `infra/scripts/lib/traefik-env.sh`, so the app throttler and the edge share one

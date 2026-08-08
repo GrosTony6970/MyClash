@@ -60,13 +60,13 @@ services:
       # dev, and none may ever be committed to this public repo).
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.allowlist.ip=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.enabled=true
-      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.statuscode=401,403,429
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.maxretry=20
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.findtime=10m
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.bantime=30m
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.allowlist.ip=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.enabled=true
-      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,403,429
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.maxretry=60
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.findtime=10m
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.bantime=15m

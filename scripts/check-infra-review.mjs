@@ -2277,6 +2277,11 @@ const geoblockRouters = {
   'myclash-staff': 'public',
   'myclash-staff-prefixed': 'public',
   'myclash-staff-api': 'public',
+  'myclash-staff-auth': 'public',
+  // The admin-host twin of the host-less staff-auth router. It exists purely
+  // to keep this path on the admin allow-list: without it the host-less
+  // router wins on admin. too and silently widens geo access there.
+  'myclash-staff-auth-admin': 'admin',
   'myclash-api': 'public',
   'myclash-public-api': 'public',
   'myclash-rest': 'public',
@@ -2302,8 +2307,13 @@ for (const [router, variant] of Object.entries(geoblockRouters)) {
 // cookies emit 401 bursts that are indistinguishable from an attack.
 const fail2banRouters = {
   'myclash-auth': 'MW_F2B_AUTH',
+  'myclash-studio': 'MW_F2B_AUTH',
   'myclash-traefik-dashboard': 'MW_F2B_AUTH',
   'myclash-staff-api': 'MW_F2B_STAFF',
+  // Both halves of the staff-auth pair, or the endpoint goes back to being
+  // unjailed on whichever host is missing.
+  'myclash-staff-auth': 'MW_F2B_STAFF',
+  'myclash-staff-auth-admin': 'MW_F2B_STAFF',
 };
 for (const [router, prefix] of Object.entries(fail2banRouters)) {
   const pattern = new RegExp(
@@ -2319,6 +2329,31 @@ if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText))
     'myclash-admin-api must NOT chain fail2ban: expired sliding sessions emit parallel 401 bursts ' +
       'that would ban legitimate admins. The admin country allow-list is the control there.',
   );
+}
+
+// Both jails must count 403 as well as 401. A disabled staff account answers
+// 403, not 401, so without it an attacker can enumerate which usernames exist
+// and which have been switched off for free. Nothing else pins this value, and
+// a silent drift back to `401,429` looks identical from the outside.
+for (const [label, text] of [
+  ['infra/docker-compose.prod.yml', composeText],
+  ['infra/docker-compose.dev.yml', devComposeText],
+]) {
+  for (const jail of ['myclash-fail2ban-auth', 'myclash-fail2ban-staff']) {
+    const pattern = new RegExp(
+      `middlewares\\.${escapeRegExp(jail)}\\.plugin\\.fail2ban\\.rules\\.statuscode=([^\\n]*)`,
+      'u',
+    );
+    const match = pattern.exec(text);
+    if (!match) {
+      errors.push(`${label} must set ${jail} statuscode.`);
+    } else if (match[1].trim() !== '401,403,429') {
+      errors.push(
+        `${label} ${jail} statuscode must be 401,403,429 (found ${match[1].trim()}). ` +
+          '403 covers disabled accounts; without it, probing for them is uncounted.',
+      );
+    }
+  }
 }
 
 // Kong is gone from dev: prod routes the Supabase sub-paths through Traefik, so

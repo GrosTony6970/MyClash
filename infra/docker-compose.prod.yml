@@ -119,7 +119,7 @@ services:
       # front of it, so this is the only rate control on that path.
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.allowlist.ip=${TRAEFIK_BAN_ALLOWLIST}
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.enabled=true
-      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.statuscode=401,403,429
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.maxretry=20
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.findtime=10m
       - traefik.http.middlewares.myclash-fail2ban-auth.plugin.fail2ban.rules.bantime=30m
@@ -129,7 +129,7 @@ services:
       # guesses/hour to ~360 without ever banning a hall full of staff.
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.allowlist.ip=${TRAEFIK_BAN_ALLOWLIST}
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.enabled=true
-      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,429
+      - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.statuscode=401,403,429
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.maxretry=60
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.findtime=10m
       - traefik.http.middlewares.myclash-fail2ban-staff.plugin.fail2ban.rules.bantime=15m
@@ -622,11 +622,39 @@ services:
       - traefik.http.routers.myclash-staff-api.entrypoints=websecure
       - traefik.http.routers.myclash-staff-api.tls=true
       - traefik.http.routers.myclash-staff-api.tls.certresolver=letsencrypt
-      # Staff PIN login lands here and has NO @Throttle override in the API
-      # (default 120/min ≈ 7,200 guesses/hour), so this is the brute-force control.
+      # The -staff jail rides this router as a volumetric backstop. The primary
+      # control is now @ThrottleByStaffAccount in the API (10/h per event+username).
       - traefik.http.routers.myclash-staff-api.middlewares=${MW_GEO_PUBLIC}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-staff-api.priority=30
       - traefik.http.routers.myclash-staff-api.service=myclash-api
+      # ── Staff PIN login, jailed on EVERY host ────────────────────────────
+      # Four routers above reach this same API container, and only
+      # myclash-staff-api carried the jail — so POST /api/v1/staff-auth/login
+      # answered unjailed on api., app. AND admin. These two close that, and
+      # the first is deliberately HOST-LESS: a fifth host added to the API
+      # later cannot silently reopen the hole.
+      #
+      # Priority 40 beats the explicit 30 on the three PathPrefix routers and
+      # the rule-length default (~22) on myclash-api. Traefik's own default
+      # would already put this at 32 and win, but leaving that implicit makes
+      # the ordering an accident of string length rather than a decision.
+      - traefik.http.routers.myclash-staff-auth.rule=PathPrefix(`/api/v1/staff-auth`)
+      - traefik.http.routers.myclash-staff-auth.entrypoints=websecure
+      - traefik.http.routers.myclash-staff-auth.tls=true
+      - traefik.http.routers.myclash-staff-auth.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-staff-auth.middlewares=${MW_GEO_PUBLIC}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-staff-auth.priority=40
+      - traefik.http.routers.myclash-staff-auth.service=myclash-api
+      # admin. keeps MW_GEO_ADMIN. Without this second router the host-less one
+      # above would win on admin. too and quietly move that path from the admin
+      # country allow-list to the public one — a widening, not a fix.
+      - traefik.http.routers.myclash-staff-auth-admin.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/api/v1/staff-auth`)
+      - traefik.http.routers.myclash-staff-auth-admin.entrypoints=websecure
+      - traefik.http.routers.myclash-staff-auth-admin.tls=true
+      - traefik.http.routers.myclash-staff-auth-admin.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-staff-auth-admin.middlewares=${MW_GEO_ADMIN}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-staff-auth-admin.priority=50
+      - traefik.http.routers.myclash-staff-auth-admin.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
       # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
