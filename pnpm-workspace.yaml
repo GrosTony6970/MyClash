@@ -31,26 +31,6 @@ allowBuilds:
   # hooks. Letting the dependency write them too is a second, unowned writer.
   simple-git-hooks: false
 
-# Supply-chain carve-out — TEMPORARY, delete once these age out.
-#
-# pnpm 11 refuses packages published within its minimum release age, which is a
-# real defence against a compromised publish being pulled in before anyone
-# notices. Both entries below were published on 2026-08-07, hours before this
-# commit, and pnpm wrote this block itself to let the install through.
-#
-# They are here because BullMQ 6 removed `repeat` from JobsOptions in favour of
-# job schedulers, and @nestjs/bullmq 11.0.5 is the FIRST release whose peer
-# range accepts bullmq ^6 (11.0.4 tops out at ^5). There is no older version
-# that works.
-#
-# Accepted deliberately: both are first-party @nestjs packages and the exclusion
-# is pinned to exact versions rather than a range, so it cannot silently widen.
-# Once these versions are past the age threshold, DELETE this whole block — it
-# should not outlive the reason for it.
-minimumReleaseAgeExclude:
-  - '@nestjs/bull-shared@11.0.5'
-  - '@nestjs/bullmq@11.0.5'
-
 # Peer-range carve-outs, read by `pnpm peers check` (the `quality:peers` gate)
 # as well as by install. Both entries below are upstream version lag, not
 # breakage — neither package has a release that accepts our version.
