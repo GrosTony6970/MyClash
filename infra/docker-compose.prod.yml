@@ -417,7 +417,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "fetch('http://localhost:8080/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1));",
+          "fetch('http://localhost:8080/health').then(r=>{if(r.status!==200)console.error('HTTP '+r.status);process.exit(r.status===200?0:1)}).catch(e=>{console.error(e.cause?.code||e.name,e.message);process.exit(1)});",
         ]
       interval: 30s
       timeout: 5s
@@ -484,7 +484,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "fetch('http://localhost:3000/api/platform/profile').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1));",
+          "fetch('http://localhost:3000/api/platform/profile').then(r=>{if(r.status!==200)console.error('HTTP '+r.status);process.exit(r.status===200?0:1)}).catch(e=>{console.error(e.cause?.code||e.name,e.message);process.exit(1)});",
         ]
       interval: 30s
       timeout: 5s
@@ -571,7 +571,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://localhost:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+          "require('http').get('http://localhost:4000/health',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
         ]
       interval: 30s
       timeout: 5s
@@ -758,7 +758,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "const http=require('http');const s=process.env.OPS_RUNNER_SECRET;const req=http.get({host:'localhost',port:4075,path:'/status',headers:{authorization:`Bearer $${s}`}},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));",
+          "const http=require('http');const s=process.env.OPS_RUNNER_SECRET;const req=http.get({host:'localhost',port:4075,path:'/status',headers:{authorization:`Bearer $${s}`}},r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)});req.on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)});",
         ]
       interval: 30s
       timeout: 5s
@@ -890,7 +890,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://localhost:3000/api/health/api-reachable',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+          "require('http').get('http://localhost:3000/api/health/api-reachable',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
         ]
       interval: 30s
       timeout: 5s
@@ -993,7 +993,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+          "require('http').get('http://localhost:3000/api/health',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
         ]
       interval: 30s
       timeout: 5s
@@ -1085,7 +1085,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+          "require('http').get('http://localhost:3000/api/health',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
         ]
       interval: 30s
       timeout: 5s
